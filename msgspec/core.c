@@ -871,16 +871,95 @@ PyDoc_STRVAR(Struct__doc__,
 "...\n"
 ">>> Dog('snickers', breed='corgi')\n"
 "Dog(name='snickers', breed='corgi', is_good_boy=True)\n"
-"\n"
-"To serialize or deserialize `Struct` types, they need to be registered with\n"
-"an `Encoder` and `Decoder` through the ``registry`` argument.\n"
-"\n"
-">>> enc = Encoder(registry=[Dog])\n"
-">>> dec = Decoder(registry=[Dog])\n"
-">>> data = enc.dumps(Dog('snickers', 'corgi'))\n"
-">>> dec.loads(data)\n"
-"Dog(name='snickers', breed='corgi', is_good_boy=True)\n"
 );
+
+/*************************************************************************
+ * MessagePack                                                           *
+ *************************************************************************/
+
+typedef struct MessagePack {
+    PyObject_HEAD
+    /* Configuration */
+    Py_ssize_t write_buffer_size;
+
+    PyObject *output_buffer;    /* Write into a local bytearray buffer before
+                                   flushing to the stream */
+    Py_ssize_t output_len;      /* Length of output_buffer */
+    Py_ssize_t max_output_len;  /* Allocation size of output_buffer */
+} MessagePack;
+
+PyDoc_STRVAR(MessagePack__doc__,
+"MessagePack(*, write_buffer_size=4096)\n"
+"--\n"
+"\n"
+"A MessagePack encoder/decoder.\n"
+"\n"
+"Parameters\n"
+"----------\n"
+"write_buffer_size : int, optional\n"
+"    The size of the internal static write buffer."
+);
+static int
+MessagePack_init(MessagePack *self, PyObject *args, PyObject *kwds)
+{
+    static char *kwlist[] = {"write_buffer_size", NULL};
+    Py_ssize_t write_buffer_size = 4096;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|$n", kwlist,
+                                     &write_buffer_size)) {
+        return -1;
+    }
+
+    self->write_buffer_size = Py_MAX(write_buffer_size, 32);
+    self->max_output_len = self->write_buffer_size;
+    self->output_len = 0;
+    self->output_buffer = PyBytes_FromStringAndSize(NULL, self->max_output_len);
+    if (self->output_buffer == NULL)
+        return -1;
+    return 0;
+}
+
+static PyObject*
+MessagePack_sizeof(MessagePack *self)
+{
+    Py_ssize_t res;
+
+    res = sizeof(MessagePack);
+    if (self->output_buffer != NULL) {
+        res += self->max_output_len;
+    }
+    return PyLong_FromSsize_t(res);
+}
+
+static struct PyMethodDef MessagePack_methods[] = {
+    {
+        "__sizeof__", (PyCFunction) MessagePack_sizeof, METH_NOARGS,
+        PyDoc_STR("Size in bytes")
+    },
+    {NULL, NULL}                /* sentinel */
+};
+
+static void
+MessagePack_dealloc(MessagePack *self)
+{
+    Py_TYPE(self)->tp_free((PyObject *)self);
+}
+
+static PyTypeObject MessagePack_Type = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "msgspec.core.MessagePack",
+    .tp_doc = MessagePack__doc__,
+    .tp_basicsize = sizeof(MessagePack),
+    .tp_dealloc = (destructor)MessagePack_dealloc,
+    .tp_flags = Py_TPFLAGS_DEFAULT,
+    .tp_new = PyType_GenericNew,
+    .tp_init = (initproc)MessagePack_init,
+    .tp_methods = MessagePack_methods,
+};
+
+/*************************************************************************
+ * Module Setup                                                          *
+ *************************************************************************/
 
 static int
 msgspec_clear(PyObject *m)
@@ -934,10 +1013,17 @@ PyInit_core(void)
         return NULL;
     if (PyType_Ready(&StructMixinType) < 0)
         return NULL;
+    if (PyType_Ready(&MessagePack_Type) < 0)
+        return NULL;
 
-    /* Create the module and add the functions. */
+    /* Create the module */
     m = PyModule_Create(&msgspecmodule);
     if (m == NULL)
+        return NULL;
+
+    /* Add types */
+    Py_INCREF(&MessagePack_Type);
+    if (PyModule_AddObject(m, "MessagePack", (PyObject *)&MessagePack_Type) < 0)
         return NULL;
 
     st = msgspec_get_state(m);
