@@ -61,6 +61,26 @@ find_keyword(PyObject *kwnames, PyObject *const *kwstack, PyObject *key)
     return NULL;
 }
 
+static int
+check_positional_nargs(Py_ssize_t nargs, Py_ssize_t min, Py_ssize_t max) {
+    if (nargs > max) {
+        PyErr_SetString(
+            PyExc_TypeError,
+            "Extra positional arguments provided"
+        );
+        return 0;
+    }
+    else if (nargs < min) {
+        PyErr_Format(
+            PyExc_TypeError,
+            "Missing %zd required arguments",
+            min - nargs
+        );
+        return 0;
+    }
+    return 1;
+}
+
 /*************************************************************************
  * Struct Types                                                          *
  *************************************************************************/
@@ -919,6 +939,127 @@ MessagePack_init(MessagePack *self, PyObject *args, PyObject *kwds)
     return 0;
 }
 
+enum mp_code {
+    MP_NIL = '\xc0',
+    MP_FALSE = '\xc2',
+    MP_TRUE = '\xc3'
+};
+
+static Py_ssize_t
+mp_write(MessagePack *self, const char *s, Py_ssize_t n)
+{
+    Py_ssize_t required;
+    char *buffer;
+
+    required = self->output_len + n;
+    if (required > self->max_output_len) {
+        /* Make space in buffer */
+        if (self->output_len >= PY_SSIZE_T_MAX / 2 - n) {
+            PyErr_NoMemory();
+            return -1;
+        }
+        self->max_output_len = (self->output_len + n) / 2 * 3;
+        if (_PyBytes_Resize(&self->output_buffer, self->max_output_len) < 0)
+            return -1;
+    }
+    buffer = PyBytes_AS_STRING(self->output_buffer);
+    memcpy(buffer + self->output_len, s, n);
+    self->output_len += n;
+    return 0;
+}
+
+static int
+mp_encode_none(MessagePack *self)
+{
+    const char op = MP_NIL;
+    return mp_write(self, &op, 1);
+}
+
+static int
+mp_encode_bool(MessagePack *self, PyObject *obj)
+{
+    const char op = (obj == Py_True) ? MP_TRUE : MP_FALSE;
+    return mp_write(self, &op, 1);
+}
+
+static int
+mp_encode(MessagePack *self, PyObject *obj)
+{
+    PyTypeObject *type;
+
+    type = Py_TYPE(obj);
+
+    if (obj == Py_None) {
+        return mp_encode_none(self);
+    }
+    else if (obj == Py_False || obj == Py_True) {
+        return mp_encode_bool(self, obj);
+    }
+    else {
+        PyErr_Format(PyExc_TypeError,
+                     "MessagePack.encode doesn't support objects of type %.200s",
+                     type->tp_name);
+        return -1;
+    }
+}
+
+PyDoc_STRVAR(MessagePack_encode__doc__,
+"encode(obj)\n"
+"--\n"
+"\n"
+"Serialize an object to bytes.\n"
+"\n"
+"Returns\n"
+"-------\n"
+"data : bytes\n"
+"    The serialized object\n"
+);
+static PyObject*
+MessagePack_encode(MessagePack *self, PyObject *const *args, Py_ssize_t nargs)
+{
+    int status;
+    PyObject *res = NULL, *obj = NULL;
+
+    if (!check_positional_nargs(nargs, 1, 1)) {
+        return NULL;
+    }
+    obj = args[0];
+
+    /* reset buffer */
+    self->output_len = 0;
+    if (self->output_buffer == NULL) {
+        self->max_output_len = self->write_buffer_size;
+        self->output_buffer = PyBytes_FromStringAndSize(NULL, self->max_output_len);
+        if (self->output_buffer == NULL)
+            return NULL;
+    }
+
+    status = mp_encode(self, obj);
+
+    if (status == 0) {
+        if (self->max_output_len > self->write_buffer_size) {
+            /* Buffer was resized, trim to length */
+            res = self->output_buffer;
+            self->output_buffer = NULL;
+            _PyBytes_Resize(&res, self->output_len);
+        }
+        else {
+            /* Only constant buffer used, copy to output */
+            res = PyBytes_FromStringAndSize(
+                PyBytes_AS_STRING(self->output_buffer),
+                self->output_len
+            );
+        }
+    } else {
+        /* Error in encode, drop buffer if necessary */
+        if (self->max_output_len > self->write_buffer_size) {
+            Py_DECREF(self->output_buffer);
+            self->output_buffer = NULL;
+        }
+    }
+    return res;
+}
+
 static PyObject*
 MessagePack_sizeof(MessagePack *self)
 {
@@ -932,6 +1073,10 @@ MessagePack_sizeof(MessagePack *self)
 }
 
 static struct PyMethodDef MessagePack_methods[] = {
+    {
+        "encode", (PyCFunction) MessagePack_encode, METH_FASTCALL,
+        MessagePack_encode__doc__,
+    },
     {
         "__sizeof__", (PyCFunction) MessagePack_sizeof, METH_NOARGS,
         PyDoc_STR("Size in bytes")
