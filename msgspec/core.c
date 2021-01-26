@@ -477,6 +477,9 @@ maybe_deepcopy_default(PyObject *obj, int *is_copy) {
     else if (type == &PyTuple_Type && (PyTuple_GET_SIZE(obj) == 0)) {
         return obj;
     }
+    else if (type == &PyFrozenSet_Type && PySet_GET_SIZE(obj) == 0) {
+        return obj;
+    }
     else if (type == PyDateTimeAPI->DeltaType ||
              type == PyDateTimeAPI->DateTimeType ||
              type == PyDateTimeAPI->DateType ||
@@ -499,6 +502,9 @@ maybe_deepcopy_default(PyObject *obj, int *is_copy) {
     }
     else if (type == &PyList_Type && PyList_GET_SIZE(obj) == 0) {
         return PyList_New(0);
+    }
+    else if (type == &PySet_Type && PySet_GET_SIZE(obj) == 0) {
+        return PySet_New(NULL);
     }
     /* More complicated, invoke full deepcopy */
     copy = PyImport_ImportModule("copy");
