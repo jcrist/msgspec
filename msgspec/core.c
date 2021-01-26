@@ -945,7 +945,7 @@ enum mp_code {
     MP_TRUE = '\xc3'
 };
 
-static Py_ssize_t
+static int
 mp_write(MessagePack *self, const char *s, Py_ssize_t n)
 {
     Py_ssize_t required;
