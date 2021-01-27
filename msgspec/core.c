@@ -1010,7 +1010,10 @@ enum mp_code {
     MP_BIN32 = '\xc6',
     MP_FIXARRAY = '\x90',
     MP_ARRAY16 = '\xdc',
-    MP_ARRAY32 = '\xdd'
+    MP_ARRAY32 = '\xdd',
+    MP_FIXMAP = '\x80',
+    MP_MAP16 = '\xde',
+    MP_MAP32 = '\xdf'
 };
 
 static int
@@ -1302,6 +1305,60 @@ mp_encode_tuple(MessagePack *self, PyObject *obj)
 }
 
 static int
+mp_encode_map_header(MessagePack *self, Py_ssize_t len, const char* typname)
+{
+    if (len < 16) {
+        char header[1] = {MP_FIXMAP | len};
+        if (mp_write(self, header, 1) < 0)
+            return -1;
+    } else if (len < (1 << 16)) {
+        char header[3];
+        header[0] = MP_MAP16;
+        _msgspec_store16(&header[1], (uint16_t)len);
+        if (mp_write(self, header, 3) < 0)
+            return -1;
+    } else if (len < (1LL << 32)) {
+        char header[5];
+        header[0] = MP_MAP32;
+        _msgspec_store32(&header[1], (uint32_t)len);
+        if (mp_write(self, header, 5) < 0)
+            return -1;
+    } else {
+        PyErr_Format(
+            PyExc_ValueError,
+            "Can't encode %s longer than 2**32 - 1",
+            typname
+        );
+        return -1;
+    }
+    return 0;
+}
+
+static int
+mp_encode_dict(MessagePack *self, PyObject *obj)
+{
+    PyObject *key, *value;
+    Py_ssize_t len, pos = 0;
+    int status = 0;
+
+    len = PyDict_GET_SIZE(obj);
+    if (mp_encode_map_header(self, len, "dicts") < 0)
+        return -1;
+    if (len == 0)
+        return 0;
+    if (Py_EnterRecursiveCall(" while serializing an object"))
+        return -1;
+    while (PyDict_Next(obj, &pos, &key, &value)) {
+        if (mp_encode(self, key) < 0)
+            return -1;
+        if (mp_encode(self, value) < 0)
+            return -1;
+    }
+    Py_LeaveRecursiveCall();
+    return status;
+}
+
+static int
 mp_encode(MessagePack *self, PyObject *obj)
 {
     PyTypeObject *type;
@@ -1334,6 +1391,9 @@ mp_encode(MessagePack *self, PyObject *obj)
     }
     else if (type == &PyTuple_Type) {
         return mp_encode_tuple(self, obj);
+    }
+    else if (type == &PyDict_Type) {
+        return mp_encode_dict(self, obj);
     }
     else {
         PyErr_Format(PyExc_TypeError,
