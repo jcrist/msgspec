@@ -1,7 +1,55 @@
 #include <stdarg.h>
+#include <stdint.h>
 #include "Python.h"
 #include "datetime.h"
 #include "structmember.h"
+
+/*************************************************************************
+ * Endian handling macros                                                *
+ *************************************************************************/
+
+#define _msgspec_store16(to, x) do { \
+    ((uint8_t*)to)[0] = (uint8_t)((x >> 8) & 0xff); \
+    ((uint8_t*)to)[1] = (uint8_t)(x & 0xff); \
+} while (0);
+
+#define _msgspec_store32(to, x) do { \
+    ((uint8_t*)to)[0] = (uint8_t)((x >> 24) & 0xff); \
+    ((uint8_t*)to)[1] = (uint8_t)((x >> 16) & 0xff); \
+    ((uint8_t*)to)[2] = (uint8_t)((x >> 8) & 0xff); \
+    ((uint8_t*)to)[3] = (uint8_t)(x & 0xff); \
+} while (0);
+
+#define _msgspec_store64(to, x) do { \
+    ((uint8_t*)to)[0] = (uint8_t)((x >> 56) & 0xff); \
+    ((uint8_t*)to)[1] = (uint8_t)((x >> 48) & 0xff); \
+    ((uint8_t*)to)[2] = (uint8_t)((x >> 40) & 0xff); \
+    ((uint8_t*)to)[3] = (uint8_t)((x >> 32) & 0xff); \
+    ((uint8_t*)to)[4] = (uint8_t)((x >> 24) & 0xff); \
+    ((uint8_t*)to)[5] = (uint8_t)((x >> 16) & 0xff); \
+    ((uint8_t*)to)[6] = (uint8_t)((x >> 8) & 0xff); \
+    ((uint8_t*)to)[7] = (uint8_t)(x & 0xff); \
+} while (0);
+
+#define _msgspec_load16(cast, from) ((cast)( \
+    (((uint16_t)((uint8_t*)from)[0]) << 8) | \
+    (((uint16_t)((uint8_t*)from)[1])     ) ))
+
+#define _msgspec_load32(cast, from) ((cast)( \
+    (((uint32_t)((uint8_t*)from)[0]) << 24) | \
+    (((uint32_t)((uint8_t*)from)[1]) << 16) | \
+    (((uint32_t)((uint8_t*)from)[2]) <<  8) | \
+    (((uint32_t)((uint8_t*)from)[3])      ) ))
+
+#define _msgspec_load64(cast, from) ((cast)( \
+    (((uint64_t)((uint8_t*)from)[0]) << 56) | \
+    (((uint64_t)((uint8_t*)from)[1]) << 48) | \
+    (((uint64_t)((uint8_t*)from)[2]) << 40) | \
+    (((uint64_t)((uint8_t*)from)[3]) << 32) | \
+    (((uint64_t)((uint8_t*)from)[4]) << 24) | \
+    (((uint64_t)((uint8_t*)from)[5]) << 16) | \
+    (((uint64_t)((uint8_t*)from)[6]) << 8)  | \
+    (((uint64_t)((uint8_t*)from)[7])     )  ))
 
 /*************************************************************************
  * Module level state                                                    *
@@ -942,7 +990,15 @@ MessagePack_init(MessagePack *self, PyObject *args, PyObject *kwds)
 enum mp_code {
     MP_NIL = '\xc0',
     MP_FALSE = '\xc2',
-    MP_TRUE = '\xc3'
+    MP_TRUE = '\xc3',
+    MP_UINT8 = '\xcc',
+    MP_UINT16 = '\xcd',
+    MP_UINT32 = '\xce',
+    MP_UINT64 = '\xcf',
+    MP_INT8 = '\xd0',
+    MP_INT16 = '\xd1',
+    MP_INT32 = '\xd2',
+    MP_INT64 = '\xd3'
 };
 
 static int
@@ -983,6 +1039,82 @@ mp_encode_bool(MessagePack *self, PyObject *obj)
 }
 
 static int
+mp_encode_long(MessagePack *self, PyObject *obj)
+{
+    int overflow;
+    int64_t x = PyLong_AsLongLongAndOverflow(obj, &overflow);
+    uint64_t ux = x;
+    if (overflow != 0) {
+        if (overflow > 0) {
+            ux = PyLong_AsUnsignedLongLong(obj);
+            x = (1ULL << 63) - 1ULL;
+            if (ux == ((uint64_t)(-1)) && PyErr_Occurred()) {
+                return -1;
+            }
+        } else {
+            PyErr_SetString(PyExc_OverflowError, "can't serialize ints < -2**63");
+            return -1;
+        }
+    }
+    else if (x == -1 && PyErr_Occurred()) {
+        return -1;
+    }
+
+    if(x < -(1LL<<5)) {
+        if(x < -(1LL<<15)) {
+            if(x < -(1LL<<31)) {
+                char buf[9];
+                buf[0] = MP_INT64;
+                _msgspec_store64(&buf[1], x);
+                return mp_write(self, buf, 9);
+            } else {
+                char buf[5];
+                buf[0] = MP_INT32;
+                _msgspec_store32(&buf[1], (int32_t)x);
+                return mp_write(self, buf, 5);
+            }
+        } else {
+            if(x < -(1<<7)) {
+                char buf[3];
+                buf[0] = MP_INT16;
+                _msgspec_store16(&buf[1], (int16_t)x);
+                return mp_write(self, buf, 3);
+            } else {
+                char buf[2] = {MP_INT8, (x & 0xff)};
+                return mp_write(self, buf, 2);
+            }
+        }
+    } else if(x < (1<<7)) {
+        char buf[1] = {(x & 0xff)};
+        return mp_write(self, buf, 1);
+    } else {
+        if(x < (1<<16)) {
+            if(x < (1<<8)) {
+                char buf[2] = {MP_UINT8, (x & 0xff)};
+                return mp_write(self, buf, 2);
+            } else {
+                char buf[3];
+                buf[0] = MP_UINT16;
+                _msgspec_store16(&buf[1], (uint16_t)x);
+                return mp_write(self, buf, 3);
+            }
+        } else {
+            if(x < (1LL<<32)) {
+                char buf[5];
+                buf[0] = MP_UINT32;
+                _msgspec_store32(&buf[1], (uint32_t)x);
+                return mp_write(self, buf, 5);
+            } else {
+                char buf[9];
+                buf[0] = MP_UINT64;
+                _msgspec_store64(&buf[1], ux);
+                return mp_write(self, buf, 9);
+            }
+        }
+    }
+}
+
+static int
 mp_encode(MessagePack *self, PyObject *obj)
 {
     PyTypeObject *type;
@@ -994,6 +1126,9 @@ mp_encode(MessagePack *self, PyObject *obj)
     }
     else if (obj == Py_False || obj == Py_True) {
         return mp_encode_bool(self, obj);
+    }
+    else if (type == &PyLong_Type) {
+        return mp_encode_long(self, obj);
     }
     else {
         PyErr_Format(PyExc_TypeError,
