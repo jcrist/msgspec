@@ -1615,6 +1615,22 @@ mp_decode_long(MessagePack *self, enum mp_code op) {
 }
 
 static PyObject *
+mp_decode_float(MessagePack *self, enum mp_code op) {
+    char *s;
+    int n = 1 << (op & 0x03);
+    if (mp_read(self, &s, n) < 0)
+        return NULL;
+    switch (op) {
+        case MP_FLOAT32:
+            return PyFloat_FromDouble(_PyFloat_Unpack4((unsigned char *)s, 0));
+        case MP_FLOAT64:
+            return PyFloat_FromDouble(_PyFloat_Unpack8((unsigned char *)s, 0));
+        default:
+            return NULL;
+    }
+}
+
+static PyObject *
 mp_decode(MessagePack *self) {
     char s;
 
@@ -1643,6 +1659,9 @@ mp_decode(MessagePack *self) {
         case MP_INT32:
         case MP_INT64:
             return mp_decode_long(self, s);
+        case MP_FLOAT32:
+        case MP_FLOAT64:
+            return mp_decode_float(self, s);
         default:
             PyErr_Format(PyExc_ValueError, "invalid opcode, '\\x%02x'.", s);
             return NULL;
