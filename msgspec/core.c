@@ -1129,6 +1129,38 @@ mp_encode_float(MessagePack *self, PyObject *obj)
 }
 
 static int
+mp_encode_str(MessagePack *self, PyObject *obj)
+{
+    Py_ssize_t len;
+    const char* buf = PyUnicode_AsUTF8AndSize(obj, &len);
+    if (buf == NULL) {
+        return -1;
+    }
+    if (len < 32) {
+        char header[1] = {0xa0 | (uint8_t)len};
+        if (mp_write(self, header, 1) < 0)
+            return -1;
+    } else if (len < 256) {
+        char header[2] = {0xd9, (uint8_t)len};
+        if (mp_write(self, header, 2) < 0)
+            return -1;
+    } else if (len < 65536) {
+        char header[3];
+        header[0] = 0xda;
+        _msgspec_store16(&header[1], (uint16_t)len);
+        if (mp_write(self, header, 3) < 0)
+            return -1;
+    } else {
+        char header[5];
+        header[0] = 0xdb;
+        _msgspec_store32(&header[1], (uint32_t)len);
+        if (mp_write(self, header, 5) < 0)
+            return -1;
+    }
+    return len > 0 ? mp_write(self, buf, len) : 0;
+}
+
+static int
 mp_encode(MessagePack *self, PyObject *obj)
 {
     PyTypeObject *type;
@@ -1146,6 +1178,9 @@ mp_encode(MessagePack *self, PyObject *obj)
     }
     else if (type == &PyFloat_Type) {
         return mp_encode_float(self, obj);
+    }
+    else if (type == &PyUnicode_Type) {
+        return mp_encode_str(self, obj);
     }
     else {
         PyErr_Format(PyExc_TypeError,
