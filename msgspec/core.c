@@ -59,6 +59,8 @@
 typedef struct {
     PyObject *StructType;
     PyTypeObject *EnumType;
+    PyObject *str__name_;
+    PyObject *str_name;
 } MsgspecState;
 
 /* Forward declaration of the msgspec module definition. */
@@ -1386,9 +1388,38 @@ mp_encode_struct(MessagePack *self, PyObject *obj)
 }
 
 static int
+mp_encode_enum(MessagePack *self, PyObject *obj)
+{
+    int status;
+    PyObject *name = NULL;
+    MsgspecState *st = msgspec_get_global_state();
+    /* Try the private variable first for speed, fall back to the public
+     * interface if not available */
+    name = PyObject_GetAttr(obj, st->str__name_);
+    if (name == NULL) {
+        PyErr_Clear();
+        name = PyObject_GetAttr(obj, st->str_name);
+        if (name == NULL)
+            return -1;
+    }
+    if (PyUnicode_CheckExact(name)) {
+        status = mp_encode_str(self, name);
+    } else {
+        PyErr_SetString(
+            PyExc_ValueError,
+            "Enum's with non-str names aren't supported"
+        );
+        status = -1;
+    }
+    Py_DECREF(name);
+    return status;
+}
+
+static int
 mp_encode(MessagePack *self, PyObject *obj)
 {
     PyTypeObject *type;
+    MsgspecState *st;
 
     type = Py_TYPE(obj);
 
@@ -1424,6 +1455,10 @@ mp_encode(MessagePack *self, PyObject *obj)
     }
     else if (Py_TYPE(type) == &StructMetaType) {
         return mp_encode_struct(self, obj);
+    }
+    st = msgspec_get_global_state();
+    if (PyType_IsSubtype(type, st->EnumType)) {
+        return mp_encode_enum(self, obj);
     }
     else {
         PyErr_Format(PyExc_TypeError,
@@ -1542,6 +1577,8 @@ msgspec_clear(PyObject *m)
     MsgspecState *st = msgspec_get_state(m);
     Py_CLEAR(st->StructType);
     Py_CLEAR(st->EnumType);
+    Py_CLEAR(st->str__name_);
+    Py_CLEAR(st->str_name);
     return 0;
 }
 
@@ -1628,6 +1665,14 @@ PyInit_core(void)
         return NULL;
     }
     st->EnumType = (PyTypeObject *)temp_type;
+
+    /* Initialize cached constant strings */
+    st->str__name_ = PyUnicode_InternFromString("_name_");
+    if (st->str__name_ == NULL)
+        return NULL;
+    st->str_name = PyUnicode_InternFromString("name");
+    if (st->str_name == NULL)
+        return NULL;
 
     return m;
 }
