@@ -1337,7 +1337,7 @@ mp_encode_map_header(MessagePack *self, Py_ssize_t len, const char* typname)
 static int
 mp_encode_dict(MessagePack *self, PyObject *obj)
 {
-    PyObject *key, *value;
+    PyObject *key, *val;
     Py_ssize_t len, pos = 0;
     int status = 0;
 
@@ -1348,11 +1348,38 @@ mp_encode_dict(MessagePack *self, PyObject *obj)
         return 0;
     if (Py_EnterRecursiveCall(" while serializing an object"))
         return -1;
-    while (PyDict_Next(obj, &pos, &key, &value)) {
-        if (mp_encode(self, key) < 0)
-            return -1;
-        if (mp_encode(self, value) < 0)
-            return -1;
+    while (PyDict_Next(obj, &pos, &key, &val)) {
+        if (mp_encode(self, key) < 0 || mp_encode(self, val) < 0) {
+            status = -1;
+            break;
+        }
+    }
+    Py_LeaveRecursiveCall();
+    return status;
+}
+
+static int
+mp_encode_struct(MessagePack *self, PyObject *obj)
+{
+    PyObject *key, *val, *fields;
+    Py_ssize_t i, len;
+    int status = 0;
+
+    fields = StructMeta_GET_FIELDS(Py_TYPE(obj));
+    len = PyTuple_GET_SIZE(fields);
+    if (mp_encode_map_header(self, len, "structs") < 0)
+        return -1;
+    if (len == 0)
+        return 0;
+    if (Py_EnterRecursiveCall(" while serializing an object"))
+        return -1;
+    for (i = 0; i < len; i++) {
+        key = PyTuple_GET_ITEM(fields, i);
+        val = Struct_get_index(obj, i);
+        if (val == NULL || mp_encode(self, key) < 0 || mp_encode(self, val) < 0) {
+            status = -1;
+            break;
+        }
     }
     Py_LeaveRecursiveCall();
     return status;
@@ -1394,6 +1421,9 @@ mp_encode(MessagePack *self, PyObject *obj)
     }
     else if (type == &PyDict_Type) {
         return mp_encode_dict(self, obj);
+    }
+    else if (Py_TYPE(type) == &StructMetaType) {
+        return mp_encode_struct(self, obj);
     }
     else {
         PyErr_Format(PyExc_TypeError,
