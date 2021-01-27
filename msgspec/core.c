@@ -991,6 +991,8 @@ enum mp_code {
     MP_NIL = '\xc0',
     MP_FALSE = '\xc2',
     MP_TRUE = '\xc3',
+    MP_FLOAT32 = '\xca',
+    MP_FLOAT64 = '\xcb',
     MP_UINT8 = '\xcc',
     MP_UINT16 = '\xcd',
     MP_UINT32 = '\xce',
@@ -1115,6 +1117,18 @@ mp_encode_long(MessagePack *self, PyObject *obj)
 }
 
 static int
+mp_encode_float(MessagePack *self, PyObject *obj)
+{
+    char buf[9];
+    double x = PyFloat_AS_DOUBLE(obj);
+    buf[0] = MP_FLOAT64;
+    if (_PyFloat_Pack8(x, (unsigned char *)(&buf[1]), 0) < 0) {
+        return -1;
+    }
+    return mp_write(self, buf, 9);
+}
+
+static int
 mp_encode(MessagePack *self, PyObject *obj)
 {
     PyTypeObject *type;
@@ -1129,6 +1143,9 @@ mp_encode(MessagePack *self, PyObject *obj)
     }
     else if (type == &PyLong_Type) {
         return mp_encode_long(self, obj);
+    }
+    else if (type == &PyFloat_Type) {
+        return mp_encode_float(self, obj);
     }
     else {
         PyErr_Format(PyExc_TypeError,
