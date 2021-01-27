@@ -1000,7 +1000,14 @@ enum mp_code {
     MP_INT8 = '\xd0',
     MP_INT16 = '\xd1',
     MP_INT32 = '\xd2',
-    MP_INT64 = '\xd3'
+    MP_INT64 = '\xd3',
+    MP_FIXSTR = '\xa0',
+    MP_STR8 = '\xd9',
+    MP_STR16 = '\xda',
+    MP_STR32 = '\xdb',
+    MP_BIN8 = '\xc4',
+    MP_BIN16 = '\xc5',
+    MP_BIN32 = '\xc6'
 };
 
 static int
@@ -1137,27 +1144,80 @@ mp_encode_str(MessagePack *self, PyObject *obj)
         return -1;
     }
     if (len < 32) {
-        char header[1] = {0xa0 | (uint8_t)len};
+        char header[1] = {MP_FIXSTR | (uint8_t)len};
         if (mp_write(self, header, 1) < 0)
             return -1;
-    } else if (len < 256) {
-        char header[2] = {0xd9, (uint8_t)len};
+    } else if (len < (1 << 8)) {
+        char header[2] = {MP_STR8, (uint8_t)len};
         if (mp_write(self, header, 2) < 0)
             return -1;
-    } else if (len < 65536) {
+    } else if (len < (1 << 16)) {
         char header[3];
-        header[0] = 0xda;
+        header[0] = MP_STR16;
         _msgspec_store16(&header[1], (uint16_t)len);
         if (mp_write(self, header, 3) < 0)
             return -1;
-    } else {
+    } else if (len < (1LL << 32)) {
         char header[5];
-        header[0] = 0xdb;
+        header[0] = MP_STR32;
         _msgspec_store32(&header[1], (uint32_t)len);
         if (mp_write(self, header, 5) < 0)
             return -1;
+    } else {
+        PyErr_SetString(
+            PyExc_ValueError,
+            "Can't encode strings longer than 2**32 - 1"
+        );
+        return -1;
     }
     return len > 0 ? mp_write(self, buf, len) : 0;
+}
+
+static int
+mp_encode_bin(MessagePack *self, const char* buf, Py_ssize_t len) {
+    if (buf == NULL) {
+        return -1;
+    }
+    if (len < (1 << 8)) {
+        char header[2] = {MP_BIN8, (uint8_t)len};
+        if (mp_write(self, header, 2) < 0)
+            return -1;
+    } else if (len < (1 << 16)) {
+        char header[3];
+        header[0] = MP_BIN16;
+        _msgspec_store16(&header[1], (uint16_t)len);
+        if (mp_write(self, header, 3) < 0)
+            return -1;
+    } else if (len < (1LL << 32)) {
+        char header[5];
+        header[0] = MP_BIN32;
+        _msgspec_store32(&header[1], (uint32_t)len);
+        if (mp_write(self, header, 5) < 0)
+            return -1;
+    } else {
+        PyErr_SetString(
+            PyExc_ValueError,
+            "Can't encode bytes-like objects longer than 2**32 - 1"
+        );
+        return -1;
+    }
+    return len > 0 ? mp_write(self, buf, len) : 0;
+}
+
+static int
+mp_encode_bytes(MessagePack *self, PyObject *obj)
+{
+    Py_ssize_t len = PyBytes_GET_SIZE(obj);
+    const char* buf = PyBytes_AS_STRING(obj);
+    return mp_encode_bin(self, buf, len);
+}
+
+static int
+mp_encode_bytearray(MessagePack *self, PyObject *obj)
+{
+    Py_ssize_t len = PyByteArray_GET_SIZE(obj);
+    const char* buf = PyByteArray_AS_STRING(obj);
+    return mp_encode_bin(self, buf, len);
 }
 
 static int
@@ -1181,6 +1241,12 @@ mp_encode(MessagePack *self, PyObject *obj)
     }
     else if (type == &PyUnicode_Type) {
         return mp_encode_str(self, obj);
+    }
+    else if (type == &PyBytes_Type) {
+        return mp_encode_bytes(self, obj);
+    }
+    else if (type == &PyByteArray_Type) {
+        return mp_encode_bytearray(self, obj);
     }
     else {
         PyErr_Format(PyExc_TypeError,
