@@ -1007,7 +1007,10 @@ enum mp_code {
     MP_STR32 = '\xdb',
     MP_BIN8 = '\xc4',
     MP_BIN16 = '\xc5',
-    MP_BIN32 = '\xc6'
+    MP_BIN32 = '\xc6',
+    MP_FIXARRAY = '\x90',
+    MP_ARRAY16 = '\xdc',
+    MP_ARRAY32 = '\xdd'
 };
 
 static int
@@ -1032,6 +1035,8 @@ mp_write(MessagePack *self, const char *s, Py_ssize_t n)
     self->output_len += n;
     return 0;
 }
+
+static int mp_encode(MessagePack *self, PyObject *obj);
 
 static int
 mp_encode_none(MessagePack *self)
@@ -1221,6 +1226,82 @@ mp_encode_bytearray(MessagePack *self, PyObject *obj)
 }
 
 static int
+mp_encode_array_header(MessagePack *self, Py_ssize_t len, const char* typname)
+{
+    if (len < 16) {
+        char header[1] = {MP_FIXARRAY | len};
+        if (mp_write(self, header, 1) < 0)
+            return -1;
+    } else if (len < (1 << 16)) {
+        char header[3];
+        header[0] = MP_ARRAY16;
+        _msgspec_store16(&header[1], (uint16_t)len);
+        if (mp_write(self, header, 3) < 0)
+            return -1;
+    } else if (len < (1LL << 32)) {
+        char header[5];
+        header[0] = MP_ARRAY32;
+        _msgspec_store32(&header[1], (uint32_t)len);
+        if (mp_write(self, header, 5) < 0)
+            return -1;
+    } else {
+        PyErr_Format(
+            PyExc_ValueError,
+            "Can't encode %s longer than 2**32 - 1",
+            typname
+        );
+        return -1;
+    }
+    return 0;
+}
+
+static int
+mp_encode_list(MessagePack *self, PyObject *obj)
+{
+    Py_ssize_t i, len;
+    int status = 0;
+
+    len = PyList_GET_SIZE(obj);
+    if (mp_encode_array_header(self, len, "lists") < 0)
+        return -1;
+    if (len == 0)
+        return 0;
+    if (Py_EnterRecursiveCall(" while serializing an object"))
+        return -1;
+    for (i = 0; i < len; i++) {
+        if (mp_encode(self, PyList_GET_ITEM(obj, i)) < 0) {
+            status = -1;
+            break;
+        }
+    }
+    Py_LeaveRecursiveCall();
+    return status;
+}
+
+static int
+mp_encode_tuple(MessagePack *self, PyObject *obj)
+{
+    Py_ssize_t i, len;
+    int status = 0;
+
+    len = PyTuple_GET_SIZE(obj);
+    if (mp_encode_array_header(self, len, "tuples") < 0)
+        return -1;
+    if (len == 0)
+        return 0;
+    if (Py_EnterRecursiveCall(" while serializing an object"))
+        return -1;
+    for (i = 0; i < len; i++) {
+        if (mp_encode(self, PyTuple_GET_ITEM(obj, i)) < 0) {
+            status = -1;
+            break;
+        }
+    }
+    Py_LeaveRecursiveCall();
+    return status;
+}
+
+static int
 mp_encode(MessagePack *self, PyObject *obj)
 {
     PyTypeObject *type;
@@ -1247,6 +1328,12 @@ mp_encode(MessagePack *self, PyObject *obj)
     }
     else if (type == &PyByteArray_Type) {
         return mp_encode_bytearray(self, obj);
+    }
+    else if (type == &PyList_Type) {
+        return mp_encode_list(self, obj);
+    }
+    else if (type == &PyTuple_Type) {
+        return mp_encode_tuple(self, obj);
     }
     else {
         PyErr_Format(PyExc_TypeError,
