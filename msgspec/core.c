@@ -1587,27 +1587,35 @@ mp_read(MessagePack *self, char **s, Py_ssize_t n)
 }
 
 static PyObject *
-mp_decode_long(MessagePack *self, enum mp_code op) {
+mp_decode_uint(MessagePack *self, int nbytes) {
     char *s;
-    int n = 1 << (op & 0x03);
-    if (mp_read(self, &s, n) < 0)
-        return NULL;
-    switch (op) {
-        case MP_UINT8:
+    if (mp_read(self, &s, nbytes) < 0) return NULL;
+    switch (nbytes) {
+        case 1:
             return PyLong_FromLong(*(uint8_t *)s);
-        case MP_UINT16:
+        case 2:
             return PyLong_FromLong(_msgspec_load16(uint16_t, s));
-        case MP_UINT32:
+        case 4:
             return PyLong_FromUnsignedLong(_msgspec_load32(uint32_t, s));
-        case MP_UINT64:
+        case 8:
             return PyLong_FromUnsignedLongLong(_msgspec_load64(uint64_t, s));
-        case MP_INT8:
+        default:
+            return NULL;
+    }
+}
+
+static PyObject *
+mp_decode_int(MessagePack *self, int nbytes) {
+    char *s;
+    if (mp_read(self, &s, nbytes) < 0) return NULL;
+    switch (nbytes) {
+        case 1:
             return PyLong_FromLong(*(int8_t *)s);
-        case MP_INT16:
+        case 2:
             return PyLong_FromLong(_msgspec_load16(int16_t, s));
-        case MP_INT32:
+        case 4:
             return PyLong_FromLong(_msgspec_load32(int32_t, s));
-        case MP_INT64:
+        case 8:
             return PyLong_FromLongLong(_msgspec_load64(int64_t, s));
         default:
             return NULL;
@@ -1615,32 +1623,57 @@ mp_decode_long(MessagePack *self, enum mp_code op) {
 }
 
 static PyObject *
-mp_decode_float(MessagePack *self, enum mp_code op) {
+mp_decode_float(MessagePack *self, int nbytes) {
     char *s;
-    int n = 1 << (op & 0x03);
-    if (mp_read(self, &s, n) < 0)
-        return NULL;
-    switch (op) {
-        case MP_FLOAT32:
-            return PyFloat_FromDouble(_PyFloat_Unpack4((unsigned char *)s, 0));
-        case MP_FLOAT64:
-            return PyFloat_FromDouble(_PyFloat_Unpack8((unsigned char *)s, 0));
+    double x;
+    if (mp_read(self, &s, nbytes) < 0) return NULL;
+    if (nbytes == 4) {
+        x = _PyFloat_Unpack4((unsigned char *)s, 0);
+    } else {
+        x = _PyFloat_Unpack8((unsigned char *)s, 0);
+    }
+    return PyFloat_FromDouble(x);
+}
+
+static Py_ssize_t
+mp_decode_size(MessagePack *self, int nbytes) {
+    char *s;
+    if (mp_read(self, &s, nbytes) < 0) return -1;
+    switch (nbytes) {
+        case 1:
+            return (Py_ssize_t)(*((unsigned char *)s));
+        case 2:
+            return (Py_ssize_t)(_msgspec_load16(uint16_t, s));
+        case 4:
+            return (Py_ssize_t)(_msgspec_load32(uint32_t, s));
         default:
-            return NULL;
+            return -1;
     }
 }
 
 static PyObject *
-mp_decode(MessagePack *self) {
-    char s;
+mp_decode_str(MessagePack *self, Py_ssize_t size) {
+    char *s;
+    if (size < 0) return NULL;
+    if (mp_read(self, &s, size) < 0) return NULL;
+    return PyUnicode_DecodeUTF8(s, size, NULL);
+}
 
-    if (mp_read1(self, &s) < 0) {
+static PyObject *
+mp_decode(MessagePack *self) {
+    char op;
+
+    if (mp_read1(self, &op) < 0) {
         return NULL;
     }
-    if (-32 <= s && s <= 127) {
-        return PyLong_FromLong(s);
+
+    if (-32 <= op && op <= 127) {
+        return PyLong_FromLong(op);
     }
-    switch ((enum mp_code)s) {
+    else if ('\xa0' <= op && op <= '\xbf') {
+        return mp_decode_str(self, op & 0x1f);
+    }
+    switch ((enum mp_code)op) {
         case MP_NIL:
             Py_INCREF(Py_None);
             return Py_None;
@@ -1654,16 +1687,23 @@ mp_decode(MessagePack *self) {
         case MP_UINT16:
         case MP_UINT32:
         case MP_UINT64:
+            return mp_decode_uint(self, 1 << (op & 0x03));
         case MP_INT8:
         case MP_INT16:
         case MP_INT32:
         case MP_INT64:
-            return mp_decode_long(self, s);
+            return mp_decode_int(self, 1 << (op & 0x03));
         case MP_FLOAT32:
         case MP_FLOAT64:
-            return mp_decode_float(self, s);
+            return mp_decode_float(self, 1 << (op & 0x03));
+        case MP_STR8:
+            return mp_decode_str(self, mp_decode_size(self, 1));
+        case MP_STR16:
+            return mp_decode_str(self, mp_decode_size(self, 2));
+        case MP_STR32:
+            return mp_decode_str(self, mp_decode_size(self, 4));
         default:
-            PyErr_Format(PyExc_ValueError, "invalid opcode, '\\x%02x'.", s);
+            PyErr_Format(PyExc_ValueError, "invalid opcode, '\\x%02x'.", op);
             return NULL;
     }
 }
