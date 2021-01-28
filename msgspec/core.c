@@ -151,6 +151,28 @@ static PyTypeObject StructMixinType;
 #define StructMeta_GET_OFFSETS(s) (((StructMetaObject *)(s))->struct_offsets);
 
 static int
+StructMeta_get_field_index(StructMetaObject *self, char * key, Py_ssize_t key_size, Py_ssize_t *index) {
+    const char *field;
+    Py_ssize_t nfields, field_size, i, ind, offset = *index;
+    nfields = PyTuple_GET_SIZE(self->struct_fields);
+    for (i = 0; i < nfields; i++) {
+        ind = (i + offset) % nfields;
+        field = PyUnicode_AsUTF8AndSize(
+            PyTuple_GET_ITEM(self->struct_fields, ind), &field_size
+        );
+        if (field == NULL) return -1;
+        if (key_size == field_size && memcmp(key, field, key_size) == 0) {
+            *index = ind;
+            return 0;
+        }
+    }
+    /* TODO: skip unknown fields */
+    PyErr_SetString(PyExc_ValueError, "unknown struct field");
+    return -1;
+}
+
+
+static int
 dict_discard(PyObject *dict, PyObject *key) {
     int status = PyDict_Contains(dict, key);
     if (status < 0)
@@ -1586,7 +1608,7 @@ mp_read(MessagePack *self, char **s, Py_ssize_t n)
     return mp_err_truncated();
 }
 
-static PyObject * mp_decode(MessagePack *self);
+static PyObject * mp_decode(MessagePack *self, PyObject *type);
 
 static PyObject *
 mp_decode_uint(MessagePack *self, int nbytes) {
@@ -1685,7 +1707,7 @@ mp_decode_array(MessagePack *self, Py_ssize_t size) {
         return NULL;
     }
     for (i = 0; i < size; i++) {
-        item = mp_decode(self);
+        item = mp_decode(self, NULL);
         if (item == NULL) {
             Py_CLEAR(res);
             break;
@@ -1697,7 +1719,7 @@ mp_decode_array(MessagePack *self, Py_ssize_t size) {
 }
 
 static PyObject *
-mp_decode_map(MessagePack *self, Py_ssize_t size) {
+mp_decode_dict(MessagePack *self, Py_ssize_t size) {
     Py_ssize_t i;
     PyObject *res, *key = NULL, *val = NULL;
 
@@ -1712,10 +1734,10 @@ mp_decode_map(MessagePack *self, Py_ssize_t size) {
         return NULL;
     }
     for (i = 0; i < size; i++) {
-        key = mp_decode(self);
+        key = mp_decode(self, NULL);
         if (key == NULL)
             goto error;
-        val = mp_decode(self);
+        val = mp_decode(self, NULL);
         if (val == NULL)
             goto error;
         if (PyDict_SetItem(res, key, val) < 0)
@@ -1733,8 +1755,82 @@ error:
     return NULL;
 }
 
+static Py_ssize_t
+mp_decode_cstr(MessagePack *self, char ** out) {
+    char op;
+    Py_ssize_t size;
+    if (mp_read1(self, &op) < 0) return -1;
+
+    if ('\xa0' <= op && op <= '\xbf') {
+        size = op & 0x1f;
+    }
+    else {
+        switch (op) {
+            case MP_STR8:
+                size = mp_decode_size(self, 1);
+            case MP_STR16:
+                size = mp_decode_size(self, 2);
+            case MP_STR32:
+                size = mp_decode_size(self, 4);
+            default:
+                PyErr_SetString(PyExc_ValueError, "invalid struct field");
+                size = -1;
+        }
+    }
+    if (size < 0) return -1;
+
+    if (mp_read(self, out, size) < 0) return -1;
+    return size;
+}
+
 static PyObject *
-mp_decode(MessagePack *self) {
+mp_decode_struct(MessagePack *self, Py_ssize_t size, StructMetaObject *type) {
+    Py_ssize_t i, key_size, field_index;
+    char *key = NULL;
+    PyObject *res, *val = NULL;
+
+    if (size < 0) return NULL;
+
+    res = ((PyTypeObject *)(type))->tp_alloc((PyTypeObject *)type, 0);
+    if (res == NULL) return NULL;
+    if (size == 0) return res;
+
+    if (Py_EnterRecursiveCall(" while deserializing an object")) {
+        Py_DECREF(res);
+        return NULL;
+    }
+    for (i = 0; i < size; i++) {
+        key_size = mp_decode_cstr(self, &key);
+        if (key == NULL)
+            goto error;
+        if (StructMeta_get_field_index(type, key, key_size, &field_index) < 0)
+            goto error;
+        val = mp_decode(self, NULL);
+        if (val == NULL)
+            goto error;
+        Struct_set_index(res, field_index, val);
+    }
+    /* TODO - defaults, check that all fields are set, type checking */
+    Py_LeaveRecursiveCall();
+    return res;
+error:
+    Py_LeaveRecursiveCall();
+    Py_DECREF(res);
+    return NULL;
+}
+
+static PyObject *
+mp_decode_map(MessagePack *self, Py_ssize_t size, PyObject *type) {
+    if (type == NULL || Py_TYPE(type) != &StructMetaType) {
+        return mp_decode_dict(self, size);
+    } else {
+        return mp_decode_struct(self, size, (StructMetaObject *)type);
+    }
+}
+
+
+static PyObject *
+mp_decode(MessagePack *self, PyObject *type) {
     char op;
 
     if (mp_read1(self, &op) < 0) {
@@ -1751,7 +1847,7 @@ mp_decode(MessagePack *self) {
         return mp_decode_array(self, op & 0x0f);
     }
     else if ('\x80' <= op && op <= '\x8f') {
-        return mp_decode_map(self, op & 0x0f);
+        return mp_decode_map(self, op & 0x0f, type);
     }
     switch ((enum mp_code)op) {
         case MP_NIL:
@@ -1793,12 +1889,34 @@ mp_decode(MessagePack *self) {
             return mp_decode_array(self, mp_decode_size(self, 2 << (op & 0x01)));
         case MP_MAP16:
         case MP_MAP32:
-            return mp_decode_map(self, mp_decode_size(self, 2 << (op & 0x01)));
+            return mp_decode_map(self, mp_decode_size(self, 2 << (op & 0x01)), type);
         default:
             PyErr_Format(PyExc_ValueError, "invalid opcode, '\\x%02x'.", op);
             return NULL;
     }
 }
+
+static PyObject*
+mp_decode_internal(MessagePack *self, PyObject *buf, PyObject *type)
+{
+    PyObject *res = NULL;
+    Py_buffer buffer;
+    buffer.buf = NULL;
+
+    if (PyObject_GetBuffer(buf, &buffer, PyBUF_CONTIG_RO) >= 0) {
+        self->input_buffer = buffer.buf;
+        self->input_len = buffer.len;
+        self->next_read_idx = 0;
+        res = mp_decode(self, type);
+    }
+
+    if (buffer.buf != NULL) {
+        PyBuffer_Release(&buffer);
+        self->input_buffer = NULL;
+    }
+    return res;
+}
+
 
 PyDoc_STRVAR(MessagePack_decode__doc__,
 "decode(buf)\n"
@@ -1814,25 +1932,30 @@ PyDoc_STRVAR(MessagePack_decode__doc__,
 static PyObject*
 MessagePack_decode(MessagePack *self, PyObject *const *args, Py_ssize_t nargs)
 {
-    PyObject *res = NULL;
-    Py_buffer buffer;
-    buffer.buf = NULL;
-
     if (!check_positional_nargs(nargs, 1, 1)) {
         return NULL;
     }
-    if (PyObject_GetBuffer(args[0], &buffer, PyBUF_CONTIG_RO) >= 0) {
-        self->input_buffer = buffer.buf;
-        self->input_len = buffer.len;
-        self->next_read_idx = 0;
-        res = mp_decode(self);
-    }
+    return mp_decode_internal(self, args[0], NULL);
+}
 
-    if (buffer.buf != NULL) {
-        PyBuffer_Release(&buffer);
-        self->input_buffer = NULL;
+PyDoc_STRVAR(MessagePack_decode_as__doc__,
+"decode_as(buf, type)\n"
+"--\n"
+"\n"
+"Deserialize an object from bytes as a certain type.\n"
+"\n"
+"Returns\n"
+"-------\n"
+"obj : Any\n"
+"    The deserialized object\n"
+);
+static PyObject*
+MessagePack_decode_as(MessagePack *self, PyObject *const *args, Py_ssize_t nargs)
+{
+    if (!check_positional_nargs(nargs, 2, 2)) {
+        return NULL;
     }
-    return res;
+    return mp_decode_internal(self, args[0], args[1]);
 }
 
 static struct PyMethodDef MessagePack_methods[] = {
@@ -1843,6 +1966,10 @@ static struct PyMethodDef MessagePack_methods[] = {
     {
         "decode", (PyCFunction) MessagePack_decode, METH_FASTCALL,
         MessagePack_decode__doc__,
+    },
+    {
+        "decode_as", (PyCFunction) MessagePack_decode_as, METH_FASTCALL,
+        MessagePack_decode_as__doc__,
     },
     {
         "__sizeof__", (PyCFunction) MessagePack_sizeof, METH_NOARGS,
