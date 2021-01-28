@@ -1660,6 +1660,14 @@ mp_decode_str(MessagePack *self, Py_ssize_t size) {
 }
 
 static PyObject *
+mp_decode_bin(MessagePack *self, Py_ssize_t size) {
+    char *s;
+    if (size < 0) return NULL;
+    if (mp_read(self, &s, size) < 0) return NULL;
+    return PyBytes_FromStringAndSize(s, size);
+}
+
+static PyObject *
 mp_decode(MessagePack *self) {
     char op;
 
@@ -1702,6 +1710,12 @@ mp_decode(MessagePack *self) {
             return mp_decode_str(self, mp_decode_size(self, 2));
         case MP_STR32:
             return mp_decode_str(self, mp_decode_size(self, 4));
+        case MP_BIN8:
+            return mp_decode_bin(self, mp_decode_size(self, 1));
+        case MP_BIN16:
+            return mp_decode_bin(self, mp_decode_size(self, 2));
+        case MP_BIN32:
+            return mp_decode_bin(self, mp_decode_size(self, 4));
         default:
             PyErr_Format(PyExc_ValueError, "invalid opcode, '\\x%02x'.", op);
             return NULL;
