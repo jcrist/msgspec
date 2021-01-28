@@ -1697,6 +1697,43 @@ mp_decode_array(MessagePack *self, Py_ssize_t size) {
 }
 
 static PyObject *
+mp_decode_map(MessagePack *self, Py_ssize_t size) {
+    Py_ssize_t i;
+    PyObject *res, *key = NULL, *val = NULL;
+
+    if (size < 0) return NULL;
+
+    res = PyDict_New();
+    if (res == NULL) return NULL;
+    if (size == 0) return res;
+
+    if (Py_EnterRecursiveCall(" while deserializing an object")) {
+        Py_DECREF(res);
+        return NULL;
+    }
+    for (i = 0; i < size; i++) {
+        key = mp_decode(self);
+        if (key == NULL)
+            goto error;
+        val = mp_decode(self);
+        if (val == NULL)
+            goto error;
+        if (PyDict_SetItem(res, key, val) < 0)
+            goto error;
+        Py_CLEAR(key);
+        Py_CLEAR(val);
+    }
+    Py_LeaveRecursiveCall();
+    return res;
+error:
+    Py_LeaveRecursiveCall();
+    Py_XDECREF(key);
+    Py_XDECREF(val);
+    Py_DECREF(res);
+    return NULL;
+}
+
+static PyObject *
 mp_decode(MessagePack *self) {
     char op;
 
@@ -1712,6 +1749,9 @@ mp_decode(MessagePack *self) {
     }
     else if ('\x90' <= op && op <= '\x9f') {
         return mp_decode_array(self, op & 0x0f);
+    }
+    else if ('\x80' <= op && op <= '\x8f') {
+        return mp_decode_map(self, op & 0x0f);
     }
     switch ((enum mp_code)op) {
         case MP_NIL:
@@ -1751,6 +1791,9 @@ mp_decode(MessagePack *self) {
         case MP_ARRAY16:
         case MP_ARRAY32:
             return mp_decode_array(self, mp_decode_size(self, 2 << (op & 0x01)));
+        case MP_MAP16:
+        case MP_MAP32:
+            return mp_decode_map(self, mp_decode_size(self, 2 << (op & 0x01)));
         default:
             PyErr_Format(PyExc_ValueError, "invalid opcode, '\\x%02x'.", op);
             return NULL;
