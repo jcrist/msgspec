@@ -150,10 +150,10 @@ static PyTypeObject StructMixinType;
 #define StructMeta_GET_DEFAULTS(s) (((StructMetaObject *)(s))->struct_defaults);
 #define StructMeta_GET_OFFSETS(s) (((StructMetaObject *)(s))->struct_offsets);
 
-static int
-StructMeta_get_field_index(StructMetaObject *self, char * key, Py_ssize_t key_size, Py_ssize_t *index) {
+static Py_ssize_t
+StructMeta_get_field_index(StructMetaObject *self, char * key, Py_ssize_t key_size, Py_ssize_t *pos) {
     const char *field;
-    Py_ssize_t nfields, field_size, i, ind, offset = *index;
+    Py_ssize_t nfields, field_size, i, ind, offset = *pos;
     nfields = PyTuple_GET_SIZE(self->struct_fields);
     for (i = 0; i < nfields; i++) {
         ind = (i + offset) % nfields;
@@ -162,8 +162,8 @@ StructMeta_get_field_index(StructMetaObject *self, char * key, Py_ssize_t key_si
         );
         if (field == NULL) return -1;
         if (key_size == field_size && memcmp(key, field, key_size) == 0) {
-            *index = ind;
-            return 0;
+            *pos = (ind + 1) % nfields;
+            return ind;
         }
     }
     /* TODO: skip unknown fields */
@@ -1785,7 +1785,7 @@ mp_decode_cstr(MessagePack *self, char ** out) {
 
 static PyObject *
 mp_decode_struct(MessagePack *self, Py_ssize_t size, StructMetaObject *type) {
-    Py_ssize_t i, key_size, field_index;
+    Py_ssize_t i, key_size, field_index, pos = 0;
     char *key = NULL;
     PyObject *res, *val = NULL;
 
@@ -1803,7 +1803,8 @@ mp_decode_struct(MessagePack *self, Py_ssize_t size, StructMetaObject *type) {
         key_size = mp_decode_cstr(self, &key);
         if (key == NULL)
             goto error;
-        if (StructMeta_get_field_index(type, key, key_size, &field_index) < 0)
+        field_index = StructMeta_get_field_index(type, key, key_size, &pos);
+        if (field_index < 0)
             goto error;
         val = mp_decode(self, NULL);
         if (val == NULL)
