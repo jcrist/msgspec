@@ -4,6 +4,129 @@
 #include "datetime.h"
 #include "structmember.h"
 
+/************************************************************************
+ * Type Objects                                                         *
+ ************************************************************************/
+
+enum typenode_type {
+    TYPE_OPTIONAL = 0,
+    TYPE_LIST = 1,
+    TYPE_SET = 2,
+    TYPE_TUPLE = 3,
+    TYPE_DICT = 4,
+    TYPE_MAX = 4
+};
+
+typedef struct TypeNode {
+    PyObject_HEAD
+    enum typenode_type type;
+    PyObject *arg1;
+    PyObject *arg2;
+    PyObject *weakreflist;
+} TypeNode;
+
+static void
+TypeNode_dealloc(TypeNode *self)
+{
+    if (self->weakreflist != NULL)
+        PyObject_ClearWeakRefs((PyObject *)self);
+    Py_XDECREF(self->arg1);
+    Py_XDECREF(self->arg2);
+    Py_TYPE(self)->tp_free((PyObject *)self);
+}
+
+static int
+TypeNode_traverse(TypeNode *self, visitproc visit, void *arg)
+{
+    Py_VISIT(self->arg1);
+    Py_VISIT(self->arg2);
+    return 0;
+}
+
+static int
+TypeNode_init(TypeNode *self, PyObject *args, PyObject *kwds)
+{
+    static char *kwlist[] = {"", "", "", NULL};
+    unsigned char type = 0;
+    PyObject *arg1 = NULL, *arg2 = NULL;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "b|OO", kwlist, &type, &arg1, &arg2))
+        return -1;
+
+    if (type > TYPE_MAX) {
+        PyErr_Format(PyExc_ValueError, "type must be between 0 and %u", (unsigned char)(TYPE_MAX));
+        return -1;
+    }
+
+    Py_XINCREF(arg1);
+    Py_XINCREF(arg2);
+
+    self->type = type;
+    self->arg1 = arg1;
+    self->arg2 = arg2;
+    return 0;
+}
+
+static PyObject *
+TypeNode_repr(TypeNode *self) {
+    int recursive;
+    const char *type;
+    PyObject *out = NULL;
+
+    recursive = Py_ReprEnter((PyObject *)self);
+    if (recursive != 0) {
+        out = (recursive < 0) ? NULL : PyUnicode_FromString("...");
+        goto cleanup;
+    }
+    switch (self->type) {
+        case TYPE_OPTIONAL:
+            type = "OPTIONAL"; break;
+        case TYPE_LIST:
+            type = "LIST"; break;
+        case TYPE_SET:
+            type = "SET"; break;
+        case TYPE_TUPLE:
+            type = "TUPLE"; break;
+        case TYPE_DICT:
+            type = "DICT"; break;
+    }
+    if (self->arg1 != NULL && self->arg2 != NULL) {
+        out = PyUnicode_FromFormat("TypeNode(%s, %S, %S)", type, self->arg1, self->arg2);
+    }
+    else if (self->arg1 != NULL) {
+        out = PyUnicode_FromFormat("TypeNode(%s, %S)", type, self->arg1);
+    }
+    else {
+        out = PyUnicode_FromFormat("TypeNode(%s)", type);
+    }
+cleanup:
+    Py_ReprLeave((PyObject *)self);
+    return out;
+}
+
+static PyMemberDef TypeNode_members[] = {
+    {"type", T_USHORT, offsetof(TypeNode, type), READONLY, "The 1st arg"},
+    {"arg1", T_OBJECT_EX, offsetof(TypeNode, arg1), READONLY, "The 1st arg"},
+    {"arg2", T_OBJECT_EX, offsetof(TypeNode, arg2), READONLY, "The 2nd arg"},
+    {NULL},
+};
+
+static PyTypeObject TypeNode_Type = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "msgspec.core.TypeNode",
+    .tp_doc = "A node in a type tree",
+    .tp_basicsize = sizeof(TypeNode),
+    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
+    .tp_new = PyType_GenericNew,
+    .tp_init = (initproc)TypeNode_init,
+    .tp_repr = (reprfunc)TypeNode_repr,
+    .tp_dealloc = (destructor)TypeNode_dealloc,
+    .tp_members = TypeNode_members,
+    .tp_traverse = (traverseproc)TypeNode_traverse,
+    .tp_weaklistoffset = offsetof(TypeNode, weakreflist),
+};
+
+
 /*************************************************************************
  * Endian handling macros                                                *
  *************************************************************************/
@@ -2050,6 +2173,8 @@ PyInit_core(void)
         return NULL;
     if (PyType_Ready(&StructMixinType) < 0)
         return NULL;
+    if (PyType_Ready(&TypeNode_Type) < 0)
+        return NULL;
     if (PyType_Ready(&MessagePack_Type) < 0)
         return NULL;
 
@@ -2058,7 +2183,17 @@ PyInit_core(void)
     if (m == NULL)
         return NULL;
 
+    /* Add constants */
+    if (PyModule_AddIntConstant(m, "OPTIONAL", TYPE_OPTIONAL) < 0) return NULL;
+    if (PyModule_AddIntConstant(m, "LIST", TYPE_LIST) < 0) return NULL;
+    if (PyModule_AddIntConstant(m, "SET", TYPE_SET) < 0) return NULL;
+    if (PyModule_AddIntConstant(m, "TUPLE", TYPE_TUPLE) < 0) return NULL;
+    if (PyModule_AddIntConstant(m, "DICT", TYPE_DICT) < 0) return NULL;
+
     /* Add types */
+    Py_INCREF(&TypeNode_Type);
+    if (PyModule_AddObject(m, "TypeNode", (PyObject *)&TypeNode_Type) < 0)
+        return NULL;
     Py_INCREF(&MessagePack_Type);
     if (PyModule_AddObject(m, "MessagePack", (PyObject *)&MessagePack_Type) < 0)
         return NULL;
