@@ -4,127 +4,22 @@
 #include "datetime.h"
 #include "structmember.h"
 
-/************************************************************************
- * Type Objects                                                         *
- ************************************************************************/
 
-enum typenode_type {
-    TYPE_OPTIONAL = 0,
-    TYPE_LIST = 1,
-    TYPE_SET = 2,
-    TYPE_TUPLE = 3,
-    TYPE_DICT = 4,
-    TYPE_MAX = 4
-};
+#if PY_VERSION_HEX < 0x03090000
+#define IS_TRACKED _PyObject_GC_IS_TRACKED
+#define CALL_ONE_ARG(fn, arg) PyObject_CallFunctionObjArgs((fn), (arg), NULL)
+#else
+#define IS_TRACKED  PyObject_GC_IsTracked
+#define CALL_ONE_ARG(fn, arg) PyObject_CallOneArg((fn), (arg))
+#endif
+/* Is this object something that is/could be GC tracked? True if
+ * - the value supports GC
+ * - the value isn't a tuple or the object is tracked (skip tracked checks for non-tuples)
+ */
+#define OBJ_IS_GC(x) \
+    (PyType_IS_GC(Py_TYPE(x)) && \
+     (!PyTuple_CheckExact(x) || IS_TRACKED(x)))
 
-typedef struct TypeNode {
-    PyObject_HEAD
-    enum typenode_type type;
-    PyObject *arg1;
-    PyObject *arg2;
-    PyObject *weakreflist;
-} TypeNode;
-
-static void
-TypeNode_dealloc(TypeNode *self)
-{
-    if (self->weakreflist != NULL)
-        PyObject_ClearWeakRefs((PyObject *)self);
-    Py_XDECREF(self->arg1);
-    Py_XDECREF(self->arg2);
-    Py_TYPE(self)->tp_free((PyObject *)self);
-}
-
-static int
-TypeNode_traverse(TypeNode *self, visitproc visit, void *arg)
-{
-    Py_VISIT(self->arg1);
-    Py_VISIT(self->arg2);
-    return 0;
-}
-
-static int
-TypeNode_init(TypeNode *self, PyObject *args, PyObject *kwds)
-{
-    static char *kwlist[] = {"", "", "", NULL};
-    unsigned char type = 0;
-    PyObject *arg1 = NULL, *arg2 = NULL;
-
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "b|OO", kwlist, &type, &arg1, &arg2))
-        return -1;
-
-    if (type > TYPE_MAX) {
-        PyErr_Format(PyExc_ValueError, "type must be between 0 and %u", (unsigned char)(TYPE_MAX));
-        return -1;
-    }
-
-    Py_XINCREF(arg1);
-    Py_XINCREF(arg2);
-
-    self->type = type;
-    self->arg1 = arg1;
-    self->arg2 = arg2;
-    return 0;
-}
-
-static PyObject *
-TypeNode_repr(TypeNode *self) {
-    int recursive;
-    const char *type;
-    PyObject *out = NULL;
-
-    recursive = Py_ReprEnter((PyObject *)self);
-    if (recursive != 0) {
-        out = (recursive < 0) ? NULL : PyUnicode_FromString("...");
-        goto cleanup;
-    }
-    switch (self->type) {
-        case TYPE_OPTIONAL:
-            type = "OPTIONAL"; break;
-        case TYPE_LIST:
-            type = "LIST"; break;
-        case TYPE_SET:
-            type = "SET"; break;
-        case TYPE_TUPLE:
-            type = "TUPLE"; break;
-        case TYPE_DICT:
-            type = "DICT"; break;
-    }
-    if (self->arg1 != NULL && self->arg2 != NULL) {
-        out = PyUnicode_FromFormat("TypeNode(%s, %S, %S)", type, self->arg1, self->arg2);
-    }
-    else if (self->arg1 != NULL) {
-        out = PyUnicode_FromFormat("TypeNode(%s, %S)", type, self->arg1);
-    }
-    else {
-        out = PyUnicode_FromFormat("TypeNode(%s)", type);
-    }
-cleanup:
-    Py_ReprLeave((PyObject *)self);
-    return out;
-}
-
-static PyMemberDef TypeNode_members[] = {
-    {"type", T_USHORT, offsetof(TypeNode, type), READONLY, "The 1st arg"},
-    {"arg1", T_OBJECT_EX, offsetof(TypeNode, arg1), READONLY, "The 1st arg"},
-    {"arg2", T_OBJECT_EX, offsetof(TypeNode, arg2), READONLY, "The 2nd arg"},
-    {NULL},
-};
-
-static PyTypeObject TypeNode_Type = {
-    PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name = "msgspec.core.TypeNode",
-    .tp_doc = "A node in a type tree",
-    .tp_basicsize = sizeof(TypeNode),
-    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
-    .tp_new = PyType_GenericNew,
-    .tp_init = (initproc)TypeNode_init,
-    .tp_repr = (reprfunc)TypeNode_repr,
-    .tp_dealloc = (destructor)TypeNode_dealloc,
-    .tp_members = TypeNode_members,
-    .tp_traverse = (traverseproc)TypeNode_traverse,
-    .tp_weaklistoffset = offsetof(TypeNode, weakreflist),
-};
 
 
 /*************************************************************************
@@ -184,6 +79,13 @@ typedef struct {
     PyTypeObject *EnumType;
     PyObject *str__name_;
     PyObject *str_name;
+    PyObject *typing_list;
+    PyObject *typing_set;
+    PyObject *typing_tuple;
+    PyObject *typing_dict;
+    PyObject *typing_union;
+    PyObject *typing_any;
+    PyObject *get_type_hints;
 } MsgspecState;
 
 /* Forward declaration of the msgspec module definition. */
@@ -735,20 +637,6 @@ cleanup:
     return res;
 }
 
-#if PY_VERSION_HEX < 0x03090000
-#define IS_TRACKED _PyObject_GC_IS_TRACKED
-#define CALL_ONE_ARG(fn, arg) PyObject_CallFunctionObjArgs((fn), (arg), NULL)
-#else
-#define IS_TRACKED  PyObject_GC_IsTracked
-#define CALL_ONE_ARG(fn, arg) PyObject_CallOneArg((fn), (arg))
-#endif
-/* Is this object something that is/could be GC tracked? True if
- * - the value supports GC
- * - the value isn't a tuple or the object is tracked (skip tracked checks for non-tuples)
- */
-#define OBJ_IS_GC(x) \
-    (PyType_IS_GC(Py_TYPE(x)) && \
-     (!PyTuple_CheckExact(x) || IS_TRACKED(x)))
 
 /* Set field #index on obj. Steals a reference to val */
 static inline void
@@ -1087,6 +975,299 @@ PyDoc_STRVAR(Struct__doc__,
 ">>> Dog('snickers', breed='corgi')\n"
 "Dog(name='snickers', breed='corgi', is_good_boy=True)\n"
 );
+
+/************************************************************************
+ * Type Objects                                                         *
+ ************************************************************************/
+
+enum typenode_type {
+    TYPE_OPTIONAL = 0,
+    TYPE_LIST = 1,
+    TYPE_SET = 2,
+    TYPE_TUPLE = 3,
+    TYPE_DICT = 4,
+    TYPE_MAX = 4
+};
+
+typedef struct TypeNode {
+    PyObject_HEAD
+    enum typenode_type type;
+    PyObject *arg1;
+    PyObject *arg2;
+    PyObject *weakreflist;
+} TypeNode;
+
+static int
+TypeNode_clear(TypeNode *self) {
+    if (self->weakreflist != NULL)
+        PyObject_ClearWeakRefs((PyObject *)self);
+    Py_CLEAR(self->arg1);
+    Py_CLEAR(self->arg2);
+    return 0;
+}
+
+static void
+TypeNode_dealloc(TypeNode *self)
+{
+    TypeNode_clear(self);
+    PyObject_GC_Del(self);
+}
+
+static int
+TypeNode_traverse(TypeNode *self, visitproc visit, void *arg)
+{
+    Py_VISIT(self->arg1);
+    Py_VISIT(self->arg2);
+    return 0;
+}
+
+static int
+TypeNode_init(TypeNode *self, PyObject *args, PyObject *kwds)
+{
+    static char *kwlist[] = {"", "", "", NULL};
+    unsigned char type = 0;
+    PyObject *arg1 = NULL, *arg2 = NULL;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "b|OO", kwlist, &type, &arg1, &arg2))
+        return -1;
+
+    if (type > TYPE_MAX) {
+        PyErr_Format(PyExc_ValueError, "type must be between 0 and %u", (unsigned char)(TYPE_MAX));
+        return -1;
+    }
+
+    Py_XINCREF(arg1);
+    Py_XINCREF(arg2);
+
+    self->type = type;
+    self->arg1 = arg1;
+    self->arg2 = arg2;
+    self->weakreflist = NULL;
+    return 0;
+}
+
+static PyObject *
+TypeNode_repr(TypeNode *self) {
+    int recursive;
+    const char *type;
+    PyObject *out = NULL;
+
+    recursive = Py_ReprEnter((PyObject *)self);
+    if (recursive != 0) {
+        out = (recursive < 0) ? NULL : PyUnicode_FromString("...");
+        return out;
+    }
+    switch (self->type) {
+        case TYPE_OPTIONAL:
+            type = "OPTIONAL"; break;
+        case TYPE_LIST:
+            type = "LIST"; break;
+        case TYPE_SET:
+            type = "SET"; break;
+        case TYPE_TUPLE:
+            type = "TUPLE"; break;
+        case TYPE_DICT:
+            type = "DICT"; break;
+    }
+    if (self->arg1 != NULL && self->arg2 != NULL) {
+        out = PyUnicode_FromFormat("TypeNode(%s, %R, %R)", type, self->arg1, self->arg2);
+    }
+    else if (self->arg1 != NULL) {
+        out = PyUnicode_FromFormat("TypeNode(%s, %R)", type, self->arg1);
+    }
+    else {
+        out = PyUnicode_FromFormat("TypeNode(%s)", type);
+    }
+    Py_ReprLeave((PyObject *)self);
+    return out;
+}
+
+static PyMemberDef TypeNode_members[] = {
+    {"type", T_USHORT, offsetof(TypeNode, type), READONLY, "The 1st arg"},
+    {"arg1", T_OBJECT_EX, offsetof(TypeNode, arg1), READONLY, "The 1st arg"},
+    {"arg2", T_OBJECT_EX, offsetof(TypeNode, arg2), READONLY, "The 2nd arg"},
+    {NULL},
+};
+
+static PyTypeObject TypeNode_Type = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "msgspec.core.TypeNode",
+    .tp_doc = "A node in a type tree",
+    .tp_basicsize = sizeof(TypeNode),
+    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
+    .tp_new = PyType_GenericNew,
+    .tp_init = (initproc)TypeNode_init,
+    .tp_repr = (reprfunc)TypeNode_repr,
+    .tp_dealloc = (destructor)TypeNode_dealloc,
+    .tp_members = TypeNode_members,
+    .tp_traverse = (traverseproc)TypeNode_traverse,
+    .tp_clear = (inquiry) TypeNode_clear,
+    .tp_weaklistoffset = offsetof(TypeNode, weakreflist),
+};
+
+static PyObject *
+TypeNode_New(enum typenode_type type, PyObject *arg1, PyObject *arg2) {
+    TypeNode *out = PyObject_GC_New(TypeNode, &TypeNode_Type);
+    if (out == NULL) return NULL;
+
+    out->type = type;
+    Py_XINCREF(arg1);
+    Py_XINCREF(arg2);
+    out->arg1 = arg1;
+    out->arg2 = arg2;
+    out->weakreflist = NULL;
+    PyObject_GC_Track(out);
+    return (PyObject *)out;
+}
+
+#define NONE_TYPE ((PyObject *)(Py_TYPE(Py_None)))
+#define BOOL_TYPE ((PyObject *)(Py_TYPE(Py_True)))
+
+static PyObject *
+to_type_node(PyObject * obj) {
+    PyObject *out = NULL, *origin = NULL, *args = NULL, *arg1 = NULL, *arg2 = NULL;
+    MsgspecState *st = msgspec_get_global_state();
+
+    if (obj == Py_None || obj == NONE_TYPE) {
+        out = NONE_TYPE;
+        Py_INCREF(out);
+        return out;
+    }
+    else if (obj == Py_False || obj == Py_True) {
+        out = BOOL_TYPE;
+        Py_INCREF(out);
+        return out;
+    }
+    else if (
+        obj == (PyObject *)(&PyLong_Type) ||
+        obj == (PyObject *)(&PyFloat_Type) ||
+        obj == (PyObject *)(&PyBytes_Type) ||
+        obj == (PyObject *)(&PyUnicode_Type) ||
+        obj == (PyObject *)(&PyByteArray_Type) ||
+        obj == st->typing_any ||
+        Py_TYPE(obj) == &StructMetaType ||
+        (PyType_Check(obj) && PyType_IsSubtype((PyTypeObject *)obj, st->EnumType))
+    ) {
+        out = obj;
+        Py_INCREF(out);
+        return out;
+    }
+    else if (obj == (PyObject*)(&PyDict_Type) || obj == st->typing_dict) {
+        out = (PyObject *)(&PyDict_Type);
+        Py_INCREF(out);
+        return out;
+    }
+    else if (obj == (PyObject*)(&PyList_Type) || obj == st->typing_list) {
+        out = (PyObject *)(&PyList_Type);
+        Py_INCREF(out);
+        return out;
+    }
+    else if (obj == (PyObject*)(&PySet_Type) || obj == st->typing_set) {
+        out = (PyObject *)(&PySet_Type);
+        Py_INCREF(out);
+        return out;
+    }
+    else if (obj == (PyObject*)(&PyTuple_Type) || obj == st->typing_tuple) {
+        out = (PyObject *)(&PyTuple_Type);
+        Py_INCREF(out);
+        return out;
+    }
+
+    /* Attempt to extract __origin__/__args__ from the obj as a typing object */
+    origin = PyObject_GetAttrString(obj, "__origin__");
+    if (origin == NULL) goto done;
+    args = PyObject_GetAttrString(obj, "__args__");
+    if (args == NULL) goto done;
+
+    if (origin == (PyObject*)(&PyDict_Type)) {
+        if (PyTuple_Size(args) != 2) goto done;
+        if ((arg1 = to_type_node(PyTuple_GET_ITEM(args, 0))) == NULL) goto done;
+        if ((arg2 = to_type_node(PyTuple_GET_ITEM(args, 1))) == NULL) goto done;
+        if (arg1 == st->typing_any && arg2 == st->typing_any) {
+            out = (PyObject *)(&PyDict_Type);
+            Py_INCREF(out);
+        }
+        else {
+            out = TypeNode_New(TYPE_DICT, arg1, arg2);
+        }
+        goto done;
+    }
+    else if (origin == (PyObject*)(&PyList_Type)) {
+        if (PyTuple_Size(args) != 1) goto done;
+        if ((arg1 = to_type_node(PyTuple_GET_ITEM(args, 0))) == NULL) goto done;
+        if (arg1 == st->typing_any) {
+            out = (PyObject *)(&PyList_Type);
+            Py_INCREF(out);
+        }
+        else {
+            out = TypeNode_New(TYPE_LIST, arg1, NULL);
+        }
+        goto done;
+    }
+    else if (origin == (PyObject*)(&PySet_Type)) {
+        if (PyTuple_Size(args) != 1) goto done;
+        if ((arg1 = to_type_node(PyTuple_GET_ITEM(args, 0))) == NULL) goto done;
+        if (arg1 == st->typing_any) {
+            out = (PyObject *)(&PySet_Type);
+            Py_INCREF(out);
+        }
+        else {
+            out = TypeNode_New(TYPE_SET, arg1, NULL);
+        }
+        goto done;
+    }
+    else if (origin == (PyObject*)(&PyTuple_Type)) {
+        if (PyTuple_Size(args) != 1) goto done;
+        if ((arg1 = to_type_node(PyTuple_GET_ITEM(args, 0))) == NULL) goto done;
+        if (arg1 == st->typing_any) {
+            out = (PyObject *)(&PyTuple_Type);
+            Py_INCREF(out);
+        }
+        else {
+            out = TypeNode_New(TYPE_TUPLE, arg1, NULL);
+        }
+        goto done;
+    }
+    else if (origin == st->typing_union) {
+        if (PyTuple_Size(args) != 2) goto done;
+        if (PyTuple_GET_ITEM(args, 0) == NONE_TYPE) {
+            if ((arg1 = to_type_node(PyTuple_GET_ITEM(args, 1))) == NULL) goto done;
+        }
+        else if (PyTuple_GET_ITEM(args, 1) == NONE_TYPE) {
+            if ((arg1 = to_type_node(PyTuple_GET_ITEM(args, 0))) == NULL) goto done;
+        }
+        else {
+            goto done;
+        }
+        if (arg1 == st->typing_any) {
+            out = st->typing_any;
+            Py_INCREF(out);
+        }
+        else {
+            out = TypeNode_New(TYPE_OPTIONAL, arg1, NULL);
+        }
+        goto done;
+    }
+    else {
+        goto done;
+    }
+
+done:
+    Py_XDECREF(origin);
+    Py_XDECREF(args);
+    Py_XDECREF(arg1);
+    Py_XDECREF(arg2);
+    if (out == NULL) {
+        PyErr_Format(PyExc_TypeError, "Type '%R' is not supported", obj);
+    }
+    return out;
+}
+
+/* Expose as python function for testing */
+static PyObject *
+to_type_node_py(PyObject *self, PyObject *obj) {
+    return to_type_node(obj);
+}
 
 /*************************************************************************
  * MessagePack                                                           *
@@ -2127,6 +2308,13 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->EnumType);
     Py_CLEAR(st->str__name_);
     Py_CLEAR(st->str_name);
+    Py_CLEAR(st->typing_dict);
+    Py_CLEAR(st->typing_list);
+    Py_CLEAR(st->typing_set);
+    Py_CLEAR(st->typing_tuple);
+    Py_CLEAR(st->typing_union);
+    Py_CLEAR(st->typing_any);
+    Py_CLEAR(st->get_type_hints);
     return 0;
 }
 
@@ -2142,13 +2330,29 @@ msgspec_traverse(PyObject *m, visitproc visit, void *arg)
     MsgspecState *st = msgspec_get_state(m);
     Py_VISIT(st->StructType);
     Py_VISIT(st->EnumType);
+    Py_VISIT(st->typing_dict);
+    Py_VISIT(st->typing_list);
+    Py_VISIT(st->typing_set);
+    Py_VISIT(st->typing_tuple);
+    Py_VISIT(st->typing_union);
+    Py_VISIT(st->typing_any);
+    Py_VISIT(st->get_type_hints);
     return 0;
 }
+
+static struct PyMethodDef msgspec_methods[] = {
+    {
+        "to_type_node", (PyCFunction) to_type_node_py, METH_O,
+        "Convert `obj` to a `TypeNode`",
+    },
+    {NULL, NULL} /* sentinel */
+};
 
 static struct PyModuleDef msgspecmodule = {
     PyModuleDef_HEAD_INIT,
     .m_name = "msgspec.core",
     .m_size = sizeof(MsgspecState),
+    .m_methods = msgspec_methods,
     .m_traverse = msgspec_traverse,
     .m_clear = msgspec_clear,
     .m_free =(freefunc)msgspec_free
@@ -2157,7 +2361,7 @@ static struct PyModuleDef msgspecmodule = {
 PyMODINIT_FUNC
 PyInit_core(void)
 {
-    PyObject *m, *temp_module, *temp_type;
+    PyObject *m, *temp_module, *temp_obj;
     MsgspecState *st;
 
     PyDateTime_IMPORT;
@@ -2211,20 +2415,38 @@ PyInit_core(void)
     if (PyModule_AddObject(m, "Struct", st->StructType) < 0)
         return NULL;
 
+#define SET_REF(attr, name) \
+    do { \
+    st->attr = PyObject_GetAttrString(temp_module, name); \
+    if (st->attr == NULL) return NULL; \
+    } while (0)
+
+    /* Get all imports from the typing module */
+    temp_module = PyImport_ImportModule("typing");
+    if (temp_module == NULL) return NULL;
+    SET_REF(typing_list, "List");
+    SET_REF(typing_set, "Set");
+    SET_REF(typing_tuple, "Tuple");
+    SET_REF(typing_dict, "Dict");
+    SET_REF(typing_union, "Union");
+    SET_REF(typing_any, "Any");
+    SET_REF(get_type_hints, "get_type_hints");
+    Py_DECREF(temp_module);
+
     /* Get the EnumType */
     temp_module = PyImport_ImportModule("enum");
     if (temp_module == NULL)
         return NULL;
-    temp_type = PyObject_GetAttrString(temp_module, "Enum");
+    temp_obj = PyObject_GetAttrString(temp_module, "Enum");
     Py_DECREF(temp_module);
-    if (temp_type == NULL)
+    if (temp_obj == NULL)
         return NULL;
-    if (!PyType_Check(temp_type)) {
-        Py_DECREF(temp_type);
+    if (!PyType_Check(temp_obj)) {
+        Py_DECREF(temp_obj);
         PyErr_SetString(PyExc_TypeError, "enum.Enum should be a type");
         return NULL;
     }
-    st->EnumType = (PyTypeObject *)temp_type;
+    st->EnumType = (PyTypeObject *)temp_obj;
 
     /* Initialize cached constant strings */
     st->str__name_ = PyUnicode_InternFromString("_name_");
