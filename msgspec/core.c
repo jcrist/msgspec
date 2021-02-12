@@ -1270,10 +1270,10 @@ to_type_node_py(PyObject *self, PyObject *obj) {
 }
 
 /*************************************************************************
- * MessagePack                                                           *
+ * MessagePack Encoder                                                   *
  *************************************************************************/
 
-typedef struct MessagePack {
+typedef struct Encoder {
     PyObject_HEAD
     /* Configuration */
     Py_ssize_t write_buffer_size;
@@ -1283,18 +1283,13 @@ typedef struct MessagePack {
                                    flushing to the stream */
     Py_ssize_t output_len;      /* Length of output_buffer */
     Py_ssize_t max_output_len;  /* Allocation size of output_buffer */
+} Encoder;
 
-    /* Encoding attributes */
-    char *input_buffer;
-    Py_ssize_t input_len;
-    Py_ssize_t next_read_idx;
-} MessagePack;
-
-PyDoc_STRVAR(MessagePack__doc__,
-"MessagePack(*, write_buffer_size=4096)\n"
+PyDoc_STRVAR(Encoder__doc__,
+"Encoder(*, write_buffer_size=4096)\n"
 "--\n"
 "\n"
-"A MessagePack encoder/decoder.\n"
+"A MessagePack encoder.\n"
 "\n"
 "Parameters\n"
 "----------\n"
@@ -1302,7 +1297,7 @@ PyDoc_STRVAR(MessagePack__doc__,
 "    The size of the internal static write buffer."
 );
 static int
-MessagePack_init(MessagePack *self, PyObject *args, PyObject *kwds)
+Encoder_init(Encoder *self, PyObject *args, PyObject *kwds)
 {
     static char *kwlist[] = {"write_buffer_size", NULL};
     Py_ssize_t write_buffer_size = 4096;
@@ -1322,17 +1317,17 @@ MessagePack_init(MessagePack *self, PyObject *args, PyObject *kwds)
 }
 
 static void
-MessagePack_dealloc(MessagePack *self)
+Encoder_dealloc(Encoder *self)
 {
     Py_TYPE(self)->tp_free((PyObject *)self);
 }
 
 static PyObject*
-MessagePack_sizeof(MessagePack *self)
+Encoder_sizeof(Encoder *self)
 {
     Py_ssize_t res;
 
-    res = sizeof(MessagePack);
+    res = sizeof(Encoder);
     if (self->output_buffer != NULL) {
         res += self->max_output_len;
     }
@@ -1368,12 +1363,8 @@ enum mp_code {
     MP_MAP32 = '\xdf'
 };
 
-/*************************************************************************
- * MessagePack encode                                                    *
- *************************************************************************/
-
 static int
-mp_write(MessagePack *self, const char *s, Py_ssize_t n)
+mp_write(Encoder *self, const char *s, Py_ssize_t n)
 {
     Py_ssize_t required;
     char *buffer;
@@ -1395,24 +1386,24 @@ mp_write(MessagePack *self, const char *s, Py_ssize_t n)
     return 0;
 }
 
-static int mp_encode(MessagePack *self, PyObject *obj);
+static int mp_encode(Encoder *self, PyObject *obj);
 
 static int
-mp_encode_none(MessagePack *self)
+mp_encode_none(Encoder *self)
 {
     const char op = MP_NIL;
     return mp_write(self, &op, 1);
 }
 
 static int
-mp_encode_bool(MessagePack *self, PyObject *obj)
+mp_encode_bool(Encoder *self, PyObject *obj)
 {
     const char op = (obj == Py_True) ? MP_TRUE : MP_FALSE;
     return mp_write(self, &op, 1);
 }
 
 static int
-mp_encode_long(MessagePack *self, PyObject *obj)
+mp_encode_long(Encoder *self, PyObject *obj)
 {
     int overflow;
     int64_t x = PyLong_AsLongLongAndOverflow(obj, &overflow);
@@ -1488,7 +1479,7 @@ mp_encode_long(MessagePack *self, PyObject *obj)
 }
 
 static int
-mp_encode_float(MessagePack *self, PyObject *obj)
+mp_encode_float(Encoder *self, PyObject *obj)
 {
     char buf[9];
     double x = PyFloat_AS_DOUBLE(obj);
@@ -1500,7 +1491,7 @@ mp_encode_float(MessagePack *self, PyObject *obj)
 }
 
 static int
-mp_encode_str(MessagePack *self, PyObject *obj)
+mp_encode_str(Encoder *self, PyObject *obj)
 {
     Py_ssize_t len;
     const char* buf = PyUnicode_AsUTF8AndSize(obj, &len);
@@ -1538,7 +1529,7 @@ mp_encode_str(MessagePack *self, PyObject *obj)
 }
 
 static int
-mp_encode_bin(MessagePack *self, const char* buf, Py_ssize_t len) {
+mp_encode_bin(Encoder *self, const char* buf, Py_ssize_t len) {
     if (buf == NULL) {
         return -1;
     }
@@ -1569,7 +1560,7 @@ mp_encode_bin(MessagePack *self, const char* buf, Py_ssize_t len) {
 }
 
 static int
-mp_encode_bytes(MessagePack *self, PyObject *obj)
+mp_encode_bytes(Encoder *self, PyObject *obj)
 {
     Py_ssize_t len = PyBytes_GET_SIZE(obj);
     const char* buf = PyBytes_AS_STRING(obj);
@@ -1577,7 +1568,7 @@ mp_encode_bytes(MessagePack *self, PyObject *obj)
 }
 
 static int
-mp_encode_bytearray(MessagePack *self, PyObject *obj)
+mp_encode_bytearray(Encoder *self, PyObject *obj)
 {
     Py_ssize_t len = PyByteArray_GET_SIZE(obj);
     const char* buf = PyByteArray_AS_STRING(obj);
@@ -1585,7 +1576,7 @@ mp_encode_bytearray(MessagePack *self, PyObject *obj)
 }
 
 static int
-mp_encode_array_header(MessagePack *self, Py_ssize_t len, const char* typname)
+mp_encode_array_header(Encoder *self, Py_ssize_t len, const char* typname)
 {
     if (len < 16) {
         char header[1] = {MP_FIXARRAY | len};
@@ -1615,7 +1606,7 @@ mp_encode_array_header(MessagePack *self, Py_ssize_t len, const char* typname)
 }
 
 static int
-mp_encode_list(MessagePack *self, PyObject *obj)
+mp_encode_list(Encoder *self, PyObject *obj)
 {
     Py_ssize_t i, len;
     int status = 0;
@@ -1638,7 +1629,7 @@ mp_encode_list(MessagePack *self, PyObject *obj)
 }
 
 static int
-mp_encode_tuple(MessagePack *self, PyObject *obj)
+mp_encode_tuple(Encoder *self, PyObject *obj)
 {
     Py_ssize_t i, len;
     int status = 0;
@@ -1661,7 +1652,7 @@ mp_encode_tuple(MessagePack *self, PyObject *obj)
 }
 
 static int
-mp_encode_map_header(MessagePack *self, Py_ssize_t len, const char* typname)
+mp_encode_map_header(Encoder *self, Py_ssize_t len, const char* typname)
 {
     if (len < 16) {
         char header[1] = {MP_FIXMAP | len};
@@ -1691,7 +1682,7 @@ mp_encode_map_header(MessagePack *self, Py_ssize_t len, const char* typname)
 }
 
 static int
-mp_encode_dict(MessagePack *self, PyObject *obj)
+mp_encode_dict(Encoder *self, PyObject *obj)
 {
     PyObject *key, *val;
     Py_ssize_t len, pos = 0;
@@ -1715,7 +1706,7 @@ mp_encode_dict(MessagePack *self, PyObject *obj)
 }
 
 static int
-mp_encode_struct(MessagePack *self, PyObject *obj)
+mp_encode_struct(Encoder *self, PyObject *obj)
 {
     PyObject *key, *val, *fields;
     Py_ssize_t i, len;
@@ -1742,7 +1733,7 @@ mp_encode_struct(MessagePack *self, PyObject *obj)
 }
 
 static int
-mp_encode_enum(MessagePack *self, PyObject *obj)
+mp_encode_enum(Encoder *self, PyObject *obj)
 {
     int status;
     PyObject *name = NULL;
@@ -1770,7 +1761,7 @@ mp_encode_enum(MessagePack *self, PyObject *obj)
 }
 
 static int
-mp_encode(MessagePack *self, PyObject *obj)
+mp_encode(Encoder *self, PyObject *obj)
 {
     PyTypeObject *type;
     MsgspecState *st;
@@ -1816,13 +1807,13 @@ mp_encode(MessagePack *self, PyObject *obj)
     }
     else {
         PyErr_Format(PyExc_TypeError,
-                     "MessagePack.encode doesn't support objects of type %.200s",
+                     "Encoder.encode doesn't support objects of type %.200s",
                      type->tp_name);
         return -1;
     }
 }
 
-PyDoc_STRVAR(MessagePack_encode__doc__,
+PyDoc_STRVAR(Encoder_encode__doc__,
 "encode(obj)\n"
 "--\n"
 "\n"
@@ -1834,7 +1825,7 @@ PyDoc_STRVAR(MessagePack_encode__doc__,
 "    The serialized object\n"
 );
 static PyObject*
-MessagePack_encode(MessagePack *self, PyObject *const *args, Py_ssize_t nargs)
+Encoder_encode(Encoder *self, PyObject *const *args, Py_ssize_t nargs)
 {
     int status;
     PyObject *res = NULL, *obj = NULL;
@@ -1879,9 +1870,102 @@ MessagePack_encode(MessagePack *self, PyObject *const *args, Py_ssize_t nargs)
     return res;
 }
 
+static struct PyMethodDef Encoder_methods[] = {
+    {
+        "encode", (PyCFunction) Encoder_encode, METH_FASTCALL,
+        Encoder_encode__doc__,
+    },
+    {
+        "__sizeof__", (PyCFunction) Encoder_sizeof, METH_NOARGS,
+        PyDoc_STR("Size in bytes")
+    },
+    {NULL, NULL}                /* sentinel */
+};
+
+
+static PyTypeObject Encoder_Type = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "msgspec.core.Encoder",
+    .tp_doc = Encoder__doc__,
+    .tp_basicsize = sizeof(Encoder),
+    .tp_dealloc = (destructor)Encoder_dealloc,
+    .tp_flags = Py_TPFLAGS_DEFAULT,
+    .tp_new = PyType_GenericNew,
+    .tp_init = (initproc)Encoder_init,
+    .tp_methods = Encoder_methods,
+};
+
 /*************************************************************************
- * MessagePack decode                                                    *
+ * MessagePack Decoder                                                   *
  *************************************************************************/
+
+typedef struct Decoder {
+    PyObject_HEAD
+    /* Configuration */
+    PyObject *orig_type;
+    PyObject *type;
+
+    /* Per-message attributes */
+    char *input_buffer;
+    Py_ssize_t input_len;
+    Py_ssize_t next_read_idx;
+} Decoder;
+
+PyDoc_STRVAR(Decoder__doc__,
+"Decoder(type=Any)\n"
+"--\n"
+"\n"
+"A MessagePack decoder.\n"
+"\n"
+"Parameters\n"
+"----------\n"
+"type : Type, optional\n"
+"    A Python type (in type annotation form) to decode the object as. If\n"
+"    provided, the message will be type checked and decoded as the specified\n"
+"    type. Defaults to `Any`, in which case the message will be decoded using\n"
+"    the default MessagePack types."
+);
+static int
+Decoder_init(Decoder *self, PyObject *args, PyObject *kwds)
+{
+    static char *kwlist[] = {"type", NULL};
+    MsgspecState *st = msgspec_get_global_state();
+    PyObject *type = st->typing_any;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|O", kwlist, &type)) {
+        return -1;
+    }
+
+    self->type = to_type_node(type);
+    if (self->type == NULL) {
+        return -1;
+    }
+    Py_INCREF(type);
+    self->orig_type = type;
+    return 0;
+}
+
+static int
+Decoder_traverse(Decoder *self, visitproc visit, void *arg)
+{
+    Py_VISIT(self->type);
+    Py_VISIT(self->orig_type);
+    return 0;
+}
+
+static int
+Decoder_clear(Decoder *self) {
+    Py_CLEAR(self->type);
+    Py_CLEAR(self->orig_type);
+    return 0;
+}
+
+static void
+Decoder_dealloc(Decoder *self)
+{
+    Decoder_clear(self);
+    Py_TYPE(self)->tp_free((PyObject *)self);
+}
 
 static Py_ssize_t
 mp_err_truncated()
@@ -1891,7 +1975,7 @@ mp_err_truncated()
 }
 
 static Py_ssize_t
-mp_read1(MessagePack *self, char *s)
+mp_read1(Decoder *self, char *s)
 {
     if (1 <= self->input_len - self->next_read_idx) {
         *s = *(self->input_buffer + self->next_read_idx);
@@ -1902,7 +1986,7 @@ mp_read1(MessagePack *self, char *s)
 }
 
 static Py_ssize_t
-mp_read(MessagePack *self, char **s, Py_ssize_t n)
+mp_read(Decoder *self, char **s, Py_ssize_t n)
 {
     if (n <= self->input_len - self->next_read_idx) {
         *s = self->input_buffer + self->next_read_idx;
@@ -1912,10 +1996,10 @@ mp_read(MessagePack *self, char **s, Py_ssize_t n)
     return mp_err_truncated();
 }
 
-static PyObject * mp_decode(MessagePack *self, PyObject *type);
+static PyObject * mp_decode(Decoder *self, PyObject *type);
 
 static PyObject *
-mp_decode_uint(MessagePack *self, int nbytes) {
+mp_decode_uint(Decoder *self, int nbytes) {
     char *s;
     if (mp_read(self, &s, nbytes) < 0) return NULL;
     switch (nbytes) {
@@ -1933,7 +2017,7 @@ mp_decode_uint(MessagePack *self, int nbytes) {
 }
 
 static PyObject *
-mp_decode_int(MessagePack *self, int nbytes) {
+mp_decode_int(Decoder *self, int nbytes) {
     char *s;
     if (mp_read(self, &s, nbytes) < 0) return NULL;
     switch (nbytes) {
@@ -1951,7 +2035,7 @@ mp_decode_int(MessagePack *self, int nbytes) {
 }
 
 static PyObject *
-mp_decode_float(MessagePack *self, int nbytes) {
+mp_decode_float(Decoder *self, int nbytes) {
     char *s;
     double x;
     if (mp_read(self, &s, nbytes) < 0) return NULL;
@@ -1964,7 +2048,7 @@ mp_decode_float(MessagePack *self, int nbytes) {
 }
 
 static Py_ssize_t
-mp_decode_size(MessagePack *self, int nbytes) {
+mp_decode_size(Decoder *self, int nbytes) {
     char *s;
     if (mp_read(self, &s, nbytes) < 0) return -1;
     switch (nbytes) {
@@ -1980,7 +2064,7 @@ mp_decode_size(MessagePack *self, int nbytes) {
 }
 
 static PyObject *
-mp_decode_str(MessagePack *self, Py_ssize_t size) {
+mp_decode_str(Decoder *self, Py_ssize_t size) {
     char *s;
     if (size < 0) return NULL;
     if (mp_read(self, &s, size) < 0) return NULL;
@@ -1988,7 +2072,7 @@ mp_decode_str(MessagePack *self, Py_ssize_t size) {
 }
 
 static PyObject *
-mp_decode_bin(MessagePack *self, Py_ssize_t size) {
+mp_decode_bin(Decoder *self, Py_ssize_t size) {
     char *s;
     if (size < 0) return NULL;
     if (mp_read(self, &s, size) < 0) return NULL;
@@ -1996,7 +2080,7 @@ mp_decode_bin(MessagePack *self, Py_ssize_t size) {
 }
 
 static PyObject *
-mp_decode_array(MessagePack *self, Py_ssize_t size) {
+mp_decode_array(Decoder *self, Py_ssize_t size) {
     Py_ssize_t i;
     PyObject *res, *item;
 
@@ -2023,7 +2107,7 @@ mp_decode_array(MessagePack *self, Py_ssize_t size) {
 }
 
 static PyObject *
-mp_decode_dict(MessagePack *self, Py_ssize_t size) {
+mp_decode_dict(Decoder *self, Py_ssize_t size) {
     Py_ssize_t i;
     PyObject *res, *key = NULL, *val = NULL;
 
@@ -2060,7 +2144,7 @@ error:
 }
 
 static Py_ssize_t
-mp_decode_cstr(MessagePack *self, char ** out) {
+mp_decode_cstr(Decoder *self, char ** out) {
     char op;
     Py_ssize_t size;
     if (mp_read1(self, &op) < 0) return -1;
@@ -2088,7 +2172,7 @@ mp_decode_cstr(MessagePack *self, char ** out) {
 }
 
 static PyObject *
-mp_decode_struct(MessagePack *self, Py_ssize_t size, StructMetaObject *type) {
+mp_decode_struct(Decoder *self, Py_ssize_t size, StructMetaObject *type) {
     Py_ssize_t i, key_size, field_index, pos = 0;
     char *key = NULL;
     PyObject *res, *val = NULL;
@@ -2125,7 +2209,7 @@ error:
 }
 
 static PyObject *
-mp_decode_map(MessagePack *self, Py_ssize_t size, PyObject *type) {
+mp_decode_map(Decoder *self, Py_ssize_t size, PyObject *type) {
     if (type == NULL || Py_TYPE(type) != &StructMetaType) {
         return mp_decode_dict(self, size);
     } else {
@@ -2135,7 +2219,7 @@ mp_decode_map(MessagePack *self, Py_ssize_t size, PyObject *type) {
 
 
 static PyObject *
-mp_decode(MessagePack *self, PyObject *type) {
+mp_decode(Decoder *self, PyObject *type) {
     char op;
 
     if (mp_read1(self, &op) < 0) {
@@ -2202,7 +2286,7 @@ mp_decode(MessagePack *self, PyObject *type) {
 }
 
 static PyObject*
-mp_decode_internal(MessagePack *self, PyObject *buf, PyObject *type)
+mp_decode_internal(Decoder *self, PyObject *buf, PyObject *type)
 {
     PyObject *res = NULL;
     Py_buffer buffer;
@@ -2223,7 +2307,7 @@ mp_decode_internal(MessagePack *self, PyObject *buf, PyObject *type)
 }
 
 
-PyDoc_STRVAR(MessagePack_decode__doc__,
+PyDoc_STRVAR(Decoder_decode__doc__,
 "decode(buf)\n"
 "--\n"
 "\n"
@@ -2235,7 +2319,7 @@ PyDoc_STRVAR(MessagePack_decode__doc__,
 "    The deserialized object\n"
 );
 static PyObject*
-MessagePack_decode(MessagePack *self, PyObject *const *args, Py_ssize_t nargs)
+Decoder_decode(Decoder *self, PyObject *const *args, Py_ssize_t nargs)
 {
     if (!check_positional_nargs(nargs, 1, 1)) {
         return NULL;
@@ -2243,57 +2327,33 @@ MessagePack_decode(MessagePack *self, PyObject *const *args, Py_ssize_t nargs)
     return mp_decode_internal(self, args[0], NULL);
 }
 
-PyDoc_STRVAR(MessagePack_decode_as__doc__,
-"decode_as(buf, type)\n"
-"--\n"
-"\n"
-"Deserialize an object from bytes as a certain type.\n"
-"\n"
-"Returns\n"
-"-------\n"
-"obj : Any\n"
-"    The deserialized object\n"
-);
-static PyObject*
-MessagePack_decode_as(MessagePack *self, PyObject *const *args, Py_ssize_t nargs)
-{
-    if (!check_positional_nargs(nargs, 2, 2)) {
-        return NULL;
-    }
-    return mp_decode_internal(self, args[0], args[1]);
-}
-
-static struct PyMethodDef MessagePack_methods[] = {
+static struct PyMethodDef Decoder_methods[] = {
     {
-        "encode", (PyCFunction) MessagePack_encode, METH_FASTCALL,
-        MessagePack_encode__doc__,
-    },
-    {
-        "decode", (PyCFunction) MessagePack_decode, METH_FASTCALL,
-        MessagePack_decode__doc__,
-    },
-    {
-        "decode_as", (PyCFunction) MessagePack_decode_as, METH_FASTCALL,
-        MessagePack_decode_as__doc__,
-    },
-    {
-        "__sizeof__", (PyCFunction) MessagePack_sizeof, METH_NOARGS,
-        PyDoc_STR("Size in bytes")
+        "decode", (PyCFunction) Decoder_decode, METH_FASTCALL,
+        Decoder_decode__doc__,
     },
     {NULL, NULL}                /* sentinel */
 };
 
+static PyMemberDef Decoder_members[] = {
+    {"type", T_OBJECT_EX, offsetof(Decoder, orig_type), READONLY, "The Decoder type"},
+    {"_type", T_OBJECT_EX, offsetof(Decoder, type), READONLY, "The normalized decoder type"},
+    {NULL},
+};
 
-static PyTypeObject MessagePack_Type = {
+static PyTypeObject Decoder_Type = {
     PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name = "msgspec.core.MessagePack",
-    .tp_doc = MessagePack__doc__,
-    .tp_basicsize = sizeof(MessagePack),
-    .tp_dealloc = (destructor)MessagePack_dealloc,
-    .tp_flags = Py_TPFLAGS_DEFAULT,
+    .tp_name = "msgspec.core.Decoder",
+    .tp_doc = Decoder__doc__,
+    .tp_basicsize = sizeof(Decoder),
+    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
     .tp_new = PyType_GenericNew,
-    .tp_init = (initproc)MessagePack_init,
-    .tp_methods = MessagePack_methods,
+    .tp_init = (initproc)Decoder_init,
+    .tp_clear = (inquiry)Decoder_clear,
+    .tp_traverse = (traverseproc)Decoder_traverse,
+    .tp_dealloc = (destructor)Decoder_dealloc,
+    .tp_methods = Decoder_methods,
+    .tp_members = Decoder_members,
 };
 
 /*************************************************************************
@@ -2379,7 +2439,9 @@ PyInit_core(void)
         return NULL;
     if (PyType_Ready(&TypeNode_Type) < 0)
         return NULL;
-    if (PyType_Ready(&MessagePack_Type) < 0)
+    if (PyType_Ready(&Encoder_Type) < 0)
+        return NULL;
+    if (PyType_Ready(&Decoder_Type) < 0)
         return NULL;
 
     /* Create the module */
@@ -2398,8 +2460,11 @@ PyInit_core(void)
     Py_INCREF(&TypeNode_Type);
     if (PyModule_AddObject(m, "TypeNode", (PyObject *)&TypeNode_Type) < 0)
         return NULL;
-    Py_INCREF(&MessagePack_Type);
-    if (PyModule_AddObject(m, "MessagePack", (PyObject *)&MessagePack_Type) < 0)
+    Py_INCREF(&Encoder_Type);
+    if (PyModule_AddObject(m, "Encoder", (PyObject *)&Encoder_Type) < 0)
+        return NULL;
+    Py_INCREF(&Decoder_Type);
+    if (PyModule_AddObject(m, "Decoder", (PyObject *)&Decoder_Type) < 0)
         return NULL;
 
     st = msgspec_get_state(m);

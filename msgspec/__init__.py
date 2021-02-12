@@ -1,1 +1,1 @@
-from .core import Struct, MessagePack
+from .core import Struct, Encoder, Decoder
