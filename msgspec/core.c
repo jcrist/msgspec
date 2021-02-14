@@ -1,5 +1,6 @@
 #include <stdarg.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include "Python.h"
 #include "datetime.h"
 #include "structmember.h"
@@ -980,197 +981,292 @@ PyDoc_STRVAR(Struct__doc__,
  * Type Objects                                                         *
  ************************************************************************/
 
-enum typenode_type {
-    TYPE_OPTIONAL = 0,
-    TYPE_LIST = 1,
-    TYPE_SET = 2,
-    TYPE_TUPLE = 3,
-    TYPE_DICT = 4,
-    TYPE_MAX = 4
+enum typecode {
+    TYPE_ANY,
+    TYPE_NONE,
+    TYPE_BOOL,
+    TYPE_INT,
+    TYPE_FLOAT,
+    TYPE_STR,
+    TYPE_BYTES,
+    TYPE_BYTEARRAY,
+    TYPE_ENUM,
+    TYPE_STRUCT,
+    TYPE_LIST,
+    TYPE_SET,
+    TYPE_VARTUPLE,
+    TYPE_FIXTUPLE,
+    TYPE_DICT,
 };
 
 typedef struct TypeNode {
-    PyObject_HEAD
-    enum typenode_type type;
-    PyObject *arg1;
-    PyObject *arg2;
-    PyObject *weakreflist;
+    enum typecode code;
+    bool optional;
 } TypeNode;
 
-static int
-TypeNode_clear(TypeNode *self) {
-    if (self->weakreflist != NULL)
-        PyObject_ClearWeakRefs((PyObject *)self);
-    Py_CLEAR(self->arg1);
-    Py_CLEAR(self->arg2);
-    return 0;
-}
+typedef struct TypeNodeObj {
+    TypeNode type;
+    PyObject *arg;
+} TypeNodeObj;
+
+typedef struct TypeNodeArray {
+    TypeNode type;
+    TypeNode *arg;
+} TypeNodeArray;
+
+typedef struct TypeNodeFixTuple {
+    TypeNode type;
+    Py_ssize_t size;
+    TypeNode *args[];
+} TypeNodeFixTuple;
+
+typedef struct TypeNodeMap {
+    TypeNode type;
+    TypeNode *key;
+    TypeNode *value;
+} TypeNodeMap;
 
 static void
-TypeNode_dealloc(TypeNode *self)
-{
-    TypeNode_clear(self);
-    PyObject_GC_Del(self);
-}
-
-static int
-TypeNode_traverse(TypeNode *self, visitproc visit, void *arg)
-{
-    Py_VISIT(self->arg1);
-    Py_VISIT(self->arg2);
-    return 0;
-}
-
-static int
-TypeNode_init(TypeNode *self, PyObject *args, PyObject *kwds)
-{
-    static char *kwlist[] = {"", "", "", NULL};
-    unsigned char type = 0;
-    PyObject *arg1 = NULL, *arg2 = NULL;
-
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "b|OO", kwlist, &type, &arg1, &arg2))
-        return -1;
-
-    if (type > TYPE_MAX) {
-        PyErr_Format(PyExc_ValueError, "type must be between 0 and %u", (unsigned char)(TYPE_MAX));
-        return -1;
-    }
-
-    Py_XINCREF(arg1);
-    Py_XINCREF(arg2);
-
-    self->type = type;
-    self->arg1 = arg1;
-    self->arg2 = arg2;
-    self->weakreflist = NULL;
-    return 0;
-}
-
-static PyObject *
-TypeNode_repr(TypeNode *self) {
-    int recursive;
-    const char *type;
-    PyObject *out = NULL;
-
-    recursive = Py_ReprEnter((PyObject *)self);
-    if (recursive != 0) {
-        out = (recursive < 0) ? NULL : PyUnicode_FromString("...");
-        return out;
-    }
-    switch (self->type) {
-        case TYPE_OPTIONAL:
-            type = "OPTIONAL"; break;
+TypeNode_Free(TypeNode *type) {
+    if (type == NULL) return;
+    switch (type->code) {
+        case TYPE_ANY:
+        case TYPE_NONE:
+        case TYPE_BOOL:
+        case TYPE_INT:
+        case TYPE_FLOAT:
+        case TYPE_STR:
+        case TYPE_BYTES:
+        case TYPE_BYTEARRAY:
+            PyMem_Free(type);
+            return;
+        case TYPE_ENUM:
+        case TYPE_STRUCT: {
+            TypeNodeObj *t = (TypeNodeObj *)type;
+            Py_XDECREF(t->arg);
+            PyMem_Free(t);
+            return;
+        }
         case TYPE_LIST:
-            type = "LIST"; break;
         case TYPE_SET:
-            type = "SET"; break;
-        case TYPE_TUPLE:
-            type = "TUPLE"; break;
-        case TYPE_DICT:
-            type = "DICT"; break;
+        case TYPE_VARTUPLE: {
+            TypeNodeArray *t = (TypeNodeArray *)type;
+            TypeNode_Free(t->arg);
+            PyMem_Free(t);
+            return;
+        }
+        case TYPE_DICT: {
+            TypeNodeMap *t = (TypeNodeMap *)type;
+            TypeNode_Free(t->key);
+            TypeNode_Free(t->value);
+            PyMem_Free(t);
+            return;
+        }
+        case TYPE_FIXTUPLE: {
+            TypeNodeFixTuple *t = (TypeNodeFixTuple *)type;
+            for (Py_ssize_t i = 0; i < t->size; i++) {
+                TypeNode_Free(t->args[i]);
+            }
+            PyMem_Free(t);
+            return;
+        }
     }
-    if (self->arg1 != NULL && self->arg2 != NULL) {
-        out = PyUnicode_FromFormat("TypeNode(%s, %R, %R)", type, self->arg1, self->arg2);
+}
+
+static int
+TypeNode_traverse(TypeNode *type, visitproc visit, void *arg) {
+    if (type == NULL) return 0;
+    switch (type->code) {
+        case TYPE_ANY:
+        case TYPE_NONE:
+        case TYPE_BOOL:
+        case TYPE_INT:
+        case TYPE_FLOAT:
+        case TYPE_STR:
+        case TYPE_BYTES:
+        case TYPE_BYTEARRAY:
+            return 0;
+        case TYPE_ENUM:
+        case TYPE_STRUCT: {
+            TypeNodeObj *t = (TypeNodeObj *)type;
+            Py_VISIT(t->arg);
+            return 0;
+        }
+        case TYPE_LIST:
+        case TYPE_SET:
+        case TYPE_VARTUPLE: {
+            TypeNodeArray *t = (TypeNodeArray *)type;
+            return TypeNode_traverse(t->arg, visit, arg);
+        }
+        case TYPE_DICT: {
+            int out;
+            TypeNodeMap *t = (TypeNodeMap *)type;
+            if ((out = TypeNode_traverse(t->key, visit, arg)) != 0) return out;
+            return TypeNode_traverse(t->value, visit, arg);
+        }
+        case TYPE_FIXTUPLE: {
+            int out;
+            TypeNodeFixTuple *t = (TypeNodeFixTuple *)type;
+            for (Py_ssize_t i = 0; i < t->size; i++) {
+                if ((out = TypeNode_traverse(t->args[i], visit, arg)) != 0) return out;
+            }
+            return 0;
+        }
     }
-    else if (self->arg1 != NULL) {
-        out = PyUnicode_FromFormat("TypeNode(%s, %R)", type, self->arg1);
+}
+
+static TypeNode* to_type_node(PyObject * obj, bool optional);
+
+static TypeNode*
+TypeNode_Convert(PyObject *type) {
+    return to_type_node(type, false);
+}
+
+static TypeNode *
+TypeNode_New(enum typecode code, bool optional) {
+    TypeNode *out = PyMem_New(TypeNode, sizeof(TypeNode));
+    if (out == NULL) {
+        PyErr_NoMemory();
+        return NULL;
     }
-    else {
-        out = PyUnicode_FromFormat("TypeNode(%s)", type);
-    }
-    Py_ReprLeave((PyObject *)self);
+    out->code = code;
+    out->optional = optional;
     return out;
 }
 
-static PyMemberDef TypeNode_members[] = {
-    {"type", T_USHORT, offsetof(TypeNode, type), READONLY, "The 1st arg"},
-    {"arg1", T_OBJECT_EX, offsetof(TypeNode, arg1), READONLY, "The 1st arg"},
-    {"arg2", T_OBJECT_EX, offsetof(TypeNode, arg2), READONLY, "The 2nd arg"},
-    {NULL},
-};
+static TypeNode *
+TypeNodeObj_New(enum typecode code, bool optional, PyObject *arg) {
+    TypeNodeObj *out = PyMem_New(TypeNodeObj, sizeof(TypeNodeObj));
+    if (out == NULL) {
+        PyErr_NoMemory();
+        return NULL;
+    }
+    out->type.code = code;
+    out->type.optional = optional;
+    Py_INCREF(arg);
+    out->arg = arg;
+    return (TypeNode *)out;
+}
 
-static PyTypeObject TypeNode_Type = {
-    PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name = "msgspec.core.TypeNode",
-    .tp_doc = "A node in a type tree",
-    .tp_basicsize = sizeof(TypeNode),
-    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
-    .tp_new = PyType_GenericNew,
-    .tp_init = (initproc)TypeNode_init,
-    .tp_repr = (reprfunc)TypeNode_repr,
-    .tp_dealloc = (destructor)TypeNode_dealloc,
-    .tp_members = TypeNode_members,
-    .tp_traverse = (traverseproc)TypeNode_traverse,
-    .tp_clear = (inquiry) TypeNode_clear,
-    .tp_weaklistoffset = offsetof(TypeNode, weakreflist),
-};
+static TypeNode *
+TypeNodeArray_New(enum typecode code, bool optional, PyObject *el_type) {
+    TypeNode *arg = NULL;
+    if ((arg = TypeNode_Convert(el_type)) == NULL) goto error;
+    TypeNodeArray *out = PyMem_New(TypeNodeArray, sizeof(TypeNodeArray));
+    if (out == NULL) {
+        PyErr_NoMemory();
+        goto error;
+    }
+    out->type.code = code;
+    out->type.optional = optional;
+    out->arg = arg;
+    return (TypeNode *)out;
+error:
+    PyMem_Free(arg);
+    return NULL;
+}
 
-static PyObject *
-TypeNode_New(enum typenode_type type, PyObject *arg1, PyObject *arg2) {
-    TypeNode *out = PyObject_GC_New(TypeNode, &TypeNode_Type);
-    if (out == NULL) return NULL;
+static TypeNode *
+TypeNodeMap_New(enum typecode code, bool optional, PyObject *key_type, PyObject *value_type) {
+    TypeNode *key = NULL, *value = NULL;
+    if ((key = TypeNode_Convert(key_type)) == NULL) goto error;
+    if ((value = TypeNode_Convert(value_type)) == NULL) goto error;
 
-    out->type = type;
-    Py_XINCREF(arg1);
-    Py_XINCREF(arg2);
-    out->arg1 = arg1;
-    out->arg2 = arg2;
-    out->weakreflist = NULL;
-    PyObject_GC_Track(out);
-    return (PyObject *)out;
+    TypeNodeMap *out = PyMem_New(TypeNodeMap, sizeof(TypeNodeMap));
+    if (out == NULL) {
+        PyErr_NoMemory();
+        goto error;
+    }
+    out->type.code = code;
+    out->type.optional = optional;
+    out->key = key;
+    out->value = value;
+    return (TypeNode *)out;
+error:
+    PyMem_Free(key);
+    PyMem_Free(value);
+    return NULL;
+}
+
+static TypeNode *
+TypeNodeFixTuple_New(bool optional, PyObject *args) {
+    TypeNodeFixTuple *out;
+    TypeNode *el;
+    Py_ssize_t i, size;
+
+    size = PyTuple_GET_SIZE(args);
+    out = PyMem_New(
+        TypeNodeFixTuple,
+        sizeof(TypeNodeFixTuple) + size * sizeof(TypeNode*)
+    );
+    if (out == NULL) {
+        PyErr_NoMemory();
+        return NULL;
+    }
+    out->type.code = TYPE_FIXTUPLE;
+    out->type.optional = optional;
+    out->size = size;
+    for (i = 0; i < size; i++) {
+        el = TypeNode_Convert(PyTuple_GET_ITEM(args, i));
+        if (el == NULL) goto error;
+        out->args[i] = el;
+    }
+    return (TypeNode *)out;
+
+error:
+    TypeNode_Free((TypeNode *)out);
+    return NULL;
 }
 
 #define NONE_TYPE ((PyObject *)(Py_TYPE(Py_None)))
-#define BOOL_TYPE ((PyObject *)(Py_TYPE(Py_True)))
 
-static PyObject *
-to_type_node(PyObject * obj) {
-    PyObject *out = NULL, *origin = NULL, *args = NULL, *arg1 = NULL, *arg2 = NULL;
+static TypeNode *
+to_type_node(PyObject * obj, bool optional) {
+    TypeNode *out = NULL;
+    PyObject *origin = NULL, *args = NULL;
     MsgspecState *st = msgspec_get_global_state();
 
-    if (obj == Py_None || obj == NONE_TYPE) {
-        out = NONE_TYPE;
-        Py_INCREF(out);
-        return out;
+    if (obj == st->typing_any) {
+        return TypeNode_New(TYPE_ANY, optional);
+    }
+    else if (obj == Py_None || obj == NONE_TYPE) {
+        return TypeNode_New(TYPE_NONE, optional);
     }
     else if (obj == Py_False || obj == Py_True) {
-        out = BOOL_TYPE;
-        Py_INCREF(out);
-        return out;
+        return TypeNode_New(TYPE_BOOL, optional);
     }
-    else if (
-        obj == (PyObject *)(&PyLong_Type) ||
-        obj == (PyObject *)(&PyFloat_Type) ||
-        obj == (PyObject *)(&PyBytes_Type) ||
-        obj == (PyObject *)(&PyUnicode_Type) ||
-        obj == (PyObject *)(&PyByteArray_Type) ||
-        obj == st->typing_any ||
-        Py_TYPE(obj) == &StructMetaType ||
-        (PyType_Check(obj) && PyType_IsSubtype((PyTypeObject *)obj, st->EnumType))
-    ) {
-        out = obj;
-        Py_INCREF(out);
-        return out;
+    else if (obj == (PyObject *)(&PyLong_Type)) {
+        return TypeNode_New(TYPE_INT, optional);
+    }
+    else if (obj == (PyObject *)(&PyFloat_Type)) {
+        return TypeNode_New(TYPE_FLOAT, optional);
+    }
+    else if (obj == (PyObject *)(&PyUnicode_Type)) {
+        return TypeNode_New(TYPE_STR, optional);
+    }
+    else if (obj == (PyObject *)(&PyBytes_Type)) {
+        return TypeNode_New(TYPE_BYTES, optional);
+    }
+    else if (obj == (PyObject *)(&PyByteArray_Type)) {
+        return TypeNode_New(TYPE_BYTEARRAY, optional);
+    }
+    else if (Py_TYPE(obj) == &StructMetaType) {
+        return TypeNodeObj_New(TYPE_STRUCT, optional, obj);
+    }
+    else if (PyType_Check(obj) && PyType_IsSubtype((PyTypeObject *)obj, st->EnumType)) {
+        return TypeNodeObj_New(TYPE_ENUM, optional, obj);
     }
     else if (obj == (PyObject*)(&PyDict_Type) || obj == st->typing_dict) {
-        out = (PyObject *)(&PyDict_Type);
-        Py_INCREF(out);
-        return out;
+        return TypeNodeMap_New(TYPE_DICT, optional, st->typing_any, st->typing_any);
     }
     else if (obj == (PyObject*)(&PyList_Type) || obj == st->typing_list) {
-        out = (PyObject *)(&PyList_Type);
-        Py_INCREF(out);
-        return out;
+        return TypeNodeArray_New(TYPE_LIST, optional, st->typing_any);
     }
     else if (obj == (PyObject*)(&PySet_Type) || obj == st->typing_set) {
-        out = (PyObject *)(&PySet_Type);
-        Py_INCREF(out);
-        return out;
+        return TypeNodeArray_New(TYPE_SET, optional, st->typing_any);
     }
     else if (obj == (PyObject*)(&PyTuple_Type) || obj == st->typing_tuple) {
-        out = (PyObject *)(&PyTuple_Type);
-        Py_INCREF(out);
-        return out;
+        return TypeNodeArray_New(TYPE_VARTUPLE, optional, st->typing_any);
     }
 
     /* Attempt to extract __origin__/__args__ from the obj as a typing object */
@@ -1181,70 +1277,35 @@ to_type_node(PyObject * obj) {
 
     if (origin == (PyObject*)(&PyDict_Type)) {
         if (PyTuple_Size(args) != 2) goto done;
-        if ((arg1 = to_type_node(PyTuple_GET_ITEM(args, 0))) == NULL) goto done;
-        if ((arg2 = to_type_node(PyTuple_GET_ITEM(args, 1))) == NULL) goto done;
-        if (arg1 == st->typing_any && arg2 == st->typing_any) {
-            out = (PyObject *)(&PyDict_Type);
-            Py_INCREF(out);
-        }
-        else {
-            out = TypeNode_New(TYPE_DICT, arg1, arg2);
-        }
+        out = TypeNodeMap_New(TYPE_DICT, optional, PyTuple_GET_ITEM(args, 0), PyTuple_GET_ITEM(args, 1));
         goto done;
     }
     else if (origin == (PyObject*)(&PyList_Type)) {
         if (PyTuple_Size(args) != 1) goto done;
-        if ((arg1 = to_type_node(PyTuple_GET_ITEM(args, 0))) == NULL) goto done;
-        if (arg1 == st->typing_any) {
-            out = (PyObject *)(&PyList_Type);
-            Py_INCREF(out);
-        }
-        else {
-            out = TypeNode_New(TYPE_LIST, arg1, NULL);
-        }
+        out = TypeNodeArray_New(TYPE_LIST, optional, PyTuple_GET_ITEM(args, 0));
         goto done;
     }
     else if (origin == (PyObject*)(&PySet_Type)) {
         if (PyTuple_Size(args) != 1) goto done;
-        if ((arg1 = to_type_node(PyTuple_GET_ITEM(args, 0))) == NULL) goto done;
-        if (arg1 == st->typing_any) {
-            out = (PyObject *)(&PySet_Type);
-            Py_INCREF(out);
-        }
-        else {
-            out = TypeNode_New(TYPE_SET, arg1, NULL);
-        }
+        out = TypeNodeArray_New(TYPE_SET, optional, PyTuple_GET_ITEM(args, 0));
         goto done;
     }
     else if (origin == (PyObject*)(&PyTuple_Type)) {
-        if (PyTuple_Size(args) != 1) goto done;
-        if ((arg1 = to_type_node(PyTuple_GET_ITEM(args, 0))) == NULL) goto done;
-        if (arg1 == st->typing_any) {
-            out = (PyObject *)(&PyTuple_Type);
-            Py_INCREF(out);
+        if (PyTuple_Size(args) == 2 && PyTuple_GET_ITEM(args, 1) == Py_Ellipsis) {
+            out = TypeNodeArray_New(TYPE_VARTUPLE, optional, PyTuple_GET_ITEM(args, 0));
         }
         else {
-            out = TypeNode_New(TYPE_TUPLE, arg1, NULL);
+            out = TypeNodeFixTuple_New(optional, args);
         }
         goto done;
     }
     else if (origin == st->typing_union) {
         if (PyTuple_Size(args) != 2) goto done;
         if (PyTuple_GET_ITEM(args, 0) == NONE_TYPE) {
-            if ((arg1 = to_type_node(PyTuple_GET_ITEM(args, 1))) == NULL) goto done;
+            if ((out = to_type_node(PyTuple_GET_ITEM(args, 1), true)) == NULL) goto done;
         }
         else if (PyTuple_GET_ITEM(args, 1) == NONE_TYPE) {
-            if ((arg1 = to_type_node(PyTuple_GET_ITEM(args, 0))) == NULL) goto done;
-        }
-        else {
-            goto done;
-        }
-        if (arg1 == st->typing_any) {
-            out = st->typing_any;
-            Py_INCREF(out);
-        }
-        else {
-            out = TypeNode_New(TYPE_OPTIONAL, arg1, NULL);
+            if ((out = to_type_node(PyTuple_GET_ITEM(args, 0), true)) == NULL) goto done;
         }
         goto done;
     }
@@ -1255,19 +1316,12 @@ to_type_node(PyObject * obj) {
 done:
     Py_XDECREF(origin);
     Py_XDECREF(args);
-    Py_XDECREF(arg1);
-    Py_XDECREF(arg2);
     if (out == NULL) {
         PyErr_Format(PyExc_TypeError, "Type '%R' is not supported", obj);
     }
     return out;
 }
 
-/* Expose as python function for testing */
-static PyObject *
-to_type_node_py(PyObject *self, PyObject *obj) {
-    return to_type_node(obj);
-}
 
 /*************************************************************************
  * MessagePack Encoder                                                   *
@@ -1903,7 +1957,7 @@ typedef struct Decoder {
     PyObject_HEAD
     /* Configuration */
     PyObject *orig_type;
-    PyObject *type;
+    TypeNode *type;
 
     /* Per-message attributes */
     char *input_buffer;
@@ -1936,7 +1990,7 @@ Decoder_init(Decoder *self, PyObject *args, PyObject *kwds)
         return -1;
     }
 
-    self->type = to_type_node(type);
+    self->type = TypeNode_Convert(type);
     if (self->type == NULL) {
         return -1;
     }
@@ -1948,22 +2002,17 @@ Decoder_init(Decoder *self, PyObject *args, PyObject *kwds)
 static int
 Decoder_traverse(Decoder *self, visitproc visit, void *arg)
 {
-    Py_VISIT(self->type);
+    int out = TypeNode_traverse(self->type, visit, arg);
+    if (out != 0) return out;
     Py_VISIT(self->orig_type);
-    return 0;
-}
-
-static int
-Decoder_clear(Decoder *self) {
-    Py_CLEAR(self->type);
-    Py_CLEAR(self->orig_type);
     return 0;
 }
 
 static void
 Decoder_dealloc(Decoder *self)
 {
-    Decoder_clear(self);
+    TypeNode_Free(self->type);
+    Py_XDECREF(self->orig_type);
     Py_TYPE(self)->tp_free((PyObject *)self);
 }
 
@@ -2337,7 +2386,6 @@ static struct PyMethodDef Decoder_methods[] = {
 
 static PyMemberDef Decoder_members[] = {
     {"type", T_OBJECT_EX, offsetof(Decoder, orig_type), READONLY, "The Decoder type"},
-    {"_type", T_OBJECT_EX, offsetof(Decoder, type), READONLY, "The normalized decoder type"},
     {NULL},
 };
 
@@ -2349,7 +2397,6 @@ static PyTypeObject Decoder_Type = {
     .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
     .tp_new = PyType_GenericNew,
     .tp_init = (initproc)Decoder_init,
-    .tp_clear = (inquiry)Decoder_clear,
     .tp_traverse = (traverseproc)Decoder_traverse,
     .tp_dealloc = (destructor)Decoder_dealloc,
     .tp_methods = Decoder_methods,
@@ -2400,19 +2447,10 @@ msgspec_traverse(PyObject *m, visitproc visit, void *arg)
     return 0;
 }
 
-static struct PyMethodDef msgspec_methods[] = {
-    {
-        "to_type_node", (PyCFunction) to_type_node_py, METH_O,
-        "Convert `obj` to a `TypeNode`",
-    },
-    {NULL, NULL} /* sentinel */
-};
-
 static struct PyModuleDef msgspecmodule = {
     PyModuleDef_HEAD_INIT,
     .m_name = "msgspec.core",
     .m_size = sizeof(MsgspecState),
-    .m_methods = msgspec_methods,
     .m_traverse = msgspec_traverse,
     .m_clear = msgspec_clear,
     .m_free =(freefunc)msgspec_free
@@ -2437,8 +2475,6 @@ PyInit_core(void)
         return NULL;
     if (PyType_Ready(&StructMixinType) < 0)
         return NULL;
-    if (PyType_Ready(&TypeNode_Type) < 0)
-        return NULL;
     if (PyType_Ready(&Encoder_Type) < 0)
         return NULL;
     if (PyType_Ready(&Decoder_Type) < 0)
@@ -2449,17 +2485,7 @@ PyInit_core(void)
     if (m == NULL)
         return NULL;
 
-    /* Add constants */
-    if (PyModule_AddIntConstant(m, "OPTIONAL", TYPE_OPTIONAL) < 0) return NULL;
-    if (PyModule_AddIntConstant(m, "LIST", TYPE_LIST) < 0) return NULL;
-    if (PyModule_AddIntConstant(m, "SET", TYPE_SET) < 0) return NULL;
-    if (PyModule_AddIntConstant(m, "TUPLE", TYPE_TUPLE) < 0) return NULL;
-    if (PyModule_AddIntConstant(m, "DICT", TYPE_DICT) < 0) return NULL;
-
     /* Add types */
-    Py_INCREF(&TypeNode_Type);
-    if (PyModule_AddObject(m, "TypeNode", (PyObject *)&TypeNode_Type) < 0)
-        return NULL;
     Py_INCREF(&Encoder_Type);
     if (PyModule_AddObject(m, "Encoder", (PyObject *)&Encoder_Type) < 0)
         return NULL;
