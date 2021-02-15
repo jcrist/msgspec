@@ -2136,89 +2136,94 @@ mp_read(Decoder *self, char **s, Py_ssize_t n)
 
 static PyObject * mp_decode_any(Decoder *self);
 
-static PyObject *
+static inline PyObject *
 mp_decode_uint1(Decoder *self) {
     char *s;
     if (mp_read(self, &s, 1) < 0) return NULL;
     return PyLong_FromLong(*(uint8_t *)s);
 }
 
-static PyObject *
+static inline PyObject *
 mp_decode_uint2(Decoder *self) {
     char *s;
     if (mp_read(self, &s, 2) < 0) return NULL;
     return PyLong_FromLong(_msgspec_load16(uint16_t, s));
 }
 
-static PyObject *
+static inline PyObject *
 mp_decode_uint4(Decoder *self) {
     char *s;
     if (mp_read(self, &s, 4) < 0) return NULL;
     return PyLong_FromUnsignedLong(_msgspec_load32(uint32_t, s));
 }
 
-static PyObject *
+static inline PyObject *
 mp_decode_uint8(Decoder *self) {
     char *s;
     if (mp_read(self, &s, 8) < 0) return NULL;
     return PyLong_FromUnsignedLongLong(_msgspec_load64(uint64_t, s));
 }
 
-static PyObject *
+static inline PyObject *
 mp_decode_int1(Decoder *self) {
     char *s;
     if (mp_read(self, &s, 1) < 0) return NULL;
     return PyLong_FromLong(*(int8_t *)s);
 }
 
-static PyObject *
+static inline PyObject *
 mp_decode_int2(Decoder *self) {
     char *s;
     if (mp_read(self, &s, 2) < 0) return NULL;
     return PyLong_FromLong(_msgspec_load16(int16_t, s));
 }
 
-static PyObject *
+static inline PyObject *
 mp_decode_int4(Decoder *self) {
     char *s;
     if (mp_read(self, &s, 4) < 0) return NULL;
     return PyLong_FromLong(_msgspec_load32(int32_t, s));
 }
-static PyObject *
+static inline PyObject *
 mp_decode_int8(Decoder *self) {
     char *s;
     if (mp_read(self, &s, 8) < 0) return NULL;
     return PyLong_FromLongLong(_msgspec_load64(int64_t, s));
 }
 
-static PyObject *
+static inline PyObject *
 mp_decode_float4(Decoder *self) {
     char *s;
     if (mp_read(self, &s, 4) < 0) return NULL;
     return PyFloat_FromDouble(_PyFloat_Unpack4((unsigned char *)s, 0));
 }
 
-static PyObject *
+static inline PyObject *
 mp_decode_float8(Decoder *self) {
     char *s;
     if (mp_read(self, &s, 8) < 0) return NULL;
     return PyFloat_FromDouble(_PyFloat_Unpack8((unsigned char *)s, 0));
 }
 
-static Py_ssize_t
-mp_decode_size(Decoder *self, int nbytes) {
+static inline Py_ssize_t
+mp_decode_size1(Decoder *self) {
+    char s;
+    if (mp_read1(self, &s) < 0) return -1;
+    return (Py_ssize_t)((unsigned char)s);
+}
+
+static inline Py_ssize_t
+mp_decode_size2(Decoder *self) {
     char *s;
-    if (mp_read(self, &s, nbytes) < 0) return -1;
-    switch (nbytes) {
-        case 1:
-            return (Py_ssize_t)(*((unsigned char *)s));
-        case 2:
-            return (Py_ssize_t)(_msgspec_load16(uint16_t, s));
-        case 4:
-            return (Py_ssize_t)(_msgspec_load32(uint32_t, s));
-        default:
-            return -1;
-    }
+    if (mp_read(self, &s, 2) < 0) return -1;
+    return (Py_ssize_t)(_msgspec_load16(uint16_t, s));
+}
+
+static inline Py_ssize_t
+mp_decode_size4(Decoder *self) {
+    char *s;
+    if (mp_read(self, &s, 4) < 0) return -1;
+    return (Py_ssize_t)(_msgspec_load32(uint32_t, s));
 }
 
 static PyObject *
@@ -2352,23 +2357,25 @@ mp_decode_any(Decoder *self) {
         case MP_FLOAT64:
             return mp_decode_float8(self);
         case MP_STR8:
-            return mp_decode_str(self, mp_decode_size(self, 1));
+            return mp_decode_str(self, mp_decode_size1(self));
         case MP_STR16:
-            return mp_decode_str(self, mp_decode_size(self, 2));
+            return mp_decode_str(self, mp_decode_size2(self));
         case MP_STR32:
-            return mp_decode_str(self, mp_decode_size(self, 4));
+            return mp_decode_str(self, mp_decode_size4(self));
         case MP_BIN8:
-            return mp_decode_bin(self, mp_decode_size(self, 1));
+            return mp_decode_bin(self, mp_decode_size1(self));
         case MP_BIN16:
-            return mp_decode_bin(self, mp_decode_size(self, 2));
+            return mp_decode_bin(self, mp_decode_size2(self));
         case MP_BIN32:
-            return mp_decode_bin(self, mp_decode_size(self, 4));
+            return mp_decode_bin(self, mp_decode_size4(self));
         case MP_ARRAY16:
+            return mp_decode_array(self, mp_decode_size2(self));
         case MP_ARRAY32:
-            return mp_decode_array(self, mp_decode_size(self, 2 << (op & 0x01)));
+            return mp_decode_array(self, mp_decode_size4(self));
         case MP_MAP16:
+            return mp_decode_map(self, mp_decode_size2(self));
         case MP_MAP32:
-            return mp_decode_map(self, mp_decode_size(self, 2 << (op & 0x01)));
+            return mp_decode_map(self, mp_decode_size4(self));
         default:
             PyErr_Format(PyExc_ValueError, "invalid opcode, '\\x%02x'.", op);
             return NULL;
@@ -2544,13 +2551,13 @@ mp_decode_str_size(Decoder *self, char op, char *expected) {
         return op & 0x1f;
     }
     else if (op == MP_STR8) {
-        return mp_decode_size(self, 1);
+        return mp_decode_size1(self);
     }
     else if (op == MP_STR16) {
-        return mp_decode_size(self, 2);
+        return mp_decode_size2(self);
     }
     else if (op == MP_STR32) {
-        return mp_decode_size(self, 4);
+        return mp_decode_size4(self);
     }
     mp_decode_type_error(op, expected);
     return -1;
@@ -2603,13 +2610,13 @@ mp_decode_type_binary(Decoder *self, char op, bool is_bytearray) {
     char *s;
     int size;
     if (op == MP_BIN8) {
-        size = mp_decode_size(self, 1);
+        size = mp_decode_size1(self);
     }
     else if (op == MP_BIN16) {
-        size = mp_decode_size(self, 2);
+        size = mp_decode_size2(self);
     }
     else if (op == MP_BIN32) {
-        size = mp_decode_size(self, 4);
+        size = mp_decode_size4(self);
     }
     else {
         return mp_decode_type_error(op, is_bytearray ? "bytearray" : "bytes");
@@ -2627,10 +2634,10 @@ mp_decode_map_size(Decoder *self, char op, char *expected) {
         return op & 0x0f;
     }
     else if (op == MP_MAP16) {
-        return mp_decode_size(self, 2);
+        return mp_decode_size2(self);
     }
     else if (op == MP_MAP32) {
-        return mp_decode_size(self, 4);
+        return mp_decode_size4(self);
     }
     mp_decode_type_error(op, expected);
     return -1;
@@ -2732,10 +2739,10 @@ mp_decode_array_size(Decoder *self, char op, char *expected) {
         return (op & 0x0f);
     }
     else if (op == MP_ARRAY16) {
-        return mp_decode_size(self, 2);
+        return mp_decode_size2(self);
     }
     else if (op == MP_ARRAY32) {
-        return mp_decode_size(self, 4);
+        return mp_decode_size4(self);
     }
     mp_decode_type_error(op, expected);
     return -1;
