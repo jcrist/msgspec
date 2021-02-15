@@ -157,6 +157,355 @@ check_positional_nargs(Py_ssize_t nargs, Py_ssize_t min, Py_ssize_t max) {
     return 1;
 }
 
+/************************************************************************
+ * Type Objects                                                         *
+ ************************************************************************/
+
+static PyTypeObject StructMetaType;
+
+enum typecode {
+    TYPE_ANY,
+    TYPE_NONE,
+    TYPE_BOOL,
+    TYPE_INT,
+    TYPE_FLOAT,
+    TYPE_STR,
+    TYPE_BYTES,
+    TYPE_BYTEARRAY,
+    TYPE_ENUM,
+    TYPE_STRUCT,
+    TYPE_LIST,
+    TYPE_SET,
+    TYPE_VARTUPLE,
+    TYPE_FIXTUPLE,
+    TYPE_DICT,
+};
+
+typedef struct TypeNode {
+    enum typecode code;
+    bool optional;
+} TypeNode;
+
+typedef struct TypeNodeObj {
+    TypeNode type;
+    PyObject *arg;
+} TypeNodeObj;
+
+typedef struct TypeNodeArray {
+    TypeNode type;
+    TypeNode *arg;
+} TypeNodeArray;
+
+typedef struct TypeNodeFixTuple {
+    TypeNode type;
+    Py_ssize_t size;
+    TypeNode *args[];
+} TypeNodeFixTuple;
+
+typedef struct TypeNodeMap {
+    TypeNode type;
+    TypeNode *key;
+    TypeNode *value;
+} TypeNodeMap;
+
+static void
+TypeNode_Free(TypeNode *type) {
+    if (type == NULL) return;
+    switch (type->code) {
+        case TYPE_ANY:
+        case TYPE_NONE:
+        case TYPE_BOOL:
+        case TYPE_INT:
+        case TYPE_FLOAT:
+        case TYPE_STR:
+        case TYPE_BYTES:
+        case TYPE_BYTEARRAY:
+            PyMem_Free(type);
+            return;
+        case TYPE_ENUM:
+        case TYPE_STRUCT: {
+            TypeNodeObj *t = (TypeNodeObj *)type;
+            Py_XDECREF(t->arg);
+            PyMem_Free(t);
+            return;
+        }
+        case TYPE_LIST:
+        case TYPE_SET:
+        case TYPE_VARTUPLE: {
+            TypeNodeArray *t = (TypeNodeArray *)type;
+            TypeNode_Free(t->arg);
+            PyMem_Free(t);
+            return;
+        }
+        case TYPE_DICT: {
+            TypeNodeMap *t = (TypeNodeMap *)type;
+            TypeNode_Free(t->key);
+            TypeNode_Free(t->value);
+            PyMem_Free(t);
+            return;
+        }
+        case TYPE_FIXTUPLE: {
+            TypeNodeFixTuple *t = (TypeNodeFixTuple *)type;
+            for (Py_ssize_t i = 0; i < t->size; i++) {
+                TypeNode_Free(t->args[i]);
+            }
+            PyMem_Free(t);
+            return;
+        }
+    }
+}
+
+static int
+TypeNode_traverse(TypeNode *type, visitproc visit, void *arg) {
+    if (type == NULL) return 0;
+    switch (type->code) {
+        case TYPE_ANY:
+        case TYPE_NONE:
+        case TYPE_BOOL:
+        case TYPE_INT:
+        case TYPE_FLOAT:
+        case TYPE_STR:
+        case TYPE_BYTES:
+        case TYPE_BYTEARRAY:
+            return 0;
+        case TYPE_ENUM:
+        case TYPE_STRUCT: {
+            TypeNodeObj *t = (TypeNodeObj *)type;
+            Py_VISIT(t->arg);
+            return 0;
+        }
+        case TYPE_LIST:
+        case TYPE_SET:
+        case TYPE_VARTUPLE: {
+            TypeNodeArray *t = (TypeNodeArray *)type;
+            return TypeNode_traverse(t->arg, visit, arg);
+        }
+        case TYPE_DICT: {
+            int out;
+            TypeNodeMap *t = (TypeNodeMap *)type;
+            if ((out = TypeNode_traverse(t->key, visit, arg)) != 0) return out;
+            return TypeNode_traverse(t->value, visit, arg);
+        }
+        case TYPE_FIXTUPLE: {
+            int out;
+            TypeNodeFixTuple *t = (TypeNodeFixTuple *)type;
+            for (Py_ssize_t i = 0; i < t->size; i++) {
+                if ((out = TypeNode_traverse(t->args[i], visit, arg)) != 0) return out;
+            }
+            return 0;
+        }
+    }
+}
+
+static TypeNode* to_type_node(PyObject * obj, bool optional);
+
+static TypeNode*
+TypeNode_Convert(PyObject *type) {
+    return to_type_node(type, false);
+}
+
+static TypeNode *
+TypeNode_New(enum typecode code, bool optional) {
+    TypeNode *out = PyMem_New(TypeNode, sizeof(TypeNode));
+    if (out == NULL) {
+        PyErr_NoMemory();
+        return NULL;
+    }
+    out->code = code;
+    out->optional = optional;
+    return out;
+}
+
+static TypeNode *
+TypeNodeObj_New(enum typecode code, bool optional, PyObject *arg) {
+    TypeNodeObj *out = PyMem_New(TypeNodeObj, sizeof(TypeNodeObj));
+    if (out == NULL) {
+        PyErr_NoMemory();
+        return NULL;
+    }
+    out->type.code = code;
+    out->type.optional = optional;
+    Py_INCREF(arg);
+    out->arg = arg;
+    return (TypeNode *)out;
+}
+
+static TypeNode *
+TypeNodeArray_New(enum typecode code, bool optional, PyObject *el_type) {
+    TypeNode *arg = NULL;
+    if ((arg = TypeNode_Convert(el_type)) == NULL) goto error;
+    TypeNodeArray *out = PyMem_New(TypeNodeArray, sizeof(TypeNodeArray));
+    if (out == NULL) {
+        PyErr_NoMemory();
+        goto error;
+    }
+    out->type.code = code;
+    out->type.optional = optional;
+    out->arg = arg;
+    return (TypeNode *)out;
+error:
+    PyMem_Free(arg);
+    return NULL;
+}
+
+static TypeNode *
+TypeNodeMap_New(enum typecode code, bool optional, PyObject *key_type, PyObject *value_type) {
+    TypeNode *key = NULL, *value = NULL;
+    if ((key = TypeNode_Convert(key_type)) == NULL) goto error;
+    if ((value = TypeNode_Convert(value_type)) == NULL) goto error;
+
+    TypeNodeMap *out = PyMem_New(TypeNodeMap, sizeof(TypeNodeMap));
+    if (out == NULL) {
+        PyErr_NoMemory();
+        goto error;
+    }
+    out->type.code = code;
+    out->type.optional = optional;
+    out->key = key;
+    out->value = value;
+    return (TypeNode *)out;
+error:
+    PyMem_Free(key);
+    PyMem_Free(value);
+    return NULL;
+}
+
+static TypeNode *
+TypeNodeFixTuple_New(bool optional, PyObject *args) {
+    TypeNodeFixTuple *out;
+    TypeNode *el;
+    Py_ssize_t i, size;
+
+    size = PyTuple_GET_SIZE(args);
+    out = PyMem_New(
+        TypeNodeFixTuple,
+        sizeof(TypeNodeFixTuple) + size * sizeof(TypeNode*)
+    );
+    if (out == NULL) {
+        PyErr_NoMemory();
+        return NULL;
+    }
+    out->type.code = TYPE_FIXTUPLE;
+    out->type.optional = optional;
+    out->size = size;
+    for (i = 0; i < size; i++) {
+        el = TypeNode_Convert(PyTuple_GET_ITEM(args, i));
+        if (el == NULL) goto error;
+        out->args[i] = el;
+    }
+    return (TypeNode *)out;
+
+error:
+    TypeNode_Free((TypeNode *)out);
+    return NULL;
+}
+
+#define NONE_TYPE ((PyObject *)(Py_TYPE(Py_None)))
+
+static TypeNode *
+to_type_node(PyObject * obj, bool optional) {
+    TypeNode *out = NULL;
+    PyObject *origin = NULL, *args = NULL;
+    MsgspecState *st = msgspec_get_global_state();
+
+    if (obj == st->typing_any) {
+        return TypeNode_New(TYPE_ANY, optional);
+    }
+    else if (obj == Py_None || obj == NONE_TYPE) {
+        return TypeNode_New(TYPE_NONE, optional);
+    }
+    else if (obj == (PyObject *)(&PyBool_Type)) {
+        return TypeNode_New(TYPE_BOOL, optional);
+    }
+    else if (obj == (PyObject *)(&PyLong_Type)) {
+        return TypeNode_New(TYPE_INT, optional);
+    }
+    else if (obj == (PyObject *)(&PyFloat_Type)) {
+        return TypeNode_New(TYPE_FLOAT, optional);
+    }
+    else if (obj == (PyObject *)(&PyUnicode_Type)) {
+        return TypeNode_New(TYPE_STR, optional);
+    }
+    else if (obj == (PyObject *)(&PyBytes_Type)) {
+        return TypeNode_New(TYPE_BYTES, optional);
+    }
+    else if (obj == (PyObject *)(&PyByteArray_Type)) {
+        return TypeNode_New(TYPE_BYTEARRAY, optional);
+    }
+    else if (Py_TYPE(obj) == &StructMetaType) {
+        return TypeNodeObj_New(TYPE_STRUCT, optional, obj);
+    }
+    else if (PyType_Check(obj) && PyType_IsSubtype((PyTypeObject *)obj, st->EnumType)) {
+        return TypeNodeObj_New(TYPE_ENUM, optional, obj);
+    }
+    else if (obj == (PyObject*)(&PyDict_Type) || obj == st->typing_dict) {
+        return TypeNodeMap_New(TYPE_DICT, optional, st->typing_any, st->typing_any);
+    }
+    else if (obj == (PyObject*)(&PyList_Type) || obj == st->typing_list) {
+        return TypeNodeArray_New(TYPE_LIST, optional, st->typing_any);
+    }
+    else if (obj == (PyObject*)(&PySet_Type) || obj == st->typing_set) {
+        return TypeNodeArray_New(TYPE_SET, optional, st->typing_any);
+    }
+    else if (obj == (PyObject*)(&PyTuple_Type) || obj == st->typing_tuple) {
+        return TypeNodeArray_New(TYPE_VARTUPLE, optional, st->typing_any);
+    }
+
+    /* Attempt to extract __origin__/__args__ from the obj as a typing object */
+    origin = PyObject_GetAttrString(obj, "__origin__");
+    if (origin == NULL) goto done;
+    args = PyObject_GetAttrString(obj, "__args__");
+    if (args == NULL) goto done;
+
+    if (origin == (PyObject*)(&PyDict_Type)) {
+        if (PyTuple_Size(args) != 2) goto done;
+        out = TypeNodeMap_New(TYPE_DICT, optional, PyTuple_GET_ITEM(args, 0), PyTuple_GET_ITEM(args, 1));
+        goto done;
+    }
+    else if (origin == (PyObject*)(&PyList_Type)) {
+        if (PyTuple_Size(args) != 1) goto done;
+        out = TypeNodeArray_New(TYPE_LIST, optional, PyTuple_GET_ITEM(args, 0));
+        goto done;
+    }
+    else if (origin == (PyObject*)(&PySet_Type)) {
+        if (PyTuple_Size(args) != 1) goto done;
+        out = TypeNodeArray_New(TYPE_SET, optional, PyTuple_GET_ITEM(args, 0));
+        goto done;
+    }
+    else if (origin == (PyObject*)(&PyTuple_Type)) {
+        if (PyTuple_Size(args) == 2 && PyTuple_GET_ITEM(args, 1) == Py_Ellipsis) {
+            out = TypeNodeArray_New(TYPE_VARTUPLE, optional, PyTuple_GET_ITEM(args, 0));
+        }
+        else {
+            out = TypeNodeFixTuple_New(optional, args);
+        }
+        goto done;
+    }
+    else if (origin == st->typing_union) {
+        if (PyTuple_Size(args) != 2) goto done;
+        if (PyTuple_GET_ITEM(args, 0) == NONE_TYPE) {
+            if ((out = to_type_node(PyTuple_GET_ITEM(args, 1), true)) == NULL) goto done;
+        }
+        else if (PyTuple_GET_ITEM(args, 1) == NONE_TYPE) {
+            if ((out = to_type_node(PyTuple_GET_ITEM(args, 0), true)) == NULL) goto done;
+        }
+        goto done;
+    }
+    else {
+        goto done;
+    }
+
+done:
+    Py_XDECREF(origin);
+    Py_XDECREF(args);
+    if (out == NULL) {
+        PyErr_Format(PyExc_TypeError, "Type '%R' is not supported", obj);
+    }
+    return out;
+}
+
+
+
 /*************************************************************************
  * Struct Types                                                          *
  *************************************************************************/
@@ -168,7 +517,6 @@ typedef struct {
     Py_ssize_t *struct_offsets;
 } StructMetaObject;
 
-static PyTypeObject StructMetaType;
 static PyTypeObject StructMixinType;
 
 #define StructMeta_GET_FIELDS(s) (((StructMetaObject *)(s))->struct_fields);
@@ -456,18 +804,19 @@ static PyObject*
 StructMeta_signature(StructMetaObject *self, void *closure)
 {
     Py_ssize_t nfields, ndefaults, npos, i;
+    MsgspecState *st;
     PyObject *res = NULL;
     PyObject *inspect = NULL;
     PyObject *parameter_cls = NULL;
     PyObject *parameter_empty = NULL;
     PyObject *parameter_kind = NULL;
     PyObject *signature_cls = NULL;
-    PyObject *typing = NULL;
-    PyObject *get_type_hints = NULL;
     PyObject *annotations = NULL;
     PyObject *parameters = NULL;
     PyObject *temp_args = NULL, *temp_kwargs = NULL;
     PyObject *field, *default_val, *parameter, *annotation;
+
+    st = msgspec_get_global_state();
 
     nfields = PyTuple_GET_SIZE(self->struct_fields);
     ndefaults = PyTuple_GET_SIZE(self->struct_defaults);
@@ -488,14 +837,8 @@ StructMeta_signature(StructMetaObject *self, void *closure)
     signature_cls = PyObject_GetAttrString(inspect, "Signature");
     if (signature_cls == NULL)
         goto cleanup;
-    typing = PyImport_ImportModule("typing");
-    if (typing == NULL)
-        goto cleanup;
-    get_type_hints = PyObject_GetAttrString(typing, "get_type_hints");
-    if (get_type_hints == NULL)
-        goto cleanup;
 
-    annotations = PyObject_CallFunctionObjArgs(get_type_hints, self, NULL);
+    annotations = PyObject_CallFunctionObjArgs(st->get_type_hints, self, NULL);
     if (annotations == NULL)
         goto cleanup;
 
@@ -541,8 +884,6 @@ cleanup:
     Py_XDECREF(parameter_empty);
     Py_XDECREF(parameter_kind);
     Py_XDECREF(signature_cls);
-    Py_XDECREF(typing);
-    Py_XDECREF(get_type_hints);
     Py_XDECREF(annotations);
     Py_XDECREF(parameters);
     Py_XDECREF(temp_args);
@@ -976,352 +1317,6 @@ PyDoc_STRVAR(Struct__doc__,
 ">>> Dog('snickers', breed='corgi')\n"
 "Dog(name='snickers', breed='corgi', is_good_boy=True)\n"
 );
-
-/************************************************************************
- * Type Objects                                                         *
- ************************************************************************/
-
-enum typecode {
-    TYPE_ANY,
-    TYPE_NONE,
-    TYPE_BOOL,
-    TYPE_INT,
-    TYPE_FLOAT,
-    TYPE_STR,
-    TYPE_BYTES,
-    TYPE_BYTEARRAY,
-    TYPE_ENUM,
-    TYPE_STRUCT,
-    TYPE_LIST,
-    TYPE_SET,
-    TYPE_VARTUPLE,
-    TYPE_FIXTUPLE,
-    TYPE_DICT,
-};
-
-typedef struct TypeNode {
-    enum typecode code;
-    bool optional;
-} TypeNode;
-
-typedef struct TypeNodeObj {
-    TypeNode type;
-    PyObject *arg;
-} TypeNodeObj;
-
-typedef struct TypeNodeArray {
-    TypeNode type;
-    TypeNode *arg;
-} TypeNodeArray;
-
-typedef struct TypeNodeFixTuple {
-    TypeNode type;
-    Py_ssize_t size;
-    TypeNode *args[];
-} TypeNodeFixTuple;
-
-typedef struct TypeNodeMap {
-    TypeNode type;
-    TypeNode *key;
-    TypeNode *value;
-} TypeNodeMap;
-
-static void
-TypeNode_Free(TypeNode *type) {
-    if (type == NULL) return;
-    switch (type->code) {
-        case TYPE_ANY:
-        case TYPE_NONE:
-        case TYPE_BOOL:
-        case TYPE_INT:
-        case TYPE_FLOAT:
-        case TYPE_STR:
-        case TYPE_BYTES:
-        case TYPE_BYTEARRAY:
-            PyMem_Free(type);
-            return;
-        case TYPE_ENUM:
-        case TYPE_STRUCT: {
-            TypeNodeObj *t = (TypeNodeObj *)type;
-            Py_XDECREF(t->arg);
-            PyMem_Free(t);
-            return;
-        }
-        case TYPE_LIST:
-        case TYPE_SET:
-        case TYPE_VARTUPLE: {
-            TypeNodeArray *t = (TypeNodeArray *)type;
-            TypeNode_Free(t->arg);
-            PyMem_Free(t);
-            return;
-        }
-        case TYPE_DICT: {
-            TypeNodeMap *t = (TypeNodeMap *)type;
-            TypeNode_Free(t->key);
-            TypeNode_Free(t->value);
-            PyMem_Free(t);
-            return;
-        }
-        case TYPE_FIXTUPLE: {
-            TypeNodeFixTuple *t = (TypeNodeFixTuple *)type;
-            for (Py_ssize_t i = 0; i < t->size; i++) {
-                TypeNode_Free(t->args[i]);
-            }
-            PyMem_Free(t);
-            return;
-        }
-    }
-}
-
-static int
-TypeNode_traverse(TypeNode *type, visitproc visit, void *arg) {
-    if (type == NULL) return 0;
-    switch (type->code) {
-        case TYPE_ANY:
-        case TYPE_NONE:
-        case TYPE_BOOL:
-        case TYPE_INT:
-        case TYPE_FLOAT:
-        case TYPE_STR:
-        case TYPE_BYTES:
-        case TYPE_BYTEARRAY:
-            return 0;
-        case TYPE_ENUM:
-        case TYPE_STRUCT: {
-            TypeNodeObj *t = (TypeNodeObj *)type;
-            Py_VISIT(t->arg);
-            return 0;
-        }
-        case TYPE_LIST:
-        case TYPE_SET:
-        case TYPE_VARTUPLE: {
-            TypeNodeArray *t = (TypeNodeArray *)type;
-            return TypeNode_traverse(t->arg, visit, arg);
-        }
-        case TYPE_DICT: {
-            int out;
-            TypeNodeMap *t = (TypeNodeMap *)type;
-            if ((out = TypeNode_traverse(t->key, visit, arg)) != 0) return out;
-            return TypeNode_traverse(t->value, visit, arg);
-        }
-        case TYPE_FIXTUPLE: {
-            int out;
-            TypeNodeFixTuple *t = (TypeNodeFixTuple *)type;
-            for (Py_ssize_t i = 0; i < t->size; i++) {
-                if ((out = TypeNode_traverse(t->args[i], visit, arg)) != 0) return out;
-            }
-            return 0;
-        }
-    }
-}
-
-static TypeNode* to_type_node(PyObject * obj, bool optional);
-
-static TypeNode*
-TypeNode_Convert(PyObject *type) {
-    return to_type_node(type, false);
-}
-
-static TypeNode *
-TypeNode_New(enum typecode code, bool optional) {
-    TypeNode *out = PyMem_New(TypeNode, sizeof(TypeNode));
-    if (out == NULL) {
-        PyErr_NoMemory();
-        return NULL;
-    }
-    out->code = code;
-    out->optional = optional;
-    return out;
-}
-
-static TypeNode *
-TypeNodeObj_New(enum typecode code, bool optional, PyObject *arg) {
-    TypeNodeObj *out = PyMem_New(TypeNodeObj, sizeof(TypeNodeObj));
-    if (out == NULL) {
-        PyErr_NoMemory();
-        return NULL;
-    }
-    out->type.code = code;
-    out->type.optional = optional;
-    Py_INCREF(arg);
-    out->arg = arg;
-    return (TypeNode *)out;
-}
-
-static TypeNode *
-TypeNodeArray_New(enum typecode code, bool optional, PyObject *el_type) {
-    TypeNode *arg = NULL;
-    if ((arg = TypeNode_Convert(el_type)) == NULL) goto error;
-    TypeNodeArray *out = PyMem_New(TypeNodeArray, sizeof(TypeNodeArray));
-    if (out == NULL) {
-        PyErr_NoMemory();
-        goto error;
-    }
-    out->type.code = code;
-    out->type.optional = optional;
-    out->arg = arg;
-    return (TypeNode *)out;
-error:
-    PyMem_Free(arg);
-    return NULL;
-}
-
-static TypeNode *
-TypeNodeMap_New(enum typecode code, bool optional, PyObject *key_type, PyObject *value_type) {
-    TypeNode *key = NULL, *value = NULL;
-    if ((key = TypeNode_Convert(key_type)) == NULL) goto error;
-    if ((value = TypeNode_Convert(value_type)) == NULL) goto error;
-
-    TypeNodeMap *out = PyMem_New(TypeNodeMap, sizeof(TypeNodeMap));
-    if (out == NULL) {
-        PyErr_NoMemory();
-        goto error;
-    }
-    out->type.code = code;
-    out->type.optional = optional;
-    out->key = key;
-    out->value = value;
-    return (TypeNode *)out;
-error:
-    PyMem_Free(key);
-    PyMem_Free(value);
-    return NULL;
-}
-
-static TypeNode *
-TypeNodeFixTuple_New(bool optional, PyObject *args) {
-    TypeNodeFixTuple *out;
-    TypeNode *el;
-    Py_ssize_t i, size;
-
-    size = PyTuple_GET_SIZE(args);
-    out = PyMem_New(
-        TypeNodeFixTuple,
-        sizeof(TypeNodeFixTuple) + size * sizeof(TypeNode*)
-    );
-    if (out == NULL) {
-        PyErr_NoMemory();
-        return NULL;
-    }
-    out->type.code = TYPE_FIXTUPLE;
-    out->type.optional = optional;
-    out->size = size;
-    for (i = 0; i < size; i++) {
-        el = TypeNode_Convert(PyTuple_GET_ITEM(args, i));
-        if (el == NULL) goto error;
-        out->args[i] = el;
-    }
-    return (TypeNode *)out;
-
-error:
-    TypeNode_Free((TypeNode *)out);
-    return NULL;
-}
-
-#define NONE_TYPE ((PyObject *)(Py_TYPE(Py_None)))
-
-static TypeNode *
-to_type_node(PyObject * obj, bool optional) {
-    TypeNode *out = NULL;
-    PyObject *origin = NULL, *args = NULL;
-    MsgspecState *st = msgspec_get_global_state();
-
-    if (obj == st->typing_any) {
-        return TypeNode_New(TYPE_ANY, optional);
-    }
-    else if (obj == Py_None || obj == NONE_TYPE) {
-        return TypeNode_New(TYPE_NONE, optional);
-    }
-    else if (obj == (PyObject *)(&PyBool_Type)) {
-        return TypeNode_New(TYPE_BOOL, optional);
-    }
-    else if (obj == (PyObject *)(&PyLong_Type)) {
-        return TypeNode_New(TYPE_INT, optional);
-    }
-    else if (obj == (PyObject *)(&PyFloat_Type)) {
-        return TypeNode_New(TYPE_FLOAT, optional);
-    }
-    else if (obj == (PyObject *)(&PyUnicode_Type)) {
-        return TypeNode_New(TYPE_STR, optional);
-    }
-    else if (obj == (PyObject *)(&PyBytes_Type)) {
-        return TypeNode_New(TYPE_BYTES, optional);
-    }
-    else if (obj == (PyObject *)(&PyByteArray_Type)) {
-        return TypeNode_New(TYPE_BYTEARRAY, optional);
-    }
-    else if (Py_TYPE(obj) == &StructMetaType) {
-        return TypeNodeObj_New(TYPE_STRUCT, optional, obj);
-    }
-    else if (PyType_Check(obj) && PyType_IsSubtype((PyTypeObject *)obj, st->EnumType)) {
-        return TypeNodeObj_New(TYPE_ENUM, optional, obj);
-    }
-    else if (obj == (PyObject*)(&PyDict_Type) || obj == st->typing_dict) {
-        return TypeNodeMap_New(TYPE_DICT, optional, st->typing_any, st->typing_any);
-    }
-    else if (obj == (PyObject*)(&PyList_Type) || obj == st->typing_list) {
-        return TypeNodeArray_New(TYPE_LIST, optional, st->typing_any);
-    }
-    else if (obj == (PyObject*)(&PySet_Type) || obj == st->typing_set) {
-        return TypeNodeArray_New(TYPE_SET, optional, st->typing_any);
-    }
-    else if (obj == (PyObject*)(&PyTuple_Type) || obj == st->typing_tuple) {
-        return TypeNodeArray_New(TYPE_VARTUPLE, optional, st->typing_any);
-    }
-
-    /* Attempt to extract __origin__/__args__ from the obj as a typing object */
-    origin = PyObject_GetAttrString(obj, "__origin__");
-    if (origin == NULL) goto done;
-    args = PyObject_GetAttrString(obj, "__args__");
-    if (args == NULL) goto done;
-
-    if (origin == (PyObject*)(&PyDict_Type)) {
-        if (PyTuple_Size(args) != 2) goto done;
-        out = TypeNodeMap_New(TYPE_DICT, optional, PyTuple_GET_ITEM(args, 0), PyTuple_GET_ITEM(args, 1));
-        goto done;
-    }
-    else if (origin == (PyObject*)(&PyList_Type)) {
-        if (PyTuple_Size(args) != 1) goto done;
-        out = TypeNodeArray_New(TYPE_LIST, optional, PyTuple_GET_ITEM(args, 0));
-        goto done;
-    }
-    else if (origin == (PyObject*)(&PySet_Type)) {
-        if (PyTuple_Size(args) != 1) goto done;
-        out = TypeNodeArray_New(TYPE_SET, optional, PyTuple_GET_ITEM(args, 0));
-        goto done;
-    }
-    else if (origin == (PyObject*)(&PyTuple_Type)) {
-        if (PyTuple_Size(args) == 2 && PyTuple_GET_ITEM(args, 1) == Py_Ellipsis) {
-            out = TypeNodeArray_New(TYPE_VARTUPLE, optional, PyTuple_GET_ITEM(args, 0));
-        }
-        else {
-            out = TypeNodeFixTuple_New(optional, args);
-        }
-        goto done;
-    }
-    else if (origin == st->typing_union) {
-        if (PyTuple_Size(args) != 2) goto done;
-        if (PyTuple_GET_ITEM(args, 0) == NONE_TYPE) {
-            if ((out = to_type_node(PyTuple_GET_ITEM(args, 1), true)) == NULL) goto done;
-        }
-        else if (PyTuple_GET_ITEM(args, 1) == NONE_TYPE) {
-            if ((out = to_type_node(PyTuple_GET_ITEM(args, 0), true)) == NULL) goto done;
-        }
-        goto done;
-    }
-    else {
-        goto done;
-    }
-
-done:
-    Py_XDECREF(origin);
-    Py_XDECREF(args);
-    if (out == NULL) {
-        PyErr_Format(PyExc_TypeError, "Type '%R' is not supported", obj);
-    }
-    return out;
-}
-
 
 /*************************************************************************
  * MessagePack Encoder                                                   *
