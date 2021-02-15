@@ -52,6 +52,44 @@ def assert_eq(x, y):
         assert x == y
 
 
+class TestEncoderErrors:
+    @pytest.mark.parametrize("x", [-2 ** 63 - 1, 2 ** 64])
+    def test_encode_integer_limits(self, x):
+        enc = msgspec.Encoder()
+        with pytest.raises(OverflowError):
+            enc.encode(x)
+
+    def rec_obj1(self):
+        o = []
+        o.append(o)
+        return o
+
+    def rec_obj2(self):
+        o = ([],)
+        o[0].append(o)
+        return o
+
+    def rec_obj3(self):
+        o = {}
+        o["a"] = o
+        return o
+
+    def rec_obj4(self):
+        class Box(msgspec.Struct):
+            a: "Box"
+
+        o = Box(None)
+        o.a = o
+        return o
+
+    @pytest.mark.parametrize("case", [1, 2, 3, 4])
+    def test_encode_infinite_recursive_object_errors(self, case):
+        enc = msgspec.Encoder()
+        o = getattr(self, "rec_obj%d" % case)()
+        with pytest.raises(RecursionError):
+            enc.encode(o)
+
+
 class CommonTypeTestBase:
     """Test msgspec untyped encode/decode"""
 
