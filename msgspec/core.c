@@ -2087,6 +2087,24 @@ Decoder_dealloc(Decoder *self)
     Py_TYPE(self)->tp_free((PyObject *)self);
 }
 
+static PyObject *
+Decoder_repr(Decoder *self) {
+    int recursive;
+    PyObject *out;
+
+    recursive = Py_ReprEnter((PyObject *)self);
+    if (recursive != 0) {
+        return (recursive < 0) ? NULL : PyUnicode_FromString("...");
+    }
+    if (PyType_Check(self->orig_type)) {
+        out = PyUnicode_FromFormat("Decoder(%s)", ((PyTypeObject*)self->orig_type)->tp_name);
+    } else {
+        out = PyUnicode_FromFormat("Decoder(%R)", self->orig_type);
+    }
+    Py_ReprLeave((PyObject *)self);
+    return out;
+}
+
 static Py_ssize_t
 mp_err_truncated()
 {
@@ -2951,6 +2969,7 @@ static PyTypeObject Decoder_Type = {
     .tp_init = (initproc)Decoder_init,
     .tp_traverse = (traverseproc)Decoder_traverse,
     .tp_dealloc = (destructor)Decoder_dealloc,
+    .tp_repr = (reprfunc)Decoder_repr,
     .tp_methods = Decoder_methods,
     .tp_members = Decoder_members,
 };
