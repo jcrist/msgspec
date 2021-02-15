@@ -2886,6 +2886,8 @@ mp_decode_type(Decoder *self, TypeNode *type) {
         case TYPE_FIXTUPLE:
             return mp_decode_type_fixtuple(self, op, (TypeNodeFixTuple *)type);
         default:
+            /* Should never be hit */
+            PyErr_SetString(PyExc_RuntimeError, "Unknown type code");
             return NULL;
     }
 }
