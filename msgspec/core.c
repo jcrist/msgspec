@@ -2561,11 +2561,39 @@ mp_decode_type_set(Decoder *self, char op, TypeNode *el_type) {
             Py_CLEAR(res);
             break;
         }
+        Py_DECREF(item);
     }
     Py_LeaveRecursiveCall();
     return res;
 }
 
+static PyObject *
+mp_decode_type_vartuple(Decoder *self, char op, TypeNode *el_type) {
+    Py_ssize_t size, i;
+    PyObject *res, *item;
+
+    size = mp_decode_array_size(self, op, "tuple");
+    if (size < 0) return NULL;
+
+    res = PyTuple_New(size);
+    if (res == NULL) return NULL;
+    if (size == 0) return res;
+
+    if (Py_EnterRecursiveCall(" while deserializing an object")) {
+        Py_DECREF(res);
+        return NULL;
+    }
+    for (i = 0; i < size; i++) {
+        item = mp_decode_type(self, el_type);
+        if (item == NULL) {
+            Py_CLEAR(res);
+            break;
+        }
+        PyTuple_SET_ITEM(res, i, item);
+    }
+    Py_LeaveRecursiveCall();
+    return res;
+}
 
 static PyObject *
 mp_decode_type(Decoder *self, TypeNode *type) {
@@ -2601,6 +2629,8 @@ mp_decode_type(Decoder *self, TypeNode *type) {
             return mp_decode_type_list(self, op, ((TypeNodeArray *)type)->arg);
         case TYPE_SET:
             return mp_decode_type_set(self, op, ((TypeNodeArray *)type)->arg);
+        case TYPE_VARTUPLE:
+            return mp_decode_type_vartuple(self, op, ((TypeNodeArray *)type)->arg);
         default:
             return NULL;
     }
