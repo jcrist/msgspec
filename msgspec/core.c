@@ -2496,25 +2496,28 @@ mp_decode_type_binary(Decoder *self, char op, bool is_bytearray) {
     return PyBytes_FromStringAndSize(s, size);
 }
 
+static Py_ssize_t
+mp_decode_array_size(Decoder *self, char op, char *expected) {
+    if ('\x90' <= op && op <= '\x9f') {
+        return (op & 0x0f);
+    }
+    else if (op == MP_ARRAY16) {
+        return mp_decode_size(self, 2);
+    }
+    else if (op == MP_ARRAY32) {
+        return mp_decode_size(self, 4);
+    }
+    mp_decode_type_error(op, expected);
+    return -1;
+}
+
 static PyObject *
 mp_decode_type_list(Decoder *self, char op, TypeNode *el_type) {
     Py_ssize_t size, i;
     PyObject *res, *item;
 
-    if ('\x90' <= op && op <= '\x9f') {
-        size = (op & 0x0f);
-    }
-    else if (op == MP_ARRAY16) {
-        size = mp_decode_size(self, 2);
-        if (size < 0) return NULL;
-    }
-    else if (op == MP_ARRAY32) {
-        size = mp_decode_size(self, 4);
-        if (size < 0) return NULL;
-    }
-    else {
-        return mp_decode_type_error(op, "list");
-    }
+    size = mp_decode_array_size(self, op, "list");
+    if (size < 0) return NULL;
 
     res = PyList_New(size);
     if (res == NULL) return NULL;
@@ -2535,6 +2538,34 @@ mp_decode_type_list(Decoder *self, char op, TypeNode *el_type) {
     Py_LeaveRecursiveCall();
     return res;
 }
+
+static PyObject *
+mp_decode_type_set(Decoder *self, char op, TypeNode *el_type) {
+    Py_ssize_t size, i;
+    PyObject *res, *item;
+
+    size = mp_decode_array_size(self, op, "set");
+    if (size < 0) return NULL;
+
+    res = PySet_New(NULL);
+    if (res == NULL) return NULL;
+    if (size == 0) return res;
+
+    if (Py_EnterRecursiveCall(" while deserializing an object")) {
+        Py_DECREF(res);
+        return NULL;
+    }
+    for (i = 0; i < size; i++) {
+        item = mp_decode_type(self, el_type);
+        if (item == NULL || PySet_Add(res, item) < 0) {
+            Py_CLEAR(res);
+            break;
+        }
+    }
+    Py_LeaveRecursiveCall();
+    return res;
+}
+
 
 static PyObject *
 mp_decode_type(Decoder *self, TypeNode *type) {
@@ -2568,6 +2599,8 @@ mp_decode_type(Decoder *self, TypeNode *type) {
             return mp_decode_type_binary(self, op, true);
         case TYPE_LIST:
             return mp_decode_type_list(self, op, ((TypeNodeArray *)type)->arg);
+        case TYPE_SET:
+            return mp_decode_type_set(self, op, ((TypeNodeArray *)type)->arg);
         default:
             return NULL;
     }
