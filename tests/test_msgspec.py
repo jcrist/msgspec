@@ -52,21 +52,13 @@ def assert_eq(x, y):
         assert x == y
 
 
-class TestCompatibility:
-    """Test compatibility with the existing python msgpack library"""
-    def check(self, x):
-        msgpack = pytest.importorskip("msgpack")
-
-        enc = msgspec.Encoder()
-        dec = msgspec.Decoder()
-
-        assert_eq(dec.decode(msgpack.dumps(x)), x)
-        assert_eq(msgpack.loads(enc.encode(x)), x)
+class CommonTypeTestBase:
+    """Test msgspec untyped encode/decode"""
 
     def test_none(self):
         self.check(None)
 
-    @pytest.mark.parametrize("x", [None, False, True])
+    @pytest.mark.parametrize("x", [False, True])
     def test_bool(self, x):
         self.check(x)
 
@@ -87,9 +79,35 @@ class TestCompatibility:
         self.check(b" " * size)
 
     @pytest.mark.parametrize("size", SIZES)
+    def test_bytearray(self, size):
+        self.check(bytearray(size))
+
+    @pytest.mark.parametrize("size", SIZES)
     def test_dict(self, size):
         self.check({str(i): i for i in range(size)})
 
     @pytest.mark.parametrize("size", SIZES)
     def test_list(self, size):
         self.check(list(range(size)))
+
+
+class TestUntypedRoundtripCommon(CommonTypeTestBase):
+    """Check the untyped deserializer works for common types"""
+
+    def check(self, x):
+        enc = msgspec.Encoder()
+        dec = msgspec.Decoder()
+        assert_eq(dec.decode(enc.encode(x)), x)
+
+
+class TestCompatibility(CommonTypeTestBase):
+    """Test compatibility with the existing python msgpack library"""
+
+    def check(self, x):
+        msgpack = pytest.importorskip("msgpack")
+
+        enc = msgspec.Encoder()
+        dec = msgspec.Decoder()
+
+        assert_eq(dec.decode(msgpack.dumps(x)), x)
+        assert_eq(msgpack.loads(enc.encode(x)), x)
