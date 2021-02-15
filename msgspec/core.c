@@ -2497,6 +2497,59 @@ mp_decode_type_binary(Decoder *self, char op, bool is_bytearray) {
 }
 
 static Py_ssize_t
+mp_decode_map_size(Decoder *self, char op, char *expected) {
+    if ('\x80' <= op && op <= '\x8f') {
+        return op & 0x0f;
+    }
+    else if (op == MP_MAP16) {
+        return mp_decode_size(self, 2);
+    }
+    else if (op == MP_MAP32) {
+        return mp_decode_size(self, 4);
+    }
+    mp_decode_type_error(op, expected);
+    return -1;
+}
+
+static PyObject *
+mp_decode_type_dict(Decoder *self, char op, TypeNode *key_type, TypeNode *val_type) {
+    Py_ssize_t size, i;
+    PyObject *res, *key = NULL, *val = NULL;
+
+    size = mp_decode_map_size(self, op, "dict");
+    if (size < 0) return NULL;
+
+    res = PyDict_New();
+    if (res == NULL) return NULL;
+    if (size == 0) return res;
+
+    if (Py_EnterRecursiveCall(" while deserializing an object")) {
+        Py_DECREF(res);
+        return NULL;
+    }
+    for (i = 0; i < size; i++) {
+        key = mp_decode_type(self, key_type);
+        if (key == NULL)
+            goto error;
+        val = mp_decode_type(self, val_type);
+        if (val == NULL)
+            goto error;
+        if (PyDict_SetItem(res, key, val) < 0)
+            goto error;
+        Py_CLEAR(key);
+        Py_CLEAR(val);
+    }
+    Py_LeaveRecursiveCall();
+    return res;
+error:
+    Py_LeaveRecursiveCall();
+    Py_XDECREF(key);
+    Py_XDECREF(val);
+    Py_DECREF(res);
+    return NULL;
+}
+
+static Py_ssize_t
 mp_decode_array_size(Decoder *self, char op, char *expected) {
     if ('\x90' <= op && op <= '\x9f') {
         return (op & 0x0f);
@@ -2625,6 +2678,8 @@ mp_decode_type(Decoder *self, TypeNode *type) {
             return mp_decode_type_binary(self, op, false);
         case TYPE_BYTEARRAY:
             return mp_decode_type_binary(self, op, true);
+        case TYPE_DICT:
+            return mp_decode_type_dict(self, op, ((TypeNodeMap *)type)->key, ((TypeNodeMap *)type)->value);
         case TYPE_LIST:
             return mp_decode_type_list(self, op, ((TypeNodeArray *)type)->arg);
         case TYPE_SET:
