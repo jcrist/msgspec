@@ -2450,6 +2450,53 @@ mp_decode_type_float(Decoder *self, char op) {
 }
 
 static PyObject *
+mp_decode_type_str(Decoder *self, char op) {
+    char *s;
+    int size;
+    if ('\xa0' <= op && op <= '\xbf') {
+        size = op & 0x1f;
+    }
+    else if (op == MP_STR8) {
+        size = mp_decode_size(self, 1);
+    }
+    else if (op == MP_STR16) {
+        size = mp_decode_size(self, 2);
+    }
+    else if (op == MP_STR32) {
+        size = mp_decode_size(self, 4);
+    }
+    else {
+        return mp_decode_type_error(op, "str");
+    }
+    if (size < 0) return NULL;
+    if (mp_read(self, &s, size) < 0) return NULL;
+    return PyUnicode_DecodeUTF8(s, size, NULL);
+}
+
+static PyObject *
+mp_decode_type_binary(Decoder *self, char op, bool is_bytearray) {
+    char *s;
+    int size;
+    if (op == MP_BIN8) {
+        size = mp_decode_size(self, 1);
+    }
+    else if (op == MP_BIN16) {
+        size = mp_decode_size(self, 2);
+    }
+    else if (op == MP_BIN32) {
+        size = mp_decode_size(self, 4);
+    }
+    else {
+        return mp_decode_type_error(op, is_bytearray ? "bytearray" : "bytes");
+    }
+    if (size < 0) return NULL;
+    if (mp_read(self, &s, size) < 0) return NULL;
+    if (is_bytearray)
+        return PyByteArray_FromStringAndSize(s, size);
+    return PyBytes_FromStringAndSize(s, size);
+}
+
+static PyObject *
 mp_decode_type_list(Decoder *self, char op, TypeNode *el_type) {
     Py_ssize_t size, i;
     PyObject *res, *item;
@@ -2513,6 +2560,12 @@ mp_decode_type(Decoder *self, TypeNode *type) {
             return mp_decode_type_int(self, op);
         case TYPE_FLOAT:
             return mp_decode_type_float(self, op);
+        case TYPE_STR:
+            return mp_decode_type_str(self, op);
+        case TYPE_BYTES:
+            return mp_decode_type_binary(self, op, false);
+        case TYPE_BYTEARRAY:
+            return mp_decode_type_binary(self, op, true);
         case TYPE_LIST:
             return mp_decode_type_list(self, op, ((TypeNodeArray *)type)->arg);
         default:
