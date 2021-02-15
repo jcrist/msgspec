@@ -549,8 +549,6 @@ StructMeta_get_field_index(StructMetaObject *self, char * key, Py_ssize_t key_si
             return ind;
         }
     }
-    /* TODO: skip unknown fields */
-    PyErr_SetString(PyExc_ValueError, "unknown struct field");
     return -1;
 }
 
@@ -2382,6 +2380,94 @@ mp_decode_any(Decoder *self) {
     }
 }
 
+static int mp_skip(Decoder *self);
+
+static int
+mp_skip_array(Decoder *self, Py_ssize_t size) {
+    int status = -1;
+    Py_ssize_t i;
+    if (size < 0) return -1;
+    if (size == 0) return 0;
+
+    if (Py_EnterRecursiveCall(" while deserializing an object")) return -1;
+    for (i = 0; i < size; i++) {
+        if (mp_skip(self) < 0) break;
+    }
+    status = 0;
+    Py_LeaveRecursiveCall();
+    return status;
+}
+
+static int
+mp_skip_map(Decoder *self, Py_ssize_t size) {
+    return mp_skip_array(self, size * 2);
+}
+
+static int
+mp_skip(Decoder *self) {
+    char *s;
+    char op;
+    Py_ssize_t size;
+
+    if (mp_read1(self, &op) < 0) return -1;
+
+    if (-32 <= op && op <= 127) {
+        return 0;
+    }
+    else if ('\xa0' <= op && op <= '\xbf') {
+        return mp_read(self, &s, op & 0x1f);
+    }
+    else if ('\x90' <= op && op <= '\x9f') {
+        return mp_skip_array(self, op & 0x0f);
+    }
+    else if ('\x80' <= op && op <= '\x8f') {
+        return mp_skip_map(self, op & 0x0f);
+    }
+    switch ((enum mp_code)op) {
+        case MP_NIL:
+        case MP_TRUE:
+        case MP_FALSE:
+            return 0;
+        case MP_UINT8:
+        case MP_INT8:
+            return mp_read1(self, &op);
+        case MP_UINT16:
+        case MP_INT16:
+            return mp_read(self, &s, 2);
+        case MP_UINT32:
+        case MP_INT32:
+        case MP_FLOAT32:
+            return mp_read(self, &s, 4);
+        case MP_UINT64:
+        case MP_INT64:
+        case MP_FLOAT64:
+            return mp_read(self, &s, 8);
+        case MP_STR8:
+        case MP_BIN8:
+            if ((size = mp_decode_size1(self)) < 0) return -1;
+            return mp_read(self, &s, size);
+        case MP_STR16:
+        case MP_BIN16:
+            if ((size = mp_decode_size2(self)) < 0) return -1;
+            return mp_read(self, &s, size);
+        case MP_STR32:
+        case MP_BIN32:
+            if ((size = mp_decode_size4(self)) < 0) return -1;
+            return mp_read(self, &s, size);
+        case MP_ARRAY16:
+            return mp_skip_array(self, mp_decode_size2(self));
+        case MP_ARRAY32:
+            return mp_skip_array(self, mp_decode_size4(self));
+        case MP_MAP16:
+            return mp_skip_map(self, mp_decode_size2(self));
+        case MP_MAP32:
+            return mp_skip_map(self, mp_decode_size4(self));
+        default:
+            PyErr_Format(PyExc_ValueError, "invalid opcode, '\\x%02x'.", op);
+            return -1;
+    }
+}
+
 static PyObject * mp_decode_type(Decoder *self, TypeNode *type);
 
 static PyObject *
@@ -2717,12 +2803,15 @@ mp_decode_type_struct(Decoder *self, char op, PyObject *py_type) {
         if (key == NULL)
             goto error;
         field_index = StructMeta_get_field_index(type, key, key_size, &pos);
-        if (field_index < 0)
-            goto error;
-        val = mp_decode_type(self, type->struct_types[field_index]);
-        if (val == NULL)
-            goto error;
-        Struct_set_index(res, field_index, val);
+        if (field_index < 0) {
+            /* Skip unknown fields */
+            if (mp_skip(self) < 0) goto error;
+        }
+        else {
+            val = mp_decode_type(self, type->struct_types[field_index]);
+            if (val == NULL) goto error;
+            Struct_set_index(res, field_index, val);
+        }
     }
     /* TODO - defaults, check that all fields are set */
     Py_LeaveRecursiveCall();
