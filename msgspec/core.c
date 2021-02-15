@@ -2661,6 +2661,38 @@ mp_decode_type_vartuple(Decoder *self, char op, TypeNode *el_type) {
 }
 
 static PyObject *
+mp_decode_type_fixtuple(Decoder *self, char op, TypeNodeFixTuple *type) {
+    Py_ssize_t size, i;
+    PyObject *res, *item;
+
+    size = mp_decode_array_size(self, op, "tuple");
+    if (size < 0) return NULL;
+    if (size != type->size) {
+        PyErr_Format(PyExc_ValueError, "Expected tuple of length %zd, got %zd", type->size, size);
+        return NULL;
+    }
+
+    res = PyTuple_New(size);
+    if (res == NULL) return NULL;
+    if (size == 0) return res;
+
+    if (Py_EnterRecursiveCall(" while deserializing an object")) {
+        Py_DECREF(res);
+        return NULL;
+    }
+    for (i = 0; i < size; i++) {
+        item = mp_decode_type(self, type->args[i]);
+        if (item == NULL) {
+            Py_CLEAR(res);
+            break;
+        }
+        PyTuple_SET_ITEM(res, i, item);
+    }
+    Py_LeaveRecursiveCall();
+    return res;
+}
+
+static PyObject *
 mp_decode_type(Decoder *self, TypeNode *type) {
     char op;
 
@@ -2700,6 +2732,8 @@ mp_decode_type(Decoder *self, TypeNode *type) {
             return mp_decode_type_set(self, op, ((TypeNodeArray *)type)->arg);
         case TYPE_VARTUPLE:
             return mp_decode_type_vartuple(self, op, ((TypeNodeArray *)type)->arg);
+        case TYPE_FIXTUPLE:
+            return mp_decode_type_fixtuple(self, op, (TypeNodeFixTuple *)type);
         default:
             return NULL;
     }
