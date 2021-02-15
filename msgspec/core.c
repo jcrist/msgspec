@@ -2449,28 +2449,40 @@ mp_decode_type_float(Decoder *self, char op) {
     return PyFloat_FromDouble(out);
 }
 
+static Py_ssize_t
+mp_decode_str_size(Decoder *self, char op, char *expected) {
+    if ('\xa0' <= op && op <= '\xbf') {
+        return op & 0x1f;
+    }
+    else if (op == MP_STR8) {
+        return mp_decode_size(self, 1);
+    }
+    else if (op == MP_STR16) {
+        return mp_decode_size(self, 2);
+    }
+    else if (op == MP_STR32) {
+        return mp_decode_size(self, 4);
+    }
+    mp_decode_type_error(op, expected);
+    return -1;
+}
+
 static PyObject *
 mp_decode_type_str(Decoder *self, char op) {
     char *s;
-    int size;
-    if ('\xa0' <= op && op <= '\xbf') {
-        size = op & 0x1f;
-    }
-    else if (op == MP_STR8) {
-        size = mp_decode_size(self, 1);
-    }
-    else if (op == MP_STR16) {
-        size = mp_decode_size(self, 2);
-    }
-    else if (op == MP_STR32) {
-        size = mp_decode_size(self, 4);
-    }
-    else {
-        return mp_decode_type_error(op, "str");
-    }
+    int size = mp_decode_str_size(self, op, "str");;
     if (size < 0) return NULL;
     if (mp_read(self, &s, size) < 0) return NULL;
     return PyUnicode_DecodeUTF8(s, size, NULL);
+}
+
+static PyObject *
+mp_decode_type_enum(Decoder *self, char op, PyObject* obj) {
+    char *s;
+    int size = mp_decode_str_size(self, op, "str");;
+    if (size < 0) return NULL;
+    if (mp_read(self, &s, size) < 0) return NULL;
+    return PyObject_GetAttrString(obj, s);
 }
 
 static PyObject *
@@ -2678,6 +2690,8 @@ mp_decode_type(Decoder *self, TypeNode *type) {
             return mp_decode_type_binary(self, op, false);
         case TYPE_BYTEARRAY:
             return mp_decode_type_binary(self, op, true);
+        case TYPE_ENUM:
+            return mp_decode_type_enum(self, op, ((TypeNodeObj *)type)->arg);
         case TYPE_DICT:
             return mp_decode_type_dict(self, op, ((TypeNodeMap *)type)->key, ((TypeNodeMap *)type)->value);
         case TYPE_LIST:
