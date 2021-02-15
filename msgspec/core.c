@@ -162,6 +162,7 @@ check_positional_nargs(Py_ssize_t nargs, Py_ssize_t min, Py_ssize_t max) {
  ************************************************************************/
 
 static PyTypeObject StructMetaType;
+static int StructMeta_prep_types(PyObject *self);
 
 enum typecode {
     TYPE_ANY,
@@ -433,6 +434,7 @@ to_type_node(PyObject * obj, bool optional) {
         return TypeNode_New(TYPE_BYTEARRAY, optional);
     }
     else if (Py_TYPE(obj) == &StructMetaType) {
+        if (StructMeta_prep_types(obj) < 0) return NULL;
         return TypeNodeObj_New(TYPE_STRUCT, optional, obj);
     }
     else if (PyType_Check(obj) && PyType_IsSubtype((PyTypeObject *)obj, st->EnumType)) {
@@ -515,6 +517,7 @@ typedef struct {
     PyObject *struct_fields;
     PyObject *struct_defaults;
     Py_ssize_t *struct_offsets;
+    TypeNode **struct_types;
 } StructMetaObject;
 
 static PyTypeObject StructMixinType;
@@ -776,27 +779,91 @@ error:
 }
 
 static int
+StructMeta_prep_types(PyObject *py_self) {
+    StructMetaObject *self = (StructMetaObject *)py_self;
+    MsgspecState *st;
+    TypeNode *type;
+    Py_ssize_t i, nfields;
+    PyObject *obj, *field, *annotations = NULL;
+
+    if (self->struct_types != NULL) return 0;
+
+    nfields = PyTuple_GET_SIZE(self->struct_fields);
+
+    st = msgspec_get_global_state();
+    annotations = PyObject_CallFunctionObjArgs(st->get_type_hints, self, NULL);
+    if (annotations == NULL) goto error;
+
+    self->struct_types = PyMem_Calloc(nfields, sizeof(TypeNode*));
+    if (self->struct_types == NULL)  {
+        PyErr_NoMemory();
+        return -1;
+    }
+
+    for (i = 0; i < nfields; i++) {
+        field = PyTuple_GET_ITEM(self->struct_fields, i);
+        obj = PyDict_GetItem(annotations, field);
+        if (obj == NULL) goto error;
+        type = TypeNode_Convert(obj);
+        if (type == NULL) goto error;
+        self->struct_types[i] = type;
+    }
+
+    Py_DECREF(annotations);
+    return 0;
+
+error:
+    Py_XDECREF(annotations);
+    if (self->struct_types != NULL) {
+        for (i = 0; i < nfields; i++) {
+            TypeNode_Free(self->struct_types[i]);
+        }
+    }
+    PyMem_Free(self->struct_types);
+    self->struct_types = NULL;
+    return -1;
+}
+
+static int
 StructMeta_traverse(StructMetaObject *self, visitproc visit, void *arg)
 {
+    int out;
+    Py_ssize_t i, nfields;
     Py_VISIT(self->struct_fields);
     Py_VISIT(self->struct_defaults);
+    if (self->struct_types != NULL) {
+        nfields = PyTuple_GET_SIZE(self->struct_fields);
+        for (i = 0; i < nfields; i++) {
+            out = TypeNode_traverse(self->struct_types[i], visit, arg);
+            if (out != 0) return out;
+        }
+    }
     return PyType_Type.tp_traverse((PyObject *)self, visit, arg);
 }
 
 static int
 StructMeta_clear(StructMetaObject *self)
 {
+    Py_ssize_t i, nfields;
+    /* skip if clear already invoked */
+    if (self->struct_fields == NULL) return 0;
+
+    nfields = PyTuple_GET_SIZE(self->struct_fields);
     Py_CLEAR(self->struct_fields);
     Py_CLEAR(self->struct_defaults);
     PyMem_Free(self->struct_offsets);
+    if (self->struct_types != NULL) {
+        for (i = 0; i < nfields; i++) {
+            TypeNode_Free(self->struct_types[i]);
+        }
+    }
     return PyType_Type.tp_clear((PyObject *)self);
 }
 
 static void
 StructMeta_dealloc(StructMetaObject *self)
 {
-    Py_XDECREF(self->struct_fields);
-    Py_XDECREF(self->struct_defaults);
+    StructMeta_clear(self);
     PyType_Type.tp_dealloc((PyObject *)self);
 }
 
@@ -2557,6 +2624,58 @@ error:
 }
 
 static Py_ssize_t
+mp_decode_cstr(Decoder *self, char ** out) {
+    char op;
+    Py_ssize_t size;
+    if (mp_read1(self, &op) < 0) return -1;
+
+    size = mp_decode_str_size(self, op, "str");
+    if (size < 0) return -1;
+
+    if (mp_read(self, out, size) < 0) return -1;
+    return size;
+}
+
+static PyObject *
+mp_decode_type_struct(Decoder *self, char op, PyObject *py_type) {
+    Py_ssize_t i, size, key_size, field_index, pos = 0;
+    char *key = NULL;
+    PyObject *res, *val = NULL;
+    StructMetaObject *type = (StructMetaObject *)py_type;
+
+    size = mp_decode_map_size(self, op, "struct");
+    if (size < 0) return NULL;
+
+    res = ((PyTypeObject *)(type))->tp_alloc((PyTypeObject *)type, 0);
+    if (res == NULL) return NULL;
+    if (size == 0) return res;
+
+    if (Py_EnterRecursiveCall(" while deserializing an object")) {
+        Py_DECREF(res);
+        return NULL;
+    }
+    for (i = 0; i < size; i++) {
+        key_size = mp_decode_cstr(self, &key);
+        if (key == NULL)
+            goto error;
+        field_index = StructMeta_get_field_index(type, key, key_size, &pos);
+        if (field_index < 0)
+            goto error;
+        val = mp_decode_type(self, type->struct_types[field_index]);
+        if (val == NULL)
+            goto error;
+        Struct_set_index(res, field_index, val);
+    }
+    /* TODO - defaults, check that all fields are set */
+    Py_LeaveRecursiveCall();
+    return res;
+error:
+    Py_LeaveRecursiveCall();
+    Py_DECREF(res);
+    return NULL;
+}
+
+static Py_ssize_t
 mp_decode_array_size(Decoder *self, char op, char *expected) {
     if ('\x90' <= op && op <= '\x9f') {
         return (op & 0x0f);
@@ -2719,6 +2838,8 @@ mp_decode_type(Decoder *self, TypeNode *type) {
             return mp_decode_type_binary(self, op, true);
         case TYPE_ENUM:
             return mp_decode_type_enum(self, op, ((TypeNodeObj *)type)->arg);
+        case TYPE_STRUCT:
+            return mp_decode_type_struct(self, op, ((TypeNodeObj *)type)->arg);
         case TYPE_DICT:
             return mp_decode_type_dict(self, op, ((TypeNodeMap *)type)->key, ((TypeNodeMap *)type)->value);
         case TYPE_LIST:
