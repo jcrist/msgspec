@@ -2540,11 +2540,12 @@ mp_decode_type_str(Decoder *self, char op) {
 
 static PyObject *
 mp_decode_type_enum(Decoder *self, char op, PyObject* obj) {
-    char *s;
-    int size = mp_decode_str_size(self, op, "str");;
-    if (size < 0) return NULL;
-    if (mp_read(self, &s, size) < 0) return NULL;
-    return PyObject_GetAttrString(obj, s);
+    PyObject *name, *out;
+    name = mp_decode_type_str(self, op);
+    if (name == NULL) return NULL;
+    out = PyObject_GetAttr(obj, name);
+    Py_DECREF(name);
+    return out;
 }
 
 static PyObject *
