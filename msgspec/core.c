@@ -991,7 +991,7 @@ static PyTypeObject StructMetaType = {
 
 
 static PyObject *
-maybe_deepcopy_default(PyObject *obj, int *is_copy) {
+maybe_deepcopy_default(PyObject *obj) {
     MsgspecState *st;
     PyObject *copy = NULL, *deepcopy = NULL, *res = NULL;
     PyTypeObject *type = Py_TYPE(obj);
@@ -1002,12 +1002,11 @@ maybe_deepcopy_default(PyObject *obj, int *is_copy) {
         type == &PyBytes_Type || type == &PyUnicode_Type ||
         type == &PyByteArray_Type
     ) {
+        Py_INCREF(obj);
         return obj;
     }
     else if (type == &PyTuple_Type && (PyTuple_GET_SIZE(obj) == 0)) {
-        return obj;
-    }
-    else if (type == &PyFrozenSet_Type && PySet_GET_SIZE(obj) == 0) {
+        Py_INCREF(obj);
         return obj;
     }
     else if (type == PyDateTimeAPI->DeltaType ||
@@ -1015,16 +1014,15 @@ maybe_deepcopy_default(PyObject *obj, int *is_copy) {
              type == PyDateTimeAPI->DateType ||
              type == PyDateTimeAPI->TimeType
     ) {
+        Py_INCREF(obj);
         return obj;
     }
 
     st = msgspec_get_global_state();
     if (PyType_IsSubtype(type, st->EnumType)) {
+        Py_INCREF(obj);
         return obj;
     }
-
-    if (is_copy != NULL)
-        *is_copy = 1;
 
     /* Fast paths for known empty collections */
     if (type == &PyDict_Type && PyDict_Size(obj) == 0) {
@@ -1065,20 +1063,24 @@ Struct_set_index(PyObject *obj, Py_ssize_t index, PyObject *val) {
     *(PyObject **)addr = val;
 }
 
+/* Get field #index or NULL on obj. Returns a borrowed reference */
+static inline PyObject*
+Struct_get_index_noerror(PyObject *obj, Py_ssize_t index) {
+    StructMetaObject *cls = (StructMetaObject *)Py_TYPE(obj);
+    char *addr = (char *)obj + cls->struct_offsets[index];
+    return *(PyObject **)addr;
+}
+
 /* Get field #index on obj. Returns a borrowed reference */
 static inline PyObject*
 Struct_get_index(PyObject *obj, Py_ssize_t index) {
-    StructMetaObject *cls;
-    char *addr;
-    PyObject *val;
-
-    cls = (StructMetaObject *)Py_TYPE(obj);
-    addr = (char *)obj + cls->struct_offsets[index];
-    val = *(PyObject **)addr;
-    if (val == NULL)
+    PyObject *val = Struct_get_index_noerror(obj, index);
+    if (val == NULL) {
+        StructMetaObject *cls = (StructMetaObject *)Py_TYPE(obj);
         PyErr_Format(PyExc_AttributeError,
                      "Struct field %R is unset",
                      PyTuple_GET_ITEM(cls->struct_fields, index));
+    }
     return val;
 }
 
@@ -1086,7 +1088,7 @@ static PyObject *
 Struct_vectorcall(PyTypeObject *cls, PyObject *const *args, size_t nargsf, PyObject *kwnames) {
     PyObject *self, *fields, *defaults, *field, *val;
     Py_ssize_t nargs, nkwargs, nfields, ndefaults, npos, i;
-    int is_copy, should_untrack;
+    int should_untrack;
 
     self = cls->tp_alloc(cls, 0);
     if (self == NULL)
@@ -1112,7 +1114,6 @@ Struct_vectorcall(PyTypeObject *cls, PyObject *const *args, size_t nargsf, PyObj
     should_untrack = PyObject_IS_GC(self);
 
     for (i = 0; i < nfields; i++) {
-        is_copy = 0;
         field = PyTuple_GET_ITEM(fields, i);
         val = (nkwargs == 0) ? NULL : find_keyword(kwnames, args + nargs, field);
         if (val != NULL) {
@@ -1124,10 +1125,12 @@ Struct_vectorcall(PyTypeObject *cls, PyObject *const *args, size_t nargsf, PyObj
                 );
                 return NULL;
             }
+            Py_INCREF(val);
             nkwargs -= 1;
         }
         else if (i < nargs) {
             val = args[i];
+            Py_INCREF(val);
         }
         else if (i < npos) {
             PyErr_Format(
@@ -1138,13 +1141,11 @@ Struct_vectorcall(PyTypeObject *cls, PyObject *const *args, size_t nargsf, PyObj
             return NULL;
         }
         else {
-            val = maybe_deepcopy_default(PyTuple_GET_ITEM(defaults, i - npos), &is_copy);
+            val = maybe_deepcopy_default(PyTuple_GET_ITEM(defaults, i - npos));
             if (val == NULL)
                 return NULL;
         }
         Struct_set_index(self, i, val);
-        if (!is_copy)
-            Py_INCREF(val);
         if (should_untrack) {
             should_untrack = !OBJ_IS_GC(val);
         }
@@ -2782,10 +2783,11 @@ mp_decode_cstr(Decoder *self, char ** out) {
 
 static PyObject *
 mp_decode_type_struct(Decoder *self, char op, PyObject *py_type) {
-    Py_ssize_t i, size, key_size, field_index, pos = 0;
+    Py_ssize_t i, size, key_size, field_index, nfields, ndefaults, pos = 0;
     char *key = NULL;
     PyObject *res, *val = NULL;
     StructMetaObject *type = (StructMetaObject *)py_type;
+    int should_untrack;
 
     size = mp_decode_map_size(self, op, "struct");
     if (size < 0) return NULL;
@@ -2793,6 +2795,8 @@ mp_decode_type_struct(Decoder *self, char op, PyObject *py_type) {
     res = ((PyTypeObject *)(type))->tp_alloc((PyTypeObject *)type, 0);
     if (res == NULL) return NULL;
     if (size == 0) return res;
+
+    should_untrack = PyObject_IS_GC(res);
 
     if (Py_EnterRecursiveCall(" while deserializing an object")) {
         Py_DECREF(res);
@@ -2813,8 +2817,37 @@ mp_decode_type_struct(Decoder *self, char op, PyObject *py_type) {
             Struct_set_index(res, field_index, val);
         }
     }
-    /* TODO - defaults, check that all fields are set */
+
+    nfields = PyTuple_GET_SIZE(type->struct_fields);
+    ndefaults = PyTuple_GET_SIZE(type->struct_defaults);
+
+    for (i = 0; i < nfields; i++) {
+        if (Struct_get_index_noerror(res, i) == NULL) {
+            if (i < (nfields - ndefaults)) {
+                PyErr_Format(
+                    PyExc_TypeError,
+                    "Error decoding `%s`: missing required field `%S`",
+                    ((PyTypeObject *)type)->tp_name,
+                    PyTuple_GET_ITEM(type->struct_fields, i)
+                );
+                goto error;
+            }
+            else {
+                /* Fill in default */
+                val = maybe_deepcopy_default(
+                    PyTuple_GET_ITEM(type->struct_defaults, i - (nfields - ndefaults))
+                );
+                if (val == NULL) goto error;
+                Struct_set_index(res, i, val);
+                if (should_untrack) {
+                    should_untrack = !OBJ_IS_GC(val);
+                }
+            }
+        }
+    }
     Py_LeaveRecursiveCall();
+    if (should_untrack)
+        PyObject_GC_UnTrack(self);
     return res;
 error:
     Py_LeaveRecursiveCall();
