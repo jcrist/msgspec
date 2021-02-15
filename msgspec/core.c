@@ -79,6 +79,7 @@ typedef struct {
     PyObject *StructType;
     PyTypeObject *EnumType;
     PyObject *str__name_;
+    PyObject *str__value2member_map_;
     PyObject *str_name;
     PyObject *typing_list;
     PyObject *typing_set;
@@ -174,6 +175,7 @@ enum typecode {
     TYPE_BYTES,
     TYPE_BYTEARRAY,
     TYPE_ENUM,
+    TYPE_INTENUM,
     TYPE_STRUCT,
     TYPE_LIST,
     TYPE_SET,
@@ -224,6 +226,7 @@ TypeNode_Free(TypeNode *type) {
             PyMem_Free(type);
             return;
         case TYPE_ENUM:
+        case TYPE_INTENUM:
         case TYPE_STRUCT: {
             TypeNodeObj *t = (TypeNodeObj *)type;
             Py_XDECREF(t->arg);
@@ -270,6 +273,7 @@ TypeNode_traverse(TypeNode *type, visitproc visit, void *arg) {
         case TYPE_BYTEARRAY:
             return 0;
         case TYPE_ENUM:
+        case TYPE_INTENUM:
         case TYPE_STRUCT: {
             TypeNodeObj *t = (TypeNodeObj *)type;
             Py_VISIT(t->arg);
@@ -438,6 +442,8 @@ to_type_node(PyObject * obj, bool optional) {
         return TypeNodeObj_New(TYPE_STRUCT, optional, obj);
     }
     else if (PyType_Check(obj) && PyType_IsSubtype((PyTypeObject *)obj, st->EnumType)) {
+        if (PyType_IsSubtype((PyTypeObject *)obj, &PyLong_Type))
+            return TypeNodeObj_New(TYPE_INTENUM, optional, obj);
         return TypeNodeObj_New(TYPE_ENUM, optional, obj);
     }
     else if (obj == (PyObject*)(&PyDict_Type) || obj == st->typing_dict) {
@@ -1851,6 +1857,9 @@ mp_encode_struct(Encoder *self, PyObject *obj)
 static int
 mp_encode_enum(Encoder *self, PyObject *obj)
 {
+    if (PyLong_Check(obj))
+        return mp_encode_long(self, obj);
+
     int status;
     PyObject *name = NULL;
     MsgspecState *st = msgspec_get_global_state();
@@ -2539,6 +2548,29 @@ mp_decode_type_str(Decoder *self, char op) {
 }
 
 static PyObject *
+mp_decode_type_intenum(Decoder *self, char op, PyObject* typ) {
+    PyObject *code, *member_table, *out = NULL;
+    MsgspecState *st = msgspec_get_global_state();
+    code = mp_decode_type_int(self, op);
+    if (code == NULL) return NULL;
+    /* Fast path for common case. This accesses a non-public member of the
+     * enum class to speedup lookups. If this fails, we clear errors and
+     * use the slower-but-more-public method instead. */
+    member_table = PyObject_GetAttr(typ, st->str__value2member_map_);
+    if (member_table != NULL) {
+        out = PyDict_GetItem(member_table, code);
+        Py_DECREF(member_table);
+        Py_XINCREF(out);
+    }
+    if (out == NULL) {
+        PyErr_Clear();
+        out = CALL_ONE_ARG(typ, code);
+    }
+    Py_DECREF(code);
+    return out;
+}
+
+static PyObject *
 mp_decode_type_enum(Decoder *self, char op, PyObject* obj) {
     PyObject *name, *out;
     name = mp_decode_type_str(self, op);
@@ -2839,6 +2871,8 @@ mp_decode_type(Decoder *self, TypeNode *type) {
             return mp_decode_type_binary(self, op, true);
         case TYPE_ENUM:
             return mp_decode_type_enum(self, op, ((TypeNodeObj *)type)->arg);
+        case TYPE_INTENUM:
+            return mp_decode_type_intenum(self, op, ((TypeNodeObj *)type)->arg);
         case TYPE_STRUCT:
             return mp_decode_type_struct(self, op, ((TypeNodeObj *)type)->arg);
         case TYPE_DICT:
@@ -2930,6 +2964,7 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->StructType);
     Py_CLEAR(st->EnumType);
     Py_CLEAR(st->str__name_);
+    Py_CLEAR(st->str__value2member_map_);
     Py_CLEAR(st->str_name);
     Py_CLEAR(st->typing_dict);
     Py_CLEAR(st->typing_list);
@@ -3058,6 +3093,9 @@ PyInit_core(void)
     /* Initialize cached constant strings */
     st->str__name_ = PyUnicode_InternFromString("_name_");
     if (st->str__name_ == NULL)
+        return NULL;
+    st->str__value2member_map_ = PyUnicode_InternFromString("_value2member_map_");
+    if (st->str__value2member_map_ == NULL)
         return NULL;
     st->str_name = PyUnicode_InternFromString("name");
     if (st->str_name == NULL)
