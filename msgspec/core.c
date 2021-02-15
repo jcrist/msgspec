@@ -414,10 +414,10 @@ to_type_node(PyObject * obj, bool optional) {
     MsgspecState *st = msgspec_get_global_state();
 
     if (obj == st->typing_any) {
-        return TypeNode_New(TYPE_ANY, optional);
+        return TypeNode_New(TYPE_ANY, true);
     }
     else if (obj == Py_None || obj == NONE_TYPE) {
-        return TypeNode_New(TYPE_NONE, optional);
+        return TypeNode_New(TYPE_NONE, true);
     }
     else if (obj == (PyObject *)(&PyBool_Type)) {
         return TypeNode_New(TYPE_BOOL, optional);
