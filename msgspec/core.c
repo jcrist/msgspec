@@ -1733,7 +1733,7 @@ mp_encode_list(Encoder *self, PyObject *obj)
     int status = 0;
 
     len = PyList_GET_SIZE(obj);
-    if (mp_encode_array_header(self, len, "lists") < 0)
+    if (mp_encode_array_header(self, len, "list") < 0)
         return -1;
     if (len == 0)
         return 0;
@@ -1741,6 +1741,31 @@ mp_encode_list(Encoder *self, PyObject *obj)
         return -1;
     for (i = 0; i < len; i++) {
         if (mp_encode(self, PyList_GET_ITEM(obj, i)) < 0) {
+            status = -1;
+            break;
+        }
+    }
+    Py_LeaveRecursiveCall();
+    return status;
+}
+
+static int
+mp_encode_set(Encoder *self, PyObject *obj)
+{
+    Py_ssize_t len, ppos = 0;
+    Py_hash_t hash;
+    PyObject *item;
+    int status = 0;
+
+    len = PySet_GET_SIZE(obj);
+    if (mp_encode_array_header(self, len, "set") < 0)
+        return -1;
+    if (len == 0)
+        return 0;
+    if (Py_EnterRecursiveCall(" while serializing an object"))
+        return -1;
+    while (_PySet_NextEntry(obj, &ppos, &item, &hash)) {
+        if (mp_encode(self, item) < 0) {
             status = -1;
             break;
         }
@@ -1915,6 +1940,9 @@ mp_encode(Encoder *self, PyObject *obj)
     }
     else if (type == &PyList_Type) {
         return mp_encode_list(self, obj);
+    }
+    else if (type == &PySet_Type) {
+        return mp_encode_set(self, obj);
     }
     else if (type == &PyTuple_Type) {
         return mp_encode_tuple(self, obj);
@@ -2537,6 +2565,17 @@ mp_decode_type_error(char op, char *expected) {
 }
 
 static PyObject *
+mp_decode_type_none(Decoder *self, char op) {
+    switch ((enum mp_code)op) {
+        case MP_NIL:
+            Py_INCREF(Py_None);
+            return Py_None;
+        default:
+            return mp_decode_type_error(op, "None");
+    }
+}
+
+static PyObject *
 mp_decode_type_bool(Decoder *self, char op) {
     switch ((enum mp_code)op) {
         case MP_TRUE:
@@ -3022,6 +3061,8 @@ mp_decode_type(Decoder *self, TypeNode *type) {
     }
 
     switch (type->code) {
+        case TYPE_NONE:
+            return mp_decode_type_none(self, op);
         case TYPE_BOOL:
             return mp_decode_type_bool(self, op);
         case TYPE_INT:

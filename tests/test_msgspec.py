@@ -1,3 +1,4 @@
+from typing import Dict, Set, List, Tuple, Any
 import enum
 import math
 import sys
@@ -5,6 +6,7 @@ import sys
 import pytest
 
 import msgspec
+
 
 class FruitInt(enum.IntEnum):
     APPLE = 1
@@ -64,7 +66,7 @@ def assert_eq(x, y):
 
 
 class TestEncoderErrors:
-    @pytest.mark.parametrize("x", [-2 ** 63 - 1, 2 ** 64])
+    @pytest.mark.parametrize("x", [-(2 ** 63) - 1, 2 ** 64])
     def test_encode_integer_limits(self, x):
         enc = msgspec.Encoder()
         with pytest.raises(OverflowError):
@@ -101,36 +103,266 @@ class TestEncoderErrors:
             enc.encode(o)
 
 
-def test_enum():
-    enc = msgspec.Encoder()
-    dec = msgspec.Decoder(FruitStr)
+class TestTypedDecoder:
+    def check_unexpected_type(self, dec_type, val, msg):
+        dec = msgspec.Decoder(dec_type)
+        s = msgspec.Encoder().encode(val)
+        with pytest.raises(TypeError, match=msg):
+            dec.decode(s)
 
-    a = enc.encode(FruitStr.APPLE)
-    assert enc.encode("APPLE") == a
-    assert dec.decode(a) == FruitStr.APPLE
+    def test_none(self):
+        enc = msgspec.Encoder()
+        dec = msgspec.Decoder(None)
+        assert dec.decode(enc.encode(None)) is None
+        with pytest.raises(TypeError, match="expected `None`"):
+            assert dec.decode(enc.encode(1))
 
-    with pytest.raises(ValueError, match="truncated"):
-        dec.decode(a[:-2])
-    with pytest.raises(TypeError, match="Error decoding enum `FruitStr`"):
-        dec.decode(enc.encode("MISSING"))
-    with pytest.raises(TypeError):
-        dec.decode(enc.encode(1))
+    @pytest.mark.parametrize("x", [False, True])
+    def test_bool(self, x):
+        enc = msgspec.Encoder()
+        dec = msgspec.Decoder(bool)
+        assert dec.decode(enc.encode(x)) is x
 
+    def test_bool_unexpected_type(self):
+        self.check_unexpected_type(bool, "a", "expected `bool`")
 
-def test_int_enum():
-    enc = msgspec.Encoder()
-    dec = msgspec.Decoder(FruitInt)
+    @pytest.mark.parametrize("x", INTS)
+    def test_int(self, x):
+        enc = msgspec.Encoder()
+        dec = msgspec.Decoder(int)
+        assert dec.decode(enc.encode(x)) == x
 
-    a = enc.encode(FruitInt.APPLE)
-    assert enc.encode(1) == a
-    assert dec.decode(a) == FruitInt.APPLE
+    def test_int_unexpected_type(self):
+        self.check_unexpected_type(int, "a", "expected `int`")
 
-    with pytest.raises(ValueError, match="truncated"):
-        dec.decode(a[:-2])
-    with pytest.raises(TypeError, match="Error decoding enum `FruitInt`"):
-        dec.decode(enc.encode(1000))
-    with pytest.raises(TypeError):
-        dec.decode(enc.encode("INVALID"))
+    @pytest.mark.parametrize("x", FLOATS + INTS)
+    def test_float(self, x):
+        enc = msgspec.Encoder()
+        dec = msgspec.Decoder(float)
+        res = dec.decode(enc.encode(x))
+        sol = float(x)
+        if math.isnan(sol):
+            assert math.isnan(res)
+        else:
+            assert res == sol
+
+    def test_float_unexpected_type(self):
+        self.check_unexpected_type(float, "a", "expected `float`")
+
+    @pytest.mark.parametrize("size", SIZES)
+    def test_str(self, size):
+        enc = msgspec.Encoder()
+        dec = msgspec.Decoder(str)
+        x = "a" * size
+        res = dec.decode(enc.encode(x))
+        assert res == x
+
+    def test_str_unexpected_type(self):
+        self.check_unexpected_type(str, 1, "expected `str`")
+
+    @pytest.mark.parametrize("size", SIZES)
+    def test_bytes(self, size):
+        enc = msgspec.Encoder()
+        dec = msgspec.Decoder(bytes)
+        x = b"a" * size
+        res = dec.decode(enc.encode(x))
+        assert isinstance(res, bytes)
+        assert res == x
+
+    def test_bytes_unexpected_type(self):
+        self.check_unexpected_type(bytes, 1, "expected `bytes`")
+
+    @pytest.mark.parametrize("size", SIZES)
+    def test_bytearray(self, size):
+        enc = msgspec.Encoder()
+        dec = msgspec.Decoder(bytearray)
+        x = bytearray(size)
+        res = dec.decode(enc.encode(x))
+        assert isinstance(res, bytearray)
+        assert res == x
+
+    def test_bytearray_unexpected_type(self):
+        self.check_unexpected_type(bytearray, 1, "expected `bytearray`")
+
+    @pytest.mark.parametrize("size", SIZES)
+    def test_list_lengths(self, size):
+        enc = msgspec.Encoder()
+        dec = msgspec.Decoder(list)
+        x = list(range(size))
+        res = dec.decode(enc.encode(x))
+        assert res == x
+
+    @pytest.mark.parametrize("typ", [list, List, List[Any]])
+    def test_list_any(self, typ):
+        enc = msgspec.Encoder()
+        dec = msgspec.Decoder(typ)
+        x = [1, "two", b"three"]
+        res = dec.decode(enc.encode(x))
+        assert res == x
+        with pytest.raises(TypeError, match="expected `list`"):
+            dec.decode(enc.encode(1))
+
+    def test_list_typed(self):
+        enc = msgspec.Encoder()
+        dec = msgspec.Decoder(List[int])
+        x = [1, 2, 3]
+        res = dec.decode(enc.encode(x))
+        assert res == x
+        with pytest.raises(TypeError, match="expected `int`"):
+            dec.decode(enc.encode([1, 2, "three"]))
+
+    @pytest.mark.parametrize("size", SIZES)
+    def test_set_lengths(self, size):
+        enc = msgspec.Encoder()
+        dec = msgspec.Decoder(set)
+        x = set(range(size))
+        res = dec.decode(enc.encode(x))
+        assert res == x
+
+    @pytest.mark.parametrize("typ", [set, Set, Set[Any]])
+    def test_set_any(self, typ):
+        enc = msgspec.Encoder()
+        dec = msgspec.Decoder(typ)
+        x = {1, "two", b"three"}
+        res = dec.decode(enc.encode(x))
+        assert res == x
+        with pytest.raises(TypeError, match="expected `set`"):
+            dec.decode(enc.encode(1))
+
+    def test_set_typed(self):
+        enc = msgspec.Encoder()
+        dec = msgspec.Decoder(Set[int])
+        x = {1, 2, 3}
+        res = dec.decode(enc.encode(x))
+        assert res == x
+        with pytest.raises(TypeError, match="expected `int`"):
+            dec.decode(enc.encode({1, 2, "three"}))
+
+    @pytest.mark.parametrize("size", SIZES)
+    def test_vartuple_lengths(self, size):
+        enc = msgspec.Encoder()
+        dec = msgspec.Decoder(tuple)
+        x = tuple(range(size))
+        res = dec.decode(enc.encode(x))
+        assert res == x
+
+    @pytest.mark.parametrize("typ", [tuple, Tuple, Tuple[Any, ...]])
+    def test_vartuple_any(self, typ):
+        enc = msgspec.Encoder()
+        dec = msgspec.Decoder(typ)
+        x = (1, "two", b"three")
+        res = dec.decode(enc.encode(x))
+        assert res == x
+        with pytest.raises(TypeError, match="expected `tuple`"):
+            dec.decode(enc.encode(1))
+
+    def test_vartuple_typed(self):
+        enc = msgspec.Encoder()
+        dec = msgspec.Decoder(Tuple[int, ...])
+        x = (1, 2, 3)
+        res = dec.decode(enc.encode(x))
+        assert res == x
+        with pytest.raises(TypeError, match="expected `int`"):
+            dec.decode(enc.encode((1, 2, "three")))
+
+    def test_fixtuple_any(self):
+        enc = msgspec.Encoder()
+        dec = msgspec.Decoder(Tuple[Any, Any, Any])
+        x = (1, "two", b"three")
+        res = dec.decode(enc.encode(x))
+        assert res == x
+        with pytest.raises(TypeError, match="expected `tuple`"):
+            dec.decode(enc.encode(1))
+        with pytest.raises(ValueError, match="Expected tuple of length 3"):
+            dec.decode(enc.encode((1, 2)))
+
+    def test_fixtuple_typed(self):
+        enc = msgspec.Encoder()
+        dec = msgspec.Decoder(Tuple[int, str, bytes])
+        x = (1, "two", b"three")
+        res = dec.decode(enc.encode(x))
+        assert res == x
+        with pytest.raises(TypeError, match="expected `bytes`"):
+            dec.decode(enc.encode((1, "two", "three")))
+        with pytest.raises(ValueError, match="Expected tuple of length 3"):
+            dec.decode(enc.encode((1, 2)))
+
+    @pytest.mark.parametrize("size", SIZES)
+    def test_dict_lengths(self, size):
+        enc = msgspec.Encoder()
+        dec = msgspec.Decoder(dict)
+        x = {i: i for i in range(size)}
+        res = dec.decode(enc.encode(x))
+        assert res == x
+
+    @pytest.mark.parametrize("typ", [dict, Dict, Dict[Any, Any]])
+    def test_dict_any_any(self, typ):
+        enc = msgspec.Encoder()
+        dec = msgspec.Decoder(typ)
+        x = {1: "one", "two": 2, b"three": 3.0}
+        res = dec.decode(enc.encode(x))
+        assert res == x
+        with pytest.raises(TypeError, match="expected `dict`"):
+            dec.decode(enc.encode(1))
+
+    def test_dict_any_val(self):
+        enc = msgspec.Encoder()
+        dec = msgspec.Decoder(Dict[str, Any])
+        x = {"a": 1, "b": "two", "c": b"three"}
+        res = dec.decode(enc.encode(x))
+        assert res == x
+        with pytest.raises(TypeError, match="expected `str`"):
+            dec.decode(enc.encode({1: 2}))
+
+    def test_dict_any_key(self):
+        enc = msgspec.Encoder()
+        dec = msgspec.Decoder(Dict[Any, str])
+        x = {1: "a", "two": "b", b"three": "c"}
+        res = dec.decode(enc.encode(x))
+        assert res == x
+        with pytest.raises(TypeError, match="expected `str`"):
+            dec.decode(enc.encode({1: 2}))
+
+    def test_dict_typed(self):
+        enc = msgspec.Encoder()
+        dec = msgspec.Decoder(Dict[str, int])
+        x = {"a": 1, "b": 2}
+        res = dec.decode(enc.encode(x))
+        assert res == x
+        with pytest.raises(TypeError, match="expected `str`"):
+            dec.decode(enc.encode({1: 2}))
+        with pytest.raises(TypeError, match="expected `int`"):
+            dec.decode(enc.encode({"a": "two"}))
+
+    def test_enum(self):
+        enc = msgspec.Encoder()
+        dec = msgspec.Decoder(FruitStr)
+
+        a = enc.encode(FruitStr.APPLE)
+        assert enc.encode("APPLE") == a
+        assert dec.decode(a) == FruitStr.APPLE
+
+        with pytest.raises(ValueError, match="truncated"):
+            dec.decode(a[:-2])
+        with pytest.raises(TypeError, match="Error decoding enum `FruitStr`"):
+            dec.decode(enc.encode("MISSING"))
+        with pytest.raises(TypeError):
+            dec.decode(enc.encode(1))
+
+    def test_int_enum(self):
+        enc = msgspec.Encoder()
+        dec = msgspec.Decoder(FruitInt)
+
+        a = enc.encode(FruitInt.APPLE)
+        assert enc.encode(1) == a
+        assert dec.decode(a) == FruitInt.APPLE
+
+        with pytest.raises(ValueError, match="truncated"):
+            dec.decode(a[:-2])
+        with pytest.raises(TypeError, match="Error decoding enum `FruitInt`"):
+            dec.decode(enc.encode(1000))
+        with pytest.raises(TypeError):
+            dec.decode(enc.encode("INVALID"))
 
 
 class CommonTypeTestBase:
@@ -158,10 +390,6 @@ class CommonTypeTestBase:
     @pytest.mark.parametrize("size", SIZES)
     def test_bytes(self, size):
         self.check(b" " * size)
-
-    @pytest.mark.parametrize("size", SIZES)
-    def test_bytearray(self, size):
-        self.check(bytearray(size))
 
     @pytest.mark.parametrize("size", SIZES)
     def test_dict(self, size):
