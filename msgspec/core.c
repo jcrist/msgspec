@@ -2679,6 +2679,15 @@ mp_decode_type_intenum(Decoder *self, char op, PyObject* typ) {
         out = CALL_ONE_ARG(typ, code);
     }
     Py_DECREF(code);
+    if (out == NULL) {
+        PyErr_Clear();
+        PyErr_Format(
+            PyExc_TypeError,
+            "Error decoding enum `%s`: invalid value `%S`",
+            ((PyTypeObject *)typ)->tp_name,
+            code
+        );
+    }
     return out;
 }
 
@@ -2689,6 +2698,15 @@ mp_decode_type_enum(Decoder *self, char op, PyObject* obj) {
     if (name == NULL) return NULL;
     out = PyObject_GetAttr(obj, name);
     Py_DECREF(name);
+    if (out == NULL) {
+        PyErr_Clear();
+        PyErr_Format(
+            PyExc_TypeError,
+            "Error decoding enum `%s`: invalid name `%S`",
+            ((PyTypeObject *)obj)->tp_name,
+            name
+        );
+    }
     return out;
 }
 

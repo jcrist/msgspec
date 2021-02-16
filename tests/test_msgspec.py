@@ -1,9 +1,20 @@
+import enum
 import math
 import sys
 
 import pytest
 
 import msgspec
+
+class FruitInt(enum.IntEnum):
+    APPLE = 1
+    BANANA = 2
+
+
+class FruitStr(enum.Enum):
+    APPLE = "apple"
+    BANANA = "banana"
+
 
 INTS = [
     -(2 ** 63),
@@ -88,6 +99,38 @@ class TestEncoderErrors:
         o = getattr(self, "rec_obj%d" % case)()
         with pytest.raises(RecursionError):
             enc.encode(o)
+
+
+def test_enum():
+    enc = msgspec.Encoder()
+    dec = msgspec.Decoder(FruitStr)
+
+    a = enc.encode(FruitStr.APPLE)
+    assert enc.encode("APPLE") == a
+    assert dec.decode(a) == FruitStr.APPLE
+
+    with pytest.raises(ValueError, match="truncated"):
+        dec.decode(a[:-2])
+    with pytest.raises(TypeError, match="Error decoding enum `FruitStr`"):
+        dec.decode(enc.encode("MISSING"))
+    with pytest.raises(TypeError):
+        dec.decode(enc.encode(1))
+
+
+def test_int_enum():
+    enc = msgspec.Encoder()
+    dec = msgspec.Decoder(FruitInt)
+
+    a = enc.encode(FruitInt.APPLE)
+    assert enc.encode(1) == a
+    assert dec.decode(a) == FruitInt.APPLE
+
+    with pytest.raises(ValueError, match="truncated"):
+        dec.decode(a[:-2])
+    with pytest.raises(TypeError, match="Error decoding enum `FruitInt`"):
+        dec.decode(enc.encode(1000))
+    with pytest.raises(TypeError):
+        dec.decode(enc.encode("INVALID"))
 
 
 class CommonTypeTestBase:
