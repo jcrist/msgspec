@@ -515,6 +515,56 @@ class TestTypedDecoder:
         res = dec.decode(s)
         assert res == x
 
+    @pytest.mark.parametrize(
+        "typ, value",
+        [
+            (bool, False),
+            (bool, True),
+            (int, 1),
+            (float, 2.5),
+            (str, "a"),
+            (bytes, b"a"),
+            (bytearray, bytearray(b"a")),
+            (FruitInt, FruitInt.APPLE),
+            (FruitStr, FruitStr.APPLE),
+            (Person, Person("harry", "potter", 13)),
+            (list, [1]),
+            (set, {1}),
+            (tuple, (1, 2)),
+            (Tuple[int, int], (1, 2)),
+            (dict, {1: 2}),
+        ]
+    )
+    def test_optional(self, typ, value):
+        enc = msgspec.Encoder()
+        dec = msgspec.Decoder(Optional[typ])
+
+        s = enc.encode(value)
+        s2 = enc.encode(None)
+        assert dec.decode(s) == value
+        assert dec.decode(s2) is None
+
+        dec = msgspec.Decoder(typ)
+        with pytest.raises(TypeError):
+            dec.decode(s2)
+
+    @pytest.mark.parametrize(
+        "typ, value",
+        [
+            (List[Optional[int]], [1, None]),
+            (Tuple[Optional[int], int], (None, 1)),
+            (Set[Optional[int]], {1, None}),
+            (Dict[str, Optional[int]], {"a": 1, "b": None}),
+            (Dict[Optional[str], int], {"a": 1, None: 2}),
+        ]
+    )
+    def test_optional_nested(self, typ, value):
+        enc = msgspec.Encoder()
+        dec = msgspec.Decoder(typ)
+
+        s = enc.encode(value)
+        assert dec.decode(s) == value
+
 
 class CommonTypeTestBase:
     """Test msgspec untyped encode/decode"""
