@@ -1,0 +1,18 @@
+message Address {
+    string street = 1;
+    string state = 2;
+    uint32 zip = 3;
+}
+
+message Person {
+    string first = 1;
+    string last = 2;
+    uint32 age = 3;
+    repeated Address addresses = 4;
+    string telephone = 5;
+    string email = 6;
+}
+
+message People {
+    repeated Person people = 1;
+}

@@ -12,3 +12,5 @@ docs/build/
 .eggs/
 .DS_Store
 htmlcov/
+benchmarks/*.html
+benchmarks/*.json
