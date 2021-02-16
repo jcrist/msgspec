@@ -8,7 +8,7 @@ validation through the use of schemas defined using Python's `type annotations
 
 .. code-block:: python
 
-    from typing import Optional
+    from typing import Optional, List
     from msgspec import Struct, Encoder, Decoder
 
     # Define a schema for a `User` type
@@ -18,7 +18,7 @@ validation through the use of schemas defined using Python's `type annotations
         email: Optional[str] = None
 
     # Create a `User` object
-    alice = User("alice", groups={"admin", "engineering"})
+    alice = User("alice", groups=["admin", "engineering"])
 
     # Serialize `alice` to `bytes` using the MessagePack protocol
     serialized_data = Encoder().encode(alice)
