@@ -147,6 +147,7 @@ class TestDecoderMisc:
 
     def test_decoder_validates_struct_definition_unsupported_types(self):
         """Struct definitions aren't validated until first use"""
+
         class Test(msgspec.Struct):
             a: slice
 
@@ -533,7 +534,7 @@ class TestTypedDecoder:
             (tuple, (1, 2)),
             (Tuple[int, int], (1, 2)),
             (dict, {1: 2}),
-        ]
+        ],
     )
     def test_optional(self, typ, value):
         enc = msgspec.Encoder()
@@ -556,7 +557,7 @@ class TestTypedDecoder:
             (Set[Optional[int]], {1, None}),
             (Dict[str, Optional[int]], {"a": 1, "b": None}),
             (Dict[Optional[str], int], {"a": 1, None: 2}),
-        ]
+        ],
     )
     def test_optional_nested(self, typ, value):
         enc = msgspec.Encoder()
