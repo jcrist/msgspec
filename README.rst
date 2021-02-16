@@ -14,7 +14,7 @@ validation through the use of schemas defined using Python's `type annotations
     # Define a schema for a `User` type
     class User(Struct):
         name: str
-        groups: List[str] = set()
+        groups: List[str] = []
         email: Optional[str] = None
 
     # Create a `User` object
