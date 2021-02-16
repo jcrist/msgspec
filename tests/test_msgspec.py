@@ -499,7 +499,7 @@ class CommonTypeTestBase:
         self.check(list(range(size)))
 
 
-class TestUntypedRoundtripCommon(CommonTypeTestBase):
+class TestUntypedDecoder(CommonTypeTestBase):
     """Check the untyped deserializer works for common types"""
 
     def check(self, x):
