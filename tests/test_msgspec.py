@@ -1,5 +1,6 @@
 from typing import Dict, Set, List, Tuple, Any
 import enum
+import gc
 import math
 import sys
 
@@ -16,6 +17,13 @@ class FruitInt(enum.IntEnum):
 class FruitStr(enum.Enum):
     APPLE = "apple"
     BANANA = "banana"
+
+
+class Person(msgspec.Struct):
+    first: str
+    last: str
+    age: int
+    prefect: bool = False
 
 
 INTS = [
@@ -363,6 +371,97 @@ class TestTypedDecoder:
             dec.decode(enc.encode(1000))
         with pytest.raises(TypeError):
             dec.decode(enc.encode("INVALID"))
+
+    def test_struct(self):
+        enc = msgspec.Encoder()
+        dec = msgspec.Decoder(Person)
+
+        x = Person(first="harry", last="potter", age=13)
+        a = enc.encode(x)
+        assert (
+            enc.encode(
+                {"first": "harry", "last": "potter", "age": 13, "prefect": False}
+            )
+            == a
+        )
+        assert dec.decode(a) == x
+
+        with pytest.raises(ValueError, match="truncated"):
+            dec.decode(a[:-2])
+
+        with pytest.raises(TypeError, match="expected `struct`"):
+            dec.decode(enc.encode(1))
+
+        with pytest.raises(TypeError, match="expected `str`"):
+            dec.decode(enc.encode({1: "harry"}))
+
+    def test_struct_field_wrong_type(self):
+        enc = msgspec.Encoder()
+        dec = msgspec.Decoder(Person)
+
+        bad = enc.encode({"first": "harry", "last": "potter", "age": "thirteen"})
+        with pytest.raises(TypeError, match="expected `int`"):
+            dec.decode(bad)
+
+    def test_struct_missing_fields(self):
+        enc = msgspec.Encoder()
+        dec = msgspec.Decoder(Person)
+
+        bad = enc.encode({"first": "harry", "last": "potter"})
+        with pytest.raises(TypeError, match="missing required field `age`"):
+            dec.decode(bad)
+
+    @pytest.mark.parametrize(
+        "extra", [None, False, True, 1, 2.0, "three", b"four", [1, 2], {3: 4}]
+    )
+    def test_struct_ignore_extra_fields(self, extra):
+        enc = msgspec.Encoder()
+        dec = msgspec.Decoder(Person)
+
+        a = enc.encode(
+            {
+                "extra1": extra,
+                "first": "harry",
+                "extra2": extra,
+                "last": "potter",
+                "age": 13,
+                "extra3": extra,
+            }
+        )
+        res = dec.decode(a)
+        assert res == Person("harry", "potter", 13)
+
+    def test_struct_defaults_missing_fields(self):
+        enc = msgspec.Encoder()
+        dec = msgspec.Decoder(Person)
+
+        a = enc.encode({"first": "harry", "last": "potter", "age": 13})
+        res = dec.decode(a)
+        assert res == Person("harry", "potter", 13)
+        assert res.prefect is False
+
+    def test_struct_gc_maybe_untracked_on_decode(self):
+        class Test(msgspec.Struct):
+            x: Any
+            y: Any
+            z: Tuple = ()
+
+        enc = msgspec.Encoder()
+        dec = msgspec.Decoder(List[Test])
+
+        ts = [
+            Test(1, 2),
+            Test(3, "hello"),
+            Test([], []),
+            Test({}, {}),
+            Test(None, None, ()),
+        ]
+        a, b, c, d, e = dec.decode(enc.encode(ts))
+        assert not gc.is_tracked(a)
+        assert not gc.is_tracked(b)
+        assert gc.is_tracked(c)
+        assert gc.is_tracked(d)
+        assert not gc.is_tracked(e)
 
 
 class CommonTypeTestBase:

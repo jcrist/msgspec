@@ -2853,16 +2853,14 @@ mp_decode_type_struct(Decoder *self, char op, PyObject *py_type) {
     if (res == NULL) return NULL;
     if (size == 0) return res;
 
-    should_untrack = PyObject_IS_GC(res);
-
     if (Py_EnterRecursiveCall(" while deserializing an object")) {
         Py_DECREF(res);
         return NULL;
     }
     for (i = 0; i < size; i++) {
         key_size = mp_decode_cstr(self, &key);
-        if (key == NULL)
-            goto error;
+        if (key_size < 0) goto error;
+
         field_index = StructMeta_get_field_index(type, key, key_size, &pos);
         if (field_index < 0) {
             /* Skip unknown fields */
@@ -2877,9 +2875,11 @@ mp_decode_type_struct(Decoder *self, char op, PyObject *py_type) {
 
     nfields = PyTuple_GET_SIZE(type->struct_fields);
     ndefaults = PyTuple_GET_SIZE(type->struct_defaults);
+    should_untrack = PyObject_IS_GC(res);
 
     for (i = 0; i < nfields; i++) {
-        if (Struct_get_index_noerror(res, i) == NULL) {
+        val = Struct_get_index_noerror(res, i);
+        if (val == NULL) {
             if (i < (nfields - ndefaults)) {
                 PyErr_Format(
                     PyExc_TypeError,
@@ -2896,15 +2896,17 @@ mp_decode_type_struct(Decoder *self, char op, PyObject *py_type) {
                 );
                 if (val == NULL) goto error;
                 Struct_set_index(res, i, val);
-                if (should_untrack) {
+                if (should_untrack)
                     should_untrack = !OBJ_IS_GC(val);
-                }
             }
+        }
+        if (should_untrack) {
+            should_untrack = !OBJ_IS_GC(val);
         }
     }
     Py_LeaveRecursiveCall();
     if (should_untrack)
-        PyObject_GC_UnTrack(self);
+        PyObject_GC_UnTrack(res);
     return res;
 error:
     Py_LeaveRecursiveCall();
