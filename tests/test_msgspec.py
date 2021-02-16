@@ -1,4 +1,6 @@
-from typing import Dict, Set, List, Tuple, Any
+from __future__ import annotations
+
+from typing import Dict, Set, List, Tuple, Optional, Any
 import enum
 import gc
 import math
@@ -24,6 +26,11 @@ class Person(msgspec.Struct):
     last: str
     age: int
     prefect: bool = False
+
+
+class Node(msgspec.Struct):
+    left: Optional[Node] = None
+    right: Optional[Node] = None
 
 
 INTS = [
@@ -73,7 +80,7 @@ def assert_eq(x, y):
         assert x == y
 
 
-class TestEncoderErrors:
+class TestEncoderMisc:
     @pytest.mark.parametrize("x", [-(2 ** 63) - 1, 2 ** 64])
     def test_encode_integer_limits(self, x):
         enc = msgspec.Encoder()
@@ -109,6 +116,42 @@ class TestEncoderErrors:
         o = getattr(self, "rec_obj%d" % case)()
         with pytest.raises(RecursionError):
             enc.encode(o)
+
+    def test_getsizeof(self):
+        a = sys.getsizeof(msgspec.Encoder(write_buffer_size=64))
+        b = sys.getsizeof(msgspec.Encoder(write_buffer_size=128))
+        assert b > a
+
+
+class TestDecoderMisc:
+    def test_decoder_type_attribute(self):
+        dec = msgspec.Decoder()
+        assert dec.type is Any
+
+        dec = msgspec.Decoder(int)
+        assert dec.type is int
+
+    def test_decoder_repr(self):
+        dec = msgspec.Decoder()
+        assert repr(dec) == "Decoder(%r)" % Any
+
+        dec = msgspec.Decoder(int)
+        assert repr(dec) == "Decoder(int)"
+
+    def test_decoder_unsupported_type(self):
+        with pytest.raises(TypeError):
+            msgspec.Decoder(1)
+
+        with pytest.raises(TypeError):
+            msgspec.Decoder(slice)
+
+    def test_decoder_validates_struct_definition_unsupported_types(self):
+        """Struct definitions aren't validated until first use"""
+        class Test(msgspec.Struct):
+            a: slice
+
+        with pytest.raises(TypeError):
+            msgspec.Decoder(Test)
 
 
 class TestTypedDecoder:
@@ -462,6 +505,15 @@ class TestTypedDecoder:
         assert gc.is_tracked(c)
         assert gc.is_tracked(d)
         assert not gc.is_tracked(e)
+
+    def test_struct_recursive_definition(self):
+        enc = msgspec.Encoder()
+        dec = msgspec.Decoder(Node)
+
+        x = Node(Node(Node(), Node(Node())))
+        s = enc.encode(x)
+        res = dec.decode(s)
+        assert res == x
 
 
 class CommonTypeTestBase:
