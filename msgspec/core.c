@@ -2851,7 +2851,6 @@ mp_decode_type_struct(Decoder *self, char op, PyObject *py_type) {
 
     res = ((PyTypeObject *)(type))->tp_alloc((PyTypeObject *)type, 0);
     if (res == NULL) return NULL;
-    if (size == 0) return res;
 
     if (Py_EnterRecursiveCall(" while deserializing an object")) {
         Py_DECREF(res);

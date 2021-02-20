@@ -455,6 +455,10 @@ class TestTypedDecoder:
         with pytest.raises(TypeError, match="missing required field `age`"):
             dec.decode(bad)
 
+        bad = enc.encode({})
+        with pytest.raises(TypeError, match="missing required field `first`"):
+            dec.decode(bad)
+
     @pytest.mark.parametrize(
         "extra", [None, False, True, 1, 2.0, "three", b"four", [1, 2], {3: 4}]
     )
