@@ -2602,10 +2602,10 @@ mp_skip(Decoder *self) {
     }
 }
 
-static PyObject * mp_decode_type(Decoder *self, TypeNode *type);
+static PyObject * mp_decode_type(Decoder *self, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind);
 
 static PyObject *
-mp_decode_type_error(char op, char *expected) {
+mp_validation_error(char op, char *expected, TypeNode *ctx, Py_ssize_t ctx_ind) {
     char *got;
     if (-32 <= op && op <= 127) {
         got = "int";
@@ -2665,23 +2665,50 @@ mp_decode_type_error(char op, char *expected) {
                 break;
         }
     }
-    PyErr_Format(PyExc_TypeError, "Error decoding: expected `%s`, got `%s`", expected, got);
+    if (ctx->code == TYPE_STRUCT) {
+        StructMetaObject *st_type = (StructMetaObject *)(((TypeNodeObj *)ctx)->arg);
+        PyObject *field = PyTuple_GET_ITEM(st_type->struct_fields, ctx_ind);
+        PyObject *typstr = TypeNode_Repr(st_type->struct_types[ctx_ind]);
+        if (typstr == NULL) return NULL;
+        PyErr_Format(
+            PyExc_TypeError,
+            "Error decoding `%s` field `%S` (`%S`): expected `%s`, got `%s`",
+            ((PyTypeObject *)st_type)->tp_name,
+            field,
+            typstr,
+            expected,
+            got
+        );
+        Py_DECREF(typstr);
+    }
+    else {
+        PyObject *typstr = TypeNode_Repr(ctx);
+        if (typstr == NULL) return NULL;
+        PyErr_Format(
+            PyExc_TypeError,
+            "Error decoding `%S`: expected `%s`, got `%s`",
+            typstr,
+            expected,
+            got
+        );
+        Py_DECREF(typstr);
+    }
     return NULL;
 }
 
 static PyObject *
-mp_decode_type_none(Decoder *self, char op) {
+mp_decode_type_none(Decoder *self, char op, TypeNode *ctx, Py_ssize_t ctx_ind) {
     switch ((enum mp_code)op) {
         case MP_NIL:
             Py_INCREF(Py_None);
             return Py_None;
         default:
-            return mp_decode_type_error(op, "None");
+            return mp_validation_error(op, "None", ctx, ctx_ind);
     }
 }
 
 static PyObject *
-mp_decode_type_bool(Decoder *self, char op) {
+mp_decode_type_bool(Decoder *self, char op, TypeNode *ctx, Py_ssize_t ctx_ind) {
     switch ((enum mp_code)op) {
         case MP_TRUE:
             Py_INCREF(Py_True);
@@ -2690,12 +2717,12 @@ mp_decode_type_bool(Decoder *self, char op) {
             Py_INCREF(Py_False);
             return Py_False;
         default:
-            return mp_decode_type_error(op, "bool");
+            return mp_validation_error(op, "bool", ctx, ctx_ind);
     }
 }
 
 static PyObject *
-mp_decode_type_int(Decoder *self, char op) {
+mp_decode_type_int(Decoder *self, char op, TypeNode *ctx, Py_ssize_t ctx_ind) {
     if (-32 <= op && op <= 127) {
         return PyLong_FromLong(op);
     }
@@ -2717,12 +2744,12 @@ mp_decode_type_int(Decoder *self, char op) {
         case MP_INT64:
             return mp_decode_int8(self);
         default:
-            return mp_decode_type_error(op, "int");
+            return mp_validation_error(op, "int", ctx, ctx_ind);
     }
 }
 
 static PyObject *
-mp_decode_type_float(Decoder *self, char op) {
+mp_decode_type_float(Decoder *self, char op, TypeNode *ctx, Py_ssize_t ctx_ind) {
     char *s;
     double out;
     if (-32 <= op && op <= 127) {
@@ -2770,14 +2797,14 @@ mp_decode_type_float(Decoder *self, char op) {
                 out = _msgspec_load64(int64_t, s);
                 break;
             default:
-                return mp_decode_type_error(op, "float");
+                return mp_validation_error(op, "float", ctx, ctx_ind);
         }
     }
     return PyFloat_FromDouble(out);
 }
 
 static Py_ssize_t
-mp_decode_str_size(Decoder *self, char op, char *expected) {
+mp_decode_str_size(Decoder *self, char op, char *expected, TypeNode *ctx, Py_ssize_t ctx_ind) {
     if ('\xa0' <= op && op <= '\xbf') {
         return op & 0x1f;
     }
@@ -2790,29 +2817,29 @@ mp_decode_str_size(Decoder *self, char op, char *expected) {
     else if (op == MP_STR32) {
         return mp_decode_size4(self);
     }
-    mp_decode_type_error(op, expected);
+    mp_validation_error(op, expected, ctx, ctx_ind);
     return -1;
 }
 
 static PyObject *
-mp_decode_type_str(Decoder *self, char op) {
+mp_decode_type_str(Decoder *self, char op, TypeNode *ctx, Py_ssize_t ctx_ind) {
     char *s;
-    int size = mp_decode_str_size(self, op, "str");;
+    int size = mp_decode_str_size(self, op, "str", ctx, ctx_ind);;
     if (size < 0) return NULL;
     if (mp_read(self, &s, size) < 0) return NULL;
     return PyUnicode_DecodeUTF8(s, size, NULL);
 }
 
 static PyObject *
-mp_decode_type_intenum(Decoder *self, char op, PyObject* typ) {
+mp_decode_type_intenum(Decoder *self, char op, TypeNodeObj* type, TypeNode *ctx, Py_ssize_t ctx_ind) {
     PyObject *code, *member_table, *out = NULL;
     MsgspecState *st = msgspec_get_global_state();
-    code = mp_decode_type_int(self, op);
+    code = mp_decode_type_int(self, op, ctx, ctx_ind);
     if (code == NULL) return NULL;
     /* Fast path for common case. This accesses a non-public member of the
      * enum class to speedup lookups. If this fails, we clear errors and
      * use the slower-but-more-public method instead. */
-    member_table = PyObject_GetAttr(typ, st->str__value2member_map_);
+    member_table = PyObject_GetAttr(type->arg, st->str__value2member_map_);
     if (member_table != NULL) {
         out = PyDict_GetItem(member_table, code);
         Py_DECREF(member_table);
@@ -2820,7 +2847,7 @@ mp_decode_type_intenum(Decoder *self, char op, PyObject* typ) {
     }
     if (out == NULL) {
         PyErr_Clear();
-        out = CALL_ONE_ARG(typ, code);
+        out = CALL_ONE_ARG(type->arg, code);
     }
     Py_DECREF(code);
     if (out == NULL) {
@@ -2828,7 +2855,7 @@ mp_decode_type_intenum(Decoder *self, char op, PyObject* typ) {
         PyErr_Format(
             PyExc_TypeError,
             "Error decoding enum `%s`: invalid value `%S`",
-            ((PyTypeObject *)typ)->tp_name,
+            ((PyTypeObject *)(type->arg))->tp_name,
             code
         );
     }
@@ -2836,18 +2863,18 @@ mp_decode_type_intenum(Decoder *self, char op, PyObject* typ) {
 }
 
 static PyObject *
-mp_decode_type_enum(Decoder *self, char op, PyObject* obj) {
+mp_decode_type_enum(Decoder *self, char op, TypeNodeObj* type, TypeNode *ctx, Py_ssize_t ctx_ind) {
     PyObject *name, *out;
-    name = mp_decode_type_str(self, op);
+    name = mp_decode_type_str(self, op, ctx, ctx_ind);
     if (name == NULL) return NULL;
-    out = PyObject_GetAttr(obj, name);
+    out = PyObject_GetAttr(type->arg, name);
     Py_DECREF(name);
     if (out == NULL) {
         PyErr_Clear();
         PyErr_Format(
             PyExc_TypeError,
             "Error decoding enum `%s`: invalid name `%S`",
-            ((PyTypeObject *)obj)->tp_name,
+            ((PyTypeObject *)type->arg)->tp_name,
             name
         );
     }
@@ -2855,7 +2882,7 @@ mp_decode_type_enum(Decoder *self, char op, PyObject* obj) {
 }
 
 static PyObject *
-mp_decode_type_binary(Decoder *self, char op, bool is_bytearray) {
+mp_decode_type_binary(Decoder *self, char op, bool is_bytearray, TypeNode *ctx, Py_ssize_t ctx_ind) {
     char *s;
     int size;
     if (op == MP_BIN8) {
@@ -2868,7 +2895,7 @@ mp_decode_type_binary(Decoder *self, char op, bool is_bytearray) {
         size = mp_decode_size4(self);
     }
     else {
-        return mp_decode_type_error(op, is_bytearray ? "bytearray" : "bytes");
+        return mp_validation_error(op, is_bytearray ? "bytearray" : "bytes", ctx, ctx_ind);
     }
     if (size < 0) return NULL;
     if (mp_read(self, &s, size) < 0) return NULL;
@@ -2878,7 +2905,7 @@ mp_decode_type_binary(Decoder *self, char op, bool is_bytearray) {
 }
 
 static Py_ssize_t
-mp_decode_map_size(Decoder *self, char op, char *expected) {
+mp_decode_map_size(Decoder *self, char op, char *expected, TypeNode *ctx, Py_ssize_t ctx_ind) {
     if ('\x80' <= op && op <= '\x8f') {
         return op & 0x0f;
     }
@@ -2888,16 +2915,16 @@ mp_decode_map_size(Decoder *self, char op, char *expected) {
     else if (op == MP_MAP32) {
         return mp_decode_size4(self);
     }
-    mp_decode_type_error(op, expected);
+    mp_validation_error(op, expected, ctx, ctx_ind);
     return -1;
 }
 
 static PyObject *
-mp_decode_type_dict(Decoder *self, char op, TypeNode *key_type, TypeNode *val_type) {
+mp_decode_type_dict(Decoder *self, char op, TypeNodeMap *type, TypeNode *ctx, Py_ssize_t ctx_ind) {
     Py_ssize_t size, i;
     PyObject *res, *key = NULL, *val = NULL;
 
-    size = mp_decode_map_size(self, op, "dict");
+    size = mp_decode_map_size(self, op, "dict", ctx, ctx_ind);
     if (size < 0) return NULL;
 
     res = PyDict_New();
@@ -2909,10 +2936,10 @@ mp_decode_type_dict(Decoder *self, char op, TypeNode *key_type, TypeNode *val_ty
         return NULL;
     }
     for (i = 0; i < size; i++) {
-        key = mp_decode_type(self, key_type);
+        key = mp_decode_type(self, type->key, ctx, ctx_ind);
         if (key == NULL)
             goto error;
-        val = mp_decode_type(self, val_type);
+        val = mp_decode_type(self, type->value, ctx, ctx_ind);
         if (val == NULL)
             goto error;
         if (PyDict_SetItem(res, key, val) < 0)
@@ -2931,12 +2958,12 @@ error:
 }
 
 static Py_ssize_t
-mp_decode_cstr(Decoder *self, char ** out) {
+mp_decode_cstr(Decoder *self, char ** out, TypeNode *ctx, Py_ssize_t ctx_ind) {
     char op;
     Py_ssize_t size;
     if (mp_read1(self, &op) < 0) return -1;
 
-    size = mp_decode_str_size(self, op, "str");
+    size = mp_decode_str_size(self, op, "str", ctx, ctx_ind);
     if (size < 0) return -1;
 
     if (mp_read(self, out, size) < 0) return -1;
@@ -2944,17 +2971,17 @@ mp_decode_cstr(Decoder *self, char ** out) {
 }
 
 static PyObject *
-mp_decode_type_struct(Decoder *self, char op, PyObject *py_type) {
+mp_decode_type_struct(Decoder *self, char op, TypeNodeObj *type, TypeNode *ctx, Py_ssize_t ctx_ind) {
     Py_ssize_t i, size, key_size, field_index, nfields, ndefaults, pos = 0;
     char *key = NULL;
     PyObject *res, *val = NULL;
-    StructMetaObject *type = (StructMetaObject *)py_type;
+    StructMetaObject *st_type = (StructMetaObject *)(type->arg);
     int should_untrack;
 
-    size = mp_decode_map_size(self, op, "struct");
+    size = mp_decode_map_size(self, op, "struct", ctx, ctx_ind);
     if (size < 0) return NULL;
 
-    res = ((PyTypeObject *)(type))->tp_alloc((PyTypeObject *)type, 0);
+    res = ((PyTypeObject *)(st_type))->tp_alloc((PyTypeObject *)st_type, 0);
     if (res == NULL) return NULL;
 
     if (Py_EnterRecursiveCall(" while deserializing an object")) {
@@ -2962,23 +2989,23 @@ mp_decode_type_struct(Decoder *self, char op, PyObject *py_type) {
         return NULL;
     }
     for (i = 0; i < size; i++) {
-        key_size = mp_decode_cstr(self, &key);
+        key_size = mp_decode_cstr(self, &key, ctx, ctx_ind);
         if (key_size < 0) goto error;
 
-        field_index = StructMeta_get_field_index(type, key, key_size, &pos);
+        field_index = StructMeta_get_field_index(st_type, key, key_size, &pos);
         if (field_index < 0) {
             /* Skip unknown fields */
             if (mp_skip(self) < 0) goto error;
         }
         else {
-            val = mp_decode_type(self, type->struct_types[field_index]);
+            val = mp_decode_type(self, st_type->struct_types[field_index], (TypeNode *)type, field_index);
             if (val == NULL) goto error;
             Struct_set_index(res, field_index, val);
         }
     }
 
-    nfields = PyTuple_GET_SIZE(type->struct_fields);
-    ndefaults = PyTuple_GET_SIZE(type->struct_defaults);
+    nfields = PyTuple_GET_SIZE(st_type->struct_fields);
+    ndefaults = PyTuple_GET_SIZE(st_type->struct_defaults);
     should_untrack = PyObject_IS_GC(res);
 
     for (i = 0; i < nfields; i++) {
@@ -2988,15 +3015,15 @@ mp_decode_type_struct(Decoder *self, char op, PyObject *py_type) {
                 PyErr_Format(
                     PyExc_TypeError,
                     "Error decoding `%s`: missing required field `%S`",
-                    ((PyTypeObject *)type)->tp_name,
-                    PyTuple_GET_ITEM(type->struct_fields, i)
+                    ((PyTypeObject *)st_type)->tp_name,
+                    PyTuple_GET_ITEM(st_type->struct_fields, i)
                 );
                 goto error;
             }
             else {
                 /* Fill in default */
                 val = maybe_deepcopy_default(
-                    PyTuple_GET_ITEM(type->struct_defaults, i - (nfields - ndefaults))
+                    PyTuple_GET_ITEM(st_type->struct_defaults, i - (nfields - ndefaults))
                 );
                 if (val == NULL) goto error;
                 Struct_set_index(res, i, val);
@@ -3019,7 +3046,7 @@ error:
 }
 
 static Py_ssize_t
-mp_decode_array_size(Decoder *self, char op, char *expected) {
+mp_decode_array_size(Decoder *self, char op, char *expected, TypeNode *ctx, Py_ssize_t ctx_ind) {
     if ('\x90' <= op && op <= '\x9f') {
         return (op & 0x0f);
     }
@@ -3029,16 +3056,16 @@ mp_decode_array_size(Decoder *self, char op, char *expected) {
     else if (op == MP_ARRAY32) {
         return mp_decode_size4(self);
     }
-    mp_decode_type_error(op, expected);
+    mp_validation_error(op, expected, ctx, ctx_ind);
     return -1;
 }
 
 static PyObject *
-mp_decode_type_list(Decoder *self, char op, TypeNode *el_type) {
+mp_decode_type_list(Decoder *self, char op, TypeNodeArray *type, TypeNode *ctx, Py_ssize_t ctx_ind) {
     Py_ssize_t size, i;
     PyObject *res, *item;
 
-    size = mp_decode_array_size(self, op, "list");
+    size = mp_decode_array_size(self, op, "list", ctx, ctx_ind);
     if (size < 0) return NULL;
 
     res = PyList_New(size);
@@ -3050,7 +3077,7 @@ mp_decode_type_list(Decoder *self, char op, TypeNode *el_type) {
         return NULL;
     }
     for (i = 0; i < size; i++) {
-        item = mp_decode_type(self, el_type);
+        item = mp_decode_type(self, type->arg, ctx, ctx_ind);
         if (item == NULL) {
             Py_CLEAR(res);
             break;
@@ -3062,11 +3089,11 @@ mp_decode_type_list(Decoder *self, char op, TypeNode *el_type) {
 }
 
 static PyObject *
-mp_decode_type_set(Decoder *self, char op, TypeNode *el_type) {
+mp_decode_type_set(Decoder *self, char op, TypeNodeArray *type, TypeNode *ctx, Py_ssize_t ctx_ind) {
     Py_ssize_t size, i;
     PyObject *res, *item;
 
-    size = mp_decode_array_size(self, op, "set");
+    size = mp_decode_array_size(self, op, "set", ctx, ctx_ind);
     if (size < 0) return NULL;
 
     res = PySet_New(NULL);
@@ -3078,7 +3105,7 @@ mp_decode_type_set(Decoder *self, char op, TypeNode *el_type) {
         return NULL;
     }
     for (i = 0; i < size; i++) {
-        item = mp_decode_type(self, el_type);
+        item = mp_decode_type(self, type->arg, ctx, ctx_ind);
         if (item == NULL || PySet_Add(res, item) < 0) {
             Py_CLEAR(res);
             break;
@@ -3090,11 +3117,11 @@ mp_decode_type_set(Decoder *self, char op, TypeNode *el_type) {
 }
 
 static PyObject *
-mp_decode_type_vartuple(Decoder *self, char op, TypeNode *el_type) {
+mp_decode_type_vartuple(Decoder *self, char op, TypeNodeArray *type, TypeNode *ctx, Py_ssize_t ctx_ind) {
     Py_ssize_t size, i;
     PyObject *res, *item;
 
-    size = mp_decode_array_size(self, op, "tuple");
+    size = mp_decode_array_size(self, op, "tuple", ctx, ctx_ind);
     if (size < 0) return NULL;
 
     res = PyTuple_New(size);
@@ -3106,7 +3133,7 @@ mp_decode_type_vartuple(Decoder *self, char op, TypeNode *el_type) {
         return NULL;
     }
     for (i = 0; i < size; i++) {
-        item = mp_decode_type(self, el_type);
+        item = mp_decode_type(self, type->arg, ctx, ctx_ind);
         if (item == NULL) {
             Py_CLEAR(res);
             break;
@@ -3118,11 +3145,11 @@ mp_decode_type_vartuple(Decoder *self, char op, TypeNode *el_type) {
 }
 
 static PyObject *
-mp_decode_type_fixtuple(Decoder *self, char op, TypeNodeFixTuple *type) {
+mp_decode_type_fixtuple(Decoder *self, char op, TypeNodeFixTuple *type, TypeNode *ctx, Py_ssize_t ctx_ind) {
     Py_ssize_t size, i;
     PyObject *res, *item;
 
-    size = mp_decode_array_size(self, op, "tuple");
+    size = mp_decode_array_size(self, op, "tuple", ctx, ctx_ind);
     if (size < 0) return NULL;
     if (size != type->size) {
         PyErr_Format(PyExc_ValueError, "Expected tuple of length %zd, got %zd", type->size, size);
@@ -3138,7 +3165,7 @@ mp_decode_type_fixtuple(Decoder *self, char op, TypeNodeFixTuple *type) {
         return NULL;
     }
     for (i = 0; i < size; i++) {
-        item = mp_decode_type(self, type->args[i]);
+        item = mp_decode_type(self, type->args[i], ctx, ctx_ind);
         if (item == NULL) {
             Py_CLEAR(res);
             break;
@@ -3150,7 +3177,7 @@ mp_decode_type_fixtuple(Decoder *self, char op, TypeNodeFixTuple *type) {
 }
 
 static PyObject *
-mp_decode_type(Decoder *self, TypeNode *type) {
+mp_decode_type(Decoder *self, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind) {
     char op;
 
     if (type->code == TYPE_ANY) {
@@ -3168,35 +3195,35 @@ mp_decode_type(Decoder *self, TypeNode *type) {
 
     switch (type->code) {
         case TYPE_NONE:
-            return mp_decode_type_none(self, op);
+            return mp_decode_type_none(self, op, ctx, ctx_ind);
         case TYPE_BOOL:
-            return mp_decode_type_bool(self, op);
+            return mp_decode_type_bool(self, op, ctx, ctx_ind);
         case TYPE_INT:
-            return mp_decode_type_int(self, op);
+            return mp_decode_type_int(self, op, ctx, ctx_ind);
         case TYPE_FLOAT:
-            return mp_decode_type_float(self, op);
+            return mp_decode_type_float(self, op, ctx, ctx_ind);
         case TYPE_STR:
-            return mp_decode_type_str(self, op);
+            return mp_decode_type_str(self, op, ctx, ctx_ind);
         case TYPE_BYTES:
-            return mp_decode_type_binary(self, op, false);
+            return mp_decode_type_binary(self, op, false, ctx, ctx_ind);
         case TYPE_BYTEARRAY:
-            return mp_decode_type_binary(self, op, true);
+            return mp_decode_type_binary(self, op, true, ctx, ctx_ind);
         case TYPE_ENUM:
-            return mp_decode_type_enum(self, op, ((TypeNodeObj *)type)->arg);
+            return mp_decode_type_enum(self, op, (TypeNodeObj *)type, ctx, ctx_ind);
         case TYPE_INTENUM:
-            return mp_decode_type_intenum(self, op, ((TypeNodeObj *)type)->arg);
+            return mp_decode_type_intenum(self, op, (TypeNodeObj *)type, ctx, ctx_ind);
         case TYPE_STRUCT:
-            return mp_decode_type_struct(self, op, ((TypeNodeObj *)type)->arg);
+            return mp_decode_type_struct(self, op, (TypeNodeObj *)type, ctx, ctx_ind);
         case TYPE_DICT:
-            return mp_decode_type_dict(self, op, ((TypeNodeMap *)type)->key, ((TypeNodeMap *)type)->value);
+            return mp_decode_type_dict(self, op, (TypeNodeMap *)type, ctx, ctx_ind);
         case TYPE_LIST:
-            return mp_decode_type_list(self, op, ((TypeNodeArray *)type)->arg);
+            return mp_decode_type_list(self, op, (TypeNodeArray *)type, ctx, ctx_ind);
         case TYPE_SET:
-            return mp_decode_type_set(self, op, ((TypeNodeArray *)type)->arg);
+            return mp_decode_type_set(self, op, (TypeNodeArray *)type, ctx, ctx_ind);
         case TYPE_VARTUPLE:
-            return mp_decode_type_vartuple(self, op, ((TypeNodeArray *)type)->arg);
+            return mp_decode_type_vartuple(self, op, (TypeNodeArray *)type, ctx, ctx_ind);
         case TYPE_FIXTUPLE:
-            return mp_decode_type_fixtuple(self, op, (TypeNodeFixTuple *)type);
+            return mp_decode_type_fixtuple(self, op, (TypeNodeFixTuple *)type, ctx, ctx_ind);
         default:
             /* Should never be hit */
             PyErr_SetString(PyExc_RuntimeError, "Unknown type code");
@@ -3230,7 +3257,7 @@ Decoder_decode(Decoder *self, PyObject *const *args, Py_ssize_t nargs)
         self->input_buffer = buffer.buf;
         self->input_len = buffer.len;
         self->next_read_idx = 0;
-        res = mp_decode_type(self, self->type);
+        res = mp_decode_type(self, self->type, self->type, 0);
     }
 
     if (buffer.buf != NULL) {
