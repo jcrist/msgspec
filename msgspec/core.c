@@ -301,6 +301,111 @@ TypeNode_traverse(TypeNode *type, visitproc visit, void *arg) {
         }
     }
 }
+static PyObject* TypeNode_Repr(TypeNode*);
+
+static PyObject *
+TypeNodeFixTuple_Repr(TypeNode *type) {
+    PyObject *el, *delim = NULL, *elements = NULL, *element_str = NULL, *out = NULL;
+    TypeNodeFixTuple *t = (TypeNodeFixTuple *)type;
+    elements = PyList_New(t->size);
+    if (elements == NULL) goto done;
+    for (Py_ssize_t i = 0; i < t->size; i++) {
+        el = TypeNode_Repr(t->args[i]);
+        if (el == NULL) goto done;
+        PyList_SET_ITEM(elements, i, el);
+    }
+    delim = PyUnicode_FromString(", ");
+    if (delim == NULL) goto done;
+    out = PyUnicode_Join(delim, elements);
+    out = PyUnicode_FromFormat(
+        type->optional ? "Optional[Tuple[%S]]" : "Tuple[%S]",
+        element_str
+    );
+done:
+    Py_XDECREF(element_str);
+    Py_XDECREF(delim);
+    Py_XDECREF(elements);
+    return out;
+}
+
+static PyObject *
+TypeNodeArray_Repr(TypeNode *type) {
+    char *str;
+    PyObject *el, *out;
+    TypeNodeArray *t = (TypeNodeArray *)type;
+    el = TypeNode_Repr(t->arg);
+    if (el == NULL) return NULL;
+    if (type->code == TYPE_LIST)
+        str = type->optional ? "Optional[List[%S]]" : "List[%S]";
+    else if (type->code == TYPE_SET)
+        str = type->optional ? "Optional[Set[%S]]" : "Set[%S]";
+    else
+        str = type->optional ? "Optional[Tuple[%S, ...]]" : "Tuple[%S, ...]";
+    out = PyUnicode_FromFormat(str, el);
+    Py_DECREF(el);
+    return out;
+}
+
+static PyObject *
+TypeNodeMap_Repr(TypeNode *type) {
+    PyObject *key, *value, *out = NULL;
+    TypeNodeMap *t = (TypeNodeMap *)type;
+    if ((key = TypeNode_Repr(t->key)) == NULL) return NULL;
+    if ((value = TypeNode_Repr(t->value)) == NULL) {
+        Py_DECREF(key);
+        return NULL;
+    }
+    out = PyUnicode_FromFormat(
+        type->optional ? "Optional[Dict[%S, %S]]" : "Dict[%S, %S]",
+        key, value
+    );
+    Py_DECREF(key);
+    Py_DECREF(value);
+    return out;
+}
+
+static PyObject *
+TypeNodeObj_Repr(TypeNode *type) {
+    TypeNodeObj *t = (TypeNodeObj *)type;
+    const char *str = ((PyTypeObject *)(t->arg))->tp_name;
+    if (type->optional)
+        return PyUnicode_FromFormat("Optional[%s]", str);
+    return PyUnicode_FromString(str);
+}
+
+static PyObject *
+TypeNode_Repr(TypeNode *type) {
+    switch (type->code) {
+        case TYPE_ANY:
+            return PyUnicode_FromString("Any");
+        case TYPE_NONE:
+            return PyUnicode_FromString("None");
+        case TYPE_BOOL:
+            return PyUnicode_FromString(type->optional ? "Optional[bool]" : "bool");
+        case TYPE_INT:
+            return PyUnicode_FromString(type->optional ? "Optional[int]" : "int");
+        case TYPE_FLOAT:
+            return PyUnicode_FromString(type->optional ? "Optional[float]" : "float");
+        case TYPE_STR:
+            return PyUnicode_FromString(type->optional ? "Optional[str]" : "str");
+        case TYPE_BYTES:
+            return PyUnicode_FromString(type->optional ? "Optional[bytes]" : "bytes");
+        case TYPE_BYTEARRAY:
+            return PyUnicode_FromString(type->optional ? "Optional[bytearray]" : "bytearray");
+        case TYPE_ENUM:
+        case TYPE_INTENUM:
+        case TYPE_STRUCT: 
+            return TypeNodeObj_Repr(type);
+        case TYPE_LIST:
+        case TYPE_SET:
+        case TYPE_VARTUPLE:
+            return TypeNodeArray_Repr(type);
+        case TYPE_DICT:
+            return TypeNodeMap_Repr(type);
+        case TYPE_FIXTUPLE:
+            return TypeNodeFixTuple_Repr(type);
+    }
+}
 
 static TypeNode* to_type_node(PyObject * obj, bool optional);
 
