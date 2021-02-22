@@ -1,6 +1,8 @@
 msgspec
 =======
 
+|github|
+
 ``msgspec`` is a fast and friendly implementation of the `MessagePack
 <https://msgpack.org>`__ protocol for Python 3.8+. It supports message
 validation through the use of schemas defined using Python's `type annotations
@@ -34,3 +36,6 @@ LICENSE
 
 New BSD. See the
 `License File <https://github.com/jcrist/msgspec/blob/master/LICENSE>`_.
+
+.. |github| image:: https://github.com/jcrist/msgspec/actions/workflows/ci.yml/badge.svg
+   :target: https://github.com/jcrist/msgspec/actions/workflows/ci.yml
