@@ -1,0 +1,26 @@
+name: Build and Test
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  build_wheels:
+    name: Build wheels on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-20.04, macos-10.15]
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Build & Test Wheels
+        uses: joerick/cibuildwheel@v1.9.0
+        env:
+          CIBW_TEST_REQUIRES: "pytest msgpack"
+          CIBW_TEST_COMMAND: "pytest {project}/tests"
+          CIBW_BUILD: "cp38-* cp39-*"
+          CIBW_SKIP: "*-win32 *_i686 *_s390x *_ppc64le"
