@@ -2077,15 +2077,20 @@ mp_encode(EncoderState *self, PyObject *obj)
 }
 
 PyDoc_STRVAR(Encoder_encode__doc__,
-"encode(obj)\n"
+"encode(self, obj)\n"
 "--\n"
 "\n"
 "Serialize an object to bytes.\n"
 "\n"
+"Parameters\n"
+"----------\n"
+"obj : Any\n"
+"    The object to serialize.\n"
+"\n"
 "Returns\n"
 "-------\n"
 "data : bytes\n"
-"    The serialized object\n"
+"    The serialized object.\n"
 );
 static PyObject*
 Encoder_encode(Encoder *self, PyObject *const *args, Py_ssize_t nargs)
@@ -2163,10 +2168,15 @@ PyDoc_STRVAR(msgspec_encode__doc__,
 "\n"
 "Serialize an object to bytes.\n"
 "\n"
+"Parameters\n"
+"----------\n"
+"obj : Any\n"
+"    The object to serialize.\n"
+"\n"
 "Returns\n"
 "-------\n"
 "data : bytes\n"
-"    The serialized object\n"
+"    The serialized object.\n"
 "\n"
 "See Also\n"
 "--------\n"
@@ -2224,7 +2234,7 @@ typedef struct Decoder {
 } Decoder;
 
 PyDoc_STRVAR(Decoder__doc__,
-"Decoder(type=Any)\n"
+"Decoder(type='Any')\n"
 "--\n"
 "\n"
 "A MessagePack decoder.\n"
@@ -3310,10 +3320,15 @@ mp_decode_type(DecoderState *self, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx
 }
 
 PyDoc_STRVAR(Decoder_decode__doc__,
-"decode(buf)\n"
+"decode(self, buf)\n"
 "--\n"
 "\n"
 "Deserialize an object from bytes.\n"
+"\n"
+"Parameters\n"
+"----------\n"
+"buf : bytes-like\n"
+"    The message to decode.\n"
 "\n"
 "Returns\n"
 "-------\n"
@@ -3375,7 +3390,7 @@ static PyTypeObject Decoder_Type = {
 
 
 PyDoc_STRVAR(msgspec_decode__doc__,
-"decode(buf, *, type=Any)\n"
+"decode(buf, *, type='Any')\n"
 "--\n"
 "\n"
 "Deserialize an object from bytes.\n"
