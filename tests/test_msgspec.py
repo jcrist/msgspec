@@ -80,6 +80,67 @@ def assert_eq(x, y):
         assert x == y
 
 
+class TestEncodeFunction:
+    def test_encode(self):
+        dec = msgspec.Decoder()
+        assert dec.decode(msgspec.encode(1)) == 1
+
+    def test_encode_error(self):
+        with pytest.raises(TypeError):
+            msgspec.encode(object())
+
+    def test_encode_large_object(self):
+        """Check that buffer resize works"""
+        data = b"x" * 4097
+        dec = msgspec.Decoder()
+        assert dec.decode(msgspec.encode(data)) == data
+
+
+class TestDecodeFunction:
+    def setup(self):
+        self.buf = msgspec.encode([1, 2, 3])
+
+    def test_decode(self):
+        assert msgspec.decode(self.buf) == [1, 2, 3]
+
+    def test_decode_type_positional(self):
+        assert msgspec.decode(self.buf, List[int]) == [1, 2, 3]
+
+        with pytest.raises(msgspec.DecodingError):
+            assert msgspec.decode(self.buf, List[str])
+
+    def test_decode_type_keyword(self):
+        assert msgspec.decode(self.buf, type=List[int]) == [1, 2, 3]
+
+        with pytest.raises(msgspec.DecodingError):
+            assert msgspec.decode(self.buf, type=List[str])
+
+    def test_decode_type_any(self):
+        assert msgspec.decode(self.buf, type=Any) == [1, 2, 3]
+        assert msgspec.decode(self.buf, Any) == [1, 2, 3]
+
+    def test_decode_invalid_type(self):
+        with pytest.raises(TypeError, match="Type '1' is not supported"):
+            msgspec.decode(self.buf, 1)
+
+    def test_decode_invalid_buf(self):
+        with pytest.raises(TypeError):
+            msgspec.decode(1)
+
+    def test_decode_type_parse_arguments(self):
+        with pytest.raises(TypeError, match="Missing 1 required argument"):
+            msgspec.decode()
+
+        with pytest.raises(TypeError, match="Extra positional arguments"):
+            msgspec.decode(self.buf, 2, 3)
+
+        with pytest.raises(TypeError, match="Invalid keyword argument 'bad'"):
+            msgspec.decode(self.buf, bad=1)
+
+        with pytest.raises(TypeError, match="Extra keyword arguments"):
+            msgspec.decode(self.buf, type=List[int], extra=1)
+
+
 class TestEncoderMisc:
     @pytest.mark.parametrize("x", [-(2 ** 63) - 1, 2 ** 64])
     def test_encode_integer_limits(self, x):
