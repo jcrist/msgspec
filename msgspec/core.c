@@ -319,7 +319,7 @@ TypeNodeFixTuple_Repr(TypeNode *type) {
     }
     delim = PyUnicode_FromString(", ");
     if (delim == NULL) goto done;
-    out = PyUnicode_Join(delim, elements);
+    element_str = PyUnicode_Join(delim, elements);
     out = PyUnicode_FromFormat(
         type->optional ? "Optional[Tuple[%S]]" : "Tuple[%S]",
         element_str
@@ -2225,17 +2225,17 @@ Decoder_dealloc(Decoder *self)
 static PyObject *
 Decoder_repr(Decoder *self) {
     int recursive;
-    PyObject *out;
+    PyObject *typstr, *out = NULL;
 
     recursive = Py_ReprEnter((PyObject *)self);
     if (recursive != 0) {
         return (recursive < 0) ? NULL : PyUnicode_FromString("...");
     }
-    if (PyType_Check(self->orig_type)) {
-        out = PyUnicode_FromFormat("Decoder(%s)", ((PyTypeObject*)self->orig_type)->tp_name);
-    } else {
-        out = PyUnicode_FromFormat("Decoder(%R)", self->orig_type);
+    typstr = TypeNode_Repr(self->type);
+    if (typstr != NULL) {
+        out = PyUnicode_FromFormat("Decoder(%S)", typstr);
     }
+    Py_XDECREF(typstr);
     Py_ReprLeave((PyObject *)self);
     return out;
 }

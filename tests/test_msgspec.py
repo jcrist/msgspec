@@ -131,12 +131,44 @@ class TestDecoderMisc:
         dec = msgspec.Decoder(int)
         assert dec.type is int
 
-    def test_decoder_repr(self):
-        dec = msgspec.Decoder()
-        assert repr(dec) == "Decoder(%r)" % Any
+    @pytest.mark.parametrize("typ, typstr", [(None, "None"), (Any, "Any")])
+    def test_decoder_none_any_repr(self, typ, typstr):
+        dec = msgspec.Decoder(typ)
+        assert repr(dec) == f"Decoder({typstr})"
+        # Optionality of None/Any doesn't change things
+        dec = msgspec.Decoder(Optional[typ])
+        assert repr(dec) == f"Decoder({typstr})"
 
-        dec = msgspec.Decoder(int)
-        assert repr(dec) == "Decoder(int)"
+    @pytest.mark.parametrize(
+        "typ, typstr",
+        [
+            (bool, "bool"),
+            (int, "int"),
+            (float, "float"),
+            (str, "str"),
+            (bytes, "bytes"),
+            (bytearray, "bytearray"),
+            (Dict, "Dict[Any, Any]"),
+            (Dict[int, str], "Dict[int, str]"),
+            (List, "List[Any]"),
+            (List[Optional[int]], "List[Optional[int]]"),
+            (Set, "Set[Any]"),
+            (Set[Optional[int]], "Set[Optional[int]]"),
+            (Tuple, "Tuple[Any, ...]"),
+            (Tuple[Optional[int], ...], "Tuple[Optional[int], ...]"),
+            (Tuple[int, str], "Tuple[int, str]"),
+            (Person, "Person"),
+            (FruitInt, "FruitInt"),
+            (FruitStr, "FruitStr"),
+            (List[Optional[Dict[str, Person]]], "List[Optional[Dict[str, Person]]]"),
+        ],
+    )
+    def test_decoder_repr(self, typ, typstr):
+        dec = msgspec.Decoder(typ)
+        assert repr(dec) == f"Decoder({typstr})"
+
+        dec = msgspec.Decoder(Optional[typ])
+        assert repr(dec) == f"Decoder(Optional[{typstr}])"
 
     def test_decoder_unsupported_type(self):
         with pytest.raises(TypeError):
@@ -325,7 +357,10 @@ class TestTypedDecoder:
         assert res == x
         with pytest.raises(msgspec.DecodingError, match="expected `tuple`"):
             dec.decode(enc.encode(1))
-        with pytest.raises(msgspec.DecodingError, match="expected tuple of length 3"):
+        with pytest.raises(
+            msgspec.DecodingError,
+            match=r"Error decoding `Tuple\[Any, Any, Any\]`: expected tuple of length 3, got 2",
+        ):
             dec.decode(enc.encode((1, 2)))
 
     def test_fixtuple_typed(self):
@@ -336,7 +371,10 @@ class TestTypedDecoder:
         assert res == x
         with pytest.raises(msgspec.DecodingError, match="expected `bytes`"):
             dec.decode(enc.encode((1, "two", "three")))
-        with pytest.raises(msgspec.DecodingError, match="expected tuple of length 3"):
+        with pytest.raises(
+            msgspec.DecodingError,
+            match=r"Error decoding `Tuple\[int, str, bytes\]`: expected tuple of length 3, got 2",
+        ):
             dec.decode(enc.encode((1, 2)))
 
     @pytest.mark.parametrize("size", SIZES)
@@ -396,7 +434,9 @@ class TestTypedDecoder:
 
         with pytest.raises(msgspec.DecodingError, match="truncated"):
             dec.decode(a[:-2])
-        with pytest.raises(msgspec.DecodingError, match="Error decoding enum `FruitStr`"):
+        with pytest.raises(
+            msgspec.DecodingError, match="Error decoding enum `FruitStr`"
+        ):
             dec.decode(enc.encode("MISSING"))
         with pytest.raises(msgspec.DecodingError):
             dec.decode(enc.encode(1))
@@ -411,7 +451,9 @@ class TestTypedDecoder:
 
         with pytest.raises(msgspec.DecodingError, match="truncated"):
             dec.decode(a[:-2])
-        with pytest.raises(msgspec.DecodingError, match="Error decoding enum `FruitInt`"):
+        with pytest.raises(
+            msgspec.DecodingError, match="Error decoding enum `FruitInt`"
+        ):
             dec.decode(enc.encode(1000))
         with pytest.raises(msgspec.DecodingError):
             dec.decode(enc.encode("INVALID"))
@@ -436,7 +478,10 @@ class TestTypedDecoder:
         with pytest.raises(msgspec.DecodingError, match="expected `struct`"):
             dec.decode(enc.encode(1))
 
-        with pytest.raises(msgspec.DecodingError, match="expected `str`"):
+        with pytest.raises(
+            msgspec.DecodingError,
+            match=r"Error decoding `Person` field `first` \(`str`\): expected `str`, got `int`",
+        ):
             dec.decode(enc.encode({1: "harry"}))
 
     def test_struct_field_wrong_type(self):
@@ -456,7 +501,9 @@ class TestTypedDecoder:
             dec.decode(bad)
 
         bad = enc.encode({})
-        with pytest.raises(msgspec.DecodingError, match="missing required field `first`"):
+        with pytest.raises(
+            msgspec.DecodingError, match="missing required field `first`"
+        ):
             dec.decode(bad)
 
     @pytest.mark.parametrize(
@@ -569,6 +616,15 @@ class TestTypedDecoder:
 
         s = enc.encode(value)
         assert dec.decode(s) == value
+
+    def test_decoding_error_no_struct_toplevel(self):
+        b = msgspec.Encoder().encode([{"a": 1}])
+        dec = msgspec.Decoder(List[Dict[str, str]])
+        with pytest.raises(
+            msgspec.DecodingError,
+            match=r"Error decoding `List\[Dict\[str, str\]\]`: expected `str`, got `int`",
+        ):
+            dec.decode(b)
 
 
 class CommonTypeTestBase:
