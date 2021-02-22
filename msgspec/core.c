@@ -76,6 +76,9 @@
 
 /* State of the msgspec module */
 typedef struct {
+    PyObject *MsgspecError;
+    PyObject *EncodingError;
+    PyObject *DecodingError;
     PyObject *StructType;
     PyTypeObject *EnumType;
     PyObject *str__name_;
@@ -1746,7 +1749,7 @@ mp_encode_str(Encoder *self, PyObject *obj)
             return -1;
     } else {
         PyErr_SetString(
-            PyExc_ValueError,
+            msgspec_get_global_state()->EncodingError,
             "Can't encode strings longer than 2**32 - 1"
         );
         return -1;
@@ -1777,7 +1780,7 @@ mp_encode_bin(Encoder *self, const char* buf, Py_ssize_t len) {
             return -1;
     } else {
         PyErr_SetString(
-            PyExc_ValueError,
+            msgspec_get_global_state()->EncodingError,
             "Can't encode bytes-like objects longer than 2**32 - 1"
         );
         return -1;
@@ -1822,7 +1825,7 @@ mp_encode_array_header(Encoder *self, Py_ssize_t len, const char* typname)
             return -1;
     } else {
         PyErr_Format(
-            PyExc_ValueError,
+            msgspec_get_global_state()->EncodingError,
             "Can't encode %s longer than 2**32 - 1",
             typname
         );
@@ -1923,7 +1926,7 @@ mp_encode_map_header(Encoder *self, Py_ssize_t len, const char* typname)
             return -1;
     } else {
         PyErr_Format(
-            PyExc_ValueError,
+            msgspec_get_global_state()->EncodingError,
             "Can't encode %s longer than 2**32 - 1",
             typname
         );
@@ -2005,7 +2008,7 @@ mp_encode_enum(Encoder *self, PyObject *obj)
         status = mp_encode_str(self, name);
     } else {
         PyErr_SetString(
-            PyExc_ValueError,
+            msgspec_get_global_state()->EncodingError,
             "Enum's with non-str names aren't supported"
         );
         status = -1;
@@ -2240,7 +2243,7 @@ Decoder_repr(Decoder *self) {
 static Py_ssize_t
 mp_err_truncated()
 {
-    PyErr_SetString(PyExc_ValueError, "input data was truncated");
+    PyErr_SetString(msgspec_get_global_state()->DecodingError, "input data was truncated");
     return -1;
 }
 
@@ -2509,7 +2512,7 @@ mp_decode_any(Decoder *self) {
         case MP_MAP32:
             return mp_decode_map(self, mp_decode_size4(self));
         default:
-            PyErr_Format(PyExc_ValueError, "invalid opcode, '\\x%02x'.", op);
+            PyErr_Format(msgspec_get_global_state()->DecodingError, "invalid opcode, '\\x%02x'.", op);
             return NULL;
     }
 }
@@ -2597,7 +2600,7 @@ mp_skip(Decoder *self) {
         case MP_MAP32:
             return mp_skip_map(self, mp_decode_size4(self));
         default:
-            PyErr_Format(PyExc_ValueError, "invalid opcode, '\\x%02x'.", op);
+            PyErr_Format(msgspec_get_global_state()->DecodingError, "invalid opcode, '\\x%02x'.", op);
             return -1;
     }
 }
@@ -2606,6 +2609,7 @@ static PyObject * mp_decode_type(Decoder *self, TypeNode *type, TypeNode *ctx, P
 
 static PyObject *
 mp_validation_error(char op, char *expected, TypeNode *ctx, Py_ssize_t ctx_ind) {
+    MsgspecState *st = msgspec_get_global_state();
     char *got;
     if (-32 <= op && op <= 127) {
         got = "int";
@@ -2671,7 +2675,7 @@ mp_validation_error(char op, char *expected, TypeNode *ctx, Py_ssize_t ctx_ind) 
         PyObject *typstr = TypeNode_Repr(st_type->struct_types[ctx_ind]);
         if (typstr == NULL) return NULL;
         PyErr_Format(
-            PyExc_TypeError,
+            st->DecodingError,
             "Error decoding `%s` field `%S` (`%S`): expected `%s`, got `%s`",
             ((PyTypeObject *)st_type)->tp_name,
             field,
@@ -2685,7 +2689,7 @@ mp_validation_error(char op, char *expected, TypeNode *ctx, Py_ssize_t ctx_ind) 
         PyObject *typstr = TypeNode_Repr(ctx);
         if (typstr == NULL) return NULL;
         PyErr_Format(
-            PyExc_TypeError,
+            st->DecodingError,
             "Error decoding `%S`: expected `%s`, got `%s`",
             typstr,
             expected,
@@ -2853,7 +2857,7 @@ mp_decode_type_intenum(Decoder *self, char op, TypeNodeObj* type, TypeNode *ctx,
     if (out == NULL) {
         PyErr_Clear();
         PyErr_Format(
-            PyExc_TypeError,
+            st->DecodingError,
             "Error decoding enum `%s`: invalid value `%S`",
             ((PyTypeObject *)(type->arg))->tp_name,
             code
@@ -2872,7 +2876,7 @@ mp_decode_type_enum(Decoder *self, char op, TypeNodeObj* type, TypeNode *ctx, Py
     if (out == NULL) {
         PyErr_Clear();
         PyErr_Format(
-            PyExc_TypeError,
+            msgspec_get_global_state()->DecodingError,
             "Error decoding enum `%s`: invalid name `%S`",
             ((PyTypeObject *)type->arg)->tp_name,
             name
@@ -3013,7 +3017,7 @@ mp_decode_type_struct(Decoder *self, char op, TypeNodeObj *type, TypeNode *ctx, 
         if (val == NULL) {
             if (i < (nfields - ndefaults)) {
                 PyErr_Format(
-                    PyExc_TypeError,
+                    msgspec_get_global_state()->DecodingError,
                     "Error decoding `%s`: missing required field `%S`",
                     ((PyTypeObject *)st_type)->tp_name,
                     PyTuple_GET_ITEM(st_type->struct_fields, i)
@@ -3152,7 +3156,29 @@ mp_decode_type_fixtuple(Decoder *self, char op, TypeNodeFixTuple *type, TypeNode
     size = mp_decode_array_size(self, op, "tuple", ctx, ctx_ind);
     if (size < 0) return NULL;
     if (size != type->size) {
-        PyErr_Format(PyExc_ValueError, "Expected tuple of length %zd, got %zd", type->size, size);
+        /* tuple is the incorrect size, raise and return */
+        PyObject *typstr;
+        MsgspecState *st = msgspec_get_global_state();
+        if (ctx->code == TYPE_STRUCT) {
+            StructMetaObject *st_type = (StructMetaObject *)(((TypeNodeObj *)ctx)->arg);
+            PyObject *field = PyTuple_GET_ITEM(st_type->struct_fields, ctx_ind);
+            if ((typstr = TypeNode_Repr(st_type->struct_types[ctx_ind])) == NULL) return NULL;
+            PyErr_Format(
+                st->DecodingError,
+                "Error decoding `%s` field `%S` (`%S`): expected tuple of length %zd, got %zd",
+                ((PyTypeObject *)st_type)->tp_name,
+                field, typstr, type->size, size
+            );
+        }
+        else {
+            if ((typstr = TypeNode_Repr(ctx)) == NULL) return NULL;
+            PyErr_Format(
+                st->DecodingError,
+                "Error decoding `%S`: expected tuple of length %zd, got %zd",
+                typstr, type->size, size
+            );
+        }
+        Py_DECREF(typstr);
         return NULL;
     }
 
@@ -3303,6 +3329,9 @@ static int
 msgspec_clear(PyObject *m)
 {
     MsgspecState *st = msgspec_get_state(m);
+    Py_CLEAR(st->MsgspecError);
+    Py_CLEAR(st->EncodingError);
+    Py_CLEAR(st->DecodingError);
     Py_CLEAR(st->StructType);
     Py_CLEAR(st->EnumType);
     Py_CLEAR(st->str__name_);
@@ -3328,6 +3357,9 @@ static int
 msgspec_traverse(PyObject *m, visitproc visit, void *arg)
 {
     MsgspecState *st = msgspec_get_state(m);
+    Py_VISIT(st->MsgspecError);
+    Py_VISIT(st->EncodingError);
+    Py_VISIT(st->DecodingError);
     Py_VISIT(st->StructType);
     Py_VISIT(st->EnumType);
     Py_VISIT(st->typing_dict);
@@ -3397,6 +3429,39 @@ PyInit_core(void)
         return NULL;
     Py_INCREF(st->StructType);
     if (PyModule_AddObject(m, "Struct", st->StructType) < 0)
+        return NULL;
+
+    /* Initialize the exceptions. */
+    st->MsgspecError = PyErr_NewExceptionWithDoc(
+        "msgspec.MsgspecError",
+        "Base class for all Msgspec exceptions",
+        NULL, NULL
+    );
+    if (st->MsgspecError == NULL)
+        return NULL;
+    st->EncodingError = PyErr_NewExceptionWithDoc(
+        "msgspec.EncodingError",
+        "An error occurred while encoding an object",
+        st->MsgspecError, NULL
+    );
+    if (st->EncodingError == NULL)
+        return NULL;
+    st->DecodingError = PyErr_NewExceptionWithDoc(
+        "msgspec.DecodingError",
+        "An error occurred while decoding an object",
+        st->MsgspecError, NULL
+    );
+    if (st->DecodingError == NULL)
+        return NULL;
+
+    Py_INCREF(st->MsgspecError);
+    if (PyModule_AddObject(m, "MsgspecError", st->MsgspecError) < 0)
+        return NULL;
+    Py_INCREF(st->EncodingError);
+    if (PyModule_AddObject(m, "EncodingError", st->EncodingError) < 0)
+        return NULL;
+    Py_INCREF(st->DecodingError);
+    if (PyModule_AddObject(m, "DecodingError", st->DecodingError) < 0)
         return NULL;
 
 #define SET_REF(attr, name) \
