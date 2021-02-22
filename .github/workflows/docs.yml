@@ -1,0 +1,38 @@
+name: documentation
+
+on:
+  push:
+    branches: [master]
+  pull_request: null
+
+jobs:
+  build-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install Python
+        uses: actions/setup-python@v1
+        with:
+          python-version: 3.8
+
+      - name: Build Msgspec
+        run: |
+          pip install -e .
+
+      - name: Install Dependencies
+        run: |
+          pip install sphinx
+
+      - name: Build Docs
+        run: |
+          pushd docs
+          make html
+          popd
+
+      - name: Deploy
+        uses: peaceiris/actions-gh-pages@v3
+        if: github.ref == 'refs/heads/master'
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docs/build/html
