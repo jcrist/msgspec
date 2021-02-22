@@ -80,6 +80,22 @@ def assert_eq(x, y):
         assert x == y
 
 
+class TestEncodeFunction:
+    def test_encode(self):
+        dec = msgspec.Decoder()
+        assert dec.decode(msgspec.encode(1)) == 1
+
+    def test_encode_error(self):
+        with pytest.raises(TypeError):
+            msgspec.encode(object())
+
+    def test_encode_large_object(self):
+        """Check that buffer resize works"""
+        data = b"x" * 4097
+        dec = msgspec.Decoder()
+        assert dec.decode(msgspec.encode(data)) == data
+
+
 class TestEncoderMisc:
     @pytest.mark.parametrize("x", [-(2 ** 63) - 1, 2 ** 64])
     def test_encode_integer_limits(self, x):
