@@ -1,1 +1,1 @@
-from .core import Struct, Encoder, Decoder, EncodingError, DecodingError, encode
+from .core import Struct, Encoder, Decoder, EncodingError, DecodingError, encode, decode
