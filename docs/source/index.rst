@@ -37,9 +37,8 @@ annotations`_.
 Highlights
 ----------
 
-- ``msgspec`` is **fast**. `Benchmarks
-  <https://github.com/jcrist/msgspec/tree/master/benchmarks>`__ show it's among
-  the fastest serialization methods for Python.
+- ``msgspec`` is **fast**. :doc:`benchmarks` show it's among the fastest
+  serialization methods for Python.
 - ``msgspec`` is **friendly**. Through use of Python's `type annotations`_,
   messages can be validated during deserialization in a declaritive way.
   ``msgspec`` also works well with other type-checking tooling like `mypy`,
@@ -345,4 +344,5 @@ without error.
     :hidden:
     :maxdepth: 2
 
+    benchmarks.rst
     api.rst

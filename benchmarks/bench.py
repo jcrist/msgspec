@@ -274,8 +274,8 @@ def format_bytes(n):
 
 
 def preprocess_results(results):
-    data = dict(zip(["benchmark", "dumps", "loads"], map(list, zip(*results))))
-    data["total"] = [d + l for d, l in zip(data["dumps"], data["loads"])]
+    data = dict(zip(["benchmark", "encode", "decode"], map(list, zip(*results))))
+    data["total"] = [d + l for d, l in zip(data["encode"], data["decode"])]
 
     max_time = max(data["total"])
     if max_time < 1e-6:
@@ -288,7 +288,7 @@ def preprocess_results(results):
         time_unit = "ms"
         scale = 1e3
 
-    for k in ["dumps", "loads", "total"]:
+    for k in ["encode", "decode", "total"]:
         data[f"{k}_labels"] = [format_time(t) for t in data[k]]
         data[k] = [scale * t for t in data[k]]
 
@@ -304,7 +304,7 @@ def make_plot(results, title):
 
     data, time_unit = preprocess_results(results)
 
-    sort_options = ["total", "dumps", "loads"]
+    sort_options = ["total", "encode", "decode"]
     sort_orders = [
         list(zip(*sorted(zip(data[order], data["benchmark"]), reverse=True)))[1]
         for order in sort_options
@@ -328,20 +328,20 @@ def make_plot(results, title):
 
     p.vbar(
         x=dodge("benchmark", -0.25, range=p.x_range),
-        top="dumps",
+        top="encode",
         width=0.2,
         source=source,
         color="#c9d9d3",
-        legend_label="dumps",
+        legend_label="encode",
         name="dumps_labels",
     )
     p.vbar(
         x=dodge("benchmark", 0.0, range=p.x_range),
-        top="loads",
+        top="decode",
         width=0.2,
         source=source,
         color="#718dbf",
-        legend_label="loads",
+        legend_label="decode",
         name="loads_labels",
     )
     p.vbar(
@@ -427,10 +427,10 @@ def run_1(save_plot=False, save_json=False, no_gc=False, validate=False):
 def run_1k(save_plot=False, save_json=False, no_gc=False, validate=False):
     print(f"Benchmark - 1k objects (validate={validate})")
     if validate:
-        path = "bench-1-validate"
+        path = "bench-1k-validate"
         title = "Benchmark - 1000 objects (with validation)"
     else:
-        path = "bench-1"
+        path = "bench-1k"
         title = "Benchmark - 1000 objects"
     run(1000, title, path, save_plot, save_json, no_gc, validate)
 
