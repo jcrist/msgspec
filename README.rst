@@ -11,10 +11,10 @@ validation through the use of schemas defined using Python's `type annotations
 .. code-block:: python
 
     from typing import Optional, List
-    from msgspec import Struct, Encoder, Decoder
+    import msgspec
 
     # Define a schema for a `User` type
-    class User(Struct):
+    class User(msgspec.Struct):
         name: str
         groups: List[str] = []
         email: Optional[str] = None
@@ -23,13 +23,15 @@ validation through the use of schemas defined using Python's `type annotations
     alice = User("alice", groups=["admin", "engineering"])
 
     # Serialize `alice` to `bytes` using the MessagePack protocol
-    serialized_data = Encoder().encode(alice)
+    serialized_data = msgspec.encode(alice)
 
     # Deserialize and validate the message as a User type
-    user = Decoder(User).decode(serialized_data)
+    user = msgspec.Decoder(User).decode(serialized_data)
 
     assert user == alice
 
+See `the documentation <https://jcristharif.com/msgspec/>`__ for more
+information.
 
 LICENSE
 -------
