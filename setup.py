@@ -1,13 +1,15 @@
 import os
 
-from setuptools import setup, find_packages
+import versioneer
+from setuptools import setup
 from setuptools.extension import Extension
 
 ext_modules = [Extension("msgspec.core", [os.path.join("msgspec", "core.c")])]
 
 setup(
     name="msgspec",
-    version="0.0.1",
+    version=versioneer.get_version(),
+    cmdclass=versioneer.get_cmdclass(),
     maintainer="Jim Crist-Harif",
     maintainer_email="jcristharif@gmail.com",
     url="https://jcristharif.com/msgspec/",
