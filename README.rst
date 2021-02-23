@@ -4,8 +4,9 @@ msgspec
 |github|
 
 ``msgspec`` is a fast and friendly implementation of the `MessagePack
-<https://msgpack.org>`__ protocol for Python 3.8+. It supports message
-validation through the use of schemas defined using Python's `type annotations
+<https://msgpack.org>`__ protocol for Python 3.8+. In addition to
+serialization/deserialization, it supports runtime message validation using
+schemas defined via Python's `type annotations
 <https://docs.python.org/3/library/typing.html>`__.
 
 .. code-block:: python
@@ -29,6 +30,14 @@ validation through the use of schemas defined using Python's `type annotations
     user = msgspec.Decoder(User).decode(serialized_data)
 
     assert user == alice
+
+``msgspec`` is designed to be as performant as possible, while retaining some
+of the nicities of validation libraries like `pydantic
+<https://pydantic-docs.helpmanual.io/>`__. For supported types, serializing a
+message with ``msgspec`` can be *~2-4x faster* than alternative libraries.
+
+.. image:: https://github.com/jcrist/msgspec/raw/master/docs/source/_static/bench-1.png
+    :target: https://jcristharif.com/msgspec/benchmarks.html
 
 See `the documentation <https://jcristharif.com/msgspec/>`__ for more
 information.
