@@ -48,20 +48,14 @@ Highlights
 Installation
 ------------
 
-``msgspec`` can be installed via ``pip`` or ``conda``. Note that Python >= 3.8 is
-required.
+``msgspec`` can be installed via ``pip`` (and soon via ``conda``). Note that
+Python >= 3.8 is required.
 
 **pip**
 
 .. code-block:: shell
 
     pip install msgspec
-
-**conda**
-
-.. code-block:: shell
-
-    conda install -c conda-forge msgspec
 
 
 .. currentmodule:: msgspec
@@ -318,7 +312,10 @@ struct. To do so, we add it at the end of the definition, with a default value.
     >>> vernon = Person2("Vernon", "Dursley", address="4 Privet Drive", email="vernon@grunnings.com")
 
 Messages serialized using the new and old schemas can still be exchanged
-without error.
+without error. If an old message is deserialized using the new schema, the
+missing fields all have default values that will be used. Likewise, if a new
+message is deserialized with the old schema the unknown new fields will be
+efficiently skipped without decoding.
 
 .. code-block:: python
 

@@ -333,7 +333,7 @@ def make_plot(results, title):
         source=source,
         color="#c9d9d3",
         legend_label="encode",
-        name="dumps_labels",
+        name="encode_labels",
     )
     p.vbar(
         x=dodge("benchmark", 0.0, range=p.x_range),
@@ -342,7 +342,7 @@ def make_plot(results, title):
         source=source,
         color="#718dbf",
         legend_label="decode",
-        name="loads_labels",
+        name="decode_labels",
     )
     p.vbar(
         x=dodge("benchmark", 0.25, range=p.x_range),
