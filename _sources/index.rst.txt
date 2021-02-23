@@ -1,15 +1,10 @@
 msgspec
 =======
 
-.. toctree::
-   :maxdepth: 2
-   :caption: Contents:
-
-
 ``msgspec`` is a fast and friendly implementation of the `MessagePack
-<https://msgpack.org>`__ protocol for Python 3.8+. It supports message
-validation through the use of schemas defined using Python's `type
-annotations`_.
+<https://msgpack.org>`__ protocol for Python 3.8+. In addition to
+serialization/deserialization, it supports runtime message validation using
+schemas defined via Python's `type annotations`_.
 
 .. code-block:: python
 
@@ -37,15 +32,16 @@ annotations`_.
 Highlights
 ----------
 
-- ``msgspec`` is **fast**. `Benchmarks
-  <https://github.com/jcrist/msgspec/tree/master/benchmarks>`__ show it's among
-  the fastest serialization methods for Python.
+- ``msgspec`` is **fast**. :doc:`benchmarks` show it's among the fastest
+  serialization methods for Python.
 - ``msgspec`` is **friendly**. Through use of Python's `type annotations`_,
-  messages can be validated during deserialization in a declaritive way.
-  ``msgspec`` also works well with other type-checking tooling like `mypy`,
-  providing excellent editor integration.
-- ``msgspec`` is **flexible**. Unlike ``msgpack`` or ``json``, ``msgspec`` natively
-  supports a wider range of Python builtin types.
+  messages can be :ref:`validated <typed-deserialization>` during
+  deserialization in a declaritive way.  ``msgspec`` also works well with other
+  type-checking tooling like `mypy <https://mypy.readthedocs.io>`_, providing
+  excellent editor integration.
+- ``msgspec`` is **flexible**. Unlike other libraries like ``msgpack`` or
+  ``json``, ``msgspec`` natively supports a wider range of Python builtin
+  types.
 - ``msgspec`` supports :ref:`"schema evolution" <schema-evolution>`. Messages can
   be sent between clients with different schemas without error.
 
@@ -114,6 +110,8 @@ Msgspec currently supports serializing/deserializing the following types:
 - `set`
 - `enum.Enum`
 - `msgspec.Struct`
+
+.. _typed-deserialization:
 
 Typed and Untyped Deserialization
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -345,4 +343,5 @@ without error.
     :hidden:
     :maxdepth: 2
 
+    benchmarks.rst
     api.rst

@@ -5,7 +5,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>msgspec &#8212; msgspec 0+untagged.1.g7391f83 documentation</title>
+    <title>msgspec &#8212; msgspec 0+untagged.1.g16a2f77 documentation</title>
     <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
     <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
     <script id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
@@ -14,7 +14,7 @@
     <script src="_static/doctools.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="API Docs" href="api.html" />
+    <link rel="next" title="Benchmarks" href="benchmarks.html" />
    
   <link rel="stylesheet" href="_static/custom.css" type="text/css" />
   
@@ -33,11 +33,9 @@
             
   <div class="section" id="msgspec">
 <h1>msgspec<a class="headerlink" href="#msgspec" title="Permalink to this headline">¶</a></h1>
-<div class="toctree-wrapper compound">
-</div>
-<p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> is a fast and friendly implementation of the <a class="reference external" href="https://msgpack.org">MessagePack</a> protocol for Python 3.8+. It supports message
-validation through the use of schemas defined using Python’s <a class="reference external" href="https://docs.python.org/3/library/typing.html">type
-annotations</a>.</p>
+<p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> is a fast and friendly implementation of the <a class="reference external" href="https://msgpack.org">MessagePack</a> protocol for Python 3.8+. In addition to
+serialization/deserialization, it supports runtime message validation using
+schemas defined via Python’s <a class="reference external" href="https://docs.python.org/3/library/typing.html">type annotations</a>.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">List</span>
 <span class="kn">import</span> <span class="nn">msgspec</span>
 
@@ -62,14 +60,16 @@ annotations</a>.</p>
 <div class="section" id="highlights">
 <h2>Highlights<a class="headerlink" href="#highlights" title="Permalink to this headline">¶</a></h2>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> is <strong>fast</strong>. <a class="reference external" href="https://github.com/jcrist/msgspec/tree/master/benchmarks">Benchmarks</a> show it’s among
-the fastest serialization methods for Python.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> is <strong>fast</strong>. <a class="reference internal" href="benchmarks.html"><span class="doc">Benchmarks</span></a> show it’s among the fastest
+serialization methods for Python.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> is <strong>friendly</strong>. Through use of Python’s <a class="reference external" href="https://docs.python.org/3/library/typing.html">type annotations</a>,
-messages can be validated during deserialization in a declaritive way.
-<code class="docutils literal notranslate"><span class="pre">msgspec</span></code> also works well with other type-checking tooling like <code class="xref py py-obj docutils literal notranslate"><span class="pre">mypy</span></code>,
-providing excellent editor integration.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> is <strong>flexible</strong>. Unlike <code class="docutils literal notranslate"><span class="pre">msgpack</span></code> or <code class="docutils literal notranslate"><span class="pre">json</span></code>, <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> natively
-supports a wider range of Python builtin types.</p></li>
+messages can be <a class="reference internal" href="#typed-deserialization"><span class="std std-ref">validated</span></a> during
+deserialization in a declaritive way.  <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> also works well with other
+type-checking tooling like <a class="reference external" href="https://mypy.readthedocs.io">mypy</a>, providing
+excellent editor integration.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> is <strong>flexible</strong>. Unlike other libraries like <code class="docutils literal notranslate"><span class="pre">msgpack</span></code> or
+<code class="docutils literal notranslate"><span class="pre">json</span></code>, <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> natively supports a wider range of Python builtin
+types.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> supports <a class="reference internal" href="#schema-evolution"><span class="std std-ref">“schema evolution”</span></a>. Messages can
 be sent between clients with different schemas without error.</p></li>
 </ul>
@@ -127,7 +127,7 @@ efficient to create an <a class="reference internal" href="api.html#msgspec.Enco
 </ul>
 </div>
 <div class="section" id="typed-and-untyped-deserialization">
-<h3>Typed and Untyped Deserialization<a class="headerlink" href="#typed-and-untyped-deserialization" title="Permalink to this headline">¶</a></h3>
+<span id="typed-deserialization"></span><h3>Typed and Untyped Deserialization<a class="headerlink" href="#typed-and-untyped-deserialization" title="Permalink to this headline">¶</a></h3>
 <p>By default, both <a class="reference internal" href="api.html#msgspec.decode" title="msgspec.decode"><code class="xref py py-obj docutils literal notranslate"><span class="pre">decode</span></code></a> and <a class="reference internal" href="api.html#msgspec.Decoder.decode" title="msgspec.Decoder.decode"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Decoder.decode</span></code></a> will deserialize messages
 without any validation, performing <em>untyped deserialization</em>. <a class="reference external" href="https://github.com/msgpack/msgpack/blob/master/spec.md#formats">MessagePack
 types</a> are
@@ -354,6 +354,7 @@ without error.</p>
 
 <h3>Navigation</h3>
 <ul>
+<li class="toctree-l1"><a class="reference internal" href="benchmarks.html">Benchmarks</a></li>
 <li class="toctree-l1"><a class="reference internal" href="api.html">API Docs</a></li>
 </ul>
 

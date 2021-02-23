@@ -1,0 +1,199 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Benchmarks &#8212; msgspec 0+untagged.1.g16a2f77 documentation</title>
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <script id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script src="_static/jquery.js"></script>
+    <script src="_static/underscore.js"></script>
+    <script src="_static/doctools.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="API Docs" href="api.html" />
+    <link rel="prev" title="msgspec" href="index.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <div class="section" id="benchmarks">
+<h1>Benchmarks<a class="headerlink" href="#benchmarks" title="Permalink to this headline">¶</a></h1>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Benchmarks are <em>hard</em>.</p>
+<p>Repeatedly calling the same function in a tight loop will lead to the
+instruction cache staying hot and branches being highly predictable. That’s
+not representative of real world access patterns. It’s also hard to write a
+nonbiased benchmark. I wrote msgspec, naturally whatever benchmark I
+publish it’s going to perform well in.</p>
+<p>Even so, people like to see benchmarks. I’ve tried to be as nonbiased as I
+can be, and the results hopefully indicate a few tradeoffs you make when
+you choose different serialization formats. I encourage you to write your
+own benchmarks before making these decisions.</p>
+</div>
+<p>Here we show a simple benchmark serializing some structured data. The data
+we’re serializing has the following schema (defined here using <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a>
+types):</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">msgspec</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span>
+
+<span class="k">class</span> <span class="nc">Address</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
+    <span class="n">street</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">state</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="nb">zip</span><span class="p">:</span> <span class="nb">int</span>
+
+<span class="k">class</span> <span class="nc">Person</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
+    <span class="n">first</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">last</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">age</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">addresses</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">Address</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">telephone</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">email</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+</pre></div>
+</div>
+<p>The libraries we’re benchmarking are the following:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">msgpack</span></code> - <a class="reference external" href="https://github.com/msgpack/msgpack-python">msgpack</a> with dict message types</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">orjson</span></code> - <a class="reference external" href="https://github.com/ijl/orjson">orjson</a> with dict message types</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">pyrobuf</span></code> - <a class="reference external" href="https://github.com/appnexus/pyrobuf">pyrobuf</a> with protobuf message types</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> - <a class="reference external" href="https://jcristharif.com/msgspec/">msgspec</a> with <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> message types</p></li>
+</ul>
+<p>Each benchmark creates one or more instances of a <code class="docutils literal notranslate"><span class="pre">Person</span></code> message, and
+serializes it/deserializes it in a loop. The <a class="reference external" href="https://github.com/jcrist/msgspec/tree/master/benchmarks">full benchmark source can be
+found here</a>.</p>
+<div class="section" id="benchmark-1-object">
+<h2>Benchmark - 1 Object<a class="headerlink" href="#benchmark-1-object" title="Permalink to this headline">¶</a></h2>
+<p>Some workflows involve sending around very small messages. Here the overhead
+per function call dominates (parsing of options, allocating temporary buffers,
+etc…).</p>
+<div class="bk-root" id="bench-1"></div><div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>You can use the radio buttons on the bottom to sort by encode time, decode
+time, or total roundtrip time.</p>
+</div>
+<p>From the chart above, you can see that <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> is the fastest method for
+both serialization and deserialization, followed by <code class="docutils literal notranslate"><span class="pre">msgpack</span></code> and <code class="docutils literal notranslate"><span class="pre">orjson</span></code>.
+I’m actually surprised at how much overhead <code class="docutils literal notranslate"><span class="pre">pyrobuf</span></code> has (the actual
+protobuf encoding should be pretty efficient), I suspect there’s some
+optimizations that could still be done there.</p>
+<p>That said, all of these methods serialize/deserialize pretty quickly relative
+to other python operations, so unless you’re counting every microsecond your
+choice here probably doesn’t matter that much.</p>
+</div>
+<div class="section" id="benchmark-1000-objects">
+<h2>Benchmark - 1000 Objects<a class="headerlink" href="#benchmark-1000-objects" title="Permalink to this headline">¶</a></h2>
+<p>Here we serialize a list of 1000 <code class="docutils literal notranslate"><span class="pre">Person</span></code> objects. There’s a lot more data
+here, so the per-call overhead will no longer dominate, and we’re now measuring
+the efficiency of the encoding/decoding.</p>
+<div class="bk-root" id="bench-1k"></div></div>
+<div class="section" id="benchmark-with-validation">
+<h2>Benchmark - with Validation<a class="headerlink" href="#benchmark-with-validation" title="Permalink to this headline">¶</a></h2>
+<p>The above benchmarks aren’t 100% fair to <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> or <code class="docutils literal notranslate"><span class="pre">pyrobuf</span></code>. Both
+libraries also perform schema validation on deserialization, checking that the
+message matches the specified schema. Neither <code class="docutils literal notranslate"><span class="pre">msgpack</span></code> nor <code class="docutils literal notranslate"><span class="pre">orjson</span></code>
+support this builtin. Instead, many users perform validation post
+deserialization using additional tools like <a class="reference external" href="https://pydantic-docs.helpmanual.io/">pydantic</a>. Here we add the cost of
+Pydantic validation to <code class="docutils literal notranslate"><span class="pre">msgpack</span></code> and <code class="docutils literal notranslate"><span class="pre">orjson</span></code> to ensure all benchmarks are
+doing both deserialization and validation.</p>
+<div class="bk-root" id="bench-1-validate"></div><div class="bk-root" id="bench-1k-validate"></div><script type="text/javascript" src="https://cdn.bokeh.org/bokeh/release/bokeh-2.1.1.min.js" integrity="sha384-kLr4fYcqcSpbuI95brIH3vnnYCquzzSxHPU6XGQCIkQRGJwhg0StNbj1eegrHs12" crossorigin="anonymous"></script>
+<script type="text/javascript" src="https://cdn.bokeh.org/bokeh/release/bokeh-widgets-2.1.1.min.js" integrity="sha384-xIGPmVtaOm+z0BqfSOMn4lOR6ciex448GIKG4eE61LsAvmGj48XcMQZtKcE/UXZe" crossorigin="anonymous"></script>
+<script>
+fetch('_static/bench-1.json')
+    .then(function(response) { return response.json() })
+    .then(function(item) { return Bokeh.embed.embed_item(item, 'bench-1') })
+fetch('_static/bench-1k.json')
+    .then(function(response) { return response.json() })
+    .then(function(item) { return Bokeh.embed.embed_item(item, 'bench-1k') })
+fetch('_static/bench-1-validate.json')
+    .then(function(response) { return response.json() })
+    .then(function(item) { return Bokeh.embed.embed_item(item, 'bench-1-validate') })
+fetch('_static/bench-1k-validate.json')
+    .then(function(response) { return response.json() })
+    .then(function(item) { return Bokeh.embed.embed_item(item, 'bench-1k-validate') })
+</script></div>
+</div>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">msgspec</a></h1>
+
+
+
+<p class="blurb">A fast and friendly MessagePack library</p>
+
+
+
+
+<p>
+<iframe src="https://ghbtns.com/github-btn.html?user=jcrist&repo=msgspec&type=watch&count=False&size=large&v=2"
+  allowtransparency="true" frameborder="0" scrolling="0" width="200px" height="35px"></iframe>
+</p>
+
+
+
+
+
+<h3>Navigation</h3>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Benchmarks</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#benchmark-1-object">Benchmark - 1 Object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#benchmark-1000-objects">Benchmark - 1000 Objects</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#benchmark-with-validation">Benchmark - with Validation</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api.html">API Docs</a></li>
+</ul>
+
+<h3>Need help?</h3>
+
+<p>
+  Open an issue in the <a href="https://github.com/jcrist/quickle/issues">issue tracker</a>.
+</p>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2021, Jim Crist-Harif.
+      
+      |
+      <a href="_sources/benchmarks.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
