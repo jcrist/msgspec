@@ -7,8 +7,38 @@ on:
     branches: [master]
     paths-ignore:
       - "docs/**"
+      - "README.rst"
 
 jobs:
+  lint:
+    name: Lint and flake code
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install Python
+        uses: actions/setup-python@v1
+        with:
+          python-version: 3.8
+
+      - name: Install Dependencies
+        run: |
+          pip install black flake8 mypy
+
+      - name: Build Msgspec
+        run: |
+          pip install -e .
+
+      - name: black
+        run: black .
+
+      - name: flake8
+        run: flake8 .
+
+      - name: mypy
+        run: py.test tests/test_mypy.py
+
   build_wheels:
     name: Build wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
