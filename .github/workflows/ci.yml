@@ -56,3 +56,45 @@ jobs:
           CIBW_TEST_COMMAND: "pytest {project}/tests"
           CIBW_BUILD: "cp38-* cp39-*"
           CIBW_SKIP: "*-win32 *_i686 *_s390x *_ppc64le"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v2
+        if: github.event_name == 'release' && github.event.action == 'published'
+        with:
+          path: ./wheelhouse/*.whl
+
+  build_sdist:
+    name: Build Source Distribution
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release' && github.event.action == 'published'
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install Python
+        uses: actions/setup-python@v1
+        with:
+          python-version: 3.8
+
+      - name: Build source distribution
+        run: python setup.py sdist
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v2
+        with:
+          path: dist/*.tar.gz
+
+  upload_pypi:
+    needs: [build_wheels, build_sdist]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release' && github.event.action == 'published'
+    steps:
+      - uses: actions/download-artifact@v2
+        with:
+          name: artifact
+          path: dist
+
+      - uses: pypa/gh-action-pypi-publish@master
+        with:
+          user: __token__
+          password: ${{ secrets.PYPI_API_TOKEN }}
