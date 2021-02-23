@@ -1,0 +1,276 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>API Docs &#8212; msgspec 0.0.1 documentation</title>
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <script id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script src="_static/jquery.js"></script>
+    <script src="_static/underscore.js"></script>
+    <script src="_static/doctools.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="msgspec" href="index.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <div class="section" id="api-docs">
+<h1>API Docs<a class="headerlink" href="#api-docs" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="encoder">
+<h2>Encoder<a class="headerlink" href="#encoder" title="Permalink to this headline">¶</a></h2>
+<dl class="py class">
+<dt id="msgspec.Encoder">
+<em class="property"><span class="pre">class</span> </em><code class="sig-prename descclassname"><span class="pre">msgspec.</span></code><code class="sig-name descname"><span class="pre">Encoder</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">write_buffer_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">4096</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.Encoder" title="Permalink to this definition">¶</a></dt>
+<dd><p>A MessagePack encoder.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>write_buffer_size</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.9)"><em>int</em></a><em>, </em><em>optional</em>) – The size of the internal static write buffer.</p>
+</dd>
+</dl>
+<dl class="py method">
+<dt id="msgspec.Encoder.encode">
+<code class="sig-name descname"><span class="pre">encode</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">obj</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.Encoder.encode" title="Permalink to this definition">¶</a></dt>
+<dd><p>Serialize an object to bytes.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>obj</strong> (<em>Any</em>) – The object to serialize.</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><strong>data</strong> – The serialized object.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.9)">bytes</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="decoder">
+<h2>Decoder<a class="headerlink" href="#decoder" title="Permalink to this headline">¶</a></h2>
+<dl class="py class">
+<dt id="msgspec.Decoder">
+<em class="property"><span class="pre">class</span> </em><code class="sig-prename descclassname"><span class="pre">msgspec.</span></code><code class="sig-name descname"><span class="pre">Decoder</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'Any'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.Decoder" title="Permalink to this definition">¶</a></dt>
+<dd><p>A MessagePack decoder.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>type</strong> (<em>Type</em><em>, </em><em>optional</em>) – A Python type (in type annotation form) to decode the object as. If
+provided, the message will be type checked and decoded as the specified
+type. Defaults to <code class="xref py py-obj docutils literal notranslate"><span class="pre">Any</span></code>, in which case the message will be decoded using
+the default MessagePack types.</p>
+</dd>
+</dl>
+<dl class="py method">
+<dt id="msgspec.Decoder.decode">
+<code class="sig-name descname"><span class="pre">decode</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">buf</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.Decoder.decode" title="Permalink to this definition">¶</a></dt>
+<dd><p>Deserialize an object from bytes.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>buf</strong> (<em>bytes-like</em>) – The message to decode.</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><strong>obj</strong> – The deserialized object</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>Any</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="struct">
+<h2>Struct<a class="headerlink" href="#struct" title="Permalink to this headline">¶</a></h2>
+<dl class="py class">
+<dt id="msgspec.Struct">
+<em class="property"><span class="pre">class</span> </em><code class="sig-prename descclassname"><span class="pre">msgspec.</span></code><code class="sig-name descname"><span class="pre">Struct</span></code><a class="headerlink" href="#msgspec.Struct" title="Permalink to this definition">¶</a></dt>
+<dd><p>A base class for defining efficient serializable objects.</p>
+<p>Fields are defined using type annotations. Fields may optionally have
+default values, which result in keyword parameters to the constructor.
+Note that mutable default values are deepcopied in the constructor to
+prevent accidental sharing.</p>
+<p>Structs automatically define <code class="docutils literal notranslate"><span class="pre">__init__</span></code>, <code class="docutils literal notranslate"><span class="pre">__eq__</span></code>, <code class="docutils literal notranslate"><span class="pre">__repr__</span></code>, and
+<code class="docutils literal notranslate"><span class="pre">__copy__</span></code> methods. Additional methods can be defined on the class as
+needed. Note that <code class="docutils literal notranslate"><span class="pre">__init__</span></code>/<code class="docutils literal notranslate"><span class="pre">__new__</span></code> cannot be overridden, but other
+methods can. A tuple of the field names is available on the class via the
+<code class="docutils literal notranslate"><span class="pre">__struct_fields__</span></code> attribute if needed.</p>
+<p class="rubric">Examples</p>
+<p>Here we define a new <a class="reference internal" href="#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code></a> type for describing a dog. It has three fields;
+two required and one optional.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">Dog</span><span class="p">(</span><span class="n">Struct</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+<span class="gp">... </span>    <span class="n">breed</span><span class="p">:</span> <span class="nb">str</span>
+<span class="gp">... </span>    <span class="n">is_good_boy</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="gp">...</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">Dog</span><span class="p">(</span><span class="s1">&#39;snickers&#39;</span><span class="p">,</span> <span class="n">breed</span><span class="o">=</span><span class="s1">&#39;corgi&#39;</span><span class="p">)</span>
+<span class="go">Dog(name=&#39;snickers&#39;, breed=&#39;corgi&#39;, is_good_boy=True)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+</div>
+<div class="section" id="functions">
+<h2>Functions<a class="headerlink" href="#functions" title="Permalink to this headline">¶</a></h2>
+<dl class="py function">
+<dt id="msgspec.encode">
+<code class="sig-prename descclassname"><span class="pre">msgspec.</span></code><code class="sig-name descname"><span class="pre">encode</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">obj</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.encode" title="Permalink to this definition">¶</a></dt>
+<dd><p>Serialize an object to bytes.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>obj</strong> (<em>Any</em>) – The object to serialize.</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><strong>data</strong> – The serialized object.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.9)">bytes</a></p>
+</dd>
+</dl>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<p><a class="reference internal" href="#msgspec.Encoder.encode" title="msgspec.Encoder.encode"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Encoder.encode</span></code></a></p>
+</div>
+</dd></dl>
+
+<dl class="py function">
+<dt id="msgspec.decode">
+<code class="sig-prename descclassname"><span class="pre">msgspec.</span></code><code class="sig-name descname"><span class="pre">decode</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">buf</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'Any'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.decode" title="Permalink to this definition">¶</a></dt>
+<dd><p>Deserialize an object from bytes.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>buf</strong> (<em>bytes-like</em>) – The message to decode.</p></li>
+<li><p><strong>type</strong> (<em>Type</em><em>, </em><em>optional</em>) – A Python type (in type annotation form) to decode the object as. If
+provided, the message will be type checked and decoded as the specified
+type. Defaults to <code class="xref py py-obj docutils literal notranslate"><span class="pre">Any</span></code>, in which case the message will be decoded using
+the default MessagePack types.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><strong>obj</strong> – The deserialized object</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>Any</p>
+</dd>
+</dl>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<p><a class="reference internal" href="#msgspec.Decoder.decode" title="msgspec.Decoder.decode"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Decoder.decode</span></code></a></p>
+</div>
+</dd></dl>
+
+</div>
+<div class="section" id="exceptions">
+<h2>Exceptions<a class="headerlink" href="#exceptions" title="Permalink to this headline">¶</a></h2>
+<dl class="py exception">
+<dt id="msgspec.MsgspecError">
+<em class="property"><span class="pre">exception</span> </em><code class="sig-prename descclassname"><span class="pre">msgspec.</span></code><code class="sig-name descname"><span class="pre">MsgspecError</span></code><a class="headerlink" href="#msgspec.MsgspecError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/exceptions.html#Exception" title="(in Python v3.9)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Exception</span></code></a></p>
+<p>Base class for all Msgspec exceptions</p>
+</dd></dl>
+
+<dl class="py exception">
+<dt id="msgspec.EncodingError">
+<em class="property"><span class="pre">exception</span> </em><code class="sig-prename descclassname"><span class="pre">msgspec.</span></code><code class="sig-name descname"><span class="pre">EncodingError</span></code><a class="headerlink" href="#msgspec.EncodingError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#msgspec.MsgspecError" title="msgspec.MsgspecError"><code class="xref py py-class docutils literal notranslate"><span class="pre">msgspec.MsgspecError</span></code></a></p>
+<p>An error occurred while encoding an object</p>
+</dd></dl>
+
+<dl class="py exception">
+<dt id="msgspec.DecodingError">
+<em class="property"><span class="pre">exception</span> </em><code class="sig-prename descclassname"><span class="pre">msgspec.</span></code><code class="sig-name descname"><span class="pre">DecodingError</span></code><a class="headerlink" href="#msgspec.DecodingError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#msgspec.MsgspecError" title="msgspec.MsgspecError"><code class="xref py py-class docutils literal notranslate"><span class="pre">msgspec.MsgspecError</span></code></a></p>
+<p>An error occurred while decoding an object</p>
+</dd></dl>
+
+</div>
+</div>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">msgspec</a></h1>
+
+
+
+<p class="blurb">A fast and friendly MessagePack library</p>
+
+
+
+
+<p>
+<iframe src="https://ghbtns.com/github-btn.html?user=jcrist&repo=msgspec&type=watch&count=False&size=large&v=2"
+  allowtransparency="true" frameborder="0" scrolling="0" width="200px" height="35px"></iframe>
+</p>
+
+
+
+
+
+<h3>Navigation</h3>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">API Docs</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#encoder">Encoder</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#decoder">Decoder</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#struct">Struct</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#functions">Functions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#exceptions">Exceptions</a></li>
+</ul>
+</li>
+</ul>
+
+<h3>Need help?</h3>
+
+<p>
+  Open an issue in the <a href="https://github.com/jcrist/quickle/issues">issue tracker</a>.
+</p>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2021, Jim Crist-Harif.
+      
+      |
+      <a href="_sources/api.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

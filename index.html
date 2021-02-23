@@ -1,0 +1,391 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>msgspec &#8212; msgspec 0.0.1 documentation</title>
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <script id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script src="_static/jquery.js"></script>
+    <script src="_static/underscore.js"></script>
+    <script src="_static/doctools.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="API Docs" href="api.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <div class="section" id="msgspec">
+<h1>msgspec<a class="headerlink" href="#msgspec" title="Permalink to this headline">¶</a></h1>
+<div class="toctree-wrapper compound">
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> is a fast and friendly implementation of the <a class="reference external" href="https://msgpack.org">MessagePack</a> protocol for Python 3.8+. It supports message
+validation through the use of schemas defined using Python’s <a class="reference external" href="https://docs.python.org/3/library/typing.html">type
+annotations</a>.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">List</span>
+<span class="kn">import</span> <span class="nn">msgspec</span>
+
+<span class="c1"># Define a schema for a `User` type</span>
+<span class="k">class</span> <span class="nc">User</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">groups</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">email</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+
+<span class="c1"># Create a `User` object</span>
+<span class="n">alice</span> <span class="o">=</span> <span class="n">User</span><span class="p">(</span><span class="s2">&quot;alice&quot;</span><span class="p">,</span> <span class="n">groups</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;admin&quot;</span><span class="p">,</span> <span class="s2">&quot;engineering&quot;</span><span class="p">])</span>
+
+<span class="c1"># Serialize `alice` to `bytes` using the MessagePack protocol</span>
+<span class="n">serialized_data</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">alice</span><span class="p">)</span>
+
+<span class="c1"># Deserialize and validate the message as a User type</span>
+<span class="n">user</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">Decoder</span><span class="p">(</span><span class="n">User</span><span class="p">)</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">serialized_data</span><span class="p">)</span>
+
+<span class="k">assert</span> <span class="n">user</span> <span class="o">==</span> <span class="n">alice</span>
+</pre></div>
+</div>
+<div class="section" id="highlights">
+<h2>Highlights<a class="headerlink" href="#highlights" title="Permalink to this headline">¶</a></h2>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> is <strong>fast</strong>. <a class="reference external" href="https://github.com/jcrist/msgspec/tree/master/benchmarks">Benchmarks</a> show it’s among
+the fastest serialization methods for Python.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> is <strong>friendly</strong>. Through use of Python’s <a class="reference external" href="https://docs.python.org/3/library/typing.html">type annotations</a>,
+messages can be validated during deserialization in a declaritive way.
+<code class="docutils literal notranslate"><span class="pre">msgspec</span></code> also works well with other type-checking tooling like <code class="xref py py-obj docutils literal notranslate"><span class="pre">mypy</span></code>,
+providing excellent editor integration.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> is <strong>flexible</strong>. Unlike <code class="docutils literal notranslate"><span class="pre">msgpack</span></code> or <code class="docutils literal notranslate"><span class="pre">json</span></code>, <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> natively
+supports a wider range of Python builtin types.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> supports <a class="reference internal" href="#schema-evolution"><span class="std std-ref">“schema evolution”</span></a>. Messages can
+be sent between clients with different schemas without error.</p></li>
+</ul>
+</div>
+<div class="section" id="installation">
+<h2>Installation<a class="headerlink" href="#installation" title="Permalink to this headline">¶</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> can be installed via <code class="docutils literal notranslate"><span class="pre">pip</span></code> or <code class="docutils literal notranslate"><span class="pre">conda</span></code>. Note that Python &gt;= 3.8 is
+required.</p>
+<p><strong>pip</strong></p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>pip install msgspec
+</pre></div>
+</div>
+<p><strong>conda</strong></p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>conda install -c conda-forge msgspec
+</pre></div>
+</div>
+</div>
+<div class="section" id="usage">
+<h2>Usage<a class="headerlink" href="#usage" title="Permalink to this headline">¶</a></h2>
+<p>For ease of use, <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> exposes two functions <a class="reference internal" href="api.html#msgspec.encode" title="msgspec.encode"><code class="xref py py-obj docutils literal notranslate"><span class="pre">encode</span></code></a> and <a class="reference internal" href="api.html#msgspec.decode" title="msgspec.decode"><code class="xref py py-obj docutils literal notranslate"><span class="pre">decode</span></code></a>, for
+serializing and deserializing objects respectively.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">msgspec</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">data</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">encode</span><span class="p">({</span><span class="s2">&quot;hello&quot;</span><span class="p">:</span> <span class="s2">&quot;world&quot;</span><span class="p">})</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+<span class="go">{&#39;hello&#39;: &#39;world&#39;}</span>
+</pre></div>
+</div>
+<p>Note that if you’re making multiple calls to <a class="reference internal" href="api.html#msgspec.encode" title="msgspec.encode"><code class="xref py py-obj docutils literal notranslate"><span class="pre">encode</span></code></a> or <a class="reference internal" href="api.html#msgspec.decode" title="msgspec.decode"><code class="xref py py-obj docutils literal notranslate"><span class="pre">decode</span></code></a>, it’s more
+efficient to create an <a class="reference internal" href="api.html#msgspec.Encoder" title="msgspec.Encoder"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Encoder</span></code></a> and <a class="reference internal" href="api.html#msgspec.Decoder" title="msgspec.Decoder"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Decoder</span></code></a> once, and then use
+<a class="reference internal" href="api.html#msgspec.Encoder.encode" title="msgspec.Encoder.encode"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Encoder.encode</span></code></a> and <a class="reference internal" href="api.html#msgspec.Decoder.decode" title="msgspec.Decoder.decode"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Decoder.decode</span></code></a>.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">enc</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">Encoder</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">dec</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">Decoder</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">data</span> <span class="o">=</span> <span class="n">enc</span><span class="o">.</span><span class="n">encode</span><span class="p">({</span><span class="s2">&quot;hello&quot;</span><span class="p">:</span> <span class="s2">&quot;world&quot;</span><span class="p">})</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">dec</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+<span class="go">{&#39;hello&#39;: &#39;world&#39;}</span>
+</pre></div>
+</div>
+<div class="section" id="supported-types">
+<h3>Supported Types<a class="headerlink" href="#supported-types" title="Permalink to this headline">¶</a></h3>
+<p>Msgspec currently supports serializing/deserializing the following types:</p>
+<ul class="simple">
+<li><p><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a></p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bool</span></code></a></p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">int</span></code></a></p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">float</span></code></a></p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">str</span></code></a></p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytes</span></code></a></p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytearray" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytearray</span></code></a></p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tuple</span></code></a></p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">list</span></code></a></p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a></p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#set" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set</span></code></a></p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.Enum" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enum.Enum</span></code></a></p></li>
+<li><p><a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a></p></li>
+</ul>
+</div>
+<div class="section" id="typed-and-untyped-deserialization">
+<h3>Typed and Untyped Deserialization<a class="headerlink" href="#typed-and-untyped-deserialization" title="Permalink to this headline">¶</a></h3>
+<p>By default, both <a class="reference internal" href="api.html#msgspec.decode" title="msgspec.decode"><code class="xref py py-obj docutils literal notranslate"><span class="pre">decode</span></code></a> and <a class="reference internal" href="api.html#msgspec.Decoder.decode" title="msgspec.Decoder.decode"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Decoder.decode</span></code></a> will deserialize messages
+without any validation, performing <em>untyped deserialization</em>. <a class="reference external" href="https://github.com/msgpack/msgpack/blob/master/spec.md#formats">MessagePack
+types</a> are
+mapped to Python types as follows:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">nil</span></code>: <a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">bool</span></code>: <a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bool</span></code></a></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">int</span></code>: <a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">int</span></code></a></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">float</span></code>: <a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">float</span></code></a></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">str</span></code>: <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">str</span></code></a></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">bin</span></code>: <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytes</span></code></a></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">array</span></code>: <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">list</span></code></a></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">map</span></code>: <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a></p></li>
+</ul>
+<p>Messages composed of any combination of these will deserialize successfully
+without any further validation:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">b</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">encode</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;two&quot;</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;three&quot;</span><span class="p">])</span>  <span class="c1"># encode a list with mixed types</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">b</span><span class="p">)</span>  <span class="c1"># decodes using default types and no validation</span>
+<span class="go">[1, &quot;two&quot;, b&quot;three&quot;]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">Decoder</span><span class="p">()</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">b</span><span class="p">)</span>  <span class="c1"># likewise for Decoder.decode</span>
+<span class="go">[1, &quot;two&quot;, b&quot;three&quot;]</span>
+</pre></div>
+</div>
+<p>If you want to deserialize a MessagePack type to a different Python type, or
+perform any type checking you’ll need to specify a <em>deserialization type</em>. This
+can be passed to either <a class="reference internal" href="api.html#msgspec.Decoder" title="msgspec.Decoder"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Decoder</span></code></a> (recommended) or <a class="reference internal" href="api.html#msgspec.decode" title="msgspec.decode"><code class="xref py py-obj docutils literal notranslate"><span class="pre">decode</span></code></a>.</p>
+<p>For example, say we wanted to deserialize the above as a <code class="docutils literal notranslate"><span class="pre">set</span></code> instead of a
+<code class="docutils literal notranslate"><span class="pre">list</span></code> (the default). We’d do this by specifying the expected message type as
+a <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#set" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set</span></code></a>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">Decoder</span><span class="p">(</span><span class="nb">set</span><span class="p">)</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">b</span><span class="p">)</span>  <span class="c1"># deserialize as a set</span>
+<span class="go">{1, &quot;two&quot;, b&quot;three&quot;}</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">set</span><span class="p">)</span>  <span class="c1"># can also pass to msgspec.decode</span>
+<span class="go">{1, &quot;two&quot;, b&quot;three&quot;}</span>
+</pre></div>
+</div>
+<p>Nested type specifications are fully supported, and can be used to validate at
+deserialization time. If a message doesn’t match the specified type, an
+informative error message will be raised. For example, say we expect the above
+message to be a set of ints:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Set</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">dec</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">Decoder</span><span class="p">(</span><span class="n">Set</span><span class="p">[</span><span class="nb">int</span><span class="p">])</span>  <span class="c1"># define a decoder for a set of ints</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">dec</span>
+<span class="go">Decoder(Set[int])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">dec</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">b</span><span class="p">)</span>  <span class="c1"># Invalid messages raise a nice error</span>
+<span class="gt">Traceback (most recent call last):</span>
+  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+<span class="gr">msgspec.DecodingError</span>: <span class="n">Error decoding `Set[int]`: expected `int`, got `str`</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">b2</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">encode</span><span class="p">({</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">})</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">dec</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">b2</span><span class="p">)</span>  <span class="c1"># Valid messages deserialize properly</span>
+<span class="go">{1, 2, 3}</span>
+</pre></div>
+</div>
+<p>Typed deserializers are most commonly used along with <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code></a> messages to
+provide a message schema, but any combination of the following types is
+acceptible:</p>
+<ul class="simple">
+<li><p><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a></p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bool</span></code></a></p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">int</span></code></a></p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">float</span></code></a></p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">str</span></code></a></p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytes</span></code></a></p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytearray" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytearray</span></code></a></p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tuple</span></code></a> / <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Tuple" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.Tuple</span></code></a></p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">list</span></code></a> / <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.List</span></code></a></p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a> / <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Dict" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.Dict</span></code></a></p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#set" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set</span></code></a> / <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Set" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.Set</span></code></a></p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.Any</span></code></a></p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.Optional</span></code></a></p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.Enum" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enum.Enum</span></code></a> derived types</p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.IntEnum" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enum.IntEnum</span></code></a> derived types</p></li>
+<li><p><a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> derived types</p></li>
+</ul>
+</div>
+<div class="section" id="structs">
+<h3>Structs<a class="headerlink" href="#structs" title="Permalink to this headline">¶</a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> can serialize many builtin types, but unlike protocols like
+<a class="reference external" href="https://docs.python.org/3/library/pickle.html">pickle</a>/<a class="reference external" href="https://jcristharif.com/quickle/">quickle</a>, it can’t serialize arbitrary user classes. Two
+user-defined types are supported:</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code></a></p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.Enum" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enum.Enum</span></code></a></p></li>
+</ul>
+<p>Structs are useful for defining structured messages. Fields are defined using
+python type annotations. Default values can also be specified for any optional
+arguments.</p>
+<p>Here we define a struct representing a person, with two required fields and two
+optional fields.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">Person</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="sd">&quot;&quot;&quot;A struct describing a person&quot;&quot;&quot;</span>
+<span class="gp">... </span>    <span class="n">first</span> <span class="p">:</span> <span class="nb">str</span>
+<span class="gp">... </span>    <span class="n">last</span> <span class="p">:</span> <span class="nb">str</span>
+<span class="gp">... </span>    <span class="n">address</span> <span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+<span class="gp">... </span>    <span class="n">phone</span> <span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span>
+</pre></div>
+</div>
+<p>Struct types automatically generate a few methods based on the provided type
+annotations:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">__init__</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">__repr__</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">__copy__</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">__eq__</span></code> &amp; <code class="docutils literal notranslate"><span class="pre">__ne__</span></code></p></li>
+</ul>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">harry</span> <span class="o">=</span> <span class="n">Person</span><span class="p">(</span><span class="s2">&quot;Harry&quot;</span><span class="p">,</span> <span class="s2">&quot;Potter&quot;</span><span class="p">,</span> <span class="n">address</span><span class="o">=</span><span class="s2">&quot;4 Privet Drive&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">harry</span>
+<span class="go">Person(first=&#39;Harry&#39;, last=&#39;Potter&#39;, address=&#39;4 Privet Drive&#39;, phone=None)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">harry</span><span class="o">.</span><span class="n">first</span>
+<span class="go">&quot;Harry&quot;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">ron</span> <span class="o">=</span> <span class="n">Person</span><span class="p">(</span><span class="s2">&quot;Ron&quot;</span><span class="p">,</span> <span class="s2">&quot;Weasley&quot;</span><span class="p">,</span> <span class="n">address</span><span class="o">=</span><span class="s2">&quot;The Burrow&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">ron</span> <span class="o">==</span> <span class="n">harry</span>
+<span class="go">False</span>
+</pre></div>
+</div>
+<p>It is forbidden to override <code class="docutils literal notranslate"><span class="pre">__init__</span></code>/<code class="docutils literal notranslate"><span class="pre">__new__</span></code> in a struct definition,
+but other methods can be overridden or added as needed. The struct fields are
+available via the <code class="docutils literal notranslate"><span class="pre">__struct_fields__</span></code> attribute (a tuple of the fields in
+argument order ) if you need them. Here we add a method for converting a struct
+to a dict.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">Point</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="sd">&quot;&quot;&quot;A point in 2D space&quot;&quot;&quot;</span>
+<span class="gp">... </span>    <span class="n">x</span> <span class="p">:</span> <span class="nb">float</span>
+<span class="gp">... </span>    <span class="n">y</span> <span class="p">:</span> <span class="nb">float</span>
+<span class="gp">...</span>
+<span class="gp">... </span>    <span class="k">def</span> <span class="nf">to_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="gp">... </span>        <span class="k">return</span> <span class="p">{</span><span class="n">f</span><span class="p">:</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">__struct_fields__</span><span class="p">}</span>
+<span class="gp">...</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">p</span> <span class="o">=</span> <span class="n">Point</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">p</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span>
+<span class="go">{&quot;x&quot;: 1.0, &quot;y&quot;: 2.0}</span>
+</pre></div>
+</div>
+<p>Struct types are written in C and are quite speedy and lightweight. They’re
+great for defining structured messages both for serialization and for use in an
+application.</p>
+<p>Like with builtin types, to deserialize a message as a struct you need to
+provide the expected deserialization type to <a class="reference internal" href="api.html#msgspec.Decoder" title="msgspec.Decoder"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Decoder</span></code></a>.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">dec</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">Decoder</span><span class="p">(</span><span class="n">Person</span><span class="p">)</span>  <span class="c1"># Create a decoder that expects a Person</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">dec</span>
+<span class="go">Decoder(Person)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">data</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">harry</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">dec</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+<span class="go">Person(first=&#39;Harry&#39;, last=&#39;Potter&#39;, address=&#39;4 Privet Drive&#39;, phone=None)</span>
+</pre></div>
+</div>
+<p>Using structs for message schemas not only adds validation during
+deserialization, it also can improve performance. Depending on the schema,
+deserializing a message into a <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code></a> can be <em>roughly twice as fast</em> as
+deserializing it into a <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a>.</p>
+</div>
+<div class="section" id="schema-evolution">
+<span id="id1"></span><h3>Schema Evolution<a class="headerlink" href="#schema-evolution" title="Permalink to this headline">¶</a></h3>
+<p>Msgspec includes support for “schema evolution”, meaning that:</p>
+<ul class="simple">
+<li><p>Messages serialized with an older version of a schema will be deserializable
+using a newer version of the schema.</p></li>
+<li><p>Messages serialized with a newer version of the schema will be deserializable
+using an older version of the schema.</p></li>
+</ul>
+<p>This can be useful if, for example, you have clients and servers with
+mismatched versions.</p>
+<p>For schema evolution to work smoothly, you need to follow a few guidelines:</p>
+<ol class="arabic simple">
+<li><p>Any new fields on a <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code></a> must specify default values.</p></li>
+<li><p>Don’t change the type annotations for existing messages or fields</p></li>
+</ol>
+<p>For example, suppose we wanted to add a new <code class="docutils literal notranslate"><span class="pre">email</span></code> field to our <code class="docutils literal notranslate"><span class="pre">Person</span></code>
+struct. To do so, we add it at the end of the definition, with a default value.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">Person2</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="sd">&quot;&quot;&quot;A struct describing a person&quot;&quot;&quot;</span>
+<span class="gp">... </span>    <span class="n">first</span> <span class="p">:</span> <span class="nb">str</span>
+<span class="gp">... </span>    <span class="n">last</span> <span class="p">:</span> <span class="nb">str</span>
+<span class="gp">... </span>    <span class="n">address</span> <span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+<span class="gp">... </span>    <span class="n">phone</span> <span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="gp">... </span>    <span class="n">email</span> <span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># added at the end, with a default</span>
+<span class="gp">...</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">vernon</span> <span class="o">=</span> <span class="n">Person2</span><span class="p">(</span><span class="s2">&quot;Vernon&quot;</span><span class="p">,</span> <span class="s2">&quot;Dursley&quot;</span><span class="p">,</span> <span class="n">address</span><span class="o">=</span><span class="s2">&quot;4 Privet Drive&quot;</span><span class="p">,</span> <span class="n">email</span><span class="o">=</span><span class="s2">&quot;vernon@grunnings.com&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Messages serialized using the new and old schemas can still be exchanged
+without error.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">old_dec</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">Decoder</span><span class="p">(</span><span class="n">Person</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">new_dec</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">Decoder</span><span class="p">(</span><span class="n">Person2</span><span class="p">)</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">new_msg</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">vernon</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">old_dec</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">new_msg</span><span class="p">)</span>  <span class="c1"># deserializing a new msg with an older decoder</span>
+<span class="go">Person(first=&quot;Vernon&quot;, last=&quot;Dursley&quot;, address=&quot;4 Privet Drive&quot;, phone=None)</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">old_msg</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">harry</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">new_dec</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">old_msg</span><span class="p">)</span> <span class="c1"># deserializing an old msg with a new decoder</span>
+<span class="go">Person2(first=&#39;Harry&#39;, last=&#39;Potter&#39;, address=&#39;4 Privet Drive&#39;, phone=None, email=None)</span>
+</pre></div>
+</div>
+<div class="toctree-wrapper compound">
+</div>
+</div>
+</div>
+</div>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="#">msgspec</a></h1>
+
+
+
+<p class="blurb">A fast and friendly MessagePack library</p>
+
+
+
+
+<p>
+<iframe src="https://ghbtns.com/github-btn.html?user=jcrist&repo=msgspec&type=watch&count=False&size=large&v=2"
+  allowtransparency="true" frameborder="0" scrolling="0" width="200px" height="35px"></iframe>
+</p>
+
+
+
+
+
+<h3>Navigation</h3>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="api.html">API Docs</a></li>
+</ul>
+
+<h3>Need help?</h3>
+
+<p>
+  Open an issue in the <a href="https://github.com/jcrist/quickle/issues">issue tracker</a>.
+</p>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2021, Jim Crist-Harif.
+      
+      |
+      <a href="_sources/index.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
