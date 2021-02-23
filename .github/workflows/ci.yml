@@ -24,7 +24,7 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          pip install black flake8 mypy
+          pip install pytest black flake8 mypy
 
       - name: Build Msgspec
         run: |
