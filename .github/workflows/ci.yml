@@ -9,6 +9,8 @@ on:
       - "docs/**"
       - "benchmarks/**"
       - "README.rst"
+  release:
+    types: [published]
 
 jobs:
   lint:
