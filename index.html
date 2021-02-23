@@ -5,7 +5,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>msgspec &#8212; msgspec 0+untagged.1.g390b8de documentation</title>
+    <title>msgspec &#8212; msgspec 0+untagged.1.g8596592 documentation</title>
     <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
     <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
     <script id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
@@ -76,14 +76,10 @@ be sent between clients with different schemas without error.</p></li>
 </div>
 <div class="section" id="installation">
 <h2>Installation<a class="headerlink" href="#installation" title="Permalink to this headline">¶</a></h2>
-<p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> can be installed via <code class="docutils literal notranslate"><span class="pre">pip</span></code> or <code class="docutils literal notranslate"><span class="pre">conda</span></code>. Note that Python &gt;= 3.8 is
-required.</p>
+<p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> can be installed via <code class="docutils literal notranslate"><span class="pre">pip</span></code> (and soon via <code class="docutils literal notranslate"><span class="pre">conda</span></code>). Note that
+Python &gt;= 3.8 is required.</p>
 <p><strong>pip</strong></p>
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>pip install msgspec
-</pre></div>
-</div>
-<p><strong>conda</strong></p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>conda install -c conda-forge msgspec
 </pre></div>
 </div>
 </div>
@@ -308,7 +304,10 @@ struct. To do so, we add it at the end of the definition, with a default value.<
 </pre></div>
 </div>
 <p>Messages serialized using the new and old schemas can still be exchanged
-without error.</p>
+without error. If an old message is deserialized using the new schema, the
+missing fields all have default values that will be used. Likewise, if a new
+message is deserialized with the old schema the unknown new fields will be
+efficiently skipped without decoding.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">old_dec</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">Decoder</span><span class="p">(</span><span class="n">Person</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">new_dec</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">Decoder</span><span class="p">(</span><span class="n">Person2</span><span class="p">)</span>
 
