@@ -1,25 +1,23 @@
 import random
 import string
 import timeit
-from typing import List, Optional, NamedTuple
+from typing import List, Optional
 
 import gc
 import msgpack
 import msgspec
 import orjson
-import pickle
-import quickle
+import pydantic
 import proto_bench
 
 
-# Define struct schemas for use with Quickle
-class Address(quickle.Struct):
+class Address(msgspec.Struct):
     street: str
     state: str
     zip: int
 
 
-class Person(quickle.Struct):
+class Person(msgspec.Struct):
     first: str
     last: str
     age: int
@@ -28,36 +26,23 @@ class Person(quickle.Struct):
     email: Optional[str] = None
 
 
-# Define struct schemas for use with Quickle
-class AddressMS(msgspec.Struct):
+class AddressModel(pydantic.BaseModel):
     street: str
     state: str
     zip: int
 
 
-class PersonMS(msgspec.Struct):
+class PersonModel(pydantic.BaseModel):
     first: str
     last: str
     age: int
-    addresses: Optional[List[AddressMS]] = None
+    addresses: Optional[List[AddressModel]] = None
     telephone: Optional[str] = None
     email: Optional[str] = None
 
 
-# Define named tuple schemas for use with pickle
-class AddressTuple(NamedTuple):
-    street: str
-    state: str
-    zip: int
-
-
-class PersonTuple(NamedTuple):
-    first: str
-    last: str
-    age: int
-    addresses: Optional[List[Address]] = None
-    telephone: Optional[str] = None
-    email: Optional[str] = None
+class PeopleModel(pydantic.BaseModel):
+    items: List[PersonModel]
 
 
 states = [
@@ -167,34 +152,22 @@ def bench(dumps, loads, ndata, convert=None, no_gc=False):
     dumps_time = t / n
 
     data = dumps(data)
-    msg_size = len(data)
     gc.collect()
     timer = timeit.Timer(
         "func(data)", setup=setup, globals={"func": loads, "data": data, "gc": gc}
     )
     n, t = timer.autorange()
     loads_time = t / n
-    return dumps_time, loads_time, msg_size
+    return dumps_time, loads_time
 
 
-def bench_msgpack(n, no_gc):
-    packer = msgpack.Packer()
-    return bench(packer.pack, msgpack.loads, n, no_gc=no_gc)
-
-
-def bench_msgspec(n, no_gc):
+def bench_msgspec(n, no_gc, validate=False):
     enc = msgspec.Encoder()
-    dec = msgspec.Decoder()
-    return bench(enc.encode, dec.decode, n, no_gc=no_gc)
-
-
-def bench_msgspec_structs(n, no_gc):
-    enc = msgspec.Encoder()
-    dec = msgspec.Decoder(PersonMS if n == 1 else List[PersonMS])
+    dec = msgspec.Decoder(Person if n == 1 else List[Person])
 
     def convert_one(addresses=None, **kwargs):
-        addrs = [AddressMS(**a) for a in addresses] if addresses else None
-        return PersonMS(addresses=addrs, **kwargs)
+        addrs = [Address(**a) for a in addresses] if addresses else None
+        return Person(addresses=addrs, **kwargs)
 
     def convert(data):
         return (
@@ -206,11 +179,44 @@ def bench_msgspec_structs(n, no_gc):
     return bench(enc.encode, dec.decode, n, convert, no_gc=no_gc)
 
 
-def bench_orjson(n, no_gc):
-    return bench(orjson.dumps, orjson.loads, n, no_gc=no_gc)
+def bench_msgpack(n, no_gc, validate=False):
+    packer = msgpack.Packer()
+    if validate:
+        if n == 1:
+
+            def loads(b):
+                return PersonModel(**msgpack.loads(b))
+
+        else:
+
+            def loads(b):
+                return PeopleModel(items=msgpack.loads(b)).items
+
+    else:
+        loads = msgpack.loads
+
+    return bench(packer.pack, loads, n, no_gc=no_gc)
 
 
-def bench_pyrobuf(n, no_gc):
+def bench_orjson(n, no_gc, validate=False):
+    if validate:
+        if n == 1:
+
+            def loads(b):
+                return PersonModel(**orjson.loads(b))
+
+        else:
+
+            def loads(b):
+                return PeopleModel(items=orjson.loads(b)).items
+
+    else:
+        loads = orjson.loads
+
+    return bench(orjson.dumps, loads, n, no_gc=no_gc)
+
+
+def bench_pyrobuf(n, no_gc, validate=False):
     def convert_one(addresses=None, email=None, telephone=None, **kwargs):
         p = proto_bench.Person()
         p.ParseFromDict(kwargs)
@@ -241,59 +247,11 @@ def bench_pyrobuf(n, no_gc):
     return bench(dumps, loads, n, convert, no_gc=no_gc)
 
 
-def bench_pickle(n, no_gc):
-    return bench(pickle.dumps, pickle.loads, n, no_gc=no_gc)
-
-
-def bench_pickle_namedtuple(n, no_gc):
-    def convert_one(addresses=None, **kwargs):
-        addrs = [AddressTuple(**a) for a in addresses] if addresses else None
-        return PersonTuple(addresses=addrs, **kwargs)
-
-    def convert(data):
-        return (
-            [convert_one(**d) for d in data]
-            if isinstance(data, list)
-            else convert_one(**data)
-        )
-
-    return bench(pickle.dumps, pickle.loads, n, convert, no_gc=no_gc)
-
-
-def bench_quickle(n, no_gc):
-    enc = quickle.Encoder()
-    dec = quickle.Decoder()
-    return bench(enc.dumps, dec.loads, n, no_gc=no_gc)
-
-
-def bench_quickle_structs(n, no_gc):
-    enc = quickle.Encoder(registry=[Person, Address], memoize=False)
-    dec = quickle.Decoder(registry=[Person, Address])
-
-    def convert_one(addresses=None, **kwargs):
-        addrs = [Address(**a) for a in addresses] if addresses else None
-        return Person(addresses=addrs, **kwargs)
-
-    def convert(data):
-        return (
-            [convert_one(**d) for d in data]
-            if isinstance(data, list)
-            else convert_one(**data)
-        )
-
-    return bench(enc.dumps, dec.loads, n, convert, no_gc=no_gc)
-
-
 BENCHMARKS = [
     ("orjson", bench_orjson),
     ("msgpack", bench_msgpack),
     ("msgspec", bench_msgspec),
-    ("msgspec structs", bench_msgspec_structs),
     ("pyrobuf", bench_pyrobuf),
-    ("pickle", bench_pickle),
-    ("pickle tuples", bench_pickle_namedtuple),
-    ("quickle", bench_quickle),
-    ("quickle structs", bench_quickle_structs),
 ]
 
 
@@ -316,7 +274,7 @@ def format_bytes(n):
 
 
 def preprocess_results(results):
-    data = dict(zip(["benchmark", "dumps", "loads", "size"], map(list, zip(*results))))
+    data = dict(zip(["benchmark", "dumps", "loads"], map(list, zip(*results))))
     data["total"] = [d + l for d, l in zip(data["dumps"], data["loads"])]
 
     max_time = max(data["total"])
@@ -334,21 +292,7 @@ def preprocess_results(results):
         data[f"{k}_labels"] = [format_time(t) for t in data[k]]
         data[k] = [scale * t for t in data[k]]
 
-    max_size = max(data["size"])
-    if max_size < 1e3:
-        size_unit = "B"
-        scale = 1
-    elif max_size < 1e6:
-        size_unit = "KiB"
-        scale = 1e3
-    elif max_size < 1e9:
-        size_unit = "MiB"
-        scale = 1e6
-
-    data["size_labels"] = [format_bytes(s) for s in data["size"]]
-    data["size"] = [s / scale for s in data["size"]]
-
-    return data, time_unit, size_unit
+    return data, time_unit
 
 
 def make_plot(results, title):
@@ -358,9 +302,9 @@ def make_plot(results, title):
     from bokeh.layouts import column
     from bokeh.models import CustomJS, RadioGroup, FactorRange
 
-    data, time_unit, size_unit = preprocess_results(results)
+    data, time_unit = preprocess_results(results)
 
-    sort_options = ["total", "dumps", "loads", "size"]
+    sort_options = ["total", "dumps", "loads"]
     sort_orders = [
         list(zip(*sorted(zip(data[order], data["benchmark"]), reverse=True)))[1]
         for order in sort_options
@@ -411,33 +355,12 @@ def make_plot(results, title):
     )
 
     p.x_range.range_padding = 0.1
-    p.xaxis.visible = False
     p.xgrid.grid_line_color = None
     p.ygrid.grid_line_color = None
     p.yaxis.axis_label = f"Time ({time_unit})"
     p.yaxis.minor_tick_line_color = None
     p.legend.location = "top_right"
     p.legend.orientation = "horizontal"
-    tooltips = [("size", "@size_labels")]
-
-    size_plot = bp.figure(
-        x_range=x_range,
-        plot_height=150,
-        plot_width=660,
-        title=None,
-        toolbar_location=None,
-        tools="hover",
-        tooltips=tooltips,
-        sizing_mode="scale_width",
-    )
-    size_plot.vbar(x="benchmark", top="size", width=0.9, source=source)
-
-    size_plot.y_range.start = 0
-    size_plot.yaxis.axis_label = f"Size ({size_unit})"
-    size_plot.yaxis.minor_tick_line_color = None
-    size_plot.x_range.range_padding = 0.1
-    size_plot.xgrid.grid_line_color = None
-    size_plot.ygrid.grid_line_color = None
 
     # Setup widget
     select = RadioGroup(
@@ -454,19 +377,26 @@ def make_plot(results, title):
         ),
     )
     select.js_on_click(callback)
-    out = column(p, size_plot, select, sizing_mode="scale_width")
+    out = column(p, select, sizing_mode="scale_width")
     return out
 
 
-def run(n, plot_title, plot_name, save_plot=False, save_json=False, no_gc=False):
+def run(
+    n,
+    plot_title,
+    plot_name,
+    save_plot=False,
+    save_json=False,
+    no_gc=False,
+    validate=False,
+):
     results = []
     for name, func in BENCHMARKS:
         print(f"- {name}...")
-        dumps_time, loads_time, msg_size = func(n, no_gc)
+        dumps_time, loads_time = func(n, no_gc, validate)
         print(f"  dumps: {dumps_time * 1e6:.2f} us")
         print(f"  loads: {loads_time * 1e6:.2f} us")
-        print(f"  size: {msg_size} bytes")
-        results.append((name, dumps_time, loads_time, msg_size))
+        results.append((name, dumps_time, loads_time))
     if save_plot or save_json:
         import json
         from bokeh.resources import CDN
@@ -483,27 +413,34 @@ def run(n, plot_title, plot_name, save_plot=False, save_json=False, no_gc=False)
                 f.write(data)
 
 
-def run_1(save_plot=False, save_json=False, no_gc=False):
-    print("Benchmark - 1 object")
-    run(1, "Benchmark - 1 object", "bench-1", save_plot, save_json, no_gc)
+def run_1(save_plot=False, save_json=False, no_gc=False, validate=False):
+    print(f"Benchmark - 1 object (validate={validate})")
+    if validate:
+        path = "bench-1-validate"
+        title = "Benchmark - 1 object (with validation)"
+    else:
+        path = "bench-1"
+        title = "Benchmark - 1 object"
+    run(1, title, path, save_plot, save_json, no_gc, validate)
 
 
-def run_1k(save_plot=False, save_json=False, no_gc=False):
-    print("Benchmark - 1k objects")
-    run(1000, "Benchmark - 1000 objects", "bench-1k", save_plot, save_json, no_gc)
+def run_1k(save_plot=False, save_json=False, no_gc=False, validate=False):
+    print(f"Benchmark - 1k objects (validate={validate})")
+    if validate:
+        path = "bench-1-validate"
+        title = "Benchmark - 1000 objects (with validation)"
+    else:
+        path = "bench-1"
+        title = "Benchmark - 1000 objects"
+    run(1000, title, path, save_plot, save_json, no_gc, validate)
 
 
-def run_10k(save_plot=False, save_json=False, no_gc=False):
-    print("Benchmark - 10k objects")
-    run(10000, "Benchmark - 10,000 objects", "bench-10k", save_plot, save_json, no_gc)
+def run_all(save_plot=False, save_json=False, no_gc=False, validate=False):
+    for runner in [run_1, run_1k]:
+        runner(save_plot, save_json, no_gc, validate)
 
 
-def run_all(save_plot=False, save_json=False, no_gc=False):
-    for runner in [run_1, run_1k, run_10k]:
-        runner(save_plot, save_json, no_gc)
-
-
-benchmarks = {"all": run_all, "1": run_1, "1k": run_1k, "10k": run_10k}
+benchmarks = {"all": run_all, "1": run_1, "1k": run_1k}
 
 
 def main():
@@ -533,8 +470,13 @@ def main():
         action="store_true",
         help="whether to disable the gc during benchmarking",
     )
+    parser.add_argument(
+        "--validate",
+        action="store_true",
+        help="whether to ensure all serializers include validation on deserialization",
+    )
     args = parser.parse_args()
-    benchmarks[args.benchmark](args.plot, args.json, args.no_gc)
+    benchmarks[args.benchmark](args.plot, args.json, args.no_gc, args.validate)
 
 
 if __name__ == "__main__":
