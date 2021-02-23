@@ -1,7 +1,7 @@
 msgspec
 =======
 
-|github|
+|github| |pypi|
 
 ``msgspec`` is a fast and friendly implementation of the `MessagePack
 <https://msgpack.org>`__ protocol for Python 3.8+. In addition to
@@ -50,3 +50,5 @@ New BSD. See the
 
 .. |github| image:: https://github.com/jcrist/msgspec/actions/workflows/ci.yml/badge.svg
    :target: https://github.com/jcrist/msgspec/actions/workflows/ci.yml
+.. |pypi| image:: https://img.shields.io/pypi/v/msgspec.svg
+   :target: https://pypi.org/project/msgspec/
