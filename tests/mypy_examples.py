@@ -52,6 +52,14 @@ def check_decode_any() -> None:
 
 def check_decode_typed() -> None:
     b = msgspec.encode([1, 2, 3])
-    o = msgspec.decode(b, List[int])
+    o = msgspec.decode(b, type=List[int])
 
     reveal_type(o)  # assert ("List" in typ or "list" in typ) and "int" in typ
+
+
+def check_encode_default() -> None:
+    msgspec.encode(object(), default=lambda x: None)
+
+
+def check_Encoder_default() -> None:
+    msgspec.Encoder(default=lambda x: None)

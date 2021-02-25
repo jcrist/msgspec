@@ -85,6 +85,7 @@ typedef struct {
     PyObject *str__value2member_map_;
     PyObject *str_name;
     PyObject *str_type;
+    PyObject *str_default;
     PyObject *typing_list;
     PyObject *typing_set;
     PyObject *typing_tuple;
@@ -1504,6 +1505,7 @@ PyDoc_STRVAR(Struct__doc__,
  *************************************************************************/
 
 typedef struct EncoderState {
+    PyObject *defaultfn;     /* `default` callback */
     Py_ssize_t write_buffer_size;  /* Configured internal buffer size */
 
     PyObject *output_buffer;    /* Bytearray storing the output */
@@ -1518,27 +1520,33 @@ typedef struct Encoder {
 } Encoder;
 
 PyDoc_STRVAR(Encoder__doc__,
-"Encoder(*, write_buffer_size=4096)\n"
+"Encoder(*, default=None, write_buffer_size=4096)\n"
 "--\n"
 "\n"
 "A MessagePack encoder.\n"
 "\n"
 "Parameters\n"
 "----------\n"
+"default : callable, optional\n"
+"    A callable to call for objects that aren't supported msgspec types. Takes the\n"
+"    unsupported object and should return a supported object, or raise a TypeError.\n"
 "write_buffer_size : int, optional\n"
 "    The size of the internal static write buffer."
 );
 static int
 Encoder_init(Encoder *self, PyObject *args, PyObject *kwds)
 {
-    static char *kwlist[] = {"write_buffer_size", NULL};
+    static char *kwlist[] = {"default", "write_buffer_size", NULL};
     Py_ssize_t write_buffer_size = 4096;
+    PyObject *defaultfn = NULL;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|$n", kwlist,
-                                     &write_buffer_size)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|$On", kwlist,
+                                     &defaultfn, &write_buffer_size)) {
         return -1;
     }
 
+    Py_XINCREF(defaultfn);
+    self->state.defaultfn = defaultfn;
     self->state.write_buffer_size = Py_MAX(write_buffer_size, 32);
     self->state.max_output_len = self->state.write_buffer_size;
     self->state.output_len = 0;
@@ -1548,10 +1556,26 @@ Encoder_init(Encoder *self, PyObject *args, PyObject *kwds)
     return 0;
 }
 
+static int
+Encoder_clear(Encoder *self)
+{
+    Py_CLEAR(self->state.output_buffer);
+    Py_CLEAR(self->state.defaultfn);
+    return 0;
+}
+
 static void
 Encoder_dealloc(Encoder *self)
 {
+    Encoder_clear(self);
     Py_TYPE(self)->tp_free((PyObject *)self);
+}
+
+static int
+Encoder_traverse(Encoder *self, visitproc visit, void *arg)
+{
+    Py_VISIT(self->state.defaultfn);
+    return 0;
 }
 
 static PyObject*
@@ -2068,9 +2092,21 @@ mp_encode(EncoderState *self, PyObject *obj)
     if (PyType_IsSubtype(type, st->EnumType)) {
         return mp_encode_enum(self, obj);
     }
+    if (self->defaultfn != NULL) {
+        int status = -1;
+        PyObject *temp;
+        temp = CALL_ONE_ARG(self->defaultfn, obj);
+        if (temp == NULL) return -1;
+        if (!Py_EnterRecursiveCall(" while serializing an object")) {
+            status = mp_encode(self, temp);
+            Py_LeaveRecursiveCall();
+        }
+        Py_DECREF(temp);
+        return status;
+    }
     else {
         PyErr_Format(PyExc_TypeError,
-                     "Encoder.encode doesn't support objects of type %.200s",
+                     "Encoding objects of type %.200s is unsupported",
                      type->tp_name);
         return -1;
     }
@@ -2137,6 +2173,20 @@ Encoder_encode(Encoder *self, PyObject *const *args, Py_ssize_t nargs)
     return res;
 }
 
+static PyObject *
+Encoder_default(PyObject *self, void *closure) {
+    PyObject *out = ((Encoder*)self)->state.defaultfn;
+    if (out == NULL)
+        out = Py_None;
+    Py_INCREF(out);
+    return out;
+}
+
+static PyGetSetDef Encoder_getset[] = {
+    {"default", (getter) Encoder_default, NULL, "`default` callback", NULL},
+    {NULL},
+};
+
 static struct PyMethodDef Encoder_methods[] = {
     {
         "encode", (PyCFunction) Encoder_encode, METH_FASTCALL,
@@ -2149,21 +2199,23 @@ static struct PyMethodDef Encoder_methods[] = {
     {NULL, NULL}                /* sentinel */
 };
 
-
 static PyTypeObject Encoder_Type = {
     PyVarObject_HEAD_INIT(NULL, 0)
     .tp_name = "msgspec.core.Encoder",
     .tp_doc = Encoder__doc__,
     .tp_basicsize = sizeof(Encoder),
     .tp_dealloc = (destructor)Encoder_dealloc,
-    .tp_flags = Py_TPFLAGS_DEFAULT,
+    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
+    .tp_traverse = (traverseproc)Encoder_traverse,
+    .tp_clear = (inquiry)Encoder_clear,
     .tp_new = PyType_GenericNew,
     .tp_init = (initproc)Encoder_init,
     .tp_methods = Encoder_methods,
+    .tp_getset = Encoder_getset,
 };
 
 PyDoc_STRVAR(msgspec_encode__doc__,
-"encode(obj)\n"
+"encode(obj, *, default=None)\n"
 "--\n"
 "\n"
 "Serialize an object to bytes.\n"
@@ -2172,6 +2224,9 @@ PyDoc_STRVAR(msgspec_encode__doc__,
 "----------\n"
 "obj : Any\n"
 "    The object to serialize.\n"
+"default : callable, optional\n"
+"    A callable to call for objects that aren't supported msgspec types. Takes the\n"
+"    unsupported object and should return a supported object, or raise a TypeError.\n"
 "\n"
 "Returns\n"
 "-------\n"
@@ -2183,18 +2238,44 @@ PyDoc_STRVAR(msgspec_encode__doc__,
 "Encoder.encode"
 );
 static PyObject*
-msgspec_encode(PyObject *self, PyObject *const *args, Py_ssize_t nargs)
+msgspec_encode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
 {
     int status;
-    PyObject *res = NULL;
+    PyObject *obj, *defaultfn = NULL, *res = NULL;
     EncoderState state;
 
-    if (!check_positional_nargs(nargs, 1, 1)) {
-        return NULL;
+    /* Parse arguments */
+    if (!check_positional_nargs(nargs, 1, 1)) return NULL;
+    obj = args[0];
+    if (kwnames != NULL) {
+        Py_ssize_t nkwargs = PyTuple_GET_SIZE(kwnames);
+        if (nkwargs == 1) {
+            PyObject *key = PyTuple_GET_ITEM(kwnames, 0);
+            MsgspecState *st = msgspec_get_global_state();
+            if (st->str_default == key || _PyUnicode_EQ(st->str_default, key)) {
+                defaultfn = args[nargs];
+            }
+            else {
+                PyErr_Format(
+                    PyExc_TypeError,
+                    "Invalid keyword argument '%U'",
+                    key
+                );
+                return NULL;
+            }
+        }
+        else if (nkwargs > 1) {
+            PyErr_SetString(
+                PyExc_TypeError,
+                "Extra keyword arguments provided"
+            );
+            return NULL;
+        }
     }
 
     /* use a smaller buffer size here to reduce chance of over allocating for one-off calls */
     state.write_buffer_size = 64;
+    state.defaultfn = defaultfn;
     state.max_output_len = state.write_buffer_size;
     state.output_len = 0;
     state.output_buffer = PyBytes_FromStringAndSize(NULL, state.max_output_len);
@@ -3422,24 +3503,14 @@ msgspec_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject
     Py_buffer buffer;
     MsgspecState *st = msgspec_get_global_state();
 
-    /* Parse keyword arguments */
-    if (!check_positional_nargs(nargs, 1, 2)) return NULL;
+    /* Parse arguments */
+    if (!check_positional_nargs(nargs, 1, 1)) return NULL;
     buf = args[0];
-    if (nargs == 2) {
-        type = args[1];
-    }
     if (kwnames != NULL) {
         Py_ssize_t nkwargs = PyTuple_GET_SIZE(kwnames);
         if (nkwargs == 1) {
             PyObject *key = PyTuple_GET_ITEM(kwnames, 0);
             if (st->str_type == key || _PyUnicode_EQ(st->str_type, key)) {
-                if (type != NULL) {
-                    PyErr_SetString(
-                        PyExc_TypeError,
-                        "Argument 'type' given by name and position"
-                    );
-                    return NULL;
-                }
                 type = args[nargs];
             }
             else {
@@ -3495,7 +3566,7 @@ msgspec_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject
 
 static struct PyMethodDef msgspec_methods[] = {
     {
-        "encode", (PyCFunction) msgspec_encode, METH_FASTCALL,
+        "encode", (PyCFunction) msgspec_encode, METH_FASTCALL | METH_KEYWORDS,
         msgspec_encode__doc__,
     },
     {
@@ -3518,6 +3589,7 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->str__value2member_map_);
     Py_CLEAR(st->str_name);
     Py_CLEAR(st->str_type);
+    Py_CLEAR(st->str_default);
     Py_CLEAR(st->typing_dict);
     Py_CLEAR(st->typing_list);
     Py_CLEAR(st->typing_set);
@@ -3691,6 +3763,9 @@ PyInit_core(void)
         return NULL;
     st->str_type = PyUnicode_InternFromString("type");
     if (st->str_type == NULL)
+        return NULL;
+    st->str_default = PyUnicode_InternFromString("default");
+    if (st->str_default == NULL)
         return NULL;
 
     return m;
