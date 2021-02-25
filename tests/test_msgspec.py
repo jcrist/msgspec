@@ -95,6 +95,55 @@ class TestEncodeFunction:
         dec = msgspec.Decoder()
         assert dec.decode(msgspec.encode(data)) == data
 
+    def test_encode_no_default(self):
+        class Foo:
+            pass
+
+        with pytest.raises(
+            TypeError, match="Encoding objects of type Foo is unsupported"
+        ):
+            msgspec.encode(Foo())
+
+    def test_encode_default(self):
+        unsupported = object()
+
+        def default(x):
+            assert x is unsupported
+            return "hello"
+
+        orig_refcount = sys.getrefcount(default)
+
+        res = msgspec.encode(unsupported, default=default)
+        assert msgspec.encode("hello") == res
+        assert sys.getrefcount(default) == orig_refcount
+
+    def test_encode_default_errors(self):
+        def default(x):
+            raise TypeError("bad")
+
+        orig_refcount = sys.getrefcount(default)
+
+        with pytest.raises(TypeError, match="bad"):
+            msgspec.encode(object(), default=default)
+
+        assert sys.getrefcount(default) == orig_refcount
+
+    def test_encode_parse_arguments_errors(self):
+        with pytest.raises(TypeError, match="Missing 1 required argument"):
+            msgspec.encode()
+
+        with pytest.raises(TypeError, match="Extra positional arguments"):
+            msgspec.encode(1, lambda x: None)
+
+        with pytest.raises(TypeError, match="Extra positional arguments"):
+            msgspec.encode(1, 2, 3)
+
+        with pytest.raises(TypeError, match="Invalid keyword argument 'bad'"):
+            msgspec.encode(1, bad=1)
+
+        with pytest.raises(TypeError, match="Extra keyword arguments"):
+            msgspec.encode(1, default=lambda x: None, extra="extra")
+
 
 class TestDecodeFunction:
     def setup(self):
@@ -102,12 +151,6 @@ class TestDecodeFunction:
 
     def test_decode(self):
         assert msgspec.decode(self.buf) == [1, 2, 3]
-
-    def test_decode_type_positional(self):
-        assert msgspec.decode(self.buf, List[int]) == [1, 2, 3]
-
-        with pytest.raises(msgspec.DecodingError):
-            assert msgspec.decode(self.buf, List[str])
 
     def test_decode_type_keyword(self):
         assert msgspec.decode(self.buf, type=List[int]) == [1, 2, 3]
@@ -117,19 +160,21 @@ class TestDecodeFunction:
 
     def test_decode_type_any(self):
         assert msgspec.decode(self.buf, type=Any) == [1, 2, 3]
-        assert msgspec.decode(self.buf, Any) == [1, 2, 3]
 
     def test_decode_invalid_type(self):
         with pytest.raises(TypeError, match="Type '1' is not supported"):
-            msgspec.decode(self.buf, 1)
+            msgspec.decode(self.buf, type=1)
 
     def test_decode_invalid_buf(self):
         with pytest.raises(TypeError):
             msgspec.decode(1)
 
-    def test_decode_type_parse_arguments(self):
+    def test_decode_parse_arguments_errors(self):
         with pytest.raises(TypeError, match="Missing 1 required argument"):
             msgspec.decode()
+
+        with pytest.raises(TypeError, match="Extra positional arguments"):
+            msgspec.decode(self.buf, List[int])
 
         with pytest.raises(TypeError, match="Extra positional arguments"):
             msgspec.decode(self.buf, 2, 3)
@@ -182,6 +227,68 @@ class TestEncoderMisc:
         a = sys.getsizeof(msgspec.Encoder(write_buffer_size=64))
         b = sys.getsizeof(msgspec.Encoder(write_buffer_size=128))
         assert b > a
+
+    def test_encode_no_default(self):
+        class Foo:
+            pass
+
+        enc = msgspec.Encoder()
+        assert enc.default is None
+
+        with pytest.raises(
+            TypeError, match="Encoding objects of type Foo is unsupported"
+        ):
+            enc.encode(Foo())
+
+    def test_encode_default(self):
+        unsupported = object()
+
+        def default(x):
+            assert x is unsupported
+            return "hello"
+
+        orig_refcount = sys.getrefcount(default)
+
+        enc = msgspec.Encoder(default=default)
+
+        assert enc.default is default
+        assert sys.getrefcount(enc.default) == orig_refcount + 2
+        assert sys.getrefcount(default) == orig_refcount + 1
+
+        res = enc.encode(unsupported)
+        assert enc.encode("hello") == res
+
+        del enc
+        assert sys.getrefcount(default) == orig_refcount
+
+    def test_encode_default_errors(self):
+        def default(x):
+            raise TypeError("bad")
+
+        enc = msgspec.Encoder(default=default)
+
+        with pytest.raises(TypeError, match="bad"):
+            enc.encode(object())
+
+    def test_encode_default_recurses(self):
+        class Node:
+            def __init__(self, a):
+                self.a = a
+
+        def default(x):
+            return {"type": "Node", "a": x.a}
+
+        enc = msgspec.Encoder(default=default)
+
+        msg = enc.encode(Node(Node(1)))
+        res = msgspec.decode(msg)
+        assert res == {"type": "Node", "a": {"type": "Node", "a": 1}}
+
+    def test_encode_default_recursion_error(self):
+        enc = msgspec.Encoder(default=lambda x: x)
+
+        with pytest.raises(RecursionError):
+            enc.encode(object())
 
 
 class TestDecoderMisc:
