@@ -2,3 +2,7 @@
     text-align: center;
     display: inline-block;
 }
+
+.footnote {
+    font-size: small;
+}
