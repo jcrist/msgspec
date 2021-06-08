@@ -305,6 +305,7 @@ TypeNode_traverse(TypeNode *type, visitproc visit, void *arg) {
             return 0;
         }
     }
+    return 0;
 }
 static PyObject* TypeNode_Repr(TypeNode*);
 
@@ -410,6 +411,7 @@ TypeNode_Repr(TypeNode *type) {
         case TYPE_FIXTUPLE:
             return TypeNodeFixTuple_Repr(type);
     }
+    return NULL;
 }
 
 static TypeNode* to_type_node(PyObject * obj, bool optional);
@@ -2241,12 +2243,11 @@ static PyObject*
 msgspec_encode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
 {
     int status;
-    PyObject *obj, *defaultfn = NULL, *res = NULL;
+    PyObject *defaultfn = NULL, *res = NULL;
     EncoderState state;
 
     /* Parse arguments */
     if (!check_positional_nargs(nargs, 1, 1)) return NULL;
-    obj = args[0];
     if (kwnames != NULL) {
         Py_ssize_t nkwargs = PyTuple_GET_SIZE(kwnames);
         if (nkwargs == 1) {
@@ -2412,7 +2413,7 @@ mp_read(DecoderState *self, char **s, Py_ssize_t n)
     return mp_err_truncated();
 }
 
-static PyObject * mp_decode_any(DecoderState *self);
+static PyObject * mp_decode_any(DecoderState *self, bool is_key);
 
 static inline PyObject *
 mp_decode_uint1(DecoderState *self) {
@@ -2521,30 +2522,52 @@ mp_decode_bin(DecoderState *self, Py_ssize_t size) {
 }
 
 static PyObject *
-mp_decode_array(DecoderState *self, Py_ssize_t size) {
+mp_decode_array(DecoderState *self, Py_ssize_t size, bool is_key) {
     Py_ssize_t i;
     PyObject *res, *item;
 
     if (size < 0) return NULL;
 
-    res = PyList_New(size);
-    if (res == NULL) return NULL;
-    if (size == 0) return res;
+    if (is_key) {
+        res = PyTuple_New(size);
+        if (res == NULL) return NULL;
+        if (size == 0) return res;
 
-    if (Py_EnterRecursiveCall(" while deserializing an object")) {
-        Py_DECREF(res);
-        return NULL;
-    }
-    for (i = 0; i < size; i++) {
-        item = mp_decode_any(self);
-        if (item == NULL) {
-            Py_CLEAR(res);
-            break;
+        if (Py_EnterRecursiveCall(" while deserializing an object")) {
+            Py_DECREF(res);
+            return NULL;
         }
-        PyList_SET_ITEM(res, i, item);
+        for (i = 0; i < size; i++) {
+            item = mp_decode_any(self, is_key);
+            if (item == NULL) {
+                Py_CLEAR(res);
+                break;
+            }
+            PyTuple_SET_ITEM(res, i, item);
+        }
+        Py_LeaveRecursiveCall();
+        return res;
     }
-    Py_LeaveRecursiveCall();
-    return res;
+    else {
+        res = PyList_New(size);
+        if (res == NULL) return NULL;
+        if (size == 0) return res;
+
+        if (Py_EnterRecursiveCall(" while deserializing an object")) {
+            Py_DECREF(res);
+            return NULL;
+        }
+        for (i = 0; i < size; i++) {
+            item = mp_decode_any(self, is_key);
+            if (item == NULL) {
+                Py_CLEAR(res);
+                break;
+            }
+            PyList_SET_ITEM(res, i, item);
+        }
+        Py_LeaveRecursiveCall();
+        return res;
+    }
 }
 
 static PyObject *
@@ -2563,10 +2586,10 @@ mp_decode_map(DecoderState *self, Py_ssize_t size) {
         return NULL;
     }
     for (i = 0; i < size; i++) {
-        key = mp_decode_any(self);
+        key = mp_decode_any(self, true);
         if (key == NULL)
             goto error;
-        val = mp_decode_any(self);
+        val = mp_decode_any(self, false);
         if (val == NULL)
             goto error;
         if (PyDict_SetItem(res, key, val) < 0)
@@ -2585,7 +2608,7 @@ error:
 }
 
 static PyObject *
-mp_decode_any(DecoderState *self) {
+mp_decode_any(DecoderState *self, bool is_key) {
     char op;
 
     if (mp_read1(self, &op) < 0) {
@@ -2599,7 +2622,7 @@ mp_decode_any(DecoderState *self) {
         return mp_decode_str(self, op & 0x1f);
     }
     else if ('\x90' <= op && op <= '\x9f') {
-        return mp_decode_array(self, op & 0x0f);
+        return mp_decode_array(self, op & 0x0f, is_key);
     }
     else if ('\x80' <= op && op <= '\x8f') {
         return mp_decode_map(self, op & 0x0f);
@@ -2647,9 +2670,9 @@ mp_decode_any(DecoderState *self) {
         case MP_BIN32:
             return mp_decode_bin(self, mp_decode_size4(self));
         case MP_ARRAY16:
-            return mp_decode_array(self, mp_decode_size2(self));
+            return mp_decode_array(self, mp_decode_size2(self), is_key);
         case MP_ARRAY32:
-            return mp_decode_array(self, mp_decode_size4(self));
+            return mp_decode_array(self, mp_decode_size4(self), is_key);
         case MP_MAP16:
             return mp_decode_map(self, mp_decode_size2(self));
         case MP_MAP32:
@@ -2748,7 +2771,9 @@ mp_skip(DecoderState *self) {
     }
 }
 
-static PyObject * mp_decode_type(DecoderState *self, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind);
+static PyObject * mp_decode_type(
+    DecoderState *self, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind, bool is_key
+);
 
 static PyObject *
 mp_validation_error(char op, char *expected, TypeNode *ctx, Py_ssize_t ctx_ind) {
@@ -3083,10 +3108,10 @@ mp_decode_type_dict(DecoderState *self, char op, TypeNodeMap *type, TypeNode *ct
         return NULL;
     }
     for (i = 0; i < size; i++) {
-        key = mp_decode_type(self, type->key, ctx, ctx_ind);
+        key = mp_decode_type(self, type->key, ctx, ctx_ind, true);
         if (key == NULL)
             goto error;
-        val = mp_decode_type(self, type->value, ctx, ctx_ind);
+        val = mp_decode_type(self, type->value, ctx, ctx_ind, false);
         if (val == NULL)
             goto error;
         if (PyDict_SetItem(res, key, val) < 0)
@@ -3145,7 +3170,10 @@ mp_decode_type_struct(DecoderState *self, char op, TypeNodeObj *type, TypeNode *
             if (mp_skip(self) < 0) goto error;
         }
         else {
-            val = mp_decode_type(self, st_type->struct_types[field_index], (TypeNode *)type, field_index);
+            val = mp_decode_type(
+                self, st_type->struct_types[field_index],
+                (TypeNode *)type, field_index, false
+            );
             if (val == NULL) goto error;
             Struct_set_index(res, field_index, val);
         }
@@ -3208,7 +3236,9 @@ mp_decode_array_size(DecoderState *self, char op, char *expected, TypeNode *ctx,
 }
 
 static PyObject *
-mp_decode_type_list(DecoderState *self, char op, TypeNodeArray *type, TypeNode *ctx, Py_ssize_t ctx_ind) {
+mp_decode_type_list(
+    DecoderState *self, char op, TypeNodeArray *type, TypeNode *ctx, Py_ssize_t ctx_ind
+) {
     Py_ssize_t size, i;
     PyObject *res, *item;
 
@@ -3224,7 +3254,7 @@ mp_decode_type_list(DecoderState *self, char op, TypeNodeArray *type, TypeNode *
         return NULL;
     }
     for (i = 0; i < size; i++) {
-        item = mp_decode_type(self, type->arg, ctx, ctx_ind);
+        item = mp_decode_type(self, type->arg, ctx, ctx_ind, false);
         if (item == NULL) {
             Py_CLEAR(res);
             break;
@@ -3236,7 +3266,9 @@ mp_decode_type_list(DecoderState *self, char op, TypeNodeArray *type, TypeNode *
 }
 
 static PyObject *
-mp_decode_type_set(DecoderState *self, char op, TypeNodeArray *type, TypeNode *ctx, Py_ssize_t ctx_ind) {
+mp_decode_type_set(
+    DecoderState *self, char op, TypeNodeArray *type, TypeNode *ctx, Py_ssize_t ctx_ind
+) {
     Py_ssize_t size, i;
     PyObject *res, *item;
 
@@ -3252,7 +3284,7 @@ mp_decode_type_set(DecoderState *self, char op, TypeNodeArray *type, TypeNode *c
         return NULL;
     }
     for (i = 0; i < size; i++) {
-        item = mp_decode_type(self, type->arg, ctx, ctx_ind);
+        item = mp_decode_type(self, type->arg, ctx, ctx_ind, true);
         if (item == NULL || PySet_Add(res, item) < 0) {
             Py_CLEAR(res);
             break;
@@ -3264,7 +3296,9 @@ mp_decode_type_set(DecoderState *self, char op, TypeNodeArray *type, TypeNode *c
 }
 
 static PyObject *
-mp_decode_type_vartuple(DecoderState *self, char op, TypeNodeArray *type, TypeNode *ctx, Py_ssize_t ctx_ind) {
+mp_decode_type_vartuple(
+    DecoderState *self, char op, TypeNodeArray *type, TypeNode *ctx, Py_ssize_t ctx_ind, bool is_key
+) {
     Py_ssize_t size, i;
     PyObject *res, *item;
 
@@ -3280,7 +3314,7 @@ mp_decode_type_vartuple(DecoderState *self, char op, TypeNodeArray *type, TypeNo
         return NULL;
     }
     for (i = 0; i < size; i++) {
-        item = mp_decode_type(self, type->arg, ctx, ctx_ind);
+        item = mp_decode_type(self, type->arg, ctx, ctx_ind, is_key);
         if (item == NULL) {
             Py_CLEAR(res);
             break;
@@ -3292,7 +3326,9 @@ mp_decode_type_vartuple(DecoderState *self, char op, TypeNodeArray *type, TypeNo
 }
 
 static PyObject *
-mp_decode_type_fixtuple(DecoderState *self, char op, TypeNodeFixTuple *type, TypeNode *ctx, Py_ssize_t ctx_ind) {
+mp_decode_type_fixtuple(
+    DecoderState *self, char op, TypeNodeFixTuple *type, TypeNode *ctx, Py_ssize_t ctx_ind, bool is_key
+) {
     Py_ssize_t size, i;
     PyObject *res, *item;
 
@@ -3334,7 +3370,7 @@ mp_decode_type_fixtuple(DecoderState *self, char op, TypeNodeFixTuple *type, Typ
         return NULL;
     }
     for (i = 0; i < size; i++) {
-        item = mp_decode_type(self, type->args[i], ctx, ctx_ind);
+        item = mp_decode_type(self, type->args[i], ctx, ctx_ind, is_key);
         if (item == NULL) {
             Py_CLEAR(res);
             break;
@@ -3346,11 +3382,13 @@ mp_decode_type_fixtuple(DecoderState *self, char op, TypeNodeFixTuple *type, Typ
 }
 
 static PyObject *
-mp_decode_type(DecoderState *self, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind) {
+mp_decode_type(
+    DecoderState *self, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind, bool is_key
+) {
     char op;
 
     if (type->code == TYPE_ANY) {
-        return mp_decode_any(self);
+        return mp_decode_any(self, is_key);
     }
 
     if (mp_read1(self, &op) < 0) {
@@ -3390,9 +3428,9 @@ mp_decode_type(DecoderState *self, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx
         case TYPE_SET:
             return mp_decode_type_set(self, op, (TypeNodeArray *)type, ctx, ctx_ind);
         case TYPE_VARTUPLE:
-            return mp_decode_type_vartuple(self, op, (TypeNodeArray *)type, ctx, ctx_ind);
+            return mp_decode_type_vartuple(self, op, (TypeNodeArray *)type, ctx, ctx_ind, is_key);
         case TYPE_FIXTUPLE:
-            return mp_decode_type_fixtuple(self, op, (TypeNodeFixTuple *)type, ctx, ctx_ind);
+            return mp_decode_type_fixtuple(self, op, (TypeNodeFixTuple *)type, ctx, ctx_ind, is_key);
         default:
             /* Should never be hit */
             PyErr_SetString(PyExc_RuntimeError, "Unknown type code");
@@ -3431,7 +3469,7 @@ Decoder_decode(Decoder *self, PyObject *const *args, Py_ssize_t nargs)
         self->state.input_buffer = buffer.buf;
         self->state.input_len = buffer.len;
         self->state.next_read_idx = 0;
-        res = mp_decode_type(&(self->state), self->state.type, self->state.type, 0);
+        res = mp_decode_type(&(self->state), self->state.type, self->state.type, 0, false);
     }
 
     if (buffer.buf != NULL) {
@@ -3544,9 +3582,9 @@ msgspec_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject
         state.input_len = buffer.len;
         state.next_read_idx = 0;
         if (state.type != NULL) {
-            res = mp_decode_type(&state, state.type, state.type, 0);
+            res = mp_decode_type(&state, state.type, state.type, 0, false);
         } else {
-            res = mp_decode_any(&state);
+            res = mp_decode_any(&state, false);
         }
     }
 
