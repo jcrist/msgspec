@@ -830,6 +830,48 @@ class CommonTypeTestBase:
         self.check(list(range(size)))
 
 
+class TestDecodeArrayTypeUsesTupleIfHashableRequired:
+    def test_decode_tuple_dict_keys_as_tuples(self):
+        orig = {(1, 2): [1, 2, [3, 4]], (1, (2, 3)): [4, 5, 6]}
+        data = msgspec.encode(orig)
+        out = msgspec.decode(data)
+        assert orig == out
+
+    @pytest.mark.parametrize(
+        "typ",
+        [
+            Dict[Tuple[int, Tuple[int, int]], List[int]],
+            Dict[Tuple[int, Tuple[int, ...]], Any],
+            Dict[Tuple, List[int]],
+            Dict[Tuple[Any, ...], Any],
+            Dict[Tuple[Any, Any], Any],
+        ],
+    )
+    def test_decode_dict_key_status_forwarded_through_typed_tuples(self, typ):
+        orig = {(1, (2, 3)): [1, 2, 3]}
+        data = msgspec.encode(orig)
+        out = msgspec.Decoder(typ).decode(data)
+        assert orig == out
+
+    def test_decode_tuple_set_keys_as_tuples(self):
+        orig = {(1, 2), (3, (4, 5)), 6}
+        data = msgspec.encode(orig)
+        out = msgspec.decode(data, type=set)
+        assert orig == out
+
+    def test_decode_hashable_struct_in_key(self):
+        class Test(msgspec.Struct):
+            data: List[int]
+
+            def __hash__(self):
+                return hash(tuple(self.data))
+
+        orig = {(1, Test([1, 2])): [1, 2]}
+        data = msgspec.encode(orig)
+        out = msgspec.Decoder(Dict[Tuple[int, Test], List[int]]).decode(data)
+        assert orig == out
+
+
 class TestUntypedDecoder(CommonTypeTestBase):
     """Check the untyped deserializer works for common types"""
 
