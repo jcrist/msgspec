@@ -4,11 +4,12 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Benchmarks &#8212; msgspec 0+untagged.1.g35db69d documentation</title>
-    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
-    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
-    <script id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+    <title>Benchmarks &#8212; msgspec 0+untagged.1.g3b12a73 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css" />
+    <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
     <script src="_static/jquery.js"></script>
     <script src="_static/underscore.js"></script>
     <script src="_static/doctools.js"></script>
@@ -32,7 +33,7 @@
 
           <div class="body" role="main">
             
-  <div class="section" id="benchmarks">
+  <section id="benchmarks">
 <h1>Benchmarks<a class="headerlink" href="#benchmarks" title="Permalink to this headline">¶</a></h1>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -77,7 +78,7 @@ types):</p>
 <p>Each benchmark creates one or more instances of a <code class="docutils literal notranslate"><span class="pre">Person</span></code> message, and
 serializes it/deserializes it in a loop. The <a class="reference external" href="https://github.com/jcrist/msgspec/tree/master/benchmarks">full benchmark source can be
 found here</a>.</p>
-<div class="section" id="benchmark-1-object">
+<section id="benchmark-1-object">
 <h2>Benchmark - 1 Object<a class="headerlink" href="#benchmark-1-object" title="Permalink to this headline">¶</a></h2>
 <p>Some workflows involve sending around very small messages. Here the overhead
 per function call dominates (parsing of options, allocating temporary buffers,
@@ -95,14 +96,14 @@ optimizations that could still be done there.</p>
 <p>That said, all of these methods serialize/deserialize pretty quickly relative
 to other python operations, so unless you’re counting every microsecond your
 choice here probably doesn’t matter that much.</p>
-</div>
-<div class="section" id="benchmark-1000-objects">
+</section>
+<section id="benchmark-1000-objects">
 <h2>Benchmark - 1000 Objects<a class="headerlink" href="#benchmark-1000-objects" title="Permalink to this headline">¶</a></h2>
 <p>Here we serialize a list of 1000 <code class="docutils literal notranslate"><span class="pre">Person</span></code> objects. There’s a lot more data
 here, so the per-call overhead will no longer dominate, and we’re now measuring
 the efficiency of the encoding/decoding.</p>
-<div class="bk-root" id="bench-1k"></div></div>
-<div class="section" id="benchmark-with-validation">
+<div class="bk-root" id="bench-1k"></div></section>
+<section id="benchmark-with-validation">
 <h2>Benchmark - with Validation<a class="headerlink" href="#benchmark-with-validation" title="Permalink to this headline">¶</a></h2>
 <p>The above benchmarks aren’t 100% fair to <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> or <code class="docutils literal notranslate"><span class="pre">pyrobuf</span></code>. Both
 libraries also perform schema validation on deserialization, checking that the
@@ -126,8 +127,8 @@ fetch('_static/bench-1-validate.json')
 fetch('_static/bench-1k-validate.json')
     .then(function(response) { return response.json() })
     .then(function(item) { return Bokeh.embed.embed_item(item, 'bench-1k-validate') })
-</script></div>
-</div>
+</script></section>
+</section>
 
 
           </div>
