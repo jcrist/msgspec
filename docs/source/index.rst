@@ -121,8 +121,12 @@ mapped to Python types as follows:
 - ``float``: `float`
 - ``str``: `str`
 - ``bin``: `bytes`
-- ``array``: `list`
+- ``array``: `list` or `tuple` [#tuple]_
 - ``map``: `dict`
+
+.. [#tuple] Tuples are only used when the array type must be hashable (e.g.
+   keys in a ``dict`` or ``set``). All other array types are deserialized as
+   lists by default.
 
 Messages composed of any combination of these will deserialize successfully
 without any further validation:
