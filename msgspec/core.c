@@ -1503,6 +1503,143 @@ PyDoc_STRVAR(Struct__doc__,
 );
 
 /*************************************************************************
+ * ExtType                                                               *
+ *************************************************************************/
+
+typedef struct ExtType {
+    PyObject_HEAD
+    PyObject *code;
+    PyObject *data;
+} ExtType;
+
+PyDoc_STRVAR(ExtType__doc__,
+"A record representing a MessagePack Extension Type.\n"
+"\n"
+"Parameters\n"
+"----------\n"
+"code : int\n"
+"    The integer type code for this extension. Must be between -128 and 127.\n"
+"data : bytes or bytearray\n"
+"    The byte buffer for this extension."
+);
+static PyObject *
+ExtType_vectorcall(PyTypeObject *cls, PyObject *const *args, size_t nargsf, PyObject *kwnames) {
+    ExtType *self;
+    PyObject *code, *data;
+    Py_ssize_t nargs, nkwargs;
+
+    nargs = PyVectorcall_NARGS(nargsf);
+    nkwargs = (kwnames == NULL) ? 0 : PyTuple_GET_SIZE(kwnames);
+
+    if (nkwargs != 0) {
+        PyErr_SetString(
+            PyExc_TypeError,
+            "ExtType takes no keyword arguments"
+        );
+        return NULL;
+    }
+    else if (nargs != 2) {
+        PyErr_Format(
+            PyExc_TypeError,
+            "ExtType expected 2 arguments, got %zd",
+            nargs
+        );
+        return NULL;
+    }
+
+    code = args[0];
+    data = args[1];
+
+    if (PyLong_CheckExact(code)) {
+        long val = PyLong_AsLong(code);
+        if (val == -1 && PyErr_Occurred()) {
+            PyErr_Clear();
+            val = -129; /* Indicate that value is out of range below */
+        }
+        if (val < -128 || val > 127) {
+            PyErr_SetString(
+                PyExc_ValueError,
+                "code must be an int between -128 and 127"
+            );
+            return NULL;
+        }
+    }
+    else {
+        PyErr_Format(
+            PyExc_TypeError,
+            "code must be an int, got %.200s",
+            Py_TYPE(code)->tp_name
+        );
+        return NULL;
+    }
+    if (!(PyBytes_CheckExact(data) || PyByteArray_CheckExact(data))) {
+        PyErr_Format(
+            PyExc_TypeError,
+            "data must be a bytes or bytearray object, got %.200s",
+            Py_TYPE(data)->tp_name
+        );
+        return NULL;
+    }
+
+    self = (ExtType *)cls->tp_alloc(cls, 0);
+    if (self == NULL)
+        return NULL;
+
+    Py_INCREF(code);
+    Py_INCREF(data);
+    self->code = code;
+    self->data = data;
+    return (PyObject *)self;
+}
+
+static void
+ExtType_dealloc(ExtType *self)
+{
+    Py_XDECREF(self->code);
+    Py_XDECREF(self->data);
+}
+
+static PyMemberDef ExtType_members[] = {
+    {"code", T_OBJECT_EX, offsetof(ExtType, code), READONLY, "The ExtType type code"},
+    {"data", T_OBJECT_EX, offsetof(ExtType, data), READONLY, "The ExtType data payload"},
+    {NULL},
+};
+
+static PyObject *
+ExtType_reduce(PyObject *self, PyObject *unused)
+{
+    PyObject *args, *out;
+    args = PyTuple_Pack(2, ((ExtType*)self)->code, ((ExtType*)self)->data);
+    if (args == NULL)
+        return NULL;
+    out = PyTuple_Pack(2, Py_TYPE(self), args);
+    if (out == NULL)
+        Py_DECREF(args);
+    return out;
+}
+
+static PyMethodDef ExtType_methods[] = {
+    {"__reduce__", ExtType_reduce, METH_NOARGS, "reduce an ExtType"},
+    {NULL, NULL},
+};
+
+static PyTypeObject ExtType_Type = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "msgspec.ExtType",
+    .tp_doc = ExtType__doc__,
+    .tp_basicsize = sizeof(ExtType),
+    .tp_itemsize = 0,
+    .tp_flags = Py_TPFLAGS_DEFAULT | _Py_TPFLAGS_HAVE_VECTORCALL,
+    .tp_new = PyType_GenericNew,
+    .tp_dealloc = (destructor) ExtType_dealloc,
+    .tp_call = PyVectorcall_Call,
+    .tp_vectorcall = (vectorcallfunc) ExtType_vectorcall,
+    .tp_vectorcall_offset = offsetof(PyTypeObject, tp_vectorcall),
+    .tp_members = ExtType_members,
+    .tp_methods = ExtType_methods
+};
+
+/*************************************************************************
  * MessagePack Encoder                                                   *
  *************************************************************************/
 
@@ -3696,6 +3833,8 @@ PyInit_core(void)
         return NULL;
     if (PyType_Ready(&Decoder_Type) < 0)
         return NULL;
+    if (PyType_Ready(&ExtType_Type) < 0)
+        return NULL;
 
     /* Create the module */
     m = PyModule_Create(&msgspecmodule);
@@ -3708,6 +3847,9 @@ PyInit_core(void)
         return NULL;
     Py_INCREF(&Decoder_Type);
     if (PyModule_AddObject(m, "Decoder", (PyObject *)&Decoder_Type) < 0)
+        return NULL;
+    Py_INCREF(&ExtType_Type);
+    if (PyModule_AddObject(m, "ExtType", (PyObject *)&ExtType_Type) < 0)
         return NULL;
 
     st = msgspec_get_state(m);
