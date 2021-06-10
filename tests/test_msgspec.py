@@ -828,6 +828,21 @@ class TestExtType:
         assert x2.code == 1
         assert x2.data == b"two"
 
+    @pytest.mark.parametrize("size", sorted({0, 1, 2, 4, 8, 16, *SIZES}))
+    def test_serialize_compatibility(self, size):
+        msgpack = pytest.importorskip("msgpack")
+        data = b"x" * size
+        code = 5
+
+        msgspec_bytes = msgspec.encode(msgspec.ExtType(code, data))
+        msgpack_bytes = msgpack.dumps(msgpack.ExtType(code, data))
+        assert msgspec_bytes == msgpack_bytes
+
+    def test_serialize_bytearray(self):
+        a = msgspec.encode(msgspec.ExtType(1, b"test"))
+        b = msgspec.encode(msgspec.ExtType(1, bytearray(b"test")))
+        assert a == b
+
 
 class CommonTypeTestBase:
     """Test msgspec untyped encode/decode"""
