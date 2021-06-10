@@ -4,6 +4,7 @@ from typing import Dict, Set, List, Tuple, Optional, Any
 import enum
 import gc
 import math
+import pickle
 import sys
 
 import pytest
@@ -316,6 +317,7 @@ class TestDecoderMisc:
             (str, "str"),
             (bytes, "bytes"),
             (bytearray, "bytearray"),
+            (msgspec.ExtType, "ExtType"),
             (Dict, "Dict[Any, Any]"),
             (Dict[int, str], "Dict[int, str]"),
             (List, "List[Any]"),
@@ -793,6 +795,38 @@ class TestTypedDecoder:
             match=r"Error decoding `List\[Dict\[str, str\]\]`: expected `str`, got `int`",
         ):
             dec.decode(b)
+
+
+class TestExtType:
+    @pytest.mark.parametrize("data", [b"test", bytearray(b"test")])
+    def test_init(self, data):
+        x = msgspec.ExtType(1, data)
+        assert x.code == 1
+        assert x.data == data
+
+    @pytest.mark.parametrize("code", [-129, 128, 2 ** 65])
+    def test_code_out_of_range(self, code):
+        with pytest.raises(ValueError):
+            msgspec.ExtType(code, b"bad")
+
+    def test_data_wrong_type(self):
+        with pytest.raises(TypeError):
+            msgspec.ExtType(1, 2)
+
+    def test_code_wrong_type(self):
+        with pytest.raises(TypeError):
+            msgspec.ExtType(b"bad", b"bad")
+
+    def test_immutable(self):
+        x = msgspec.ExtType(1, b"two")
+        with pytest.raises(AttributeError):
+            x.code = 2
+
+    def test_pickleable(self):
+        x = msgspec.ExtType(1, b"two")
+        x2 = pickle.loads(pickle.dumps(x))
+        assert x2.code == 1
+        assert x2.data == b"two"
 
 
 class CommonTypeTestBase:
