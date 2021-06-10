@@ -168,6 +168,7 @@ check_positional_nargs(Py_ssize_t nargs, Py_ssize_t min, Py_ssize_t max) {
  ************************************************************************/
 
 static PyTypeObject StructMetaType;
+static PyTypeObject ExtType_Type;
 static int StructMeta_prep_types(PyObject *self);
 
 enum typecode {
@@ -187,6 +188,7 @@ enum typecode {
     TYPE_VARTUPLE,
     TYPE_FIXTUPLE,
     TYPE_DICT,
+    TYPE_EXTTYPE,
 };
 
 typedef struct TypeNode {
@@ -228,6 +230,7 @@ TypeNode_Free(TypeNode *type) {
         case TYPE_STR:
         case TYPE_BYTES:
         case TYPE_BYTEARRAY:
+        case TYPE_EXTTYPE:
             PyMem_Free(type);
             return;
         case TYPE_ENUM:
@@ -276,6 +279,7 @@ TypeNode_traverse(TypeNode *type, visitproc visit, void *arg) {
         case TYPE_STR:
         case TYPE_BYTES:
         case TYPE_BYTEARRAY:
+        case TYPE_EXTTYPE:
             return 0;
         case TYPE_ENUM:
         case TYPE_INTENUM:
@@ -398,6 +402,8 @@ TypeNode_Repr(TypeNode *type) {
             return PyUnicode_FromString(type->optional ? "Optional[bytes]" : "bytes");
         case TYPE_BYTEARRAY:
             return PyUnicode_FromString(type->optional ? "Optional[bytearray]" : "bytearray");
+        case TYPE_EXTTYPE:
+            return PyUnicode_FromString(type->optional ? "Optional[ExtType]" : "ExtType");
         case TYPE_ENUM:
         case TYPE_INTENUM:
         case TYPE_STRUCT: 
@@ -548,6 +554,9 @@ to_type_node(PyObject * obj, bool optional) {
     }
     else if (obj == (PyObject *)(&PyByteArray_Type)) {
         return TypeNode_New(TYPE_BYTEARRAY, optional);
+    }
+    else if (obj == (PyObject *)(&ExtType_Type)) {
+        return TypeNode_New(TYPE_EXTTYPE, optional);
     }
     else if (Py_TYPE(obj) == &StructMetaType) {
         if (StructMeta_prep_types(obj) < 0) return NULL;
