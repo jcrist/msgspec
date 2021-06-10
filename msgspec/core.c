@@ -1517,7 +1517,7 @@ PyDoc_STRVAR(Struct__doc__,
 
 typedef struct ExtType {
     PyObject_HEAD
-    PyObject *code;
+    char code;
     PyObject *data;
 } ExtType;
 
@@ -1534,7 +1534,8 @@ PyDoc_STRVAR(ExtType__doc__,
 static PyObject *
 ExtType_vectorcall(PyTypeObject *cls, PyObject *const *args, size_t nargsf, PyObject *kwnames) {
     ExtType *self;
-    PyObject *code, *data;
+    PyObject *pycode, *data;
+    char code;
     Py_ssize_t nargs, nkwargs;
 
     nargs = PyVectorcall_NARGS(nargsf);
@@ -1556,28 +1557,27 @@ ExtType_vectorcall(PyTypeObject *cls, PyObject *const *args, size_t nargsf, PyOb
         return NULL;
     }
 
-    code = args[0];
+    pycode = args[0];
     data = args[1];
 
-    if (PyLong_CheckExact(code)) {
-        long val = PyLong_AsLong(code);
-        if (val == -1 && PyErr_Occurred()) {
-            PyErr_Clear();
-            val = -129; /* Indicate that value is out of range below */
-        }
-        if (val < -128 || val > 127) {
+    if (PyLong_CheckExact(pycode)) {
+        long val = PyLong_AsLong(pycode);
+        if ((val == -1 && PyErr_Occurred()) || val > 127 || val < -128) {
             PyErr_SetString(
                 PyExc_ValueError,
                 "code must be an int between -128 and 127"
             );
             return NULL;
         }
+        else {
+            code = val;
+        }
     }
     else {
         PyErr_Format(
             PyExc_TypeError,
             "code must be an int, got %.200s",
-            Py_TYPE(code)->tp_name
+            Py_TYPE(pycode)->tp_name
         );
         return NULL;
     }
@@ -1594,9 +1594,8 @@ ExtType_vectorcall(PyTypeObject *cls, PyObject *const *args, size_t nargsf, PyOb
     if (self == NULL)
         return NULL;
 
-    Py_INCREF(code);
-    Py_INCREF(data);
     self->code = code;
+    Py_INCREF(data);
     self->data = data;
     return (PyObject *)self;
 }
@@ -1604,12 +1603,11 @@ ExtType_vectorcall(PyTypeObject *cls, PyObject *const *args, size_t nargsf, PyOb
 static void
 ExtType_dealloc(ExtType *self)
 {
-    Py_XDECREF(self->code);
     Py_XDECREF(self->data);
 }
 
 static PyMemberDef ExtType_members[] = {
-    {"code", T_OBJECT_EX, offsetof(ExtType, code), READONLY, "The ExtType type code"},
+    {"code", T_BYTE, offsetof(ExtType, code), READONLY, "The ExtType type code"},
     {"data", T_OBJECT_EX, offsetof(ExtType, data), READONLY, "The ExtType data payload"},
     {NULL},
 };
@@ -1617,14 +1615,7 @@ static PyMemberDef ExtType_members[] = {
 static PyObject *
 ExtType_reduce(PyObject *self, PyObject *unused)
 {
-    PyObject *args, *out;
-    args = PyTuple_Pack(2, ((ExtType*)self)->code, ((ExtType*)self)->data);
-    if (args == NULL)
-        return NULL;
-    out = PyTuple_Pack(2, Py_TYPE(self), args);
-    if (out == NULL)
-        Py_DECREF(args);
-    return out;
+    return Py_BuildValue("O(bO)", Py_TYPE(self), ((ExtType*)self)->code, ((ExtType*)self)->data);
 }
 
 static PyMethodDef ExtType_methods[] = {
@@ -1764,7 +1755,15 @@ enum mp_code {
     MP_ARRAY32 = '\xdd',
     MP_FIXMAP = '\x80',
     MP_MAP16 = '\xde',
-    MP_MAP32 = '\xdf'
+    MP_MAP32 = '\xdf',
+    MP_FIXEXT1 = '\xd4',
+    MP_FIXEXT2 = '\xd5',
+    MP_FIXEXT4 = '\xd6',
+    MP_FIXEXT8 = '\xd7',
+    MP_FIXEXT16 = '\xd8',
+    MP_EXT8 = '\xc7',
+    MP_EXT16 = '\xc8',
+    MP_EXT32 = '\xc9',
 };
 
 static int
@@ -2162,6 +2161,72 @@ mp_encode_struct(EncoderState *self, PyObject *obj)
 }
 
 static int
+mp_encode_exttype(EncoderState *self, PyObject *obj)
+{
+    ExtType *ex = (ExtType *)obj;
+    Py_ssize_t len;
+    int header_len = 2;
+    char header[6];
+    const char* data;
+    if (PyBytes_CheckExact(ex->data)) {
+        len = PyBytes_GET_SIZE(ex->data);
+        data = PyBytes_AS_STRING(ex->data);
+    }
+    else {
+        len = PyByteArray_GET_SIZE(ex->data);
+        data = PyByteArray_AS_STRING(ex->data);
+    }
+    if (len == 1) {
+        header[0] = MP_FIXEXT1;
+        header[1] = ex->code;
+    }
+    else if (len == 2) {
+        header[0] = MP_FIXEXT2;
+        header[1] = ex->code;
+    }
+    else if (len == 4) {
+        header[0] = MP_FIXEXT4;
+        header[1] = ex->code;
+    }
+    else if (len == 8) {
+        header[0] = MP_FIXEXT8;
+        header[1] = ex->code;
+    }
+    else if (len == 16) {
+        header[0] = MP_FIXEXT16;
+        header[1] = ex->code;
+    }
+    else if (len < (1<<8)) {
+        header[0] = MP_EXT8;
+        header[1] = len;
+        header[2] = ex->code;
+        header_len = 3;
+    }
+    else if (len < (1<<16)) {
+        header[0] = MP_EXT16;
+        _msgspec_store16(&header[1], (uint16_t)len);
+        header[3] = ex->code;
+        header_len = 4;
+    }
+    else if (len < (1LL<<32)) {
+        header[0] = MP_EXT32;
+        _msgspec_store32(&header[1], (uint32_t)len);
+        header[5] = ex->code;
+        header_len = 6;
+    }
+    else {
+        PyErr_SetString(
+            msgspec_get_global_state()->EncodingError,
+            "Can't encode ExtType objects with data longer than 2**32 - 1"
+        );
+        return -1;
+    }
+    if (mp_write(self, header, header_len) < 0)
+        return -1;
+    return len > 0 ? mp_write(self, data, len) : 0;
+}
+
+static int
 mp_encode_enum(EncoderState *self, PyObject *obj)
 {
     if (PyLong_Check(obj))
@@ -2235,6 +2300,9 @@ mp_encode(EncoderState *self, PyObject *obj)
     }
     else if (Py_TYPE(type) == &StructMetaType) {
         return mp_encode_struct(self, obj);
+    }
+    else if (type == &ExtType_Type) {
+        return mp_encode_exttype(self, obj);
     }
     st = msgspec_get_global_state();
     if (PyType_IsSubtype(type, st->EnumType)) {
