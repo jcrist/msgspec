@@ -1521,6 +1521,18 @@ typedef struct ExtType {
     PyObject *data;
 } ExtType;
 
+static PyObject *
+ExtType_New(char code, PyObject *data) {
+    ExtType *out = (ExtType *)ExtType_Type.tp_alloc(&ExtType_Type, 0);
+    if (out == NULL)
+        return NULL;
+
+    out->code = code;
+    Py_INCREF(data);
+    out->data = data;
+    return (PyObject *)out;
+}
+
 PyDoc_STRVAR(ExtType__doc__,
 "A record representing a MessagePack Extension Type.\n"
 "\n"
@@ -1533,7 +1545,6 @@ PyDoc_STRVAR(ExtType__doc__,
 );
 static PyObject *
 ExtType_vectorcall(PyTypeObject *cls, PyObject *const *args, size_t nargsf, PyObject *kwnames) {
-    ExtType *self;
     PyObject *pycode, *data;
     char code;
     Py_ssize_t nargs, nkwargs;
@@ -1589,15 +1600,7 @@ ExtType_vectorcall(PyTypeObject *cls, PyObject *const *args, size_t nargsf, PyOb
         );
         return NULL;
     }
-
-    self = (ExtType *)cls->tp_alloc(cls, 0);
-    if (self == NULL)
-        return NULL;
-
-    self->code = code;
-    Py_INCREF(data);
-    self->data = data;
-    return (PyObject *)self;
+    return ExtType_New(code, data);
 }
 
 static void
@@ -2518,6 +2521,7 @@ typedef struct DecoderState {
     TypeNode *type;
 
     /* Per-message attributes */
+    PyObject *buffer_obj;
     char *input_buffer;
     Py_ssize_t input_len;
     Py_ssize_t next_read_idx;
@@ -2736,6 +2740,18 @@ mp_decode_bin(DecoderState *self, Py_ssize_t size) {
 }
 
 static PyObject *
+mp_decode_ext(DecoderState *self, Py_ssize_t size) {
+    char code, *data_buf;
+    PyObject *data;
+    if (mp_read1(self, &code) < 0) return NULL;
+    if (mp_read(self, &data_buf, size) < 0) return NULL;
+
+    data = PyBytes_FromStringAndSize(data_buf, size);
+    if (data == NULL) return NULL;
+    return ExtType_New(code, data);
+}
+
+static PyObject *
 mp_decode_array(DecoderState *self, Py_ssize_t size, bool is_key) {
     Py_ssize_t i;
     PyObject *res, *item;
@@ -2891,6 +2907,22 @@ mp_decode_any(DecoderState *self, bool is_key) {
             return mp_decode_map(self, mp_decode_size2(self));
         case MP_MAP32:
             return mp_decode_map(self, mp_decode_size4(self));
+        case MP_FIXEXT1:
+            return mp_decode_ext(self, 1);
+        case MP_FIXEXT2:
+            return mp_decode_ext(self, 2);
+        case MP_FIXEXT4:
+            return mp_decode_ext(self, 4);
+        case MP_FIXEXT8:
+            return mp_decode_ext(self, 8);
+        case MP_FIXEXT16:
+            return mp_decode_ext(self, 16);
+        case MP_EXT8:
+            return mp_decode_ext(self, mp_decode_size1(self));
+        case MP_EXT16:
+            return mp_decode_ext(self, mp_decode_size2(self));
+        case MP_EXT32:
+            return mp_decode_ext(self, mp_decode_size4(self));
         default:
             PyErr_Format(msgspec_get_global_state()->DecodingError, "invalid opcode, '\\x%02x'.", op);
             return NULL;
@@ -3680,6 +3712,7 @@ Decoder_decode(Decoder *self, PyObject *const *args, Py_ssize_t nargs)
     }
 
     if (PyObject_GetBuffer(args[0], &buffer, PyBUF_CONTIG_RO) >= 0) {
+        self->state.buffer_obj = args[0];
         self->state.input_buffer = buffer.buf;
         self->state.input_len = buffer.len;
         self->state.next_read_idx = 0;
@@ -3688,6 +3721,7 @@ Decoder_decode(Decoder *self, PyObject *const *args, Py_ssize_t nargs)
 
     if (buffer.buf != NULL) {
         PyBuffer_Release(&buffer);
+        self->state.buffer_obj = NULL;
         self->state.input_buffer = NULL;
     }
     return res;
@@ -3792,6 +3826,7 @@ msgspec_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject
 
     buffer.buf = NULL;
     if (PyObject_GetBuffer(buf, &buffer, PyBUF_CONTIG_RO) >= 0) {
+        state.buffer_obj = buf;
         state.input_buffer = buffer.buf;
         state.input_len = buffer.len;
         state.next_read_idx = 0;
