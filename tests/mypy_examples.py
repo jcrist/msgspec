@@ -1,5 +1,6 @@
 # fmt: off
-from typing import List
+import pickle
+from typing import List, Any
 import msgspec
 
 
@@ -63,3 +64,17 @@ def check_encode_default() -> None:
 
 def check_Encoder_default() -> None:
     msgspec.Encoder(default=lambda x: None)
+
+
+def check_decode_ext_hook() -> None:
+    def ext_hook(code: int, data: memoryview) -> Any:
+        return pickle.loads(data)
+
+    msgspec.decode(b"test", ext_hook=ext_hook)
+    msgspec.Decoder(ext_hook=ext_hook)
+
+
+def check_Ext() -> None:
+    ext = msgspec.Ext(1, b"test")
+    reveal_type(ext.code)  # assert "int" in typ
+    reveal_type(ext.data)  # assert "bytes" in typ
