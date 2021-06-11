@@ -853,6 +853,23 @@ class TestExtType:
         assert out.code == code
         assert out.data == data
 
+    @pytest.mark.parametrize("size", sorted({0, 1, 2, 4, 8, 16, *SIZES}))
+    def test_roundtrip_typed_decoder(self, size):
+        dec = msgspec.Decoder(msgspec.ExtType)
+
+        data = b"x" * size
+        code = 5
+        buf = msgspec.encode(msgspec.ExtType(code, data))
+        out = dec.decode(buf)
+        assert isinstance(out, msgspec.ExtType)
+        assert out.code == code
+        assert out.data == data
+
+    def test_ext_typed_decoder_error(self):
+        dec = msgspec.Decoder(msgspec.ExtType)
+        with pytest.raises(msgspec.DecodingError, match="expected `ExtType`"):
+            assert dec.decode(msgspec.encode(1))
+
 
 class CommonTypeTestBase:
     """Test msgspec untyped encode/decode"""
