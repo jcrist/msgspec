@@ -2,7 +2,7 @@ from .core import (
     Struct,
     Encoder,
     Decoder,
-    ExtType,
+    Ext,
     MsgspecError,
     EncodingError,
     DecodingError,

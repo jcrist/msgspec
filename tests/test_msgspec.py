@@ -180,7 +180,7 @@ class TestDecodeFunction:
         with pytest.raises(TypeError, match="Extra positional arguments"):
             msgspec.decode(self.buf, 2, 3)
 
-        with pytest.raises(TypeError, match="Invalid keyword argument 'bad'"):
+        with pytest.raises(TypeError, match="Extra keyword arguments"):
             msgspec.decode(self.buf, bad=1)
 
         with pytest.raises(TypeError, match="Extra keyword arguments"):
@@ -300,6 +300,23 @@ class TestDecoderMisc:
         dec = msgspec.Decoder(int)
         assert dec.type is int
 
+    def test_decoder_ext_hook_attribute(self):
+        def ext_hook(code, buf):
+            pass
+
+        dec = msgspec.Decoder()
+        assert dec.ext_hook is None
+
+        dec = msgspec.Decoder(ext_hook=None)
+        assert dec.ext_hook is None
+
+        dec = msgspec.Decoder(ext_hook=ext_hook)
+        assert dec.ext_hook is ext_hook
+
+    def test_decoder_ext_hook_not_callable(self):
+        with pytest.raises(TypeError):
+            msgspec.Decoder(ext_hook=1)
+
     @pytest.mark.parametrize("typ, typstr", [(None, "None"), (Any, "Any")])
     def test_decoder_none_any_repr(self, typ, typstr):
         dec = msgspec.Decoder(typ)
@@ -317,7 +334,7 @@ class TestDecoderMisc:
             (str, "str"),
             (bytes, "bytes"),
             (bytearray, "bytearray"),
-            (msgspec.ExtType, "ExtType"),
+            (msgspec.Ext, "Ext"),
             (Dict, "Dict[Any, Any]"),
             (Dict[int, str], "Dict[int, str]"),
             (List, "List[Any]"),
@@ -688,7 +705,7 @@ class TestTypedDecoder:
             b"four",
             [1, 2],
             {3: 4},
-            msgspec.ExtType(1, b"12345"),
+            msgspec.Ext(1, b"12345"),
         ],
     )
     def test_struct_ignore_extra_fields(self, extra):
@@ -809,33 +826,45 @@ class TestTypedDecoder:
             dec.decode(b)
 
 
-class TestExtType:
+class TestExt:
     @pytest.mark.parametrize("data", [b"test", bytearray(b"test")])
     def test_init(self, data):
-        x = msgspec.ExtType(1, data)
+        x = msgspec.Ext(1, data)
         assert x.code == 1
         assert x.data == data
+
+    def test_compare(self):
+        x = msgspec.Ext(1, b"two")
+        x2 = msgspec.Ext(1, b"two")
+        x3 = msgspec.Ext(1, b"three")
+        x4 = msgspec.Ext(2, b"two")
+        assert x == x2
+        assert not (x != x2)
+        assert x != x3
+        assert not (x == x3)
+        assert x != x4
+        assert not (x == x4)
 
     @pytest.mark.parametrize("code", [-129, 128, 2 ** 65])
     def test_code_out_of_range(self, code):
         with pytest.raises(ValueError):
-            msgspec.ExtType(code, b"bad")
+            msgspec.Ext(code, b"bad")
 
     def test_data_wrong_type(self):
         with pytest.raises(TypeError):
-            msgspec.ExtType(1, 2)
+            msgspec.Ext(1, 2)
 
     def test_code_wrong_type(self):
         with pytest.raises(TypeError):
-            msgspec.ExtType(b"bad", b"bad")
+            msgspec.Ext(b"bad", b"bad")
 
     def test_immutable(self):
-        x = msgspec.ExtType(1, b"two")
+        x = msgspec.Ext(1, b"two")
         with pytest.raises(AttributeError):
             x.code = 2
 
     def test_pickleable(self):
-        x = msgspec.ExtType(1, b"two")
+        x = msgspec.Ext(1, b"two")
         x2 = pickle.loads(pickle.dumps(x))
         assert x2.code == 1
         assert x2.data == b"two"
@@ -846,13 +875,13 @@ class TestExtType:
         data = b"x" * size
         code = 5
 
-        msgspec_bytes = msgspec.encode(msgspec.ExtType(code, data))
+        msgspec_bytes = msgspec.encode(msgspec.Ext(code, data))
         msgpack_bytes = msgpack.dumps(msgpack.ExtType(code, data))
         assert msgspec_bytes == msgpack_bytes
 
     def test_serialize_bytearray(self):
-        a = msgspec.encode(msgspec.ExtType(1, b"test"))
-        b = msgspec.encode(msgspec.ExtType(1, bytearray(b"test")))
+        a = msgspec.encode(msgspec.Ext(1, b"test"))
+        b = msgspec.encode(msgspec.Ext(1, bytearray(b"test")))
         assert a == b
 
     @pytest.mark.parametrize("size", sorted({0, 1, 2, 4, 8, 16, *SIZES}))
@@ -860,27 +889,72 @@ class TestExtType:
         data = b"x" * size
         code = 5
 
-        buf = msgspec.encode(msgspec.ExtType(code, data))
+        buf = msgspec.encode(msgspec.Ext(code, data))
         out = msgspec.decode(buf)
         assert out.code == code
         assert out.data == data
 
     @pytest.mark.parametrize("size", sorted({0, 1, 2, 4, 8, 16, *SIZES}))
     def test_roundtrip_typed_decoder(self, size):
-        dec = msgspec.Decoder(msgspec.ExtType)
+        dec = msgspec.Decoder(msgspec.Ext)
 
-        data = b"x" * size
-        code = 5
-        buf = msgspec.encode(msgspec.ExtType(code, data))
+        ext = msgspec.Ext(5, b"x" * size)
+        buf = msgspec.encode(ext)
         out = dec.decode(buf)
-        assert isinstance(out, msgspec.ExtType)
-        assert out.code == code
-        assert out.data == data
+        assert out == ext
+
+    def test_typed_decoder_skips_ext_hook(self):
+        def ext_hook(code, data):
+            assert False, "shouldn't ever get called"
+
+        msg = [None, msgspec.Ext(1, b"test")]
+        dec = msgspec.Decoder(List[Optional[msgspec.Ext]])
+        buf = msgspec.encode(msg)
+        out = dec.decode(buf)
+        assert out == msg
 
     def test_ext_typed_decoder_error(self):
-        dec = msgspec.Decoder(msgspec.ExtType)
-        with pytest.raises(msgspec.DecodingError, match="expected `ExtType`"):
+        dec = msgspec.Decoder(msgspec.Ext)
+        with pytest.raises(msgspec.DecodingError, match="expected `Ext`"):
             assert dec.decode(msgspec.encode(1))
+
+    @pytest.mark.parametrize("use_function", [True, False])
+    def test_decoder_ext_hook(self, use_function):
+        obj = {"x": range(10)}
+        exp_buf = pickle.dumps(range(10))
+
+        def default(x):
+            return msgspec.Ext(5, pickle.dumps(x))
+
+        def ext_hook(code, buf):
+            assert isinstance(buf, memoryview)
+            assert bytes(buf) == exp_buf
+            assert code == 5
+            return pickle.loads(buf)
+
+        msg = msgspec.encode(obj, default=default)
+        if use_function:
+            out = msgspec.decode(msg, ext_hook=ext_hook)
+        else:
+            dec = msgspec.Decoder(ext_hook=ext_hook)
+            out = dec.decode(msg)
+        assert out == obj
+
+    def test_decoder_ext_hook_bad_signature(self):
+        msg = msgspec.encode(range(5), default=lambda x: msgspec.Ext(1, b"test"))
+        with pytest.raises(TypeError):
+            msgspec.decode(msg, ext_hook=lambda: None)
+
+    def test_decoder_ext_hook_raises(self):
+        class CustomError(Exception):
+            pass
+
+        def ext_hook(code, buf):
+            raise CustomError
+
+        msg = msgspec.encode(range(5), default=lambda x: msgspec.Ext(1, b"test"))
+        with pytest.raises(CustomError):
+            msgspec.decode(msg, ext_hook=ext_hook)
 
 
 class CommonTypeTestBase:
