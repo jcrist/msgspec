@@ -843,6 +843,16 @@ class TestExtType:
         b = msgspec.encode(msgspec.ExtType(1, bytearray(b"test")))
         assert a == b
 
+    @pytest.mark.parametrize("size", sorted({0, 1, 2, 4, 8, 16, *SIZES}))
+    def test_roundtrip(self, size):
+        data = b"x" * size
+        code = 5
+
+        buf = msgspec.encode(msgspec.ExtType(code, data))
+        out = msgspec.decode(buf)
+        assert out.code == code
+        assert out.data == data
+
 
 class CommonTypeTestBase:
     """Test msgspec untyped encode/decode"""
