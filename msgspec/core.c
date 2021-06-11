@@ -1523,7 +1523,7 @@ typedef struct Ext {
 } Ext;
 
 static PyObject *
-ExtType_New(char code, PyObject *data) {
+Ext_New(char code, PyObject *data) {
     Ext *out = (Ext *)Ext_Type.tp_alloc(&Ext_Type, 0);
     if (out == NULL)
         return NULL;
@@ -1534,7 +1534,10 @@ ExtType_New(char code, PyObject *data) {
     return (PyObject *)out;
 }
 
-PyDoc_STRVAR(ExtType__doc__,
+PyDoc_STRVAR(Ext__doc__,
+"Ext(code, data)\n"
+"--\n"
+"\n"
 "A record representing a MessagePack Extension Type.\n"
 "\n"
 "Parameters\n"
@@ -1545,7 +1548,7 @@ PyDoc_STRVAR(ExtType__doc__,
 "    The byte buffer for this extension."
 );
 static PyObject *
-ExtType_vectorcall(PyTypeObject *cls, PyObject *const *args, size_t nargsf, PyObject *kwnames) {
+Ext_vectorcall(PyTypeObject *cls, PyObject *const *args, size_t nargsf, PyObject *kwnames) {
     PyObject *pycode, *data;
     char code;
     Py_ssize_t nargs, nkwargs;
@@ -1601,23 +1604,23 @@ ExtType_vectorcall(PyTypeObject *cls, PyObject *const *args, size_t nargsf, PyOb
         );
         return NULL;
     }
-    return ExtType_New(code, data);
+    return Ext_New(code, data);
 }
 
 static void
-ExtType_dealloc(Ext *self)
+Ext_dealloc(Ext *self)
 {
     Py_XDECREF(self->data);
 }
 
-static PyMemberDef ExtType_members[] = {
+static PyMemberDef Ext_members[] = {
     {"code", T_BYTE, offsetof(Ext, code), READONLY, "The extension type code"},
     {"data", T_OBJECT_EX, offsetof(Ext, data), READONLY, "The extension data payload"},
     {NULL},
 };
 
 static PyObject *
-ExtType_reduce(PyObject *self, PyObject *unused)
+Ext_reduce(PyObject *self, PyObject *unused)
 {
     return Py_BuildValue("O(bO)", Py_TYPE(self), ((Ext*)self)->code, ((Ext*)self)->data);
 }
@@ -1650,26 +1653,26 @@ Ext_richcompare(PyObject *self, PyObject *other, int op) {
     return out;
 }
 
-static PyMethodDef ExtType_methods[] = {
-    {"__reduce__", ExtType_reduce, METH_NOARGS, "reduce an Ext"},
+static PyMethodDef Ext_methods[] = {
+    {"__reduce__", Ext_reduce, METH_NOARGS, "reduce an Ext"},
     {NULL, NULL},
 };
 
 static PyTypeObject Ext_Type = {
     PyVarObject_HEAD_INIT(NULL, 0)
     .tp_name = "msgspec.Ext",
-    .tp_doc = ExtType__doc__,
+    .tp_doc = Ext__doc__,
     .tp_basicsize = sizeof(Ext),
     .tp_itemsize = 0,
     .tp_flags = Py_TPFLAGS_DEFAULT | _Py_TPFLAGS_HAVE_VECTORCALL,
     .tp_new = PyType_GenericNew,
-    .tp_dealloc = (destructor) ExtType_dealloc,
+    .tp_dealloc = (destructor) Ext_dealloc,
     .tp_call = PyVectorcall_Call,
-    .tp_vectorcall = (vectorcallfunc) ExtType_vectorcall,
+    .tp_vectorcall = (vectorcallfunc) Ext_vectorcall,
     .tp_vectorcall_offset = offsetof(PyTypeObject, tp_vectorcall),
     .tp_richcompare = Ext_richcompare,
-    .tp_members = ExtType_members,
-    .tp_methods = ExtType_methods
+    .tp_members = Ext_members,
+    .tp_methods = Ext_methods
 };
 
 /*************************************************************************
@@ -2805,7 +2808,7 @@ mp_decode_ext(DecoderState *self, Py_ssize_t size, bool skip_ext_hook) {
     if (self->ext_hook == NULL || skip_ext_hook) {
         data = PyBytes_FromStringAndSize(data_buf, size);
         if (data == NULL) return NULL;
-        return ExtType_New(code, data);
+        return Ext_New(code, data);
     }
 
     pycode = PyLong_FromLong(code);

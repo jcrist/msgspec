@@ -12,7 +12,7 @@ def get_lineno_type(line):
     assert "revealed type" in line.lower()
     _, lineno, msg = line.split(":", 2)
     lineno = int(lineno)
-    pat = re.search("'(.*)'", msg)
+    pat = re.search("[\"'](.*)[\"']", msg)
     typ = pat.groups()[0]
     return lineno, typ
 
