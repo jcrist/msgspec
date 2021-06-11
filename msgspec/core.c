@@ -3322,6 +3322,30 @@ mp_decode_type_binary(DecoderState *self, char op, bool is_bytearray, TypeNode *
     return PyBytes_FromStringAndSize(s, size);
 }
 
+static PyObject *
+mp_decode_type_ext(DecoderState *self, char op, TypeNode *ctx, Py_ssize_t ctx_ind) {
+    switch ((enum mp_code)op) {
+        case MP_FIXEXT1:
+            return mp_decode_ext(self, 1);
+        case MP_FIXEXT2:
+            return mp_decode_ext(self, 2);
+        case MP_FIXEXT4:
+            return mp_decode_ext(self, 4);
+        case MP_FIXEXT8:
+            return mp_decode_ext(self, 8);
+        case MP_FIXEXT16:
+            return mp_decode_ext(self, 16);
+        case MP_EXT8:
+            return mp_decode_ext(self, mp_decode_size1(self));
+        case MP_EXT16:
+            return mp_decode_ext(self, mp_decode_size2(self));
+        case MP_EXT32:
+            return mp_decode_ext(self, mp_decode_size4(self));
+        default:
+            return mp_validation_error(op, "ExtType", ctx, ctx_ind);
+    }
+}
+
 static Py_ssize_t
 mp_decode_map_size(DecoderState *self, char op, char *expected, TypeNode *ctx, Py_ssize_t ctx_ind) {
     if ('\x80' <= op && op <= '\x8f') {
@@ -3661,6 +3685,8 @@ mp_decode_type(
             return mp_decode_type_binary(self, op, false, ctx, ctx_ind);
         case TYPE_BYTEARRAY:
             return mp_decode_type_binary(self, op, true, ctx, ctx_ind);
+        case TYPE_EXTTYPE:
+            return mp_decode_type_ext(self, op, ctx, ctx_ind);
         case TYPE_ENUM:
             return mp_decode_type_enum(self, op, (TypeNodeObj *)type, ctx, ctx_ind);
         case TYPE_INTENUM:
