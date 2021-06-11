@@ -86,6 +86,7 @@ typedef struct {
     PyObject *str_name;
     PyObject *str_type;
     PyObject *str_default;
+    PyObject *str_ext_hook;
     PyObject *typing_list;
     PyObject *typing_set;
     PyObject *typing_tuple;
@@ -168,7 +169,7 @@ check_positional_nargs(Py_ssize_t nargs, Py_ssize_t min, Py_ssize_t max) {
  ************************************************************************/
 
 static PyTypeObject StructMetaType;
-static PyTypeObject ExtType_Type;
+static PyTypeObject Ext_Type;
 static int StructMeta_prep_types(PyObject *self);
 
 enum typecode {
@@ -403,7 +404,7 @@ TypeNode_Repr(TypeNode *type) {
         case TYPE_BYTEARRAY:
             return PyUnicode_FromString(type->optional ? "Optional[bytearray]" : "bytearray");
         case TYPE_EXTTYPE:
-            return PyUnicode_FromString(type->optional ? "Optional[ExtType]" : "ExtType");
+            return PyUnicode_FromString(type->optional ? "Optional[Ext]" : "Ext");
         case TYPE_ENUM:
         case TYPE_INTENUM:
         case TYPE_STRUCT: 
@@ -555,7 +556,7 @@ to_type_node(PyObject * obj, bool optional) {
     else if (obj == (PyObject *)(&PyByteArray_Type)) {
         return TypeNode_New(TYPE_BYTEARRAY, optional);
     }
-    else if (obj == (PyObject *)(&ExtType_Type)) {
+    else if (obj == (PyObject *)(&Ext_Type)) {
         return TypeNode_New(TYPE_EXTTYPE, optional);
     }
     else if (Py_TYPE(obj) == &StructMetaType) {
@@ -1512,18 +1513,18 @@ PyDoc_STRVAR(Struct__doc__,
 );
 
 /*************************************************************************
- * ExtType                                                               *
+ * Ext                                                               *
  *************************************************************************/
 
-typedef struct ExtType {
+typedef struct Ext {
     PyObject_HEAD
     char code;
     PyObject *data;
-} ExtType;
+} Ext;
 
 static PyObject *
 ExtType_New(char code, PyObject *data) {
-    ExtType *out = (ExtType *)ExtType_Type.tp_alloc(&ExtType_Type, 0);
+    Ext *out = (Ext *)Ext_Type.tp_alloc(&Ext_Type, 0);
     if (out == NULL)
         return NULL;
 
@@ -1555,14 +1556,14 @@ ExtType_vectorcall(PyTypeObject *cls, PyObject *const *args, size_t nargsf, PyOb
     if (nkwargs != 0) {
         PyErr_SetString(
             PyExc_TypeError,
-            "ExtType takes no keyword arguments"
+            "Ext takes no keyword arguments"
         );
         return NULL;
     }
     else if (nargs != 2) {
         PyErr_Format(
             PyExc_TypeError,
-            "ExtType expected 2 arguments, got %zd",
+            "Ext expected 2 arguments, got %zd",
             nargs
         );
         return NULL;
@@ -1604,33 +1605,61 @@ ExtType_vectorcall(PyTypeObject *cls, PyObject *const *args, size_t nargsf, PyOb
 }
 
 static void
-ExtType_dealloc(ExtType *self)
+ExtType_dealloc(Ext *self)
 {
     Py_XDECREF(self->data);
 }
 
 static PyMemberDef ExtType_members[] = {
-    {"code", T_BYTE, offsetof(ExtType, code), READONLY, "The ExtType type code"},
-    {"data", T_OBJECT_EX, offsetof(ExtType, data), READONLY, "The ExtType data payload"},
+    {"code", T_BYTE, offsetof(Ext, code), READONLY, "The extension type code"},
+    {"data", T_OBJECT_EX, offsetof(Ext, data), READONLY, "The extension data payload"},
     {NULL},
 };
 
 static PyObject *
 ExtType_reduce(PyObject *self, PyObject *unused)
 {
-    return Py_BuildValue("O(bO)", Py_TYPE(self), ((ExtType*)self)->code, ((ExtType*)self)->data);
+    return Py_BuildValue("O(bO)", Py_TYPE(self), ((Ext*)self)->code, ((Ext*)self)->data);
+}
+
+static PyObject *
+Ext_richcompare(PyObject *self, PyObject *other, int op) {
+    int status;
+    PyObject *out;
+    Ext *ex_self, *ex_other;
+
+    if (Py_TYPE(other) != &Ext_Type) { 
+        Py_RETURN_NOTIMPLEMENTED;
+    }
+    if (op != Py_EQ && op != Py_NE) {
+        Py_RETURN_NOTIMPLEMENTED;
+    }
+    ex_self = (Ext *)self;
+    ex_other = (Ext *)other;
+
+    status = ex_self->code == ex_other->code;
+    if (!status) {
+        out = (op == Py_EQ) ? Py_False : Py_True;
+    }
+    else {
+        status = PyObject_RichCompareBool(ex_self->data, ex_other->data, op);
+        if (status == -1) return NULL;
+        out = status ? Py_True : Py_False;
+    }
+    Py_INCREF(out);
+    return out;
 }
 
 static PyMethodDef ExtType_methods[] = {
-    {"__reduce__", ExtType_reduce, METH_NOARGS, "reduce an ExtType"},
+    {"__reduce__", ExtType_reduce, METH_NOARGS, "reduce an Ext"},
     {NULL, NULL},
 };
 
-static PyTypeObject ExtType_Type = {
+static PyTypeObject Ext_Type = {
     PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name = "msgspec.ExtType",
+    .tp_name = "msgspec.Ext",
     .tp_doc = ExtType__doc__,
-    .tp_basicsize = sizeof(ExtType),
+    .tp_basicsize = sizeof(Ext),
     .tp_itemsize = 0,
     .tp_flags = Py_TPFLAGS_DEFAULT | _Py_TPFLAGS_HAVE_VECTORCALL,
     .tp_new = PyType_GenericNew,
@@ -1638,6 +1667,7 @@ static PyTypeObject ExtType_Type = {
     .tp_call = PyVectorcall_Call,
     .tp_vectorcall = (vectorcallfunc) ExtType_vectorcall,
     .tp_vectorcall_offset = offsetof(PyTypeObject, tp_vectorcall),
+    .tp_richcompare = Ext_richcompare,
     .tp_members = ExtType_members,
     .tp_methods = ExtType_methods
 };
@@ -2166,7 +2196,7 @@ mp_encode_struct(EncoderState *self, PyObject *obj)
 static int
 mp_encode_exttype(EncoderState *self, PyObject *obj)
 {
-    ExtType *ex = (ExtType *)obj;
+    Ext *ex = (Ext *)obj;
     Py_ssize_t len;
     int header_len = 2;
     char header[6];
@@ -2220,7 +2250,7 @@ mp_encode_exttype(EncoderState *self, PyObject *obj)
     else {
         PyErr_SetString(
             msgspec_get_global_state()->EncodingError,
-            "Can't encode ExtType objects with data longer than 2**32 - 1"
+            "Can't encode Ext objects with data longer than 2**32 - 1"
         );
         return -1;
     }
@@ -2304,7 +2334,7 @@ mp_encode(EncoderState *self, PyObject *obj)
     else if (Py_TYPE(type) == &StructMetaType) {
         return mp_encode_struct(self, obj);
     }
-    else if (type == &ExtType_Type) {
+    else if (type == &Ext_Type) {
         return mp_encode_exttype(self, obj);
     }
     st = msgspec_get_global_state();
@@ -2519,6 +2549,7 @@ msgspec_encode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject
 typedef struct DecoderState {
     /* Configuration */
     TypeNode *type;
+    PyObject *ext_hook;
 
     /* Per-message attributes */
     PyObject *buffer_obj;
@@ -2534,7 +2565,7 @@ typedef struct Decoder {
 } Decoder;
 
 PyDoc_STRVAR(Decoder__doc__,
-"Decoder(type='Any')\n"
+"Decoder(type='Any', ext_hook=None)\n"
 "--\n"
 "\n"
 "A MessagePack decoder.\n"
@@ -2545,18 +2576,39 @@ PyDoc_STRVAR(Decoder__doc__,
 "    A Python type (in type annotation form) to decode the object as. If\n"
 "    provided, the message will be type checked and decoded as the specified\n"
 "    type. Defaults to `Any`, in which case the message will be decoded using\n"
-"    the default MessagePack types."
+"    the default MessagePack types.\n"
+"ext_hook : Callable, optional\n"
+"    An optional callback for decoding extension types. Should have the\n"
+"    signature ``ext_hook(code: int, data: memoryview) -> Any``. If provided,\n"
+"    this will be called to deserialize all extension types found in the\n"
+"    message. Note that ``data`` is a memoryview into the larger message\n"
+"    buffer - any references created to the underlying buffer without copying\n"
+"    the data out will cause the full message buffer to persist in memory.\n"
+"    If not provided, extension types will decode as ``msgspec.Ext`` objects."
 );
 static int
 Decoder_init(Decoder *self, PyObject *args, PyObject *kwds)
 {
-    static char *kwlist[] = {"type", NULL};
+    static char *kwlist[] = {"type", "ext_hook", NULL};
     MsgspecState *st = msgspec_get_global_state();
     PyObject *type = st->typing_any;
+    PyObject *ext_hook = NULL;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|O", kwlist, &type)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OO", kwlist, &type, &ext_hook)) {
         return -1;
     }
+
+    if (ext_hook == Py_None) {
+        ext_hook = NULL;
+    }
+    if (ext_hook != NULL) {
+        if (!PyCallable_Check(ext_hook)) {
+            PyErr_SetString(PyExc_TypeError, "ext_hook must be callable");
+            return -1;
+        }
+        Py_INCREF(ext_hook);
+    }
+    self->state.ext_hook = ext_hook;
 
     self->state.type = TypeNode_Convert(type);
     if (self->state.type == NULL) {
@@ -2573,6 +2625,7 @@ Decoder_traverse(Decoder *self, visitproc visit, void *arg)
     int out = TypeNode_traverse(self->state.type, visit, arg);
     if (out != 0) return out;
     Py_VISIT(self->orig_type);
+    Py_VISIT(self->state.ext_hook);
     return 0;
 }
 
@@ -2581,6 +2634,7 @@ Decoder_dealloc(Decoder *self)
 {
     TypeNode_Free(self->state.type);
     Py_XDECREF(self->orig_type);
+    Py_XDECREF(self->state.ext_hook);
     Py_TYPE(self)->tp_free((PyObject *)self);
 }
 
@@ -2740,15 +2794,34 @@ mp_decode_bin(DecoderState *self, Py_ssize_t size) {
 }
 
 static PyObject *
-mp_decode_ext(DecoderState *self, Py_ssize_t size) {
+mp_decode_ext(DecoderState *self, Py_ssize_t size, bool skip_ext_hook) {
+    Py_buffer *buffer;
     char code, *data_buf;
-    PyObject *data;
+    PyObject *data, *pycode = NULL, *view = NULL, *out = NULL;
+
     if (mp_read1(self, &code) < 0) return NULL;
     if (mp_read(self, &data_buf, size) < 0) return NULL;
 
-    data = PyBytes_FromStringAndSize(data_buf, size);
-    if (data == NULL) return NULL;
-    return ExtType_New(code, data);
+    if (self->ext_hook == NULL || skip_ext_hook) {
+        data = PyBytes_FromStringAndSize(data_buf, size);
+        if (data == NULL) return NULL;
+        return ExtType_New(code, data);
+    }
+
+    pycode = PyLong_FromLong(code);
+    if (pycode == NULL) goto done;
+
+    view = PyMemoryView_GetContiguous(self->buffer_obj, PyBUF_READ, 'C');
+    if (view == NULL) goto done;
+    buffer = PyMemoryView_GET_BUFFER(view);
+    buffer->buf = data_buf;
+    buffer->len = size;
+
+    out = PyObject_CallFunctionObjArgs(self->ext_hook, pycode, view, NULL);
+done:
+    Py_XDECREF(pycode);
+    Py_XDECREF(view);
+    return out;
 }
 
 static PyObject *
@@ -2908,21 +2981,21 @@ mp_decode_any(DecoderState *self, bool is_key) {
         case MP_MAP32:
             return mp_decode_map(self, mp_decode_size4(self));
         case MP_FIXEXT1:
-            return mp_decode_ext(self, 1);
+            return mp_decode_ext(self, 1, false);
         case MP_FIXEXT2:
-            return mp_decode_ext(self, 2);
+            return mp_decode_ext(self, 2, false);
         case MP_FIXEXT4:
-            return mp_decode_ext(self, 4);
+            return mp_decode_ext(self, 4, false);
         case MP_FIXEXT8:
-            return mp_decode_ext(self, 8);
+            return mp_decode_ext(self, 8, false);
         case MP_FIXEXT16:
-            return mp_decode_ext(self, 16);
+            return mp_decode_ext(self, 16, false);
         case MP_EXT8:
-            return mp_decode_ext(self, mp_decode_size1(self));
+            return mp_decode_ext(self, mp_decode_size1(self), false);
         case MP_EXT16:
-            return mp_decode_ext(self, mp_decode_size2(self));
+            return mp_decode_ext(self, mp_decode_size2(self), false);
         case MP_EXT32:
-            return mp_decode_ext(self, mp_decode_size4(self));
+            return mp_decode_ext(self, mp_decode_size4(self), false);
         default:
             PyErr_Format(msgspec_get_global_state()->DecodingError, "invalid opcode, '\\x%02x'.", op);
             return NULL;
@@ -3350,23 +3423,23 @@ static PyObject *
 mp_decode_type_ext(DecoderState *self, char op, TypeNode *ctx, Py_ssize_t ctx_ind) {
     switch ((enum mp_code)op) {
         case MP_FIXEXT1:
-            return mp_decode_ext(self, 1);
+            return mp_decode_ext(self, 1, true);
         case MP_FIXEXT2:
-            return mp_decode_ext(self, 2);
+            return mp_decode_ext(self, 2, true);
         case MP_FIXEXT4:
-            return mp_decode_ext(self, 4);
+            return mp_decode_ext(self, 4, true);
         case MP_FIXEXT8:
-            return mp_decode_ext(self, 8);
+            return mp_decode_ext(self, 8, true);
         case MP_FIXEXT16:
-            return mp_decode_ext(self, 16);
+            return mp_decode_ext(self, 16, true);
         case MP_EXT8:
-            return mp_decode_ext(self, mp_decode_size1(self));
+            return mp_decode_ext(self, mp_decode_size1(self), true);
         case MP_EXT16:
-            return mp_decode_ext(self, mp_decode_size2(self));
+            return mp_decode_ext(self, mp_decode_size2(self), true);
         case MP_EXT32:
-            return mp_decode_ext(self, mp_decode_size4(self));
+            return mp_decode_ext(self, mp_decode_size4(self), true);
         default:
-            return mp_validation_error(op, "ExtType", ctx, ctx_ind);
+            return mp_validation_error(op, "Ext", ctx, ctx_ind);
     }
 }
 
@@ -3787,6 +3860,7 @@ static struct PyMethodDef Decoder_methods[] = {
 
 static PyMemberDef Decoder_members[] = {
     {"type", T_OBJECT_EX, offsetof(Decoder, orig_type), READONLY, "The Decoder type"},
+    {"ext_hook", T_OBJECT, offsetof(Decoder, state.ext_hook), READONLY, "The Decoder ext_hook"},
     {NULL},
 };
 
@@ -3807,7 +3881,7 @@ static PyTypeObject Decoder_Type = {
 
 
 PyDoc_STRVAR(msgspec_decode__doc__,
-"decode(buf, *, type='Any')\n"
+"decode(buf, *, type='Any', ext_hook=None)\n"
 "--\n"
 "\n"
 "Deserialize an object from bytes.\n"
@@ -3821,6 +3895,14 @@ PyDoc_STRVAR(msgspec_decode__doc__,
 "    provided, the message will be type checked and decoded as the specified\n"
 "    type. Defaults to `Any`, in which case the message will be decoded using\n"
 "    the default MessagePack types.\n"
+"ext_hook : Callable, optional\n"
+"    An optional callback for decoding extension types. Should have the\n"
+"    signature ``ext_hook(code: int, data: memoryview) -> Any``. If provided,\n"
+"    this will be called to deserialize all extension types found in the\n"
+"    message. Note that ``data`` is a memoryview into the larger message\n"
+"    buffer - any references created to the underlying buffer without copying\n"
+"    the data out will cause the full message buffer to persist in memory.\n"
+"    If not provided, extension types will decode as ``msgspec.Ext`` objects.\n"
 "\n"
 "Returns\n"
 "-------\n"
@@ -3834,7 +3916,7 @@ PyDoc_STRVAR(msgspec_decode__doc__,
 static PyObject*
 msgspec_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
 {
-    PyObject *res = NULL, *buf = NULL, *type = NULL;
+    PyObject *res = NULL, *buf = NULL, *type = NULL, *ext_hook = NULL;
     DecoderState state;
     Py_buffer buffer;
     MsgspecState *st = msgspec_get_global_state();
@@ -3844,21 +3926,11 @@ msgspec_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject
     buf = args[0];
     if (kwnames != NULL) {
         Py_ssize_t nkwargs = PyTuple_GET_SIZE(kwnames);
-        if (nkwargs == 1) {
-            PyObject *key = PyTuple_GET_ITEM(kwnames, 0);
-            if (st->str_type == key || _PyUnicode_EQ(st->str_type, key)) {
-                type = args[nargs];
-            }
-            else {
-                PyErr_Format(
-                    PyExc_TypeError,
-                    "Invalid keyword argument '%U'",
-                    key
-                );
-                return NULL;
-            }
-        }
-        else if (nkwargs > 1) {
+        type = find_keyword(kwnames, args + nargs, st->str_type);
+        if (type != NULL) nkwargs--;
+        ext_hook = find_keyword(kwnames, args + nargs, st->str_ext_hook);
+        if (ext_hook != NULL) nkwargs--;
+        if (nkwargs > 0) {
             PyErr_SetString(
                 PyExc_TypeError,
                 "Extra keyword arguments provided"
@@ -3866,6 +3938,17 @@ msgspec_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject
             return NULL;
         }
     }
+
+    if (ext_hook == Py_None) {
+        ext_hook = NULL;
+    }
+    if (ext_hook != NULL) {
+        if (!PyCallable_Check(ext_hook)) {
+            PyErr_SetString(PyExc_TypeError, "ext_hook must be callable");
+            return NULL;
+        }
+    }
+    state.ext_hook = ext_hook;
 
     /* Only build TypeNode if required */
     state.type = NULL;
@@ -3927,6 +4010,7 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->str_name);
     Py_CLEAR(st->str_type);
     Py_CLEAR(st->str_default);
+    Py_CLEAR(st->str_ext_hook);
     Py_CLEAR(st->typing_dict);
     Py_CLEAR(st->typing_list);
     Py_CLEAR(st->typing_set);
@@ -3995,7 +4079,7 @@ PyInit_core(void)
         return NULL;
     if (PyType_Ready(&Decoder_Type) < 0)
         return NULL;
-    if (PyType_Ready(&ExtType_Type) < 0)
+    if (PyType_Ready(&Ext_Type) < 0)
         return NULL;
 
     /* Create the module */
@@ -4010,8 +4094,8 @@ PyInit_core(void)
     Py_INCREF(&Decoder_Type);
     if (PyModule_AddObject(m, "Decoder", (PyObject *)&Decoder_Type) < 0)
         return NULL;
-    Py_INCREF(&ExtType_Type);
-    if (PyModule_AddObject(m, "ExtType", (PyObject *)&ExtType_Type) < 0)
+    Py_INCREF(&Ext_Type);
+    if (PyModule_AddObject(m, "Ext", (PyObject *)&Ext_Type) < 0)
         return NULL;
 
     st = msgspec_get_state(m);
@@ -4108,6 +4192,9 @@ PyInit_core(void)
         return NULL;
     st->str_default = PyUnicode_InternFromString("default");
     if (st->str_default == NULL)
+        return NULL;
+    st->str_ext_hook = PyUnicode_InternFromString("ext_hook");
+    if (st->str_ext_hook == NULL)
         return NULL;
 
     return m;
