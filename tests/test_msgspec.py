@@ -677,7 +677,19 @@ class TestTypedDecoder:
             dec.decode(bad)
 
     @pytest.mark.parametrize(
-        "extra", [None, False, True, 1, 2.0, "three", b"four", [1, 2], {3: 4}]
+        "extra",
+        [
+            None,
+            False,
+            True,
+            1,
+            2.0,
+            "three",
+            b"four",
+            [1, 2],
+            {3: 4},
+            msgspec.ExtType(1, b"12345"),
+        ],
     )
     def test_struct_ignore_extra_fields(self, extra):
         enc = msgspec.Encoder()

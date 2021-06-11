@@ -2953,6 +2953,14 @@ mp_skip_map(DecoderState *self, Py_ssize_t size) {
 }
 
 static int
+mp_skip_ext(DecoderState *self, Py_ssize_t size) {
+    char *s;
+    if (size < 0) return -1;
+    if (size == 0) return 0;
+    return mp_read(self, &s, size + 1);
+}
+
+static int
 mp_skip(DecoderState *self) {
     char *s;
     char op;
@@ -3011,6 +3019,22 @@ mp_skip(DecoderState *self) {
             return mp_skip_map(self, mp_decode_size2(self));
         case MP_MAP32:
             return mp_skip_map(self, mp_decode_size4(self));
+        case MP_FIXEXT1:
+            return mp_skip_ext(self, 1);
+        case MP_FIXEXT2:
+            return mp_skip_ext(self, 2);
+        case MP_FIXEXT4:
+            return mp_skip_ext(self, 4);
+        case MP_FIXEXT8:
+            return mp_skip_ext(self, 8);
+        case MP_FIXEXT16:
+            return mp_skip_ext(self, 16);
+        case MP_EXT8:
+            return mp_skip_ext(self, mp_decode_size1(self));
+        case MP_EXT16:
+            return mp_skip_ext(self, mp_decode_size2(self));
+        case MP_EXT32:
+            return mp_skip_ext(self, mp_decode_size4(self));
         default:
             PyErr_Format(msgspec_get_global_state()->DecodingError, "invalid opcode, '\\x%02x'.", op);
             return -1;
