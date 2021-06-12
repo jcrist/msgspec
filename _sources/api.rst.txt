@@ -24,6 +24,13 @@ Struct
     :members:
 
 
+Ext
+---
+
+.. autoclass:: Ext
+    :members:
+
+
 Functions
 ---------
 
