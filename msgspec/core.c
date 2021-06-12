@@ -189,7 +189,7 @@ enum typecode {
     TYPE_VARTUPLE,
     TYPE_FIXTUPLE,
     TYPE_DICT,
-    TYPE_EXTTYPE,
+    TYPE_EXT,
 };
 
 typedef struct TypeNode {
@@ -231,7 +231,7 @@ TypeNode_Free(TypeNode *type) {
         case TYPE_STR:
         case TYPE_BYTES:
         case TYPE_BYTEARRAY:
-        case TYPE_EXTTYPE:
+        case TYPE_EXT:
             PyMem_Free(type);
             return;
         case TYPE_ENUM:
@@ -280,7 +280,7 @@ TypeNode_traverse(TypeNode *type, visitproc visit, void *arg) {
         case TYPE_STR:
         case TYPE_BYTES:
         case TYPE_BYTEARRAY:
-        case TYPE_EXTTYPE:
+        case TYPE_EXT:
             return 0;
         case TYPE_ENUM:
         case TYPE_INTENUM:
@@ -403,7 +403,7 @@ TypeNode_Repr(TypeNode *type) {
             return PyUnicode_FromString(type->optional ? "Optional[bytes]" : "bytes");
         case TYPE_BYTEARRAY:
             return PyUnicode_FromString(type->optional ? "Optional[bytearray]" : "bytearray");
-        case TYPE_EXTTYPE:
+        case TYPE_EXT:
             return PyUnicode_FromString(type->optional ? "Optional[Ext]" : "Ext");
         case TYPE_ENUM:
         case TYPE_INTENUM:
@@ -557,7 +557,7 @@ to_type_node(PyObject * obj, bool optional) {
         return TypeNode_New(TYPE_BYTEARRAY, optional);
     }
     else if (obj == (PyObject *)(&Ext_Type)) {
-        return TypeNode_New(TYPE_EXTTYPE, optional);
+        return TypeNode_New(TYPE_EXT, optional);
     }
     else if (Py_TYPE(obj) == &StructMetaType) {
         if (StructMeta_prep_types(obj) < 0) return NULL;
@@ -1544,8 +1544,9 @@ PyDoc_STRVAR(Ext__doc__,
 "----------\n"
 "code : int\n"
 "    The integer type code for this extension. Must be between -128 and 127.\n"
-"data : bytes or bytearray\n"
-"    The byte buffer for this extension."
+"data : bytes, bytearray, or memoryview\n"
+"    The byte buffer for this extension. One of bytes, bytearray, memoryview,\n"
+"    or any object that implements the buffer protocol."
 );
 static PyObject *
 Ext_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
@@ -2592,7 +2593,7 @@ PyDoc_STRVAR(Decoder__doc__,
 "    type. Defaults to `Any`, in which case the message will be decoded using\n"
 "    the default MessagePack types.\n"
 "ext_hook : Callable, optional\n"
-"    An optional callback for decoding extension types. Should have the\n"
+"    An optional callback for decoding MessagePack extensions. Should have the\n"
 "    signature ``ext_hook(code: int, data: memoryview) -> Any``. If provided,\n"
 "    this will be called to deserialize all extension types found in the\n"
 "    message. Note that ``data`` is a memoryview into the larger message\n"
@@ -3795,7 +3796,7 @@ mp_decode_type(
             return mp_decode_type_binary(self, op, false, ctx, ctx_ind);
         case TYPE_BYTEARRAY:
             return mp_decode_type_binary(self, op, true, ctx, ctx_ind);
-        case TYPE_EXTTYPE:
+        case TYPE_EXT:
             return mp_decode_type_ext(self, op, ctx, ctx_ind);
         case TYPE_ENUM:
             return mp_decode_type_enum(self, op, (TypeNodeObj *)type, ctx, ctx_ind);
@@ -3909,7 +3910,7 @@ PyDoc_STRVAR(msgspec_decode__doc__,
 "    type. Defaults to `Any`, in which case the message will be decoded using\n"
 "    the default MessagePack types.\n"
 "ext_hook : Callable, optional\n"
-"    An optional callback for decoding extension types. Should have the\n"
+"    An optional callback for decoding MessagePack extensions. Should have the\n"
 "    signature ``ext_hook(code: int, data: memoryview) -> Any``. If provided,\n"
 "    this will be called to deserialize all extension types found in the\n"
 "    message. Note that ``data`` is a memoryview into the larger message\n"
