@@ -1548,13 +1548,13 @@ PyDoc_STRVAR(Ext__doc__,
 "    The byte buffer for this extension."
 );
 static PyObject *
-Ext_vectorcall(PyTypeObject *cls, PyObject *const *args, size_t nargsf, PyObject *kwnames) {
+Ext_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
     PyObject *pycode, *data;
     char code;
     Py_ssize_t nargs, nkwargs;
 
-    nargs = PyVectorcall_NARGS(nargsf);
-    nkwargs = (kwnames == NULL) ? 0 : PyTuple_GET_SIZE(kwnames);
+    nargs = PyTuple_GET_SIZE(args);
+    nkwargs = (kwargs == NULL) ? 0 : PyDict_GET_SIZE(kwargs);
 
     if (nkwargs != 0) {
         PyErr_SetString(
@@ -1572,8 +1572,8 @@ Ext_vectorcall(PyTypeObject *cls, PyObject *const *args, size_t nargsf, PyObject
         return NULL;
     }
 
-    pycode = args[0];
-    data = args[1];
+    pycode = PyTuple_GET_ITEM(args, 0);
+    data = PyTuple_GET_ITEM(args, 1);
 
     if (PyLong_CheckExact(pycode)) {
         long val = PyLong_AsLong(pycode);
@@ -1665,11 +1665,9 @@ static PyTypeObject Ext_Type = {
     .tp_basicsize = sizeof(Ext),
     .tp_itemsize = 0,
     .tp_flags = Py_TPFLAGS_DEFAULT | _Py_TPFLAGS_HAVE_VECTORCALL,
-    .tp_new = PyType_GenericNew,
+    .tp_new = Ext_new,
     .tp_dealloc = (destructor) Ext_dealloc,
     .tp_call = PyVectorcall_Call,
-    .tp_vectorcall = (vectorcallfunc) Ext_vectorcall,
-    .tp_vectorcall_offset = offsetof(PyTypeObject, tp_vectorcall),
     .tp_richcompare = Ext_richcompare,
     .tp_members = Ext_members,
     .tp_methods = Ext_methods
@@ -2197,7 +2195,7 @@ mp_encode_struct(EncoderState *self, PyObject *obj)
 }
 
 static int
-mp_encode_exttype(EncoderState *self, PyObject *obj)
+mp_encode_ext(EncoderState *self, PyObject *obj)
 {
     Ext *ex = (Ext *)obj;
     Py_ssize_t len;
@@ -2338,7 +2336,7 @@ mp_encode(EncoderState *self, PyObject *obj)
         return mp_encode_struct(self, obj);
     }
     else if (type == &Ext_Type) {
-        return mp_encode_exttype(self, obj);
+        return mp_encode_ext(self, obj);
     }
     st = msgspec_get_global_state();
     if (PyType_IsSubtype(type, st->EnumType)) {
