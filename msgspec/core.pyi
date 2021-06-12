@@ -4,8 +4,8 @@ T = TypeVar("T")
 
 class Ext:
     code: int
-    data: Union[bytes, bytearray]
-    def __init__(self, code: int, data: Union[bytes, bytearray]) -> None: ...
+    data: Union[bytes, bytearray, memoryview]
+    def __init__(self, code: int, data: Union[bytes, bytearray, memoryview]) -> None: ...
 
 class Decoder(Generic[T]):
     @overload
