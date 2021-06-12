@@ -1596,10 +1596,10 @@ Ext_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
         );
         return NULL;
     }
-    if (!(PyBytes_CheckExact(data) || PyByteArray_CheckExact(data))) {
+    if (!(PyBytes_CheckExact(data) || PyByteArray_CheckExact(data) || PyObject_CheckBuffer(data))) {
         PyErr_Format(
             PyExc_TypeError,
-            "data must be a bytes or bytearray object, got %.200s",
+            "data must be a bytes, bytearray, or buffer-like object, got %.200s",
             Py_TYPE(data)->tp_name
         );
         return NULL;
@@ -2199,16 +2199,25 @@ mp_encode_ext(EncoderState *self, PyObject *obj)
 {
     Ext *ex = (Ext *)obj;
     Py_ssize_t len;
-    int header_len = 2;
+    int status = -1, header_len = 2;
     char header[6];
     const char* data;
+    Py_buffer buffer;
+    buffer.buf = NULL;
+
     if (PyBytes_CheckExact(ex->data)) {
         len = PyBytes_GET_SIZE(ex->data);
         data = PyBytes_AS_STRING(ex->data);
     }
-    else {
+    else if (PyByteArray_CheckExact(ex->data)) {
         len = PyByteArray_GET_SIZE(ex->data);
         data = PyByteArray_AS_STRING(ex->data);
+    }
+    else {
+        if (PyObject_GetBuffer(ex->data, &buffer, PyBUF_CONTIG_RO) < 0)
+            return -1;
+        len = buffer.len;
+        data = buffer.buf;
     }
     if (len == 1) {
         header[0] = MP_FIXEXT1;
@@ -2253,11 +2262,15 @@ mp_encode_ext(EncoderState *self, PyObject *obj)
             msgspec_get_global_state()->EncodingError,
             "Can't encode Ext objects with data longer than 2**32 - 1"
         );
-        return -1;
+        goto done;
     }
     if (mp_write(self, header, header_len) < 0)
-        return -1;
-    return len > 0 ? mp_write(self, data, len) : 0;
+        goto done;
+    status = len > 0 ? mp_write(self, data, len) : 0;
+done:
+    if (buffer.buf != NULL)
+        PyBuffer_Release(&buffer);
+    return status;
 }
 
 static int

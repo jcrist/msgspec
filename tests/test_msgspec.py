@@ -828,7 +828,7 @@ class TestTypedDecoder:
 
 
 class TestExt:
-    @pytest.mark.parametrize("data", [b"test", bytearray(b"test")])
+    @pytest.mark.parametrize("data", [b"test", bytearray(b"test"), memoryview(b"test")])
     def test_init(self, data):
         x = msgspec.Ext(1, data)
         assert x.code == 1
@@ -880,9 +880,11 @@ class TestExt:
         msgpack_bytes = msgpack.dumps(msgpack.ExtType(code, data))
         assert msgspec_bytes == msgpack_bytes
 
-    def test_serialize_bytearray(self):
-        a = msgspec.encode(msgspec.Ext(1, b"test"))
-        b = msgspec.encode(msgspec.Ext(1, bytearray(b"test")))
+    @pytest.mark.parametrize("typ", [bytearray, memoryview])
+    def test_serialize_other_types(self, typ):
+        buf = b"test"
+        a = msgspec.encode(msgspec.Ext(1, buf))
+        b = msgspec.encode(msgspec.Ext(1, typ(buf)))
         assert a == b
 
     @pytest.mark.parametrize("size", sorted({0, 1, 2, 4, 8, 16, *SIZES}))
