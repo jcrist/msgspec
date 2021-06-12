@@ -3032,7 +3032,6 @@ static int
 mp_skip_ext(DecoderState *self, Py_ssize_t size) {
     char *s;
     if (size < 0) return -1;
-    if (size == 0) return 0;
     return mp_read(self, &s, size + 1);
 }
 
