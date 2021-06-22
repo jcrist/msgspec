@@ -86,6 +86,7 @@ typedef struct {
     PyObject *str_name;
     PyObject *str_type;
     PyObject *str_enc_hook;
+    PyObject *str_dec_hook;
     PyObject *str_ext_hook;
     PyObject *typing_list;
     PyObject *typing_set;
@@ -190,6 +191,7 @@ enum typecode {
     TYPE_FIXTUPLE,
     TYPE_DICT,
     TYPE_EXT,
+    TYPE_CUSTOM,
 };
 
 typedef struct TypeNode {
@@ -236,6 +238,7 @@ TypeNode_Free(TypeNode *type) {
             return;
         case TYPE_ENUM:
         case TYPE_INTENUM:
+        case TYPE_CUSTOM:
         case TYPE_STRUCT: {
             TypeNodeObj *t = (TypeNodeObj *)type;
             Py_XDECREF(t->arg);
@@ -284,6 +287,7 @@ TypeNode_traverse(TypeNode *type, visitproc visit, void *arg) {
             return 0;
         case TYPE_ENUM:
         case TYPE_INTENUM:
+        case TYPE_CUSTOM:
         case TYPE_STRUCT: {
             TypeNodeObj *t = (TypeNodeObj *)type;
             Py_VISIT(t->arg);
@@ -407,7 +411,8 @@ TypeNode_Repr(TypeNode *type) {
             return PyUnicode_FromString(type->optional ? "Optional[Ext]" : "Ext");
         case TYPE_ENUM:
         case TYPE_INTENUM:
-        case TYPE_STRUCT: 
+        case TYPE_CUSTOM:
+        case TYPE_STRUCT:
             return TypeNodeObj_Repr(type);
         case TYPE_LIST:
         case TYPE_SET:
@@ -582,10 +587,15 @@ to_type_node(PyObject * obj, bool optional) {
     }
 
     /* Attempt to extract __origin__/__args__ from the obj as a typing object */
-    origin = PyObject_GetAttrString(obj, "__origin__");
-    if (origin == NULL) goto done;
-    args = PyObject_GetAttrString(obj, "__args__");
-    if (args == NULL) goto done;
+    if ((origin = PyObject_GetAttrString(obj, "__origin__")) == NULL ||
+            (args = PyObject_GetAttrString(obj, "__args__")) == NULL) {
+        /* Not a parametrized type, must be a custom type */
+        PyErr_Clear();
+        if (PyType_Check(obj)) {
+            out = TypeNodeObj_New(TYPE_CUSTOM, optional, obj);
+        }
+        goto done;
+    }
 
     if (origin == (PyObject*)(&PyDict_Type)) {
         if (PyTuple_Size(args) != 2) goto done;
@@ -622,6 +632,13 @@ to_type_node(PyObject * obj, bool optional) {
         goto done;
     }
     else {
+        /* A parametrized type, but not one we natively support. Use a custom
+         * type on the origin */
+        /* TODO: warn here that the parameters are ignored */
+        /* TODO: pass original type, only use origin in isinstance check */
+        if (PyType_Check(origin)) {
+            out = TypeNodeObj_New(TYPE_CUSTOM, optional, origin);
+        }
         goto done;
     }
 
@@ -1632,7 +1649,7 @@ Ext_richcompare(PyObject *self, PyObject *other, int op) {
     PyObject *out;
     Ext *ex_self, *ex_other;
 
-    if (Py_TYPE(other) != &Ext_Type) { 
+    if (Py_TYPE(other) != &Ext_Type) {
         Py_RETURN_NOTIMPLEMENTED;
     }
     if (op != Py_EQ && op != Py_NE) {
@@ -1719,7 +1736,16 @@ Encoder_init(Encoder *self, PyObject *args, PyObject *kwds)
         return -1;
     }
 
-    Py_XINCREF(enc_hook);
+    if (enc_hook == Py_None) {
+        enc_hook = NULL;
+    }
+    if (enc_hook != NULL) {
+        if (!PyCallable_Check(enc_hook)) {
+            PyErr_SetString(PyExc_TypeError, "enc_hook must be callable");
+            return -1;
+        }
+        Py_INCREF(enc_hook);
+    }
     self->state.enc_hook = enc_hook;
     self->state.write_buffer_size = Py_MAX(write_buffer_size, 32);
     self->state.max_output_len = self->state.write_buffer_size;
@@ -2512,22 +2538,9 @@ msgspec_encode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject
     if (!check_positional_nargs(nargs, 1, 1)) return NULL;
     if (kwnames != NULL) {
         Py_ssize_t nkwargs = PyTuple_GET_SIZE(kwnames);
-        if (nkwargs == 1) {
-            PyObject *key = PyTuple_GET_ITEM(kwnames, 0);
-            MsgspecState *st = msgspec_get_global_state();
-            if (st->str_enc_hook == key || _PyUnicode_EQ(st->str_enc_hook, key)) {
-                enc_hook = args[nargs];
-            }
-            else {
-                PyErr_Format(
-                    PyExc_TypeError,
-                    "Invalid keyword argument '%U'",
-                    key
-                );
-                return NULL;
-            }
-        }
-        else if (nkwargs > 1) {
+        MsgspecState *st = msgspec_get_global_state();
+        if ((enc_hook = find_keyword(kwnames, args + nargs, st->str_enc_hook)) != NULL) nkwargs--;
+        if (nkwargs > 0) {
             PyErr_SetString(
                 PyExc_TypeError,
                 "Extra keyword arguments provided"
@@ -2536,9 +2549,19 @@ msgspec_encode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject
         }
     }
 
+    if (enc_hook == Py_None) {
+        enc_hook = NULL;
+    }
+    if (enc_hook != NULL) {
+        if (!PyCallable_Check(enc_hook)) {
+            PyErr_SetString(PyExc_TypeError, "enc_hook must be callable");
+            return NULL;
+        }
+    }
+    state.enc_hook = enc_hook;
+
     /* use a smaller buffer size here to reduce chance of over allocating for one-off calls */
     state.write_buffer_size = 64;
-    state.enc_hook = enc_hook;
     state.max_output_len = state.write_buffer_size;
     state.output_len = 0;
     state.output_buffer = PyBytes_FromStringAndSize(NULL, state.max_output_len);
@@ -2564,6 +2587,7 @@ msgspec_encode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject
 typedef struct DecoderState {
     /* Configuration */
     TypeNode *type;
+    PyObject *dec_hook;
     PyObject *ext_hook;
 
     /* Per-message attributes */
@@ -2580,7 +2604,7 @@ typedef struct Decoder {
 } Decoder;
 
 PyDoc_STRVAR(Decoder__doc__,
-"Decoder(type='Any', ext_hook=None)\n"
+"Decoder(type='Any', dec_hook=None, ext_hook=None)\n"
 "--\n"
 "\n"
 "A MessagePack decoder.\n"
@@ -2592,6 +2616,12 @@ PyDoc_STRVAR(Decoder__doc__,
 "    provided, the message will be type checked and decoded as the specified\n"
 "    type. Defaults to `Any`, in which case the message will be decoded using\n"
 "    the default MessagePack types.\n"
+"dec_hook : Callable, optional\n"
+"    An optional callback for handling decoding custom types. Should have the\n"
+"    signature ``dec_hook(obj: Any, type: Type) -> Any``, where ``obj`` is the\n"
+"    decoded object decoded using basic MessagePack types, and ``type`` is the\n"
+"    expected message type. This hook should transform ``obj`` into type\n"
+"    ``type``, or raise a ``TypeError`` if unsupported.\n"
 "ext_hook : Callable, optional\n"
 "    An optional callback for decoding MessagePack extensions. Should have the\n"
 "    signature ``ext_hook(code: int, data: memoryview) -> Any``. If provided,\n"
@@ -2604,15 +2634,30 @@ PyDoc_STRVAR(Decoder__doc__,
 static int
 Decoder_init(Decoder *self, PyObject *args, PyObject *kwds)
 {
-    static char *kwlist[] = {"type", "ext_hook", NULL};
+    static char *kwlist[] = {"type", "dec_hook", "ext_hook", NULL};
     MsgspecState *st = msgspec_get_global_state();
     PyObject *type = st->typing_any;
     PyObject *ext_hook = NULL;
+    PyObject *dec_hook = NULL;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OO", kwlist, &type, &ext_hook)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOO", kwlist, &type, &dec_hook, &ext_hook)) {
         return -1;
     }
 
+    /* Handle dec_hook */
+    if (dec_hook == Py_None) {
+        dec_hook = NULL;
+    }
+    if (dec_hook != NULL) {
+        if (!PyCallable_Check(dec_hook)) {
+            PyErr_SetString(PyExc_TypeError, "dec_hook must be callable");
+            return -1;
+        }
+        Py_INCREF(dec_hook);
+    }
+    self->state.dec_hook = dec_hook;
+
+    /* Handle ext_hook */
     if (ext_hook == Py_None) {
         ext_hook = NULL;
     }
@@ -2625,6 +2670,7 @@ Decoder_init(Decoder *self, PyObject *args, PyObject *kwds)
     }
     self->state.ext_hook = ext_hook;
 
+    /* Handle type */
     self->state.type = TypeNode_Convert(type);
     if (self->state.type == NULL) {
         return -1;
@@ -2640,6 +2686,7 @@ Decoder_traverse(Decoder *self, visitproc visit, void *arg)
     int out = TypeNode_traverse(self->state.type, visit, arg);
     if (out != 0) return out;
     Py_VISIT(self->orig_type);
+    Py_VISIT(self->state.dec_hook);
     Py_VISIT(self->state.ext_hook);
     return 0;
 }
@@ -2649,6 +2696,7 @@ Decoder_dealloc(Decoder *self)
 {
     TypeNode_Free(self->state.type);
     Py_XDECREF(self->orig_type);
+    Py_XDECREF(self->state.dec_hook);
     Py_XDECREF(self->state.ext_hook);
     Py_TYPE(self)->tp_free((PyObject *)self);
 }
@@ -3392,6 +3440,40 @@ mp_decode_type_intenum(DecoderState *self, char op, TypeNodeObj* type, TypeNode 
 }
 
 static PyObject *
+mp_decode_type_custom(DecoderState *self, TypeNodeObj* type, TypeNode *ctx, Py_ssize_t ctx_ind) {
+    PyObject *obj, *out = NULL;
+    int status;
+    obj = mp_decode_any(self, false);
+    if (obj == NULL) return NULL;
+    if (self->dec_hook != NULL) {
+        out = PyObject_CallFunctionObjArgs(self->dec_hook, obj, type->arg, NULL);
+        Py_DECREF(obj);
+        if (out == NULL)
+            return NULL;
+    }
+    else {
+        out = obj;
+    }
+    /* Check that the decoded value matches the expected type */
+    status = PyObject_IsInstance(out, type->arg);
+    if (status == -1) {
+        Py_DECREF(out);
+        return NULL;
+    }
+    else if (status == 0) {
+        PyErr_Format(
+            msgspec_get_global_state()->DecodingError,
+            "Error decoding `%s`: got object of type %s",
+            ((PyTypeObject *)(type->arg))->tp_name,
+            Py_TYPE(out)->tp_name
+        );
+        Py_DECREF(out);
+        return NULL;
+    }
+    return out;
+}
+
+static PyObject *
 mp_decode_type_enum(DecoderState *self, char op, TypeNodeObj* type, TypeNode *ctx, Py_ssize_t ctx_ind) {
     PyObject *name, *out;
     name = mp_decode_type_str(self, op, ctx, ctx_ind);
@@ -3771,6 +3853,9 @@ mp_decode_type(
     if (type->code == TYPE_ANY) {
         return mp_decode_any(self, is_key);
     }
+    else if (type->code == TYPE_CUSTOM) {
+        return mp_decode_type_custom(self, (TypeNodeObj *)type, ctx, ctx_ind);
+    }
 
     if (mp_read1(self, &op) < 0) {
         return NULL;
@@ -3874,6 +3959,7 @@ static struct PyMethodDef Decoder_methods[] = {
 
 static PyMemberDef Decoder_members[] = {
     {"type", T_OBJECT_EX, offsetof(Decoder, orig_type), READONLY, "The Decoder type"},
+    {"dec_hook", T_OBJECT, offsetof(Decoder, state.dec_hook), READONLY, "The Decoder dec_hook"},
     {"ext_hook", T_OBJECT, offsetof(Decoder, state.ext_hook), READONLY, "The Decoder ext_hook"},
     {NULL},
 };
@@ -3909,6 +3995,12 @@ PyDoc_STRVAR(msgspec_decode__doc__,
 "    provided, the message will be type checked and decoded as the specified\n"
 "    type. Defaults to `Any`, in which case the message will be decoded using\n"
 "    the default MessagePack types.\n"
+"dec_hook : Callable, optional\n"
+"    An optional callback for handling decoding custom types. Should have the\n"
+"    signature ``dec_hook(obj: Any, type: Type) -> Any``, where ``obj`` is the\n"
+"    decoded object decoded using basic MessagePack types, and ``type`` is the\n"
+"    expected message type. This hook should transform ``obj`` into type\n"
+"    ``type``, or raise a ``TypeError`` if unsupported.\n"
 "ext_hook : Callable, optional\n"
 "    An optional callback for decoding MessagePack extensions. Should have the\n"
 "    signature ``ext_hook(code: int, data: memoryview) -> Any``. If provided,\n"
@@ -3930,7 +4022,7 @@ PyDoc_STRVAR(msgspec_decode__doc__,
 static PyObject*
 msgspec_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
 {
-    PyObject *res = NULL, *buf = NULL, *type = NULL, *ext_hook = NULL;
+    PyObject *res = NULL, *buf = NULL, *type = NULL, *dec_hook = NULL, *ext_hook = NULL;
     DecoderState state;
     Py_buffer buffer;
     MsgspecState *st = msgspec_get_global_state();
@@ -3940,10 +4032,9 @@ msgspec_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject
     buf = args[0];
     if (kwnames != NULL) {
         Py_ssize_t nkwargs = PyTuple_GET_SIZE(kwnames);
-        type = find_keyword(kwnames, args + nargs, st->str_type);
-        if (type != NULL) nkwargs--;
-        ext_hook = find_keyword(kwnames, args + nargs, st->str_ext_hook);
-        if (ext_hook != NULL) nkwargs--;
+        if ((type = find_keyword(kwnames, args + nargs, st->str_type)) != NULL) nkwargs--;
+        if ((dec_hook = find_keyword(kwnames, args + nargs, st->str_dec_hook)) != NULL) nkwargs--;
+        if ((ext_hook = find_keyword(kwnames, args + nargs, st->str_ext_hook)) != NULL) nkwargs--;
         if (nkwargs > 0) {
             PyErr_SetString(
                 PyExc_TypeError,
@@ -3953,6 +4044,19 @@ msgspec_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject
         }
     }
 
+    /* Handle dec_hook */
+    if (dec_hook == Py_None) {
+        dec_hook = NULL;
+    }
+    if (dec_hook != NULL) {
+        if (!PyCallable_Check(dec_hook)) {
+            PyErr_SetString(PyExc_TypeError, "dec_hook must be callable");
+            return NULL;
+        }
+    }
+    state.dec_hook = dec_hook;
+
+    /* Handle ext_hook */
     if (ext_hook == Py_None) {
         ext_hook = NULL;
     }
@@ -4024,6 +4128,7 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->str_name);
     Py_CLEAR(st->str_type);
     Py_CLEAR(st->str_enc_hook);
+    Py_CLEAR(st->str_dec_hook);
     Py_CLEAR(st->str_ext_hook);
     Py_CLEAR(st->typing_dict);
     Py_CLEAR(st->typing_list);
@@ -4206,6 +4311,9 @@ PyInit_core(void)
         return NULL;
     st->str_enc_hook = PyUnicode_InternFromString("enc_hook");
     if (st->str_enc_hook == NULL)
+        return NULL;
+    st->str_dec_hook = PyUnicode_InternFromString("dec_hook");
+    if (st->str_dec_hook == NULL)
         return NULL;
     st->str_ext_hook = PyUnicode_InternFromString("ext_hook");
     if (st->str_ext_hook == NULL)

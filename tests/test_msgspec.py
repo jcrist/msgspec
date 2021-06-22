@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, Set, List, Tuple, Optional, Any
+from typing import Dict, Set, List, Tuple, Optional, Any, Union
 import enum
 import gc
 import math
@@ -139,7 +139,7 @@ class TestEncodeFunction:
         with pytest.raises(TypeError, match="Extra positional arguments"):
             msgspec.encode(1, 2, 3)
 
-        with pytest.raises(TypeError, match="Invalid keyword argument 'bad'"):
+        with pytest.raises(TypeError, match="Extra keyword arguments"):
             msgspec.encode(1, bad=1)
 
         with pytest.raises(TypeError, match="Extra keyword arguments"):
@@ -362,13 +362,13 @@ class TestDecoderMisc:
             msgspec.Decoder(1)
 
         with pytest.raises(TypeError):
-            msgspec.Decoder(slice)
+            msgspec.Decoder(Union[int, float])
 
     def test_decoder_validates_struct_definition_unsupported_types(self):
         """Struct definitions aren't validated until first use"""
 
         class Test(msgspec.Struct):
-            a: slice
+            a: 1
 
         with pytest.raises(TypeError):
             msgspec.Decoder(Test)
