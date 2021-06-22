@@ -6,7 +6,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
 
-    <title>API Docs &#8212; msgspec 0+untagged.1.g7107fef documentation</title>
+    <title>API Docs &#8212; msgspec 0+untagged.1.gc45cb91 documentation</title>
     <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
     <link rel="stylesheet" type="text/css" href="_static/alabaster.css" />
     <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
@@ -38,12 +38,12 @@
 <h2>Encoder<a class="headerlink" href="#encoder" title="Permalink to this headline">¶</a></h2>
 <dl class="py class">
 <dt class="sig sig-object py" id="msgspec.Encoder">
-<em class="property"><span class="pre">class</span> </em><span class="sig-prename descclassname"><span class="pre">msgspec.</span></span><span class="sig-name descname"><span class="pre">Encoder</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">default</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">write_buffer_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">4096</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.Encoder" title="Permalink to this definition">¶</a></dt>
+<em class="property"><span class="pre">class</span> </em><span class="sig-prename descclassname"><span class="pre">msgspec.</span></span><span class="sig-name descname"><span class="pre">Encoder</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">enc_hook</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">write_buffer_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">4096</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.Encoder" title="Permalink to this definition">¶</a></dt>
 <dd><p>A MessagePack encoder.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>default</strong> (<em>callable</em><em>, </em><em>optional</em>) – A callable to call for objects that aren’t supported msgspec types. Takes the
+<li><p><strong>enc_hook</strong> (<em>callable</em><em>, </em><em>optional</em>) – A callable to call for objects that aren’t supported msgspec types. Takes the
 unsupported object and should return a supported object, or raise a TypeError.</p></li>
 <li><p><strong>write_buffer_size</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.9)"><em>int</em></a><em>, </em><em>optional</em>) – The size of the internal static write buffer.</p></li>
 </ul>
@@ -176,13 +176,13 @@ or any object that implements the buffer protocol.</p></li>
 <h2>Functions<a class="headerlink" href="#functions" title="Permalink to this headline">¶</a></h2>
 <dl class="py function">
 <dt class="sig sig-object py" id="msgspec.encode">
-<span class="sig-prename descclassname"><span class="pre">msgspec.</span></span><span class="sig-name descname"><span class="pre">encode</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">obj</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">default</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.encode" title="Permalink to this definition">¶</a></dt>
+<span class="sig-prename descclassname"><span class="pre">msgspec.</span></span><span class="sig-name descname"><span class="pre">encode</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">obj</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">enc_hook</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.encode" title="Permalink to this definition">¶</a></dt>
 <dd><p>Serialize an object to bytes.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>obj</strong> (<em>Any</em>) – The object to serialize.</p></li>
-<li><p><strong>default</strong> (<em>callable</em><em>, </em><em>optional</em>) – A callable to call for objects that aren’t supported msgspec types. Takes the
+<li><p><strong>enc_hook</strong> (<em>callable</em><em>, </em><em>optional</em>) – A callable to call for objects that aren’t supported msgspec types. Takes the
 unsupported object and should return a supported object, or raise a TypeError.</p></li>
 </ul>
 </dd>

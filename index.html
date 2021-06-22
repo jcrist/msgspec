@@ -6,7 +6,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
 
-    <title>msgspec &#8212; msgspec 0+untagged.1.g7107fef documentation</title>
+    <title>msgspec &#8212; msgspec 0+untagged.1.gc45cb91 documentation</title>
     <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
     <link rel="stylesheet" type="text/css" href="_static/alabaster.css" />
     <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
@@ -124,7 +124,7 @@ efficient to create an <a class="reference internal" href="api.html#msgspec.Enco
 <li><p><a class="reference internal" href="api.html#msgspec.Ext" title="msgspec.Ext"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Ext</span></code></a></p></li>
 </ul>
 <p>Support for serializing additional types can be added through the use of the
-<code class="docutils literal notranslate"><span class="pre">default</span></code> callback on the <a class="reference internal" href="api.html#msgspec.Encoder" title="msgspec.Encoder"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Encoder</span></code></a>, or by defining custom <a class="reference internal" href="#extensions"><span class="std std-ref">Extensions</span></a>.</p>
+<code class="docutils literal notranslate"><span class="pre">enc_hook</span></code> callback on the <a class="reference internal" href="api.html#msgspec.Encoder" title="msgspec.Encoder"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Encoder</span></code></a>, or by defining custom <a class="reference internal" href="#extensions"><span class="std std-ref">Extensions</span></a>.</p>
 </section>
 <section id="typed-and-untyped-deserialization">
 <span id="typed-deserialization"></span><h3>Typed and Untyped Deserialization<a class="headerlink" href="#typed-and-untyped-deserialization" title="Permalink to this headline">¶</a></h3>
@@ -309,13 +309,13 @@ extension.</p></li>
 user wants to map extension types to/from their own custom objects. This can be
 accomplished by defining two callback functions:</p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">default</span></code> in <a class="reference internal" href="api.html#msgspec.Encoder" title="msgspec.Encoder"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Encoder</span></code></a>, for transforming custom types into values
+<li><p><code class="docutils literal notranslate"><span class="pre">enc_hook</span></code> in <a class="reference internal" href="api.html#msgspec.Encoder" title="msgspec.Encoder"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Encoder</span></code></a>, for transforming custom types into values
 that <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> already knows how to serialize.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">ext_hook</span></code> in <a class="reference internal" href="api.html#msgspec.Decoder" title="msgspec.Decoder"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Decoder</span></code></a>, for converting extensions back into those
 custom types.</p></li>
 </ul>
 <p>These should have the following signatures:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">default</span><span class="p">(</span><span class="n">obj</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">enc_hook</span><span class="p">(</span><span class="n">obj</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
     <span class="sd">&quot;&quot;&quot;Given an object that msgspec doesn&#39;t know how to serialize by</span>
 <span class="sd">    default, convert it into an object that it does know how to</span>
 <span class="sd">    serialize&quot;&quot;&quot;</span>
@@ -338,7 +338,7 @@ buffer.</p>
   <span class="mi">8</span> <span class="nb">bytes</span>   <span class="mi">8</span> <span class="nb">bytes</span>
 </pre></div>
 </div>
-<p>Here we define <code class="docutils literal notranslate"><span class="pre">default</span></code> and <code class="docutils literal notranslate"><span class="pre">ext_hook</span></code> callbacks to convert <a class="reference external" href="https://docs.python.org/3/library/functions.html#complex" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">complex</span></code></a>
+<p>Here we define <code class="docutils literal notranslate"><span class="pre">enc_hook</span></code> and <code class="docutils literal notranslate"><span class="pre">ext_hook</span></code> callbacks to convert <a class="reference external" href="https://docs.python.org/3/library/functions.html#complex" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">complex</span></code></a>
 objects to/from this binary representation as a MessagePack extension.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">msgspec</span>
 <span class="kn">import</span> <span class="nn">struct</span>
@@ -349,7 +349,7 @@ objects to/from this binary representation as a MessagePack extension.</p>
 <span class="c1"># between 0 and 127 (inclusive) would work.</span>
 <span class="n">COMPLEX_TYPE_CODE</span> <span class="o">=</span> <span class="mi">1</span>
 
-<span class="k">def</span> <span class="nf">default</span><span class="p">(</span><span class="n">obj</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<span class="k">def</span> <span class="nf">enc_hook</span><span class="p">(</span><span class="n">obj</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="nb">complex</span><span class="p">):</span>
         <span class="c1"># encode the complex number into a 16 byte buffer</span>
         <span class="n">data</span> <span class="o">=</span> <span class="n">struct</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span><span class="s1">&#39;dd&#39;</span><span class="p">,</span> <span class="n">obj</span><span class="o">.</span><span class="n">real</span><span class="p">,</span> <span class="n">obj</span><span class="o">.</span><span class="n">imag</span><span class="p">)</span>
@@ -373,7 +373,7 @@ objects to/from this binary representation as a MessagePack extension.</p>
 
 
 <span class="c1"># Create an encoder and a decoder using the custom callbacks</span>
-<span class="n">enc</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">Encoder</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="n">default</span><span class="p">)</span>
+<span class="n">enc</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">Encoder</span><span class="p">(</span><span class="n">enc_hook</span><span class="o">=</span><span class="n">enc_hook</span><span class="p">)</span>
 <span class="n">dec</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">Decoder</span><span class="p">(</span><span class="n">ext_hook</span><span class="o">=</span><span class="n">ext_hook</span><span class="p">)</span>
 
 <span class="c1"># Define a message that contains complex numbers</span>

@@ -107,7 +107,7 @@ Msgspec currently supports serializing/deserializing the following types:
 - `msgspec.Ext`
 
 Support for serializing additional types can be added through the use of the
-``default`` callback on the `Encoder`, or by defining custom :ref:`extensions`.
+``enc_hook`` callback on the `Encoder`, or by defining custom :ref:`extensions`.
 
 .. _typed-deserialization:
 
@@ -313,7 +313,7 @@ While manually creating `Ext` objects from buffers can be useful, usually the
 user wants to map extension types to/from their own custom objects. This can be
 accomplished by defining two callback functions:
 
-- ``default`` in `Encoder`, for transforming custom types into values
+- ``enc_hook`` in `Encoder`, for transforming custom types into values
   that ``msgspec`` already knows how to serialize.
 - ``ext_hook`` in `Decoder`, for converting extensions back into those
   custom types.
@@ -322,7 +322,7 @@ These should have the following signatures:
 
 .. code-block:: python
 
-    def default(obj: Any) -> Any:
+    def enc_hook(obj: Any) -> Any:
         """Given an object that msgspec doesn't know how to serialize by
         default, convert it into an object that it does know how to
         serialize"""
@@ -348,7 +348,7 @@ buffer.
       8 bytes   8 bytes 
     
 
-Here we define ``default`` and ``ext_hook`` callbacks to convert `complex`
+Here we define ``enc_hook`` and ``ext_hook`` callbacks to convert `complex`
 objects to/from this binary representation as a MessagePack extension.
 
 .. code-block:: python
@@ -362,7 +362,7 @@ objects to/from this binary representation as a MessagePack extension.
     # between 0 and 127 (inclusive) would work.
     COMPLEX_TYPE_CODE = 1
 
-    def default(obj: Any) -> Any:
+    def enc_hook(obj: Any) -> Any:
         if isinstance(obj, complex):
             # encode the complex number into a 16 byte buffer
             data = struct.pack('dd', obj.real, obj.imag)
@@ -386,7 +386,7 @@ objects to/from this binary representation as a MessagePack extension.
 
 
     # Create an encoder and a decoder using the custom callbacks
-    enc = msgspec.Encoder(default=default)
+    enc = msgspec.Encoder(enc_hook=enc_hook)
     dec = msgspec.Decoder(ext_hook=ext_hook)
 
     # Define a message that contains complex numbers
