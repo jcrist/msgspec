@@ -96,7 +96,7 @@ class TestEncodeFunction:
         dec = msgspec.Decoder()
         assert dec.decode(msgspec.encode(data)) == data
 
-    def test_encode_no_default(self):
+    def test_encode_no_enc_hook(self):
         class Foo:
             pass
 
@@ -105,29 +105,29 @@ class TestEncodeFunction:
         ):
             msgspec.encode(Foo())
 
-    def test_encode_default(self):
+    def test_encode_enc_hook(self):
         unsupported = object()
 
-        def default(x):
+        def enc_hook(x):
             assert x is unsupported
             return "hello"
 
-        orig_refcount = sys.getrefcount(default)
+        orig_refcount = sys.getrefcount(enc_hook)
 
-        res = msgspec.encode(unsupported, default=default)
+        res = msgspec.encode(unsupported, enc_hook=enc_hook)
         assert msgspec.encode("hello") == res
-        assert sys.getrefcount(default) == orig_refcount
+        assert sys.getrefcount(enc_hook) == orig_refcount
 
-    def test_encode_default_errors(self):
-        def default(x):
+    def test_encode_enc_hook_errors(self):
+        def enc_hook(x):
             raise TypeError("bad")
 
-        orig_refcount = sys.getrefcount(default)
+        orig_refcount = sys.getrefcount(enc_hook)
 
         with pytest.raises(TypeError, match="bad"):
-            msgspec.encode(object(), default=default)
+            msgspec.encode(object(), enc_hook=enc_hook)
 
-        assert sys.getrefcount(default) == orig_refcount
+        assert sys.getrefcount(enc_hook) == orig_refcount
 
     def test_encode_parse_arguments_errors(self):
         with pytest.raises(TypeError, match="Missing 1 required argument"):
@@ -143,7 +143,7 @@ class TestEncodeFunction:
             msgspec.encode(1, bad=1)
 
         with pytest.raises(TypeError, match="Extra keyword arguments"):
-            msgspec.encode(1, default=lambda x: None, extra="extra")
+            msgspec.encode(1, enc_hook=lambda x: None, extra="extra")
 
 
 class TestDecodeFunction:
@@ -229,64 +229,64 @@ class TestEncoderMisc:
         b = sys.getsizeof(msgspec.Encoder(write_buffer_size=128))
         assert b > a
 
-    def test_encode_no_default(self):
+    def test_encode_no_enc_hook(self):
         class Foo:
             pass
 
         enc = msgspec.Encoder()
-        assert enc.default is None
+        assert enc.enc_hook is None
 
         with pytest.raises(
             TypeError, match="Encoding objects of type Foo is unsupported"
         ):
             enc.encode(Foo())
 
-    def test_encode_default(self):
+    def test_encode_enc_hook(self):
         unsupported = object()
 
-        def default(x):
+        def enc_hook(x):
             assert x is unsupported
             return "hello"
 
-        orig_refcount = sys.getrefcount(default)
+        orig_refcount = sys.getrefcount(enc_hook)
 
-        enc = msgspec.Encoder(default=default)
+        enc = msgspec.Encoder(enc_hook=enc_hook)
 
-        assert enc.default is default
-        assert sys.getrefcount(enc.default) == orig_refcount + 2
-        assert sys.getrefcount(default) == orig_refcount + 1
+        assert enc.enc_hook is enc_hook
+        assert sys.getrefcount(enc.enc_hook) == orig_refcount + 2
+        assert sys.getrefcount(enc_hook) == orig_refcount + 1
 
         res = enc.encode(unsupported)
         assert enc.encode("hello") == res
 
         del enc
-        assert sys.getrefcount(default) == orig_refcount
+        assert sys.getrefcount(enc_hook) == orig_refcount
 
-    def test_encode_default_errors(self):
-        def default(x):
+    def test_encode_enc_hook_errors(self):
+        def enc_hook(x):
             raise TypeError("bad")
 
-        enc = msgspec.Encoder(default=default)
+        enc = msgspec.Encoder(enc_hook=enc_hook)
 
         with pytest.raises(TypeError, match="bad"):
             enc.encode(object())
 
-    def test_encode_default_recurses(self):
+    def test_encode_enc_hook_recurses(self):
         class Node:
             def __init__(self, a):
                 self.a = a
 
-        def default(x):
+        def enc_hook(x):
             return {"type": "Node", "a": x.a}
 
-        enc = msgspec.Encoder(default=default)
+        enc = msgspec.Encoder(enc_hook=enc_hook)
 
         msg = enc.encode(Node(Node(1)))
         res = msgspec.decode(msg)
         assert res == {"type": "Node", "a": {"type": "Node", "a": 1}}
 
-    def test_encode_default_recursion_error(self):
-        enc = msgspec.Encoder(default=lambda x: x)
+    def test_encode_enc_hook_recursion_error(self):
+        enc = msgspec.Encoder(enc_hook=lambda x: x)
 
         with pytest.raises(RecursionError):
             enc.encode(object())
@@ -926,7 +926,7 @@ class TestExt:
         obj = {"x": range(10)}
         exp_buf = pickle.dumps(range(10))
 
-        def default(x):
+        def enc_hook(x):
             return msgspec.Ext(5, pickle.dumps(x))
 
         def ext_hook(code, buf):
@@ -935,7 +935,7 @@ class TestExt:
             assert code == 5
             return pickle.loads(buf)
 
-        msg = msgspec.encode(obj, default=default)
+        msg = msgspec.encode(obj, enc_hook=enc_hook)
         if use_function:
             out = msgspec.decode(msg, ext_hook=ext_hook)
         else:
@@ -944,7 +944,7 @@ class TestExt:
         assert out == obj
 
     def test_decoder_ext_hook_bad_signature(self):
-        msg = msgspec.encode(range(5), default=lambda x: msgspec.Ext(1, b"test"))
+        msg = msgspec.encode(range(5), enc_hook=lambda x: msgspec.Ext(1, b"test"))
         with pytest.raises(TypeError):
             msgspec.decode(msg, ext_hook=lambda: None)
 
@@ -955,7 +955,7 @@ class TestExt:
         def ext_hook(code, buf):
             raise CustomError
 
-        msg = msgspec.encode(range(5), default=lambda x: msgspec.Ext(1, b"test"))
+        msg = msgspec.encode(range(5), enc_hook=lambda x: msgspec.Ext(1, b"test"))
         with pytest.raises(CustomError):
             msgspec.decode(msg, ext_hook=ext_hook)
 

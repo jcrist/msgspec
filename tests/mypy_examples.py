@@ -58,12 +58,12 @@ def check_decode_typed() -> None:
     reveal_type(o)  # assert ("List" in typ or "list" in typ) and "int" in typ
 
 
-def check_encode_default() -> None:
-    msgspec.encode(object(), default=lambda x: None)
+def check_encode_enc_hook() -> None:
+    msgspec.encode(object(), enc_hook=lambda x: None)
 
 
-def check_Encoder_default() -> None:
-    msgspec.Encoder(default=lambda x: None)
+def check_Encoder_enc_hook() -> None:
+    msgspec.Encoder(enc_hook=lambda x: None)
 
 
 def check_decode_ext_hook() -> None:
