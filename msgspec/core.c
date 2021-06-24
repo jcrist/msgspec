@@ -88,6 +88,8 @@ typedef struct {
     PyObject *str_enc_hook;
     PyObject *str_dec_hook;
     PyObject *str_ext_hook;
+    PyObject *str___origin__;
+    PyObject *str___args__;
     PyObject *typing_list;
     PyObject *typing_set;
     PyObject *typing_tuple;
@@ -192,6 +194,7 @@ enum typecode {
     TYPE_DICT,
     TYPE_EXT,
     TYPE_CUSTOM,
+    TYPE_CUSTOM_GENERIC,
 };
 
 typedef struct TypeNode {
@@ -239,6 +242,7 @@ TypeNode_Free(TypeNode *type) {
         case TYPE_ENUM:
         case TYPE_INTENUM:
         case TYPE_CUSTOM:
+        case TYPE_CUSTOM_GENERIC:
         case TYPE_STRUCT: {
             TypeNodeObj *t = (TypeNodeObj *)type;
             Py_XDECREF(t->arg);
@@ -288,6 +292,7 @@ TypeNode_traverse(TypeNode *type, visitproc visit, void *arg) {
         case TYPE_ENUM:
         case TYPE_INTENUM:
         case TYPE_CUSTOM:
+        case TYPE_CUSTOM_GENERIC:
         case TYPE_STRUCT: {
             TypeNodeObj *t = (TypeNodeObj *)type;
             Py_VISIT(t->arg);
@@ -382,10 +387,17 @@ TypeNodeMap_Repr(TypeNode *type) {
 static PyObject *
 TypeNodeObj_Repr(TypeNode *type) {
     TypeNodeObj *t = (TypeNodeObj *)type;
-    const char *str = ((PyTypeObject *)(t->arg))->tp_name;
-    if (type->optional)
-        return PyUnicode_FromFormat("Optional[%s]", str);
-    return PyUnicode_FromString(str);
+    if (type->code == TYPE_CUSTOM_GENERIC) {
+        if (type->optional)
+            return PyUnicode_FromFormat("Optional[%S]", t->arg);
+        return PyObject_Repr(t->arg);
+    }
+    else {
+        const char *str = ((PyTypeObject *)(t->arg))->tp_name;
+        if (type->optional)
+            return PyUnicode_FromFormat("Optional[%s]", str);
+        return PyUnicode_FromString(str);
+    }
 }
 
 static PyObject *
@@ -412,6 +424,7 @@ TypeNode_Repr(TypeNode *type) {
         case TYPE_ENUM:
         case TYPE_INTENUM:
         case TYPE_CUSTOM:
+        case TYPE_CUSTOM_GENERIC:
         case TYPE_STRUCT:
             return TypeNodeObj_Repr(type);
         case TYPE_LIST:
@@ -587,8 +600,8 @@ to_type_node(PyObject * obj, bool optional) {
     }
 
     /* Attempt to extract __origin__/__args__ from the obj as a typing object */
-    if ((origin = PyObject_GetAttrString(obj, "__origin__")) == NULL ||
-            (args = PyObject_GetAttrString(obj, "__args__")) == NULL) {
+    if ((origin = PyObject_GetAttr(obj, st->str___origin__)) == NULL ||
+            (args = PyObject_GetAttr(obj, st->str___args__)) == NULL) {
         /* Not a parametrized type, must be a custom type */
         PyErr_Clear();
         if (PyType_Check(obj)) {
@@ -632,12 +645,9 @@ to_type_node(PyObject * obj, bool optional) {
         goto done;
     }
     else {
-        /* A parametrized type, but not one we natively support. Use a custom
-         * type on the origin */
-        /* TODO: warn here that the parameters are ignored */
-        /* TODO: pass original type, only use origin in isinstance check */
+        /* A parametrized type, but not one we natively support. */
         if (PyType_Check(origin)) {
-            out = TypeNodeObj_New(TYPE_CUSTOM, optional, origin);
+            out = TypeNodeObj_New(TYPE_CUSTOM_GENERIC, optional, obj);
         }
         goto done;
     }
@@ -934,7 +944,7 @@ StructMeta_prep_types(PyObject *py_self) {
     nfields = PyTuple_GET_SIZE(self->struct_fields);
 
     st = msgspec_get_global_state();
-    annotations = PyObject_CallFunctionObjArgs(st->get_type_hints, self, NULL);
+    annotations = CALL_ONE_ARG(st->get_type_hints, py_self);
     if (annotations == NULL) goto error;
 
     self->struct_types = PyMem_Calloc(nfields, sizeof(TypeNode*));
@@ -1048,7 +1058,7 @@ StructMeta_signature(StructMetaObject *self, void *closure)
     if (signature_cls == NULL)
         goto cleanup;
 
-    annotations = PyObject_CallFunctionObjArgs(st->get_type_hints, self, NULL);
+    annotations = CALL_ONE_ARG(st->get_type_hints, (PyObject *)self);
     if (annotations == NULL)
         goto cleanup;
 
@@ -1087,7 +1097,7 @@ StructMeta_signature(StructMetaObject *self, void *closure)
             goto cleanup;
         PyList_SET_ITEM(parameters, i, parameter);
     }
-    res = PyObject_CallFunctionObjArgs(signature_cls, parameters, NULL);
+    res = CALL_ONE_ARG(signature_cls, parameters);
 cleanup:
     Py_XDECREF(inspect);
     Py_XDECREF(parameter_cls);
@@ -1180,7 +1190,7 @@ maybe_deepcopy_default(PyObject *obj) {
     deepcopy = PyObject_GetAttrString(copy, "deepcopy");
     if (deepcopy == NULL)
         goto cleanup;
-    res = PyObject_CallFunctionObjArgs(deepcopy, obj, NULL);
+    res = CALL_ONE_ARG(deepcopy, obj);
 cleanup:
     Py_XDECREF(copy);
     Py_XDECREF(deepcopy);
@@ -3181,8 +3191,41 @@ static PyObject * mp_decode_type(
 );
 
 static PyObject *
-mp_validation_error(char op, char *expected, TypeNode *ctx, Py_ssize_t ctx_ind) {
+mp_format_validation_error(const char *expected, const char *got, TypeNode *ctx, Py_ssize_t ctx_ind) {
     MsgspecState *st = msgspec_get_global_state();
+    if (ctx->code == TYPE_STRUCT) {
+        StructMetaObject *st_type = (StructMetaObject *)(((TypeNodeObj *)ctx)->arg);
+        PyObject *field = PyTuple_GET_ITEM(st_type->struct_fields, ctx_ind);
+        PyObject *typstr = TypeNode_Repr(st_type->struct_types[ctx_ind]);
+        if (typstr == NULL) return NULL;
+        PyErr_Format(
+            st->DecodingError,
+            "Error decoding `%s` field `%S` (`%S`): expected `%s`, got `%s`",
+            ((PyTypeObject *)st_type)->tp_name,
+            field,
+            typstr,
+            expected,
+            got
+        );
+        Py_DECREF(typstr);
+    }
+    else {
+        PyObject *typstr = TypeNode_Repr(ctx);
+        if (typstr == NULL) return NULL;
+        PyErr_Format(
+            st->DecodingError,
+            "Error decoding `%S`: expected `%s`, got `%s`",
+            typstr,
+            expected,
+            got
+        );
+        Py_DECREF(typstr);
+    }
+    return NULL;
+}
+
+static PyObject *
+mp_validation_error(char op, char *expected, TypeNode *ctx, Py_ssize_t ctx_ind) {
     char *got;
     if (-32 <= op && op <= 127) {
         got = "int";
@@ -3242,35 +3285,7 @@ mp_validation_error(char op, char *expected, TypeNode *ctx, Py_ssize_t ctx_ind) 
                 break;
         }
     }
-    if (ctx->code == TYPE_STRUCT) {
-        StructMetaObject *st_type = (StructMetaObject *)(((TypeNodeObj *)ctx)->arg);
-        PyObject *field = PyTuple_GET_ITEM(st_type->struct_fields, ctx_ind);
-        PyObject *typstr = TypeNode_Repr(st_type->struct_types[ctx_ind]);
-        if (typstr == NULL) return NULL;
-        PyErr_Format(
-            st->DecodingError,
-            "Error decoding `%s` field `%S` (`%S`): expected `%s`, got `%s`",
-            ((PyTypeObject *)st_type)->tp_name,
-            field,
-            typstr,
-            expected,
-            got
-        );
-        Py_DECREF(typstr);
-    }
-    else {
-        PyObject *typstr = TypeNode_Repr(ctx);
-        if (typstr == NULL) return NULL;
-        PyErr_Format(
-            st->DecodingError,
-            "Error decoding `%S`: expected `%s`, got `%s`",
-            typstr,
-            expected,
-            got
-        );
-        Py_DECREF(typstr);
-    }
-    return NULL;
+    return mp_format_validation_error(expected, got, ctx, ctx_ind);
 }
 
 static PyObject *
@@ -3439,12 +3454,15 @@ mp_decode_type_intenum(DecoderState *self, char op, TypeNodeObj* type, TypeNode 
     return out;
 }
 
+
 static PyObject *
-mp_decode_type_custom(DecoderState *self, TypeNodeObj* type, TypeNode *ctx, Py_ssize_t ctx_ind) {
-    PyObject *obj, *out = NULL;
+mp_decode_type_custom(DecoderState *self, bool generic, TypeNodeObj* type, TypeNode *ctx, Py_ssize_t ctx_ind) {
+    PyObject *obj, *custom_cls = NULL, *out = NULL;
     int status;
-    obj = mp_decode_any(self, false);
-    if (obj == NULL) return NULL;
+
+    if ((obj = mp_decode_any(self, false)) == NULL)
+        return NULL;
+
     if (self->dec_hook != NULL) {
         out = PyObject_CallFunctionObjArgs(self->dec_hook, obj, type->arg, NULL);
         Py_DECREF(obj);
@@ -3454,21 +3472,37 @@ mp_decode_type_custom(DecoderState *self, TypeNodeObj* type, TypeNode *ctx, Py_s
     else {
         out = obj;
     }
-    /* Check that the decoded value matches the expected type */
-    status = PyObject_IsInstance(out, type->arg);
-    if (status == -1) {
-        Py_DECREF(out);
-        return NULL;
+    
+    /* Generic classes must be checked based on __origin__ */
+    if (generic) {
+        MsgspecState *st = msgspec_get_global_state();
+        custom_cls = PyObject_GetAttr(type->arg, st->str___origin__);
+        if (custom_cls == NULL) {
+            Py_DECREF(out);
+            return NULL;
+        }
     }
-    else if (status == 0) {
-        PyErr_Format(
-            msgspec_get_global_state()->DecodingError,
-            "Error decoding `%s`: got object of type %s",
-            ((PyTypeObject *)(type->arg))->tp_name,
-            Py_TYPE(out)->tp_name
+    else {
+        custom_cls = type->arg;
+    }
+
+    /* Check that the decoded value matches the expected type */
+    status = PyObject_IsInstance(out, custom_cls);
+    if (status == 0) {
+        mp_format_validation_error(
+            ((PyTypeObject *)custom_cls)->tp_name,
+            Py_TYPE(out)->tp_name,
+            ctx,
+            ctx_ind
         );
-        Py_DECREF(out);
-        return NULL;
+        Py_CLEAR(out);
+    }
+    else if (status == -1) {
+        Py_CLEAR(out);
+    }
+
+    if (generic) {
+        Py_DECREF(custom_cls);
     }
     return out;
 }
@@ -3853,8 +3887,10 @@ mp_decode_type(
     if (type->code == TYPE_ANY) {
         return mp_decode_any(self, is_key);
     }
-    else if (type->code == TYPE_CUSTOM) {
-        return mp_decode_type_custom(self, (TypeNodeObj *)type, ctx, ctx_ind);
+    else if (type->code == TYPE_CUSTOM || type->code == TYPE_CUSTOM_GENERIC) {
+        return mp_decode_type_custom(
+            self, type->code == TYPE_CUSTOM_GENERIC, (TypeNodeObj *)type, ctx, ctx_ind
+        );
     }
 
     if (mp_read1(self, &op) < 0) {
@@ -4130,6 +4166,8 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->str_enc_hook);
     Py_CLEAR(st->str_dec_hook);
     Py_CLEAR(st->str_ext_hook);
+    Py_CLEAR(st->str___origin__);
+    Py_CLEAR(st->str___args__);
     Py_CLEAR(st->typing_dict);
     Py_CLEAR(st->typing_list);
     Py_CLEAR(st->typing_set);
@@ -4317,6 +4355,12 @@ PyInit_core(void)
         return NULL;
     st->str_ext_hook = PyUnicode_InternFromString("ext_hook");
     if (st->str_ext_hook == NULL)
+        return NULL;
+    st->str___origin__ = PyUnicode_InternFromString("__origin__");
+    if (st->str___origin__ == NULL)
+        return NULL;
+    st->str___args__ = PyUnicode_InternFromString("__args__");
+    if (st->str___args__ == NULL)
         return NULL;
 
     return m;
