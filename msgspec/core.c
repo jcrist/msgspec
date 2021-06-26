@@ -2628,10 +2628,10 @@ PyDoc_STRVAR(Decoder__doc__,
 "    the default MessagePack types.\n"
 "dec_hook : Callable, optional\n"
 "    An optional callback for handling decoding custom types. Should have the\n"
-"    signature ``dec_hook(obj: Any, type: Type) -> Any``, where ``obj`` is the\n"
-"    decoded object decoded using basic MessagePack types, and ``type`` is the\n"
-"    expected message type. This hook should transform ``obj`` into type\n"
-"    ``type``, or raise a ``TypeError`` if unsupported.\n"
+"    signature ``dec_hook(type: Type, obj: Any) -> Any``, where ``type`` is the\n"
+"    expected message type, and ``obj`` is the decoded representation composed\n"
+"    of only basic MessagePack types. This hook should transform ``obj`` into\n"
+"    type ``type``, or raise a ``TypeError`` if unsupported.\n"
 "ext_hook : Callable, optional\n"
 "    An optional callback for decoding MessagePack extensions. Should have the\n"
 "    signature ``ext_hook(code: int, data: memoryview) -> Any``. If provided,\n"
@@ -3464,7 +3464,7 @@ mp_decode_type_custom(DecoderState *self, bool generic, TypeNodeObj* type, TypeN
         return NULL;
 
     if (self->dec_hook != NULL) {
-        out = PyObject_CallFunctionObjArgs(self->dec_hook, obj, type->arg, NULL);
+        out = PyObject_CallFunctionObjArgs(self->dec_hook, type->arg, obj, NULL);
         Py_DECREF(obj);
         if (out == NULL)
             return NULL;
@@ -4033,10 +4033,10 @@ PyDoc_STRVAR(msgspec_decode__doc__,
 "    the default MessagePack types.\n"
 "dec_hook : Callable, optional\n"
 "    An optional callback for handling decoding custom types. Should have the\n"
-"    signature ``dec_hook(obj: Any, type: Type) -> Any``, where ``obj`` is the\n"
-"    decoded object decoded using basic MessagePack types, and ``type`` is the\n"
-"    expected message type. This hook should transform ``obj`` into type\n"
-"    ``type``, or raise a ``TypeError`` if unsupported.\n"
+"    signature ``dec_hook(type: Type, obj: Any) -> Any``, where ``type`` is the\n"
+"    expected message type, and ``obj`` is the decoded representation composed\n"
+"    of only basic MessagePack types. This hook should transform ``obj`` into\n"
+"    type ``type``, or raise a ``TypeError`` if unsupported.\n"
 "ext_hook : Callable, optional\n"
 "    An optional callback for decoding MessagePack extensions. Should have the\n"
 "    signature ``ext_hook(code: int, data: memoryview) -> Any``. If provided,\n"
