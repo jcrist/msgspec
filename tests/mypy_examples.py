@@ -1,6 +1,6 @@
 # fmt: off
 import pickle
-from typing import List, Any
+from typing import List, Any, Type
 import msgspec
 
 
@@ -64,6 +64,14 @@ def check_encode_enc_hook() -> None:
 
 def check_Encoder_enc_hook() -> None:
     msgspec.Encoder(enc_hook=lambda x: None)
+
+
+def check_decode_dec_hook() -> None:
+    def dec_hook(typ: Type, obj: Any) -> Any:
+        return typ(obj)
+
+    msgspec.decode(b"test", dec_hook=dec_hook)
+    msgspec.Decoder(dec_hook=dec_hook)
 
 
 def check_decode_ext_hook() -> None:
