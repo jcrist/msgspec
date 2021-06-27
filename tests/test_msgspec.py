@@ -459,11 +459,23 @@ class TestDecoderMisc:
             (FruitInt, "FruitInt"),
             (FruitStr, "FruitStr"),
             (OrderedDict, "collections.OrderedDict"),
-            (OrderedDict[str, int], str(OrderedDict[str, int])),
             (List[Optional[Dict[str, Person]]], "List[Optional[Dict[str, Person]]]"),
         ],
     )
     def test_decoder_repr(self, typ, typstr):
+        dec = msgspec.Decoder(typ)
+        assert repr(dec) == f"Decoder({typstr})"
+
+        dec = msgspec.Decoder(Optional[typ])
+        assert repr(dec) == f"Decoder(Optional[{typstr}])"
+
+    def test_decoder_repr_custom_generic(self):
+        try:
+            typ = OrderedDict[str, int]
+        except Exception:
+            pytest.skip(reason="OrderedDict isn't a generic type in this version")
+
+        typstr = str(typ)
         dec = msgspec.Decoder(typ)
         assert repr(dec) == f"Decoder({typstr})"
 
