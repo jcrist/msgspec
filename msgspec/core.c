@@ -112,7 +112,7 @@ msgspec_get_state(PyObject *module)
 /* Find the module instance imported in the currently running sub-interpreter
    and get its state. */
 static MsgspecState *
-msgspec_get_global_state()
+msgspec_get_global_state(void)
 {
     return msgspec_get_state(PyState_FindModule(&msgspecmodule));
 }
@@ -602,10 +602,13 @@ to_type_node(PyObject * obj, bool optional) {
     /* Attempt to extract __origin__/__args__ from the obj as a typing object */
     if ((origin = PyObject_GetAttr(obj, st->str___origin__)) == NULL ||
             (args = PyObject_GetAttr(obj, st->str___args__)) == NULL) {
-        /* Not a parametrized type, must be a custom type */
+        /* Not a parametrized generic, must be a custom type */
         PyErr_Clear();
         if (PyType_Check(obj)) {
             out = TypeNodeObj_New(TYPE_CUSTOM, optional, obj);
+        }
+        else if (origin != NULL) {
+            out = TypeNodeObj_New(TYPE_CUSTOM_GENERIC, optional, obj);
         }
         goto done;
     }
@@ -2730,7 +2733,7 @@ Decoder_repr(Decoder *self) {
 }
 
 static Py_ssize_t
-mp_err_truncated()
+mp_err_truncated(void)
 {
     PyErr_SetString(msgspec_get_global_state()->DecodingError, "input data was truncated");
     return -1;
