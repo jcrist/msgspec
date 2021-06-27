@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Dict, Set, List, Tuple, Optional, Any, Union
+from collections import OrderedDict
+from typing import Dict, Set, List, Tuple, Optional, Any, Union, NamedTuple
 import enum
 import gc
 import math
@@ -32,6 +33,11 @@ class Person(msgspec.Struct):
 class Node(msgspec.Struct):
     left: Optional[Node] = None
     right: Optional[Node] = None
+
+
+class Point(NamedTuple):
+    x: float
+    y: float
 
 
 INTS = [
@@ -186,6 +192,16 @@ class TestDecodeFunction:
         with pytest.raises(TypeError, match="Extra keyword arguments"):
             msgspec.decode(self.buf, type=List[int], extra=1)
 
+    def test_decode_dec_hook(self):
+        def dec_hook(typ, obj):
+            assert typ is Point
+            return typ(*obj)
+
+        buf = msgspec.encode((1, 2))
+        res = msgspec.decode(buf, type=Point, dec_hook=dec_hook)
+        assert res == Point(1, 2)
+        assert isinstance(res, Point)
+
 
 class TestEncoderMisc:
     @pytest.mark.parametrize("x", [-(2 ** 63) - 1, 2 ** 64])
@@ -317,6 +333,101 @@ class TestDecoderMisc:
         with pytest.raises(TypeError):
             msgspec.Decoder(ext_hook=1)
 
+    def test_decoder_enc_hook_attribute(self):
+        def dec_hook(typ, obj):
+            pass
+
+        dec = msgspec.Decoder()
+        assert dec.dec_hook is None
+
+        dec = msgspec.Decoder(dec_hook=None)
+        assert dec.dec_hook is None
+
+        dec = msgspec.Decoder(dec_hook=dec_hook)
+        assert dec.dec_hook is dec_hook
+
+    def test_decoder_dec_hook_not_callable(self):
+        with pytest.raises(TypeError):
+            msgspec.Decoder(dec_hook=1)
+
+    def test_decoder_dec_hook(self):
+        called = False
+
+        def dec_hook(typ, obj):
+            nonlocal called
+            called = True
+            assert typ is Point
+            return Point(*obj)
+
+        dec = msgspec.Decoder(type=List[Point], dec_hook=dec_hook)
+        buf = msgspec.encode([(1, 2), (3, 4), (5, 6)])
+        msg = dec.decode(buf)
+        assert called
+        assert msg == [Point(1, 2), Point(3, 4), Point(5, 6)]
+        assert isinstance(msg[0], Point)
+
+    def test_decode_dec_hook_errors(self):
+        def dec_hook(typ, obj):
+            assert obj == "some string"
+            raise TypeError("Oh no!")
+
+        buf = msgspec.encode("some string")
+        dec = msgspec.Decoder(type=Point, dec_hook=dec_hook)
+
+        with pytest.raises(TypeError, match="Oh no!"):
+            dec.decode(buf)
+
+    def test_decode_dec_hook_wrong_type(self):
+        dec = msgspec.Decoder(type=Point, dec_hook=lambda t, o: o)
+        buf = msgspec.encode((1, 2))
+
+        with pytest.raises(msgspec.DecodingError) as rec:
+            dec.decode(buf)
+
+        assert "Error decoding `Point`: expected `Point`, got `list`" == str(rec.value)
+
+    def test_decode_dec_hook_wrong_type_in_struct(self):
+        class Test(msgspec.Struct):
+            point: Point
+            other: int
+
+        dec = msgspec.Decoder(type=Test, dec_hook=lambda t, o: o)
+        buf = msgspec.encode(Test((1, 2), 3))
+
+        with pytest.raises(msgspec.DecodingError) as rec:
+            dec.decode(buf)
+
+        assert (
+            "Error decoding `Test` field `point` (`Point`): expected `Point`, "
+            "got `list`"
+        ) == str(rec.value)
+
+    def test_decode_dec_hook_wrong_type_generic(self):
+        dec = msgspec.Decoder(type=OrderedDict[str, int], dec_hook=lambda t, o: o)
+        buf = msgspec.encode({"a": 1, "b": 2})
+
+        with pytest.raises(msgspec.DecodingError) as rec:
+            dec.decode(buf)
+
+        assert (
+            "Error decoding `collections.OrderedDict[str, int]`: expected "
+            "`collections.OrderedDict`, got `dict`"
+        ) == str(rec.value)
+
+    def test_decode_dec_hook_isinstance_errors(self):
+        class Metaclass(type):
+            def __instancecheck__(self, obj):
+                raise TypeError("Oh no!")
+
+        class Custom(metaclass=Metaclass):
+            pass
+
+        dec = msgspec.Decoder(type=Custom)
+        buf = msgspec.encode(1)
+
+        with pytest.raises(TypeError, match="Oh no!"):
+            dec.decode(buf)
+
     @pytest.mark.parametrize("typ, typstr", [(None, "None"), (Any, "Any")])
     def test_decoder_none_any_repr(self, typ, typstr):
         dec = msgspec.Decoder(typ)
@@ -347,6 +458,8 @@ class TestDecoderMisc:
             (Person, "Person"),
             (FruitInt, "FruitInt"),
             (FruitStr, "FruitStr"),
+            (OrderedDict, "collections.OrderedDict"),
+            (OrderedDict[str, int], str(OrderedDict[str, int])),
             (List[Optional[Dict[str, Person]]], "List[Optional[Dict[str, Person]]]"),
         ],
     )
