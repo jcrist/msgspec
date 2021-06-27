@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from collections import OrderedDict
-from typing import Dict, Set, List, Tuple, Optional, Any, Union, NamedTuple
+from typing import Dict, Set, List, Tuple, Optional, Any, Union, NamedTuple, Deque
 import enum
 import gc
 import math
@@ -403,15 +402,15 @@ class TestDecoderMisc:
         ) == str(rec.value)
 
     def test_decode_dec_hook_wrong_type_generic(self):
-        dec = msgspec.Decoder(type=OrderedDict[str, int], dec_hook=lambda t, o: o)
-        buf = msgspec.encode({"a": 1, "b": 2})
+        dec = msgspec.Decoder(type=Deque[int], dec_hook=lambda t, o: o)
+        buf = msgspec.encode([1, 2, 3])
 
         with pytest.raises(msgspec.DecodingError) as rec:
             dec.decode(buf)
 
         assert (
-            "Error decoding `collections.OrderedDict[str, int]`: expected "
-            "`collections.OrderedDict`, got `dict`"
+            "Error decoding `typing.Deque[int]`: expected "
+            "`collections.deque`, got `list`"
         ) == str(rec.value)
 
     def test_decode_dec_hook_isinstance_errors(self):
@@ -458,24 +457,12 @@ class TestDecoderMisc:
             (Person, "Person"),
             (FruitInt, "FruitInt"),
             (FruitStr, "FruitStr"),
-            (OrderedDict, "collections.OrderedDict"),
+            (Deque, "typing.Deque"),
+            (Deque[int], str(Deque[int])),
             (List[Optional[Dict[str, Person]]], "List[Optional[Dict[str, Person]]]"),
         ],
     )
     def test_decoder_repr(self, typ, typstr):
-        dec = msgspec.Decoder(typ)
-        assert repr(dec) == f"Decoder({typstr})"
-
-        dec = msgspec.Decoder(Optional[typ])
-        assert repr(dec) == f"Decoder(Optional[{typstr}])"
-
-    def test_decoder_repr_custom_generic(self):
-        try:
-            typ = OrderedDict[str, int]
-        except Exception:
-            pytest.skip(reason="OrderedDict isn't a generic type in this version")
-
-        typstr = str(typ)
         dec = msgspec.Decoder(typ)
         assert repr(dec) == f"Decoder({typstr})"
 
