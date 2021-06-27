@@ -6,7 +6,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
 
-    <title>API Docs &#8212; msgspec 0+untagged.1.gc45cb91 documentation</title>
+    <title>API Docs &#8212; msgspec 0+untagged.1.g4cebab7 documentation</title>
     <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
     <link rel="stylesheet" type="text/css" href="_static/alabaster.css" />
     <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
@@ -73,7 +73,7 @@ unsupported object and should return a supported object, or raise a TypeError.</
 <h2>Decoder<a class="headerlink" href="#decoder" title="Permalink to this headline">¶</a></h2>
 <dl class="py class">
 <dt class="sig sig-object py" id="msgspec.Decoder">
-<em class="property"><span class="pre">class</span> </em><span class="sig-prename descclassname"><span class="pre">msgspec.</span></span><span class="sig-name descname"><span class="pre">Decoder</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'Any'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ext_hook</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.Decoder" title="Permalink to this definition">¶</a></dt>
+<em class="property"><span class="pre">class</span> </em><span class="sig-prename descclassname"><span class="pre">msgspec.</span></span><span class="sig-name descname"><span class="pre">Decoder</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'Any'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dec_hook</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ext_hook</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.Decoder" title="Permalink to this definition">¶</a></dt>
 <dd><p>A MessagePack decoder.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
@@ -82,6 +82,11 @@ unsupported object and should return a supported object, or raise a TypeError.</
 provided, the message will be type checked and decoded as the specified
 type. Defaults to <code class="xref py py-obj docutils literal notranslate"><span class="pre">Any</span></code>, in which case the message will be decoded using
 the default MessagePack types.</p></li>
+<li><p><strong>dec_hook</strong> (<em>Callable</em><em>, </em><em>optional</em>) – An optional callback for handling decoding custom types. Should have the
+signature <code class="docutils literal notranslate"><span class="pre">dec_hook(type:</span> <span class="pre">Type,</span> <span class="pre">obj:</span> <span class="pre">Any)</span> <span class="pre">-&gt;</span> <span class="pre">Any</span></code>, where <code class="docutils literal notranslate"><span class="pre">type</span></code> is the
+expected message type, and <code class="docutils literal notranslate"><span class="pre">obj</span></code> is the decoded representation composed
+of only basic MessagePack types. This hook should transform <code class="docutils literal notranslate"><span class="pre">obj</span></code> into
+type <code class="docutils literal notranslate"><span class="pre">type</span></code>, or raise a <code class="docutils literal notranslate"><span class="pre">TypeError</span></code> if unsupported.</p></li>
 <li><p><strong>ext_hook</strong> (<em>Callable</em><em>, </em><em>optional</em>) – An optional callback for decoding MessagePack extensions. Should have the
 signature <code class="docutils literal notranslate"><span class="pre">ext_hook(code:</span> <span class="pre">int,</span> <span class="pre">data:</span> <span class="pre">memoryview)</span> <span class="pre">-&gt;</span> <span class="pre">Any</span></code>. If provided,
 this will be called to deserialize all extension types found in the
@@ -211,6 +216,11 @@ unsupported object and should return a supported object, or raise a TypeError.</
 provided, the message will be type checked and decoded as the specified
 type. Defaults to <code class="xref py py-obj docutils literal notranslate"><span class="pre">Any</span></code>, in which case the message will be decoded using
 the default MessagePack types.</p></li>
+<li><p><strong>dec_hook</strong> (<em>Callable</em><em>, </em><em>optional</em>) – An optional callback for handling decoding custom types. Should have the
+signature <code class="docutils literal notranslate"><span class="pre">dec_hook(type:</span> <span class="pre">Type,</span> <span class="pre">obj:</span> <span class="pre">Any)</span> <span class="pre">-&gt;</span> <span class="pre">Any</span></code>, where <code class="docutils literal notranslate"><span class="pre">type</span></code> is the
+expected message type, and <code class="docutils literal notranslate"><span class="pre">obj</span></code> is the decoded representation composed
+of only basic MessagePack types. This hook should transform <code class="docutils literal notranslate"><span class="pre">obj</span></code> into
+type <code class="docutils literal notranslate"><span class="pre">type</span></code>, or raise a <code class="docutils literal notranslate"><span class="pre">TypeError</span></code> if unsupported.</p></li>
 <li><p><strong>ext_hook</strong> (<em>Callable</em><em>, </em><em>optional</em>) – An optional callback for decoding MessagePack extensions. Should have the
 signature <code class="docutils literal notranslate"><span class="pre">ext_hook(code:</span> <span class="pre">int,</span> <span class="pre">data:</span> <span class="pre">memoryview)</span> <span class="pre">-&gt;</span> <span class="pre">Any</span></code>. If provided,
 this will be called to deserialize all extension types found in the
