@@ -3472,7 +3472,7 @@ mp_decode_type_custom(DecoderState *self, bool generic, TypeNodeObj* type, TypeN
     else {
         out = obj;
     }
-    
+
     /* Generic classes must be checked based on __origin__ */
     if (generic) {
         MsgspecState *st = msgspec_get_global_state();
