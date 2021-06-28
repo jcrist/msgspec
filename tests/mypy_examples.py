@@ -11,6 +11,13 @@ def check_Encoder_encode() -> None:
     reveal_type(b)  # assert "bytes" in typ
 
 
+def check_Encoder_encode_into() -> None:
+    enc = msgspec.Encoder()
+    buf = bytearray(48)
+    enc.encode_into([1, 2, 3], buf)
+    enc.encode_into([1, 2, 3], buf, 2)
+
+
 def check_encode() -> None:
     b = msgspec.encode([1, 2, 3])
 
