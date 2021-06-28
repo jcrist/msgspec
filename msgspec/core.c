@@ -1260,7 +1260,7 @@ Struct_vectorcall(PyTypeObject *cls, PyObject *const *args, size_t nargsf, PyObj
             PyExc_TypeError,
             "Extra positional arguments provided"
         );
-        return NULL;
+        goto error;
     }
 
     should_untrack = PyObject_IS_GC(self);
@@ -1275,7 +1275,7 @@ Struct_vectorcall(PyTypeObject *cls, PyObject *const *args, size_t nargsf, PyObj
                     "Argument '%U' given by name and position",
                     field
                 );
-                return NULL;
+                goto error;
             }
             Py_INCREF(val);
             nkwargs -= 1;
@@ -1290,12 +1290,12 @@ Struct_vectorcall(PyTypeObject *cls, PyObject *const *args, size_t nargsf, PyObj
                 "Missing required argument '%U'",
                 field
             );
-            return NULL;
+            goto error;
         }
         else {
             val = maybe_deepcopy_default(PyTuple_GET_ITEM(defaults, i - npos));
             if (val == NULL)
-                return NULL;
+                goto error;
         }
         Struct_set_index(self, i, val);
         if (should_untrack) {
@@ -1307,11 +1307,15 @@ Struct_vectorcall(PyTypeObject *cls, PyObject *const *args, size_t nargsf, PyObj
             PyExc_TypeError,
             "Extra keyword arguments provided"
         );
-        return NULL;
+        goto error;
     }
     if (should_untrack)
         PyObject_GC_UnTrack(self);
     return self;
+
+error:
+    Py_DECREF(self);
+    return NULL;
 }
 
 static int
