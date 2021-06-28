@@ -1712,7 +1712,7 @@ typedef struct EncoderState {
     PyObject *enc_hook;     /* `enc_hook` callback */
     Py_ssize_t write_buffer_size;  /* Configured internal buffer size */
 
-    PyObject *output_buffer;    /* Bytearray storing the output */
+    PyObject *output_buffer;    /* bytes or bytearray storing the output */
     Py_ssize_t output_len;      /* Length of output_buffer */
     Py_ssize_t max_output_len;  /* Allocation size of output_buffer */
 } EncoderState;
@@ -1851,7 +1851,7 @@ mp_write(EncoderState *self, const char *s, Py_ssize_t n)
     if (required > self->max_output_len) {
         /* Make space in buffer */
         int status;
-        self->max_output_len = (self->output_len + n) / 2 * 3;
+        self->max_output_len = Py_MAX(8, (self->output_len + n) / 2 * 3);
         status = (
             is_bytes ? _PyBytes_Resize(&self->output_buffer, self->max_output_len)
                      : PyByteArray_Resize(self->output_buffer, self->max_output_len)
@@ -2439,7 +2439,7 @@ PyDoc_STRVAR(Encoder_encode_into__doc__,
 "    The buffer to serialize into.\n"
 "offset : int, optional\n"
 "    The offset into the buffer to start writing at. Defaults to 0. Set to -1\n"
-"    to start writing at the end of the buffer\n"
+"    to start writing at the end of the buffer.\n"
 "\n"
 "Returns\n"
 "-------\n"
@@ -2498,7 +2498,7 @@ Encoder_encode_into(Encoder *self, PyObject *const *args, Py_ssize_t nargs)
          *
          * This is copied from within the fastpath of `PyByteArray_Resize`*/
         SET_SIZE(self->state.output_buffer, self->state.output_len);
-        PyByteArray_AS_STRING(self)[self->state.output_len] = '\0';
+        PyByteArray_AS_STRING(self->state.output_buffer)[self->state.output_len] = '\0';
     }
 
     /* Reset buffer */
