@@ -9,9 +9,11 @@
 #if PY_VERSION_HEX < 0x03090000
 #define IS_TRACKED _PyObject_GC_IS_TRACKED
 #define CALL_ONE_ARG(fn, arg) PyObject_CallFunctionObjArgs((fn), (arg), NULL)
+#define SET_SIZE(obj, size) (((PyVarObject *)obj)->ob_size = size)
 #else
 #define IS_TRACKED  PyObject_GC_IsTracked
 #define CALL_ONE_ARG(fn, arg) PyObject_CallOneArg((fn), (arg))
+#define SET_SIZE(obj, size) Py_SET_SIZE(obj, size)
 #endif
 /* Is this object something that is/could be GC tracked? True if
  * - the value supports GC
@@ -20,8 +22,6 @@
 #define OBJ_IS_GC(x) \
     (PyType_IS_GC(Py_TYPE(x)) && \
      (!PyTuple_CheckExact(x) || IS_TRACKED(x)))
-
-
 
 /*************************************************************************
  * Endian handling macros                                                *
@@ -1845,19 +1845,25 @@ mp_write(EncoderState *self, const char *s, Py_ssize_t n)
 {
     Py_ssize_t required;
     char *buffer;
+    bool is_bytes = PyBytes_CheckExact(self->output_buffer);
 
     required = self->output_len + n;
     if (required > self->max_output_len) {
         /* Make space in buffer */
-        if (self->output_len >= PY_SSIZE_T_MAX / 2 - n) {
-            PyErr_NoMemory();
-            return -1;
-        }
+        int status;
         self->max_output_len = (self->output_len + n) / 2 * 3;
-        if (_PyBytes_Resize(&self->output_buffer, self->max_output_len) < 0)
-            return -1;
+        status = (
+            is_bytes ? _PyBytes_Resize(&self->output_buffer, self->max_output_len)
+                     : PyByteArray_Resize(self->output_buffer, self->max_output_len)
+        );
+        if (status < 0) return -1;
     }
-    buffer = PyBytes_AS_STRING(self->output_buffer);
+    if (is_bytes) {
+        buffer = PyBytes_AS_STRING(self->output_buffer);
+    }
+    else {
+        buffer = PyByteArray_AS_STRING(self->output_buffer);
+    }
     memcpy(buffer + self->output_len, s, n);
     self->output_len += n;
     return 0;
@@ -2415,6 +2421,92 @@ mp_encode(EncoderState *self, PyObject *obj)
     }
 }
 
+PyDoc_STRVAR(Encoder_encode_into__doc__,
+"encode_into(self, obj, buffer, offset=0, /)\n"
+"--\n"
+"\n"
+"Serialize an object into an existing bytearray buffer.\n"
+"\n"
+"Upon success, the buffer will be truncated to the end of the serialized\n"
+"message. Note that the underlying memory buffer *won't* be truncated,\n"
+"allowing for efficiently appending additional bytes later.\n"
+"\n"
+"Parameters\n"
+"----------\n"
+"obj : Any\n"
+"    The object to serialize.\n"
+"buffer : bytearray\n"
+"    The buffer to serialize into.\n"
+"offset : int, optional\n"
+"    The offset into the buffer to start writing at. Defaults to 0. Set to -1\n"
+"    to start writing at the end of the buffer\n"
+"\n"
+"Returns\n"
+"-------\n"
+"None"
+);
+static PyObject*
+Encoder_encode_into(Encoder *self, PyObject *const *args, Py_ssize_t nargs)
+{
+    int status;
+    PyObject *obj, *old_buf, *buf;
+    Py_ssize_t buf_size, offset = 0;
+
+    if (!check_positional_nargs(nargs, 2, 3)) {
+        return NULL;
+    }
+    obj = args[0];
+    buf = args[1];
+    if (!PyByteArray_CheckExact(buf)) {
+        PyErr_SetString(PyExc_TypeError, "buffer must be a `bytearray`");
+        return NULL;
+    }
+    buf_size = PyByteArray_GET_SIZE(buf);
+
+    if (nargs == 3) {
+        offset = PyLong_AsSsize_t(args[2]);
+        if (offset == -1) {
+            if (PyErr_Occurred()) return NULL;
+            offset = buf_size;
+        }
+        if (offset < 0) {
+            PyErr_SetString(PyExc_ValueError, "offset must be >= -1");
+            return NULL;
+        }
+        if (offset > buf_size) {
+            offset = buf_size;
+        }
+    }
+
+    /* Setup buffer */
+    old_buf = self->state.output_buffer;
+    self->state.output_buffer = buf;
+    self->state.output_len = offset;
+    self->state.max_output_len = buf_size;
+
+    status = mp_encode(&(self->state), obj);
+
+    if (status == 0) {
+        /* Set the length of the bytearray *without* actually resizing the
+         * backing memory buffer. This is useful for propagating size info
+         * downstream without doing any additional memory operations. Most
+         * users of this method will either immediately write more onto the end
+         * of the buffer (in which case they will need to resize the buffer
+         * back up anyway), or they will write the buffer to a socket/file/...
+         * and release the memory.  Either way, hitting realloc here seems
+         * unnecessary. 
+         *
+         * This is copied from within the fastpath of `PyByteArray_Resize`*/
+        SET_SIZE(self->state.output_buffer, self->state.output_len);
+        PyByteArray_AS_STRING(self)[self->state.output_len] = '\0';
+    }
+
+    /* Reset buffer */
+    self->state.output_buffer = old_buf;
+
+    Py_RETURN_NONE;
+}
+
 PyDoc_STRVAR(Encoder_encode__doc__,
 "encode(self, obj)\n"
 "--\n"
@@ -2494,6 +2586,10 @@ static struct PyMethodDef Encoder_methods[] = {
     {
         "encode", (PyCFunction) Encoder_encode, METH_FASTCALL,
         Encoder_encode__doc__,
+    },
+    {
+        "encode_into", (PyCFunction) Encoder_encode_into, METH_FASTCALL,
+        Encoder_encode_into__doc__,
     },
     {
         "__sizeof__", (PyCFunction) Encoder_sizeof, METH_NOARGS,

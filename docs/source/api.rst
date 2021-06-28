@@ -7,7 +7,7 @@ Encoder
 -------
 
 .. autoclass:: Encoder
-    :members: encode
+    :members: encode, encode_into
 
 
 Decoder
