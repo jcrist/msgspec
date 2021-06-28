@@ -244,6 +244,14 @@ class TestEncoderMisc:
         b = sys.getsizeof(msgspec.Encoder(write_buffer_size=128))
         assert b > a
 
+    def test_write_buffer_size_attribute(self):
+        enc1 = msgspec.Encoder(write_buffer_size=64)
+        enc2 = msgspec.Encoder(write_buffer_size=128)
+        enc3 = msgspec.Encoder(write_buffer_size=1)
+        assert enc1.write_buffer_size == 64
+        assert enc2.write_buffer_size == 128
+        assert enc3.write_buffer_size == 32
+
     def test_encode_no_enc_hook(self):
         class Foo:
             pass
@@ -396,7 +404,7 @@ class TestDecoderMisc:
         with pytest.raises(TypeError):
             msgspec.Decoder(ext_hook=1)
 
-    def test_decoder_enc_hook_attribute(self):
+    def test_decoder_dec_hook_attribute(self):
         def dec_hook(typ, obj):
             pass
 
