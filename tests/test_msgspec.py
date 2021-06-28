@@ -306,6 +306,70 @@ class TestEncoderMisc:
         with pytest.raises(RecursionError):
             enc.encode(object())
 
+    def test_encode_into_bad_arguments(self):
+        enc = msgspec.Encoder()
+
+        with pytest.raises(TypeError, match="bytearray"):
+            enc.encode_into(1, b"test")
+
+        with pytest.raises(TypeError):
+            enc.encode_into(1, bytearray(), "bad")
+
+        with pytest.raises(ValueError, match="offset"):
+            enc.encode_into(1, bytearray(), -2)
+
+    @pytest.mark.parametrize("buf_size", [0, 1, 16, 55, 60])
+    def test_encode_into(self, buf_size):
+        enc = msgspec.Encoder()
+
+        msg = {"key": "x" * 48}
+        encoded = msgspec.encode(msg)
+
+        buf = bytearray(buf_size)
+        out = enc.encode_into(msg, buf)
+        assert out is None
+        assert buf == encoded
+
+    def test_encode_into_offset(self):
+        enc = msgspec.Encoder()
+        msg = {"key": "value"}
+        encoded = enc.encode(msg)
+
+        # Offset 0 is default
+        buf = bytearray()
+        enc.encode_into(msg, buf, 0)
+        assert buf == encoded
+
+        # Offset in bounds uses the provided offset
+        buf = bytearray(b"01234")
+        enc.encode_into(msg, buf, 2)
+        assert buf == b"01" + encoded
+
+        # Offset out of bounds appends to end
+        buf = bytearray(b"01234")
+        enc.encode_into(msg, buf, 1000)
+        assert buf == b"01234" + encoded
+
+        # Offset -1 means append at end
+        buf = bytearray(b"01234")
+        enc.encode_into(msg, buf, -1)
+        assert buf == b"01234" + encoded
+
+    def tesT_encode_into_handles_errors_properly(self):
+        enc = msgspec.Encoder()
+        out1 = enc.encode([1, 2, 3])
+
+        msg = [1, 2, object()]
+        buf = bytearray()
+        with pytest.raises(TypeError):
+            enc.encode_into(msg, buf)
+
+        assert buf  # buffer isn't reset upon error
+
+        # Encoder still works
+        out2 = enc.encode([1, 2, 3])
+        assert out1 == out2
+
 
 class TestDecoderMisc:
     def test_decoder_type_attribute(self):
