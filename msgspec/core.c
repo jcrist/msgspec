@@ -2572,20 +2572,6 @@ Encoder_encode(Encoder *self, PyObject *const *args, Py_ssize_t nargs)
     return res;
 }
 
-static PyObject *
-Encoder_default(PyObject *self, void *closure) {
-    PyObject *out = ((Encoder*)self)->state.enc_hook;
-    if (out == NULL)
-        out = Py_None;
-    Py_INCREF(out);
-    return out;
-}
-
-static PyGetSetDef Encoder_getset[] = {
-    {"enc_hook", (getter) Encoder_default, NULL, "`enc_hook` callback", NULL},
-    {NULL},
-};
-
 static struct PyMethodDef Encoder_methods[] = {
     {
         "encode", (PyCFunction) Encoder_encode, METH_FASTCALL,
@@ -2602,6 +2588,13 @@ static struct PyMethodDef Encoder_methods[] = {
     {NULL, NULL}                /* sentinel */
 };
 
+static PyMemberDef Encoder_members[] = {
+    {"enc_hook", T_OBJECT, offsetof(Encoder, state.enc_hook), READONLY, "The Encoder enc_hook"},
+    {"write_buffer_size", T_PYSSIZET, offsetof(Encoder, state.write_buffer_size),
+        READONLY, "The Encoder write buffer size"},
+    {NULL},
+};
+
 static PyTypeObject Encoder_Type = {
     PyVarObject_HEAD_INIT(NULL, 0)
     .tp_name = "msgspec.core.Encoder",
@@ -2614,7 +2607,7 @@ static PyTypeObject Encoder_Type = {
     .tp_new = PyType_GenericNew,
     .tp_init = (initproc)Encoder_init,
     .tp_methods = Encoder_methods,
-    .tp_getset = Encoder_getset,
+    .tp_members = Encoder_members,
 };
 
 PyDoc_STRVAR(msgspec_encode__doc__,
