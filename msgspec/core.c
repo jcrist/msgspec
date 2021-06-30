@@ -1,3 +1,4 @@
+#include <math.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -97,6 +98,7 @@ typedef struct {
     PyObject *typing_union;
     PyObject *typing_any;
     PyObject *get_type_hints;
+    PyObject *timestamp;
 } MsgspecState;
 
 /* Forward declaration of the msgspec module definition. */
@@ -1161,8 +1163,8 @@ maybe_deepcopy_default(PyObject *obj) {
         Py_INCREF(obj);
         return obj;
     }
-    else if (type == PyDateTimeAPI->DeltaType ||
-             type == PyDateTimeAPI->DateTimeType ||
+    else if (type == PyDateTimeAPI->DateTimeType ||
+             type == PyDateTimeAPI->DeltaType ||
              type == PyDateTimeAPI->DateType ||
              type == PyDateTimeAPI->TimeType
     ) {
@@ -2355,6 +2357,53 @@ mp_encode_enum(EncoderState *self, PyObject *obj)
 }
 
 static int
+mp_encode_datetime(EncoderState *self, PyObject *obj)
+{
+    int64_t seconds;
+    int32_t nanoseconds;
+    PyObject *timestamp;
+    MsgspecState *st = msgspec_get_global_state();
+
+    timestamp = CALL_ONE_ARG(st->timestamp, obj);
+    if (timestamp == NULL) return -1;
+
+    /* No need to check for overflow here, datetime.datetime can't represent
+     * dates out of an int64_t timestamp range anyway */
+    seconds = (int64_t)floor(PyFloat_AS_DOUBLE(timestamp));
+    nanoseconds = PyDateTime_DATE_GET_MICROSECOND(obj) * 1000;
+
+    if ((seconds >> 34) == 0) {
+        uint64_t data64 = ((uint64_t)nanoseconds << 34) | (uint64_t)seconds;
+        if ((data64 & 0xffffffff00000000L) == 0) {
+            /* timestamp 32 */
+            char buf[6];
+            buf[0] = MP_FIXEXT4;
+            buf[1] = -1;
+            uint32_t data32 = (uint32_t)data64;
+            _msgspec_store32(&buf[2], data32);
+            if (mp_write(self, buf, 6) < 0) return -1;
+        } else {
+            /* timestamp 64 */
+            char buf[10];
+            buf[0] = MP_FIXEXT8;
+            buf[1] = -1;
+            _msgspec_store64(&buf[2], data64);
+            if (mp_write(self, buf, 10) < 0) return -1;
+        }
+    } else {
+        /* timestamp 96 */
+        char buf[15];
+        buf[0] = MP_EXT8;
+        buf[1] = 12;
+        buf[2] = -1;
+        _msgspec_store32(&buf[3], nanoseconds);
+        _msgspec_store64(&buf[7], seconds);
+        if (mp_write(self, buf, 15) < 0) return -1;
+    }
+    return 0;
+}
+
+static int
 mp_encode(EncoderState *self, PyObject *obj)
 {
     PyTypeObject *type;
@@ -2397,6 +2446,9 @@ mp_encode(EncoderState *self, PyObject *obj)
     }
     else if (Py_TYPE(type) == &StructMetaType) {
         return mp_encode_struct(self, obj);
+    }
+    else if (type == PyDateTimeAPI->DateTimeType) {
+        return mp_encode_datetime(self, obj);
     }
     else if (type == &Ext_Type) {
         return mp_encode_ext(self, obj);
@@ -4271,6 +4323,7 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->typing_union);
     Py_CLEAR(st->typing_any);
     Py_CLEAR(st->get_type_hints);
+    Py_CLEAR(st->timestamp);
     return 0;
 }
 
@@ -4296,6 +4349,7 @@ msgspec_traverse(PyObject *m, visitproc visit, void *arg)
     Py_VISIT(st->typing_union);
     Py_VISIT(st->typing_any);
     Py_VISIT(st->get_type_hints);
+    Py_VISIT(st->timestamp);
     return 0;
 }
 
@@ -4429,6 +4483,19 @@ PyInit_core(void)
         return NULL;
     }
     st->EnumType = (PyTypeObject *)temp_obj;
+
+    /* Get the datetime.datetime.timestamp method */
+    temp_module = PyImport_ImportModule("datetime");
+    if (temp_module == NULL)
+        return NULL;
+    temp_obj = PyObject_GetAttrString(temp_module, "datetime");
+    Py_DECREF(temp_module);
+    if (temp_obj == NULL)
+        return NULL;
+    st->timestamp = PyObject_GetAttrString(temp_obj, "timestamp");
+    Py_DECREF(temp_obj);
+    if (st->timestamp == NULL)
+        return NULL;
 
     /* Initialize cached constant strings */
     st->str__name_ = PyUnicode_InternFromString("_name_");
