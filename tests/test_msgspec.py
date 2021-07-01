@@ -517,6 +517,7 @@ class TestDecoderMisc:
             (str, "str"),
             (bytes, "bytes"),
             (bytearray, "bytearray"),
+            (datetime.datetime, "datetime"),
             (msgspec.Ext, "Ext"),
             (Dict, "Dict[Any, Any]"),
             (Dict[int, str], "Dict[int, str]"),
@@ -639,6 +640,18 @@ class TestTypedDecoder:
 
     def test_bytearray_unexpected_type(self):
         self.check_unexpected_type(bytearray, 1, "expected `bytearray`")
+
+    def test_datetime(self):
+        dec = msgspec.Decoder(datetime.datetime)
+        x = datetime.datetime.now()
+        res = dec.decode(msgspec.encode(x))
+        assert x == res
+
+    def test_datetime_unexpected_type(self):
+        self.check_unexpected_type(datetime.datetime, 1, "expected `datetime`")
+        self.check_unexpected_type(
+            datetime.datetime, msgspec.Ext(1, b"test"), "expected `datetime`"
+        )
 
     @pytest.mark.parametrize("size", SIZES)
     def test_list_lengths(self, size):
@@ -970,6 +983,7 @@ class TestTypedDecoder:
             (tuple, (1, 2)),
             (Tuple[int, int], (1, 2)),
             (dict, {1: 2}),
+            (datetime.datetime, datetime.datetime.now()),
         ],
     )
     def test_optional(self, typ, value):
