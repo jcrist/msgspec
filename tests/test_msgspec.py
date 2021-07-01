@@ -5,6 +5,7 @@ import datetime
 import enum
 import gc
 import math
+import os
 import pickle
 import sys
 
@@ -1159,63 +1160,84 @@ class TestExt:
             msgspec.decode(msg, ext_hook=ext_hook)
 
 
+skip_windows = pytest.mark.skipif(
+    os.name == "nt",
+    reason="This test fails on windows due to bounds on the OS time handling routines",
+)
+
+
 class TestTimestampExt:
-    def test_timestamp32(self):
-        # Min timestamp32
+    def check(self, dt, msg):
+        assert msgspec.encode(dt) == msg
+        assert msgspec.decode(msg) == dt
+
+    @skip_windows
+    def test_timestamp32_lower(self):
         dt = datetime.datetime.fromtimestamp(0)
         msg = b"\xd6\xff\x00\x00\x00\x00"
-        assert msgspec.encode(dt) == msg
-        assert msgspec.decode(msg) == dt
+        self.check(dt, msg)
 
-        # Max timestamp32
+    def test_timestamp32_upper(self):
         dt = datetime.datetime.fromtimestamp(2 ** 32 - 1)
         msg = b"\xd6\xff\xff\xff\xff\xff"
-        assert msgspec.encode(dt) == msg
-        assert msgspec.decode(msg) == dt
+        self.check(dt, msg)
 
-    def test_timestamp64(self):
-        # Smallest timestamp64 representable by datetime object (since no nanos)
+    @skip_windows
+    def test_timestamp64_lower(self):
         dt = datetime.datetime.fromtimestamp(1e-6)
         msg = b"\xd7\xff\x00\x00\x0f\xa0\x00\x00\x00\x00"
-        assert msgspec.encode(dt) == msg
-        assert msgspec.decode(msg) == dt
+        self.check(dt, msg)
 
-        # Largest timestamp64 representable by datetime object (since no nanos)
+    def test_timestamp64_upper(self):
         dt = datetime.datetime.fromtimestamp(2 ** 34) - datetime.timedelta(
             microseconds=1
         )
         msg = b"\xd7\xff\xeek\x18c\xff\xff\xff\xff"
-        assert msgspec.encode(dt) == msg
-        assert msgspec.decode(msg) == dt
+        self.check(dt, msg)
 
-    def test_timestamp96(self):
-        # Smallest datetime representable(ish). Technically 1/1/1 is the
-        # smallest representable in python, but due to a bug in `.timestamp()`,
-        # 1/1/2 is the smallest that will succeed.
-        dt = datetime.datetime(1, 1, 2)
-        msg = b"\xc7\x0c\xff\x00\x00\x00\x00\xff\xff\xff\xf1\x88\x6f\xac\xac"
-        assert msgspec.encode(dt) == msg
-        assert msgspec.decode(msg) == dt
-
-        # Largest datetime representable in python (kinda). Due to a bug in
-        # `fromtimestamp()` we need to drop back a second to successfully
-        # roundtrip.
-        dt = datetime.datetime.max - datetime.timedelta(seconds=1)
-        msg = b"\xc7\x0c\xff\x3b\x9a\xc6\x18\x00\x00\x00:\xff\xf4\x95\xdf"
-        assert msgspec.encode(dt) == msg
-        assert msgspec.decode(msg)  # == dt
-
-        # Lower border of timestamp64
+    @skip_windows
+    def test_timestamp96_lower(self):
         dt = datetime.datetime.fromtimestamp(-1e-6)
         msg = b"\xc7\x0c\xff;\x9a\xc6\x18\xff\xff\xff\xff\xff\xff\xff\xff"
-        assert msgspec.encode(dt) == msg
-        assert msgspec.decode(msg) == dt
+        self.check(dt, msg)
 
-        # Upper border of timestamp64
+    def test_timestamp96_upper(self):
         dt = datetime.datetime.fromtimestamp(2 ** 34)
         msg = b"\xc7\x0c\xff\x00\x00\x00\x00\x00\x00\x00\x04\x00\x00\x00\x00"
-        assert msgspec.encode(dt) == msg
-        assert msgspec.decode(msg) == dt
+        self.check(dt, msg)
+
+    def test_tzinfo_kwarg(self):
+        dec = msgspec.Decoder()
+        assert dec.tzinfo is None
+
+        dec = msgspec.Decoder(tzinfo=None)
+        assert dec.tzinfo is None
+
+        dec = msgspec.Decoder(tzinfo=datetime.timezone.utc)
+        assert dec.tzinfo is datetime.timezone.utc
+
+        with pytest.raises(TypeError, match="tzinfo"):
+            msgspec.Decoder(tzinfo=1)
+
+        msg = msgspec.encode(1)
+        with pytest.raises(TypeError, match="tzinfo"):
+            msgspec.decode(msg, tzinfo=1)
+
+    @pytest.mark.parametrize("ts", [0, 1, -1, 2 ** 32 - 1, 2 ** 33])
+    @pytest.mark.parametrize("tzinfo", [None, datetime.timezone.utc])
+    def test_debug_windows(self, ts, tzinfo):
+        datetime.datetime.fromtimestamp(ts, tzinfo)
+
+    @pytest.mark.parametrize("timestamp", [0, 0.001, -0.001, 2 ** 32 - 1, -1])
+    def test_decode_with_tzinfo(self, timestamp):
+        dt = datetime.datetime.fromtimestamp(timestamp, datetime.timezone.utc)
+
+        msg = msgspec.encode(dt)
+
+        dec = msgspec.Decoder(tzinfo=datetime.timezone.utc)
+
+        assert dec.decode(msg) == dt
+        assert msgspec.decode(msg, tzinfo=datetime.timezone.utc) == dt
 
 
 class CommonTypeTestBase:
