@@ -1146,52 +1146,62 @@ class TestExt:
 
 
 class TestTimestampExt:
-    def test_encode_timestamp32(self):
+    def test_timestamp32(self):
         # Min timestamp32
         dt = datetime.datetime.fromtimestamp(0)
-        assert msgspec.encode(dt) == b"\xd6\xff\x00\x00\x00\x00"
+        msg = b"\xd6\xff\x00\x00\x00\x00"
+        assert msgspec.encode(dt) == msg
+        assert msgspec.decode(msg) == dt
+
         # Max timestamp32
         dt = datetime.datetime.fromtimestamp(2 ** 32 - 1)
-        assert msgspec.encode(dt) == b"\xd6\xff\xff\xff\xff\xff"
+        msg = b"\xd6\xff\xff\xff\xff\xff"
+        assert msgspec.encode(dt) == msg
+        assert msgspec.decode(msg) == dt
 
-    def test_encode_timestamp64(self):
+    def test_timestamp64(self):
         # Smallest timestamp64 representable by datetime object (since no nanos)
         dt = datetime.datetime.fromtimestamp(1e-6)
-        assert msgspec.encode(dt) == b"\xd7\xff\x00\x00\x0f\xa0\x00\x00\x00\x00"
+        msg = b"\xd7\xff\x00\x00\x0f\xa0\x00\x00\x00\x00"
+        assert msgspec.encode(dt) == msg
+        assert msgspec.decode(msg) == dt
 
         # Largest timestamp64 representable by datetime object (since no nanos)
         dt = datetime.datetime.fromtimestamp(2 ** 34) - datetime.timedelta(
             microseconds=1
         )
-        res = msgspec.encode(dt)
-        assert res == b"\xd7\xff\xeek\x18c\xff\xff\xff\xff"
+        msg = b"\xd7\xff\xeek\x18c\xff\xff\xff\xff"
+        assert msgspec.encode(dt) == msg
+        assert msgspec.decode(msg) == dt
 
-    def test_encode_timestamp96(self):
+    def test_timestamp96(self):
         # Smallest datetime representable(ish). Technically 1/1/1 is the
         # smallest representable in python, but due to a bug in `.timestamp()`,
         # 1/1/2 is the smallest that will succeed.
         dt = datetime.datetime(1, 1, 2)
-        sol = b"\xc7\x0c\xff\x00\x00\x00\x00\xff\xff\xff\xf1\x88\x6f\xac\xac"
-        res = msgspec.encode(dt)
-        assert res == sol
+        msg = b"\xc7\x0c\xff\x00\x00\x00\x00\xff\xff\xff\xf1\x88\x6f\xac\xac"
+        assert msgspec.encode(dt) == msg
+        assert msgspec.decode(msg) == dt
 
-        # Largest datetime representable in python.
-        dt = datetime.datetime.max
-        sol = b"\xc7\x0c\xff\x3b\x9a\xc6\x18\x00\x00\x00:\xff\xf4\x95\xe0"
-        res = msgspec.encode(dt)
-        assert res == sol
+        # Largest datetime representable in python (kinda). Due to a bug in
+        # `fromtimestamp()` we need to drop back a second to successfully
+        # roundtrip.
+        dt = datetime.datetime.max - datetime.timedelta(seconds=1)
+        msg = b"\xc7\x0c\xff\x3b\x9a\xc6\x18\x00\x00\x00:\xff\xf4\x95\xdf"
+        assert msgspec.encode(dt) == msg
+        assert msgspec.decode(msg)  # == dt
 
         # Lower border of timestamp64
         dt = datetime.datetime.fromtimestamp(-1e-6)
-        sol = b"\xc7\x0c\xff;\x9a\xc6\x18\xff\xff\xff\xff\xff\xff\xff\xff"
-        res = msgspec.encode(dt)
-        assert res == sol
+        msg = b"\xc7\x0c\xff;\x9a\xc6\x18\xff\xff\xff\xff\xff\xff\xff\xff"
+        assert msgspec.encode(dt) == msg
+        assert msgspec.decode(msg) == dt
 
         # Upper border of timestamp64
         dt = datetime.datetime.fromtimestamp(2 ** 34)
-        sol = b"\xc7\x0c\xff\x00\x00\x00\x00\x00\x00\x00\x04\x00\x00\x00\x00"
-        res = msgspec.encode(dt)
-        assert res == sol
+        msg = b"\xc7\x0c\xff\x00\x00\x00\x00\x00\x00\x00\x04\x00\x00\x00\x00"
+        assert msgspec.encode(dt) == msg
+        assert msgspec.decode(msg) == dt
 
 
 class CommonTypeTestBase:

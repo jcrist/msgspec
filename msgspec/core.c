@@ -3014,6 +3014,65 @@ mp_decode_bin(DecoderState *self, Py_ssize_t size) {
     return PyBytes_FromStringAndSize(s, size);
 }
 
+#define DATETIME_SET_MICROSECOND(o, v) \
+    do { \
+        ((PyDateTime_DateTime *)o)->data[7] = ((v) & 0xff0000) >> 16; \
+        ((PyDateTime_DateTime *)o)->data[8] = ((v) & 0x00ff00) >> 8; \
+        ((PyDateTime_DateTime *)o)->data[9] = ((v) & 0x0000ff); \
+    } while (0);
+
+static PyObject *
+mp_decode_datetime(DecoderState *self, const char *data_buf, Py_ssize_t size) {
+    uint64_t data64;
+    uint32_t nanoseconds;
+    int64_t seconds;
+    PyObject *timestamp = NULL, *args = NULL, *res = NULL;
+
+    switch (size) {
+        case 4:
+            seconds = _msgspec_load32(uint32_t, data_buf);
+            nanoseconds = 0;
+            break;
+        case 8:
+            data64 = _msgspec_load64(uint64_t, data_buf);
+            seconds = data64 & 0x00000003ffffffffL;
+            nanoseconds = data64 >> 34;
+            break;
+        case 12:
+            nanoseconds = _msgspec_load32(uint32_t, data_buf);
+            seconds = _msgspec_load64(uint64_t, data_buf + 4);
+            break;
+        default:
+            PyErr_SetString(PyExc_ValueError, "Invalid MessagePack timestamp");
+            return NULL;
+    }
+
+    if (nanoseconds > 999999999) {
+        PyErr_SetString(
+            PyExc_ValueError,
+            "Invalid MessagePack timestamp: nanoseconds out of range"
+        );
+    }
+
+    timestamp = PyLong_FromLongLong(seconds);
+    if (timestamp == NULL) goto cleanup;
+    args = PyTuple_Pack(1, timestamp);
+    if (args == NULL) goto cleanup;
+    res = PyDateTime_FromTimestamp(args);
+    if (res == NULL) goto cleanup;
+
+    /* Set the microseconds directly, rather than passing a float to
+     * `PyDateTime_FromTimestamp`. This avoids resolution issues on larger
+     * timestamps, ensuring we successfully roundtrip all values.
+     */
+    DATETIME_SET_MICROSECOND(res, nanoseconds / 1000);
+
+cleanup:
+    Py_XDECREF(timestamp);
+    Py_XDECREF(args);
+    return res;
+}
+
 static PyObject *
 mp_decode_ext(DecoderState *self, Py_ssize_t size, bool skip_ext_hook) {
     Py_buffer *buffer;
@@ -3022,6 +3081,10 @@ mp_decode_ext(DecoderState *self, Py_ssize_t size, bool skip_ext_hook) {
 
     if (mp_read1(self, &code) < 0) return NULL;
     if (mp_read(self, &data_buf, size) < 0) return NULL;
+
+    if (code == -1 && !skip_ext_hook) {
+        return mp_decode_datetime(self, data_buf, size);
+    }
 
     if (self->ext_hook == NULL || skip_ext_hook) {
         data = PyBytes_FromStringAndSize(data_buf, size);
