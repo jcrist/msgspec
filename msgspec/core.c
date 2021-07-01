@@ -186,6 +186,7 @@ enum typecode {
     TYPE_STR,
     TYPE_BYTES,
     TYPE_BYTEARRAY,
+    TYPE_DATETIME,
     TYPE_ENUM,
     TYPE_INTENUM,
     TYPE_STRUCT,
@@ -238,6 +239,7 @@ TypeNode_Free(TypeNode *type) {
         case TYPE_STR:
         case TYPE_BYTES:
         case TYPE_BYTEARRAY:
+        case TYPE_DATETIME:
         case TYPE_EXT:
             PyMem_Free(type);
             return;
@@ -289,6 +291,7 @@ TypeNode_traverse(TypeNode *type, visitproc visit, void *arg) {
         case TYPE_STR:
         case TYPE_BYTES:
         case TYPE_BYTEARRAY:
+        case TYPE_DATETIME:
         case TYPE_EXT:
             return 0;
         case TYPE_ENUM:
@@ -421,6 +424,8 @@ TypeNode_Repr(TypeNode *type) {
             return PyUnicode_FromString(type->optional ? "Optional[bytes]" : "bytes");
         case TYPE_BYTEARRAY:
             return PyUnicode_FromString(type->optional ? "Optional[bytearray]" : "bytearray");
+        case TYPE_DATETIME:
+            return PyUnicode_FromString(type->optional ? "Optional[datetime]" : "datetime");
         case TYPE_EXT:
             return PyUnicode_FromString(type->optional ? "Optional[Ext]" : "Ext");
         case TYPE_ENUM:
@@ -575,6 +580,9 @@ to_type_node(PyObject * obj, bool optional) {
     }
     else if (obj == (PyObject *)(&PyByteArray_Type)) {
         return TypeNode_New(TYPE_BYTEARRAY, optional);
+    }
+    else if (obj == (PyObject *)(PyDateTimeAPI->DateTimeType)) {
+        return TypeNode_New(TYPE_DATETIME, optional);
     }
     else if (obj == (PyObject *)(&Ext_Type)) {
         return TypeNode_New(TYPE_EXT, optional);
@@ -3079,6 +3087,7 @@ mp_decode_ext(DecoderState *self, Py_ssize_t size, bool skip_ext_hook) {
     char code, *data_buf;
     PyObject *data, *pycode = NULL, *view = NULL, *out = NULL;
 
+    if (size < 0) return NULL;
     if (mp_read1(self, &code) < 0) return NULL;
     if (mp_read(self, &data_buf, size) < 0) return NULL;
 
@@ -3761,6 +3770,32 @@ mp_decode_type_binary(DecoderState *self, char op, bool is_bytearray, TypeNode *
 }
 
 static PyObject *
+mp_decode_type_datetime(DecoderState *self, char op,  TypeNode *ctx, Py_ssize_t ctx_ind) {
+    Py_ssize_t size;
+    char code, *data_buf;
+
+    switch ((enum mp_code)op) {
+        case MP_FIXEXT4:
+            size = 4;
+            break;
+        case MP_FIXEXT8:
+            size = 8;
+            break;
+        case MP_EXT8:
+            size = mp_decode_size1(self);
+            if (size < 0) return NULL;
+            break;
+        default:
+            return mp_validation_error(op, "datetime", ctx, ctx_ind);
+    }
+    if (mp_read1(self, &code) < 0) return NULL;
+    if (mp_read(self, &data_buf, size) < 0) return NULL;
+    if (code == -1) return mp_decode_datetime(self, data_buf, size);
+    /* An extension, but the wrong code */
+    return mp_format_validation_error("datetime", "Ext", ctx, ctx_ind);
+}
+
+static PyObject *
 mp_decode_type_ext(DecoderState *self, char op, TypeNode *ctx, Py_ssize_t ctx_ind) {
     switch ((enum mp_code)op) {
         case MP_FIXEXT1:
@@ -4128,6 +4163,8 @@ mp_decode_type(
             return mp_decode_type_binary(self, op, false, ctx, ctx_ind);
         case TYPE_BYTEARRAY:
             return mp_decode_type_binary(self, op, true, ctx, ctx_ind);
+        case TYPE_DATETIME:
+            return mp_decode_type_datetime(self, op, ctx, ctx_ind);
         case TYPE_EXT:
             return mp_decode_type_ext(self, op, ctx, ctx_ind);
         case TYPE_ENUM:
