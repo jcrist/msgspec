@@ -1,3 +1,4 @@
+import datetime
 from typing import Any, Type, TypeVar, Generic, Optional, Callable, Union, overload
 
 T = TypeVar("T")
@@ -14,22 +15,32 @@ class Ext:
     ) -> None: ...
 
 class Decoder(Generic[T]):
+    type: Type[T]
+    dec_hook: dec_hook_sig
+    ext_hook: ext_hook_sig
+    tzinfo: Optional[datetime.tzinfo]
     @overload
     def __init__(
         self: Decoder[Any],
+        *,
         dec_hook: dec_hook_sig = None,
         ext_hook: ext_hook_sig = None,
+        tzinfo: Optional[datetime.tzinfo] = None,
     ) -> None: ...
     @overload
     def __init__(
         self: Decoder[T],
         type: Type[T] = ...,
+        *,
         dec_hook: dec_hook_sig = None,
         ext_hook: ext_hook_sig = None,
+        tzinfo: Optional[datetime.tzinfo] = None,
     ) -> None: ...
     def decode(self, data: bytes) -> T: ...
 
 class Encoder:
+    enc_hook: enc_hook_sig
+    write_buffer_size: int
     def __init__(
         self,
         *,
@@ -42,7 +53,13 @@ class Encoder:
     ) -> None: ...
 
 @overload
-def decode(buf: bytes, ext_hook: ext_hook_sig = None) -> Any: ...
+def decode(
+    buf: bytes,
+    *,
+    dec_hook: dec_hook_sig = None,
+    ext_hook: ext_hook_sig = None,
+    tzinfo: Optional[datetime.tzinfo] = None,
+) -> Any: ...
 @overload
 def decode(
     buf: bytes,
@@ -50,5 +67,6 @@ def decode(
     type: Type[T] = ...,
     dec_hook: dec_hook_sig = None,
     ext_hook: ext_hook_sig = None,
+    tzinfo: Optional[datetime.tzinfo] = None,
 ) -> T: ...
 def encode(obj: Any, *, enc_hook: enc_hook_sig = None) -> bytes: ...

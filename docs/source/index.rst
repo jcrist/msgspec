@@ -128,11 +128,19 @@ mapped to Python types as follows:
 - ``bin``: `bytes`
 - ``array``: `list` or `tuple` [#tuple]_
 - ``map``: `dict`
-- ``ext``: `msgspec.Ext`
+- ``ext``: `msgspec.Ext` or `datetime.datetime` [#datetime]_
 
 .. [#tuple] Tuples are only used when the array type must be hashable (e.g.
    keys in a ``dict`` or ``set``). All other array types are deserialized as
    lists by default.
+
+.. [#datetime] datetime objects are encoded/decoded using the `timestamp
+   extension type
+   <https://github.com/msgpack/msgpack/blob/master/spec.md#timestamp-extension-type>`__.
+   Note that on Windows this will only work for datetimes _after_ the `Unix
+   epoch <https://en.wikipedia.org/wiki/Unix_time>`__ (this is fixable with
+   some effort, if you need to support earlier timestamps on windows please
+   file an issue).
 
 Messages composed of any combination of these will deserialize successfully
 without any further validation:
