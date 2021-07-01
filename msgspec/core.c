@@ -89,6 +89,7 @@ typedef struct {
     PyObject *str_enc_hook;
     PyObject *str_dec_hook;
     PyObject *str_ext_hook;
+    PyObject *str_tzinfo;
     PyObject *str___origin__;
     PyObject *str___args__;
     PyObject *typing_list;
@@ -2755,6 +2756,7 @@ typedef struct DecoderState {
     TypeNode *type;
     PyObject *dec_hook;
     PyObject *ext_hook;
+    PyObject *tzinfo;
 
     /* Per-message attributes */
     PyObject *buffer_obj;
@@ -2770,7 +2772,7 @@ typedef struct Decoder {
 } Decoder;
 
 PyDoc_STRVAR(Decoder__doc__,
-"Decoder(type='Any', dec_hook=None, ext_hook=None)\n"
+"Decoder(type='Any', dec_hook=None, ext_hook=None, tzinfo=None)\n"
 "--\n"
 "\n"
 "A MessagePack decoder.\n"
@@ -2795,18 +2797,24 @@ PyDoc_STRVAR(Decoder__doc__,
 "    message. Note that ``data`` is a memoryview into the larger message\n"
 "    buffer - any references created to the underlying buffer without copying\n"
 "    the data out will cause the full message buffer to persist in memory.\n"
-"    If not provided, extension types will decode as ``msgspec.Ext`` objects."
+"    If not provided, extension types will decode as ``msgspec.Ext`` objects.\n"
+"tzinfo : datetime.tzinfo, optional\n"
+"    The timezone to use when decoding ``datetime.datetime`` objects. Defaults\n"
+"    to ``None`` for \"naive\" datetimes"
 );
 static int
 Decoder_init(Decoder *self, PyObject *args, PyObject *kwds)
 {
-    static char *kwlist[] = {"type", "dec_hook", "ext_hook", NULL};
+    static char *kwlist[] = {"type", "dec_hook", "ext_hook", "tzinfo", NULL};
     MsgspecState *st = msgspec_get_global_state();
     PyObject *type = st->typing_any;
     PyObject *ext_hook = NULL;
     PyObject *dec_hook = NULL;
+    PyObject *tzinfo = NULL;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOO", kwlist, &type, &dec_hook, &ext_hook)) {
+    if (!PyArg_ParseTupleAndKeywords(
+            args, kwds, "|OOOO", kwlist, &type, &dec_hook, &ext_hook, &tzinfo
+        )) {
         return -1;
     }
 
@@ -2843,6 +2851,21 @@ Decoder_init(Decoder *self, PyObject *args, PyObject *kwds)
     }
     Py_INCREF(type);
     self->orig_type = type;
+
+    /* Handle tzinfo */
+    if (tzinfo == Py_None) {
+        tzinfo = NULL;
+    }
+    if (tzinfo != NULL) {
+        int ok = PyObject_IsInstance(tzinfo, (PyObject *)(PyDateTimeAPI->TZInfoType));
+        if (ok == -1) return -1;
+        if (ok == 0) {
+            PyErr_SetString(PyExc_TypeError, "tzinfo must be an instance of tzinfo");
+            return -1;
+        }
+        Py_INCREF(tzinfo);
+    }
+    self->state.tzinfo = tzinfo;
     return 0;
 }
 
@@ -3064,7 +3087,11 @@ mp_decode_datetime(DecoderState *self, const char *data_buf, Py_ssize_t size) {
 
     timestamp = PyLong_FromLongLong(seconds);
     if (timestamp == NULL) goto cleanup;
-    args = PyTuple_Pack(1, timestamp);
+    if (self->tzinfo == NULL) {
+        args = PyTuple_Pack(1, timestamp);
+    } else {
+        args = PyTuple_Pack(2, timestamp, self->tzinfo);
+    }
     if (args == NULL) goto cleanup;
     res = PyDateTime_FromTimestamp(args);
     if (res == NULL) goto cleanup;
@@ -4245,6 +4272,7 @@ static PyMemberDef Decoder_members[] = {
     {"type", T_OBJECT_EX, offsetof(Decoder, orig_type), READONLY, "The Decoder type"},
     {"dec_hook", T_OBJECT, offsetof(Decoder, state.dec_hook), READONLY, "The Decoder dec_hook"},
     {"ext_hook", T_OBJECT, offsetof(Decoder, state.ext_hook), READONLY, "The Decoder ext_hook"},
+    {"tzinfo", T_OBJECT, offsetof(Decoder, state.tzinfo), READONLY, "The Decoder tzinfo"},
     {NULL},
 };
 
@@ -4265,7 +4293,7 @@ static PyTypeObject Decoder_Type = {
 
 
 PyDoc_STRVAR(msgspec_decode__doc__,
-"decode(buf, *, type='Any', ext_hook=None)\n"
+"decode(buf, *, type='Any', dec_hook=None, ext_hook=None, tzinfo=None)\n"
 "--\n"
 "\n"
 "Deserialize an object from bytes.\n"
@@ -4293,6 +4321,9 @@ PyDoc_STRVAR(msgspec_decode__doc__,
 "    buffer - any references created to the underlying buffer without copying\n"
 "    the data out will cause the full message buffer to persist in memory.\n"
 "    If not provided, extension types will decode as ``msgspec.Ext`` objects.\n"
+"tzinfo : datetime.tzinfo, optional\n"
+"    The timezone to use when decoding ``datetime.datetime`` objects. Defaults\n"
+"    to ``None`` for \"naive\" datetimes\n"
 "\n"
 "Returns\n"
 "-------\n"
@@ -4306,7 +4337,7 @@ PyDoc_STRVAR(msgspec_decode__doc__,
 static PyObject*
 msgspec_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
 {
-    PyObject *res = NULL, *buf = NULL, *type = NULL, *dec_hook = NULL, *ext_hook = NULL;
+    PyObject *res = NULL, *buf = NULL, *type = NULL, *dec_hook = NULL, *ext_hook = NULL, *tzinfo = NULL;
     DecoderState state;
     Py_buffer buffer;
     MsgspecState *st = msgspec_get_global_state();
@@ -4319,6 +4350,7 @@ msgspec_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject
         if ((type = find_keyword(kwnames, args + nargs, st->str_type)) != NULL) nkwargs--;
         if ((dec_hook = find_keyword(kwnames, args + nargs, st->str_dec_hook)) != NULL) nkwargs--;
         if ((ext_hook = find_keyword(kwnames, args + nargs, st->str_ext_hook)) != NULL) nkwargs--;
+        if ((tzinfo = find_keyword(kwnames, args + nargs, st->str_tzinfo)) != NULL) nkwargs--;
         if (nkwargs > 0) {
             PyErr_SetString(
                 PyExc_TypeError,
@@ -4351,6 +4383,21 @@ msgspec_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject
         }
     }
     state.ext_hook = ext_hook;
+
+    /* Handle tzinfo */
+    if (tzinfo == Py_None) {
+        tzinfo = NULL;
+    }
+    if (tzinfo != NULL) {
+        int ok = PyObject_IsInstance(tzinfo, (PyObject *)(PyDateTimeAPI->TZInfoType));
+        if (ok == -1) return NULL;
+        if (ok == 0) {
+            PyErr_SetString(PyExc_TypeError, "tzinfo must be an instance of tzinfo");
+            return NULL;
+        }
+        Py_INCREF(tzinfo);
+    }
+    state.tzinfo = tzinfo;
 
     /* Only build TypeNode if required */
     state.type = NULL;
@@ -4414,6 +4461,7 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->str_enc_hook);
     Py_CLEAR(st->str_dec_hook);
     Py_CLEAR(st->str_ext_hook);
+    Py_CLEAR(st->str_tzinfo);
     Py_CLEAR(st->str___origin__);
     Py_CLEAR(st->str___args__);
     Py_CLEAR(st->typing_dict);
@@ -4618,6 +4666,9 @@ PyInit_core(void)
         return NULL;
     st->str_ext_hook = PyUnicode_InternFromString("ext_hook");
     if (st->str_ext_hook == NULL)
+        return NULL;
+    st->str_tzinfo = PyUnicode_InternFromString("tzinfo");
+    if (st->str_tzinfo == NULL)
         return NULL;
     st->str___origin__ = PyUnicode_InternFromString("__origin__");
     if (st->str___origin__ == NULL)
