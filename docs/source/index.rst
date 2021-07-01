@@ -102,6 +102,7 @@ Msgspec currently supports serializing/deserializing the following types:
 - `list`
 - `dict`
 - `set`
+- `datetime.datetime`
 - `enum.Enum`
 - `msgspec.Struct`
 - `msgspec.Ext`
