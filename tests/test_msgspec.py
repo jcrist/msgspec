@@ -1223,12 +1223,7 @@ class TestTimestampExt:
         with pytest.raises(TypeError, match="tzinfo"):
             msgspec.decode(msg, tzinfo=1)
 
-    @pytest.mark.parametrize("ts", [0, 1, -1, 2 ** 32 - 1, 2 ** 33])
-    @pytest.mark.parametrize("tzinfo", [None, datetime.timezone.utc])
-    def test_debug_windows(self, ts, tzinfo):
-        datetime.datetime.fromtimestamp(ts, tzinfo)
-
-    @pytest.mark.parametrize("timestamp", [0, 0.001, -0.001, 2 ** 32 - 1, -1])
+    @pytest.mark.parametrize("timestamp", [0, 0.001, 2 ** 32 - 1])
     def test_decode_with_tzinfo(self, timestamp):
         dt = datetime.datetime.fromtimestamp(timestamp, datetime.timezone.utc)
 

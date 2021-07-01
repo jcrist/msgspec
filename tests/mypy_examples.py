@@ -1,4 +1,5 @@
 # fmt: off
+import datetime
 import pickle
 from typing import List, Any, Type
 import msgspec
@@ -93,3 +94,13 @@ def check_Ext() -> None:
     ext = msgspec.Ext(1, b"test")
     reveal_type(ext.code)  # assert "int" in typ
     reveal_type(ext.data)  # assert "bytes" in typ
+
+
+def check_tzinfo() -> None:
+    dec = msgspec.Decoder()
+    reveal_type(dec.tzinfo)  # assert "tzinfo" in typ
+
+    msgspec.Decoder(tzinfo=None)
+    msgspec.Decoder(tzinfo=datetime.timezone.utc)
+    msgspec.decode(b"test", tzinfo=None)
+    msgspec.decode(b"test", tzinfo=datetime.timezone.utc)

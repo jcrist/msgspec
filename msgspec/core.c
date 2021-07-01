@@ -2772,7 +2772,7 @@ typedef struct Decoder {
 } Decoder;
 
 PyDoc_STRVAR(Decoder__doc__,
-"Decoder(type='Any', dec_hook=None, ext_hook=None, tzinfo=None)\n"
+"Decoder(type='Any', *, dec_hook=None, ext_hook=None, tzinfo=None)\n"
 "--\n"
 "\n"
 "A MessagePack decoder.\n"
@@ -2800,7 +2800,7 @@ PyDoc_STRVAR(Decoder__doc__,
 "    If not provided, extension types will decode as ``msgspec.Ext`` objects.\n"
 "tzinfo : datetime.tzinfo, optional\n"
 "    The timezone to use when decoding ``datetime.datetime`` objects. Defaults\n"
-"    to ``None`` for \"naive\" datetimes"
+"    to ``None`` for \"naive\" datetimes."
 );
 static int
 Decoder_init(Decoder *self, PyObject *args, PyObject *kwds)
@@ -2813,7 +2813,7 @@ Decoder_init(Decoder *self, PyObject *args, PyObject *kwds)
     PyObject *tzinfo = NULL;
 
     if (!PyArg_ParseTupleAndKeywords(
-            args, kwds, "|OOOO", kwlist, &type, &dec_hook, &ext_hook, &tzinfo
+            args, kwds, "|O$OOO", kwlist, &type, &dec_hook, &ext_hook, &tzinfo
         )) {
         return -1;
     }
@@ -4323,7 +4323,7 @@ PyDoc_STRVAR(msgspec_decode__doc__,
 "    If not provided, extension types will decode as ``msgspec.Ext`` objects.\n"
 "tzinfo : datetime.tzinfo, optional\n"
 "    The timezone to use when decoding ``datetime.datetime`` objects. Defaults\n"
-"    to ``None`` for \"naive\" datetimes\n"
+"    to ``None`` for \"naive\" datetimes.\n"
 "\n"
 "Returns\n"
 "-------\n"
