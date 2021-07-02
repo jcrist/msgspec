@@ -40,6 +40,16 @@
     PyByteArray_AS_STRING(obj)[size] = '\0'; \
     } while (0);
 
+/* XXX: Optimized `PyUnicode_AsUTF8AndSize`, fastpath for ascii strings. */
+static inline const char *
+unicode_str_and_size(PyObject *str, Py_ssize_t *size) {
+    if (PyUnicode_IS_COMPACT_ASCII(str)) {
+        *size = ((PyASCIIObject *)str)->length;
+        return (char *)(((PyASCIIObject *)str) + 1);
+    }
+    return PyUnicode_AsUTF8AndSize(str, size);
+}
+
 /*************************************************************************
  * Endian handling macros                                                *
  *************************************************************************/
@@ -719,7 +729,7 @@ StructMeta_get_field_index(StructMetaObject *self, char * key, Py_ssize_t key_si
     nfields = PyTuple_GET_SIZE(self->struct_fields);
     for (i = 0; i < nfields; i++) {
         ind = (i + offset) % nfields;
-        field = PyUnicode_AsUTF8AndSize(
+        field = unicode_str_and_size(
             PyTuple_GET_ITEM(self->struct_fields, ind), &field_size
         );
         if (field == NULL) return -1;
@@ -1875,7 +1885,9 @@ mp_resize(EncoderState *self, Py_ssize_t size)
 {
         int status;
         bool is_bytes = PyBytes_CheckExact(self->output_buffer);
-        self->max_output_len = Py_MAX(8, 1.5 * size);
+        while (size > self->max_output_len) {
+            self->max_output_len *= 2;
+        }
         status = (
             is_bytes ? _PyBytes_Resize(&self->output_buffer, self->max_output_len)
                      : PyByteArray_Resize(self->output_buffer, self->max_output_len)
@@ -2010,7 +2022,7 @@ static int
 mp_encode_str(EncoderState *self, PyObject *obj)
 {
     Py_ssize_t len;
-    const char* buf = PyUnicode_AsUTF8AndSize(obj, &len);
+    const char* buf = unicode_str_and_size(obj, &len);
     if (buf == NULL) {
         return -1;
     }
@@ -2559,6 +2571,12 @@ Encoder_encode_into(Encoder *self, PyObject *const *args, Py_ssize_t nargs)
         if (offset > buf_size) {
             offset = buf_size;
         }
+    }
+
+    /* Handle 0-length buffers here so we don't have to check while encoding */
+    if (buf_size == 0) {
+        buf_size = 8;
+        if (PyByteArray_Resize(buf, buf_size) < 0) return NULL;
     }
 
     /* Setup buffer */
