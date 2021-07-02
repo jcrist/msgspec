@@ -40,6 +40,16 @@
     PyByteArray_AS_STRING(obj)[size] = '\0'; \
     } while (0);
 
+/* XXX: Optimized `PyUnicode_AsUTF8AndSize`, fastpath for ascii strings. */
+static inline const char *
+unicode_str_and_size(PyObject *str, Py_ssize_t *size) {
+    if (PyUnicode_IS_COMPACT_ASCII(str)) {
+        *size = ((PyASCIIObject *)str)->length;
+        return (char *)(((PyASCIIObject *)str) + 1);
+    }
+    return PyUnicode_AsUTF8AndSize(str, size);
+}
+
 /*************************************************************************
  * Endian handling macros                                                *
  *************************************************************************/
@@ -719,7 +729,7 @@ StructMeta_get_field_index(StructMetaObject *self, char * key, Py_ssize_t key_si
     nfields = PyTuple_GET_SIZE(self->struct_fields);
     for (i = 0; i < nfields; i++) {
         ind = (i + offset) % nfields;
-        field = PyUnicode_AsUTF8AndSize(
+        field = unicode_str_and_size(
             PyTuple_GET_ITEM(self->struct_fields, ind), &field_size
         );
         if (field == NULL) return -1;
@@ -2010,7 +2020,7 @@ static int
 mp_encode_str(EncoderState *self, PyObject *obj)
 {
     Py_ssize_t len;
-    const char* buf = PyUnicode_AsUTF8AndSize(obj, &len);
+    const char* buf = unicode_str_and_size(obj, &len);
     if (buf == NULL) {
         return -1;
     }
