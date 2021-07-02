@@ -6,7 +6,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
 
-    <title>msgspec &#8212; msgspec 0+untagged.1.gdef1724 documentation</title>
+    <title>msgspec &#8212; msgspec 0+untagged.1.g9b98e91 documentation</title>
     <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
     <link rel="stylesheet" type="text/css" href="_static/alabaster.css" />
     <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
@@ -119,6 +119,7 @@ efficient to create an <a class="reference internal" href="api.html#msgspec.Enco
 <li><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">list</span></code></a></p></li>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a></p></li>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#set" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set</span></code></a></p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.datetime" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.datetime</span></code></a></p></li>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.Enum" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enum.Enum</span></code></a></p></li>
 <li><p><a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a></p></li>
 <li><p><a class="reference internal" href="api.html#msgspec.Ext" title="msgspec.Ext"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Ext</span></code></a></p></li>
@@ -141,13 +142,21 @@ mapped to Python types as follows:</p>
 <li><p><code class="docutils literal notranslate"><span class="pre">bin</span></code>: <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytes</span></code></a></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">array</span></code>: <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">list</span></code></a> or <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tuple</span></code></a> <a class="footnote-reference brackets" href="#tuple" id="id1">1</a></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">map</span></code>: <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">ext</span></code>: <a class="reference internal" href="api.html#msgspec.Ext" title="msgspec.Ext"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Ext</span></code></a></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ext</span></code>: <a class="reference internal" href="api.html#msgspec.Ext" title="msgspec.Ext"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Ext</span></code></a> or <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.datetime" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.datetime</span></code></a> <a class="footnote-reference brackets" href="#datetime" id="id2">2</a></p></li>
 </ul>
 <dl class="footnote brackets">
 <dt class="label" id="tuple"><span class="brackets"><a class="fn-backref" href="#id1">1</a></span></dt>
 <dd><p>Tuples are only used when the array type must be hashable (e.g.
 keys in a <code class="docutils literal notranslate"><span class="pre">dict</span></code> or <code class="docutils literal notranslate"><span class="pre">set</span></code>). All other array types are deserialized as
 lists by default.</p>
+</dd>
+<dt class="label" id="datetime"><span class="brackets"><a class="fn-backref" href="#id2">2</a></span></dt>
+<dd><p>datetime objects are encoded/decoded using the <a class="reference external" href="https://github.com/msgpack/msgpack/blob/master/spec.md#timestamp-extension-type">timestamp
+extension type</a>.
+Note that on Windows this will only work for datetimes _after_ the <a class="reference external" href="https://en.wikipedia.org/wiki/Unix_time">Unix
+epoch</a> (this is fixable with
+some effort, if you need to support earlier timestamps on windows please
+file an issue).</p>
 </dd>
 </dl>
 <p>Messages composed of any combination of these will deserialize successfully
@@ -288,7 +297,7 @@ deserializing a message into a <a class="reference internal" href="api.html#msgs
 deserializing it into a <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a>.</p>
 </section>
 <section id="extensions">
-<span id="id2"></span><h3>Extensions<a class="headerlink" href="#extensions" title="Permalink to this headline">¶</a></h3>
+<span id="id3"></span><h3>Extensions<a class="headerlink" href="#extensions" title="Permalink to this headline">¶</a></h3>
 <p>The MessagePack specification provides support for defining custom
 <a class="reference external" href="https://github.com/msgpack/msgpack/blob/master/spec.md#extension-types">Extensions</a>.
 Extensions consist of:</p>
@@ -396,7 +405,7 @@ memory usage.</p>
 </div>
 </section>
 <section id="schema-evolution">
-<span id="id3"></span><h3>Schema Evolution<a class="headerlink" href="#schema-evolution" title="Permalink to this headline">¶</a></h3>
+<span id="id4"></span><h3>Schema Evolution<a class="headerlink" href="#schema-evolution" title="Permalink to this headline">¶</a></h3>
 <p>Msgspec includes support for “schema evolution”, meaning that:</p>
 <ul class="simple">
 <li><p>Messages serialized with an older version of a schema will be deserializable
