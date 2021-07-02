@@ -242,9 +242,12 @@ class TestEncoderMisc:
             enc.encode(o)
 
     def test_getsizeof(self):
-        a = sys.getsizeof(msgspec.Encoder(write_buffer_size=64))
-        b = sys.getsizeof(msgspec.Encoder(write_buffer_size=128))
-        assert b > a
+        enc1 = msgspec.Encoder(write_buffer_size=64)
+        enc2 = msgspec.Encoder(write_buffer_size=128)
+        assert sys.getsizeof(enc1) == sys.getsizeof(enc2)  # no buffer allocated yet
+        enc1.encode(None)
+        enc2.encode(None)
+        assert sys.getsizeof(enc1) < sys.getsizeof(enc2)
 
     def test_write_buffer_size_attribute(self):
         enc1 = msgspec.Encoder(write_buffer_size=64)

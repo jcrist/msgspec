@@ -24,6 +24,22 @@
     (PyType_IS_GC(Py_TYPE(x)) && \
      (!PyTuple_CheckExact(x) || IS_TRACKED(x)))
 
+/* Fast shrink of bytes & bytearray objects. This doesn't do any memory
+ * allocations, it just shrinks the size of the view presented to Python. Since
+ * outputs of `encode` should be short lived (immediately written to a
+ * socket/file then dropped), this shouldn't result in increased application
+ * memory usage. */
+# define FAST_BYTES_SHRINK(obj, size) \
+    do { \
+    SET_SIZE(obj, size); \
+    PyBytes_AS_STRING(obj)[size] = '\0'; \
+    } while (0);
+# define FAST_BYTEARRAY_SHRINK(obj, size) \
+    do { \
+    SET_SIZE(obj, size); \
+    PyByteArray_AS_STRING(obj)[size] = '\0'; \
+    } while (0);
+
 /*************************************************************************
  * Endian handling macros                                                *
  *************************************************************************/
@@ -1728,6 +1744,7 @@ typedef struct EncoderState {
     Py_ssize_t write_buffer_size;  /* Configured internal buffer size */
 
     PyObject *output_buffer;    /* bytes or bytearray storing the output */
+    char *output_buffer_raw;    /* raw pointer to output_buffer internal buffer */
     Py_ssize_t output_len;      /* Length of output_buffer */
     Py_ssize_t max_output_len;  /* Allocation size of output_buffer */
 } EncoderState;
@@ -1739,7 +1756,7 @@ typedef struct Encoder {
 } Encoder;
 
 PyDoc_STRVAR(Encoder__doc__,
-"Encoder(*, enc_hook=None, write_buffer_size=4096)\n"
+"Encoder(*, enc_hook=None, write_buffer_size=512)\n"
 "--\n"
 "\n"
 "A MessagePack encoder.\n"
@@ -1756,7 +1773,7 @@ static int
 Encoder_init(Encoder *self, PyObject *args, PyObject *kwds)
 {
     static char *kwlist[] = {"enc_hook", "write_buffer_size", NULL};
-    Py_ssize_t write_buffer_size = 4096;
+    Py_ssize_t write_buffer_size = 512;
     PyObject *enc_hook = NULL;
 
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "|$On", kwlist,
@@ -1778,9 +1795,7 @@ Encoder_init(Encoder *self, PyObject *args, PyObject *kwds)
     self->state.write_buffer_size = Py_MAX(write_buffer_size, 32);
     self->state.max_output_len = self->state.write_buffer_size;
     self->state.output_len = 0;
-    self->state.output_buffer = PyBytes_FromStringAndSize(NULL, self->state.max_output_len);
-    if (self->state.output_buffer == NULL)
-        return -1;
+    self->state.output_buffer = NULL;
     return 0;
 }
 
@@ -1856,30 +1871,35 @@ enum mp_code {
 };
 
 static int
-mp_write(EncoderState *self, const char *s, Py_ssize_t n)
+mp_resize(EncoderState *self, Py_ssize_t size) 
 {
-    Py_ssize_t required;
-    char *buffer;
-    bool is_bytes = PyBytes_CheckExact(self->output_buffer);
-
-    required = self->output_len + n;
-    if (required > self->max_output_len) {
-        /* Make space in buffer */
         int status;
-        self->max_output_len = Py_MAX(8, (self->output_len + n) / 2 * 3);
+        bool is_bytes = PyBytes_CheckExact(self->output_buffer);
+        while (size > self->max_output_len) {
+            self->max_output_len *= 2;
+        }
         status = (
             is_bytes ? _PyBytes_Resize(&self->output_buffer, self->max_output_len)
                      : PyByteArray_Resize(self->output_buffer, self->max_output_len)
         );
         if (status < 0) return -1;
+        if (is_bytes) {
+            self->output_buffer_raw = PyBytes_AS_STRING(self->output_buffer);
+        }
+        else {
+            self->output_buffer_raw = PyByteArray_AS_STRING(self->output_buffer);
+        }
+        return status;
+}
+
+static inline int
+mp_write(EncoderState *self, const char *s, Py_ssize_t n)
+{
+    Py_ssize_t required = self->output_len + n;
+    if (required > self->max_output_len) {
+        if (mp_resize(self, required) < 0) return -1;
     }
-    if (is_bytes) {
-        buffer = PyBytes_AS_STRING(self->output_buffer);
-    }
-    else {
-        buffer = PyByteArray_AS_STRING(self->output_buffer);
-    }
-    memcpy(buffer + self->output_len, s, n);
+    memcpy(self->output_buffer_raw + self->output_len, s, n);
     self->output_len += n;
     return 0;
 }
@@ -2543,31 +2563,30 @@ Encoder_encode_into(Encoder *self, PyObject *const *args, Py_ssize_t nargs)
         }
     }
 
+    /* Handle 0-length bytearrays here, so we can ignore 0 on the fast path */
+    if (buf_size == 0) {
+        if (PyByteArray_Resize(buf, 8) < 0) return NULL;
+        buf_size = 8;
+    }
+
     /* Setup buffer */
     old_buf = self->state.output_buffer;
     self->state.output_buffer = buf;
+    self->state.output_buffer_raw = PyByteArray_AS_STRING(buf);
     self->state.output_len = offset;
     self->state.max_output_len = buf_size;
 
     status = mp_encode(&(self->state), obj);
 
     if (status == 0) {
-        /* Set the length of the bytearray *without* actually resizing the
-         * backing memory buffer. This is useful for propagating size info
-         * downstream without doing any additional memory operations. Most
-         * users of this method will either immediately write more onto the end
-         * of the buffer (in which case they will need to resize the buffer
-         * back up anyway), or they will write the buffer to a socket/file/...
-         * and release the memory.  Either way, hitting realloc here seems
-         * unnecessary. 
-         *
-         * This is copied from within the fastpath of `PyByteArray_Resize`*/
-        SET_SIZE(self->state.output_buffer, self->state.output_len);
-        PyByteArray_AS_STRING(self->state.output_buffer)[self->state.output_len] = '\0';
+        FAST_BYTEARRAY_SHRINK(self->state.output_buffer, self->state.output_len);
     }
 
     /* Reset buffer */
     self->state.output_buffer = old_buf;
+    if (old_buf != NULL) {
+        self->state.output_buffer_raw = PyBytes_AS_STRING(old_buf);
+    }
 
     Py_RETURN_NONE;
 }
@@ -2603,8 +2622,8 @@ Encoder_encode(Encoder *self, PyObject *const *args, Py_ssize_t nargs)
     if (self->state.output_buffer == NULL) {
         self->state.max_output_len = self->state.write_buffer_size;
         self->state.output_buffer = PyBytes_FromStringAndSize(NULL, self->state.max_output_len);
-        if (self->state.output_buffer == NULL)
-            return NULL;
+        if (self->state.output_buffer == NULL) return NULL;
+        self->state.output_buffer_raw = PyBytes_AS_STRING(self->state.output_buffer);
     }
 
     status = mp_encode(&(self->state), args[0]);
@@ -2614,7 +2633,7 @@ Encoder_encode(Encoder *self, PyObject *const *args, Py_ssize_t nargs)
             /* Buffer was resized, trim to length */
             res = self->state.output_buffer;
             self->state.output_buffer = NULL;
-            _PyBytes_Resize(&res, self->state.output_len);
+            FAST_BYTES_SHRINK(res, self->state.output_len);
         }
         else {
             /* Only constant buffer used, copy to output */
@@ -2728,18 +2747,19 @@ msgspec_encode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject
     state.enc_hook = enc_hook;
 
     /* use a smaller buffer size here to reduce chance of over allocating for one-off calls */
-    state.write_buffer_size = 64;
+    state.write_buffer_size = 32;
     state.max_output_len = state.write_buffer_size;
     state.output_len = 0;
     state.output_buffer = PyBytes_FromStringAndSize(NULL, state.max_output_len);
     if (state.output_buffer == NULL) return NULL;
+    state.output_buffer_raw = PyBytes_AS_STRING(state.output_buffer);
 
     status = mp_encode(&state, args[0]);
 
     if (status == 0) {
         /* Trim output to length */
         res = state.output_buffer;
-        _PyBytes_Resize(&res, state.output_len);
+        FAST_BYTES_SHRINK(res, state.output_len);
     } else {
         /* Error in encode, drop buffer */
         Py_CLEAR(state.output_buffer);
