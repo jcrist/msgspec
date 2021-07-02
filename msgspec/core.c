@@ -1885,9 +1885,7 @@ mp_resize(EncoderState *self, Py_ssize_t size)
 {
         int status;
         bool is_bytes = PyBytes_CheckExact(self->output_buffer);
-        while (size > self->max_output_len) {
-            self->max_output_len *= 2;
-        }
+        self->max_output_len = Py_MAX(8, 1.5 * size);
         status = (
             is_bytes ? _PyBytes_Resize(&self->output_buffer, self->max_output_len)
                      : PyByteArray_Resize(self->output_buffer, self->max_output_len)
@@ -2571,12 +2569,6 @@ Encoder_encode_into(Encoder *self, PyObject *const *args, Py_ssize_t nargs)
         if (offset > buf_size) {
             offset = buf_size;
         }
-    }
-
-    /* Handle 0-length buffers here so we don't have to check while encoding */
-    if (buf_size == 0) {
-        buf_size = 8;
-        if (PyByteArray_Resize(buf, buf_size) < 0) return NULL;
     }
 
     /* Setup buffer */
