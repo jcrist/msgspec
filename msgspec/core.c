@@ -1392,6 +1392,10 @@ error:
 
 static int
 Struct_setattro(PyObject *self, PyObject *key, PyObject *value) {
+    if (((StructMetaObject *)Py_TYPE(self))->immutable == OPT_TRUE) {
+        PyErr_Format(PyExc_TypeError, "immutable type: '%s'", Py_TYPE(self)->tp_name);
+        return -1;
+    }
     if (PyObject_GenericSetAttr(self, key, value) < 0)
         return -1;
     if (value != NULL && OBJ_IS_GC(value) && !IS_TRACKED(self))
@@ -1453,6 +1457,48 @@ cleanup:
     Py_XDECREF(empty);
     Py_ReprLeave(self);
     return out;
+}
+
+/* Hash algorithm borrowed from cpython 3.10's hashing algorithm for tuples.
+ * See https://github.com/python/cpython/blob/4bcef2bb48b3fd82011a89c1c716421b789f1442/Objects/tupleobject.c#L386-L424
+ */
+#if SIZEOF_PY_UHASH_T > 4
+#define MP_HASH_XXPRIME_1 ((Py_uhash_t)11400714785074694791ULL)
+#define MP_HASH_XXPRIME_2 ((Py_uhash_t)14029467366897019727ULL)
+#define MP_HASH_XXPRIME_5 ((Py_uhash_t)2870177450012600261ULL)
+#define MP_HASH_XXROTATE(x) ((x << 31) | (x >> 33))  /* Rotate left 31 bits */
+#else
+#define MP_HASH_XXPRIME_1 ((Py_uhash_t)2654435761UL)
+#define MP_HASH_XXPRIME_2 ((Py_uhash_t)2246822519UL)
+#define MP_HASH_XXPRIME_5 ((Py_uhash_t)374761393UL)
+#define MP_HASH_XXROTATE(x) ((x << 13) | (x >> 19))  /* Rotate left 13 bits */
+#endif
+
+static Py_hash_t
+Struct_hash(PyObject *self) {
+    PyObject *val;
+    Py_ssize_t i, nfields;
+    Py_uhash_t acc = MP_HASH_XXPRIME_5;
+
+    if (((StructMetaObject *)Py_TYPE(self))->immutable == OPT_UNSET) {
+        PyErr_Format(PyExc_TypeError, "unhashable type: '%s'", Py_TYPE(self)->tp_name);
+        return -1;
+    }
+
+    nfields = StructMeta_GET_NFIELDS(Py_TYPE(self));
+
+    for (i = 0; i < nfields; i++) {
+        Py_uhash_t lane;
+        val = Struct_get_index(self, i);
+        if (val == NULL) return -1;
+        lane = PyObject_Hash(val);
+        if (lane == (Py_uhash_t)-1) return -1;
+        acc += lane * MP_HASH_XXPRIME_2;
+        acc = MP_HASH_XXROTATE(acc);
+        acc *= MP_HASH_XXPRIME_1;
+    }
+    acc += nfields ^ (MP_HASH_XXPRIME_5 ^ 3527539UL);
+    return (acc == (Py_uhash_t)-1) ?  1546275796 : acc;
 }
 
 static PyObject *
@@ -1586,6 +1632,7 @@ static PyTypeObject StructMixinType = {
     .tp_setattro = Struct_setattro,
     .tp_repr = Struct_repr,
     .tp_richcompare = Struct_richcompare,
+    .tp_hash = Struct_hash,
     .tp_methods = Struct_methods,
     .tp_getset = StructMixin_getset,
 };
