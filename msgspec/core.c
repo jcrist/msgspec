@@ -3577,7 +3577,7 @@ static PyObject * mp_decode_type(
 static PyObject *
 mp_format_validation_error(const char *expected, const char *got, TypeNode *ctx, Py_ssize_t ctx_ind) {
     MsgspecState *st = msgspec_get_global_state();
-    if (ctx->code == TYPE_STRUCT) {
+    if (ctx->code == TYPE_STRUCT && ctx_ind != -1) {
         StructMetaObject *st_type = (StructMetaObject *)(((TypeNodeObj *)ctx)->arg);
         PyObject *field = PyTuple_GET_ITEM(st_type->struct_fields, ctx_ind);
         PyObject *typstr = TypeNode_Repr(st_type->struct_types[ctx_ind]);
@@ -4195,7 +4195,7 @@ mp_decode_type_struct(DecoderState *self, char op, TypeNodeObj *type, TypeNode *
     else if (op == MP_MAP32) {
         size = mp_decode_size4(self);
     }
-    else if (((StructMetaObject *)type->arg)->asarray) {
+    else if (((StructMetaObject *)type->arg)->asarray == OPT_TRUE) {
         if ('\x90' <= op && op <= '\x9f') {
             size = op & 0x0f;
         }
@@ -4479,7 +4479,7 @@ Decoder_decode(Decoder *self, PyObject *const *args, Py_ssize_t nargs)
         self->state.input_buffer = buffer.buf;
         self->state.input_len = buffer.len;
         self->state.next_read_idx = 0;
-        res = mp_decode_type(&(self->state), self->state.type, self->state.type, 0, false);
+        res = mp_decode_type(&(self->state), self->state.type, self->state.type, -1, false);
     }
 
     if (buffer.buf != NULL) {
@@ -4643,7 +4643,7 @@ msgspec_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject
         state.input_len = buffer.len;
         state.next_read_idx = 0;
         if (state.type != NULL) {
-            res = mp_decode_type(&state, state.type, state.type, 0, false);
+            res = mp_decode_type(&state, state.type, state.type, -1, false);
         } else {
             res = mp_decode_any(&state, false);
         }
