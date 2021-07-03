@@ -6,7 +6,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
 
-    <title>Benchmarks &#8212; msgspec 0+untagged.1.geaa4856 documentation</title>
+    <title>Benchmarks &#8212; msgspec 0+untagged.1.g0580a80 documentation</title>
     <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
     <link rel="stylesheet" type="text/css" href="_static/alabaster.css" />
     <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
@@ -74,6 +74,7 @@ types):</p>
 <li><p><code class="docutils literal notranslate"><span class="pre">orjson</span></code> - <a class="reference external" href="https://github.com/ijl/orjson">orjson</a> with dict message types</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">pyrobuf</span></code> - <a class="reference external" href="https://github.com/appnexus/pyrobuf">pyrobuf</a> with protobuf message types</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> - <a class="reference external" href="https://jcristharif.com/msgspec/">msgspec</a> with <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> message types</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">msgspec</span> <span class="pre">asarray</span></code> - <a class="reference external" href="https://jcristharif.com/msgspec/">msgspec</a> with <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> message types configured with <code class="docutils literal notranslate"><span class="pre">asarray=True</span></code></p></li>
 </ul>
 <p>Each benchmark creates one or more instances of a <code class="docutils literal notranslate"><span class="pre">Person</span></code> message, and
 serializes it/deserializes it in a loop. The <a class="reference external" href="https://github.com/jcrist/msgspec/tree/master/benchmarks">full benchmark source can be
@@ -88,11 +89,12 @@ etc…).</p>
 <p>You can use the radio buttons on the bottom to sort by encode time, decode
 time, or total roundtrip time.</p>
 </div>
-<p>From the chart above, you can see that <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> is the fastest method for
-both serialization and deserialization, followed by <code class="docutils literal notranslate"><span class="pre">msgpack</span></code> and <code class="docutils literal notranslate"><span class="pre">orjson</span></code>.
-I’m actually surprised at how much overhead <code class="docutils literal notranslate"><span class="pre">pyrobuf</span></code> has (the actual
-protobuf encoding should be pretty efficient), I suspect there’s some
-optimizations that could still be done there.</p>
+<p>From the chart above, you can see that <code class="docutils literal notranslate"><span class="pre">msgspec</span> <span class="pre">asarray</span></code> is the fastest
+method for both serialization and deserialization, closely followed by
+<code class="docutils literal notranslate"><span class="pre">msgspec</span></code> (with <code class="docutils literal notranslate"><span class="pre">msgpack</span></code> and <code class="docutils literal notranslate"><span class="pre">orjson</span></code> not too far behind). I’m actually
+surprised at how much overhead <code class="docutils literal notranslate"><span class="pre">pyrobuf</span></code> has (the actual protobuf encoding
+should be pretty efficient), I suspect there’s some optimizations that could
+still be done there.</p>
 <p>That said, all of these methods serialize/deserialize pretty quickly relative
 to other python operations, so unless you’re counting every microsecond your
 choice here probably doesn’t matter that much.</p>
@@ -112,8 +114,8 @@ support this builtin. Instead, many users perform validation post
 deserialization using additional tools like <a class="reference external" href="https://pydantic-docs.helpmanual.io/">pydantic</a>. Here we add the cost of
 Pydantic validation to <code class="docutils literal notranslate"><span class="pre">msgpack</span></code> and <code class="docutils literal notranslate"><span class="pre">orjson</span></code> to ensure all benchmarks are
 doing both deserialization and validation.</p>
-<div class="bk-root" id="bench-1-validate"></div><div class="bk-root" id="bench-1k-validate"></div><script type="text/javascript" src="https://cdn.bokeh.org/bokeh/release/bokeh-2.1.1.min.js" integrity="sha384-kLr4fYcqcSpbuI95brIH3vnnYCquzzSxHPU6XGQCIkQRGJwhg0StNbj1eegrHs12" crossorigin="anonymous"></script>
-<script type="text/javascript" src="https://cdn.bokeh.org/bokeh/release/bokeh-widgets-2.1.1.min.js" integrity="sha384-xIGPmVtaOm+z0BqfSOMn4lOR6ciex448GIKG4eE61LsAvmGj48XcMQZtKcE/UXZe" crossorigin="anonymous"></script>
+<div class="bk-root" id="bench-1-validate"></div><div class="bk-root" id="bench-1k-validate"></div><script type="text/javascript" src="https://cdn.bokeh.org/bokeh/release/bokeh-2.3.2.min.js" integrity="XypntL49z55iwGVUW4qsEu83zKL3XEcz0MjuGOQ9SlaaQ68X/g+k1FcioZi7oQAc" crossorigin="anonymous"></script>
+<script type="text/javascript" src="https://cdn.bokeh.org/bokeh/release/bokeh-widgets-2.3.2.min.js" integrity="TX0gSQTdXTTeScqxj6PVQxTiRW8DOoGVwinyi1D3kxv7wuxQ02XkOxv0xwiypcAH" crossorigin="anonymous"></script>
 <script>
 fetch('_static/bench-1.json')
     .then(function(response) { return response.json() })
