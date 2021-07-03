@@ -645,3 +645,76 @@ def test_struct_handles_missing_attributes():
 
     with pytest.raises(AttributeError, match=match):
         pickle.dumps(t)
+
+
+def test_struct_option_precedence():
+    class Default(Struct):
+        pass
+
+    assert not Default.immutable
+
+    class Immutable(Struct, immutable=True):
+        pass
+
+    assert Immutable.immutable
+
+    class NotImmutable(Struct, immutable=False):
+        pass
+
+    assert not NotImmutable.immutable
+
+    class T(Immutable):
+        pass
+
+    assert T.immutable
+
+    class T(Immutable, immutable=False):
+        pass
+
+    assert not T.immutable
+
+    class T(Immutable, Default):
+        pass
+
+    assert T.immutable
+
+    class T(Default, Immutable):
+        pass
+
+    assert T.immutable
+
+    class T(Default, NotImmutable, Immutable):
+        pass
+
+    assert not T.immutable
+
+
+class ImmutablePoint(Struct, immutable=True):
+    x: int
+    y: int
+
+
+class TestImmutable:
+    def test_immutable_objects_no_setattr(self):
+        p = ImmutablePoint(1, 2)
+        with pytest.raises(TypeError, match="immutable type: 'ImmutablePoint'"):
+            p.x = 3
+
+    def test_immutable_objects_hashable(self):
+        p1 = ImmutablePoint(1, 2)
+        p2 = ImmutablePoint(1, 2)
+        p3 = ImmutablePoint(1, 3)
+        assert hash(p1) == hash(p2)
+        assert hash(p1) != hash(p3)
+        assert p1 == p2
+        assert p1 != p3
+
+    def test_immutable_objects_hash_errors_if_field_unhashable(self):
+        p = ImmutablePoint(1, [2])
+        with pytest.raises(TypeError):
+            hash(p)
+
+    def test_mutable_objects_hash_errors(self):
+        p = Point(1, 2)
+        with pytest.raises(TypeError, match="unhashable type"):
+            hash(p)
