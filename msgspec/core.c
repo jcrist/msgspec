@@ -1480,7 +1480,7 @@ Struct_hash(PyObject *self) {
     Py_ssize_t i, nfields;
     Py_uhash_t acc = MP_HASH_XXPRIME_5;
 
-    if (((StructMetaObject *)Py_TYPE(self))->immutable == OPT_UNSET) {
+    if (((StructMetaObject *)Py_TYPE(self))->immutable != OPT_TRUE) {
         PyErr_Format(PyExc_TypeError, "unhashable type: '%s'", Py_TYPE(self)->tp_name);
         return -1;
     }
@@ -2362,21 +2362,36 @@ mp_encode_struct(EncoderState *self, PyObject *obj)
     PyObject *key, *val, *fields;
     Py_ssize_t i, len;
     int status = 0;
+    bool asarray = ((StructMetaObject *)Py_TYPE(obj))->asarray == OPT_TRUE;
 
     fields = StructMeta_GET_FIELDS(Py_TYPE(obj));
     len = PyTuple_GET_SIZE(fields);
-    if (mp_encode_map_header(self, len, "structs") < 0)
-        return -1;
-    if (len == 0)
-        return 0;
+
+    status = (
+        asarray ? mp_encode_array_header(self, len, "structs") :
+        mp_encode_map_header(self, len, "structs")
+    );
+    if (status < 0) return -1;
+    if (len == 0) return 0;
     if (Py_EnterRecursiveCall(" while serializing an object"))
         return -1;
-    for (i = 0; i < len; i++) {
-        key = PyTuple_GET_ITEM(fields, i);
-        val = Struct_get_index(obj, i);
-        if (val == NULL || mp_encode(self, key) < 0 || mp_encode(self, val) < 0) {
-            status = -1;
-            break;
+    if (asarray) {
+        for (i = 0; i < len; i++) {
+            val = Struct_get_index(obj, i);
+            if (val == NULL || mp_encode(self, val) < 0) {
+                status = -1;
+                break;
+            }
+        }
+    }
+    else {
+        for (i = 0; i < len; i++) {
+            key = PyTuple_GET_ITEM(fields, i);
+            val = Struct_get_index(obj, i);
+            if (val == NULL || mp_encode(self, key) < 0 || mp_encode(self, val) < 0) {
+                status = -1;
+                break;
+            }
         }
     }
     Py_LeaveRecursiveCall();
