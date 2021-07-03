@@ -3983,27 +3983,23 @@ mp_decode_type_ext(DecoderState *self, char op, TypeNode *ctx, Py_ssize_t ctx_in
     }
 }
 
-static Py_ssize_t
-mp_decode_map_size(DecoderState *self, char op, char *expected, TypeNode *ctx, Py_ssize_t ctx_ind) {
-    if ('\x80' <= op && op <= '\x8f') {
-        return op & 0x0f;
-    }
-    else if (op == MP_MAP16) {
-        return mp_decode_size2(self);
-    }
-    else if (op == MP_MAP32) {
-        return mp_decode_size4(self);
-    }
-    mp_validation_error(op, expected, ctx, ctx_ind);
-    return -1;
-}
-
 static PyObject *
 mp_decode_type_dict(DecoderState *self, char op, TypeNodeMap *type, TypeNode *ctx, Py_ssize_t ctx_ind) {
     Py_ssize_t size, i;
     PyObject *res, *key = NULL, *val = NULL;
 
-    size = mp_decode_map_size(self, op, "dict", ctx, ctx_ind);
+    if ('\x80' <= op && op <= '\x8f') {
+        size = op & 0x0f;
+    }
+    else if (op == MP_MAP16) {
+        size = mp_decode_size2(self);
+    }
+    else if (op == MP_MAP32) {
+        size = mp_decode_size4(self);
+    }
+    else {
+        return mp_validation_error(op, "dict", ctx, ctx_ind);
+    }
     if (size < 0) return NULL;
 
     res = PyDict_New();
@@ -4050,15 +4046,12 @@ mp_decode_cstr(DecoderState *self, char ** out, TypeNode *ctx, Py_ssize_t ctx_in
 }
 
 static PyObject *
-mp_decode_type_struct(DecoderState *self, char op, TypeNodeObj *type, TypeNode *ctx, Py_ssize_t ctx_ind) {
-    Py_ssize_t i, size, key_size, field_index, nfields, ndefaults, pos = 0;
+mp_decode_type_struct_map(DecoderState *self, Py_ssize_t size, TypeNodeObj *type, TypeNode *ctx, Py_ssize_t ctx_ind) {
+    Py_ssize_t i, key_size, field_index, nfields, ndefaults, pos = 0;
     char *key = NULL;
     PyObject *res, *val = NULL;
     StructMetaObject *st_type = (StructMetaObject *)(type->arg);
     int should_untrack;
-
-    size = mp_decode_map_size(self, op, "struct", ctx, ctx_ind);
-    if (size < 0) return NULL;
 
     res = ((PyTypeObject *)(st_type))->tp_alloc((PyTypeObject *)st_type, 0);
     if (res == NULL) return NULL;
@@ -4126,6 +4119,106 @@ error:
     Py_DECREF(res);
     return NULL;
 }
+
+static PyObject *
+mp_decode_type_struct_array(DecoderState *self, Py_ssize_t size, TypeNodeObj *type, TypeNode *ctx, Py_ssize_t ctx_ind) {
+    Py_ssize_t i, nfields, ndefaults, npos;
+    PyObject *res, *val = NULL;
+    StructMetaObject *st_type = (StructMetaObject *)(type->arg);
+    int should_untrack;
+
+    res = ((PyTypeObject *)(st_type))->tp_alloc((PyTypeObject *)st_type, 0);
+    if (res == NULL) return NULL;
+
+    nfields = PyTuple_GET_SIZE(st_type->struct_fields);
+    ndefaults = PyTuple_GET_SIZE(st_type->struct_defaults);
+    npos = nfields - ndefaults;
+    should_untrack = PyObject_IS_GC(res);
+
+    if (Py_EnterRecursiveCall(" while deserializing an object")) {
+        Py_DECREF(res);
+        return NULL;
+    }
+    for (i = 0; i < nfields; i++) {
+        if (size > 0) {
+            val = mp_decode_type(self, st_type->struct_types[i], (TypeNode *)type, i, false);
+            if (val == NULL) goto error;
+            size--;
+        }
+        else if (i < npos) {
+            PyErr_Format(
+                msgspec_get_global_state()->DecodingError,
+                "Error decoding `%s`: missing required field `%S`",
+                ((PyTypeObject *)st_type)->tp_name,
+                PyTuple_GET_ITEM(st_type->struct_fields, i)
+            );
+            goto error;
+        }
+        else {
+            val = maybe_deepcopy_default(
+                PyTuple_GET_ITEM(st_type->struct_defaults, i - npos)
+            );
+            if (val == NULL)
+                goto error;
+        }
+        Struct_set_index(res, i, val);
+        if (should_untrack) {
+            should_untrack = !OBJ_IS_GC(val);
+        }
+    }
+    /* Ignore all trailing fields */
+    while (size > 0) {
+        if (mp_skip(self) < 0)
+            goto error;
+        size--;
+    }
+    Py_LeaveRecursiveCall();
+    if (should_untrack)
+        PyObject_GC_UnTrack(res);
+    return res;
+error:
+    Py_LeaveRecursiveCall();
+    Py_DECREF(res);
+    return NULL;
+}
+
+static PyObject *
+mp_decode_type_struct(DecoderState *self, char op, TypeNodeObj *type, TypeNode *ctx, Py_ssize_t ctx_ind) {
+    Py_ssize_t size;
+
+    if ('\x80' <= op && op <= '\x8f') {
+        size = op & 0x0f;
+    }
+    else if (op == MP_MAP16) {
+        size = mp_decode_size2(self);
+    }
+    else if (op == MP_MAP32) {
+        size = mp_decode_size4(self);
+    }
+    else if (((StructMetaObject *)type->arg)->asarray) {
+        if ('\x90' <= op && op <= '\x9f') {
+            size = op & 0x0f;
+        }
+        else if (op == MP_ARRAY16) {
+            size = mp_decode_size2(self);
+        }
+        else if (op == MP_ARRAY32) {
+            size = mp_decode_size4(self);
+        }
+        else {
+            return mp_validation_error(op, "struct", ctx, ctx_ind);
+        }
+        if (size < 0) return NULL;
+        return mp_decode_type_struct_array(self, size, type, ctx, ctx_ind);
+    }
+    else {
+        return mp_validation_error(op, "struct", ctx, ctx_ind);
+    }
+
+    if (size < 0) return NULL;
+    return mp_decode_type_struct_map(self, size, type, ctx, ctx_ind);
+}
+
 
 static Py_ssize_t
 mp_decode_array_size(DecoderState *self, char op, char *expected, TypeNode *ctx, Py_ssize_t ctx_ind) {
