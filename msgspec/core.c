@@ -713,6 +713,8 @@ typedef struct {
     PyObject *struct_defaults;
     Py_ssize_t *struct_offsets;
     TypeNode **struct_types;
+    char immutable;
+    char asarray;
 } StructMetaObject;
 
 static PyTypeObject StructMixinType;
@@ -721,6 +723,12 @@ static PyTypeObject StructMixinType;
 #define StructMeta_GET_NFIELDS(s) (PyTuple_GET_SIZE((((StructMetaObject *)(s))->struct_fields)));
 #define StructMeta_GET_DEFAULTS(s) (((StructMetaObject *)(s))->struct_defaults);
 #define StructMeta_GET_OFFSETS(s) (((StructMetaObject *)(s))->struct_offsets);
+
+#define OPT_UNSET -1
+#define OPT_FALSE 0
+#define OPT_TRUE 1
+#define STRUCT_MERGE_OPTIONS(opt1, opt2) (((opt2) != OPT_UNSET) ? (opt2) : (opt1))
+
 
 static Py_ssize_t
 StructMeta_get_field_index(StructMetaObject *self, char * key, Py_ssize_t key_size, Py_ssize_t *pos) {
@@ -764,10 +772,15 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
     PyObject *default_val, *field;
     Py_ssize_t nfields, ndefaults, i, j, k;
     Py_ssize_t *offsets = NULL, *base_offsets;
+    int arg_immutable = -1, arg_asarray = -1, immutable = -1, asarray = -1;
+
+    static char *kwlist[] = {"name", "bases", "dict", "immutable", "asarray", NULL};
 
     /* Parse arguments: (name, bases, dict) */
-    if (!PyArg_ParseTuple(args, "UO!O!:StructMeta.__new__", &name, &PyTuple_Type,
-                          &bases, &PyDict_Type, &orig_dict))
+    if (!PyArg_ParseTupleAndKeywords(
+            args, kwargs, "UO!O!|$pp:StructMeta.__new__", kwlist,
+            &name, &PyTuple_Type, &bases, &PyDict_Type, &orig_dict,
+            &arg_immutable, &arg_asarray))
         return NULL;
 
     if (PyDict_GetItemString(orig_dict, "__init__") != NULL) {
@@ -806,6 +819,8 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
             );
             goto error;
         }
+        immutable = STRUCT_MERGE_OPTIONS(immutable, ((StructMetaObject *)base)->immutable);
+        asarray = STRUCT_MERGE_OPTIONS(asarray, ((StructMetaObject *)base)->asarray);
         base_fields = StructMeta_GET_FIELDS(base);
         base_defaults = StructMeta_GET_DEFAULTS(base);
         base_offsets = StructMeta_GET_OFFSETS(base);
@@ -834,6 +849,8 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
             Py_DECREF(offset);
         }
     }
+    immutable = STRUCT_MERGE_OPTIONS(immutable, arg_immutable);
+    asarray = STRUCT_MERGE_OPTIONS(asarray, arg_asarray);
 
     new_dict = PyDict_Copy(orig_dict);
     if (new_dict == NULL)
@@ -924,7 +941,7 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
     if (new_args == NULL)
         goto error;
 
-    cls = (StructMetaObject *) PyType_Type.tp_new(type, new_args, kwargs);
+    cls = (StructMetaObject *) PyType_Type.tp_new(type, new_args, NULL);
     if (cls == NULL)
         goto error;
     ((PyTypeObject *)cls)->tp_vectorcall = (vectorcallfunc)Struct_vectorcall;
@@ -955,6 +972,8 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
     cls->struct_fields = fields;
     cls->struct_defaults = defaults;
     cls->struct_offsets = offsets;
+    cls->immutable = immutable;
+    cls->asarray = asarray;
     return (PyObject *) cls;
 error:
     Py_XDECREF(arg_fields);
@@ -1061,6 +1080,20 @@ StructMeta_dealloc(StructMetaObject *self)
 }
 
 static PyObject*
+StructMeta_immutable(StructMetaObject *self, void *closure)
+{
+    if (self->immutable == OPT_TRUE) { Py_RETURN_TRUE; }
+    else { Py_RETURN_FALSE; }
+}
+
+static PyObject*
+StructMeta_asarray(StructMetaObject *self, void *closure)
+{
+    if (self->asarray == OPT_TRUE) { Py_RETURN_TRUE; }
+    else { Py_RETURN_FALSE; }
+}
+
+static PyObject*
 StructMeta_signature(StructMetaObject *self, void *closure)
 {
     Py_ssize_t nfields, ndefaults, npos, i;
@@ -1159,6 +1192,8 @@ static PyMemberDef StructMeta_members[] = {
 
 static PyGetSetDef StructMeta_getset[] = {
     {"__signature__", (getter) StructMeta_signature, NULL, NULL, NULL},
+    {"immutable", (getter) StructMeta_immutable, NULL, NULL, NULL},
+    {"asarray", (getter) StructMeta_asarray, NULL, NULL, NULL},
     {NULL},
 };
 
@@ -1563,6 +1598,14 @@ PyDoc_STRVAR(Struct__doc__,
 "Note that mutable default values are deepcopied in the constructor to\n"
 "prevent accidental sharing.\n"
 "\n"
+"Additional class options can be enabled by passing keywords to the class\n"
+"definition (see example below). The following options exist:\n"
+"\n"
+"- ``immutable``: whether instances of the class are immutable. If true,\n"
+"  attribute assignment is disabled and a corresponding ``__hash__`` is defined.\n"
+"- ``asarray``: whether instances of the class should be serialized as\n"
+"  MessagePack arrays, rather than dicts (the default).\n"
+"\n"
 "Structs automatically define ``__init__``, ``__eq__``, ``__repr__``, and\n"
 "``__copy__`` methods. Additional methods can be defined on the class as\n"
 "needed. Note that ``__init__``/``__new__`` cannot be overridden, but other\n"
@@ -1581,6 +1624,16 @@ PyDoc_STRVAR(Struct__doc__,
 "...\n"
 ">>> Dog('snickers', breed='corgi')\n"
 "Dog(name='snickers', breed='corgi', is_good_boy=True)\n"
+"\n"
+"Additional struct options can be set as part of the class definition. Here\n"
+"we define a new `Struct` type for an immutable `Point` object.\n"
+"\n"
+">>> class Point(Struct, immutable=True):\n"
+"...     x: float\n"
+"...     y: float\n"
+"...\n"
+">>> {Point(1.5, 2.0): 1}  # immutable structs are hashable\n"
+"{Point(1.5, 2.0): 1}"
 );
 
 /*************************************************************************
