@@ -6,7 +6,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
 
-    <title>API Docs &#8212; msgspec 0+untagged.1.g9026320 documentation</title>
+    <title>API Docs &#8212; msgspec 0+untagged.1.geaa4856 documentation</title>
     <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
     <link rel="stylesheet" type="text/css" href="_static/alabaster.css" />
     <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
@@ -154,6 +154,14 @@ to <code class="docutils literal notranslate"><span class="pre">None</span></cod
 default values, which result in keyword parameters to the constructor.
 Note that mutable default values are deepcopied in the constructor to
 prevent accidental sharing.</p>
+<p>Additional class options can be enabled by passing keywords to the class
+definition (see example below). The following options exist:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">immutable</span></code>: whether instances of the class are immutable. If true,
+attribute assignment is disabled and a corresponding <code class="docutils literal notranslate"><span class="pre">__hash__</span></code> is defined.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">asarray</span></code>: whether instances of the class should be serialized as
+MessagePack arrays, rather than dicts (the default).</p></li>
+</ul>
 <p>Structs automatically define <code class="docutils literal notranslate"><span class="pre">__init__</span></code>, <code class="docutils literal notranslate"><span class="pre">__eq__</span></code>, <code class="docutils literal notranslate"><span class="pre">__repr__</span></code>, and
 <code class="docutils literal notranslate"><span class="pre">__copy__</span></code> methods. Additional methods can be defined on the class as
 needed. Note that <code class="docutils literal notranslate"><span class="pre">__init__</span></code>/<code class="docutils literal notranslate"><span class="pre">__new__</span></code> cannot be overridden, but other
@@ -169,6 +177,16 @@ two required and one optional.</p>
 <span class="gp">...</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">Dog</span><span class="p">(</span><span class="s1">&#39;snickers&#39;</span><span class="p">,</span> <span class="n">breed</span><span class="o">=</span><span class="s1">&#39;corgi&#39;</span><span class="p">)</span>
 <span class="go">Dog(name=&#39;snickers&#39;, breed=&#39;corgi&#39;, is_good_boy=True)</span>
+</pre></div>
+</div>
+<p>Additional struct options can be set as part of the class definition. Here
+we define a new <a class="reference internal" href="#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code></a> type for an immutable <code class="xref py py-obj docutils literal notranslate"><span class="pre">Point</span></code> object.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">Point</span><span class="p">(</span><span class="n">Struct</span><span class="p">,</span> <span class="n">immutable</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="n">x</span><span class="p">:</span> <span class="nb">float</span>
+<span class="gp">... </span>    <span class="n">y</span><span class="p">:</span> <span class="nb">float</span>
+<span class="gp">...</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">{</span><span class="n">Point</span><span class="p">(</span><span class="mf">1.5</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">):</span> <span class="mi">1</span><span class="p">}</span>  <span class="c1"># immutable structs are hashable</span>
+<span class="go">{Point(1.5, 2.0): 1}</span>
 </pre></div>
 </div>
 </dd></dl>
