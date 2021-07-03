@@ -647,46 +647,57 @@ def test_struct_handles_missing_attributes():
         pickle.dumps(t)
 
 
-def test_struct_option_precedence():
+@pytest.mark.parametrize("option", ["immutable", "asarray"])
+def test_struct_option_precedence(option):
+    def get(cls):
+        return getattr(cls, option)
+
     class Default(Struct):
         pass
 
-    assert not Default.immutable
+    assert not get(Default)
 
-    class Immutable(Struct, immutable=True):
+    class Enabled(Struct, **{option: True}):
         pass
 
-    assert Immutable.immutable
+    assert get(Enabled)
 
-    class NotImmutable(Struct, immutable=False):
+    class Disabled(Struct, **{option: False}):
         pass
 
-    assert not NotImmutable.immutable
+    assert not get(Disabled)
 
-    class T(Immutable):
+    class T(Enabled):
         pass
 
-    assert T.immutable
+    assert get(T)
 
-    class T(Immutable, immutable=False):
+    class T(Enabled, **{option: False}):
         pass
 
-    assert not T.immutable
+    assert not get(T)
 
-    class T(Immutable, Default):
+    class T(Enabled, Default):
         pass
 
-    assert T.immutable
+    assert get(T)
 
-    class T(Default, Immutable):
+    class T(Default, Enabled):
         pass
 
-    assert T.immutable
+    assert get(T)
 
-    class T(Default, NotImmutable, Immutable):
+    class T(Default, Disabled, Enabled):
         pass
 
-    assert not T.immutable
+    assert not get(T)
+
+
+def test_invalid_option_raises():
+    with pytest.raises(TypeError):
+
+        class Foo(Struct, invalid=True):
+            pass
 
 
 class ImmutablePoint(Struct, immutable=True):
