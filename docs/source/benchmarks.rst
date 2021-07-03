@@ -44,6 +44,7 @@ The libraries we're benchmarking are the following:
 - ``orjson`` - orjson_ with dict message types
 - ``pyrobuf`` - pyrobuf_ with protobuf message types
 - ``msgspec`` - msgspec_ with `msgspec.Struct` message types
+- ``msgspec asarray`` - msgspec_ with `msgspec.Struct` message types configured with ``asarray=True``
 
 Each benchmark creates one or more instances of a ``Person`` message, and
 serializes it/deserializes it in a loop. The `full benchmark source can be
@@ -65,11 +66,12 @@ etc...).
     You can use the radio buttons on the bottom to sort by encode time, decode
     time, or total roundtrip time.
 
-From the chart above, you can see that ``msgspec`` is the fastest method for
-both serialization and deserialization, followed by ``msgpack`` and ``orjson``.
-I'm actually surprised at how much overhead ``pyrobuf`` has (the actual
-protobuf encoding should be pretty efficient), I suspect there's some
-optimizations that could still be done there.
+From the chart above, you can see that ``msgspec asarray`` is the fastest
+method for both serialization and deserialization, closely followed by
+``msgspec`` (with ``msgpack`` and ``orjson`` not too far behind). I'm actually
+surprised at how much overhead ``pyrobuf`` has (the actual protobuf encoding
+should be pretty efficient), I suspect there's some optimizations that could
+still be done there.
 
 That said, all of these methods serialize/deserialize pretty quickly relative
 to other python operations, so unless you're counting every microsecond your
@@ -110,8 +112,8 @@ doing both deserialization and validation.
 
 .. raw:: html
 
-    <script type="text/javascript" src="https://cdn.bokeh.org/bokeh/release/bokeh-2.1.1.min.js" integrity="sha384-kLr4fYcqcSpbuI95brIH3vnnYCquzzSxHPU6XGQCIkQRGJwhg0StNbj1eegrHs12" crossorigin="anonymous"></script>
-    <script type="text/javascript" src="https://cdn.bokeh.org/bokeh/release/bokeh-widgets-2.1.1.min.js" integrity="sha384-xIGPmVtaOm+z0BqfSOMn4lOR6ciex448GIKG4eE61LsAvmGj48XcMQZtKcE/UXZe" crossorigin="anonymous"></script>
+    <script type="text/javascript" src="https://cdn.bokeh.org/bokeh/release/bokeh-2.3.2.min.js" integrity="XypntL49z55iwGVUW4qsEu83zKL3XEcz0MjuGOQ9SlaaQ68X/g+k1FcioZi7oQAc" crossorigin="anonymous"></script>
+    <script type="text/javascript" src="https://cdn.bokeh.org/bokeh/release/bokeh-widgets-2.3.2.min.js" integrity="TX0gSQTdXTTeScqxj6PVQxTiRW8DOoGVwinyi1D3kxv7wuxQ02XkOxv0xwiypcAH" crossorigin="anonymous"></script>
     <script>
     fetch('_static/bench-1.json')
         .then(function(response) { return response.json() })

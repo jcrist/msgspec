@@ -26,6 +26,21 @@ class Person(msgspec.Struct):
     email: Optional[str] = None
 
 
+class Address2(msgspec.Struct, asarray=True):
+    street: str
+    state: str
+    zip: int
+
+
+class Person2(msgspec.Struct, asarray=True):
+    first: str
+    last: str
+    age: int
+    addresses: Optional[List[Address2]] = None
+    telephone: Optional[str] = None
+    email: Optional[str] = None
+
+
 class AddressModel(pydantic.BaseModel):
     street: str
     state: str
@@ -179,6 +194,24 @@ def bench_msgspec(n, no_gc, validate=False):
     return bench(enc.encode, dec.decode, n, convert, no_gc=no_gc)
 
 
+def bench_msgspec_asarray(n, no_gc, validate=False):
+    enc = msgspec.Encoder()
+    dec = msgspec.Decoder(Person2 if n == 1 else List[Person2])
+
+    def convert_one(addresses=None, **kwargs):
+        addrs = [Address2(**a) for a in addresses] if addresses else None
+        return Person2(addresses=addrs, **kwargs)
+
+    def convert(data):
+        return (
+            [convert_one(**d) for d in data]
+            if isinstance(data, list)
+            else convert_one(**data)
+        )
+
+    return bench(enc.encode, dec.decode, n, convert, no_gc=no_gc)
+
+
 def bench_msgpack(n, no_gc, validate=False):
     packer = msgpack.Packer()
     if validate:
@@ -251,6 +284,7 @@ BENCHMARKS = [
     ("orjson", bench_orjson),
     ("msgpack", bench_msgpack),
     ("msgspec", bench_msgspec),
+    ("msgspec asarray", bench_msgspec_asarray),
     ("pyrobuf", bench_pyrobuf),
 ]
 
