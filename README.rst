@@ -5,8 +5,8 @@ msgspec
 
 ``msgspec`` is a fast and friendly implementation of the `MessagePack
 <https://msgpack.org>`__ protocol for Python 3.8+. In addition to
-serialization/deserialization, it supports runtime message validation using
-schemas defined via Python's `type annotations
+serialization/deserialization, it supports message validation using schemas
+defined via Python's `type annotations
 <https://docs.python.org/3/library/typing.html>`__.
 
 .. code-block:: python
@@ -27,7 +27,7 @@ schemas defined via Python's `type annotations
     serialized_data = msgspec.encode(alice)
 
     # Deserialize and validate the message as a User type
-    user = msgspec.Decoder(User).decode(serialized_data)
+    user = msgspec.decode(serialized_data, type=User)
 
     assert user == alice
 
