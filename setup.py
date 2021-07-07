@@ -18,9 +18,11 @@ setup(
         "Source": "https://github.com/jcrist/msgspec/",
         "Issue Tracker": "https://github.com/jcrist/msgspec/issues",
     },
-    description="Typed message serialization",
+    description="Fast and friendly msgpack (de)serialization, with type validation",
+    keywords="msgpack Messagepack serialization",
     classifiers=[
         "License :: OSI Approved :: BSD License",
+        "Development Status :: 4 - Beta",
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
     ],

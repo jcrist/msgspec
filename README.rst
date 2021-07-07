@@ -4,7 +4,7 @@ msgspec
 |github| |pypi|
 
 ``msgspec`` is a fast and friendly implementation of the `MessagePack
-<https://msgpack.org>`__ protocol for Python 3.8+. In addition to
+<https://msgpack.org>`__ (``msgpack``) protocol for Python 3.8+. In addition to
 serialization/deserialization, it supports message validation using schemas
 defined via Python's `type annotations
 <https://docs.python.org/3/library/typing.html>`__.
