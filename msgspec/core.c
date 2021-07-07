@@ -4844,6 +4844,32 @@ json_encode_false(EncoderState *self)
 }
 
 static int
+json_encode_long(EncoderState *self, PyObject *obj) {
+    int64_t sign, x = PyLong_AsLongLong(obj);
+    char buf[17];
+    int i;
+    if (x == -1 && PyErr_Occurred()) {
+        return -1;
+    }
+    if (x >= (1LL << 53) || x <= (-1LL << 53)) {
+        PyErr_SetString(
+            PyExc_OverflowError,
+            "Can only serialize ints in -2**53 < x < 2**53"
+        );
+        return -1;
+    }
+    if ((sign = x) < 0)
+        x = -x;
+    i = 16;
+    do {
+        buf[i--] = x % 10 + '0';
+    } while ((x /= 10) > 0);
+    if (sign < 0)
+        buf[i--] = '-';
+    return mp_write(self, buf + i + 1, 16 - i);
+}
+
+static int
 json_encode(EncoderState *self, PyObject *obj)
 {
     PyTypeObject *type = Py_TYPE(obj);
@@ -4856,6 +4882,9 @@ json_encode(EncoderState *self, PyObject *obj)
     }
     else if (obj == Py_False) {
         return json_encode_false(self);
+    }
+    else if (type == &PyLong_Type) {
+        return json_encode_long(self, obj);
     }
     else {
         PyErr_Format(PyExc_TypeError,
