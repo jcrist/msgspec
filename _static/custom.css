@@ -6,3 +6,19 @@
 .footnote {
     font-size: small;
 }
+
+dl.method, dl.attribute, dl.function {
+    margin-top: 15px;
+}
+
+ul.spaced.simple li {
+    margin-bottom: 15px;
+}
+
+ul.simple li {
+    margin-bottom: 5px;
+}
+
+ol.simple li {
+    margin-bottom: 5px;
+}

@@ -1,0 +1,316 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+    <title>Extending &#8212; msgspec 0+untagged.1.g1e1be19 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css" />
+    <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+    <script src="_static/jquery.js"></script>
+    <script src="_static/underscore.js"></script>
+    <script src="_static/doctools.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Benchmarks" href="benchmarks.html" />
+    <link rel="prev" title="Usage" href="usage.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="extending">
+<h1>Extending<a class="headerlink" href="#extending" title="Permalink to this headline">¶</a></h1>
+<p>To support serializing/deserializing types other than those <a class="reference internal" href="usage.html#supported-types"><span class="std std-ref">natively
+supported</span></a>, <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> provides a few callbacks to
+<code class="xref py py-obj docutils literal notranslate"><span class="pre">Encoder</span></code>/<code class="xref py py-obj docutils literal notranslate"><span class="pre">Decoder</span></code>.</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">enc_hook</span></code> in <code class="xref py py-obj docutils literal notranslate"><span class="pre">Encoder</span></code>, for transforming custom types into values
+that <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> <a class="reference internal" href="usage.html#supported-types"><span class="std std-ref">natively supported types</span></a>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">dec_hook</span></code> in <code class="xref py py-obj docutils literal notranslate"><span class="pre">Decoder</span></code>, for converting natively supported types back into
+a custom type when using <a class="reference internal" href="usage.html#typed-deserialization"><span class="std std-ref">typed deserialization</span></a>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ext_hook</span></code> in <code class="xref py py-obj docutils literal notranslate"><span class="pre">Decoder</span></code>, for converting MessagePack extensions back into
+custom types.</p></li>
+</ul>
+<p>These should have the following signatures:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">enc_hook</span><span class="p">(</span><span class="n">obj</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot;Given an object that msgspec doesn&#39;t know how to serialize by</span>
+<span class="sd">    default, convert it into an object that it does know how to</span>
+<span class="sd">    serialize&quot;&quot;&quot;</span>
+    <span class="k">pass</span>
+
+<span class="k">def</span> <span class="nf">dec_hook</span><span class="p">(</span><span class="nb">type</span><span class="p">:</span> <span class="n">Type</span><span class="p">,</span> <span class="n">obj</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot;Given a type in a schema, convert ``obj`` (composed of natively</span>
+<span class="sd">    supported objects) into an object of type ``type``&quot;&quot;&quot;</span>
+    <span class="k">pass</span>
+
+<span class="k">def</span> <span class="nf">ext_hook</span><span class="p">(</span><span class="n">code</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="nb">memoryview</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot;Given an extension type code and data buffer, deserialize whatever</span>
+<span class="sd">    custom object the extension type represents&quot;&quot;&quot;</span>
+    <span class="k">pass</span>
+</pre></div>
+</div>
+<p>These can be composed together to form complex behaviors as needed.
+However, most use cases follow one of these patterns:</p>
+<ul class="simple">
+<li><p>Mapping a custom type to/from natively supported types via <code class="docutils literal notranslate"><span class="pre">enc_hook</span></code> and
+<code class="docutils literal notranslate"><span class="pre">dec_hook</span></code> callbacks.</p></li>
+<li><p>Defining a custom <a class="reference external" href="https://github.com/msgpack/msgpack/blob/master/spec.md#extension-types">MessagePack extension</a> to represent your type, then
+mapping to/from that extension via <code class="docutils literal notranslate"><span class="pre">enc_hook</span></code> and <code class="docutils literal notranslate"><span class="pre">ext_hook</span></code> callbacks.</p></li>
+</ul>
+<p>Both methods are illustrated below.</p>
+<section id="mapping-to-from-native-types">
+<h2>Mapping to/from native types<a class="headerlink" href="#mapping-to-from-native-types" title="Permalink to this headline">¶</a></h2>
+<p>This method uses messages composed only of natively supported types. During
+encoding, custom types are mapped to natively supported types, which are then
+serialized. This process is then reversed during decoding.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">custom</span> <span class="nb">type</span> <span class="o">-&gt;</span> <span class="n">native</span> <span class="n">types</span> <span class="o">-&gt;</span> <span class="n">encoded</span> <span class="n">message</span> <span class="o">-&gt;</span> <span class="n">native</span> <span class="n">types</span> <span class="o">-&gt;</span> <span class="n">custom</span> <span class="nb">type</span>
+</pre></div>
+</div>
+<p>This means that <a class="reference internal" href="usage.html#typed-deserialization"><span class="std std-ref">typed deserialization</span></a> is
+required to roundtrip a message, since no custom type info is sent as part of
+the message.</p>
+<p>This method works best for types that are similar to a natively supported type
+(e.g. a <a class="reference external" href="https://docs.python.org/3/library/collections.html#collections.OrderedDict" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collections.OrderedDict</span></code></a> is similar to a <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a>).  This can be
+accomplished by defining two callback functions:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">enc_hook</span></code> in <code class="xref py py-obj docutils literal notranslate"><span class="pre">Encoder</span></code>, for transforming custom types into values
+that <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> already knows how to serialize.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">dec_hook</span></code> in <code class="xref py py-obj docutils literal notranslate"><span class="pre">Decoder</span></code>, for converting natively supported types back into
+a custom type when using <a class="reference internal" href="usage.html#typed-deserialization"><span class="std std-ref">typed deserialization</span></a>.</p></li>
+</ul>
+<p>Here we define <code class="docutils literal notranslate"><span class="pre">enc_hook</span></code> and <code class="docutils literal notranslate"><span class="pre">dec_hook</span></code> callbacks to convert
+<a class="reference external" href="https://docs.python.org/3/library/collections.html#collections.OrderedDict" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collections.OrderedDict</span></code></a> objects to/from dicts, which are serialized natively
+as MessagePack <code class="docutils literal notranslate"><span class="pre">map</span></code> types.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">msgspec</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Type</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="kn">import</span> <span class="n">OrderedDict</span>
+
+<span class="k">def</span> <span class="nf">enc_hook</span><span class="p">(</span><span class="n">obj</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">OrderedDict</span><span class="p">):</span>
+        <span class="c1"># convert the OrderedDict to a dict</span>
+        <span class="k">return</span> <span class="nb">dict</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c1"># Raise a TypeError for other types</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Objects of type </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span><span class="si">}</span><span class="s2"> are not supported&quot;</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">dec_hook</span><span class="p">(</span><span class="nb">type</span><span class="p">:</span> <span class="n">Type</span><span class="p">,</span> <span class="n">obj</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+    <span class="c1"># `type` here is the value of the custom type annotation being decoded.</span>
+    <span class="k">if</span> <span class="nb">type</span> <span class="ow">is</span> <span class="n">OrderedDict</span><span class="p">:</span>
+        <span class="c1"># Convert ``obj`` (which should be a ``dict``) to an OrderedDict</span>
+        <span class="k">return</span> <span class="n">OrderedDict</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c1"># Raise a TypeError for other types</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Objects of type </span><span class="si">{</span><span class="nb">type</span><span class="si">}</span><span class="s2"> are not supported&quot;</span><span class="p">)</span>
+
+
+<span class="c1"># Define a message that contains an OrderedDict</span>
+<span class="k">class</span> <span class="nc">MyMessage</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
+    <span class="n">field_1</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">field_2</span><span class="p">:</span> <span class="n">OrderedDict</span>
+
+<span class="c1"># Create an encoder and a decoder using the custom callbacks.</span>
+<span class="c1"># Note that typed deserialization is required for successful</span>
+<span class="c1"># roundtripping here, so we pass `MyMessage` to `Decoder`.</span>
+<span class="n">enc</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">Encoder</span><span class="p">(</span><span class="n">enc_hook</span><span class="o">=</span><span class="n">enc_hook</span><span class="p">)</span>
+<span class="n">dec</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">Decoder</span><span class="p">(</span><span class="n">MyMessage</span><span class="p">,</span> <span class="n">dec_hook</span><span class="o">=</span><span class="n">dec_hook</span><span class="p">)</span>
+
+<span class="c1"># An example message</span>
+<span class="n">msg</span> <span class="o">=</span> <span class="n">MyMessage</span><span class="p">(</span>
+    <span class="s2">&quot;some string&quot;</span><span class="p">,</span>
+    <span class="n">OrderedDict</span><span class="p">([(</span><span class="s2">&quot;a&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="s2">&quot;b&quot;</span><span class="p">,</span> <span class="mi">2</span><span class="p">)])</span>
+<span class="p">)</span>
+
+<span class="c1"># Encode and decode the message to show that things work</span>
+<span class="n">buf</span> <span class="o">=</span> <span class="n">enc</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+<span class="n">msg2</span> <span class="o">=</span> <span class="n">dec</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">buf</span><span class="p">)</span>
+<span class="k">assert</span> <span class="n">msg</span> <span class="o">==</span> <span class="n">msg2</span>  <span class="c1"># True</span>
+</pre></div>
+</div>
+</section>
+<section id="defining-a-custom-extension">
+<span id="extensions"></span><h2>Defining a custom extension<a class="headerlink" href="#defining-a-custom-extension" title="Permalink to this headline">¶</a></h2>
+<p>The MessagePack specification provides support for defining custom
+<a class="reference external" href="https://github.com/msgpack/msgpack/blob/master/spec.md#extension-types">Extensions</a>.
+Extensions consist of:</p>
+<ul class="simple">
+<li><p>An integer code (between 0 and 127, inclusive) representing the “type” of the
+extension.</p></li>
+<li><p>An arbitrary byte buffer of data (up to <code class="docutils literal notranslate"><span class="pre">(2^32)</span> <span class="pre">-</span> <span class="pre">1</span></code> in length).</p></li>
+</ul>
+<p>By default extensions are serialized to/from <code class="xref py py-obj docutils literal notranslate"><span class="pre">Ext</span></code> objects.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">ext</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">Ext</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;some data&quot;</span><span class="p">)</span>  <span class="c1"># an extension object, with type code 1</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">ext</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">ext2</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">ext</span> <span class="o">==</span> <span class="n">ext2</span>  <span class="c1"># deserializes as an Ext object</span>
+<span class="go">True</span>
+</pre></div>
+</div>
+<p>While manually creating <code class="xref py py-obj docutils literal notranslate"><span class="pre">Ext</span></code> objects from buffers can be useful, usually the
+user wants to map extension types to/from their own custom objects. This can be
+accomplished by defining two callback functions:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">enc_hook</span></code> in <code class="xref py py-obj docutils literal notranslate"><span class="pre">Encoder</span></code>, for transforming custom types into values
+that <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> already knows how to serialize.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ext_hook</span></code> in <code class="xref py py-obj docutils literal notranslate"><span class="pre">Decoder</span></code>, for converting extensions back into those
+custom types.</p></li>
+</ul>
+<p>This method defines a new extension type, and sends this type information
+along as part of the message. This means that when properly configured, custom
+types can be deserialized even when using untyped deserialization. However, if
+you’re communicating with MessagePack libraries other than <code class="docutils literal notranslate"><span class="pre">msgspec</span></code>, you’d
+have to ensure your extension type was supported by those libraries as well.</p>
+<p>For example, perhaps you wanted to serialize <a class="reference external" href="https://docs.python.org/3/library/functions.html#complex" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">complex</span></code></a> number objects as an
+extension type.  These objects can be represented as tuples of two floats (one
+“real” and one “imaginary”). If we represent each float as 8 bytes (a
+“double”), then any complex number can be fully represented by a 16 byte
+buffer.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">+---------+---------+</span>
+<span class="o">|</span>  <span class="n">real</span>   <span class="o">|</span>  <span class="n">imag</span>   <span class="o">|</span>
+<span class="o">+---------+---------+</span>
+  <span class="mi">8</span> <span class="nb">bytes</span>   <span class="mi">8</span> <span class="nb">bytes</span>
+</pre></div>
+</div>
+<p>Here we define <code class="docutils literal notranslate"><span class="pre">enc_hook</span></code> and <code class="docutils literal notranslate"><span class="pre">ext_hook</span></code> callbacks to convert <a class="reference external" href="https://docs.python.org/3/library/functions.html#complex" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">complex</span></code></a>
+objects to/from this binary representation as a MessagePack extension.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">msgspec</span>
+<span class="kn">import</span> <span class="nn">struct</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Any</span>
+
+<span class="c1"># All extension types need a unique integer designator so the decoder knows</span>
+<span class="c1"># which type they&#39;re decoding. Here we arbitrarily choose 1, but any integer</span>
+<span class="c1"># between 0 and 127 (inclusive) would work.</span>
+<span class="n">COMPLEX_TYPE_CODE</span> <span class="o">=</span> <span class="mi">1</span>
+
+<span class="k">def</span> <span class="nf">enc_hook</span><span class="p">(</span><span class="n">obj</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="nb">complex</span><span class="p">):</span>
+        <span class="c1"># encode the complex number into a 16 byte buffer</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">struct</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span><span class="s1">&#39;dd&#39;</span><span class="p">,</span> <span class="n">obj</span><span class="o">.</span><span class="n">real</span><span class="p">,</span> <span class="n">obj</span><span class="o">.</span><span class="n">imag</span><span class="p">)</span>
+
+        <span class="c1"># Return an `Ext` object so msgspec serializes it as an extension type.</span>
+        <span class="k">return</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">Ext</span><span class="p">(</span><span class="n">COMPLEX_TYPE_CODE</span><span class="p">,</span> <span class="n">data</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c1"># Raise a TypeError for other types</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Objects of type </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span><span class="si">}</span><span class="s2"> are not supported&quot;</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">ext_hook</span><span class="p">(</span><span class="n">code</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="nb">memoryview</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">code</span> <span class="o">==</span> <span class="n">COMPLEX_TYPE_CODE</span><span class="p">:</span>
+        <span class="c1"># This extension type represents a complex number, decode the data</span>
+        <span class="c1"># buffer accordingly.</span>
+        <span class="n">real</span><span class="p">,</span> <span class="n">imag</span> <span class="o">=</span> <span class="n">struct</span><span class="o">.</span><span class="n">unpack</span><span class="p">(</span><span class="s1">&#39;dd&#39;</span><span class="p">,</span> <span class="n">data</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">complex</span><span class="p">(</span><span class="n">real</span><span class="p">,</span> <span class="n">imag</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c1"># Raise a TypeError for other extension type codes</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Extension type code </span><span class="si">{</span><span class="n">code</span><span class="si">}</span><span class="s2"> is not supported&quot;</span><span class="p">)</span>
+
+
+<span class="c1"># Create an encoder and a decoder using the custom callbacks</span>
+<span class="n">enc</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">Encoder</span><span class="p">(</span><span class="n">enc_hook</span><span class="o">=</span><span class="n">enc_hook</span><span class="p">)</span>
+<span class="n">dec</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">Decoder</span><span class="p">(</span><span class="n">ext_hook</span><span class="o">=</span><span class="n">ext_hook</span><span class="p">)</span>
+
+<span class="c1"># Define a message that contains complex numbers</span>
+<span class="n">msg</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;roots&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">,</span> <span class="mi">1</span> <span class="o">+</span> <span class="mf">0.5</span><span class="n">j</span><span class="p">,</span> <span class="mi">1</span> <span class="o">-</span> <span class="mf">0.5</span><span class="n">j</span><span class="p">]}</span>
+
+<span class="c1"># Encode and decode the message to show that things work</span>
+<span class="n">buf</span> <span class="o">=</span> <span class="n">enc</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+<span class="n">msg2</span> <span class="o">=</span> <span class="n">dec</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">buf</span><span class="p">)</span>
+<span class="k">assert</span> <span class="n">msg</span> <span class="o">==</span> <span class="n">msg2</span>  <span class="c1"># True</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Note that the <code class="docutils literal notranslate"><span class="pre">data</span></code> argument to <code class="docutils literal notranslate"><span class="pre">ext_hook</span></code> is a <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#memoryview" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">memoryview</span></code></a>. This
+view is attached to the larger buffer containing the complete message being
+decoded. As such, you’ll want to ensure that you don’t keep a reference to
+the underlying buffer, otherwise you may accidentally persist the larger
+message buffer around for longer than necessary, resulting in increased
+memory usage.</p>
+</div>
+</section>
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">msgspec</a></h1>
+
+
+
+<p class="blurb">A fast and friendly MessagePack library</p>
+
+
+
+
+<p>
+<iframe src="https://ghbtns.com/github-btn.html?user=jcrist&repo=msgspec&type=watch&count=False&size=large&v=2"
+  allowtransparency="true" frameborder="0" scrolling="0" width="200px" height="35px"></iframe>
+</p>
+
+
+
+
+
+<h3>Navigation</h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="usage.html">Usage</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Extending</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#mapping-to-from-native-types">Mapping to/from native types</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#defining-a-custom-extension">Defining a custom extension</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="benchmarks.html">Benchmarks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api.html">API Docs</a></li>
+</ul>
+
+<h3>Need help?</h3>
+
+<p>
+  Open an issue in the <a href="https://github.com/jcrist/msgspec/issues">issue tracker</a>.
+</p>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2021, Jim Crist-Harif.
+      
+      |
+      <a href="_sources/extending.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
