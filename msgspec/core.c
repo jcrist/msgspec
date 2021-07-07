@@ -3052,7 +3052,7 @@ mp_err_truncated(void)
     return -1;
 }
 
-static Py_ssize_t
+static inline Py_ssize_t
 mp_read1(DecoderState *self, char *s)
 {
     if (1 <= self->input_len - self->next_read_idx) {
@@ -3063,7 +3063,7 @@ mp_read1(DecoderState *self, char *s)
     return mp_err_truncated();
 }
 
-static Py_ssize_t
+static inline Py_ssize_t
 mp_read(DecoderState *self, char **s, Py_ssize_t n)
 {
     if (n <= self->input_len - self->next_read_idx) {
