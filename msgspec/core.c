@@ -2835,6 +2835,55 @@ Encoder_encode_into(Encoder *self, PyObject *const *args, Py_ssize_t nargs)
     Py_RETURN_NONE;
 }
 
+static PyObject*
+encode_common(
+    EncoderState *state,
+    PyObject *const *args,
+    Py_ssize_t nargs,
+    int(*encode)(EncoderState*, PyObject*))
+{
+    int status;
+    PyObject *res = NULL;
+
+    if (!check_positional_nargs(nargs, 1, 1)) {
+        return NULL;
+    }
+
+    /* reset buffer */
+    state->output_len = 0;
+    if (state->output_buffer == NULL) {
+        state->max_output_len = state->write_buffer_size;
+        state->output_buffer = PyBytes_FromStringAndSize(NULL, state->max_output_len);
+        if (state->output_buffer == NULL) return NULL;
+        state->output_buffer_raw = PyBytes_AS_STRING(state->output_buffer);
+    }
+
+    status = encode(state, args[0]);
+
+    if (status == 0) {
+        if (state->max_output_len > state->write_buffer_size) {
+            /* Buffer was resized, trim to length */
+            res = state->output_buffer;
+            state->output_buffer = NULL;
+            FAST_BYTES_SHRINK(res, state->output_len);
+        }
+        else {
+            /* Only constant buffer used, copy to output */
+            res = PyBytes_FromStringAndSize(
+                PyBytes_AS_STRING(state->output_buffer),
+                state->output_len
+            );
+        }
+    } else {
+        /* Error in encode, drop buffer if necessary */
+        if (state->max_output_len > state->write_buffer_size) {
+            Py_DECREF(state->output_buffer);
+            state->output_buffer = NULL;
+        }
+    }
+    return res;
+}
+
 PyDoc_STRVAR(Encoder_encode__doc__,
 "encode(self, obj)\n"
 "--\n"
@@ -2854,46 +2903,7 @@ PyDoc_STRVAR(Encoder_encode__doc__,
 static PyObject*
 Encoder_encode(Encoder *self, PyObject *const *args, Py_ssize_t nargs)
 {
-    int status;
-    PyObject *res = NULL;
-
-    if (!check_positional_nargs(nargs, 1, 1)) {
-        return NULL;
-    }
-
-    /* reset buffer */
-    self->state.output_len = 0;
-    if (self->state.output_buffer == NULL) {
-        self->state.max_output_len = self->state.write_buffer_size;
-        self->state.output_buffer = PyBytes_FromStringAndSize(NULL, self->state.max_output_len);
-        if (self->state.output_buffer == NULL) return NULL;
-        self->state.output_buffer_raw = PyBytes_AS_STRING(self->state.output_buffer);
-    }
-
-    status = mp_encode(&(self->state), args[0]);
-
-    if (status == 0) {
-        if (self->state.max_output_len > self->state.write_buffer_size) {
-            /* Buffer was resized, trim to length */
-            res = self->state.output_buffer;
-            self->state.output_buffer = NULL;
-            FAST_BYTES_SHRINK(res, self->state.output_len);
-        }
-        else {
-            /* Only constant buffer used, copy to output */
-            res = PyBytes_FromStringAndSize(
-                PyBytes_AS_STRING(self->state.output_buffer),
-                self->state.output_len
-            );
-        }
-    } else {
-        /* Error in encode, drop buffer if necessary */
-        if (self->state.max_output_len > self->state.write_buffer_size) {
-            Py_DECREF(self->state.output_buffer);
-            self->state.output_buffer = NULL;
-        }
-    }
-    return res;
+    return encode_common(&(self->state), args, nargs, &mp_encode);
 }
 
 static struct PyMethodDef Encoder_methods[] = {
@@ -4787,6 +4797,109 @@ msgspec_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject
 }
 
 /*************************************************************************
+ * JSON Encoder                                                          *
+ *************************************************************************/
+
+typedef struct JSONEncoder {
+    PyObject_HEAD
+    EncoderState state;
+} JSONEncoder;
+
+PyDoc_STRVAR(JSONEncoder__doc__,
+"JSONEncoder(*, enc_hook=None, write_buffer_size=512)\n"
+"--\n"
+"\n"
+"A JSON encoder.\n"
+"\n"
+"Parameters\n"
+"----------\n"
+"enc_hook : callable, optional\n"
+"    A callable to call for objects that aren't supported msgspec types. Takes the\n"
+"    unsupported object and should return a supported object, or raise a TypeError.\n"
+"write_buffer_size : int, optional\n"
+"    The size of the internal static write buffer."
+);
+
+static int json_encode(EncoderState*, PyObject*);
+
+static int
+json_encode_none(EncoderState *self)
+{
+    const char *buf = "null";
+    return mp_write(self, buf, 4);
+}
+
+static int
+json_encode_true(EncoderState *self)
+{
+    const char *buf = "true";
+    return mp_write(self, buf, 4);
+}
+
+static int
+json_encode_false(EncoderState *self)
+{
+    const char *buf = "false";
+    return mp_write(self, buf, 5);
+}
+
+static int
+json_encode(EncoderState *self, PyObject *obj)
+{
+    PyTypeObject *type = Py_TYPE(obj);
+
+    if (obj == Py_None) {
+        return json_encode_none(self);
+    }
+    else if (obj == Py_True) {
+        return json_encode_true(self);
+    }
+    else if (obj == Py_False) {
+        return json_encode_false(self);
+    }
+    else {
+        PyErr_Format(PyExc_TypeError,
+                     "Encoding objects of type %.200s is unsupported",
+                     type->tp_name);
+        return -1;
+    }
+}
+
+static PyObject*
+JSONEncoder_encode(Encoder *self, PyObject *const *args, Py_ssize_t nargs)
+{
+    return encode_common(&(self->state), args, nargs, &json_encode);
+}
+
+
+static struct PyMethodDef JSONEncoder_methods[] = {
+    {
+        "encode", (PyCFunction) JSONEncoder_encode, METH_FASTCALL,
+        Encoder_encode__doc__,
+    },
+    {
+        "__sizeof__", (PyCFunction) Encoder_sizeof, METH_NOARGS,
+        PyDoc_STR("Size in bytes")
+    },
+    {NULL, NULL}                /* sentinel */
+};
+
+static PyTypeObject JSONEncoder_Type = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "msgspec.core.JSONEncoder",
+    .tp_doc = JSONEncoder__doc__,
+    .tp_basicsize = sizeof(JSONEncoder),
+    .tp_dealloc = (destructor)Encoder_dealloc,
+    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
+    .tp_traverse = (traverseproc)Encoder_traverse,
+    .tp_clear = (inquiry)Encoder_clear,
+    .tp_new = PyType_GenericNew,
+    .tp_init = (initproc)Encoder_init,
+    .tp_methods = JSONEncoder_methods,
+    .tp_members = Encoder_members,
+};
+
+/*************************************************************************
  * Module Setup                                                          *
  *************************************************************************/
 
@@ -4906,6 +5019,8 @@ PyInit_core(void)
         return NULL;
     if (PyType_Ready(&Ext_Type) < 0)
         return NULL;
+    if (PyType_Ready(&JSONEncoder_Type) < 0)
+        return NULL;
 
     /* Create the module */
     m = PyModule_Create(&msgspecmodule);
@@ -4921,6 +5036,9 @@ PyInit_core(void)
         return NULL;
     Py_INCREF(&Ext_Type);
     if (PyModule_AddObject(m, "Ext", (PyObject *)&Ext_Type) < 0)
+        return NULL;
+    Py_INCREF(&JSONEncoder_Type);
+    if (PyModule_AddObject(m, "JSONEncoder", (PyObject *)&JSONEncoder_Type) < 0)
         return NULL;
 
     st = msgspec_get_state(m);

@@ -2,6 +2,7 @@ from .core import (
     Struct,
     Encoder,
     Decoder,
+    JSONEncoder,
     Ext,
     MsgspecError,
     EncodingError,
