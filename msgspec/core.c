@@ -6,6 +6,8 @@
 #include "datetime.h"
 #include "structmember.h"
 
+#include "grisu.h"
+
 
 #if PY_VERSION_HEX < 0x03090000
 #define IS_TRACKED _PyObject_GC_IS_TRACKED
@@ -4870,6 +4872,14 @@ json_encode_long(EncoderState *self, PyObject *obj) {
 }
 
 static int
+json_encode_float(EncoderState *self, PyObject *obj) {
+    char buf[25];
+    double x = PyFloat_AS_DOUBLE(obj);
+    int n = g2_dtoa(x, buf);
+    return mp_write(self, buf, n);
+}
+
+static int
 json_encode(EncoderState *self, PyObject *obj)
 {
     PyTypeObject *type = Py_TYPE(obj);
@@ -4885,6 +4895,9 @@ json_encode(EncoderState *self, PyObject *obj)
     }
     else if (type == &PyLong_Type) {
         return json_encode_long(self, obj);
+    }
+    else if (type == &PyFloat_Type) {
+        return json_encode_float(self, obj);
     }
     else {
         PyErr_Format(PyExc_TypeError,
