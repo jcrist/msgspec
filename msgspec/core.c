@@ -748,7 +748,7 @@ static PyObject *struct_freelist[STRUCT_FREELIST_MAX_SIZE];
 static int struct_freelist_len[STRUCT_FREELIST_MAX_SIZE];
 
 static void
-Struct_freelist_clear() {
+Struct_freelist_clear(void) {
     Py_ssize_t i;
     PyObject *obj;
     for (i = 0; i < STRUCT_FREELIST_MAX_SIZE; i++) {
@@ -777,7 +777,7 @@ Struct_alloc(PyTypeObject *type) {
         struct_freelist_len[size - 1]--;
         /* Initialize the object. This is mirrored from within `PyObject_Init`,
          * as well as PyType_GenericAlloc */
-        Py_SET_TYPE(obj, type);
+        obj->ob_type = type;
         Py_INCREF(type);
         _Py_NewReference(obj);
         PyObject_GC_Track(obj);
