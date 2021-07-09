@@ -729,6 +729,129 @@ static PyTypeObject StructMixinType;
 #define OPT_TRUE 1
 #define STRUCT_MERGE_OPTIONS(opt1, opt2) (((opt2) != OPT_UNSET) ? (opt2) : (opt1))
 
+/* To reduce overhead of repeatedly allocating & freeing messages (in e.g. a
+ * server), we keep Struct objects below a certain size around in a freelist.
+ * This freelist is cleared during major GC collections (as part of traversing
+ * the msgspec module).
+ *
+ * Set STRUCT_FREELIST_MAX_SIZE to 0 to disable the freelist entirely.
+ */
+#ifndef STRUCT_FREELIST_MAX_SIZE
+#define STRUCT_FREELIST_MAX_SIZE 10
+#endif
+#ifndef STRUCT_FREELIST_MAX_PER_SIZE
+#define STRUCT_FREELIST_MAX_PER_SIZE 2000
+#endif
+
+#if STRUCT_FREELIST_MAX_SIZE > 0
+static PyObject *struct_freelist[STRUCT_FREELIST_MAX_SIZE];
+static int struct_freelist_len[STRUCT_FREELIST_MAX_SIZE];
+
+static void
+Struct_freelist_clear(void) {
+    Py_ssize_t i;
+    PyObject *obj;
+    for (i = 0; i < STRUCT_FREELIST_MAX_SIZE; i++) {
+        while ((obj = struct_freelist[i]) != NULL) {
+            struct_freelist[i] = (PyObject *)obj->ob_type;
+            PyObject_GC_Del(obj);
+        }
+        struct_freelist_len[i] = 0;
+    }
+}
+
+static PyObject *
+Struct_alloc(PyTypeObject *type) {
+    Py_ssize_t size;
+    PyObject *obj;
+
+    size = (type->tp_basicsize - sizeof(PyObject)) / sizeof(void *);
+
+    if (size > 0 &&
+        size <= STRUCT_FREELIST_MAX_SIZE &&
+        struct_freelist[size - 1] != NULL)
+    {
+        /* Pop object off freelist */
+        obj = struct_freelist[size - 1];
+        struct_freelist[size - 1] = (PyObject *)obj->ob_type;
+        struct_freelist_len[size - 1]--;
+        /* Initialize the object. This is mirrored from within `PyObject_Init`,
+         * as well as PyType_GenericAlloc */
+        obj->ob_type = type;
+        Py_INCREF(type);
+        _Py_NewReference(obj);
+        PyObject_GC_Track(obj);
+    }
+    else {
+        obj = PyType_GenericAlloc(type, 0);
+    }
+    return obj;
+}
+
+/* Mirrored from cpython Objects/typeobject.c */
+static void
+clear_slots(PyTypeObject *type, PyObject *self)
+{
+    Py_ssize_t i, n;
+    PyMemberDef *mp;
+
+    n = Py_SIZE(type);
+    mp = PyHeapType_GET_MEMBERS((PyHeapTypeObject *)type);
+    for (i = 0; i < n; i++, mp++) {
+        if (mp->type == T_OBJECT_EX && !(mp->flags & READONLY)) {
+            char *addr = (char *)self + mp->offset;
+            PyObject *obj = *(PyObject **)addr;
+            if (obj != NULL) {
+                *(PyObject **)addr = NULL;
+                Py_DECREF(obj);
+            }
+        }
+    }
+}
+
+static void
+Struct_dealloc(PyObject *self) {
+    Py_ssize_t size;
+    PyTypeObject *type, *base;
+
+    type = Py_TYPE(self);
+
+    PyObject_GC_UnTrack(self);
+
+    size = (type->tp_basicsize - sizeof(PyObject)) / sizeof(void *);
+
+    Py_TRASHCAN_BEGIN(self, Struct_dealloc)
+    base = type;
+    while (base != NULL) {
+        if (Py_SIZE(base))
+            clear_slots(base, self);
+        base = base->tp_base;
+    }
+    Py_TRASHCAN_END
+
+    if (size > 0 &&
+        size <= STRUCT_FREELIST_MAX_SIZE &&
+        struct_freelist_len[size - 1] < STRUCT_FREELIST_MAX_PER_SIZE)
+    {
+        /* Push object onto freelist */
+        self->ob_type = (PyTypeObject *)(struct_freelist[size - 1]);
+        struct_freelist_len[size - 1]++;
+        struct_freelist[size - 1] = self;
+    }
+    else {
+        type->tp_free(self);
+    }
+    Py_DECREF(type);
+}
+
+#else
+
+static inline PyObject *
+Struct_alloc(PyTypeObject *type) {
+    return type->tp_alloc(type, 0);
+}
+
+#endif /* Struct freelist */
 
 static Py_ssize_t
 StructMeta_get_field_index(StructMetaObject *self, char * key, Py_ssize_t key_size, Py_ssize_t *pos) {
@@ -945,6 +1068,9 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
     if (cls == NULL)
         goto error;
     ((PyTypeObject *)cls)->tp_vectorcall = (vectorcallfunc)Struct_vectorcall;
+#if STRUCT_FREELIST_MAX_SIZE > 0
+    ((PyTypeObject *)cls)->tp_dealloc = Struct_dealloc;
+#endif
     Py_CLEAR(new_args);
 
     PyMemberDef *mp = PyHeapType_GET_MEMBERS(cls);
@@ -1314,7 +1440,7 @@ Struct_vectorcall(PyTypeObject *cls, PyObject *const *args, size_t nargsf, PyObj
     Py_ssize_t nargs, nkwargs, nfields, ndefaults, npos, i;
     int should_untrack;
 
-    self = cls->tp_alloc(cls, 0);
+    self = Struct_alloc(cls);
     if (self == NULL)
         return NULL;
 
@@ -1551,7 +1677,7 @@ Struct_copy(PyObject *self, PyObject *args)
     Py_ssize_t i, nfields;
     PyObject *val, *res = NULL;
 
-    res = Py_TYPE(self)->tp_alloc(Py_TYPE(self), 0);
+    res = Struct_alloc(Py_TYPE(self));
     if (res == NULL)
         return NULL;
 
@@ -1783,6 +1909,7 @@ static void
 Ext_dealloc(Ext *self)
 {
     Py_XDECREF(self->data);
+    Py_TYPE(self)->tp_free((PyObject *)self);
 }
 
 static PyMemberDef Ext_members[] = {
@@ -4053,7 +4180,7 @@ mp_decode_type_struct_map(DecoderState *self, Py_ssize_t size, TypeNodeObj *type
     StructMetaObject *st_type = (StructMetaObject *)(type->arg);
     int should_untrack;
 
-    res = ((PyTypeObject *)(st_type))->tp_alloc((PyTypeObject *)st_type, 0);
+    res = Struct_alloc((PyTypeObject *)(st_type));
     if (res == NULL) return NULL;
 
     if (Py_EnterRecursiveCall(" while deserializing an object")) {
@@ -4127,7 +4254,7 @@ mp_decode_type_struct_array(DecoderState *self, Py_ssize_t size, TypeNodeObj *ty
     StructMetaObject *st_type = (StructMetaObject *)(type->arg);
     int should_untrack;
 
-    res = ((PyTypeObject *)(st_type))->tp_alloc((PyTypeObject *)st_type, 0);
+    res = Struct_alloc((PyTypeObject *)(st_type));
     if (res == NULL) return NULL;
 
     nfields = PyTuple_GET_SIZE(st_type->struct_fields);
@@ -4714,6 +4841,19 @@ msgspec_free(PyObject *m)
 static int
 msgspec_traverse(PyObject *m, visitproc visit, void *arg)
 {
+
+#if STRUCT_FREELIST_MAX_SIZE > 0
+    /* Since module objects tend to persist throughout a program's execution,
+     * this should only be called during major GC collections (i.e. rarely).
+     *
+     * We want to clear the freelist periodically to free up old pages and
+     * reduce fragementation. But we don't want to do it too often, or the
+     * freelist will rarely be used. Hence clearing the freelist here. This may
+     * change in future releases.
+     */
+    Struct_freelist_clear();
+#endif
+
     MsgspecState *st = msgspec_get_state(m);
     Py_VISIT(st->MsgspecError);
     Py_VISIT(st->EncodingError);
