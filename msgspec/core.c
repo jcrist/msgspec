@@ -4935,6 +4935,70 @@ write_escaped:
     return mp_write(self, "\"", 1);
 }
 
+static const char base64_table[] =
+"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+static int
+json_encode_bin(EncoderState *self, const char* buf, Py_ssize_t len) {
+    char *out;
+    int nbits = 0, charbuf = 0;
+    Py_ssize_t out_len;
+
+    if (len >= (1LL << 32)) {
+        PyErr_SetString(
+            msgspec_get_global_state()->EncodingError,
+            "Can't encode bytes-like objects longer than 2**32 - 1"
+        );
+        return -1;
+    }
+
+    /* Preallocate the buffer (ceil(4/3 * len) + 2) */
+    out_len = 4 * ((len + 2) / 3) + 2;
+    if (mp_resize(self, out_len) < 0) return -1;
+    out = self->output_buffer_raw;
+
+    *out++ = '"';
+    for (; len > 0; len--, buf++) {
+        charbuf = (charbuf << 8) | *buf;
+        nbits += 8;
+        while (nbits >= 6) {
+            unsigned char ind = (charbuf >> (nbits - 6)) & 0x3f;
+            nbits -= 6;
+            *out++ = base64_table[ind];
+        }
+    }
+    if (nbits == 2) {
+        *out++ = base64_table[(charbuf & 3) << 4];
+        *out++ = '=';
+        *out++ = '=';
+    }
+    else if (nbits == 4) {
+        *out++ = base64_table[(charbuf & 0xf) << 2];
+        *out++ = '=';
+    }
+    *out++ = '"';
+
+    self->output_buffer_raw = out;
+    self->output_len = out_len;
+    return 0;
+}
+
+static int
+json_encode_bytes(EncoderState *self, PyObject *obj)
+{
+    Py_ssize_t len = PyBytes_GET_SIZE(obj);
+    const char* buf = PyBytes_AS_STRING(obj);
+    return json_encode_bin(self, buf, len);
+}
+
+static int
+json_encode_bytearray(EncoderState *self, PyObject *obj)
+{
+    Py_ssize_t len = PyByteArray_GET_SIZE(obj);
+    const char* buf = PyByteArray_AS_STRING(obj);
+    return json_encode_bin(self, buf, len);
+}
+
 static int
 json_encode(EncoderState *self, PyObject *obj)
 {
@@ -4957,6 +5021,12 @@ json_encode(EncoderState *self, PyObject *obj)
     }
     else if (type == &PyUnicode_Type) {
         return json_encode_str(self, obj);
+    }
+    else if (type == &PyBytes_Type) {
+        return json_encode_bytes(self, obj);
+    }
+    else if (type == &PyByteArray_Type) {
+        return json_encode_bytearray(self, obj);
     }
     else {
         PyErr_Format(PyExc_TypeError,
