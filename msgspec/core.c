@@ -4879,59 +4879,62 @@ json_encode_float(EncoderState *self, PyObject *obj) {
     return mp_write(self, buf, n);
 }
 
+/* A table of escape characters to use for each byte (0 if no escape needed) */
+static const char escape_table[256] = {
+    'u', 'u', 'u', 'u', 'u', 'u', 'u', 'u', 'b', 't', 'n', 'u', 'f', 'r', 'u', 'u',
+    'u', 'u', 'u', 'u', 'u', 'u', 'u', 'u', 'u', 'u', 'u', 'u', 'u', 'u', 'u', 'u',
+    0, 0, '"', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '\\', 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+};
+
 static int
 json_encode_str(EncoderState *self, PyObject *obj) {
-    Py_ssize_t i, len;
+    Py_ssize_t i, len, start = 0;
     const char* buf = unicode_str_and_size(obj, &len);
     if (buf == NULL) return -1;
 
-    /* Preallocate enough assuming no escape codes needed */
-    if (mp_resize(self, len + 2) < 0) return -1;
-
-    /* No check needed here, already allocated */
-    *(self->output_buffer_raw + self->output_len) = '"';
-    self->output_len++;
+    if (mp_write(self, "\"", 1) < 0) return -1;
 
     for (i = 0; i < len; i++) {
+        /* Scan through until a character needs to be escaped */
         char c = buf[i];
-        char *escaped;
-        switch (c) {
-            case '\\': {
-                escaped = "\\\\";
-                goto write_escaped;
-            }
-            case '"': {
-                escaped = "\\\"";
-                goto write_escaped;
-            }
-            case '\n': {
-                escaped = "\\n";
-                goto write_escaped;
-            }
-            case '\f': {
-                escaped = "\\f";
-                goto write_escaped;
-            }
-            case '\b': {
-                escaped = "\\b";
-                goto write_escaped;
-            }
-            case '\r': {
-                escaped = "\\r";
-                goto write_escaped;
-            }
-            case '\t': {
-                escaped = "\\t";
-                goto write_escaped;
-            }
-            default: {
-                if (mp_write(self, &c, 1) < 0) return -1;
-                continue;
-            }
-write_escaped:
+        char escape = escape_table[(uint8_t)c];
+        if (escape == 0) continue;
+
+        /* Write the fragment that doesn't need to be escaped */
+        if (start < i) {
+            if (mp_write(self, buf + start, i - start) < 0) return -1;
+        }
+
+        /* Write the escaped character */
+        if (escape == 'u') {
+            const char* hex = "0123456789abcdef";
+            char escaped[6] = {'\\', 'u', '0', '0', hex[c >> 4], hex[c & 0xF]};
+            if (mp_write(self, escaped, 6) < 0) return -1;
+        }
+        else {
+            char escaped[2] = {'\\', escape};
             if (mp_write(self, escaped, 2) < 0) return -1;
         }
+        start = i + 1;
     }
+    /* Write the last unescaped fragment (if any) */
+    if (start != len) {
+        if (mp_write(self, buf + start, i - start) < 0) return -1;
+    }
+
     return mp_write(self, "\"", 1);
 }
 
