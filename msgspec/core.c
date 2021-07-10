@@ -5031,6 +5031,29 @@ json_encode_enum(EncoderState *self, PyObject *obj)
 }
 
 static int
+json_encode_list(EncoderState *self, PyObject *obj)
+{
+    Py_ssize_t i, len;
+    int status = -1;
+
+    len = PyList_GET_SIZE(obj);
+    if (len == 0) return mp_write(self, "[]", 2);
+
+    if (mp_write(self, "[", 1) < 0) return -1;
+    if (Py_EnterRecursiveCall(" while serializing an object"))
+        return -1;
+    for (i = 0; i < len - 1; i++) {
+        if (json_encode(self, PyList_GET_ITEM(obj, i)) < 0) goto cleanup;
+        if (mp_write(self, ",", 1) < 0) goto cleanup;
+    }
+    if (json_encode(self, PyList_GET_ITEM(obj, len - 1)) < 0) goto cleanup;
+    status = mp_write(self, "]", 1);
+cleanup:
+    Py_LeaveRecursiveCall();
+    return status;
+}
+
+static int
 json_encode(EncoderState *self, PyObject *obj)
 {
     MsgspecState *st;
@@ -5059,6 +5082,9 @@ json_encode(EncoderState *self, PyObject *obj)
     }
     else if (type == &PyByteArray_Type) {
         return json_encode_bytearray(self, obj);
+    }
+    else if (type == &PyList_Type) {
+        return json_encode_list(self, obj);
     }
     st = msgspec_get_global_state();
     if (PyType_IsSubtype(type, st->EnumType)) {
