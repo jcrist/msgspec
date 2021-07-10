@@ -4880,6 +4880,62 @@ json_encode_float(EncoderState *self, PyObject *obj) {
 }
 
 static int
+json_encode_str(EncoderState *self, PyObject *obj) {
+    Py_ssize_t i, len;
+    const char* buf = unicode_str_and_size(obj, &len);
+    if (buf == NULL) return -1;
+
+    /* Preallocate enough assuming no escape codes needed */
+    if (mp_resize(self, len + 2) < 0) return -1;
+
+    /* No check needed here, already allocated */
+    *(self->output_buffer_raw + self->output_len) = '"';
+    self->output_len++;
+
+    for (i = 0; i < len; i++) {
+        char c = buf[i];
+        char *escaped;
+        switch (c) {
+            case '\\': {
+                escaped = "\\\\";
+                goto write_escaped;
+            }
+            case '"': {
+                escaped = "\\\"";
+                goto write_escaped;
+            }
+            case '\n': {
+                escaped = "\\n";
+                goto write_escaped;
+            }
+            case '\f': {
+                escaped = "\\f";
+                goto write_escaped;
+            }
+            case '\b': {
+                escaped = "\\b";
+                goto write_escaped;
+            }
+            case '\r': {
+                escaped = "\\r";
+                goto write_escaped;
+            }
+            case '\t': {
+                escaped = "\\t";
+                goto write_escaped;
+            }
+            default: {
+                if (mp_write(self, &c, 1) < 0) return -1;
+                continue;
+            }
+write_escaped:
+            if (mp_write(self, escaped, 2) < 0) return -1;
+        }
+    }
+    return mp_write(self, "\"", 1);
+}
+
+static int
 json_encode(EncoderState *self, PyObject *obj)
 {
     PyTypeObject *type = Py_TYPE(obj);
@@ -4898,6 +4954,9 @@ json_encode(EncoderState *self, PyObject *obj)
     }
     else if (type == &PyFloat_Type) {
         return json_encode_float(self, obj);
+    }
+    else if (type == &PyUnicode_Type) {
+        return json_encode_str(self, obj);
     }
     else {
         PyErr_Format(PyExc_TypeError,
