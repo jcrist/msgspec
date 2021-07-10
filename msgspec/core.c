@@ -5000,8 +5000,40 @@ json_encode_bytearray(EncoderState *self, PyObject *obj)
 }
 
 static int
+json_encode_enum(EncoderState *self, PyObject *obj)
+{
+    if (PyLong_Check(obj))
+        return json_encode_long(self, obj);
+
+    int status;
+    PyObject *name = NULL;
+    MsgspecState *st = msgspec_get_global_state();
+    /* Try the private variable first for speed, fall back to the public
+     * interface if not available */
+    name = PyObject_GetAttr(obj, st->str__name_);
+    if (name == NULL) {
+        PyErr_Clear();
+        name = PyObject_GetAttr(obj, st->str_name);
+        if (name == NULL)
+            return -1;
+    }
+    if (PyUnicode_CheckExact(name)) {
+        status = json_encode_str(self, name);
+    } else {
+        PyErr_SetString(
+            msgspec_get_global_state()->EncodingError,
+            "Enum's with non-str names aren't supported"
+        );
+        status = -1;
+    }
+    Py_DECREF(name);
+    return status;
+}
+
+static int
 json_encode(EncoderState *self, PyObject *obj)
 {
+    MsgspecState *st;
     PyTypeObject *type = Py_TYPE(obj);
 
     if (obj == Py_None) {
@@ -5027,6 +5059,10 @@ json_encode(EncoderState *self, PyObject *obj)
     }
     else if (type == &PyByteArray_Type) {
         return json_encode_bytearray(self, obj);
+    }
+    st = msgspec_get_global_state();
+    if (PyType_IsSubtype(type, st->EnumType)) {
+        return json_encode_enum(self, obj);
     }
     else {
         PyErr_Format(PyExc_TypeError,
