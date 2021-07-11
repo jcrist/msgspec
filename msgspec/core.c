@@ -5055,12 +5055,39 @@ json_encode_list(EncoderState *self, PyObject *obj)
     if (mp_write(self, "[", 1) < 0) return -1;
     if (Py_EnterRecursiveCall(" while serializing an object"))
         return -1;
-    for (i = 0; i < len - 1; i++) {
+    for (i = 0; i < len; i++) {
         if (json_encode(self, PyList_GET_ITEM(obj, i)) < 0) goto cleanup;
         if (mp_write(self, ",", 1) < 0) goto cleanup;
     }
-    if (json_encode(self, PyList_GET_ITEM(obj, len - 1)) < 0) goto cleanup;
-    status = mp_write(self, "]", 1);
+    /* Overwrite trailing comma with ] */
+    *(self->output_buffer_raw + self->output_len - 1) = ']';
+    status = 0;
+cleanup:
+    Py_LeaveRecursiveCall();
+    return status;
+}
+
+static int
+json_encode_dict(EncoderState *self, PyObject *obj)
+{
+    PyObject *key, *val;
+    Py_ssize_t len, pos = 0;
+    int status = -1;
+
+    len = PyDict_GET_SIZE(obj);
+    if (len == 0) return mp_write(self, "{}", 2);
+    if (mp_write(self, "{", 1) < 0) return -1;
+    if (Py_EnterRecursiveCall(" while serializing an object"))
+        return -1;
+    while (PyDict_Next(obj, &pos, &key, &val)) {
+        if (json_encode(self, key) < 0) goto cleanup;
+        if (mp_write(self, ":", 1) < 0) goto cleanup;
+        if (json_encode(self, val) < 0) goto cleanup;
+        if (mp_write(self, ",", 1) < 0) goto cleanup;
+    }
+    /* Overwrite trailing comma with } */
+    *(self->output_buffer_raw + self->output_len - 1) = '}';
+    status = 0;
 cleanup:
     Py_LeaveRecursiveCall();
     return status;
@@ -5098,6 +5125,9 @@ json_encode(EncoderState *self, PyObject *obj)
     }
     else if (type == &PyList_Type) {
         return json_encode_list(self, obj);
+    }
+    else if (type == &PyDict_Type) {
+        return json_encode_dict(self, obj);
     }
     st = msgspec_get_global_state();
     if (PyType_IsSubtype(type, st->EnumType)) {
