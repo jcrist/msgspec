@@ -2112,21 +2112,30 @@ enum mp_code {
 static int
 mp_resize(EncoderState *self, Py_ssize_t size) 
 {
-        int status;
-        bool is_bytes = PyBytes_CheckExact(self->output_buffer);
-        self->max_output_len = Py_MAX(8, 1.5 * size);
-        status = (
-            is_bytes ? _PyBytes_Resize(&self->output_buffer, self->max_output_len)
-                     : PyByteArray_Resize(self->output_buffer, self->max_output_len)
-        );
-        if (status < 0) return -1;
-        if (is_bytes) {
-            self->output_buffer_raw = PyBytes_AS_STRING(self->output_buffer);
-        }
-        else {
-            self->output_buffer_raw = PyByteArray_AS_STRING(self->output_buffer);
-        }
-        return status;
+    int status;
+    bool is_bytes = PyBytes_CheckExact(self->output_buffer);
+    self->max_output_len = Py_MAX(8, 1.5 * size);
+    status = (
+        is_bytes ? _PyBytes_Resize(&self->output_buffer, self->max_output_len)
+                    : PyByteArray_Resize(self->output_buffer, self->max_output_len)
+    );
+    if (status < 0) return -1;
+    if (is_bytes) {
+        self->output_buffer_raw = PyBytes_AS_STRING(self->output_buffer);
+    }
+    else {
+        self->output_buffer_raw = PyByteArray_AS_STRING(self->output_buffer);
+    }
+    return status;
+}
+
+static inline int
+mp_ensure_space(EncoderState *self, Py_ssize_t size) {
+    Py_ssize_t required = self->output_len + size;
+    if (required > self->max_output_len) {
+        return mp_resize(self, required);
+    }
+    return 0;
 }
 
 static inline int
@@ -4945,7 +4954,7 @@ static int
 json_encode_bin(EncoderState *self, const char* buf, Py_ssize_t len) {
     char *out;
     int nbits = 0, charbuf = 0;
-    Py_ssize_t out_len;
+    Py_ssize_t encoded_len;
 
     if (len >= (1LL << 32)) {
         PyErr_SetString(
@@ -4956,9 +4965,11 @@ json_encode_bin(EncoderState *self, const char* buf, Py_ssize_t len) {
     }
 
     /* Preallocate the buffer (ceil(4/3 * len) + 2) */
-    out_len = 4 * ((len + 2) / 3) + 2;
-    if (mp_resize(self, out_len) < 0) return -1;
-    out = self->output_buffer_raw;
+    encoded_len = 4 * ((len + 2) / 3) + 2;
+    if (mp_ensure_space(self, encoded_len) < 0) return -1;
+
+    /* Write to the buffer directly */
+    out = self->output_buffer_raw + self->output_len;
 
     *out++ = '"';
     for (; len > 0; len--, buf++) {
@@ -4981,8 +4992,7 @@ json_encode_bin(EncoderState *self, const char* buf, Py_ssize_t len) {
     }
     *out++ = '"';
 
-    self->output_buffer_raw = out;
-    self->output_len = out_len;
+    self->output_len += encoded_len;
     return 0;
 }
 
