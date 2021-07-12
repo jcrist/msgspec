@@ -5086,6 +5086,56 @@ cleanup:
 }
 
 static int
+json_encode_set(EncoderState *self, PyObject *obj)
+{
+    Py_ssize_t len, ppos = 0;
+    Py_hash_t hash;
+    PyObject *item;
+    int status = 0;
+
+    len = PySet_GET_SIZE(obj);
+    if (len == 0) return mp_write(self, "[]", 2);
+
+    if (mp_write(self, "[", 1) < 0) return -1;
+    if (Py_EnterRecursiveCall(" while serializing an object"))
+        return -1;
+    while (_PySet_NextEntry(obj, &ppos, &item, &hash)) {
+        if (json_encode(self, item) < 0) goto cleanup;
+        if (mp_write(self, ",", 1) < 0) goto cleanup;
+    }
+    /* Overwrite trailing comma with ] */
+    *(self->output_buffer_raw + self->output_len - 1) = ']';
+    status = 0;
+cleanup:
+    Py_LeaveRecursiveCall();
+    return status;
+}
+
+static int
+json_encode_tuple(EncoderState *self, PyObject *obj)
+{
+    Py_ssize_t i, len;
+    int status = -1;
+
+    len = PyTuple_GET_SIZE(obj);
+    if (len == 0) return mp_write(self, "[]", 2);
+
+    if (mp_write(self, "[", 1) < 0) return -1;
+    if (Py_EnterRecursiveCall(" while serializing an object"))
+        return -1;
+    for (i = 0; i < len; i++) {
+        if (json_encode(self, PyTuple_GET_ITEM(obj, i)) < 0) goto cleanup;
+        if (mp_write(self, ",", 1) < 0) goto cleanup;
+    }
+    /* Overwrite trailing comma with ] */
+    *(self->output_buffer_raw + self->output_len - 1) = ']';
+    status = 0;
+cleanup:
+    Py_LeaveRecursiveCall();
+    return status;
+}
+
+static int
 json_encode_dict(EncoderState *self, PyObject *obj)
 {
     PyObject *key, *val;
@@ -5137,6 +5187,12 @@ json_encode(EncoderState *self, PyObject *obj)
     }
     else if (type == &PyList_Type) {
         return json_encode_list(self, obj);
+    }
+    else if (type == &PyTuple_Type) {
+        return json_encode_tuple(self, obj);
+    }
+    else if (type == &PySet_Type) {
+        return json_encode_set(self, obj);
     }
     else if (type == &PyDict_Type) {
         return json_encode_dict(self, obj);
