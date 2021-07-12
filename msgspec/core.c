@@ -4926,6 +4926,20 @@ static const char escape_table[256] = {
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 };
 
+static inline int
+json_encode_str_nocheck(EncoderState *self, PyObject *obj) {
+    Py_ssize_t len;
+    const char* buf = unicode_str_and_size(obj, &len);
+    if (buf == NULL) return -1;
+    if (mp_ensure_space(self, len + 2) < 0) return -1;
+    char *p = self->output_buffer_raw + self->output_len;
+    *p++ = '"';
+    memcpy(p, buf, len);
+    *(p + len) = '"';
+    self->output_len += len + 2;
+    return 0;
+}
+
 static int
 json_encode_str(EncoderState *self, PyObject *obj) {
     Py_ssize_t i, len, start = 0;
@@ -5091,7 +5105,7 @@ json_encode_set(EncoderState *self, PyObject *obj)
     Py_ssize_t len, ppos = 0;
     Py_hash_t hash;
     PyObject *item;
-    int status = 0;
+    int status = -1;
 
     len = PySet_GET_SIZE(obj);
     if (len == 0) return mp_write(self, "[]", 2);
@@ -5162,6 +5176,37 @@ cleanup:
 }
 
 static int
+json_encode_struct(EncoderState *self, PyObject *obj)
+{
+    PyObject *key, *val, *fields;
+    Py_ssize_t i, len;
+    int status = 0;
+
+    fields = StructMeta_GET_FIELDS(Py_TYPE(obj));
+    len = PyTuple_GET_SIZE(fields);
+
+    if (len == 0) return mp_write(self, "{}", 2);
+    if (mp_write(self, "{", 1) < 0) return -1;
+    if (Py_EnterRecursiveCall(" while serializing an object"))
+        return -1;
+    for (i = 0; i < len; i++) {
+        key = PyTuple_GET_ITEM(fields, i);
+        val = Struct_get_index(obj, i);
+        if (val == NULL) goto cleanup;
+        if (json_encode_str_nocheck(self, key) < 0) goto cleanup;
+        if (mp_write(self, ":", 1) < 0) goto cleanup;
+        if (json_encode(self, val) < 0) goto cleanup;
+        if (mp_write(self, ",", 1) < 0) goto cleanup;
+    }
+    /* Overwrite trailing comma with } */
+    *(self->output_buffer_raw + self->output_len - 1) = '}';
+    status = 0;
+cleanup:
+    Py_LeaveRecursiveCall();
+    return status;
+}
+
+static int
 json_encode(EncoderState *self, PyObject *obj)
 {
     MsgspecState *st;
@@ -5196,6 +5241,9 @@ json_encode(EncoderState *self, PyObject *obj)
     }
     else if (type == &PyDict_Type) {
         return json_encode_dict(self, obj);
+    }
+    else if (Py_TYPE(type) == &StructMetaType) {
+        return json_encode_struct(self, obj);
     }
     else if (type == &PyBytes_Type) {
         return json_encode_bytes(self, obj);
