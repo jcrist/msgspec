@@ -5162,7 +5162,11 @@ json_encode_dict(EncoderState *self, PyObject *obj)
     if (Py_EnterRecursiveCall(" while serializing an object"))
         return -1;
     while (PyDict_Next(obj, &pos, &key, &val)) {
-        if (json_encode(self, key) < 0) goto cleanup;
+        if (!PyUnicode_CheckExact(key)) {
+            PyErr_SetString(PyExc_TypeError, "dict keys must be strings");
+            goto cleanup;
+        }
+        if (json_encode_str(self, key) < 0) goto cleanup;
         if (mp_write(self, ":", 1) < 0) goto cleanup;
         if (json_encode(self, val) < 0) goto cleanup;
         if (mp_write(self, ",", 1) < 0) goto cleanup;
