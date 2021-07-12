@@ -2526,7 +2526,7 @@ mp_encode_struct(EncoderState *self, PyObject *obj)
         for (i = 0; i < len; i++) {
             key = PyTuple_GET_ITEM(fields, i);
             val = Struct_get_index(obj, i);
-            if (val == NULL || mp_encode(self, key) < 0 || mp_encode(self, val) < 0) {
+            if (val == NULL || mp_encode_str(self, key) < 0 || mp_encode(self, val) < 0) {
                 status = -1;
                 break;
             }
