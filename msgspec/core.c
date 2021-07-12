@@ -2114,10 +2114,10 @@ mp_resize(EncoderState *self, Py_ssize_t size)
 {
     int status;
     bool is_bytes = PyBytes_CheckExact(self->output_buffer);
-    self->max_output_len = Py_MAX(8, 1.5 * size);
+    self->max_output_len = Py_MAX(8, 2 * size);
     status = (
         is_bytes ? _PyBytes_Resize(&self->output_buffer, self->max_output_len)
-                    : PyByteArray_Resize(self->output_buffer, self->max_output_len)
+                 : PyByteArray_Resize(self->output_buffer, self->max_output_len)
     );
     if (status < 0) return -1;
     if (is_bytes) {
@@ -4854,30 +4854,48 @@ json_encode_false(EncoderState *self)
     return mp_write(self, buf, 5);
 }
 
+static char* digits_table = (
+    "0001020304050607080910111213141516171819"
+    "2021222324252627282930313233343536373839"
+    "4041424344454647484950515253545556575859"
+    "6061626364656667686970717273747576777879"
+    "8081828384858687888990919293949596979899"
+);
+
 static int
 json_encode_long(EncoderState *self, PyObject *obj) {
-    int64_t sign, x = PyLong_AsLongLong(obj);
-    char buf[17];
-    int i;
-    if (x == -1 && PyErr_Occurred()) {
+    int neg, overflow;
+    char buf[20];
+    char *p = &buf[20];
+    int64_t x = PyLong_AsLongLongAndOverflow(obj, &overflow);
+    if (overflow) {
+        PyErr_SetString(PyExc_OverflowError, "can't serialize ints larger than 64 bits");
         return -1;
     }
-    if (x >= (1LL << 53) || x <= (-1LL << 53)) {
-        PyErr_SetString(
-            PyExc_OverflowError,
-            "Can only serialize ints in -2**53 < x < 2**53"
-        );
+    else if (x == -1 && PyErr_Occurred()) {
         return -1;
     }
-    if ((sign = x) < 0)
+    neg = x < 0;
+    if (neg) {
         x = -x;
-    i = 16;
-    do {
-        buf[i--] = x % 10 + '0';
-    } while ((x /= 10) > 0);
-    if (sign < 0)
-        buf[i--] = '-';
-    return mp_write(self, buf + i + 1, 16 - i);
+    }
+    while (x >= 100) {
+        int64_t const old = x;
+        p -= 2;
+        x /= 100;
+        memcpy(p, digits_table + ((old - (x * 100)) << 1), 2);
+    }
+    if (x >= 10) {
+        p -= 2;
+        memcpy(p, digits_table + (x << 1), 2);
+    }
+    else {
+        *--p = x + '0';
+    }
+    if (neg) {
+        *--p = '-';
+    }
+    return mp_write(self, p, &buf[20] - p);
 }
 
 static int
@@ -5117,17 +5135,17 @@ json_encode(EncoderState *self, PyObject *obj)
     else if (type == &PyUnicode_Type) {
         return json_encode_str(self, obj);
     }
-    else if (type == &PyBytes_Type) {
-        return json_encode_bytes(self, obj);
-    }
-    else if (type == &PyByteArray_Type) {
-        return json_encode_bytearray(self, obj);
-    }
     else if (type == &PyList_Type) {
         return json_encode_list(self, obj);
     }
     else if (type == &PyDict_Type) {
         return json_encode_dict(self, obj);
+    }
+    else if (type == &PyBytes_Type) {
+        return json_encode_bytes(self, obj);
+    }
+    else if (type == &PyByteArray_Type) {
+        return json_encode_bytearray(self, obj);
     }
     st = msgspec_get_global_state();
     if (PyType_IsSubtype(type, st->EnumType)) {
