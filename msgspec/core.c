@@ -2268,10 +2268,10 @@ mp_encode_float(EncoderState *self, PyObject *obj)
 {
     char buf[9];
     double x = PyFloat_AS_DOUBLE(obj);
+    uint64_t ux = 0;
+    memcpy(&ux, &x, sizeof(double));
     buf[0] = MP_FLOAT64;
-    if (_PyFloat_Pack8(x, (unsigned char *)(&buf[1]), 0) < 0) {
-        return -1;
-    }
+    _msgspec_store64(&buf[1], ux);
     return mp_write(self, buf, 9);
 }
 
@@ -3306,15 +3306,23 @@ mp_decode_int8(DecoderState *self) {
 static inline PyObject *
 mp_decode_float4(DecoderState *self) {
     char *s;
+    float f = 0;
+    uint32_t uf;
     if (mp_read(self, &s, 4) < 0) return NULL;
-    return PyFloat_FromDouble(_PyFloat_Unpack4((unsigned char *)s, 0));
+    uf = _msgspec_load32(uint32_t, s);
+    memcpy(&f, &uf, 4);
+    return PyFloat_FromDouble(f);
 }
 
 static inline PyObject *
 mp_decode_float8(DecoderState *self) {
     char *s;
+    double f = 0;
+    uint64_t uf;
     if (mp_read(self, &s, 8) < 0) return NULL;
-    return PyFloat_FromDouble(_PyFloat_Unpack8((unsigned char *)s, 0));
+    uf = _msgspec_load64(uint64_t, s);
+    memcpy(&f, &uf, 8);
+    return PyFloat_FromDouble(f);
 }
 
 static inline Py_ssize_t
@@ -3904,14 +3912,22 @@ mp_decode_type_float(DecoderState *self, char op, TypeNode *ctx, Py_ssize_t ctx_
         out = op;
     } else {
         switch ((enum mp_code)op) {
-            case MP_FLOAT32:
+            case MP_FLOAT32: {
+                float f;
+                uint32_t uf;
                 if (mp_read(self, &s, 4) < 0) return NULL;
-                out = _PyFloat_Unpack4((unsigned char *)s, 0);
+                uf = _msgspec_load32(uint32_t, s);
+                memcpy(&f, &uf, 4);
+                out = f;
                 break;
-            case MP_FLOAT64:
+            }
+            case MP_FLOAT64: {
+                uint64_t uf;
                 if (mp_read(self, &s, 8) < 0) return NULL;
-                out = _PyFloat_Unpack8((unsigned char *)s, 0);
+                uf = _msgspec_load64(uint64_t, s);
+                memcpy(&out, &uf, 8);
                 break;
+            }
             case MP_UINT8:
                 if (mp_read(self, &s, 1) < 0) return NULL;
                 out = *(uint8_t *)s;
