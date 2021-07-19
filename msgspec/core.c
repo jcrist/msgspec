@@ -861,7 +861,9 @@ Struct_alloc(PyTypeObject *type) {
 #endif /* Struct freelist */
 
 static Py_ssize_t
-StructMeta_get_field_index(StructMetaObject *self, char * key, Py_ssize_t key_size, Py_ssize_t *pos) {
+StructMeta_get_field_index(
+    StructMetaObject *self, const char * key, Py_ssize_t key_size, Py_ssize_t *pos
+) {
     const char *field;
     Py_ssize_t nfields, field_size, i, ind, offset = *pos;
     nfields = PyTuple_GET_SIZE(self->struct_fields);
@@ -4290,8 +4292,6 @@ mp_decode_type_struct_map(DecoderState *self, Py_ssize_t size, TypeNodeObj *type
                 );
                 if (val == NULL) goto error;
                 Struct_set_index(res, i, val);
-                if (should_untrack)
-                    should_untrack = !OBJ_IS_GC(val);
             }
         }
         if (should_untrack) {
