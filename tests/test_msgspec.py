@@ -7,6 +7,7 @@ import gc
 import math
 import os
 import pickle
+import struct
 import sys
 
 import pytest
@@ -617,6 +618,15 @@ class TestTypedDecoder:
 
     def test_float_unexpected_type(self):
         self.check_unexpected_type(float, "a", "expected `float`")
+
+    def test_decode_float4(self):
+        x = 1.2
+        packed = struct.pack(">f", x)
+        # Loss of resolution in float32 leads to some rounding error
+        x4 = struct.unpack(">f", packed)[0]
+        msg = b"\xca" + packed
+        assert msgspec.decode(msg) == x4
+        assert msgspec.decode(msg, type=float) == x4
 
     @pytest.mark.parametrize("size", SIZES)
     def test_str(self, size):
