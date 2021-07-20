@@ -4984,15 +4984,14 @@ json_encode_str(EncoderState *self, PyObject *obj) {
         }
 
         /* Write the escaped character */
+        size_t size = escape == 'u' ? 6 : 2;
+        char escaped[6] = {'\\', escape, '0', '0'};
         if (escape == 'u') {
-            const char* hex = "0123456789abcdef";
-            char escaped[6] = {'\\', 'u', '0', '0', hex[c >> 4], hex[c & 0xF]};
-            if (mp_write(self, escaped, 6) < 0) return -1;
+            static const char* const hex = "0123456789abcdef";
+            escaped[4] = hex[c >> 4];
+            escaped[5] = hex[c & 0xF];
         }
-        else {
-            char escaped[2] = {'\\', escape};
-            if (mp_write(self, escaped, 2) < 0) return -1;
-        }
+        if (mp_write(self, escaped, size) < 0) return -1;
         start = i + 1;
     }
     /* Write the last unescaped fragment (if any) */
