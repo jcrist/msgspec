@@ -12,6 +12,7 @@
 #define MP_UNLIKELY(pred) __builtin_expect(!!(pred), 0)
 
 #define MP_INLINE __attribute__((always_inline))
+#define MP_NOINLINE __attribute__((noinline))
 
 #if PY_VERSION_HEX < 0x03090000
 #define IS_TRACKED _PyObject_GC_IS_TRACKED
@@ -2143,6 +2144,12 @@ mp_resize(EncoderState *self, Py_ssize_t size)
     return 0;
 }
 
+MP_NOINLINE static int
+mp_resize_cold(EncoderState *self, Py_ssize_t size)
+{
+    return mp_resize(self, size);
+}
+
 static inline int
 mp_ensure_space(EncoderState *self, Py_ssize_t size) {
     Py_ssize_t required = self->output_len + size;
@@ -2157,7 +2164,7 @@ mp_write(EncoderState *self, const char *s, Py_ssize_t n)
 {
     Py_ssize_t required = self->output_len + n;
     if (MP_UNLIKELY(required > self->max_output_len)) {
-        if (mp_resize(self, required) < 0) return -1;
+        if (mp_resize_cold(self, required) < 0) return -1;
     }
     memcpy(self->output_buffer_raw + self->output_len, s, n);
     self->output_len += n;
