@@ -8,6 +8,11 @@
 
 #include "ryu.h"
 
+#define MP_LIKELY(pred) __builtin_expect(!!(pred), 1)
+#define MP_UNLIKELY(pred) __builtin_expect(!!(pred), 0)
+
+#define MP_INLINE __attribute__((always_inline))
+
 #if PY_VERSION_HEX < 0x03090000
 #define IS_TRACKED _PyObject_GC_IS_TRACKED
 #define CALL_ONE_ARG(fn, arg) PyObject_CallFunctionObjArgs((fn), (arg), NULL)
@@ -2137,11 +2142,11 @@ mp_ensure_space(EncoderState *self, Py_ssize_t size) {
     return 0;
 }
 
-static inline int
+MP_INLINE static inline int
 mp_write(EncoderState *self, const char *s, Py_ssize_t n)
 {
     Py_ssize_t required = self->output_len + n;
-    if (required > self->max_output_len) {
+    if (MP_UNLIKELY(required > self->max_output_len)) {
         if (mp_resize(self, required) < 0) return -1;
     }
     memcpy(self->output_buffer_raw + self->output_len, s, n);
