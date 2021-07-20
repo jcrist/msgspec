@@ -1990,6 +1990,8 @@ typedef struct EncoderState {
     char *output_buffer_raw;    /* raw pointer to output_buffer internal buffer */
     Py_ssize_t output_len;      /* Length of output_buffer */
     Py_ssize_t max_output_len;  /* Allocation size of output_buffer */
+
+    char* (*resize_output_buffer)(PyObject**, Py_ssize_t);
 } EncoderState;
 
 
@@ -2113,24 +2115,32 @@ enum mp_code {
     MP_EXT32 = '\xc9',
 };
 
-static int
-mp_resize(EncoderState *self, Py_ssize_t size) 
+static char*
+mp_resize_bytes(PyObject** output_buffer, Py_ssize_t size)
 {
-    int status;
-    bool is_bytes = PyBytes_CheckExact(self->output_buffer);
+    int status = _PyBytes_Resize(output_buffer, size);
+    if (status < 0) return NULL;
+    return PyBytes_AS_STRING(*output_buffer);
+}
+
+static char*
+mp_resize_bytearray(PyObject** output_buffer, Py_ssize_t size)
+{
+    int status = PyByteArray_Resize(*output_buffer, size);
+    if (status < 0) return NULL;
+    return PyByteArray_AS_STRING(*output_buffer);
+}
+
+
+static int
+mp_resize(EncoderState *self, Py_ssize_t size)
+{
     self->max_output_len = Py_MAX(8, 2 * size);
-    status = (
-        is_bytes ? _PyBytes_Resize(&self->output_buffer, self->max_output_len)
-                 : PyByteArray_Resize(self->output_buffer, self->max_output_len)
-    );
-    if (status < 0) return -1;
-    if (is_bytes) {
-        self->output_buffer_raw = PyBytes_AS_STRING(self->output_buffer);
-    }
-    else {
-        self->output_buffer_raw = PyByteArray_AS_STRING(self->output_buffer);
-    }
-    return status;
+    char* new_buf = self->resize_output_buffer(&self->output_buffer,
+                                               self->max_output_len);
+    if (new_buf == NULL) return -1;
+    self->output_buffer_raw = new_buf;
+    return 0;
 }
 
 static inline int
@@ -2834,6 +2844,7 @@ Encoder_encode_into(Encoder *self, PyObject *const *args, Py_ssize_t nargs)
     self->state.output_buffer_raw = PyByteArray_AS_STRING(buf);
     self->state.output_len = offset;
     self->state.max_output_len = buf_size;
+    self->state.resize_output_buffer = mp_resize_bytearray;
 
     status = mp_encode(&(self->state), obj);
 
@@ -2871,6 +2882,7 @@ encode_common(
         state->output_buffer = PyBytes_FromStringAndSize(NULL, state->max_output_len);
         if (state->output_buffer == NULL) return NULL;
         state->output_buffer_raw = PyBytes_AS_STRING(state->output_buffer);
+        state->resize_output_buffer = mp_resize_bytes;
     }
 
     status = encode(state, args[0]);
@@ -3022,6 +3034,7 @@ msgspec_encode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject
     state.output_buffer = PyBytes_FromStringAndSize(NULL, state.max_output_len);
     if (state.output_buffer == NULL) return NULL;
     state.output_buffer_raw = PyBytes_AS_STRING(state.output_buffer);
+    state.resize_output_buffer = mp_resize_bytes;
 
     status = mp_encode(&state, args[0]);
 
