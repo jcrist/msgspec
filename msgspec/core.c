@@ -6,6 +6,24 @@
 #include "datetime.h"
 #include "structmember.h"
 
+#ifdef __GNUC__
+#define MP_LIKELY(pred) __builtin_expect(!!(pred), 1)
+#define MP_UNLIKELY(pred) __builtin_expect(!!(pred), 0)
+#else
+#define MP_LIKELY(pred) (pred)
+#define MP_UNLIKELY(pred) (pred)
+#endif
+
+#ifdef __GNUC__
+#define MP_INLINE __attribute__((always_inline)) inline
+#define MP_NOINLINE __attribute__((noinline))
+#elif defined(_MSC_VER)
+#define MP_INLINE __forceinline inline
+#define MP_NOINLINE __declspec(noinline)
+#else
+#define MP_INLINE inline
+#define MP_NOINLINE
+#endif
 
 #if PY_VERSION_HEX < 0x03090000
 #define IS_TRACKED _PyObject_GC_IS_TRACKED
@@ -1986,13 +2004,29 @@ typedef struct EncoderState {
     char *output_buffer_raw;    /* raw pointer to output_buffer internal buffer */
     Py_ssize_t output_len;      /* Length of output_buffer */
     Py_ssize_t max_output_len;  /* Allocation size of output_buffer */
+    char* (*resize_buffer)(PyObject**, Py_ssize_t);  /* callback for resizing buffer */
 } EncoderState;
-
 
 typedef struct Encoder {
     PyObject_HEAD
     EncoderState state;
 } Encoder;
+
+static char*
+mp_resize_bytes(PyObject** output_buffer, Py_ssize_t size)
+{
+    int status = _PyBytes_Resize(output_buffer, size);
+    if (status < 0) return NULL;
+    return PyBytes_AS_STRING(*output_buffer);
+}
+
+static char*
+mp_resize_bytearray(PyObject** output_buffer, Py_ssize_t size)
+{
+    int status = PyByteArray_Resize(*output_buffer, size);
+    if (status < 0) return NULL;
+    return PyByteArray_AS_STRING(*output_buffer);
+}
 
 PyDoc_STRVAR(Encoder__doc__,
 "Encoder(*, enc_hook=None, write_buffer_size=512)\n"
@@ -2035,6 +2069,7 @@ Encoder_init(Encoder *self, PyObject *args, PyObject *kwds)
     self->state.max_output_len = self->state.write_buffer_size;
     self->state.output_len = 0;
     self->state.output_buffer = NULL;
+    self->state.resize_buffer = &mp_resize_bytes;
     return 0;
 }
 
@@ -2109,31 +2144,21 @@ enum mp_code {
     MP_EXT32 = '\xc9',
 };
 
-static int
+static MP_NOINLINE int
 mp_resize(EncoderState *self, Py_ssize_t size) 
 {
-        int status;
-        bool is_bytes = PyBytes_CheckExact(self->output_buffer);
         self->max_output_len = Py_MAX(8, 1.5 * size);
-        status = (
-            is_bytes ? _PyBytes_Resize(&self->output_buffer, self->max_output_len)
-                     : PyByteArray_Resize(self->output_buffer, self->max_output_len)
-        );
-        if (status < 0) return -1;
-        if (is_bytes) {
-            self->output_buffer_raw = PyBytes_AS_STRING(self->output_buffer);
-        }
-        else {
-            self->output_buffer_raw = PyByteArray_AS_STRING(self->output_buffer);
-        }
-        return status;
+        char *new_buf = self->resize_buffer(&self->output_buffer, self->max_output_len);
+        if (new_buf == NULL) return -1;
+        self->output_buffer_raw = new_buf;
+        return 0;
 }
 
-static inline int
+static MP_INLINE int
 mp_write(EncoderState *self, const char *s, Py_ssize_t n)
 {
     Py_ssize_t required = self->output_len + n;
-    if (required > self->max_output_len) {
+    if (MP_UNLIKELY(required > self->max_output_len)) {
         if (mp_resize(self, required) < 0) return -1;
     }
     memcpy(self->output_buffer_raw + self->output_len, s, n);
@@ -2819,6 +2844,7 @@ Encoder_encode_into(Encoder *self, PyObject *const *args, Py_ssize_t nargs)
     old_buf = self->state.output_buffer;
     self->state.output_buffer = buf;
     self->state.output_buffer_raw = PyByteArray_AS_STRING(buf);
+    self->state.resize_buffer = &mp_resize_bytearray;
     self->state.output_len = offset;
     self->state.max_output_len = buf_size;
 
@@ -2830,6 +2856,7 @@ Encoder_encode_into(Encoder *self, PyObject *const *args, Py_ssize_t nargs)
 
     /* Reset buffer */
     self->state.output_buffer = old_buf;
+    self->state.resize_buffer = &mp_resize_bytes;
     if (old_buf != NULL) {
         self->state.output_buffer_raw = PyBytes_AS_STRING(old_buf);
     }
@@ -2999,6 +3026,7 @@ msgspec_encode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject
     state.output_buffer = PyBytes_FromStringAndSize(NULL, state.max_output_len);
     if (state.output_buffer == NULL) return NULL;
     state.output_buffer_raw = PyBytes_AS_STRING(state.output_buffer);
+    state.resize_buffer = &mp_resize_bytes;
 
     status = mp_encode(&state, args[0]);
 
@@ -3174,17 +3202,17 @@ Decoder_repr(Decoder *self) {
     return out;
 }
 
-static Py_ssize_t
+static int
 mp_err_truncated(void)
 {
     PyErr_SetString(msgspec_get_global_state()->DecodingError, "input data was truncated");
     return -1;
 }
 
-static inline Py_ssize_t
+static MP_INLINE int
 mp_read1(DecoderState *self, char *s)
 {
-    if (1 <= self->input_len - self->next_read_idx) {
+    if (MP_LIKELY(1 <= self->input_len - self->next_read_idx)) {
         *s = *(self->input_buffer + self->next_read_idx);
         self->next_read_idx += 1;
         return 0;
@@ -3192,13 +3220,13 @@ mp_read1(DecoderState *self, char *s)
     return mp_err_truncated();
 }
 
-static inline Py_ssize_t
+static MP_INLINE int
 mp_read(DecoderState *self, char **s, Py_ssize_t n)
 {
-    if (n <= self->input_len - self->next_read_idx) {
+    if (MP_LIKELY(n <= self->input_len - self->next_read_idx)) {
         *s = self->input_buffer + self->next_read_idx;
         self->next_read_idx += n;
-        return n;
+        return 0;
     }
     return mp_err_truncated();
 }
@@ -3945,7 +3973,7 @@ mp_decode_str_size(DecoderState *self, char op, char *expected, TypeNode *ctx, P
 static PyObject *
 mp_decode_type_str(DecoderState *self, char op, TypeNode *ctx, Py_ssize_t ctx_ind) {
     char *s;
-    int size = mp_decode_str_size(self, op, "str", ctx, ctx_ind);;
+    int size = mp_decode_str_size(self, op, "str", ctx, ctx_ind);
     if (size < 0) return NULL;
     if (mp_read(self, &s, size) < 0) return NULL;
     return PyUnicode_DecodeUTF8(s, size, NULL);
