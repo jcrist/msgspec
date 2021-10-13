@@ -23,6 +23,7 @@ def as_tuple(x):
 def test_struct_class_attributes():
     assert Struct.__struct_fields__ == ()
     assert Struct.__struct_defaults__ == ()
+    assert Struct.__match_args__ == ()
     assert Struct.__slots__ == ()
     assert Struct.__module__ == "msgspec.core"
 
@@ -101,6 +102,7 @@ def test_structmeta_no_args():
 
     assert Test.__struct_fields__ == ()
     assert Test.__struct_defaults__ == ()
+    assert Test.__match_args__ == ()
     assert Test.__slots__ == ()
 
     sig = inspect.Signature(parameters=[])
@@ -114,6 +116,7 @@ def test_structmeta_positional_only():
 
     assert Test.__struct_fields__ == ("y", "x")
     assert Test.__struct_defaults__ == ()
+    assert Test.__match_args__ == ("y", "x")
     assert Test.__slots__ == ("x", "y")
 
     sig = inspect.Signature(
@@ -138,6 +141,7 @@ def test_structmeta_positional_and_keyword():
 
     assert Test.__struct_fields__ == ("c", "b", "d", "a")
     assert Test.__struct_defaults__ == (1, 2.0)
+    assert Test.__match_args__ == ("c", "b", "d", "a")
     assert Test.__slots__ == ("a", "b", "c", "d")
 
     sig = inspect.Signature(
@@ -169,6 +173,7 @@ def test_structmeta_keyword_only():
 
     assert Test.__struct_fields__ == ("y", "x")
     assert Test.__struct_defaults__ == (1, 2.0)
+    assert Test.__match_args__ == ("y", "x")
     assert Test.__slots__ == ("x", "y")
 
     sig = inspect.Signature(
@@ -197,6 +202,7 @@ def test_structmeta_subclass_no_change():
 
     assert Test2.__struct_fields__ == ("y", "x")
     assert Test2.__struct_defaults__ == ()
+    assert Test2.__match_args__ == ("y", "x")
     assert Test2.__slots__ == ()
 
     sig = inspect.Signature(
@@ -228,6 +234,7 @@ def test_structmeta_subclass_extends():
 
     assert Test2.__struct_fields__ == ("c", "b", "e", "d", "a", "f")
     assert Test2.__struct_defaults__ == (1, 2.0, 3.0)
+    assert Test2.__match_args__ == ("c", "b", "e", "d", "a", "f")
     assert Test2.__slots__ == ("e", "f")
 
     sig = inspect.Signature(
@@ -278,6 +285,7 @@ def test_structmeta_subclass_overrides():
 
     assert Test2.__struct_fields__ == ("b", "a", "d", "c")
     assert Test2.__struct_defaults__ == (2, 3)
+    assert Test2.__match_args__ == ("b", "a", "d", "c")
     assert Test2.__slots__ == ()
 
     sig = inspect.Signature(
@@ -316,6 +324,7 @@ def test_structmeta_subclass_mixin_struct_base():
 
     assert B.__struct_fields__ == ("b", "a")
     assert B.__struct_defaults__ == (2.0,)
+    assert B.__match_args__ == ("b", "a")
     assert B.__slots__ == ()
 
     sig = inspect.Signature(
@@ -483,6 +492,7 @@ def test_struct_compare_errors():
         bytearray(b"test"),
         (),
         frozenset(),
+        frozenset((1, (2, 3, 4), 5)),
         Fruit.APPLE,
         datetime.time(1),
         datetime.date.today(),

@@ -1047,6 +1047,8 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
     if (fields == NULL)
         goto error;
     defaults = PyTuple_New(PyDict_Size(kwarg_fields));
+    if (defaults == NULL)
+        goto error;
 
     i = 0;
     j = 0;
@@ -1333,6 +1335,7 @@ cleanup:
 static PyMemberDef StructMeta_members[] = {
     {"__struct_fields__", T_OBJECT_EX, offsetof(StructMetaObject, struct_fields), READONLY, "Struct fields"},
     {"__struct_defaults__", T_OBJECT_EX, offsetof(StructMetaObject, struct_defaults), READONLY, "Struct defaults"},
+    {"__match_args__", T_OBJECT_EX, offsetof(StructMetaObject, struct_fields), READONLY, "Positional match args"},
     {NULL},
 };
 
@@ -1366,11 +1369,11 @@ maybe_deepcopy_default(PyObject *obj) {
     PyObject *copy = NULL, *deepcopy = NULL, *res = NULL;
     PyTypeObject *type = Py_TYPE(obj);
 
-    /* Known non-collection types */
+    /* Known non-collection or recursively immutable types */
     if (obj == Py_None || obj == Py_False || obj == Py_True ||
         type == &PyLong_Type || type == &PyFloat_Type ||
         type == &PyBytes_Type || type == &PyUnicode_Type ||
-        type == &PyByteArray_Type
+        type == &PyByteArray_Type || type == &PyFrozenSet_Type
     ) {
         Py_INCREF(obj);
         return obj;
