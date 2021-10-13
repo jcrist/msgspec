@@ -6,7 +6,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
 
-    <title>API Docs &#8212; msgspec 0+untagged.1.g313d185 documentation</title>
+    <title>API Docs &#8212; msgspec 0+untagged.1.g56b709c documentation</title>
     <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
     <link rel="stylesheet" type="text/css" href="_static/alabaster.css" />
     <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
@@ -45,7 +45,7 @@
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>enc_hook</strong> (<em>callable</em><em>, </em><em>optional</em>) – A callable to call for objects that aren’t supported msgspec types. Takes the
 unsupported object and should return a supported object, or raise a TypeError.</p></li>
-<li><p><strong>write_buffer_size</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.9)"><em>int</em></a><em>, </em><em>optional</em>) – The size of the internal static write buffer.</p></li>
+<li><p><strong>write_buffer_size</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.10)"><em>int</em></a><em>, </em><em>optional</em>) – The size of the internal static write buffer.</p></li>
 </ul>
 </dd>
 </dl>
@@ -61,7 +61,7 @@ unsupported object and should return a supported object, or raise a TypeError.</
 <dd class="field-even"><p><strong>data</strong> – The serialized object.</p>
 </dd>
 <dt class="field-odd">Return type</dt>
-<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.9)">bytes</a></p>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.10)">bytes</a></p>
 </dd>
 </dl>
 </dd></dl>
@@ -77,8 +77,8 @@ allowing for efficiently appending additional bytes later.</p>
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>obj</strong> (<em>Any</em>) – The object to serialize.</p></li>
-<li><p><strong>buffer</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytearray" title="(in Python v3.9)"><em>bytearray</em></a>) – The buffer to serialize into.</p></li>
-<li><p><strong>offset</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.9)"><em>int</em></a><em>, </em><em>optional</em>) – The offset into the buffer to start writing at. Defaults to 0. Set to -1
+<li><p><strong>buffer</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytearray" title="(in Python v3.10)"><em>bytearray</em></a>) – The buffer to serialize into.</p></li>
+<li><p><strong>offset</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.10)"><em>int</em></a><em>, </em><em>optional</em>) – The offset into the buffer to start writing at. Defaults to 0. Set to -1
 to start writing at the end of the buffer.</p></li>
 </ul>
 </dd>
@@ -86,7 +86,7 @@ to start writing at the end of the buffer.</p></li>
 <dd class="field-even"><p></p>
 </dd>
 <dt class="field-odd">Return type</dt>
-<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.9)">None</a></p>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.10)">None</a></p>
 </dd>
 </dl>
 </dd></dl>
@@ -119,7 +119,7 @@ message. Note that <code class="docutils literal notranslate"><span class="pre">
 buffer - any references created to the underlying buffer without copying
 the data out will cause the full message buffer to persist in memory.
 If not provided, extension types will decode as <code class="docutils literal notranslate"><span class="pre">msgspec.Ext</span></code> objects.</p></li>
-<li><p><strong>tzinfo</strong> (<a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.tzinfo" title="(in Python v3.9)"><em>datetime.tzinfo</em></a><em>, </em><em>optional</em>) – The timezone to use when decoding <code class="docutils literal notranslate"><span class="pre">datetime.datetime</span></code> objects. Defaults
+<li><p><strong>tzinfo</strong> (<a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.tzinfo" title="(in Python v3.10)"><em>datetime.tzinfo</em></a><em>, </em><em>optional</em>) – The timezone to use when decoding <code class="docutils literal notranslate"><span class="pre">datetime.datetime</span></code> objects. Defaults
 to <code class="docutils literal notranslate"><span class="pre">None</span></code> for “naive” datetimes.</p></li>
 </ul>
 </dd>
@@ -201,8 +201,8 @@ we define a new <a class="reference internal" href="#msgspec.Struct" title="msgs
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>code</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.9)"><em>int</em></a>) – The integer type code for this extension. Must be between -128 and 127.</p></li>
-<li><p><strong>data</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.9)"><em>bytes</em></a><em>, </em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytearray" title="(in Python v3.9)"><em>bytearray</em></a><em>, or </em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#memoryview" title="(in Python v3.9)"><em>memoryview</em></a>) – The byte buffer for this extension. One of bytes, bytearray, memoryview,
+<li><p><strong>code</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.10)"><em>int</em></a>) – The integer type code for this extension. Must be between -128 and 127.</p></li>
+<li><p><strong>data</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.10)"><em>bytes</em></a><em>, </em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytearray" title="(in Python v3.10)"><em>bytearray</em></a><em>, or </em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#memoryview" title="(in Python v3.10)"><em>memoryview</em></a>) – The byte buffer for this extension. One of bytes, bytearray, memoryview,
 or any object that implements the buffer protocol.</p></li>
 </ul>
 </dd>
@@ -240,7 +240,7 @@ unsupported object and should return a supported object, or raise a TypeError.</
 <dd class="field-even"><p><strong>data</strong> – The serialized object.</p>
 </dd>
 <dt class="field-odd">Return type</dt>
-<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.9)">bytes</a></p>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.10)">bytes</a></p>
 </dd>
 </dl>
 <div class="admonition seealso">
@@ -273,7 +273,7 @@ message. Note that <code class="docutils literal notranslate"><span class="pre">
 buffer - any references created to the underlying buffer without copying
 the data out will cause the full message buffer to persist in memory.
 If not provided, extension types will decode as <code class="docutils literal notranslate"><span class="pre">msgspec.Ext</span></code> objects.</p></li>
-<li><p><strong>tzinfo</strong> (<a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.tzinfo" title="(in Python v3.9)"><em>datetime.tzinfo</em></a><em>, </em><em>optional</em>) – The timezone to use when decoding <code class="docutils literal notranslate"><span class="pre">datetime.datetime</span></code> objects. Defaults
+<li><p><strong>tzinfo</strong> (<a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.tzinfo" title="(in Python v3.10)"><em>datetime.tzinfo</em></a><em>, </em><em>optional</em>) – The timezone to use when decoding <code class="docutils literal notranslate"><span class="pre">datetime.datetime</span></code> objects. Defaults
 to <code class="docutils literal notranslate"><span class="pre">None</span></code> for “naive” datetimes.</p></li>
 </ul>
 </dd>
@@ -296,7 +296,7 @@ to <code class="docutils literal notranslate"><span class="pre">None</span></cod
 <dl class="py exception">
 <dt class="sig sig-object py" id="msgspec.MsgspecError">
 <em class="property"><span class="pre">exception</span> </em><span class="sig-prename descclassname"><span class="pre">msgspec.</span></span><span class="sig-name descname"><span class="pre">MsgspecError</span></span><a class="headerlink" href="#msgspec.MsgspecError" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/exceptions.html#Exception" title="(in Python v3.9)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Exception</span></code></a></p>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/exceptions.html#Exception" title="(in Python v3.10)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Exception</span></code></a></p>
 <p>Base class for all Msgspec exceptions</p>
 </dd></dl>
 

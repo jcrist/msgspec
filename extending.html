@@ -6,7 +6,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
 
-    <title>Extending &#8212; msgspec 0+untagged.1.g313d185 documentation</title>
+    <title>Extending &#8212; msgspec 0+untagged.1.g56b709c documentation</title>
     <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
     <link rel="stylesheet" type="text/css" href="_static/alabaster.css" />
     <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
@@ -85,7 +85,7 @@ serialized. This process is then reversed during decoding.</p>
 required to roundtrip a message, since no custom type info is sent as part of
 the message.</p>
 <p>This method works best for types that are similar to a natively supported type
-(e.g. a <a class="reference external" href="https://docs.python.org/3/library/collections.html#collections.OrderedDict" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collections.OrderedDict</span></code></a> is similar to a <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a>).  This can be
+(e.g. a <a class="reference external" href="https://docs.python.org/3/library/collections.html#collections.OrderedDict" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collections.OrderedDict</span></code></a> is similar to a <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a>).  This can be
 accomplished by defining two callback functions:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">enc_hook</span></code> in <code class="xref py py-obj docutils literal notranslate"><span class="pre">Encoder</span></code>, for transforming custom types into values
@@ -94,7 +94,7 @@ that <code class="docutils literal notranslate"><span class="pre">msgspec</span>
 a custom type when using <a class="reference internal" href="usage.html#typed-deserialization"><span class="std std-ref">typed deserialization</span></a>.</p></li>
 </ul>
 <p>Here we define <code class="docutils literal notranslate"><span class="pre">enc_hook</span></code> and <code class="docutils literal notranslate"><span class="pre">dec_hook</span></code> callbacks to convert
-<a class="reference external" href="https://docs.python.org/3/library/collections.html#collections.OrderedDict" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collections.OrderedDict</span></code></a> objects to/from dicts, which are serialized natively
+<a class="reference external" href="https://docs.python.org/3/library/collections.html#collections.OrderedDict" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collections.OrderedDict</span></code></a> objects to/from dicts, which are serialized natively
 as MessagePack <code class="docutils literal notranslate"><span class="pre">map</span></code> types.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">msgspec</span>
 <span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Type</span>
@@ -175,7 +175,7 @@ along as part of the message. This means that when properly configured, custom
 types can be deserialized even when using untyped deserialization. However, if
 you’re communicating with MessagePack libraries other than <code class="docutils literal notranslate"><span class="pre">msgspec</span></code>, you’d
 have to ensure your extension type was supported by those libraries as well.</p>
-<p>For example, perhaps you wanted to serialize <a class="reference external" href="https://docs.python.org/3/library/functions.html#complex" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">complex</span></code></a> number objects as an
+<p>For example, perhaps you wanted to serialize <a class="reference external" href="https://docs.python.org/3/library/functions.html#complex" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">complex</span></code></a> number objects as an
 extension type.  These objects can be represented as tuples of two floats (one
 “real” and one “imaginary”). If we represent each float as 8 bytes (a
 “double”), then any complex number can be fully represented by a 16 byte
@@ -186,7 +186,7 @@ buffer.</p>
   <span class="mi">8</span> <span class="nb">bytes</span>   <span class="mi">8</span> <span class="nb">bytes</span>
 </pre></div>
 </div>
-<p>Here we define <code class="docutils literal notranslate"><span class="pre">enc_hook</span></code> and <code class="docutils literal notranslate"><span class="pre">ext_hook</span></code> callbacks to convert <a class="reference external" href="https://docs.python.org/3/library/functions.html#complex" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">complex</span></code></a>
+<p>Here we define <code class="docutils literal notranslate"><span class="pre">enc_hook</span></code> and <code class="docutils literal notranslate"><span class="pre">ext_hook</span></code> callbacks to convert <a class="reference external" href="https://docs.python.org/3/library/functions.html#complex" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">complex</span></code></a>
 objects to/from this binary representation as a MessagePack extension.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">msgspec</span>
 <span class="kn">import</span> <span class="nn">struct</span>
@@ -235,7 +235,7 @@ objects to/from this binary representation as a MessagePack extension.</p>
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>Note that the <code class="docutils literal notranslate"><span class="pre">data</span></code> argument to <code class="docutils literal notranslate"><span class="pre">ext_hook</span></code> is a <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#memoryview" title="(in Python v3.9)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">memoryview</span></code></a>. This
+<p>Note that the <code class="docutils literal notranslate"><span class="pre">data</span></code> argument to <code class="docutils literal notranslate"><span class="pre">ext_hook</span></code> is a <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#memoryview" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">memoryview</span></code></a>. This
 view is attached to the larger buffer containing the complete message being
 decoded. As such, you’ll want to ensure that you don’t keep a reference to
 the underlying buffer, otherwise you may accidentally persist the larger
