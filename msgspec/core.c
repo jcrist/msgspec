@@ -34,6 +34,10 @@
 #define CALL_ONE_ARG(fn, arg) PyObject_CallOneArg((fn), (arg))
 #define SET_SIZE(obj, size) Py_SET_SIZE(obj, size)
 #endif
+
+/* Easy access to NoneType object */
+#define NONE_TYPE ((PyObject *)(Py_TYPE(Py_None)))
+
 /* Is this object something that is/could be GC tracked? True if
  * - the value supports GC
  * - the value isn't a tuple or the object is tracked (skip tracked checks for non-tuples)
@@ -222,370 +226,422 @@ static PyTypeObject StructMetaType;
 static PyTypeObject Ext_Type;
 static int StructMeta_prep_types(PyObject *self);
 
-enum typecode {
-    TYPE_ANY,
-    TYPE_NONE,
-    TYPE_BOOL,
-    TYPE_INT,
-    TYPE_FLOAT,
-    TYPE_STR,
-    TYPE_BYTES,
-    TYPE_BYTEARRAY,
-    TYPE_DATETIME,
-    TYPE_ENUM,
-    TYPE_INTENUM,
-    TYPE_STRUCT,
-    TYPE_LIST,
-    TYPE_SET,
-    TYPE_VARTUPLE,
-    TYPE_FIXTUPLE,
-    TYPE_DICT,
-    TYPE_EXT,
-    TYPE_CUSTOM,
-    TYPE_CUSTOM_GENERIC,
-};
+#define MP_TYPE_ANY                 (1u << 0)
+#define MP_TYPE_NONE                (1u << 1)
+#define MP_TYPE_BOOL                (1u << 2)
+#define MP_TYPE_INT                 (1u << 3)
+#define MP_TYPE_FLOAT               (1u << 4)
+#define MP_TYPE_STR                 (1u << 5)
+#define MP_TYPE_BYTES               (1u << 6)
+#define MP_TYPE_BYTEARRAY           (1u << 7)
+#define MP_TYPE_MEMORYVIEW          (1u << 8)
+#define MP_TYPE_DATETIME            (1u << 9)
+#define MP_TYPE_EXT                 (1u << 10)
+#define MP_TYPE_STRUCT              (1u << 11)
+#define MP_TYPE_ENUM                (1u << 12)
+#define MP_TYPE_INTENUM             (1u << 13)
+#define MP_TYPE_CUSTOM              (1u << 14)
+#define MP_TYPE_CUSTOM_GENERIC      (1u << 15)
+#define MP_TYPE_DICT                (1u << 16)
+#define MP_TYPE_LIST                (1u << 17)
+#define MP_TYPE_SET                 (1u << 18)
+#define MP_TYPE_VARTUPLE            (1u << 19)
+#define MP_TYPE_FIXTUPLE            (1u << 20)
 
 typedef struct TypeNode {
-    enum typecode code;
-    bool optional;
+    uint32_t types;
 } TypeNode;
 
-typedef struct TypeNodeObj {
-    TypeNode type;
-    PyObject *arg;
-} TypeNodeObj;
 
-typedef struct TypeNodeArray {
+typedef struct TypeNodeExtra {
     TypeNode type;
-    TypeNode *arg;
-} TypeNodeArray;
+    Py_ssize_t fixtuple_size;
+    void* extra[];
+} TypeNodeExtra;
 
-typedef struct TypeNodeFixTuple {
-    TypeNode type;
-    Py_ssize_t size;
-    TypeNode *args[];
-} TypeNodeFixTuple;
 
-typedef struct TypeNodeMap {
-    TypeNode type;
-    TypeNode *key;
-    TypeNode *value;
-} TypeNodeMap;
+static Py_ssize_t
+TypeNode_get_size(TypeNode *type, Py_ssize_t *n_typenode) {
+    Py_ssize_t n_obj = 0, n_type = 0;
+    /* Custom types cannot share a union with anything except `None` */
+    if (type->types & (MP_TYPE_CUSTOM | MP_TYPE_CUSTOM_GENERIC)) {
+        n_obj++;
+    }
+    else if (!(type->types & MP_TYPE_ANY)) {
+        if (type->types & MP_TYPE_ENUM) n_obj++;
+        if (type->types & MP_TYPE_INTENUM) n_obj++;
+        if (type->types & MP_TYPE_STRUCT) n_obj++;
+
+        if (type->types & MP_TYPE_DICT) n_type += 2;
+        /* Only one array generic is allowed in a union */
+        if (type->types & (MP_TYPE_LIST | MP_TYPE_SET | MP_TYPE_VARTUPLE)) n_type++;
+        if (type->types & MP_TYPE_FIXTUPLE) n_type += ((TypeNodeExtra *)type)->fixtuple_size;
+    }
+    *n_typenode = n_type;
+    return n_obj;
+}
+
 
 static void
-TypeNode_Free(TypeNode *type) {
-    if (type == NULL) return;
-    switch (type->code) {
-        case TYPE_ANY:
-        case TYPE_NONE:
-        case TYPE_BOOL:
-        case TYPE_INT:
-        case TYPE_FLOAT:
-        case TYPE_STR:
-        case TYPE_BYTES:
-        case TYPE_BYTEARRAY:
-        case TYPE_DATETIME:
-        case TYPE_EXT:
-            PyMem_Free(type);
-            return;
-        case TYPE_ENUM:
-        case TYPE_INTENUM:
-        case TYPE_CUSTOM:
-        case TYPE_CUSTOM_GENERIC:
-        case TYPE_STRUCT: {
-            TypeNodeObj *t = (TypeNodeObj *)type;
-            Py_XDECREF(t->arg);
-            PyMem_Free(t);
-            return;
-        }
-        case TYPE_LIST:
-        case TYPE_SET:
-        case TYPE_VARTUPLE: {
-            TypeNodeArray *t = (TypeNodeArray *)type;
-            TypeNode_Free(t->arg);
-            PyMem_Free(t);
-            return;
-        }
-        case TYPE_DICT: {
-            TypeNodeMap *t = (TypeNodeMap *)type;
-            TypeNode_Free(t->key);
-            TypeNode_Free(t->value);
-            PyMem_Free(t);
-            return;
-        }
-        case TYPE_FIXTUPLE: {
-            TypeNodeFixTuple *t = (TypeNodeFixTuple *)type;
-            for (Py_ssize_t i = 0; i < t->size; i++) {
-                TypeNode_Free(t->args[i]);
-            }
-            PyMem_Free(t);
-            return;
-        }
+TypeNode_Free(TypeNode *self) {
+    if (self == NULL) return;
+    Py_ssize_t n_obj, n_typenode, i;
+    n_obj = TypeNode_get_size(self, &n_typenode);
+    TypeNodeExtra *tex = (TypeNodeExtra *)self;
+
+    for (i = 0; i < n_obj; i++) {
+        PyObject *obj = (PyObject *)(tex->extra[i]);
+        Py_DECREF(obj);
     }
+    for (i = n_obj; i < (n_obj + n_typenode); i++) {
+        TypeNode *node = (TypeNode *)(tex->extra[i]);
+        TypeNode_Free(node);
+    }
+    PyMem_Free(self);
 }
 
 static int
-TypeNode_traverse(TypeNode *type, visitproc visit, void *arg) {
-    if (type == NULL) return 0;
-    switch (type->code) {
-        case TYPE_ANY:
-        case TYPE_NONE:
-        case TYPE_BOOL:
-        case TYPE_INT:
-        case TYPE_FLOAT:
-        case TYPE_STR:
-        case TYPE_BYTES:
-        case TYPE_BYTEARRAY:
-        case TYPE_DATETIME:
-        case TYPE_EXT:
-            return 0;
-        case TYPE_ENUM:
-        case TYPE_INTENUM:
-        case TYPE_CUSTOM:
-        case TYPE_CUSTOM_GENERIC:
-        case TYPE_STRUCT: {
-            TypeNodeObj *t = (TypeNodeObj *)type;
-            Py_VISIT(t->arg);
-            return 0;
-        }
-        case TYPE_LIST:
-        case TYPE_SET:
-        case TYPE_VARTUPLE: {
-            TypeNodeArray *t = (TypeNodeArray *)type;
-            return TypeNode_traverse(t->arg, visit, arg);
-        }
-        case TYPE_DICT: {
-            int out;
-            TypeNodeMap *t = (TypeNodeMap *)type;
-            if ((out = TypeNode_traverse(t->key, visit, arg)) != 0) return out;
-            return TypeNode_traverse(t->value, visit, arg);
-        }
-        case TYPE_FIXTUPLE: {
-            int out;
-            TypeNodeFixTuple *t = (TypeNodeFixTuple *)type;
-            for (Py_ssize_t i = 0; i < t->size; i++) {
-                if ((out = TypeNode_traverse(t->args[i], visit, arg)) != 0) return out;
-            }
-            return 0;
-        }
+TypeNode_traverse(TypeNode *self, visitproc visit, void *arg) {
+    if (self == NULL) return 0;
+    Py_ssize_t n_obj, n_typenode, i;
+    n_obj = TypeNode_get_size(self, &n_typenode);
+    TypeNodeExtra *tex = (TypeNodeExtra *)self;
+
+    for (i = 0; i < n_obj; i++) {
+        PyObject *obj = (PyObject *)(tex->extra[i]);
+        Py_VISIT(obj);
+    }
+    for (i = n_obj; i < (n_obj + n_typenode); i++) {
+        int out;
+        TypeNode *node = (TypeNode *)(tex->extra[i]);
+        if ((out = TypeNode_traverse(node, visit, arg)) != 0) return out;
     }
     return 0;
 }
-static PyObject* TypeNode_Repr(TypeNode*);
+
+#ifdef __GNUC__
+#define mp_popcount(i) __builtin_popcount(i)
+#else
+static int
+mp_popcount(uint32_t i) {
+     i = i - ((i >> 1) & 0x55555555);        // add pairs of bits
+     i = (i & 0x33333333) + ((i >> 2) & 0x33333333);  // quads
+     i = (i + (i >> 4)) & 0x0F0F0F0F;        // groups of 8
+     return (i * 0x01010101) >> 24;          // horizontal sum of bytes
+}
+#endif
+
+static PyObject * TypeNode_Repr(TypeNode *self);
 
 static PyObject *
-TypeNodeFixTuple_Repr(TypeNode *type) {
-    PyObject *el, *delim = NULL, *elements = NULL, *element_str = NULL, *out = NULL;
-    TypeNodeFixTuple *t = (TypeNodeFixTuple *)type;
-    elements = PyList_New(t->size);
-    if (elements == NULL) goto done;
-    for (Py_ssize_t i = 0; i < t->size; i++) {
-        el = TypeNode_Repr(t->args[i]);
-        if (el == NULL) goto done;
-        PyList_SET_ITEM(elements, i, el);
-    }
-    delim = PyUnicode_FromString(", ");
-    if (delim == NULL) goto done;
-    element_str = PyUnicode_Join(delim, elements);
-    out = PyUnicode_FromFormat(
-        type->optional ? "Optional[Tuple[%S]]" : "Tuple[%S]",
-        element_str
-    );
-done:
-    Py_XDECREF(element_str);
-    Py_XDECREF(delim);
-    Py_XDECREF(elements);
+typenode_repr_array(TypeNodeExtra *tex, const char* format, Py_ssize_t *extra_ind) {
+    PyObject *inner = TypeNode_Repr(tex->extra[(*extra_ind)++]);
+    if (inner == NULL) return NULL;
+    PyObject *out = PyUnicode_FromFormat(format, inner);
+    Py_DECREF(inner);
     return out;
 }
 
 static PyObject *
-TypeNodeArray_Repr(TypeNode *type) {
-    char *str;
-    PyObject *el, *out;
-    TypeNodeArray *t = (TypeNodeArray *)type;
-    el = TypeNode_Repr(t->arg);
-    if (el == NULL) return NULL;
-    if (type->code == TYPE_LIST)
-        str = type->optional ? "Optional[List[%S]]" : "List[%S]";
-    else if (type->code == TYPE_SET)
-        str = type->optional ? "Optional[Set[%S]]" : "Set[%S]";
-    else
-        str = type->optional ? "Optional[Tuple[%S, ...]]" : "Tuple[%S, ...]";
-    out = PyUnicode_FromFormat(str, el);
-    Py_DECREF(el);
+typenode_repr_dict(TypeNodeExtra *tex, Py_ssize_t *extra_ind) {
+    PyObject *key = NULL, *val = NULL, *out = NULL;
+    key = TypeNode_Repr(tex->extra[(*extra_ind)++]);
+    if (key == NULL) goto cleanup;
+    val = TypeNode_Repr(tex->extra[(*extra_ind)++]);
+    if (val == NULL) goto cleanup;
+    out = PyUnicode_FromFormat("Dict[%U, %U]", key, val);
+cleanup:
+    Py_XDECREF(key);
+    Py_XDECREF(val);
     return out;
 }
 
 static PyObject *
-TypeNodeMap_Repr(TypeNode *type) {
-    PyObject *key, *value, *out = NULL;
-    TypeNodeMap *t = (TypeNodeMap *)type;
-    if ((key = TypeNode_Repr(t->key)) == NULL) return NULL;
-    if ((value = TypeNode_Repr(t->value)) == NULL) {
-        Py_DECREF(key);
-        return NULL;
+typenode_repr_fixtuple(TypeNodeExtra *tex, Py_ssize_t *extra_ind) {
+    PyObject *out = NULL, *parts = NULL, *part = NULL, *comma = NULL, *empty = NULL;
+    Py_ssize_t i;
+
+    parts = PyList_New((2 * tex->fixtuple_size) + 1);
+    if (parts == NULL) goto cleanup;
+
+    part = PyUnicode_FromString("Tuple[");
+    if (part == NULL) goto cleanup;
+    PyList_SET_ITEM(parts, 0, part);
+    part = NULL;
+
+    comma = PyUnicode_FromString(", ");
+    if (comma == NULL) goto cleanup;
+
+    for (i = 0; i < tex->fixtuple_size; i++) {
+        part = TypeNode_Repr(tex->extra[(*extra_ind)++]);
+        if (part == NULL) goto cleanup;
+        PyList_SET_ITEM(parts, (2 * i) + 1, part);
+        part = NULL;
+        if (i < (tex->fixtuple_size - 1)) {
+            PyList_SET_ITEM(parts, (2 * i) + 2, comma);
+            Py_INCREF(comma);
+        }
     }
-    out = PyUnicode_FromFormat(
-        type->optional ? "Optional[Dict[%S, %S]]" : "Dict[%S, %S]",
-        key, value
-    );
-    Py_DECREF(key);
-    Py_DECREF(value);
+
+    part = PyUnicode_FromString("]");
+    if (part == NULL) goto cleanup;
+    PyList_SET_ITEM(parts, 2 * tex->fixtuple_size, part);
+    part = NULL;
+
+    empty = PyUnicode_FromString("");
+    if (empty == NULL) goto cleanup;
+    out = PyUnicode_Join(empty, parts);
+
+cleanup:
+    Py_XDECREF(parts);
+    Py_XDECREF(part);
+    Py_XDECREF(comma);
+    Py_XDECREF(empty);
     return out;
 }
 
 static PyObject *
-TypeNodeObj_Repr(TypeNode *type) {
-    TypeNodeObj *t = (TypeNodeObj *)type;
-    if (type->code == TYPE_CUSTOM_GENERIC) {
-        if (type->optional)
-            return PyUnicode_FromFormat("Optional[%S]", t->arg);
-        return PyObject_Repr(t->arg);
+typenode_repr_single(uint32_t *types, Py_ssize_t *extra_ind, TypeNode *self) {
+    if (*types & MP_TYPE_ANY) {
+        *types ^= MP_TYPE_ANY;
+        return PyUnicode_FromString("Any");
     }
-    else {
-        const char *str = ((PyTypeObject *)(t->arg))->tp_name;
-        if (type->optional)
-            return PyUnicode_FromFormat("Optional[%s]", str);
-        return PyUnicode_FromString(str);
+    else if (*types & MP_TYPE_NONE) {
+        *types ^= MP_TYPE_NONE;
+        return PyUnicode_FromString("None");
     }
-}
+    else if (*types & MP_TYPE_BOOL) {
+        *types ^= MP_TYPE_BOOL;
+        return PyUnicode_FromString("bool");
+    }
+    else if (*types & MP_TYPE_INT) {
+        *types ^= MP_TYPE_INT;
+        return PyUnicode_FromString("int");
+    }
+    else if (*types & MP_TYPE_FLOAT) {
+        *types ^= MP_TYPE_FLOAT;
+        return PyUnicode_FromString("float");
+    }
+    else if (*types & MP_TYPE_STR) {
+        *types ^= MP_TYPE_STR;
+        return PyUnicode_FromString("str");
+    }
+    else if (*types & MP_TYPE_BYTES) {
+        *types ^= MP_TYPE_BYTES;
+        return PyUnicode_FromString("bytes");
+    }
+    else if (*types & MP_TYPE_BYTEARRAY) {
+        *types ^= MP_TYPE_BYTEARRAY;
+        return PyUnicode_FromString("bytearray");
+    }
+    else if (*types & MP_TYPE_MEMORYVIEW) {
+        *types ^= MP_TYPE_MEMORYVIEW;
+        return PyUnicode_FromString("memoryview");
+    }
+    else if (*types & MP_TYPE_DATETIME) {
+        *types ^= MP_TYPE_DATETIME;
+        return PyUnicode_FromString("datetime");
+    }
+    else if (*types & MP_TYPE_EXT) {
+        *types ^= MP_TYPE_EXT;
+        return PyUnicode_FromString("Ext");
+    }
 
-static PyObject *
-TypeNode_Repr(TypeNode *type) {
-    switch (type->code) {
-        case TYPE_ANY:
-            return PyUnicode_FromString("Any");
-        case TYPE_NONE:
-            return PyUnicode_FromString("None");
-        case TYPE_BOOL:
-            return PyUnicode_FromString(type->optional ? "Optional[bool]" : "bool");
-        case TYPE_INT:
-            return PyUnicode_FromString(type->optional ? "Optional[int]" : "int");
-        case TYPE_FLOAT:
-            return PyUnicode_FromString(type->optional ? "Optional[float]" : "float");
-        case TYPE_STR:
-            return PyUnicode_FromString(type->optional ? "Optional[str]" : "str");
-        case TYPE_BYTES:
-            return PyUnicode_FromString(type->optional ? "Optional[bytes]" : "bytes");
-        case TYPE_BYTEARRAY:
-            return PyUnicode_FromString(type->optional ? "Optional[bytearray]" : "bytearray");
-        case TYPE_DATETIME:
-            return PyUnicode_FromString(type->optional ? "Optional[datetime]" : "datetime");
-        case TYPE_EXT:
-            return PyUnicode_FromString(type->optional ? "Optional[Ext]" : "Ext");
-        case TYPE_ENUM:
-        case TYPE_INTENUM:
-        case TYPE_CUSTOM:
-        case TYPE_CUSTOM_GENERIC:
-        case TYPE_STRUCT:
-            return TypeNodeObj_Repr(type);
-        case TYPE_LIST:
-        case TYPE_SET:
-        case TYPE_VARTUPLE:
-            return TypeNodeArray_Repr(type);
-        case TYPE_DICT:
-            return TypeNodeMap_Repr(type);
-        case TYPE_FIXTUPLE:
-            return TypeNodeFixTuple_Repr(type);
+    TypeNodeExtra *tex = (TypeNodeExtra *)self;
+
+    if (*types & MP_TYPE_STRUCT) {
+        *types ^= MP_TYPE_STRUCT;
+        return PyUnicode_FromString(((PyTypeObject *)(tex->extra[(*extra_ind)++]))->tp_name);
     }
+    else if (*types & MP_TYPE_ENUM) {
+        *types ^= MP_TYPE_ENUM;
+        return PyUnicode_FromString(((PyTypeObject *)(tex->extra[(*extra_ind)++]))->tp_name);
+    }
+    else if (*types & MP_TYPE_INTENUM) {
+        *types ^= MP_TYPE_INTENUM;
+        return PyUnicode_FromString(((PyTypeObject *)(tex->extra[(*extra_ind)++]))->tp_name);
+    }
+    else if (*types & MP_TYPE_CUSTOM) {
+        *types ^= MP_TYPE_CUSTOM;
+        return PyUnicode_FromString(((PyTypeObject *)(tex->extra[(*extra_ind)++]))->tp_name);
+    }
+    else if (*types & MP_TYPE_CUSTOM_GENERIC) {
+        *types ^= MP_TYPE_CUSTOM_GENERIC;
+        PyObject *obj = (PyObject *)(tex->extra[(*extra_ind)++]);
+        return PyObject_Repr(obj);
+    }
+    else if (*types & MP_TYPE_DICT) {
+        *types ^= MP_TYPE_DICT;
+        return typenode_repr_dict(tex, extra_ind);
+    }
+    else if (*types & MP_TYPE_LIST) {
+        *types ^= MP_TYPE_LIST;
+        return typenode_repr_array(tex, "List[%U]", extra_ind);
+    }
+    else if (*types & MP_TYPE_SET) {
+        *types ^= MP_TYPE_SET;
+        return typenode_repr_array(tex, "Set[%U]", extra_ind);
+    }
+    else if (*types & MP_TYPE_VARTUPLE) {
+        *types ^= MP_TYPE_VARTUPLE;
+        return typenode_repr_array(tex, "Tuple[%U, ...]", extra_ind);
+    }
+    else if (*types & MP_TYPE_FIXTUPLE) {
+        *types ^= MP_TYPE_FIXTUPLE;
+        return typenode_repr_fixtuple(tex, extra_ind);
+    }
+
+    /* Should never get here */
+    PyErr_SetString(PyExc_RuntimeError, "Unexpected failure in TypeNode repr");
     return NULL;
 }
 
-static TypeNode* to_type_node(PyObject * obj, bool optional);
+static PyObject *
+TypeNode_Repr(TypeNode *self) {
+    PyObject *out = NULL, *part = NULL, *parts = NULL, *comma = NULL, *empty = NULL;
+    uint32_t types = self->types;
+    int pop = mp_popcount(types);
+    Py_ssize_t i, extra_ind = 0;
 
-static TypeNode*
-TypeNode_Convert(PyObject *type) {
-    return to_type_node(type, false);
+    if (pop == 1) {
+        return typenode_repr_single(&types, &extra_ind, self);
+    }
+    else if (pop == 2 && (types & MP_TYPE_NONE)) {
+        types ^= MP_TYPE_NONE;
+        part = typenode_repr_single(&types, &extra_ind, self);
+        if (part == NULL) return NULL;
+        out = PyUnicode_FromFormat("Optional[%U]", part);
+        Py_DECREF(part);
+        return out;
+    }
+
+    parts = PyList_New(2 * pop + 1);
+    if (parts == NULL) return NULL;
+
+    part = PyUnicode_FromString("Union[");
+    if (part == NULL) goto cleanup;
+    PyList_SET_ITEM(parts, 0, part);
+    part = NULL;
+
+    comma = PyUnicode_FromString(", ");
+    if (comma == NULL) goto cleanup;
+
+    for (i = 0; i < pop; i++) {
+        part = typenode_repr_single(&types, &extra_ind, self);
+        if (part == NULL) goto cleanup;
+        PyList_SET_ITEM(parts, (2 * i) + 1, part);
+        part = NULL;
+        if (i < (pop - 1)) {
+            PyList_SET_ITEM(parts, (2 * i) + 2, comma);
+            Py_INCREF(comma);
+        }
+    }
+
+    part = PyUnicode_FromString("]");
+    if (part == NULL) goto cleanup;
+    PyList_SET_ITEM(parts, 2 * pop, part);
+    part = NULL;
+
+    empty = PyUnicode_FromString("");
+    if (empty == NULL) goto cleanup;
+    out = PyUnicode_Join(empty, parts);
+
+cleanup:
+    Py_XDECREF(parts);
+    Py_XDECREF(part);
+    Py_XDECREF(comma);
+    Py_XDECREF(empty);
+    return out;
 }
 
+static TypeNode * TypeNode_Convert(PyObject *type);
+
 static TypeNode *
-TypeNode_New(enum typecode code, bool optional) {
+TypeNode_New(uint32_t types) {
     TypeNode *out = PyMem_New(TypeNode, sizeof(TypeNode));
     if (out == NULL) {
         PyErr_NoMemory();
         return NULL;
     }
-    out->code = code;
-    out->optional = optional;
+    out->types = types;
     return out;
 }
 
 static TypeNode *
-TypeNodeObj_New(enum typecode code, bool optional, PyObject *arg) {
-    TypeNodeObj *out = PyMem_New(TypeNodeObj, sizeof(TypeNodeObj));
+TypeNodeObj_New(uint32_t types, PyObject *arg) {
+    TypeNodeExtra *out = PyMem_New(TypeNodeExtra, sizeof(TypeNodeExtra) + sizeof(void *));
     if (out == NULL) {
         PyErr_NoMemory();
         return NULL;
     }
-    out->type.code = code;
-    out->type.optional = optional;
+    out->type.types = types;
+    out->fixtuple_size = 0;
     Py_INCREF(arg);
-    out->arg = arg;
+    out->extra[0] = arg;
     return (TypeNode *)out;
 }
 
 static TypeNode *
-TypeNodeArray_New(enum typecode code, bool optional, PyObject *el_type) {
+TypeNodeArray_New(uint32_t types, PyObject *el_type) {
     TypeNode *arg = NULL;
     if ((arg = TypeNode_Convert(el_type)) == NULL) goto error;
-    TypeNodeArray *out = PyMem_New(TypeNodeArray, sizeof(TypeNodeArray));
+    TypeNodeExtra *out = PyMem_New(TypeNodeExtra, sizeof(TypeNodeExtra) + sizeof(void *));
     if (out == NULL) {
         PyErr_NoMemory();
         goto error;
     }
-    out->type.code = code;
-    out->type.optional = optional;
-    out->arg = arg;
+    out->type.types = types;
+    out->fixtuple_size = 0;
+    out->extra[0] = arg;
     return (TypeNode *)out;
 error:
-    PyMem_Free(arg);
+    TypeNode_Free(arg);
     return NULL;
 }
 
 static TypeNode *
-TypeNodeMap_New(enum typecode code, bool optional, PyObject *key_type, PyObject *value_type) {
+TypeNodeMap_New(uint32_t types, PyObject *key_type, PyObject *value_type) {
     TypeNode *key = NULL, *value = NULL;
     if ((key = TypeNode_Convert(key_type)) == NULL) goto error;
     if ((value = TypeNode_Convert(value_type)) == NULL) goto error;
 
-    TypeNodeMap *out = PyMem_New(TypeNodeMap, sizeof(TypeNodeMap));
+    TypeNodeExtra *out = PyMem_New(TypeNodeExtra, sizeof(TypeNodeExtra) + 2 * sizeof(void *));
     if (out == NULL) {
         PyErr_NoMemory();
         goto error;
     }
-    out->type.code = code;
-    out->type.optional = optional;
-    out->key = key;
-    out->value = value;
+    out->type.types = types;
+    out->fixtuple_size = 0;
+    out->extra[0] = key;
+    out->extra[1] = value;
     return (TypeNode *)out;
 error:
-    PyMem_Free(key);
-    PyMem_Free(value);
+    TypeNode_Free(key);
+    TypeNode_Free(value);
     return NULL;
 }
 
 static TypeNode *
-TypeNodeFixTuple_New(bool optional, PyObject *args) {
-    TypeNodeFixTuple *out;
+TypeNodeFixTuple_New(PyObject *args) {
+    TypeNodeExtra *out;
     TypeNode *el;
     Py_ssize_t i, size;
 
     size = PyTuple_GET_SIZE(args);
     out = PyMem_New(
-        TypeNodeFixTuple,
-        sizeof(TypeNodeFixTuple) + size * sizeof(TypeNode*)
+        TypeNodeExtra,
+        sizeof(TypeNodeExtra) + size * sizeof(void *)
     );
     if (out == NULL) {
         PyErr_NoMemory();
         return NULL;
     }
-    out->type.code = TYPE_FIXTUPLE;
-    out->type.optional = optional;
-    out->size = size;
+    out->type.types = MP_TYPE_FIXTUPLE;
+    out->fixtuple_size = size;
     for (i = 0; i < size; i++) {
         el = TypeNode_Convert(PyTuple_GET_ITEM(args, i));
         if (el == NULL) goto error;
-        out->args[i] = el;
+        out->extra[i] = el;
     }
     return (TypeNode *)out;
 
@@ -594,64 +650,62 @@ error:
     return NULL;
 }
 
-#define NONE_TYPE ((PyObject *)(Py_TYPE(Py_None)))
-
 static TypeNode *
-to_type_node(PyObject * obj, bool optional) {
+TypeNode_Convert(PyObject * obj) {
     TypeNode *out = NULL;
     PyObject *origin = NULL, *args = NULL;
     MsgspecState *st = msgspec_get_global_state();
 
     if (obj == st->typing_any) {
-        return TypeNode_New(TYPE_ANY, true);
+        return TypeNode_New(MP_TYPE_ANY);
     }
     else if (obj == Py_None || obj == NONE_TYPE) {
-        return TypeNode_New(TYPE_NONE, true);
+        return TypeNode_New(MP_TYPE_NONE);
     }
     else if (obj == (PyObject *)(&PyBool_Type)) {
-        return TypeNode_New(TYPE_BOOL, optional);
+        return TypeNode_New(MP_TYPE_BOOL);
     }
     else if (obj == (PyObject *)(&PyLong_Type)) {
-        return TypeNode_New(TYPE_INT, optional);
+        return TypeNode_New(MP_TYPE_INT);
     }
     else if (obj == (PyObject *)(&PyFloat_Type)) {
-        return TypeNode_New(TYPE_FLOAT, optional);
+        return TypeNode_New(MP_TYPE_FLOAT);
     }
     else if (obj == (PyObject *)(&PyUnicode_Type)) {
-        return TypeNode_New(TYPE_STR, optional);
+        return TypeNode_New(MP_TYPE_STR);
     }
     else if (obj == (PyObject *)(&PyBytes_Type)) {
-        return TypeNode_New(TYPE_BYTES, optional);
+        return TypeNode_New(MP_TYPE_BYTES);
     }
     else if (obj == (PyObject *)(&PyByteArray_Type)) {
-        return TypeNode_New(TYPE_BYTEARRAY, optional);
+        return TypeNode_New(MP_TYPE_BYTEARRAY);
     }
     else if (obj == (PyObject *)(PyDateTimeAPI->DateTimeType)) {
-        return TypeNode_New(TYPE_DATETIME, optional);
+        return TypeNode_New(MP_TYPE_DATETIME);
     }
     else if (obj == (PyObject *)(&Ext_Type)) {
-        return TypeNode_New(TYPE_EXT, optional);
+        return TypeNode_New(MP_TYPE_EXT);
     }
     else if (Py_TYPE(obj) == &StructMetaType) {
         if (StructMeta_prep_types(obj) < 0) return NULL;
-        return TypeNodeObj_New(TYPE_STRUCT, optional, obj);
+        return TypeNodeObj_New(MP_TYPE_STRUCT, obj);
     }
     else if (PyType_Check(obj) && PyType_IsSubtype((PyTypeObject *)obj, st->EnumType)) {
         if (PyType_IsSubtype((PyTypeObject *)obj, &PyLong_Type))
-            return TypeNodeObj_New(TYPE_INTENUM, optional, obj);
-        return TypeNodeObj_New(TYPE_ENUM, optional, obj);
+            return TypeNodeObj_New(MP_TYPE_INTENUM, obj);
+        return TypeNodeObj_New(MP_TYPE_ENUM, obj);
     }
     else if (obj == (PyObject*)(&PyDict_Type) || obj == st->typing_dict) {
-        return TypeNodeMap_New(TYPE_DICT, optional, st->typing_any, st->typing_any);
+        return TypeNodeMap_New(MP_TYPE_DICT, st->typing_any, st->typing_any);
     }
     else if (obj == (PyObject*)(&PyList_Type) || obj == st->typing_list) {
-        return TypeNodeArray_New(TYPE_LIST, optional, st->typing_any);
+        return TypeNodeArray_New(MP_TYPE_LIST, st->typing_any);
     }
     else if (obj == (PyObject*)(&PySet_Type) || obj == st->typing_set) {
-        return TypeNodeArray_New(TYPE_SET, optional, st->typing_any);
+        return TypeNodeArray_New(MP_TYPE_SET, st->typing_any);
     }
     else if (obj == (PyObject*)(&PyTuple_Type) || obj == st->typing_tuple) {
-        return TypeNodeArray_New(TYPE_VARTUPLE, optional, st->typing_any);
+        return TypeNodeArray_New(MP_TYPE_VARTUPLE, st->typing_any);
     }
 
     /* Attempt to extract __origin__/__args__ from the obj as a typing object */
@@ -660,52 +714,54 @@ to_type_node(PyObject * obj, bool optional) {
         /* Not a parametrized generic, must be a custom type */
         PyErr_Clear();
         if (PyType_Check(obj)) {
-            out = TypeNodeObj_New(TYPE_CUSTOM, optional, obj);
+            out = TypeNodeObj_New(MP_TYPE_CUSTOM, obj);
         }
         else if (origin != NULL) {
-            out = TypeNodeObj_New(TYPE_CUSTOM_GENERIC, optional, obj);
+            out = TypeNodeObj_New(MP_TYPE_CUSTOM_GENERIC, obj);
         }
         goto done;
     }
 
     if (origin == (PyObject*)(&PyDict_Type)) {
         if (PyTuple_Size(args) != 2) goto done;
-        out = TypeNodeMap_New(TYPE_DICT, optional, PyTuple_GET_ITEM(args, 0), PyTuple_GET_ITEM(args, 1));
+        out = TypeNodeMap_New(MP_TYPE_DICT, PyTuple_GET_ITEM(args, 0), PyTuple_GET_ITEM(args, 1));
         goto done;
     }
     else if (origin == (PyObject*)(&PyList_Type)) {
         if (PyTuple_Size(args) != 1) goto done;
-        out = TypeNodeArray_New(TYPE_LIST, optional, PyTuple_GET_ITEM(args, 0));
+        out = TypeNodeArray_New(MP_TYPE_LIST, PyTuple_GET_ITEM(args, 0));
         goto done;
     }
     else if (origin == (PyObject*)(&PySet_Type)) {
         if (PyTuple_Size(args) != 1) goto done;
-        out = TypeNodeArray_New(TYPE_SET, optional, PyTuple_GET_ITEM(args, 0));
+        out = TypeNodeArray_New(MP_TYPE_SET, PyTuple_GET_ITEM(args, 0));
         goto done;
     }
     else if (origin == (PyObject*)(&PyTuple_Type)) {
         if (PyTuple_Size(args) == 2 && PyTuple_GET_ITEM(args, 1) == Py_Ellipsis) {
-            out = TypeNodeArray_New(TYPE_VARTUPLE, optional, PyTuple_GET_ITEM(args, 0));
+            out = TypeNodeArray_New(MP_TYPE_VARTUPLE, PyTuple_GET_ITEM(args, 0));
         }
         else {
-            out = TypeNodeFixTuple_New(optional, args);
+            out = TypeNodeFixTuple_New(args);
         }
         goto done;
     }
     else if (origin == st->typing_union) {
         if (PyTuple_Size(args) != 2) goto done;
         if (PyTuple_GET_ITEM(args, 0) == NONE_TYPE) {
-            if ((out = to_type_node(PyTuple_GET_ITEM(args, 1), true)) == NULL) goto done;
+            out = TypeNode_Convert(PyTuple_GET_ITEM(args, 1));
         }
         else if (PyTuple_GET_ITEM(args, 1) == NONE_TYPE) {
-            if ((out = to_type_node(PyTuple_GET_ITEM(args, 0), true)) == NULL) goto done;
+            out = TypeNode_Convert(PyTuple_GET_ITEM(args, 0));
         }
-        goto done;
+        if (out != NULL && !(out->types & MP_TYPE_ANY)) {
+            out->types |= MP_TYPE_NONE;
+        }
     }
     else {
         /* A parametrized type, but not one we natively support. */
         if (PyType_Check(origin)) {
-            out = TypeNodeObj_New(TYPE_CUSTOM_GENERIC, optional, obj);
+            out = TypeNodeObj_New(MP_TYPE_CUSTOM_GENERIC, obj);
         }
         goto done;
     }
@@ -2148,13 +2204,13 @@ enum mp_code {
 };
 
 static MP_NOINLINE int
-mp_resize(EncoderState *self, Py_ssize_t size) 
+mp_resize(EncoderState *self, Py_ssize_t size)
 {
-        self->max_output_len = Py_MAX(8, 1.5 * size);
-        char *new_buf = self->resize_buffer(&self->output_buffer, self->max_output_len);
-        if (new_buf == NULL) return -1;
-        self->output_buffer_raw = new_buf;
-        return 0;
+    self->max_output_len = Py_MAX(8, 1.5 * size);
+    char *new_buf = self->resize_buffer(&self->output_buffer, self->max_output_len);
+    if (new_buf == NULL) return -1;
+    self->output_buffer_raw = new_buf;
+    return 0;
 }
 
 static MP_INLINE int
@@ -3436,8 +3492,8 @@ static PyObject * mp_decode_type(
 static PyObject *
 mp_format_validation_error(const char *expected, const char *got, TypeNode *ctx, Py_ssize_t ctx_ind) {
     MsgspecState *st = msgspec_get_global_state();
-    if (ctx->code == TYPE_STRUCT && ctx_ind != -1) {
-        StructMetaObject *st_type = (StructMetaObject *)(((TypeNodeObj *)ctx)->arg);
+    if (ctx->types & MP_TYPE_STRUCT && ctx_ind != -1) {
+        StructMetaObject *st_type = (StructMetaObject *)(((TypeNodeExtra *)ctx)->extra[0]);
         PyObject *field = PyTuple_GET_ITEM(st_type->struct_fields, ctx_ind);
         PyObject *typstr = TypeNode_Repr(st_type->struct_types[ctx_ind]);
         if (typstr == NULL) return NULL;
@@ -3470,95 +3526,102 @@ mp_format_validation_error(const char *expected, const char *got, TypeNode *ctx,
 static PyObject *
 mp_validation_error(char *got, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind) {
     char *expected = NULL;
-    switch (type->code) {
-        case TYPE_NONE:
+    switch (type->types) {
+        case MP_TYPE_NONE:
             expected = "None";
             break;
-        case TYPE_BOOL:
+        case MP_TYPE_BOOL:
             expected = "bool";
             break;
-        case TYPE_INT:
+        case MP_TYPE_INT:
             expected = "int";
             break;
-        case TYPE_FLOAT:
+        case MP_TYPE_FLOAT:
             expected = "float";
             break;
-        case TYPE_STR:
+        case MP_TYPE_STR:
             expected = "str";
             break;
-        case TYPE_BYTES:
+        case MP_TYPE_BYTES:
             expected = "bytes";
             break;
-        case TYPE_BYTEARRAY:
+        case MP_TYPE_BYTEARRAY:
             expected = "bytearray";
             break;
-        case TYPE_DATETIME:
+        case MP_TYPE_DATETIME:
             expected = "datetime";
             break;
-        case TYPE_EXT:
+        case MP_TYPE_EXT:
             expected = "Ext";
             break;
-        case TYPE_LIST:
+        case MP_TYPE_LIST:
             expected = "list";
             break;
-        case TYPE_SET:
+        case MP_TYPE_SET:
             expected = "set";
             break;
-        case TYPE_FIXTUPLE:
-        case TYPE_VARTUPLE:
+        case MP_TYPE_FIXTUPLE:
+        case MP_TYPE_VARTUPLE:
             expected = "tuple";
             break;
-        case TYPE_DICT:
+        case MP_TYPE_DICT:
             expected = "dict";
             break;
-        case TYPE_STRUCT:
+        case MP_TYPE_STRUCT:
             expected = "struct";
             break;
         default:
-            expected = "unknown";
+            // TODO
+            expected = "Union[...]";
             break;
     }
     return mp_format_validation_error(expected, got, ctx, ctx_ind);
 }
 
 static PyObject *
-mp_decode_type_int(DecoderState *self, int64_t ival, uint64_t uval, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind) {
-    if (type->code == TYPE_ANY || type->code == TYPE_INT || type->code == TYPE_INTENUM) {
-        PyObject *val = ival != 0 ? PyLong_FromLongLong(ival) : PyLong_FromUnsignedLongLong(uval);
-        if (type->code == TYPE_INTENUM) {
-            MsgspecState *st = msgspec_get_global_state();
-            TypeNodeObj *type2 = (TypeNodeObj *)type;
-            PyObject *out = NULL;
+mp_decode_type_intenum(DecoderState *self, PyObject *val, TypeNode *type) {
+    if (val == NULL) return NULL;
 
-            if (val == NULL) return NULL;
-            /* Fast path for common case. This accesses a non-public member of the
-            * enum class to speedup lookups. If this fails, we clear errors and
-            * use the slower-but-more-public method instead. */
-            PyObject *member_table = PyObject_GetAttr(type2->arg, st->str__value2member_map_);
-            if (member_table != NULL) {
-                out = PyDict_GetItem(member_table, val);
-                Py_DECREF(member_table);
-                Py_XINCREF(out);
-            }
-            if (out == NULL) {
-                PyErr_Clear();
-                out = CALL_ONE_ARG(type2->arg, val);
-            }
-            Py_DECREF(val);
-            if (out == NULL) {
-                PyErr_Clear();
-                PyErr_Format(
-                    st->DecodingError,
-                    "Error decoding enum `%s`: invalid value `%S`",
-                    ((PyTypeObject *)(type2->arg))->tp_name,
-                    val
-                );
-            }
-            return out;
+    MsgspecState *st = msgspec_get_global_state();
+    TypeNodeExtra *tex = (TypeNodeExtra *)type;
+    PyObject *out = NULL;
+
+    /* Fast path for common case. This accesses a non-public member of the
+    * enum class to speedup lookups. If this fails, we clear errors and
+    * use the slower-but-more-public method instead. */
+    PyObject *member_table = PyObject_GetAttr(tex->extra[0], st->str__value2member_map_);
+    if (MP_LIKELY(member_table != NULL)) {
+        out = PyDict_GetItem(member_table, val);
+        Py_DECREF(member_table);
+        Py_XINCREF(out);
+    }
+    if (MP_UNLIKELY(out == NULL)) {
+        PyErr_Clear();
+        out = CALL_ONE_ARG(tex->extra[0], val);
+    }
+    Py_DECREF(val);
+    if (MP_UNLIKELY(out == NULL)) {
+        PyErr_Clear();
+        PyErr_Format(
+            st->DecodingError,
+            "Error decoding enum `%s`: invalid value `%S`",
+            ((PyTypeObject *)(tex->extra[0]))->tp_name,
+            val
+        );
+    }
+    return out;
+}
+
+static PyObject *
+mp_decode_type_int(DecoderState *self, int64_t ival, uint64_t uval, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind) {
+    if (type->types & (MP_TYPE_ANY | MP_TYPE_INT | MP_TYPE_INTENUM)) {
+        PyObject *val = ival != 0 ? PyLong_FromLongLong(ival) : PyLong_FromUnsignedLongLong(uval);
+        if (MP_UNLIKELY(type->types & MP_TYPE_INTENUM)) {
+            return mp_decode_type_intenum(self, val, type);
         }
         return val;
     }
-    else if (type->code == TYPE_FLOAT) {
+    else if (type->types & MP_TYPE_FLOAT) {
         return ival != 0 ? PyFloat_FromDouble(ival) : PyFloat_FromDouble(uval);
     }
     return mp_validation_error("int", type, ctx, ctx_ind);
@@ -3566,7 +3629,7 @@ mp_decode_type_int(DecoderState *self, int64_t ival, uint64_t uval, TypeNode *ty
 
 static PyObject *
 mp_decode_type_none(DecoderState *self, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind) {
-    if (type->optional) {
+    if (type->types & (MP_TYPE_ANY | MP_TYPE_NONE)) {
         Py_INCREF(Py_None);
         return Py_None;
     }
@@ -3575,7 +3638,7 @@ mp_decode_type_none(DecoderState *self, TypeNode *type, TypeNode *ctx, Py_ssize_
 
 static PyObject *
 mp_decode_type_bool(DecoderState *self, PyObject *val, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind) {
-    if (type->code == TYPE_ANY || type->code == TYPE_BOOL) {
+    if (type->types & (MP_TYPE_ANY | MP_TYPE_BOOL)) {
         Py_INCREF(val);
         return val;
     }
@@ -3584,39 +3647,43 @@ mp_decode_type_bool(DecoderState *self, PyObject *val, TypeNode *type, TypeNode 
 
 static PyObject *
 mp_decode_type_float(DecoderState *self, double val, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind) {
-    if (type->code == TYPE_ANY || type->code == TYPE_FLOAT) {
+    if (type->types & (MP_TYPE_ANY | MP_TYPE_FLOAT)) {
         return PyFloat_FromDouble(val);
     }
     return mp_validation_error("float", type, ctx, ctx_ind);
 }
 
 static PyObject *
+mp_decode_type_enum(DecoderState *self, PyObject *val, TypeNode *type) {
+    if (val == NULL) return NULL;
+    TypeNodeExtra *tex = (TypeNodeExtra *)type;
+    PyObject *out = PyObject_GetAttr(tex->extra[0], val);
+    Py_DECREF(val);
+    if (MP_UNLIKELY(out == NULL)) {
+        PyErr_Clear();
+        PyErr_Format(
+            msgspec_get_global_state()->DecodingError,
+            "Error decoding enum `%s`: invalid name `%S`",
+            ((PyTypeObject *)tex->extra[0])->tp_name,
+            val
+        );
+    }
+    return out;
+}
+
+static PyObject *
 mp_decode_type_str(DecoderState *self, Py_ssize_t size, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind) {
     if (size < 0) return NULL;
 
-    if (type->code == TYPE_ANY || type->code == TYPE_STR || type->code == TYPE_ENUM) {
+    if (type->types & (MP_TYPE_ANY | MP_TYPE_STR | MP_TYPE_ENUM)) {
         char *s = NULL;
-        PyObject *out;
+        PyObject *val;
         if (mp_read(self, &s, size) < 0) return NULL;
-        out = PyUnicode_DecodeUTF8(s, size, NULL);
-        if (type->code == TYPE_ENUM) {
-            TypeNodeObj *type2 = (TypeNodeObj *)type;
-            PyObject *out2;
-            if (out == NULL) return NULL;
-            out2 = PyObject_GetAttr(type2->arg, out);
-            Py_DECREF(out);
-            if (out2 == NULL) {
-                PyErr_Clear();
-                PyErr_Format(
-                    msgspec_get_global_state()->DecodingError,
-                    "Error decoding enum `%s`: invalid name `%S`",
-                    ((PyTypeObject *)type2->arg)->tp_name,
-                    out
-                );
-            }
-            return out2;
+        val = PyUnicode_DecodeUTF8(s, size, NULL);
+        if (MP_UNLIKELY(type->types & MP_TYPE_ENUM)) {
+            return mp_decode_type_enum(self, val, type);
         }
-        return out;
+        return val;
     }
     return mp_validation_error("str", type, ctx, ctx_ind);
 }
@@ -3628,10 +3695,10 @@ mp_decode_type_bin(DecoderState *self, Py_ssize_t size, TypeNode *type, TypeNode
     char *s = NULL;
     if (mp_read(self, &s, size) < 0) return NULL;
 
-    if (type->code == TYPE_ANY || type->code == TYPE_BYTES) {
+    if (type->types & (MP_TYPE_ANY | MP_TYPE_BYTES)) {
         return PyBytes_FromStringAndSize(s, size);
     }
-    else if (type->code == TYPE_BYTEARRAY) {
+    else if (type->types & MP_TYPE_BYTEARRAY) {
         return PyByteArray_FromStringAndSize(s, size);
     }
     return mp_validation_error("bytes", type, ctx, ctx_ind);
@@ -3720,24 +3787,25 @@ mp_decode_type_vartuple(
 
 static PyObject *
 mp_decode_type_fixtuple(
-    DecoderState *self, Py_ssize_t size, TypeNodeFixTuple *type, TypeNode *ctx, Py_ssize_t ctx_ind, bool is_key
+    DecoderState *self, Py_ssize_t size, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind, bool is_key
 ) {
-    Py_ssize_t i;
+    Py_ssize_t i, n_obj, n_types;
     PyObject *res, *item;
+    TypeNodeExtra *tex = (TypeNodeExtra *)type;
 
-    if (size != type->size) {
+    if (size != tex->fixtuple_size) {
         /* tuple is the incorrect size, raise and return */
         PyObject *typstr;
         MsgspecState *st = msgspec_get_global_state();
-        if (ctx->code == TYPE_STRUCT) {
-            StructMetaObject *st_type = (StructMetaObject *)(((TypeNodeObj *)ctx)->arg);
+        if (ctx->types & MP_TYPE_STRUCT) {
+            StructMetaObject *st_type = (StructMetaObject *)(((TypeNodeExtra *)ctx)->extra[0]);
             PyObject *field = PyTuple_GET_ITEM(st_type->struct_fields, ctx_ind);
             if ((typstr = TypeNode_Repr(st_type->struct_types[ctx_ind])) == NULL) return NULL;
             PyErr_Format(
                 st->DecodingError,
                 "Error decoding `%s` field `%S` (`%S`): expected tuple of length %zd, got %zd",
                 ((PyTypeObject *)st_type)->tp_name,
-                field, typstr, type->size, size
+                field, typstr, tex->fixtuple_size, size
             );
         }
         else {
@@ -3745,7 +3813,7 @@ mp_decode_type_fixtuple(
             PyErr_Format(
                 st->DecodingError,
                 "Error decoding `%S`: expected tuple of length %zd, got %zd",
-                typstr, type->size, size
+                typstr, tex->fixtuple_size, size
             );
         }
         Py_DECREF(typstr);
@@ -3760,8 +3828,11 @@ mp_decode_type_fixtuple(
         Py_DECREF(res);
         return NULL;
     }
-    for (i = 0; i < size; i++) {
-        item = mp_decode_type(self, type->args[i], ctx, ctx_ind, is_key);
+
+    n_obj = TypeNode_get_size(type, &n_types);
+
+    for (i = n_obj + n_types - tex->fixtuple_size; i < n_obj + n_types; i++) {
+        item = mp_decode_type(self, tex->extra[i], ctx, ctx_ind, is_key);
         if (item == NULL) {
             Py_CLEAR(res);
             break;
@@ -3794,7 +3865,7 @@ mp_decode_type_struct_array(
     }
     for (i = 0; i < nfields; i++) {
         if (size > 0) {
-            val = mp_decode_type(self, st_type->struct_types[i], (TypeNode *)type, i, is_key);
+            val = mp_decode_type(self, st_type->struct_types[i], type, i, is_key);
             if (val == NULL) goto error;
             size--;
         }
@@ -3842,35 +3913,33 @@ mp_decode_type_array(
 ) {
     if (size < 0) return NULL;
 
-    switch (type->code) {
-        case TYPE_ANY: {
-            if (is_key) {
-                return mp_decode_type_vartuple(self, size, type, ctx, ctx_ind, is_key);
-            }
-            else {
-                return mp_decode_type_list(self, size, type, ctx, ctx_ind);
-            }
+    if (type->types & MP_TYPE_ANY) {
+        if (is_key) {
+            return mp_decode_type_vartuple(self, size, type, ctx, ctx_ind, is_key);
         }
-        case TYPE_LIST:
-            return mp_decode_type_list(self, size, ((TypeNodeArray *)type)->arg, ctx, ctx_ind);
-        case TYPE_SET:
-            return mp_decode_type_set(self, size, ((TypeNodeArray *)type)->arg, ctx, ctx_ind);
-        case TYPE_VARTUPLE:
-            return mp_decode_type_vartuple(self, size, ((TypeNodeArray *)type)->arg, ctx, ctx_ind, is_key);
-        case TYPE_FIXTUPLE:
-            return mp_decode_type_fixtuple(self, size, (TypeNodeFixTuple *)type, ctx, ctx_ind, is_key);
-        case TYPE_STRUCT: {
-            TypeNodeObj *type2 = (TypeNodeObj *)type;
-            StructMetaObject *struct_type = ((StructMetaObject *)type2->arg);
-            if (struct_type->asarray == OPT_TRUE) {
-                return mp_decode_type_struct_array(self, size, struct_type, type, is_key);
-            }
-            goto error;
-        default:
-            goto error;
+        else {
+            return mp_decode_type_list(self, size, type, ctx, ctx_ind);
         }
     }
-error:
+    else if (type->types & MP_TYPE_LIST) {
+        return mp_decode_type_list(self, size, ((TypeNodeExtra *)type)->extra[0], ctx, ctx_ind);
+    }
+    else if (type->types & MP_TYPE_SET) {
+        return mp_decode_type_set(self, size, ((TypeNodeExtra *)type)->extra[0], ctx, ctx_ind);
+    }
+    else if (type->types & MP_TYPE_VARTUPLE) {
+        return mp_decode_type_vartuple(self, size, ((TypeNodeExtra *)type)->extra[0], ctx, ctx_ind, is_key);
+    }
+    else if (type->types & MP_TYPE_FIXTUPLE) {
+        return mp_decode_type_fixtuple(self, size, type, ctx, ctx_ind, is_key);
+    }
+    else if (type->types & MP_TYPE_STRUCT) {
+        TypeNodeExtra *tex = (TypeNodeExtra *)type;
+        StructMetaObject *struct_type = ((StructMetaObject *)tex->extra[0]);
+        if (struct_type->asarray == OPT_TRUE) {
+            return mp_decode_type_struct_array(self, size, struct_type, type, is_key);
+        }
+    }
     return mp_validation_error("list", type, ctx, ctx_ind);
 }
 
@@ -4019,7 +4088,7 @@ mp_decode_type_struct_map(DecoderState *self, Py_ssize_t size, TypeNode *type, b
     Py_ssize_t i, key_size, field_index, nfields, ndefaults, pos = 0;
     char *key = NULL;
     PyObject *res, *val = NULL;
-    StructMetaObject *st_type = (StructMetaObject *)(((TypeNodeObj *)type)->arg);
+    StructMetaObject *st_type = (StructMetaObject *)(((TypeNodeExtra *)type)->extra[0]);
     int should_untrack;
 
     res = Struct_alloc((PyTypeObject *)(st_type));
@@ -4092,14 +4161,14 @@ mp_decode_type_map(
 ) {
     if (size < 0) return NULL;
 
-    if (type->code == TYPE_ANY) {
+    if (type->types & MP_TYPE_ANY) {
         return mp_decode_type_dict(self, size, type, type, ctx, ctx_ind);
     }
-    else if (type->code == TYPE_DICT) {
-        TypeNodeMap *type2 = (TypeNodeMap *)type;
-        return mp_decode_type_dict(self, size, type2->key, type2->value, ctx, ctx_ind);
+    else if (type->types & MP_TYPE_DICT) {
+        TypeNodeExtra *tex = (TypeNodeExtra *)type;
+        return mp_decode_type_dict(self, size, tex->extra[0], tex->extra[1], ctx, ctx_ind);
     }
-    else if (type->code == TYPE_STRUCT) {
+    else if (type->types & MP_TYPE_STRUCT) {
         return mp_decode_type_struct_map(self, size, type, is_key);
     }
     return mp_validation_error("dict", type, ctx, ctx_ind);
@@ -4115,18 +4184,18 @@ mp_decode_type_ext(DecoderState *self, Py_ssize_t size, TypeNode *type, TypeNode
     if (mp_read1(self, &code) < 0) return NULL;
     if (mp_read(self, &data_buf, size) < 0) return NULL;
 
-    if (type->code == TYPE_EXT) {
-        data = PyBytes_FromStringAndSize(data_buf, size);
-        if (data == NULL) return NULL;
-        return Ext_New(code, data);
-    }
-    else if (type->code == TYPE_DATETIME) {
+    if (type->types & MP_TYPE_DATETIME) {
         if (code == -1) {
             return mp_decode_datetime(self, data_buf, size);
         }
         return mp_format_validation_error("datetime", "Ext", ctx, ctx_ind);
     }
-    else if (type->code != TYPE_ANY) {
+    else if (type->types & MP_TYPE_EXT) {
+        data = PyBytes_FromStringAndSize(data_buf, size);
+        if (data == NULL) return NULL;
+        return Ext_New(code, data);
+    }
+    else if (!(type->types & MP_TYPE_ANY)) {
         return mp_validation_error("Ext", type, ctx, ctx_ind);
     }
 
@@ -4161,16 +4230,17 @@ done:
 }
 
 static PyObject *
-mp_decode_type_custom(DecoderState *self, bool generic, TypeNodeObj* type, TypeNode *ctx, Py_ssize_t ctx_ind) {
+mp_decode_type_custom(DecoderState *self, bool generic, TypeNode* type, TypeNode *ctx, Py_ssize_t ctx_ind) {
     PyObject *obj, *custom_cls = NULL, *out = NULL;
     int status;
-    TypeNode type_any = {TYPE_ANY, true};
+    TypeNodeExtra *tex = (TypeNodeExtra *)type;
+    TypeNode type_any = {MP_TYPE_ANY};
 
     if ((obj = mp_decode_type(self, &type_any, ctx, ctx_ind, false)) == NULL)
         return NULL;
 
     if (self->dec_hook != NULL) {
-        out = PyObject_CallFunctionObjArgs(self->dec_hook, type->arg, obj, NULL);
+        out = PyObject_CallFunctionObjArgs(self->dec_hook, tex->extra[0], obj, NULL);
         Py_DECREF(obj);
         if (out == NULL)
             return NULL;
@@ -4182,14 +4252,14 @@ mp_decode_type_custom(DecoderState *self, bool generic, TypeNodeObj* type, TypeN
     /* Generic classes must be checked based on __origin__ */
     if (generic) {
         MsgspecState *st = msgspec_get_global_state();
-        custom_cls = PyObject_GetAttr(type->arg, st->str___origin__);
+        custom_cls = PyObject_GetAttr(tex->extra[0], st->str___origin__);
         if (custom_cls == NULL) {
             Py_DECREF(out);
             return NULL;
         }
     }
     else {
-        custom_cls = type->arg;
+        custom_cls = tex->extra[0];
     }
 
     /* Check that the decoded value matches the expected type */
@@ -4220,12 +4290,9 @@ mp_decode_type(
     char op = 0;
     char *s = NULL;
 
-    if (MP_UNLIKELY(type->code == TYPE_CUSTOM || type->code == TYPE_CUSTOM_GENERIC)) {
-        /* TODO: maybe refactor so generic looks like ANY in most places, and
-         * we only check if the callback should be hit later on exit from
-         * mp_decode_type */
+    if (MP_UNLIKELY(type->types & (MP_TYPE_CUSTOM | MP_TYPE_CUSTOM_GENERIC))) {
         return mp_decode_type_custom(
-            self, type->code == TYPE_CUSTOM_GENERIC, (TypeNodeObj *)type, ctx, ctx_ind
+            self, type->types & MP_TYPE_CUSTOM_GENERIC, type, ctx, ctx_ind
         );
     }
 
@@ -4532,7 +4599,7 @@ msgspec_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject
         if (state.type != NULL) {
             res = mp_decode_type(&state, state.type, state.type, -1, false);
         } else {
-            TypeNode type_any = {TYPE_ANY, true};
+            TypeNode type_any = {MP_TYPE_ANY};
             res = mp_decode_type(&state, &type_any, &type_any, -1, false);
         }
     }
