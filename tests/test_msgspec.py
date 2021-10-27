@@ -4,6 +4,7 @@ from typing import Dict, Set, List, Tuple, Optional, Any, Union, NamedTuple, Deq
 import datetime
 import enum
 import gc
+import itertools
 import math
 import os
 import pickle
@@ -25,6 +26,16 @@ class FruitStr(enum.Enum):
     BANANA = "banana"
 
 
+class VeggieInt(enum.IntEnum):
+    CARROT = 1
+    LETTUCE = 2
+
+
+class VeggieStr(enum.Enum):
+    CARROT = "carrot"
+    LETTUCE = "banana"
+
+
 class Person(msgspec.Struct):
     first: str
     last: str
@@ -37,6 +48,10 @@ class PersonAA(msgspec.Struct, asarray=True):
     last: str
     age: int
     prefect: bool = False
+
+
+PERSON = Person("harry", "potter", 13)
+PERSON_AA = PersonAA("harry", "potter", 13)
 
 
 class Node(msgspec.Struct):
@@ -521,6 +536,10 @@ class TestDecoderMisc:
         dec = msgspec.Decoder(Optional[typ])
         assert repr(dec) == f"Decoder({typstr})"
 
+    def test_decoder_union_with_any_is_just_any(self):
+        dec = msgspec.Decoder(Union[int, float, str, Any, Node, None])
+        assert repr(dec) == "Decoder(Any)"
+
     @pytest.mark.parametrize(
         "typ, typstr",
         [
@@ -571,6 +590,64 @@ class TestDecoderMisc:
 
         with pytest.raises(TypeError):
             msgspec.Decoder(Test)
+
+    @pytest.mark.parametrize("typ", [Union[int, Deque], Union[Deque, int]])
+    def test_err_union_with_custom_type(self, typ):
+        with pytest.raises(TypeError) as rec:
+            msgspec.Decoder(typ)
+        assert "custom type" in str(rec.value)
+        assert repr(typ) in str(rec.value)
+
+    @pytest.mark.parametrize("typ", [Union[dict, Person], Union[Person, dict]])
+    def test_err_union_with_struct_and_dict(self, typ):
+        with pytest.raises(TypeError) as rec:
+            msgspec.Decoder(typ)
+        assert "both a Struct type and a dict type" in str(rec.value)
+        assert repr(typ) in str(rec.value)
+
+    @pytest.mark.parametrize("typ", [Union[PersonAA, list], Union[tuple, PersonAA]])
+    def test_err_union_with_struct_asarray_and_array(self, typ):
+        with pytest.raises(TypeError) as rec:
+            msgspec.Decoder(typ)
+        assert "asarray=True" in str(rec.value)
+        assert "Type unions containing" in str(rec.value)
+        assert repr(typ) in str(rec.value)
+
+    @pytest.mark.parametrize("typ", [Union[FruitInt, int], Union[int, FruitInt]])
+    def test_err_union_with_intenum_and_int(self, typ):
+        with pytest.raises(TypeError) as rec:
+            msgspec.Decoder(typ)
+        assert "int and an IntEnum" in str(rec.value)
+        assert repr(typ) in str(rec.value)
+
+    @pytest.mark.parametrize("typ", [Union[FruitStr, str], Union[str, FruitStr]])
+    def test_err_union_with_enum_and_str(self, typ):
+        with pytest.raises(TypeError) as rec:
+            msgspec.Decoder(typ)
+        assert "str and an Enum" in str(rec.value)
+        assert repr(typ) in str(rec.value)
+
+    @pytest.mark.parametrize(
+        "typ,kind",
+        [
+            (Union[Person, PersonAA], "Struct"),
+            (Union[Person, Node], "Struct"),
+            (Union[FruitInt, VeggieInt], "IntEnum"),
+            (Union[FruitStr, VeggieStr], "Enum"),
+            (Union[Dict[int, float], dict], "dict"),
+            (Union[List[int], List[float]], "array-like"),
+            (Union[List[int], tuple], "array-like"),
+            (Union[set, tuple], "array-like"),
+            (Union[Tuple[int, ...], list], "array-like"),
+            (Union[Tuple[int, float, str], set], "array-like"),
+            (Union[Deque, int, Point], "custom"),
+        ],
+    )
+    def test_err_union_conflicts(self, typ, kind):
+        with pytest.raises(TypeError) as rec:
+            msgspec.Decoder(typ)
+        assert f"more than one {kind}" in str(rec.value)
+        assert repr(typ) in str(rec.value)
 
 
 class TestTypedDecoder:
@@ -1109,6 +1186,84 @@ class TestTypedDecoder:
 
         s = enc.encode(value)
         assert dec.decode(s) == value
+
+    @pytest.mark.parametrize(
+        "types, vals",
+        [
+            ([int, float], [1, 2.5]),
+            (
+                [datetime.datetime, msgspec.Ext, int, str],
+                [datetime.datetime.now(), msgspec.Ext(1, b"two"), 1, "two"],
+            ),
+            ([str, bytearray], ["three", bytearray(b"four")]),
+            ([bool, None, float, str], [True, None, 1.5, "test"]),
+        ],
+    )
+    def test_decode_unions(self, types, vals):
+        dec = msgspec.Decoder(List[Union[tuple(types)]])
+        s = msgspec.encode(vals)
+        res = dec.decode(s)
+        assert res == vals
+        for t, v in zip(types, res):
+            if t is not None:
+                t = getattr(t, "__origin__", t)
+                assert type(v) == t
+
+    @pytest.mark.parametrize(
+        "types, vals",
+        [
+            (
+                [PersonAA, FruitInt, FruitStr, Dict[int, str]],
+                [PERSON_AA, FruitInt.APPLE, FruitStr.BANANA, {1: "two"}],
+            ),
+            (
+                [Person, FruitInt, FruitStr, Tuple[int, ...]],
+                [PERSON, FruitInt.APPLE, FruitStr.BANANA, (1, 2, 3)],
+            ),
+            (
+                [Person, FruitInt, FruitStr, List[int]],
+                [PERSON, FruitInt.APPLE, FruitStr.BANANA, [1, 2, 3]],
+            ),
+            (
+                [Person, FruitInt, FruitStr, Set[int]],
+                [PERSON, FruitInt.APPLE, FruitStr.BANANA, {1, 2, 3}],
+            ),
+            (
+                [Person, FruitInt, FruitStr, Tuple[int, str, float]],
+                [PERSON, FruitInt.APPLE, FruitStr.BANANA, (1, "two", 3.5)],
+            ),
+            (
+                [Dict[int, str], FruitInt, FruitStr, Tuple[int, ...]],
+                [{1: "two"}, FruitInt.APPLE, FruitStr.BANANA, (1, 2, 3)],
+            ),
+            (
+                [Dict[int, str], FruitInt, FruitStr, List[int]],
+                [{1: "two"}, FruitInt.APPLE, FruitStr.BANANA, [1, 2, 3]],
+            ),
+            (
+                [Dict[int, str], FruitInt, FruitStr, Set[int]],
+                [{1: "two"}, FruitInt.APPLE, FruitStr.BANANA, {1, 2, 3}],
+            ),
+            (
+                [Dict[int, str], FruitInt, FruitStr, Tuple[int, str, float]],
+                [{1: "two"}, FruitInt.APPLE, FruitStr.BANANA, (1, "two", 3.5)],
+            ),
+        ],
+    )
+    def test_decode_compound_type_unions(self, types, vals):
+        typ_vals = list(zip(types, vals))
+
+        for N in range(2, len(typ_vals)):
+            for typ_vals_subset in itertools.combinations(typ_vals, N):
+                types, vals = zip(*typ_vals_subset)
+                vals = list(vals)
+                dec = msgspec.Decoder(List[Union[types]])
+                s = msgspec.encode(vals)
+                res = dec.decode(s)
+                assert res == vals
+                for t, v in zip(types, res):
+                    t = getattr(t, "__origin__", t)
+                    assert type(v) == t
 
     def test_decoding_error_no_struct_toplevel(self):
         b = msgspec.Encoder().encode([{"a": 1}])
