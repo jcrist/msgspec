@@ -25,6 +25,18 @@
 #define MP_NOINLINE
 #endif
 
+#ifdef __GNUC__
+#define mp_popcount(i) __builtin_popcount(i)
+#else
+static int
+mp_popcount(uint32_t i) {
+     i = i - ((i >> 1) & 0x55555555);        // add pairs of bits
+     i = (i & 0x33333333) + ((i >> 2) & 0x33333333);  // quads
+     i = (i + (i >> 4)) & 0x0F0F0F0F;        // groups of 8
+     return (i * 0x01010101) >> 24;          // horizontal sum of bytes
+}
+#endif
+
 #if PY_VERSION_HEX < 0x03090000
 #define IS_TRACKED _PyObject_GC_IS_TRACKED
 #define CALL_ONE_ARG(fn, arg) PyObject_CallFunctionObjArgs((fn), (arg), NULL)
@@ -268,17 +280,25 @@ static PyTypeObject StructMetaType;
 static PyTypeObject Ext_Type;
 static int StructMeta_prep_types(PyObject *self);
 
+#define StructMeta_GET_FIELDS(s) (((StructMetaObject *)(s))->struct_fields);
+#define StructMeta_GET_NFIELDS(s) (PyTuple_GET_SIZE((((StructMetaObject *)(s))->struct_fields)));
+#define StructMeta_GET_DEFAULTS(s) (((StructMetaObject *)(s))->struct_defaults);
+#define StructMeta_GET_OFFSETS(s) (((StructMetaObject *)(s))->struct_offsets);
+
+#define OPT_UNSET -1
+#define OPT_FALSE 0
+#define OPT_TRUE 1
+#define STRUCT_MERGE_OPTIONS(opt1, opt2) (((opt2) != OPT_UNSET) ? (opt2) : (opt1))
+
 static Py_ssize_t
 TypeNode_get_size(TypeNode *type, Py_ssize_t *n_typenode) {
     Py_ssize_t n_obj = 0, n_type = 0;
     /* Custom types cannot share a union with anything except `None` */
     if (type->types & (MP_TYPE_CUSTOM | MP_TYPE_CUSTOM_GENERIC)) {
-        n_obj++;
+        n_obj = 1;
     }
     else if (!(type->types & MP_TYPE_ANY)) {
-        if (type->types & MP_TYPE_STRUCT) n_obj++;
-        if (type->types & MP_TYPE_INTENUM) n_obj++;
-        if (type->types & MP_TYPE_ENUM) n_obj++;
+        n_obj = mp_popcount(type->types & (MP_TYPE_STRUCT | MP_TYPE_INTENUM | MP_TYPE_ENUM));
 
         if (type->types & MP_TYPE_DICT) n_type += 2;
         /* Only one array generic is allowed in a union */
@@ -288,6 +308,50 @@ TypeNode_get_size(TypeNode *type, Py_ssize_t *n_typenode) {
     *n_typenode = n_type;
     return n_obj;
 }
+
+static MP_INLINE StructMetaObject *
+TypeNode_get_struct(TypeNode *type) {
+    /* Struct types are always first */
+    return ((TypeNodeExtra *)type)->extra[0];
+}
+
+static MP_INLINE PyObject *
+TypeNode_get_custom(TypeNode *type) {
+    /* Custom types can't be mixed with anything */
+    return ((TypeNodeExtra *)type)->extra[0];
+}
+
+static MP_INLINE PyObject *
+TypeNode_get_intenum(TypeNode *type) {
+    Py_ssize_t i = (type->types & MP_TYPE_STRUCT) != 0;
+    return ((TypeNodeExtra *)type)->extra[i];
+}
+
+static MP_INLINE PyObject *
+TypeNode_get_enum(TypeNode *type) {
+    Py_ssize_t i = mp_popcount(type->types & (MP_TYPE_STRUCT | MP_TYPE_INTENUM));
+    return ((TypeNodeExtra *)type)->extra[i];
+}
+
+static MP_INLINE void
+TypeNode_get_dict(TypeNode *type, TypeNode **key, TypeNode **val) {
+    Py_ssize_t i = mp_popcount(type->types & (MP_TYPE_STRUCT | MP_TYPE_INTENUM | MP_TYPE_ENUM));
+    *key = ((TypeNodeExtra *)type)->extra[i];
+    *val = ((TypeNodeExtra *)type)->extra[i + 1];
+}
+
+static MP_INLINE Py_ssize_t
+TypeNode_get_array_offset(TypeNode *type) {
+    Py_ssize_t i = mp_popcount(type->types & (MP_TYPE_STRUCT | MP_TYPE_INTENUM | MP_TYPE_ENUM));
+    if (type->types & MP_TYPE_DICT) i += 2;
+    return i;
+}
+
+static MP_INLINE TypeNode *
+TypeNode_get_array(TypeNode *type) {
+    return ((TypeNodeExtra *)type)->extra[TypeNode_get_array_offset(type)];
+}
+
 
 static void
 TypeNode_Free(TypeNode *self) {
@@ -325,18 +389,6 @@ TypeNode_traverse(TypeNode *self, visitproc visit, void *arg) {
     }
     return 0;
 }
-
-#ifdef __GNUC__
-#define mp_popcount(i) __builtin_popcount(i)
-#else
-static int
-mp_popcount(uint32_t i) {
-     i = i - ((i >> 1) & 0x55555555);        // add pairs of bits
-     i = (i & 0x33333333) + ((i >> 2) & 0x33333333);  // quads
-     i = (i + (i >> 4)) & 0x0F0F0F0F;        // groups of 8
-     return (i * 0x01010101) >> 24;          // horizontal sum of bytes
-}
-#endif
 
 static PyObject * TypeNode_Repr(TypeNode *self);
 
@@ -701,7 +753,8 @@ typenode_collect_check_invariants(TypeNodeCollectState *state) {
 
     /* Ensure structs don't conflict with dict/array types */
     if (state->struct_obj) {
-        if (((StructMetaObject *)(state->struct_obj))->asarray && state->array_el_obj) {
+        bool asarray = (((StructMetaObject *)(state->struct_obj))->asarray == OPT_TRUE);
+        if (asarray && state->array_el_obj) {
             PyErr_Format(
                 PyExc_TypeError,
                 "Type unions containing a Struct type with `asarray=True` may "
@@ -710,7 +763,7 @@ typenode_collect_check_invariants(TypeNodeCollectState *state) {
             );
             return -1;
         }
-        else if (state->dict_key_obj) {
+        else if (!asarray && state->dict_key_obj) {
             PyErr_Format(
                 PyExc_TypeError,
                 "Type unions may not contain both a Struct type and a dict type "
@@ -986,16 +1039,6 @@ done:
 }
 
 static PyTypeObject StructMixinType;
-
-#define StructMeta_GET_FIELDS(s) (((StructMetaObject *)(s))->struct_fields);
-#define StructMeta_GET_NFIELDS(s) (PyTuple_GET_SIZE((((StructMetaObject *)(s))->struct_fields)));
-#define StructMeta_GET_DEFAULTS(s) (((StructMetaObject *)(s))->struct_defaults);
-#define StructMeta_GET_OFFSETS(s) (((StructMetaObject *)(s))->struct_offsets);
-
-#define OPT_UNSET -1
-#define OPT_FALSE 0
-#define OPT_TRUE 1
-#define STRUCT_MERGE_OPTIONS(opt1, opt2) (((opt2) != OPT_UNSET) ? (opt2) : (opt1))
 
 /* To reduce overhead of repeatedly allocating & freeing messages (in e.g. a
  * server), we keep Struct objects below a certain size around in a freelist.
@@ -3687,7 +3730,7 @@ static PyObject *
 mp_format_validation_error(const char *expected, const char *got, TypeNode *ctx, Py_ssize_t ctx_ind) {
     MsgspecState *st = msgspec_get_global_state();
     if (ctx->types & MP_TYPE_STRUCT && ctx_ind != -1) {
-        StructMetaObject *st_type = (StructMetaObject *)(((TypeNodeExtra *)ctx)->extra[0]);
+        StructMetaObject *st_type = TypeNode_get_struct(ctx);
         PyObject *field = PyTuple_GET_ITEM(st_type->struct_fields, ctx_ind);
         PyObject *typstr = TypeNode_Repr(st_type->struct_types[ctx_ind]);
         if (typstr == NULL) return NULL;
@@ -3776,14 +3819,14 @@ static PyObject *
 mp_decode_type_intenum(DecoderState *self, PyObject *val, TypeNode *type) {
     if (val == NULL) return NULL;
 
-    MsgspecState *st = msgspec_get_global_state();
-    TypeNodeExtra *tex = (TypeNodeExtra *)type;
     PyObject *out = NULL;
+    MsgspecState *st = msgspec_get_global_state();
+    PyObject *intenum = TypeNode_get_intenum(type);
 
     /* Fast path for common case. This accesses a non-public member of the
     * enum class to speedup lookups. If this fails, we clear errors and
     * use the slower-but-more-public method instead. */
-    PyObject *member_table = PyObject_GetAttr(tex->extra[0], st->str__value2member_map_);
+    PyObject *member_table = PyObject_GetAttr(intenum, st->str__value2member_map_);
     if (MP_LIKELY(member_table != NULL)) {
         out = PyDict_GetItem(member_table, val);
         Py_DECREF(member_table);
@@ -3791,7 +3834,7 @@ mp_decode_type_intenum(DecoderState *self, PyObject *val, TypeNode *type) {
     }
     if (MP_UNLIKELY(out == NULL)) {
         PyErr_Clear();
-        out = CALL_ONE_ARG(tex->extra[0], val);
+        out = CALL_ONE_ARG(intenum, val);
     }
     Py_DECREF(val);
     if (MP_UNLIKELY(out == NULL)) {
@@ -3799,7 +3842,7 @@ mp_decode_type_intenum(DecoderState *self, PyObject *val, TypeNode *type) {
         PyErr_Format(
             st->DecodingError,
             "Error decoding enum `%s`: invalid value `%S`",
-            ((PyTypeObject *)(tex->extra[0]))->tp_name,
+            ((PyTypeObject *)(intenum))->tp_name,
             val
         );
     }
@@ -3850,15 +3893,15 @@ mp_decode_type_float(DecoderState *self, double val, TypeNode *type, TypeNode *c
 static PyObject *
 mp_decode_type_enum(DecoderState *self, PyObject *val, TypeNode *type) {
     if (val == NULL) return NULL;
-    TypeNodeExtra *tex = (TypeNodeExtra *)type;
-    PyObject *out = PyObject_GetAttr(tex->extra[0], val);
+    PyObject *enum_obj = TypeNode_get_enum(type);
+    PyObject *out = PyObject_GetAttr(enum_obj, val);
     Py_DECREF(val);
     if (MP_UNLIKELY(out == NULL)) {
         PyErr_Clear();
         PyErr_Format(
             msgspec_get_global_state()->DecodingError,
             "Error decoding enum `%s`: invalid name `%S`",
-            ((PyTypeObject *)tex->extra[0])->tp_name,
+            ((PyTypeObject *)enum_obj)->tp_name,
             val
         );
     }
@@ -3983,7 +4026,7 @@ static PyObject *
 mp_decode_type_fixtuple(
     DecoderState *self, Py_ssize_t size, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind, bool is_key
 ) {
-    Py_ssize_t i, n_obj, n_types;
+    Py_ssize_t i, offset;
     PyObject *res, *item;
     TypeNodeExtra *tex = (TypeNodeExtra *)type;
 
@@ -3992,7 +4035,7 @@ mp_decode_type_fixtuple(
         PyObject *typstr;
         MsgspecState *st = msgspec_get_global_state();
         if (ctx->types & MP_TYPE_STRUCT) {
-            StructMetaObject *st_type = (StructMetaObject *)(((TypeNodeExtra *)ctx)->extra[0]);
+            StructMetaObject *st_type = TypeNode_get_struct(ctx);
             PyObject *field = PyTuple_GET_ITEM(st_type->struct_fields, ctx_ind);
             if ((typstr = TypeNode_Repr(st_type->struct_types[ctx_ind])) == NULL) return NULL;
             PyErr_Format(
@@ -4023,10 +4066,9 @@ mp_decode_type_fixtuple(
         return NULL;
     }
 
-    n_obj = TypeNode_get_size(type, &n_types);
-
-    for (i = n_obj + n_types - tex->fixtuple_size; i < n_obj + n_types; i++) {
-        item = mp_decode_type(self, tex->extra[i], ctx, ctx_ind, is_key);
+    offset = TypeNode_get_array_offset(type);
+    for (i = 0; i < tex->fixtuple_size; i++) {
+        item = mp_decode_type(self, tex->extra[offset + i], ctx, ctx_ind, is_key);
         if (item == NULL) {
             Py_CLEAR(res);
             break;
@@ -4116,20 +4158,19 @@ mp_decode_type_array(
         }
     }
     else if (type->types & MP_TYPE_LIST) {
-        return mp_decode_type_list(self, size, ((TypeNodeExtra *)type)->extra[0], ctx, ctx_ind);
+        return mp_decode_type_list(self, size, TypeNode_get_array(type), ctx, ctx_ind);
     }
     else if (type->types & MP_TYPE_SET) {
-        return mp_decode_type_set(self, size, ((TypeNodeExtra *)type)->extra[0], ctx, ctx_ind);
+        return mp_decode_type_set(self, size, TypeNode_get_array(type), ctx, ctx_ind);
     }
     else if (type->types & MP_TYPE_VARTUPLE) {
-        return mp_decode_type_vartuple(self, size, ((TypeNodeExtra *)type)->extra[0], ctx, ctx_ind, is_key);
+        return mp_decode_type_vartuple(self, size, TypeNode_get_array(type), ctx, ctx_ind, is_key);
     }
     else if (type->types & MP_TYPE_FIXTUPLE) {
         return mp_decode_type_fixtuple(self, size, type, ctx, ctx_ind, is_key);
     }
     else if (type->types & MP_TYPE_STRUCT) {
-        TypeNodeExtra *tex = (TypeNodeExtra *)type;
-        StructMetaObject *struct_type = ((StructMetaObject *)tex->extra[0]);
+        StructMetaObject *struct_type = TypeNode_get_struct(type);
         if (struct_type->asarray == OPT_TRUE) {
             return mp_decode_type_struct_array(self, size, struct_type, type, is_key);
         }
@@ -4282,7 +4323,7 @@ mp_decode_type_struct_map(DecoderState *self, Py_ssize_t size, TypeNode *type, b
     Py_ssize_t i, key_size, field_index, nfields, ndefaults, pos = 0;
     char *key = NULL;
     PyObject *res, *val = NULL;
-    StructMetaObject *st_type = (StructMetaObject *)(((TypeNodeExtra *)type)->extra[0]);
+    StructMetaObject *st_type = TypeNode_get_struct(type);
     int should_untrack;
 
     res = Struct_alloc((PyTypeObject *)(st_type));
@@ -4359,8 +4400,9 @@ mp_decode_type_map(
         return mp_decode_type_dict(self, size, type, type, ctx, ctx_ind);
     }
     else if (type->types & MP_TYPE_DICT) {
-        TypeNodeExtra *tex = (TypeNodeExtra *)type;
-        return mp_decode_type_dict(self, size, tex->extra[0], tex->extra[1], ctx, ctx_ind);
+        TypeNode *key, *val;
+        TypeNode_get_dict(type, &key, &val);
+        return mp_decode_type_dict(self, size, key, val, ctx, ctx_ind);
     }
     else if (type->types & MP_TYPE_STRUCT) {
         return mp_decode_type_struct_map(self, size, type, is_key);
@@ -4378,11 +4420,8 @@ mp_decode_type_ext(DecoderState *self, Py_ssize_t size, TypeNode *type, TypeNode
     if (mp_read1(self, &code) < 0) return NULL;
     if (mp_read(self, &data_buf, size) < 0) return NULL;
 
-    if (type->types & MP_TYPE_DATETIME) {
-        if (code == -1) {
-            return mp_decode_datetime(self, data_buf, size);
-        }
-        return mp_format_validation_error("datetime", "Ext", ctx, ctx_ind);
+    if (type->types & MP_TYPE_DATETIME && code == -1) {
+        return mp_decode_datetime(self, data_buf, size);
     }
     else if (type->types & MP_TYPE_EXT) {
         data = PyBytes_FromStringAndSize(data_buf, size);
@@ -4427,14 +4466,14 @@ static PyObject *
 mp_decode_type_custom(DecoderState *self, bool generic, TypeNode* type, TypeNode *ctx, Py_ssize_t ctx_ind) {
     PyObject *obj, *custom_cls = NULL, *out = NULL;
     int status;
-    TypeNodeExtra *tex = (TypeNodeExtra *)type;
+    PyObject *custom_obj = TypeNode_get_custom(type);
     TypeNode type_any = {MP_TYPE_ANY};
 
     if ((obj = mp_decode_type(self, &type_any, ctx, ctx_ind, false)) == NULL)
         return NULL;
 
     if (self->dec_hook != NULL) {
-        out = PyObject_CallFunctionObjArgs(self->dec_hook, tex->extra[0], obj, NULL);
+        out = PyObject_CallFunctionObjArgs(self->dec_hook, custom_obj, obj, NULL);
         Py_DECREF(obj);
         if (out == NULL)
             return NULL;
@@ -4446,14 +4485,14 @@ mp_decode_type_custom(DecoderState *self, bool generic, TypeNode* type, TypeNode
     /* Generic classes must be checked based on __origin__ */
     if (generic) {
         MsgspecState *st = msgspec_get_global_state();
-        custom_cls = PyObject_GetAttr(tex->extra[0], st->str___origin__);
+        custom_cls = PyObject_GetAttr(custom_obj, st->str___origin__);
         if (custom_cls == NULL) {
             Py_DECREF(out);
             return NULL;
         }
     }
     else {
-        custom_cls = tex->extra[0];
+        custom_cls = custom_obj;
     }
 
     /* Check that the decoded value matches the expected type */
