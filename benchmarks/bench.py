@@ -7,6 +7,7 @@ import gc
 import msgpack
 import msgspec
 import orjson
+import ormsgpack
 import pydantic
 import proto_bench
 
@@ -249,6 +250,24 @@ def bench_orjson(n, no_gc, validate=False):
     return bench(orjson.dumps, loads, n, no_gc=no_gc)
 
 
+def bench_ormsgpack(n, no_gc, validate=False):
+    if validate:
+        if n == 1:
+
+            def loads(b):
+                return PersonModel(**ormsgpack.unpackb(b))
+
+        else:
+
+            def loads(b):
+                return PeopleModel(items=ormsgpack.unpackb(b)).items
+
+    else:
+        loads = ormsgpack.unpackb
+
+    return bench(ormsgpack.packb, loads, n, no_gc=no_gc)
+
+
 def bench_pyrobuf(n, no_gc, validate=False):
     def convert_one(addresses=None, email=None, telephone=None, **kwargs):
         p = proto_bench.Person()
@@ -283,6 +302,7 @@ def bench_pyrobuf(n, no_gc, validate=False):
 BENCHMARKS = [
     ("orjson", bench_orjson),
     ("msgpack", bench_msgpack),
+    ("ormsgpack", bench_ormsgpack),
     ("msgspec", bench_msgspec),
     ("msgspec asarray", bench_msgspec_asarray),
     ("pyrobuf", bench_pyrobuf),
