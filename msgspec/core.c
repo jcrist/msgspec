@@ -218,13 +218,9 @@ check_positional_nargs(Py_ssize_t nargs, Py_ssize_t min, Py_ssize_t max) {
     return 1;
 }
 
-/************************************************************************
- * Type Objects                                                         *
- ************************************************************************/
-
-static PyTypeObject StructMetaType;
-static PyTypeObject Ext_Type;
-static int StructMeta_prep_types(PyObject *self);
+/*************************************************************************
+ * Struct and TypeNode Types                                             *
+ *************************************************************************/
 
 #define MP_TYPE_ANY                 (1u << 0)
 #define MP_TYPE_NONE                (1u << 1)
@@ -252,13 +248,25 @@ typedef struct TypeNode {
     uint32_t types;
 } TypeNode;
 
-
 typedef struct TypeNodeExtra {
     TypeNode type;
     Py_ssize_t fixtuple_size;
     void* extra[];
 } TypeNodeExtra;
 
+typedef struct {
+    PyHeapTypeObject base;
+    PyObject *struct_fields;
+    PyObject *struct_defaults;
+    Py_ssize_t *struct_offsets;
+    TypeNode **struct_types;
+    char immutable;
+    char asarray;
+} StructMetaObject;
+
+static PyTypeObject StructMetaType;
+static PyTypeObject Ext_Type;
+static int StructMeta_prep_types(PyObject *self);
 
 static Py_ssize_t
 TypeNode_get_size(TypeNode *type, Py_ssize_t *n_typenode) {
@@ -268,9 +276,9 @@ TypeNode_get_size(TypeNode *type, Py_ssize_t *n_typenode) {
         n_obj++;
     }
     else if (!(type->types & MP_TYPE_ANY)) {
-        if (type->types & MP_TYPE_ENUM) n_obj++;
-        if (type->types & MP_TYPE_INTENUM) n_obj++;
         if (type->types & MP_TYPE_STRUCT) n_obj++;
+        if (type->types & MP_TYPE_INTENUM) n_obj++;
+        if (type->types & MP_TYPE_ENUM) n_obj++;
 
         if (type->types & MP_TYPE_DICT) n_type += 2;
         /* Only one array generic is allowed in a union */
@@ -281,7 +289,6 @@ TypeNode_get_size(TypeNode *type, Py_ssize_t *n_typenode) {
     return n_obj;
 }
 
-
 static void
 TypeNode_Free(TypeNode *self) {
     if (self == NULL) return;
@@ -291,7 +298,7 @@ TypeNode_Free(TypeNode *self) {
 
     for (i = 0; i < n_obj; i++) {
         PyObject *obj = (PyObject *)(tex->extra[i]);
-        Py_DECREF(obj);
+        Py_XDECREF(obj);
     }
     for (i = n_obj; i < (n_obj + n_typenode); i++) {
         TypeNode *node = (TypeNode *)(tex->extra[i]);
@@ -554,94 +561,103 @@ cleanup:
     return out;
 }
 
+typedef struct {
+    PyObject *context;
+    uint32_t types;
+    PyObject *struct_obj;
+    PyObject *intenum_obj;
+    PyObject *enum_obj;
+    PyObject *custom_obj;
+    PyObject *array_el_obj;
+    PyObject *dict_key_obj;
+    PyObject *dict_val_obj;
+} TypeNodeCollectState;
+
 static TypeNode * TypeNode_Convert(PyObject *type);
 
 static TypeNode *
-TypeNode_New(uint32_t types) {
-    TypeNode *out = PyMem_New(TypeNode, sizeof(TypeNode));
-    if (out == NULL) {
-        PyErr_NoMemory();
-        return NULL;
+typenode_from_collect_state(TypeNodeCollectState *state) {
+    Py_ssize_t e_ind, n_extra = 0, fixtuple_size = 0;
+    bool has_fixtuple = false;
+
+    if (state->struct_obj != NULL) n_extra++;
+    if (state->intenum_obj != NULL) n_extra++;
+    if (state->enum_obj != NULL) n_extra++;
+    if (state->custom_obj != NULL) n_extra++;
+    if (state->dict_key_obj != NULL) n_extra += 2;
+    if (state->array_el_obj != NULL) {
+        if (PyTuple_Check(state->array_el_obj)) {
+            has_fixtuple = true;
+            fixtuple_size = PyTuple_Size(state->array_el_obj);
+            n_extra += fixtuple_size;
+        }
+        else {
+            n_extra++;
+        }
     }
-    out->types = types;
-    return out;
-}
 
-static TypeNode *
-TypeNodeObj_New(uint32_t types, PyObject *arg) {
-    TypeNodeExtra *out = PyMem_New(TypeNodeExtra, sizeof(TypeNodeExtra) + sizeof(void *));
-    if (out == NULL) {
-        PyErr_NoMemory();
-        return NULL;
+    if (n_extra == 0) {
+        TypeNode *out = (TypeNode *)PyMem_Malloc(sizeof(TypeNode));
+        if (out == NULL) {
+            PyErr_NoMemory();
+            return NULL;
+        }
+        out->types = state->types;
+        return out;
     }
-    out->type.types = types;
-    out->fixtuple_size = 0;
-    Py_INCREF(arg);
-    out->extra[0] = arg;
-    return (TypeNode *)out;
-}
 
-static TypeNode *
-TypeNodeArray_New(uint32_t types, PyObject *el_type) {
-    TypeNode *arg = NULL;
-    if ((arg = TypeNode_Convert(el_type)) == NULL) goto error;
-    TypeNodeExtra *out = PyMem_New(TypeNodeExtra, sizeof(TypeNodeExtra) + sizeof(void *));
-    if (out == NULL) {
-        PyErr_NoMemory();
-        goto error;
-    }
-    out->type.types = types;
-    out->fixtuple_size = 0;
-    out->extra[0] = arg;
-    return (TypeNode *)out;
-error:
-    TypeNode_Free(arg);
-    return NULL;
-}
-
-static TypeNode *
-TypeNodeMap_New(uint32_t types, PyObject *key_type, PyObject *value_type) {
-    TypeNode *key = NULL, *value = NULL;
-    if ((key = TypeNode_Convert(key_type)) == NULL) goto error;
-    if ((value = TypeNode_Convert(value_type)) == NULL) goto error;
-
-    TypeNodeExtra *out = PyMem_New(TypeNodeExtra, sizeof(TypeNodeExtra) + 2 * sizeof(void *));
-    if (out == NULL) {
-        PyErr_NoMemory();
-        goto error;
-    }
-    out->type.types = types;
-    out->fixtuple_size = 0;
-    out->extra[0] = key;
-    out->extra[1] = value;
-    return (TypeNode *)out;
-error:
-    TypeNode_Free(key);
-    TypeNode_Free(value);
-    return NULL;
-}
-
-static TypeNode *
-TypeNodeFixTuple_New(PyObject *args) {
-    TypeNodeExtra *out;
-    TypeNode *el;
-    Py_ssize_t i, size;
-
-    size = PyTuple_GET_SIZE(args);
-    out = PyMem_New(
-        TypeNodeExtra,
-        sizeof(TypeNodeExtra) + size * sizeof(void *)
+    /* Use calloc so that `out->extra` is initialized, easing cleanup on error */
+    TypeNodeExtra *out = (TypeNodeExtra *)PyMem_Calloc(
+        1, sizeof(TypeNodeExtra) + n_extra * sizeof(void *)
     );
     if (out == NULL) {
         PyErr_NoMemory();
         return NULL;
     }
-    out->type.types = MP_TYPE_FIXTUPLE;
-    out->fixtuple_size = size;
-    for (i = 0; i < size; i++) {
-        el = TypeNode_Convert(PyTuple_GET_ITEM(args, i));
-        if (el == NULL) goto error;
-        out->extra[i] = el;
+
+    out->type.types = state->types;
+    out->fixtuple_size = fixtuple_size;
+
+    /* Populate `extra` fields in order */
+    e_ind = 0;
+    if (state->struct_obj != NULL) {
+        if (StructMeta_prep_types(state->struct_obj) < 0) goto error;
+        Py_INCREF(state->struct_obj);
+        out->extra[e_ind++] = state->struct_obj;
+    }
+    if (state->intenum_obj != NULL) {
+        Py_INCREF(state->intenum_obj);
+        out->extra[e_ind++] = state->intenum_obj;
+    }
+    if (state->enum_obj != NULL) {
+        Py_INCREF(state->enum_obj);
+        out->extra[e_ind++] = state->enum_obj;
+    }
+    if (state->custom_obj != NULL) {
+        Py_INCREF(state->custom_obj);
+        out->extra[e_ind++] = state->custom_obj;
+    }
+    if (state->dict_key_obj != NULL) {
+        TypeNode *temp = TypeNode_Convert(state->dict_key_obj);
+        if (temp == NULL) goto error;
+        out->extra[e_ind++] = temp;
+        temp = TypeNode_Convert(state->dict_val_obj);
+        if (temp == NULL) goto error;
+        out->extra[e_ind++] = temp;
+    }
+    if (state->array_el_obj != NULL) {
+        if (has_fixtuple) {
+            for (Py_ssize_t i = 0; i < fixtuple_size; i++) {
+                TypeNode *temp = TypeNode_Convert(PyTuple_GET_ITEM(state->array_el_obj, i));
+                if (temp == NULL) goto error;
+                out->extra[e_ind++] = temp;
+            }
+        }
+        else {
+            TypeNode *temp = TypeNode_Convert(state->array_el_obj);
+            if (temp == NULL) goto error;
+            out->extra[e_ind++] = temp;
+        }
     }
     return (TypeNode *)out;
 
@@ -650,62 +666,237 @@ error:
     return NULL;
 }
 
-static TypeNode *
-TypeNode_Convert(PyObject * obj) {
-    TypeNode *out = NULL;
-    PyObject *origin = NULL, *args = NULL;
+static int
+typenode_collect_err_unique(TypeNodeCollectState *state, const char *kind) {
+    PyErr_Format(
+        PyExc_TypeError,
+        "Type unions may not contain more than one %s type - "
+        "type `%R` is not supported",
+        kind,
+        state->context
+    );
+    return -1;
+}
+
+static int
+typenode_collect_check_invariants(TypeNodeCollectState *state) {
+    /* Ensure at least one type is set */
+    if (state->types == 0) {
+        PyErr_Format(PyExc_RuntimeError, "No types found, this is likely a bug!");
+    }
+
+    /* If a custom type is used, this node may only contain that type and `None */
+    if (
+        state->custom_obj != NULL &&
+        state->types & ~(MP_TYPE_CUSTOM | MP_TYPE_CUSTOM_GENERIC | MP_TYPE_NONE)
+    ) {
+        PyErr_Format(
+            PyExc_TypeError,
+            "Type unions containing a custom type may not contain any "
+            "additional types other than `None` - type `%R` is not supported",
+            state->context
+        );
+        return -1;
+    }
+
+    /* Ensure structs don't conflict with dict/array types */
+    if (state->struct_obj) {
+        if (((StructMetaObject *)(state->struct_obj))->asarray && state->array_el_obj) {
+            PyErr_Format(
+                PyExc_TypeError,
+                "Type unions containing a Struct type with `asarray=True` may "
+                "not contain other array-like types - type `%R` is not supported",
+                state->context
+            );
+            return -1;
+        }
+        else if (state->dict_key_obj) {
+            PyErr_Format(
+                PyExc_TypeError,
+                "Type unions may not contain both a Struct type and a dict type "
+                "- type `%R` is not supported",
+                state->context
+            );
+            return -1;
+        }
+    }
+
+    /* Ensure IntEnum doesn't conflict with int */
+    if (state->intenum_obj && state->types & MP_TYPE_INT) {
+        PyErr_Format(
+            PyExc_TypeError,
+            "Type unions may not contain both int and an IntEnum "
+            "- type `%R` is not supported",
+            state->context
+        );
+        return -1;
+    }
+
+    /* Ensure Enum doesn't conflict with str */
+    if (state->enum_obj && state->types & MP_TYPE_STR) {
+        PyErr_Format(
+            PyExc_TypeError,
+            "Type unions may not contain both str and an Enum "
+            "- type `%R` is not supported",
+            state->context
+        );
+        return -1;
+    }
+
+    return 0;
+}
+
+static int
+typenode_collect_dict(TypeNodeCollectState *state, PyObject *key, PyObject *val) {
+    if (state->dict_key_obj != NULL) {
+        return typenode_collect_err_unique(state, "dict");
+    }
+    state->types |= MP_TYPE_DICT;
+    Py_INCREF(key);
+    state->dict_key_obj = key;
+    Py_INCREF(val);
+    state->dict_val_obj = val;
+    return 0;
+}
+
+static int
+typenode_collect_array(TypeNodeCollectState *state, uint32_t type, PyObject *obj) {
+    if (state->array_el_obj != NULL) {
+        return typenode_collect_err_unique(
+            state, "array-like (list, set, tuple)"
+        );
+    }
+    state->types |= type;
+    Py_INCREF(obj);
+    state->array_el_obj = obj;
+    return 0;
+}
+
+static int
+typenode_collect_custom(TypeNodeCollectState *state, uint32_t type, PyObject *obj) {
+    if (state->custom_obj != NULL) {
+        return typenode_collect_err_unique(state, "custom");
+    }
+    state->types |= type;
+    Py_INCREF(obj);
+    state->custom_obj = obj;
+    return 0;
+}
+
+static void
+typenode_collect_clear_state(TypeNodeCollectState *state) {
+    Py_CLEAR(state->struct_obj);
+    Py_CLEAR(state->struct_obj);
+    Py_CLEAR(state->intenum_obj);
+    Py_CLEAR(state->enum_obj);
+    Py_CLEAR(state->custom_obj);
+    Py_CLEAR(state->array_el_obj);
+    Py_CLEAR(state->dict_key_obj);
+    Py_CLEAR(state->dict_val_obj);
+}
+
+static int
+typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
+    int out = -1;
+    PyObject *origin, *args;
     MsgspecState *st = msgspec_get_global_state();
 
+    /* If `Any` type already encountered, nothing to do */
+    if (state->types & MP_TYPE_ANY) return 0;
     if (obj == st->typing_any) {
-        return TypeNode_New(MP_TYPE_ANY);
+        /* Any takes precedence, drop all existing and update type flags */
+        typenode_collect_clear_state(state);
+        state->types = MP_TYPE_ANY;
+        return 0;
     }
-    else if (obj == Py_None || obj == NONE_TYPE) {
-        return TypeNode_New(MP_TYPE_NONE);
+
+    /* Handle Scalar types */
+    if (obj == Py_None || obj == NONE_TYPE) {
+        state->types |= MP_TYPE_NONE;
+        return 0;
     }
     else if (obj == (PyObject *)(&PyBool_Type)) {
-        return TypeNode_New(MP_TYPE_BOOL);
+        state->types |= MP_TYPE_BOOL;
+        return 0;
     }
     else if (obj == (PyObject *)(&PyLong_Type)) {
-        return TypeNode_New(MP_TYPE_INT);
+        state->types |= MP_TYPE_INT;
+        return 0;
     }
     else if (obj == (PyObject *)(&PyFloat_Type)) {
-        return TypeNode_New(MP_TYPE_FLOAT);
+        state->types |= MP_TYPE_FLOAT;
+        return 0;
     }
     else if (obj == (PyObject *)(&PyUnicode_Type)) {
-        return TypeNode_New(MP_TYPE_STR);
+        state->types |= MP_TYPE_STR;
+        return 0;
     }
     else if (obj == (PyObject *)(&PyBytes_Type)) {
-        return TypeNode_New(MP_TYPE_BYTES);
+        state->types |= MP_TYPE_BYTES;
+        return 0;
     }
     else if (obj == (PyObject *)(&PyByteArray_Type)) {
-        return TypeNode_New(MP_TYPE_BYTEARRAY);
+        state->types |= MP_TYPE_BYTEARRAY;
+        return 0;
     }
     else if (obj == (PyObject *)(PyDateTimeAPI->DateTimeType)) {
-        return TypeNode_New(MP_TYPE_DATETIME);
+        state->types |= MP_TYPE_DATETIME;
+        return 0;
     }
     else if (obj == (PyObject *)(&Ext_Type)) {
-        return TypeNode_New(MP_TYPE_EXT);
+        state->types |= MP_TYPE_EXT;
+        return 0;
     }
-    else if (Py_TYPE(obj) == &StructMetaType) {
-        if (StructMeta_prep_types(obj) < 0) return NULL;
-        return TypeNodeObj_New(MP_TYPE_STRUCT, obj);
+
+    /* Struct types */
+    if (Py_TYPE(obj) == &StructMetaType) {
+        /* May only have one Struct type in a union */
+        if (state->struct_obj != NULL) {
+            return typenode_collect_err_unique(state, "Struct");
+        }
+        state->types |= MP_TYPE_STRUCT;
+        Py_INCREF(obj);
+        state->struct_obj = obj;
+        return 0;
     }
-    else if (PyType_Check(obj) && PyType_IsSubtype((PyTypeObject *)obj, st->EnumType)) {
-        if (PyType_IsSubtype((PyTypeObject *)obj, &PyLong_Type))
-            return TypeNodeObj_New(MP_TYPE_INTENUM, obj);
-        return TypeNodeObj_New(MP_TYPE_ENUM, obj);
+
+    /* Enum types */
+    if (PyType_Check(obj) && PyType_IsSubtype((PyTypeObject *)obj, st->EnumType)) {
+        if (PyType_IsSubtype((PyTypeObject *)obj, &PyLong_Type)) {
+            /* IntEnum */
+            if (state->intenum_obj != NULL) {
+                return typenode_collect_err_unique(state, "IntEnum");
+            }
+            state->types |= MP_TYPE_INTENUM;
+            Py_INCREF(obj);
+            state->intenum_obj = obj;
+            return 0;
+        }
+        else {
+            /* Enum */
+            if (state->enum_obj != NULL) {
+                return typenode_collect_err_unique(state, "Enum");
+            }
+            state->types |= MP_TYPE_ENUM;
+            Py_INCREF(obj);
+            state->enum_obj = obj;
+            return 0;
+        }
     }
-    else if (obj == (PyObject*)(&PyDict_Type) || obj == st->typing_dict) {
-        return TypeNodeMap_New(MP_TYPE_DICT, st->typing_any, st->typing_any);
+
+    /* Generic collections can be spelled a few different ways, so the below
+     * logic is a bit split up as we discover what type of thing `obj` is. */
+    if (obj == (PyObject*)(&PyDict_Type) || obj == st->typing_dict) {
+        return typenode_collect_dict(state, st->typing_any, st->typing_any);
     }
     else if (obj == (PyObject*)(&PyList_Type) || obj == st->typing_list) {
-        return TypeNodeArray_New(MP_TYPE_LIST, st->typing_any);
+        return typenode_collect_array(state, MP_TYPE_LIST, st->typing_any);
     }
     else if (obj == (PyObject*)(&PySet_Type) || obj == st->typing_set) {
-        return TypeNodeArray_New(MP_TYPE_SET, st->typing_any);
+        return typenode_collect_array(state, MP_TYPE_SET, st->typing_any);
     }
     else if (obj == (PyObject*)(&PyTuple_Type) || obj == st->typing_tuple) {
-        return TypeNodeArray_New(MP_TYPE_VARTUPLE, st->typing_any);
+        return typenode_collect_array(state, MP_TYPE_VARTUPLE, st->typing_any);
     }
 
     /* Attempt to extract __origin__/__args__ from the obj as a typing object */
@@ -713,83 +904,86 @@ TypeNode_Convert(PyObject * obj) {
             (args = PyObject_GetAttr(obj, st->str___args__)) == NULL) {
         /* Not a parametrized generic, must be a custom type */
         PyErr_Clear();
-        if (PyType_Check(obj)) {
-            out = TypeNodeObj_New(MP_TYPE_CUSTOM, obj);
-        }
-        else if (origin != NULL) {
-            out = TypeNodeObj_New(MP_TYPE_CUSTOM_GENERIC, obj);
-        }
+        if (!PyType_Check(origin != NULL ? origin : obj)) goto invalid;
+        out = typenode_collect_custom(
+            state, 
+            origin != NULL ? MP_TYPE_CUSTOM_GENERIC : MP_TYPE_CUSTOM,
+            obj
+        );
         goto done;
     }
 
     if (origin == (PyObject*)(&PyDict_Type)) {
-        if (PyTuple_Size(args) != 2) goto done;
-        out = TypeNodeMap_New(MP_TYPE_DICT, PyTuple_GET_ITEM(args, 0), PyTuple_GET_ITEM(args, 1));
+        if (PyTuple_Size(args) != 2) goto invalid;
+        out = typenode_collect_dict(
+            state, PyTuple_GET_ITEM(args, 0), PyTuple_GET_ITEM(args, 1)
+        );
         goto done;
     }
     else if (origin == (PyObject*)(&PyList_Type)) {
-        if (PyTuple_Size(args) != 1) goto done;
-        out = TypeNodeArray_New(MP_TYPE_LIST, PyTuple_GET_ITEM(args, 0));
+        if (PyTuple_Size(args) != 1) goto invalid;
+        out = typenode_collect_array(
+            state, MP_TYPE_LIST, PyTuple_GET_ITEM(args, 0)
+        );
         goto done;
     }
     else if (origin == (PyObject*)(&PySet_Type)) {
-        if (PyTuple_Size(args) != 1) goto done;
-        out = TypeNodeArray_New(MP_TYPE_SET, PyTuple_GET_ITEM(args, 0));
+        if (PyTuple_Size(args) != 1) goto invalid;
+        out = typenode_collect_array(
+            state, MP_TYPE_SET, PyTuple_GET_ITEM(args, 0)
+        );
         goto done;
     }
     else if (origin == (PyObject*)(&PyTuple_Type)) {
         if (PyTuple_Size(args) == 2 && PyTuple_GET_ITEM(args, 1) == Py_Ellipsis) {
-            out = TypeNodeArray_New(MP_TYPE_VARTUPLE, PyTuple_GET_ITEM(args, 0));
+            out = typenode_collect_array(
+                state, MP_TYPE_VARTUPLE, PyTuple_GET_ITEM(args, 0)
+            );
         }
         else {
-            out = TypeNodeFixTuple_New(args);
+            out = typenode_collect_array(state, MP_TYPE_FIXTUPLE, args);
         }
         goto done;
     }
     else if (origin == st->typing_union) {
-        if (PyTuple_Size(args) != 2) goto done;
-        if (PyTuple_GET_ITEM(args, 0) == NONE_TYPE) {
-            out = TypeNode_Convert(PyTuple_GET_ITEM(args, 1));
-        }
-        else if (PyTuple_GET_ITEM(args, 1) == NONE_TYPE) {
-            out = TypeNode_Convert(PyTuple_GET_ITEM(args, 0));
-        }
-        if (out != NULL && !(out->types & MP_TYPE_ANY)) {
-            out->types |= MP_TYPE_NONE;
-        }
-    }
-    else {
-        /* A parametrized type, but not one we natively support. */
-        if (PyType_Check(origin)) {
-            out = TypeNodeObj_New(MP_TYPE_CUSTOM_GENERIC, obj);
+        for (Py_ssize_t i = 0; i < PyTuple_Size(args); i++) {
+            out = typenode_collect_type(state, PyTuple_GET_ITEM(args, i));
+            if (out < 0) break;
         }
         goto done;
     }
+    else {
+        if (!PyType_Check(origin)) goto invalid;
+        /* A parametrized type, but not one we natively support. */
+        out = typenode_collect_custom(state, MP_TYPE_CUSTOM_GENERIC, obj);
+        goto done;
+    }
+
+invalid:
+    PyErr_Format(PyExc_TypeError, "Type '%R' is not supported", obj);
 
 done:
     Py_XDECREF(origin);
     Py_XDECREF(args);
-    if (out == NULL) {
-        PyErr_Format(PyExc_TypeError, "Type '%R' is not supported", obj);
-    }
     return out;
 }
 
+static TypeNode *
+TypeNode_Convert(PyObject *obj) {
+    TypeNode *out = NULL;
+    TypeNodeCollectState state = {0};
+    state.context = obj;
 
-
-/*************************************************************************
- * Struct Types                                                          *
- *************************************************************************/
-
-typedef struct {
-    PyHeapTypeObject base;
-    PyObject *struct_fields;
-    PyObject *struct_defaults;
-    Py_ssize_t *struct_offsets;
-    TypeNode **struct_types;
-    char immutable;
-    char asarray;
-} StructMetaObject;
+    /* Traverse `obj` to collect all type annotations at this level */
+    if (typenode_collect_type(&state, obj) < 0) goto done;
+    /* Check type invariants to ensure Union types are valid */
+    if (typenode_collect_check_invariants(&state) < 0) goto done;
+    /* Populate a new TypeNode, recursing into subtypes as needed */
+    out = typenode_from_collect_state(&state);
+done:
+    typenode_collect_clear_state(&state);
+    return out;
+}
 
 static PyTypeObject StructMixinType;
 
