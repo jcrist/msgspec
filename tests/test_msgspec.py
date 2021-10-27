@@ -547,21 +547,21 @@ class TestDecoderMisc:
             (Deque, "typing.Deque"),
             (Deque[int], str(Deque[int])),
             (List[Optional[Dict[str, Person]]], "List[Optional[Dict[str, Person]]]"),
+            (Union[int, float], "Union[int, float]"),
+            (Union[Person, str, int], "Union[int, str, Person]"),
         ],
     )
     def test_decoder_repr(self, typ, typstr):
         dec = msgspec.Decoder(typ)
         assert repr(dec) == f"Decoder({typstr})"
 
-        dec = msgspec.Decoder(Optional[typ])
-        assert repr(dec) == f"Decoder(Optional[{typstr}])"
+        if "Union" not in typstr:
+            dec = msgspec.Decoder(Optional[typ])
+            assert repr(dec) == f"Decoder(Optional[{typstr}])"
 
     def test_decoder_unsupported_type(self):
         with pytest.raises(TypeError):
             msgspec.Decoder(1)
-
-        with pytest.raises(TypeError):
-            msgspec.Decoder(Union[int, float])
 
     def test_decoder_validates_struct_definition_unsupported_types(self):
         """Struct definitions aren't validated until first use"""
