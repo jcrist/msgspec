@@ -30,7 +30,8 @@ efficient to create an `Encoder` and `Decoder` once, and then use
 Supported Types
 ---------------
 
-Msgspec currently supports serializing/deserializing the following types:
+Msgspec currently supports serializing/deserializing the following concrete
+types:
 
 - `None`
 - `bool`
@@ -150,6 +151,7 @@ acceptible:
 - `datetime.datetime`
 - `typing.Any`
 - `typing.Optional`
+- `typing.Union`
 - `msgspec.Ext`
 - `enum.Enum` derived types
 - `enum.IntEnum` derived types
