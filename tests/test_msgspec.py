@@ -767,7 +767,7 @@ class TestTypedDecoder:
         x = [1, "two", b"three"]
         res = dec.decode(enc.encode(x))
         assert res == x
-        with pytest.raises(msgspec.DecodingError, match="expected `list`"):
+        with pytest.raises(msgspec.DecodingError, match=r"expected `List\[Any\]`"):
             dec.decode(enc.encode(1))
 
     def test_list_typed(self):
@@ -794,7 +794,7 @@ class TestTypedDecoder:
         x = {1, "two", b"three"}
         res = dec.decode(enc.encode(x))
         assert res == x
-        with pytest.raises(msgspec.DecodingError, match="expected `set`"):
+        with pytest.raises(msgspec.DecodingError, match=r"expected `Set\[Any\]`"):
             dec.decode(enc.encode(1))
 
     def test_set_typed(self):
@@ -821,7 +821,9 @@ class TestTypedDecoder:
         x = (1, "two", b"three")
         res = dec.decode(enc.encode(x))
         assert res == x
-        with pytest.raises(msgspec.DecodingError, match="expected `tuple`"):
+        with pytest.raises(
+            msgspec.DecodingError, match=r"expected `Tuple\[Any, ...\]`"
+        ):
             dec.decode(enc.encode(1))
 
     def test_vartuple_typed(self):
@@ -839,7 +841,9 @@ class TestTypedDecoder:
         x = (1, "two", b"three")
         res = dec.decode(enc.encode(x))
         assert res == x
-        with pytest.raises(msgspec.DecodingError, match="expected `tuple`"):
+        with pytest.raises(
+            msgspec.DecodingError, match=r"expected `Tuple\[Any, Any, Any\]`"
+        ):
             dec.decode(enc.encode(1))
         with pytest.raises(
             msgspec.DecodingError,
@@ -876,7 +880,7 @@ class TestTypedDecoder:
         x = {1: "one", "two": 2, b"three": 3.0}
         res = dec.decode(enc.encode(x))
         assert res == x
-        with pytest.raises(msgspec.DecodingError, match="expected `dict`"):
+        with pytest.raises(msgspec.DecodingError, match=r"expected `Dict\[Any, Any\]`"):
             dec.decode(enc.encode(1))
 
     def test_dict_any_val(self):
@@ -961,7 +965,7 @@ class TestTypedDecoder:
 
         with pytest.raises(
             msgspec.DecodingError,
-            match="Error decoding `Person`: expected `struct`, got `int`",
+            match="Error decoding `Person`: expected `Person`, got `int`",
         ):
             dec.decode(enc.encode(1))
 
@@ -1049,7 +1053,7 @@ class TestTypedDecoder:
 
         with pytest.raises(
             msgspec.DecodingError,
-            match="Error decoding `PersonAA`: expected `asarray struct`, got `int`",
+            match="Error decoding `PersonAA`: expected `PersonAA`, got `int`",
         ):
             dec.decode(enc.encode(1))
 
@@ -1098,12 +1102,12 @@ class TestTypedDecoder:
         assert dec.decode(map_msg) == sol
         with pytest.raises(
             msgspec.DecodingError,
-            match="Error decoding `Person`: expected `struct`, got `list`",
+            match="Error decoding `Person`: expected `Person`, got `list`",
         ):
             dec.decode(array_msg)
         with pytest.raises(
             msgspec.DecodingError,
-            match="Error decoding `PersonAA`: expected `asarray struct`, got `dict`",
+            match="Error decoding `PersonAA`: expected `PersonAA`, got `dict`",
         ):
             array_dec.decode(map_msg)
 
@@ -1203,7 +1207,7 @@ class TestTypedDecoder:
             ([bool, None, float, str], [True, None, 1.5, "test"]),
         ],
     )
-    def test_decode_unions(self, types, vals):
+    def test_union(self, types, vals):
         dec = msgspec.Decoder(List[Union[tuple(types)]])
         s = msgspec.encode(vals)
         res = dec.decode(s)
@@ -1254,7 +1258,7 @@ class TestTypedDecoder:
             ),
         ],
     )
-    def test_decode_compound_type_unions(self, types, vals):
+    def test_compound_type_unions(self, types, vals):
         typ_vals = list(zip(types, vals))
 
         for N in range(2, len(typ_vals)):
@@ -1268,6 +1272,14 @@ class TestTypedDecoder:
                 for t, v in zip(types, res):
                     t = getattr(t, "__origin__", t)
                     assert type(v) == t
+
+    def test_union_error(self):
+        msg = msgspec.encode(1)
+        with pytest.raises(
+            msgspec.DecodingError,
+            match=r"Error decoding `Union\[bool, str\]`: expected `Union\[bool, str\]`, got `int`",
+        ):
+            msgspec.decode(msg, type=Union[bool, str])
 
     def test_decoding_error_no_struct_toplevel(self):
         b = msgspec.Encoder().encode([{"a": 1}])
