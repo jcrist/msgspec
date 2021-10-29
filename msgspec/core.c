@@ -850,7 +850,7 @@ typenode_collect_clear_state(TypeNodeCollectState *state) {
 static int
 typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
     int out = -1;
-    PyObject *origin, *args;
+    PyObject *origin = NULL, *args = NULL;
     MsgspecState *st = msgspec_get_global_state();
 
     /* If `Any` type already encountered, nothing to do */
@@ -3761,62 +3761,15 @@ mp_format_validation_error(const char *expected, const char *got, TypeNode *ctx,
 
 static MP_NOINLINE PyObject *
 mp_validation_error(char *got, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind) {
-    char *expected = NULL;
-    switch (type->types) {
-        case MP_TYPE_NONE:
-            expected = "None";
-            break;
-        case MP_TYPE_BOOL:
-            expected = "bool";
-            break;
-        case MP_TYPE_INT:
-            expected = "int";
-            break;
-        case MP_TYPE_FLOAT:
-            expected = "float";
-            break;
-        case MP_TYPE_STR:
-            expected = "str";
-            break;
-        case MP_TYPE_BYTES:
-            expected = "bytes";
-            break;
-        case MP_TYPE_BYTEARRAY:
-            expected = "bytearray";
-            break;
-        case MP_TYPE_DATETIME:
-            expected = "datetime";
-            break;
-        case MP_TYPE_EXT:
-            expected = "Ext";
-            break;
-        case MP_TYPE_LIST:
-            expected = "list";
-            break;
-        case MP_TYPE_SET:
-            expected = "set";
-            break;
-        case MP_TYPE_FIXTUPLE:
-        case MP_TYPE_VARTUPLE:
-            expected = "tuple";
-            break;
-        case MP_TYPE_DICT:
-            expected = "dict";
-            break;
-        case MP_TYPE_STRUCT: {
-            expected = (
-                (TypeNode_get_struct(type)->asarray == OPT_TRUE) ?
-                "asarray struct" :
-                "struct"
-            );
-            break;
-        }
-        default:
-            // TODO
-            expected = "Union[...]";
-            break;
-    }
-    return mp_format_validation_error(expected, got, ctx, ctx_ind);
+    PyObject *out = NULL;
+    PyObject *repr = TypeNode_Repr(type);
+    if (repr == NULL) return NULL;
+    const char *expected = PyUnicode_AsUTF8(repr);
+    if (expected == NULL) goto cleanup;
+    out = mp_format_validation_error(expected, got, ctx, ctx_ind);
+cleanup:
+    Py_DECREF(repr);
+    return out;
 }
 
 static PyObject *
