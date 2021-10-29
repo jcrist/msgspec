@@ -352,7 +352,6 @@ TypeNode_get_array(TypeNode *type) {
     return ((TypeNodeExtra *)type)->extra[TypeNode_get_array_offset(type)];
 }
 
-
 static void
 TypeNode_Free(TypeNode *self) {
     if (self == NULL) return;
@@ -3760,7 +3759,7 @@ mp_format_validation_error(const char *expected, const char *got, TypeNode *ctx,
     return NULL;
 }
 
-static PyObject *
+static MP_NOINLINE PyObject *
 mp_validation_error(char *got, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind) {
     char *expected = NULL;
     switch (type->types) {
@@ -3804,9 +3803,14 @@ mp_validation_error(char *got, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind
         case MP_TYPE_DICT:
             expected = "dict";
             break;
-        case MP_TYPE_STRUCT:
-            expected = "struct";
+        case MP_TYPE_STRUCT: {
+            expected = (
+                (TypeNode_get_struct(type)->asarray == OPT_TRUE) ?
+                "asarray struct" :
+                "struct"
+            );
             break;
+        }
         default:
             // TODO
             expected = "Union[...]";
@@ -3849,22 +3853,35 @@ mp_decode_type_intenum(DecoderState *self, PyObject *val, TypeNode *type) {
     return out;
 }
 
-static PyObject *
-mp_decode_type_int(DecoderState *self, int64_t ival, uint64_t uval, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind) {
-    if (type->types & (MP_TYPE_ANY | MP_TYPE_INT | MP_TYPE_INTENUM)) {
-        PyObject *val = ival != 0 ? PyLong_FromLongLong(ival) : PyLong_FromUnsignedLongLong(uval);
-        if (MP_UNLIKELY(type->types & MP_TYPE_INTENUM)) {
-            return mp_decode_type_intenum(self, val, type);
-        }
-        return val;
+static MP_INLINE PyObject *
+mp_decode_type_int(DecoderState *self, int64_t x, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind) {
+    if (type->types & MP_TYPE_INTENUM) {
+        return mp_decode_type_intenum(self, PyLong_FromLongLong(x), type);
+    }
+    else if (type->types & (MP_TYPE_ANY | MP_TYPE_INT)) {
+        return PyLong_FromLongLong(x);
     }
     else if (type->types & MP_TYPE_FLOAT) {
-        return ival != 0 ? PyFloat_FromDouble(ival) : PyFloat_FromDouble(uval);
+        return PyFloat_FromDouble(x);
     }
     return mp_validation_error("int", type, ctx, ctx_ind);
 }
 
-static PyObject *
+static MP_INLINE PyObject *
+mp_decode_type_uint(DecoderState *self, uint64_t x, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind) {
+    if (type->types & MP_TYPE_INTENUM) {
+        return mp_decode_type_intenum(self, PyLong_FromUnsignedLongLong(x), type);
+    }
+    else if (type->types & (MP_TYPE_ANY | MP_TYPE_INT)) {
+        return PyLong_FromUnsignedLongLong(x);
+    }
+    else if (type->types & MP_TYPE_FLOAT) {
+        return PyFloat_FromDouble(x);
+    }
+    return mp_validation_error("int", type, ctx, ctx_ind);
+}
+
+static MP_INLINE PyObject *
 mp_decode_type_none(DecoderState *self, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind) {
     if (type->types & (MP_TYPE_ANY | MP_TYPE_NONE)) {
         Py_INCREF(Py_None);
@@ -3873,7 +3890,7 @@ mp_decode_type_none(DecoderState *self, TypeNode *type, TypeNode *ctx, Py_ssize_
     return mp_validation_error("None", type, ctx, ctx_ind);
 }
 
-static PyObject *
+static MP_INLINE PyObject *
 mp_decode_type_bool(DecoderState *self, PyObject *val, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind) {
     if (type->types & (MP_TYPE_ANY | MP_TYPE_BOOL)) {
         Py_INCREF(val);
@@ -3890,7 +3907,7 @@ mp_decode_type_float(DecoderState *self, double val, TypeNode *type, TypeNode *c
     return mp_validation_error("float", type, ctx, ctx_ind);
 }
 
-static PyObject *
+static MP_NOINLINE PyObject *
 mp_decode_type_enum(DecoderState *self, PyObject *val, TypeNode *type) {
     if (val == NULL) return NULL;
     PyObject *enum_obj = TypeNode_get_enum(type);
@@ -3908,14 +3925,12 @@ mp_decode_type_enum(DecoderState *self, PyObject *val, TypeNode *type) {
     return out;
 }
 
-static PyObject *
+static MP_INLINE PyObject *
 mp_decode_type_str(DecoderState *self, Py_ssize_t size, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind) {
-    if (size < 0) return NULL;
-
-    if (type->types & (MP_TYPE_ANY | MP_TYPE_STR | MP_TYPE_ENUM)) {
+    if (MP_LIKELY(type->types & (MP_TYPE_ANY | MP_TYPE_STR | MP_TYPE_ENUM))) {
         char *s = NULL;
         PyObject *val;
-        if (mp_read(self, &s, size) < 0) return NULL;
+        if (MP_UNLIKELY(mp_read(self, &s, size) < 0)) return NULL;
         val = PyUnicode_DecodeUTF8(s, size, NULL);
         if (MP_UNLIKELY(type->types & MP_TYPE_ENUM)) {
             return mp_decode_type_enum(self, val, type);
@@ -3927,10 +3942,10 @@ mp_decode_type_str(DecoderState *self, Py_ssize_t size, TypeNode *type, TypeNode
 
 static PyObject *
 mp_decode_type_bin(DecoderState *self, Py_ssize_t size, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind) {
-    if (size < 0) return NULL;
+    if (MP_UNLIKELY(size < 0)) return NULL;
 
     char *s = NULL;
-    if (mp_read(self, &s, size) < 0) return NULL;
+    if (MP_UNLIKELY(mp_read(self, &s, size) < 0)) return NULL;
 
     if (type->types & (MP_TYPE_ANY | MP_TYPE_BYTES)) {
         return PyBytes_FromStringAndSize(s, size);
@@ -3958,7 +3973,7 @@ mp_decode_type_list(
     }
     for (i = 0; i < size; i++) {
         item = mp_decode_type(self, el_type, ctx, ctx_ind, false);
-        if (item == NULL) {
+        if (MP_UNLIKELY(item == NULL)) {
             Py_CLEAR(res);
             break;
         }
@@ -3985,7 +4000,7 @@ mp_decode_type_set(
     }
     for (i = 0; i < size; i++) {
         item = mp_decode_type(self, el_type, ctx, ctx_ind, true);
-        if (item == NULL || PySet_Add(res, item) < 0) {
+        if (MP_UNLIKELY(item == NULL || PySet_Add(res, item) < 0)) {
             Py_CLEAR(res);
             break;
         }
@@ -4012,7 +4027,7 @@ mp_decode_type_vartuple(
     }
     for (i = 0; i < size; i++) {
         item = mp_decode_type(self, el_type, ctx, ctx_ind, is_key);
-        if (item == NULL) {
+        if (MP_UNLIKELY(item == NULL)) {
             Py_CLEAR(res);
             break;
         }
@@ -4069,7 +4084,7 @@ mp_decode_type_fixtuple(
     offset = TypeNode_get_array_offset(type);
     for (i = 0; i < tex->fixtuple_size; i++) {
         item = mp_decode_type(self, tex->extra[offset + i], ctx, ctx_ind, is_key);
-        if (item == NULL) {
+        if (MP_UNLIKELY(item == NULL)) {
             Py_CLEAR(res);
             break;
         }
@@ -4102,7 +4117,7 @@ mp_decode_type_struct_array(
     for (i = 0; i < nfields; i++) {
         if (size > 0) {
             val = mp_decode_type(self, st_type->struct_types[i], type, i, is_key);
-            if (val == NULL) goto error;
+            if (MP_UNLIKELY(val == NULL)) goto error;
             size--;
         }
         else if (i < npos) {
@@ -4147,8 +4162,6 @@ static PyObject *
 mp_decode_type_array(
     DecoderState *self, Py_ssize_t size, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind, bool is_key
 ) {
-    if (size < 0) return NULL;
-
     if (type->types & MP_TYPE_ANY) {
         if (is_key) {
             return mp_decode_type_vartuple(self, size, type, ctx, ctx_ind, is_key);
@@ -4185,8 +4198,6 @@ mp_decode_type_dict(
     Py_ssize_t i;
     PyObject *res, *key = NULL, *val = NULL;
 
-    if (size < 0) return NULL;
-
     res = PyDict_New();
     if (res == NULL) return NULL;
     if (size == 0) return res;
@@ -4197,12 +4208,12 @@ mp_decode_type_dict(
     }
     for (i = 0; i < size; i++) {
         key = mp_decode_type(self, key_type, ctx, ctx_ind, true);
-        if (key == NULL)
+        if (MP_UNLIKELY(key == NULL))
             goto error;
         val = mp_decode_type(self, val_type, ctx, ctx_ind, false);
-        if (val == NULL)
+        if (MP_UNLIKELY(val == NULL))
             goto error;
-        if (PyDict_SetItem(res, key, val) < 0)
+        if (MP_UNLIKELY(PyDict_SetItem(res, key, val) < 0))
             goto error;
         Py_CLEAR(key);
         Py_CLEAR(val);
@@ -4291,7 +4302,7 @@ mp_error_expected(char op, char *expected, TypeNode *ctx, Py_ssize_t ctx_ind) {
     return mp_format_validation_error("str", got, ctx, ctx_ind);
 }
 
-static Py_ssize_t
+static MP_INLINE Py_ssize_t
 mp_decode_cstr(DecoderState *self, char ** out, TypeNode *ctx) {
     char op = 0;
     Py_ssize_t size;
@@ -4319,11 +4330,12 @@ mp_decode_cstr(DecoderState *self, char ** out, TypeNode *ctx) {
 }
 
 static PyObject *
-mp_decode_type_struct_map(DecoderState *self, Py_ssize_t size, TypeNode *type, bool is_key) {
+mp_decode_type_struct_map(
+    DecoderState *self, Py_ssize_t size, StructMetaObject *st_type, TypeNode *type, bool is_key
+) {
     Py_ssize_t i, key_size, field_index, nfields, ndefaults, pos = 0;
     char *key = NULL;
     PyObject *res, *val = NULL;
-    StructMetaObject *st_type = TypeNode_get_struct(type);
     int should_untrack;
 
     res = Struct_alloc((PyTypeObject *)(st_type));
@@ -4335,7 +4347,7 @@ mp_decode_type_struct_map(DecoderState *self, Py_ssize_t size, TypeNode *type, b
     }
     for (i = 0; i < size; i++) {
         key_size = mp_decode_cstr(self, &key, type);
-        if (key_size < 0) goto error;
+        if (MP_UNLIKELY(key_size < 0)) goto error;
 
         field_index = StructMeta_get_field_index(st_type, key, key_size, &pos);
         if (field_index < 0) {
@@ -4394,8 +4406,6 @@ static PyObject *
 mp_decode_type_map(
     DecoderState *self, Py_ssize_t size, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind, bool is_key
 ) {
-    if (size < 0) return NULL;
-
     if (type->types & MP_TYPE_ANY) {
         return mp_decode_type_dict(self, size, type, type, ctx, ctx_ind);
     }
@@ -4405,7 +4415,10 @@ mp_decode_type_map(
         return mp_decode_type_dict(self, size, key, val, ctx, ctx_ind);
     }
     else if (type->types & MP_TYPE_STRUCT) {
-        return mp_decode_type_struct_map(self, size, type, is_key);
+        StructMetaObject *struct_type = TypeNode_get_struct(type);
+        if (struct_type->asarray != OPT_TRUE) {
+            return mp_decode_type_struct_map(self, size, struct_type, type, is_key);
+        }
     }
     return mp_validation_error("dict", type, ctx, ctx_ind);
 }
@@ -4534,7 +4547,7 @@ mp_decode_type(
     }
 
     if (-32 <= op && op <= 127) {
-        return mp_decode_type_int(self, op, 0, type, ctx, ctx_ind);
+        return mp_decode_type_int(self, op, type, ctx, ctx_ind);
     }
     else if ('\xa0' <= op && op <= '\xbf') {
         return mp_decode_type_str(self, op & 0x1f, type, ctx, ctx_ind);
@@ -4553,29 +4566,29 @@ mp_decode_type(
         case MP_FALSE:
             return mp_decode_type_bool(self, Py_False, type, ctx, ctx_ind);
         case MP_UINT8:
-            if (mp_read(self, &s, 1) < 0) return NULL;
-            return mp_decode_type_int(self, 0, *(uint8_t *)s, type, ctx, ctx_ind);
+            if (MP_UNLIKELY(mp_read(self, &s, 1) < 0)) return NULL;
+            return mp_decode_type_uint(self, *(uint8_t *)s, type, ctx, ctx_ind);
         case MP_UINT16:
-            if (mp_read(self, &s, 2) < 0) return NULL;
-            return mp_decode_type_int(self, 0, _msgspec_load16(uint16_t, s), type, ctx, ctx_ind);
+            if (MP_UNLIKELY(mp_read(self, &s, 2) < 0)) return NULL;
+            return mp_decode_type_uint(self, _msgspec_load16(uint16_t, s), type, ctx, ctx_ind);
         case MP_UINT32:
-            if (mp_read(self, &s, 4) < 0) return NULL;
-            return mp_decode_type_int(self, 0, _msgspec_load32(uint32_t, s), type, ctx, ctx_ind);
+            if (MP_UNLIKELY(mp_read(self, &s, 4) < 0)) return NULL;
+            return mp_decode_type_uint(self, _msgspec_load32(uint32_t, s), type, ctx, ctx_ind);
         case MP_UINT64:
-            if (mp_read(self, &s, 8) < 0) return NULL;
-            return mp_decode_type_int(self, 0, _msgspec_load64(uint64_t, s), type, ctx, ctx_ind);
+            if (MP_UNLIKELY(mp_read(self, &s, 8) < 0)) return NULL;
+            return mp_decode_type_uint(self, _msgspec_load64(uint64_t, s), type, ctx, ctx_ind);
         case MP_INT8:
-            if (mp_read(self, &s, 1) < 0) return NULL;
-            return mp_decode_type_int(self, *(int8_t *)s, 0, type, ctx, ctx_ind);
+            if (MP_UNLIKELY(mp_read(self, &s, 1) < 0)) return NULL;
+            return mp_decode_type_int(self, *(int8_t *)s, type, ctx, ctx_ind);
         case MP_INT16:
-            if (mp_read(self, &s, 2) < 0) return NULL;
-            return mp_decode_type_int(self, _msgspec_load16(int16_t, s), 0, type, ctx, ctx_ind);
+            if (MP_UNLIKELY(mp_read(self, &s, 2) < 0)) return NULL;
+            return mp_decode_type_int(self, _msgspec_load16(int16_t, s), type, ctx, ctx_ind);
         case MP_INT32:
-            if (mp_read(self, &s, 4) < 0) return NULL;
-            return mp_decode_type_int(self, _msgspec_load32(int32_t, s), 0, type, ctx, ctx_ind);
+            if (MP_UNLIKELY(mp_read(self, &s, 4) < 0)) return NULL;
+            return mp_decode_type_int(self, _msgspec_load32(int32_t, s), type, ctx, ctx_ind);
         case MP_INT64:
-            if (mp_read(self, &s, 8) < 0) return NULL;
-            return mp_decode_type_int(self, _msgspec_load64(int64_t, s), 0, type, ctx, ctx_ind);
+            if (MP_UNLIKELY(mp_read(self, &s, 8) < 0)) return NULL;
+            return mp_decode_type_int(self, _msgspec_load64(int64_t, s), type, ctx, ctx_ind);
         case MP_FLOAT32: {
             float f = 0;
             uint32_t uf;
@@ -4592,26 +4605,47 @@ mp_decode_type(
             memcpy(&f, &uf, 8);
             return mp_decode_type_float(self, f, type, ctx, ctx_ind);
         }
-        case MP_STR8:
-            return mp_decode_type_str(self, mp_decode_size1(self), type, ctx, ctx_ind);
-        case MP_STR16:
-            return mp_decode_type_str(self, mp_decode_size2(self), type, ctx, ctx_ind);
-        case MP_STR32:
-            return mp_decode_type_str(self, mp_decode_size4(self), type, ctx, ctx_ind);
+        case MP_STR8: {
+            Py_ssize_t size = mp_decode_size1(self);
+            if (MP_UNLIKELY(size < 0)) return NULL;
+            return mp_decode_type_str(self, size, type, ctx, ctx_ind);
+        }
+        case MP_STR16: {
+            Py_ssize_t size = mp_decode_size2(self);
+            if (MP_UNLIKELY(size < 0)) return NULL;
+            return mp_decode_type_str(self, size, type, ctx, ctx_ind);
+        }
+        case MP_STR32: {
+            Py_ssize_t size = mp_decode_size4(self);
+            if (MP_UNLIKELY(size < 0)) return NULL;
+            return mp_decode_type_str(self, size, type, ctx, ctx_ind);
+        }
         case MP_BIN8:
             return mp_decode_type_bin(self, mp_decode_size1(self), type, ctx, ctx_ind);
         case MP_BIN16:
             return mp_decode_type_bin(self, mp_decode_size2(self), type, ctx, ctx_ind);
         case MP_BIN32:
             return mp_decode_type_bin(self, mp_decode_size4(self), type, ctx, ctx_ind);
-        case MP_ARRAY16:
-            return mp_decode_type_array(self, mp_decode_size2(self), type, ctx, ctx_ind, is_key);
-        case MP_ARRAY32:
-            return mp_decode_type_array(self, mp_decode_size4(self), type, ctx, ctx_ind, is_key);
-        case MP_MAP16:
-            return mp_decode_type_map(self, mp_decode_size2(self), type, ctx, ctx_ind, is_key);
-        case MP_MAP32:
-            return mp_decode_type_map(self, mp_decode_size4(self), type, ctx, ctx_ind, is_key);
+        case MP_ARRAY16: {
+            Py_ssize_t size = mp_decode_size2(self);
+            if (MP_UNLIKELY(size < 0)) return NULL;
+            return mp_decode_type_array(self, size, type, ctx, ctx_ind, is_key);
+        }
+        case MP_ARRAY32: {
+            Py_ssize_t size = mp_decode_size4(self);
+            if (MP_UNLIKELY(size < 0)) return NULL;
+            return mp_decode_type_array(self, size, type, ctx, ctx_ind, is_key);
+        }
+        case MP_MAP16: {
+            Py_ssize_t size = mp_decode_size2(self);
+            if (MP_UNLIKELY(size < 0)) return NULL;
+            return mp_decode_type_map(self, size, type, ctx, ctx_ind, is_key);
+        }
+        case MP_MAP32: {
+            Py_ssize_t size = mp_decode_size4(self);
+            if (MP_UNLIKELY(size < 0)) return NULL;
+            return mp_decode_type_map(self, size, type, ctx, ctx_ind, is_key);
+        }
         case MP_FIXEXT1:
             return mp_decode_type_ext(self, 1, type, ctx, ctx_ind);
         case MP_FIXEXT2:

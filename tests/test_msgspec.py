@@ -1049,7 +1049,7 @@ class TestTypedDecoder:
 
         with pytest.raises(
             msgspec.DecodingError,
-            match="Error decoding `PersonAA`: expected `struct`, got `int`",
+            match="Error decoding `PersonAA`: expected `asarray struct`, got `int`",
         ):
             dec.decode(enc.encode(1))
 
@@ -1094,7 +1094,6 @@ class TestTypedDecoder:
         dec = msgspec.Decoder(Person)
         array_dec = msgspec.Decoder(PersonAA)
 
-        assert array_dec.decode(map_msg) == array_sol
         assert array_dec.decode(array_msg) == array_sol
         assert dec.decode(map_msg) == sol
         with pytest.raises(
@@ -1102,6 +1101,11 @@ class TestTypedDecoder:
             match="Error decoding `Person`: expected `struct`, got `list`",
         ):
             dec.decode(array_msg)
+        with pytest.raises(
+            msgspec.DecodingError,
+            match="Error decoding `PersonAA`: expected `asarray struct`, got `dict`",
+        ):
+            array_dec.decode(map_msg)
 
     @pytest.mark.parametrize("asarray", [False, True])
     def test_struct_gc_maybe_untracked_on_decode(self, asarray):
