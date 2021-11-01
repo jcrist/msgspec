@@ -40,6 +40,7 @@ types:
 - `str`
 - `bytes`
 - `bytearray`
+- `memoryview`
 - `tuple`
 - `list`
 - `dict`
