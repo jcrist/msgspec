@@ -406,6 +406,15 @@ class TestEncoderMisc:
         out2 = enc.encode([1, 2, 3])
         assert out1 == out2
 
+    @pytest.mark.parametrize("size", SIZES)
+    def test_encode_memoryview(self, size):
+        """We don't support memoryview as a decode type, just check we can
+        encode them fine"""
+        buf = bytearray(size)
+        msg = msgspec.encode(memoryview(buf))
+        res = msgspec.decode(msg)
+        assert buf == res
+
 
 class TestDecoderMisc:
     def test_decoder_type_attribute(self):

@@ -242,19 +242,18 @@ check_positional_nargs(Py_ssize_t nargs, Py_ssize_t min, Py_ssize_t max) {
 #define MP_TYPE_STR                 (1u << 5)
 #define MP_TYPE_BYTES               (1u << 6)
 #define MP_TYPE_BYTEARRAY           (1u << 7)
-#define MP_TYPE_MEMORYVIEW          (1u << 8)
-#define MP_TYPE_DATETIME            (1u << 9)
-#define MP_TYPE_EXT                 (1u << 10)
-#define MP_TYPE_STRUCT              (1u << 11)
-#define MP_TYPE_ENUM                (1u << 12)
-#define MP_TYPE_INTENUM             (1u << 13)
-#define MP_TYPE_CUSTOM              (1u << 14)
-#define MP_TYPE_CUSTOM_GENERIC      (1u << 15)
-#define MP_TYPE_DICT                (1u << 16)
-#define MP_TYPE_LIST                (1u << 17)
-#define MP_TYPE_SET                 (1u << 18)
-#define MP_TYPE_VARTUPLE            (1u << 19)
-#define MP_TYPE_FIXTUPLE            (1u << 20)
+#define MP_TYPE_DATETIME            (1u << 8)
+#define MP_TYPE_EXT                 (1u << 9)
+#define MP_TYPE_STRUCT              (1u << 10)
+#define MP_TYPE_ENUM                (1u << 11)
+#define MP_TYPE_INTENUM             (1u << 12)
+#define MP_TYPE_CUSTOM              (1u << 13)
+#define MP_TYPE_CUSTOM_GENERIC      (1u << 14)
+#define MP_TYPE_DICT                (1u << 15)
+#define MP_TYPE_LIST                (1u << 16)
+#define MP_TYPE_SET                 (1u << 17)
+#define MP_TYPE_VARTUPLE            (1u << 18)
+#define MP_TYPE_FIXTUPLE            (1u << 19)
 
 typedef struct TypeNode {
     uint32_t types;
@@ -491,10 +490,6 @@ typenode_repr_single(uint32_t *types, Py_ssize_t *extra_ind, TypeNode *self) {
     else if (*types & MP_TYPE_BYTEARRAY) {
         *types ^= MP_TYPE_BYTEARRAY;
         return PyUnicode_FromString("bytearray");
-    }
-    else if (*types & MP_TYPE_MEMORYVIEW) {
-        *types ^= MP_TYPE_MEMORYVIEW;
-        return PyUnicode_FromString("memoryview");
     }
     else if (*types & MP_TYPE_DATETIME) {
         *types ^= MP_TYPE_DATETIME;
@@ -2651,6 +2646,17 @@ mp_encode_bytearray(EncoderState *self, PyObject *obj)
 }
 
 static int
+mp_encode_memoryview(EncoderState *self, PyObject *obj)
+{
+    int out;
+    Py_buffer buffer;
+    if (PyObject_GetBuffer(obj, &buffer, PyBUF_CONTIG_RO) < 0) return -1;
+    out = mp_encode_bin(self, buffer.buf, buffer.len);
+    PyBuffer_Release(&buffer);
+    return out;
+}
+
+static int
 mp_encode_array_header(EncoderState *self, Py_ssize_t len, const char* typname)
 {
     if (len < 16) {
@@ -3032,6 +3038,9 @@ mp_encode(EncoderState *self, PyObject *obj)
     }
     else if (type == &PyByteArray_Type) {
         return mp_encode_bytearray(self, obj);
+    }
+    else if (type == &PyMemoryView_Type) {
+        return mp_encode_memoryview(self, obj);
     }
     else if (type == &PyList_Type) {
         return mp_encode_list(self, obj);
@@ -3894,7 +3903,9 @@ mp_decode_type_str(DecoderState *self, Py_ssize_t size, TypeNode *type, TypeNode
 }
 
 static PyObject *
-mp_decode_type_bin(DecoderState *self, Py_ssize_t size, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind) {
+mp_decode_type_bin(
+    DecoderState *self, Py_ssize_t size, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind
+) {
     if (MP_UNLIKELY(size < 0)) return NULL;
 
     char *s = NULL;
