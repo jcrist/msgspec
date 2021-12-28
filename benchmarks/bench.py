@@ -178,8 +178,8 @@ def bench(dumps, loads, ndata, convert=None, no_gc=False):
 
 
 def bench_msgspec(n, no_gc, validate=False):
-    enc = msgspec.Encoder()
-    dec = msgspec.Decoder(Person if n == 1 else List[Person])
+    enc = msgspec.msgpack.Encoder()
+    dec = msgspec.msgpack.Decoder(Person if n == 1 else List[Person])
 
     def convert_one(addresses=None, **kwargs):
         addrs = [Address(**a) for a in addresses] if addresses else None
@@ -196,8 +196,8 @@ def bench_msgspec(n, no_gc, validate=False):
 
 
 def bench_msgspec_asarray(n, no_gc, validate=False):
-    enc = msgspec.Encoder()
-    dec = msgspec.Decoder(Person2 if n == 1 else List[Person2])
+    enc = msgspec.msgpack.Encoder()
+    dec = msgspec.msgpack.Decoder(Person2 if n == 1 else List[Person2])
 
     def convert_one(addresses=None, **kwargs):
         addrs = [Address2(**a) for a in addresses] if addresses else None

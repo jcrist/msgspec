@@ -21,10 +21,10 @@ defined via Python's `type annotations`_.
     alice = User("alice", groups=["admin", "engineering"])
 
     # Serialize `alice` to `bytes` using the MessagePack protocol
-    serialized_data = msgspec.encode(alice)
+    serialized_data = msgspec.msgpack.encode(alice)
 
     # Deserialize and validate the message as a User type
-    user = msgspec.decode(serialized_data, type=User)
+    user = msgspec.msgpack.decode(serialized_data, type=User)
 
     assert user == alice
 

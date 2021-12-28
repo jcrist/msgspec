@@ -4,7 +4,7 @@ import versioneer
 from setuptools import setup
 from setuptools.extension import Extension
 
-ext_modules = [Extension("msgspec.core", [os.path.join("msgspec", "core.c")])]
+ext_modules = [Extension("msgspec._core", [os.path.join("msgspec", "_core.c")])]
 
 setup(
     name="msgspec",

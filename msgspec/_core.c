@@ -1635,7 +1635,7 @@ static PyGetSetDef StructMeta_getset[] = {
 
 static PyTypeObject StructMetaType = {
     PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name = "msgspec.StructMeta",
+    .tp_name = "msgspec._core.StructMeta",
     .tp_basicsize = sizeof(StructMetaObject),
     .tp_itemsize = 0,
     .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_TYPE_SUBCLASS | Py_TPFLAGS_HAVE_GC | _Py_TPFLAGS_HAVE_VECTORCALL,
@@ -2061,7 +2061,7 @@ static PyGetSetDef StructMixin_getset[] = {
 
 static PyTypeObject StructMixinType = {
     PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name = "msgspec._StructMixin",
+    .tp_name = "msgspec._core._StructMixin",
     .tp_basicsize = 0,
     .tp_itemsize = 0,
     .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
@@ -2269,7 +2269,7 @@ static PyMethodDef Ext_methods[] = {
 
 static PyTypeObject Ext_Type = {
     PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name = "msgspec.Ext",
+    .tp_name = "msgspec.msgpack.Ext",
     .tp_doc = Ext__doc__,
     .tp_basicsize = sizeof(Ext),
     .tp_itemsize = 0,
@@ -3254,7 +3254,7 @@ static PyMemberDef Encoder_members[] = {
 
 static PyTypeObject Encoder_Type = {
     PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name = "msgspec.core.Encoder",
+    .tp_name = "msgspec.msgpack.Encoder",
     .tp_doc = Encoder__doc__,
     .tp_basicsize = sizeof(Encoder),
     .tp_dealloc = (destructor)Encoder_dealloc,
@@ -4693,7 +4693,7 @@ static PyMemberDef Decoder_members[] = {
 
 static PyTypeObject Decoder_Type = {
     PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name = "msgspec.core.Decoder",
+    .tp_name = "msgspec.msgpack.Decoder",
     .tp_doc = Decoder__doc__,
     .tp_basicsize = sizeof(Decoder),
     .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
@@ -4851,11 +4851,11 @@ msgspec_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject
 
 static struct PyMethodDef msgspec_methods[] = {
     {
-        "encode", (PyCFunction) msgspec_encode, METH_FASTCALL | METH_KEYWORDS,
+        "msgpack_encode", (PyCFunction) msgspec_encode, METH_FASTCALL | METH_KEYWORDS,
         msgspec_encode__doc__,
     },
     {
-        "decode", (PyCFunction) msgspec_decode, METH_FASTCALL | METH_KEYWORDS,
+        "msgpack_decode", (PyCFunction) msgspec_decode, METH_FASTCALL | METH_KEYWORDS,
         msgspec_decode__doc__,
     },
     {NULL, NULL} /* sentinel */
@@ -4932,7 +4932,7 @@ msgspec_traverse(PyObject *m, visitproc visit, void *arg)
 
 static struct PyModuleDef msgspecmodule = {
     PyModuleDef_HEAD_INIT,
-    .m_name = "msgspec.core",
+    .m_name = "msgspec._core",
     .m_size = sizeof(MsgspecState),
     .m_methods = msgspec_methods,
     .m_traverse = msgspec_traverse,
@@ -4941,7 +4941,7 @@ static struct PyModuleDef msgspecmodule = {
 };
 
 PyMODINIT_FUNC
-PyInit_core(void)
+PyInit__core(void)
 {
     PyObject *m, *temp_module, *temp_obj;
     MsgspecState *st;
@@ -4973,10 +4973,10 @@ PyInit_core(void)
 
     /* Add types */
     Py_INCREF(&Encoder_Type);
-    if (PyModule_AddObject(m, "Encoder", (PyObject *)&Encoder_Type) < 0)
+    if (PyModule_AddObject(m, "MsgpackEncoder", (PyObject *)&Encoder_Type) < 0)
         return NULL;
     Py_INCREF(&Decoder_Type);
-    if (PyModule_AddObject(m, "Decoder", (PyObject *)&Decoder_Type) < 0)
+    if (PyModule_AddObject(m, "MsgpackDecoder", (PyObject *)&Decoder_Type) < 0)
         return NULL;
     Py_INCREF(&Ext_Type);
     if (PyModule_AddObject(m, "Ext", (PyObject *)&Ext_Type) < 0)
@@ -4987,7 +4987,7 @@ PyInit_core(void)
     /* Initialize the Struct Type */
     st->StructType = PyObject_CallFunction(
         (PyObject *)&StructMetaType, "s(O){ssss}", "Struct", &StructMixinType,
-        "__module__", "msgspec.core", "__doc__", Struct__doc__
+        "__module__", "msgspec", "__doc__", Struct__doc__
     );
     if (st->StructType == NULL)
         return NULL;
