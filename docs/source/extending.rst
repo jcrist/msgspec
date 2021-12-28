@@ -1,6 +1,8 @@
 Extending
 =========
 
+.. currentmodule:: msgspec.msgpack
+
 To support serializing/deserializing types other than those :ref:`natively
 supported <supported-types>`, ``msgspec`` provides a few callbacks to
 `Encoder`/`Decoder`.
@@ -103,8 +105,8 @@ as MessagePack ``map`` types.
     # Create an encoder and a decoder using the custom callbacks.
     # Note that typed deserialization is required for successful
     # roundtripping here, so we pass `MyMessage` to `Decoder`.
-    enc = msgspec.Encoder(enc_hook=enc_hook)
-    dec = msgspec.Decoder(MyMessage, dec_hook=dec_hook)
+    enc = msgspec.msgpack.Encoder(enc_hook=enc_hook)
+    dec = msgspec.msgpack.Decoder(MyMessage, dec_hook=dec_hook)
 
     # An example message
     msg = MyMessage(
@@ -135,9 +137,9 @@ By default extensions are serialized to/from `Ext` objects.
 
 .. code-block:: python
 
-    >>> ext = msgspec.Ext(1, b"some data")  # an extension object, with type code 1
-    >>> msg = msgspec.encode(ext)
-    >>> ext2 = msgspec.decode(msg)
+    >>> ext = msgspec.msgpack.Ext(1, b"some data")  # an extension object, with type code 1
+    >>> msg = msgspec.msgpack.encode(ext)
+    >>> ext2 = msgspec.msgpack.decode(msg)
     >>> ext == ext2  # deserializes as an Ext object
     True
 
@@ -190,7 +192,7 @@ objects to/from this binary representation as a MessagePack extension.
             data = struct.pack('dd', obj.real, obj.imag)
 
             # Return an `Ext` object so msgspec serializes it as an extension type.
-            return msgspec.Ext(COMPLEX_TYPE_CODE, data)
+            return msgspec.msgpack.Ext(COMPLEX_TYPE_CODE, data)
         else:
             # Raise a TypeError for other types
             raise TypeError(f"Objects of type {type(obj)} are not supported")
@@ -208,8 +210,8 @@ objects to/from this binary representation as a MessagePack extension.
 
 
     # Create an encoder and a decoder using the custom callbacks
-    enc = msgspec.Encoder(enc_hook=enc_hook)
-    dec = msgspec.Decoder(ext_hook=ext_hook)
+    enc = msgspec.msgpack.Encoder(enc_hook=enc_hook)
+    dec = msgspec.msgpack.Decoder(ext_hook=ext_hook)
 
     # Define a message that contains complex numbers
     msg = {"roots": [0, 0.75, 1 + 0.5j, 1 - 0.5j]}

@@ -1,7 +1,7 @@
 Usage
 =====
 
-.. currentmodule:: msgspec
+.. currentmodule:: msgspec.msgpack
 
 For ease of use, ``msgspec`` exposes two functions `encode` and `decode`, for
 serializing and deserializing objects respectively.
@@ -9,8 +9,8 @@ serializing and deserializing objects respectively.
 .. code-block:: python
 
     >>> import msgspec
-    >>> data = msgspec.encode({"hello": "world"})
-    >>> msgspec.decode(data)
+    >>> data = msgspec.msgpack.encode({"hello": "world"})
+    >>> msgspec.msgpack.decode(data)
     {'hello': 'world'}
 
 Note that if you're making multiple calls to `encode` or `decode`, it's more
@@ -19,8 +19,8 @@ efficient to create an `Encoder` and `Decoder` once, and then use
 
 .. code-block:: python
 
-    >>> enc = msgspec.Encoder()
-    >>> dec = msgspec.Decoder()
+    >>> enc = msgspec.msgpack.Encoder()
+    >>> dec = msgspec.msgpack.Decoder()
     >>> data = enc.encode({"hello": "world"})
     >>> dec.decode(data)
     {'hello': 'world'}
@@ -94,10 +94,10 @@ without any further validation:
 
 .. code-block:: python
 
-    >>> b = msgspec.encode([1, "two", b"three"])  # encode a list with mixed types
-    >>> msgspec.decode(b)  # decodes using default types and no validation
+    >>> b = msgspec.msgpack.encode([1, "two", b"three"])  # encode a list with mixed types
+    >>> msgspec.msgpack.decode(b)  # decodes using default types and no validation
     [1, "two", b"three"]
-    >>> msgspec.Decoder().decode(b)  # likewise for Decoder.decode
+    >>> msgspec.msgpack.Decoder().decode(b)  # likewise for Decoder.decode
     [1, "two", b"three"]
 
 If you want to deserialize a MessagePack type to a different Python type, or
@@ -110,9 +110,9 @@ a `set`:
 
 .. code-block:: python
 
-    >>> msgspec.Decoder(set).decode(b)  # deserialize as a set
+    >>> msgspec.msgpack.Decoder(set).decode(b)  # deserialize as a set
     {1, "two", b"three"}
-    >>> msgspec.decode(b, type=set)  # can also pass to msgspec.decode
+    >>> msgspec.msgpack.decode(b, type=set)  # can also pass to msgspec.msgpack.decode
     {1, "two", b"three"}
 
 Nested type specifications are fully supported, and can be used to validate at
@@ -123,19 +123,19 @@ message to be a set of ints:
 .. code-block:: python
 
     >>> from typing import Set
-    >>> dec = msgspec.Decoder(Set[int])  # define a decoder for a set of ints
+    >>> dec = msgspec.msgpack.Decoder(Set[int])  # define a decoder for a set of ints
     >>> dec
     Decoder(Set[int])
     >>> dec.decode(b)  # Invalid messages raise a nice error
     Traceback (most recent call last):
       File "<stdin>", line 1, in <module>
     msgspec.DecodingError: Error decoding `Set[int]`: expected `int`, got `str`
-    >>> b2 = msgspec.encode({1, 2, 3})
+    >>> b2 = msgspec.msgpack.encode({1, 2, 3})
     >>> dec.decode(b2)  # Valid messages deserialize properly
     {1, 2, 3}
 
-Typed deserializers are most commonly used along with `Struct` messages to
-provide a message schema, but any combination of the following types is
+Typed deserializers are most commonly used along with `msgspec.Struct` messages
+to provide a message schema, but any combination of the following types is
 acceptible:
 
 - `None`
@@ -169,7 +169,7 @@ Structs
 `pickle`_, it can't serialize arbitrary user classes by default. Two
 user-defined types are supported though:
 
-- `Struct`
+- `msgspec.Struct`
 - `enum.Enum`
 
 Structs are useful for defining structured messages. Fields are defined using
@@ -284,17 +284,17 @@ provide the expected deserialization type to `Decoder`.
 
 .. code-block:: python
 
-    >>> dec = msgspec.Decoder(Person)  # Create a decoder that expects a Person
+    >>> dec = msgspec.msgpack.Decoder(Person)  # Create a decoder that expects a Person
     >>> dec
     Decoder(Person)
-    >>> data = msgspec.encode(harry)
+    >>> data = msgspec.msgpack.encode(harry)
     >>> dec.decode(data)
     Person(first='Harry', last='Potter', address='4 Privet Drive', phone=None)
 
 Using structs for message schemas not only adds validation during
 deserialization, it also can improve performance. Depending on the schema,
-deserializing a message into a `Struct` can be *roughly twice as fast* as
-deserializing it into a `dict`.
+deserializing a message into a `msgspec.Struct` can be *roughly twice as fast*
+as deserializing it into a `dict`.
 
 If you need higher performance (at the cost of more inscrutable message
 encoding), you can set ``asarray=True`` on a struct definition. Structs with
@@ -312,7 +312,7 @@ can provide another ~2x speedup for decoding (and ~1.5x speedup for encoding).
     ...     my_second_field: int
     ...
     >>> x = ArrayBasedStruct("some string", 2)
-    >>> msgspec.encode(x)
+    >>> msgspec.msgpack.encode(x)
     b'\x92\xabsome string\x02'
 
 .. _schema-evolution:
@@ -332,7 +332,7 @@ mismatched versions.
 
 For schema evolution to work smoothly, you need to follow a few guidelines:
 
-1. Any new fields on a `Struct` must specify default values.
+1. Any new fields on a `msgspec.Struct` must specify default values.
 2. Structs with ``asarray=True`` must not reorder fields, and any new fields
    must be appended to the end (and have defaults).
 3. Don't change the type annotations for existing messages or fields.
@@ -362,14 +362,14 @@ efficiently skipped without decoding.
 
 .. code-block:: python
 
-    >>> old_dec = msgspec.Decoder(Person)
-    >>> new_dec = msgspec.Decoder(Person2)
+    >>> old_dec = msgspec.msgpack.Decoder(Person)
+    >>> new_dec = msgspec.msgpack.Decoder(Person2)
 
-    >>> new_msg = msgspec.encode(vernon)
+    >>> new_msg = msgspec.msgpack.encode(vernon)
     >>> old_dec.decode(new_msg)  # deserializing a new msg with an older decoder
     Person(first="Vernon", last="Dursley", address="4 Privet Drive", phone=None)
 
-    >>> old_msg = msgspec.encode(harry)
+    >>> old_msg = msgspec.msgpack.encode(harry)
     >>> new_dec.decode(old_msg) # deserializing an old msg with a new decoder
     Person2(first='Harry', last='Potter', address='4 Privet Drive', phone=None, email=None)
 

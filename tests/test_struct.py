@@ -25,7 +25,7 @@ def test_struct_class_attributes():
     assert Struct.__struct_defaults__ == ()
     assert Struct.__match_args__ == ()
     assert Struct.__slots__ == ()
-    assert Struct.__module__ == "msgspec.core"
+    assert Struct.__module__ == "msgspec"
 
 
 def test_struct_instance_attributes():

@@ -1,14 +1,10 @@
-from .core import (
+from ._core import (
     Struct,
-    Encoder,
-    Decoder,
-    Ext,
     MsgspecError,
     EncodingError,
     DecodingError,
-    encode,
-    decode,
 )
+from . import msgpack
 
 from ._version import get_versions
 
