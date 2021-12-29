@@ -946,6 +946,12 @@ format_double(double f, char* result) {
     const uint64_t ieee_mantissa = bits & ((1ull << DOUBLE_MANTISSA_BITS) - 1);
     const uint32_t ieee_exponent = (uint32_t) ((bits >> DOUBLE_MANTISSA_BITS) & ((1u << DOUBLE_EXPONENT_BITS) - 1));
 
+    /* Serialize all non-finite numbers as null */
+    if (ieee_exponent == ((1 << DOUBLE_EXPONENT_BITS) - 1)) {
+        memcpy(result, "null", 4);
+        return 4;
+    }
+
     if (sign) {
         *result = '-';
     }

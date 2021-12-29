@@ -3052,17 +3052,18 @@ mpack_encode_struct(EncoderState *self, PyObject *obj)
 {
     PyObject *key, *val, *fields;
     Py_ssize_t i, len;
-    int status = 0;
+    int status = -1;
     bool asarray = ((StructMetaObject *)Py_TYPE(obj))->asarray == OPT_TRUE;
 
     fields = StructMeta_GET_FIELDS(Py_TYPE(obj));
     len = PyTuple_GET_SIZE(fields);
 
-    status = (
-        asarray ? mpack_encode_array_header(self, len, "structs") :
-        mpack_encode_map_header(self, len, "structs")
-    );
-    if (status < 0) return -1;
+    if (asarray) {
+        if (mpack_encode_array_header(self, len, "structs") < 0) return -1;
+    }
+    else {
+        if (mpack_encode_map_header(self, len, "structs") < 0) return -1;
+    }
     if (len == 0) return 0;
     if (Py_EnterRecursiveCall(" while serializing an object"))
         return -1;
@@ -3070,8 +3071,7 @@ mpack_encode_struct(EncoderState *self, PyObject *obj)
         for (i = 0; i < len; i++) {
             val = Struct_get_index(obj, i);
             if (val == NULL || mpack_encode(self, val) < 0) {
-                status = -1;
-                break;
+                goto cleanup;
             }
         }
     }
@@ -3080,11 +3080,13 @@ mpack_encode_struct(EncoderState *self, PyObject *obj)
             key = PyTuple_GET_ITEM(fields, i);
             val = Struct_get_index(obj, i);
             if (val == NULL || mpack_encode_str(self, key) < 0 || mpack_encode(self, val) < 0) {
-                status = -1;
-                break;
+                goto cleanup;
             }
         }
     }
+
+    status = 0;
+cleanup:
     Py_LeaveRecursiveCall();
     return status;
 }
@@ -3442,18 +3444,17 @@ json_encode_long(EncoderState *self, PyObject *obj) {
     int neg, overflow;
     char buf[20];
     char *p = &buf[20];
-    int64_t x = PyLong_AsLongLongAndOverflow(obj, &overflow);
+    int64_t xsigned = PyLong_AsLongLongAndOverflow(obj, &overflow);
+    uint64_t x;
     if (overflow) {
         PyErr_SetString(PyExc_OverflowError, "can't serialize ints larger than 64 bits");
         return -1;
     }
-    else if (x == -1 && PyErr_Occurred()) {
+    else if (xsigned == -1 && PyErr_Occurred()) {
         return -1;
     }
-    neg = x < 0;
-    if (neg) {
-        x = -x;
-    }
+    neg = xsigned < 0;
+    x = neg ? -xsigned : xsigned;
     while (x >= 100) {
         int64_t const old = x;
         p -= 2;
@@ -3621,6 +3622,17 @@ json_encode_bytearray(EncoderState *self, PyObject *obj)
 }
 
 static int
+json_encode_memoryview(EncoderState *self, PyObject *obj)
+{
+    int out;
+    Py_buffer buffer;
+    if (PyObject_GetBuffer(obj, &buffer, PyBUF_CONTIG_RO) < 0) return -1;
+    out = json_encode_bin(self, buffer.buf, buffer.len);
+    PyBuffer_Release(&buffer);
+    return out;
+}
+
+static int
 json_encode_enum(EncoderState *self, PyObject *obj)
 {
     if (PyLong_Check(obj))
@@ -3760,7 +3772,7 @@ json_encode_struct(EncoderState *self, PyObject *obj)
 {
     PyObject *key, *val, *fields;
     Py_ssize_t i, len;
-    int status = 0;
+    int status = -1;
 
     fields = StructMeta_GET_FIELDS(Py_TYPE(obj));
     len = PyTuple_GET_SIZE(fields);
@@ -3831,9 +3843,25 @@ json_encode(EncoderState *self, PyObject *obj)
     else if (type == &PyByteArray_Type) {
         return json_encode_bytearray(self, obj);
     }
+    else if (type == &PyMemoryView_Type) {
+        return json_encode_memoryview(self, obj);
+    }
     st = msgspec_get_global_state();
     if (PyType_IsSubtype(type, st->EnumType)) {
         return json_encode_enum(self, obj);
+    }
+
+    if (self->enc_hook != NULL) {
+        int status = -1;
+        PyObject *temp;
+        temp = CALL_ONE_ARG(self->enc_hook, obj);
+        if (temp == NULL) return -1;
+        if (!Py_EnterRecursiveCall(" while serializing an object")) {
+            status = json_encode(self, temp);
+            Py_LeaveRecursiveCall();
+        }
+        Py_DECREF(temp);
+        return status;
     }
     else {
         PyErr_Format(PyExc_TypeError,
