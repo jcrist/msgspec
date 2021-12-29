@@ -5,6 +5,7 @@ from ._core import (
     DecodingError,
 )
 from . import msgpack
+from . import json
 
 from ._version import get_versions
 
