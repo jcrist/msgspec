@@ -4468,7 +4468,7 @@ mp_decode_type_float(DecoderState *self, double val, TypeNode *type, TypeNode *c
 }
 
 static MS_NOINLINE PyObject *
-mp_decode_type_enum(DecoderState *self, PyObject *val, TypeNode *type) {
+mp_decode_type_enum(PyObject *val, TypeNode *type) {
     if (val == NULL) return NULL;
     PyObject *enum_obj = TypeNode_get_enum(type);
     PyObject *out = PyObject_GetAttr(enum_obj, val);
@@ -4493,7 +4493,7 @@ mp_decode_type_str(DecoderState *self, Py_ssize_t size, TypeNode *type, TypeNode
         if (MS_UNLIKELY(mp_read(self, &s, size) < 0)) return NULL;
         val = PyUnicode_DecodeUTF8(s, size, NULL);
         if (MS_UNLIKELY(type->types & MS_TYPE_ENUM)) {
-            return mp_decode_type_enum(self, val, type);
+            return mp_decode_type_enum(val, type);
         }
         return val;
     }
@@ -5453,10 +5453,15 @@ typedef struct JSONDecoderState {
     PyObject *dec_hook;
     PyObject *tzinfo;
 
+    /* Temporary scratch space */
+    unsigned char *scratch;
+    ssize_t scratch_capacity;
+    Py_ssize_t scratch_len;
+
     /* Per-message attributes */
     PyObject *buffer_obj;
-    char *input_pos;
-    char *input_end;
+    unsigned char *input_pos;
+    unsigned char *input_end;
 } JSONDecoderState;
 
 typedef struct JSONDecoder {
@@ -5538,6 +5543,12 @@ JSONDecoder_init(JSONDecoder *self, PyObject *args, PyObject *kwds)
         Py_INCREF(tzinfo);
     }
     self->state.tzinfo = tzinfo;
+
+    /* Init scratch space */
+    self->state.scratch = NULL;
+    self->state.scratch_capacity = 0;
+    self->state.scratch_len = 0;
+
     return 0;
 }
 
@@ -5558,6 +5569,7 @@ JSONDecoder_dealloc(JSONDecoder *self)
     Py_XDECREF(self->orig_type);
     Py_XDECREF(self->state.dec_hook);
     Py_TYPE(self)->tp_free((PyObject *)self);
+    PyMem_Free(self->state.scratch);
 }
 
 static PyObject *
@@ -5579,14 +5591,26 @@ JSONDecoder_repr(JSONDecoder *self) {
 }
 
 static MS_INLINE bool
-js_next_char(JSONDecoderState *self, char *s)
+js_read1(JSONDecoderState *self, unsigned char *c)
+{
+    if (MS_UNLIKELY(self->input_pos == self->input_end)) {
+        ms_err_truncated();
+        return false;
+    }
+    *c = *self->input_pos;
+    self->input_pos += 1;
+    return true;
+}
+
+static MS_INLINE bool
+js_peek_skip_ws(JSONDecoderState *self, unsigned char *s)
 {
     while (true) {
         if (MS_UNLIKELY(self->input_pos == self->input_end)) {
             ms_err_truncated();
             return false;
         }
-        char c = *self->input_pos;
+        unsigned char c = *self->input_pos;
         if (!(c == ' ' || c == '\n' || c == '\t' || c == '\r')) {
             *s = c;
             return true;
@@ -5613,9 +5637,9 @@ js_decode_none(
         return NULL;
     }
     self->input_pos++;  /* Already checked as 'n' */
-    char c1 = *self->input_pos++;
-    char c2 = *self->input_pos++;
-    char c3 = *self->input_pos++;
+    unsigned char c1 = *self->input_pos++;
+    unsigned char c2 = *self->input_pos++;
+    unsigned char c3 = *self->input_pos++;
     if (MS_UNLIKELY(c1 != 'u' || c2 != 'l' || c3 != 'l')) {
         PyErr_SetString(msgspec_get_global_state()->DecodingError, "invalid value");
         return NULL;
@@ -5636,9 +5660,9 @@ js_decode_true(
         return NULL;
     }
     self->input_pos++;  /* Already checked as 't' */
-    char c1 = *self->input_pos++;
-    char c2 = *self->input_pos++;
-    char c3 = *self->input_pos++;
+    unsigned char c1 = *self->input_pos++;
+    unsigned char c2 = *self->input_pos++;
+    unsigned char c3 = *self->input_pos++;
     if (MS_UNLIKELY(c1 != 'r' || c2 != 'u' || c3 != 'e')) {
         PyErr_SetString(msgspec_get_global_state()->DecodingError, "invalid value");
         return NULL;
@@ -5659,10 +5683,10 @@ js_decode_false(
         return NULL;
     }
     self->input_pos++;  /* Already checked as 'f' */
-    char c1 = *self->input_pos++;
-    char c2 = *self->input_pos++;
-    char c3 = *self->input_pos++;
-    char c4 = *self->input_pos++;
+    unsigned char c1 = *self->input_pos++;
+    unsigned char c2 = *self->input_pos++;
+    unsigned char c3 = *self->input_pos++;
+    unsigned char c4 = *self->input_pos++;
     if (MS_UNLIKELY(c1 != 'a' || c2 != 'l' || c3 != 's' || c4 != 'e')) {
         PyErr_SetString(msgspec_get_global_state()->DecodingError, "invalid value");
         return NULL;
@@ -5679,7 +5703,7 @@ js_decode_list(
     JSONDecoderState *self, TypeNode *el_type, TypeNode *ctx, Py_ssize_t ctx_ind, bool is_key
 ) {
     PyObject *out, *item;
-    char c;
+    unsigned char c;
     bool empty = true;
 
     out = PyList_New(0);
@@ -5690,7 +5714,7 @@ js_decode_list(
     }
     self->input_pos++; /* Skip '[' */
     while (true) {
-        if (MS_UNLIKELY(!js_next_char(self, &c))) goto error;
+        if (MS_UNLIKELY(!js_peek_skip_ws(self, &c))) goto error;
         if (c == ']') {
             self->input_pos++;
             break;
@@ -5715,7 +5739,7 @@ js_decode_set(
     JSONDecoderState *self, TypeNode *el_type, TypeNode *ctx, Py_ssize_t ctx_ind
 ) {
     PyObject *out, *item;
-    char c;
+    unsigned char c;
     bool empty = true;
 
     out = PySet_New(NULL);
@@ -5726,7 +5750,7 @@ js_decode_set(
     }
     self->input_pos++; /* Skip '[' */
     while (true) {
-        if (MS_UNLIKELY(!js_next_char(self, &c))) goto error;
+        if (MS_UNLIKELY(!js_peek_skip_ws(self, &c))) goto error;
         if (c == ']') {
             self->input_pos++;
             break;
@@ -5795,19 +5819,142 @@ js_decode_array(
     return mp_validation_error("list", type, ctx, ctx_ind);
 }
 
+#define JS_SCRATCH_MAX_SIZE 1024
+
+static int
+js_scratch_resize(JSONDecoderState *state, ssize_t size) {
+    unsigned char *temp = PyMem_Realloc(state->scratch, size);
+    if (MS_UNLIKELY(temp == NULL)) {
+        PyErr_NoMemory();
+        return -1;
+    }
+    state->scratch = temp;
+    state->scratch_capacity = size;
+    return 0;
+}
+
+static int
+js_scratch_reset(JSONDecoderState *state) {
+    state->scratch_len = 0;
+    if (state->scratch_capacity > JS_SCRATCH_MAX_SIZE) {
+        if (js_scratch_resize(state, JS_SCRATCH_MAX_SIZE) < 0) return -1;
+    }
+    return 0;
+}
+
+static int
+js_scratch_extend(JSONDecoderState *state, const void *buf, Py_ssize_t size) {
+    Py_ssize_t index = state->scratch_len;
+    state->scratch_len += size;
+    if (state->scratch_len >= state->scratch_capacity) {
+        size_t new_size = Py_MAX(8, 1.5 * state->scratch_len);
+        if (js_scratch_resize(state, new_size) < 0) return -1;
+    }
+    memcpy(state->scratch + index, buf, size);
+    return 0;
+}
+
+static int
+js_scratch_push(JSONDecoderState *state, unsigned char c) {
+    return js_scratch_extend(state, &c, 1);
+}
+
+static int
+js_parse_escape(JSONDecoderState *self) {
+    unsigned char c;
+    if (!js_read1(self, &c)) return -1;
+
+    switch (c) {
+        case '"': return js_scratch_push(self, '"');
+        case '\\': return js_scratch_push(self, '\\');
+        case '/': return js_scratch_push(self, '/');
+        case 'b': return js_scratch_push(self, '\b');
+        case 'f': return js_scratch_push(self, '\f');
+        case 'n': return js_scratch_push(self, '\n');
+        case 'r': return js_scratch_push(self, '\r');
+        case 't': return js_scratch_push(self, '\t');
+        case 'u':
+            /* TODO */
+        default:
+            PyErr_SetString(msgspec_get_global_state()->DecodingError, "Invalid escape");
+            return -1;
+    }
+    return 0;
+}
+
+static Py_ssize_t
+js_decode_string_view(JSONDecoderState *self, char **out) {
+    Py_ssize_t size;
+    self->scratch_len = 0;
+    self->input_pos++; /* Skip '"' */
+    unsigned char *start = self->input_pos;
+    while (true) {
+        while (self->input_pos < self->input_end && !escape_table[*(self->input_pos)]) {
+            self->input_pos += 1;
+        }
+        if (MS_UNLIKELY(self->input_pos == self->input_end)) {
+            return ms_err_truncated();
+        }
+        switch (*(self->input_pos)) {
+            case '"': {
+                if (self->scratch_len == 0) {
+                    *out = (char *)start;
+                    size = self->input_pos - start;
+                }
+                else {
+                    if (js_scratch_extend(self, start, self->input_pos - start) < 0) return -1;
+                    *out = (char *)(self->scratch);
+                    size = self->scratch_len;
+                }
+                self->input_pos += 1;
+                return size;
+            }
+            case '\\': {
+                if (js_scratch_extend(self, start, self->input_pos - start) < 0) return -1;
+                self->input_pos += 1;
+                if (js_parse_escape(self) < 0) return -1;
+                start = self->input_pos;
+                break;
+            }
+            default: {
+                self->input_pos += 1;
+                PyErr_SetString(msgspec_get_global_state()->DecodingError, "Invalid character");
+                return -1;
+            }
+        }
+    }
+}
+
+static PyObject *
+js_decode_string(JSONDecoderState *self, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind) {
+    if (MS_LIKELY(type->types & (MS_TYPE_ANY | MS_TYPE_STR | MS_TYPE_ENUM))) {
+        char *view = NULL;
+        Py_ssize_t size = js_decode_string_view(self, &view);
+        if (size < 0) return NULL;
+        PyObject *val = PyUnicode_DecodeUTF8(view, size, NULL);
+        if (val == NULL) return NULL;
+        if (MS_UNLIKELY(type->types & MS_TYPE_ENUM)) {
+            return mp_decode_type_enum(val, type);
+        }
+        return val;
+    }
+    return mp_validation_error("str", type, ctx, ctx_ind);
+}
+
 static PyObject *
 js_decode(
     JSONDecoderState *self, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind, bool is_key
 ) {
-    char c;
+    unsigned char c;
 
-    if (MS_UNLIKELY(!js_next_char(self, &c))) return NULL;
+    if (MS_UNLIKELY(!js_peek_skip_ws(self, &c))) return NULL;
 
     switch (c) {
         case 'n': return js_decode_none(self, type, ctx, ctx_ind);
         case 't': return js_decode_true(self, type, ctx, ctx_ind);
         case 'f': return js_decode_false(self, type, ctx, ctx_ind);
         case '[': return js_decode_array(self, type, ctx, ctx_ind, is_key);
+        case '"': return js_decode_string(self, type, ctx, ctx_ind);
         default: {
             PyErr_Format(
                 msgspec_get_global_state()->DecodingError,
@@ -5859,6 +6006,8 @@ JSONDecoder_decode(JSONDecoder *self, PyObject *const *args, Py_ssize_t nargs)
         self->state.input_pos = NULL;
         self->state.input_end = NULL;
     }
+    js_scratch_reset(&(self->state));
+
     return res;
 }
 
@@ -5990,6 +6139,9 @@ msgspec_json_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyO
         state.buffer_obj = buf;
         state.input_pos = buffer.buf;
         state.input_end = buffer.buf + buffer.len;
+        state.scratch = NULL;
+        state.scratch_capacity = 0;
+        state.scratch_len = 0;
 
         if (state.type != NULL) {
             res = js_decode(&state, state.type, state.type, -1, false);
@@ -5998,6 +6150,8 @@ msgspec_json_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyO
             res = js_decode(&state, &type_any, &type_any, -1, false);
         }
     }
+
+    PyMem_Free(state.scratch);
 
     if (state.type != NULL) {
         TypeNode_Free(state.type);
