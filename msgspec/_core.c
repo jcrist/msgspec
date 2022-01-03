@@ -5600,7 +5600,7 @@ static MS_INLINE bool js_remaining(JSONDecoderState *self, ptrdiff_t remaining)
     return self->input_end - self->input_pos >= remaining;
 }
 
-static PyObject * js_decode_type(
+static PyObject * js_decode(
     JSONDecoderState *self, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind, bool is_key
 );
 
@@ -5675,7 +5675,128 @@ js_decode_false(
 }
 
 static PyObject *
-js_decode_type(
+js_decode_list(
+    JSONDecoderState *self, TypeNode *el_type, TypeNode *ctx, Py_ssize_t ctx_ind, bool is_key
+) {
+    PyObject *out, *item;
+    char c;
+    bool empty = true;
+
+    out = PyList_New(0);
+    if (out == NULL) return NULL;
+    if (Py_EnterRecursiveCall(" while deserializing an object")) {
+        Py_DECREF(out);
+        return NULL;
+    }
+    self->input_pos++; /* Skip '[' */
+    while (true) {
+        if (MS_UNLIKELY(!js_next_char(self, &c))) goto error;
+        if (c == ']') {
+            self->input_pos++;
+            break;
+        }
+        if (c == ',' && !empty) self->input_pos++;
+        item = js_decode(self, el_type, ctx, ctx_ind, is_key);
+        if (item == NULL) goto error;
+        if (PyList_Append(out, item) < 0) goto error;
+        Py_DECREF(item);
+        empty = false;
+    }
+    Py_LeaveRecursiveCall();
+    return out;
+error:
+    Py_LeaveRecursiveCall();
+    Py_DECREF(out);
+    return NULL;
+}
+
+static PyObject *
+js_decode_set(
+    JSONDecoderState *self, TypeNode *el_type, TypeNode *ctx, Py_ssize_t ctx_ind
+) {
+    PyObject *out, *item;
+    char c;
+    bool empty = true;
+
+    out = PySet_New(NULL);
+    if (out == NULL) return NULL;
+    if (Py_EnterRecursiveCall(" while deserializing an object")) {
+        Py_DECREF(out);
+        return NULL;
+    }
+    self->input_pos++; /* Skip '[' */
+    while (true) {
+        if (MS_UNLIKELY(!js_next_char(self, &c))) goto error;
+        if (c == ']') {
+            self->input_pos++;
+            break;
+        }
+        if (c == ',' && !empty) self->input_pos++;
+        item = js_decode(self, el_type, ctx, ctx_ind, false);
+        if (item == NULL) goto error;
+        if (PySet_Add(out, item) < 0) goto error;
+        Py_DECREF(item);
+        empty = false;
+    }
+    Py_LeaveRecursiveCall();
+    return out;
+error:
+    Py_LeaveRecursiveCall();
+    Py_DECREF(out);
+    return NULL;
+}
+
+static PyObject *
+js_decode_vartuple(
+    JSONDecoderState *self, TypeNode *el_type,
+    TypeNode *ctx, Py_ssize_t ctx_ind, bool is_key
+) {
+    PyObject *list, *item, *out = NULL;
+    Py_ssize_t size, i;
+
+    list = js_decode_list(self, el_type, ctx, ctx_ind, is_key);
+    if (list == NULL) return NULL;
+
+    size = PyList_GET_SIZE(list);
+    out = PyTuple_New(size);
+    if (out != NULL) {
+        for (i = 0; i < size; i++) {
+            item = PyList_GET_ITEM(list, i);
+            PyTuple_SET_ITEM(out, i, item);
+            PyList_SET_ITEM(list, i, NULL);  /* Drop reference in old list */
+        }
+    }
+    Py_DECREF(list);
+    return out;
+}
+
+static PyObject *
+js_decode_array(
+    JSONDecoderState *self, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind, bool is_key
+) {
+    if (type->types & MS_TYPE_ANY) {
+        if (is_key) {
+            return js_decode_vartuple(self, type, ctx, ctx_ind, is_key);
+        }
+        else {
+            return js_decode_list(self, type, ctx, ctx_ind, false);
+        }
+    }
+    else if (type->types & MS_TYPE_LIST) {
+        return js_decode_list(self, TypeNode_get_array(type), ctx, ctx_ind, false);
+    }
+    else if (type->types & MS_TYPE_SET) {
+        return js_decode_set(self, TypeNode_get_array(type), ctx, ctx_ind);
+    }
+    else if (type->types & MS_TYPE_VARTUPLE) {
+        return js_decode_vartuple(self, TypeNode_get_array(type), ctx, ctx_ind, is_key);
+    }
+    /* TODO: handle fixtuple and struct-array types */
+    return mp_validation_error("list", type, ctx, ctx_ind);
+}
+
+static PyObject *
+js_decode(
     JSONDecoderState *self, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind, bool is_key
 ) {
     char c;
@@ -5686,6 +5807,7 @@ js_decode_type(
         case 'n': return js_decode_none(self, type, ctx, ctx_ind);
         case 't': return js_decode_true(self, type, ctx, ctx_ind);
         case 'f': return js_decode_false(self, type, ctx, ctx_ind);
+        case '[': return js_decode_array(self, type, ctx, ctx_ind, is_key);
         default: {
             PyErr_Format(
                 msgspec_get_global_state()->DecodingError,
@@ -5728,7 +5850,7 @@ JSONDecoder_decode(JSONDecoder *self, PyObject *const *args, Py_ssize_t nargs)
         self->state.buffer_obj = args[0];
         self->state.input_pos = buffer.buf;
         self->state.input_end = buffer.buf + buffer.len;
-        res = js_decode_type(&(self->state), self->state.type, self->state.type, -1, false);
+        res = js_decode(&(self->state), self->state.type, self->state.type, -1, false);
     }
 
     if (buffer.buf != NULL) {
@@ -5870,10 +5992,10 @@ msgspec_json_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyO
         state.input_end = buffer.buf + buffer.len;
 
         if (state.type != NULL) {
-            res = js_decode_type(&state, state.type, state.type, -1, false);
+            res = js_decode(&state, state.type, state.type, -1, false);
         } else {
             TypeNode type_any = {MS_TYPE_ANY};
-            res = js_decode_type(&state, &type_any, &type_any, -1, false);
+            res = js_decode(&state, &type_any, &type_any, -1, false);
         }
     }
 
