@@ -5891,6 +5891,16 @@ js_scratch_resize(JSONDecoderState *state, ssize_t size) {
 }
 
 static int
+js_scratch_ensure_space(JSONDecoderState *state, Py_ssize_t size) {
+    Py_ssize_t required = state->scratch_len + size;
+    if (required >= state->scratch_capacity) {
+        size_t new_size = Py_MAX(8, 1.5 * required);
+        if (js_scratch_resize(state, new_size) < 0) return -1;
+    }
+    return 0;
+}
+
+static int
 js_scratch_reset(JSONDecoderState *state) {
     state->scratch_len = 0;
     if (state->scratch_capacity > JS_SCRATCH_MAX_SIZE) {
@@ -5901,19 +5911,41 @@ js_scratch_reset(JSONDecoderState *state) {
 
 static int
 js_scratch_extend(JSONDecoderState *state, const void *buf, Py_ssize_t size) {
-    Py_ssize_t index = state->scratch_len;
+    if (js_scratch_ensure_space(state, size) < 0) return -1;
+    memcpy(state->scratch + state->scratch_len, buf, size);
     state->scratch_len += size;
-    if (state->scratch_len >= state->scratch_capacity) {
-        size_t new_size = Py_MAX(8, 1.5 * state->scratch_len);
-        if (js_scratch_resize(state, new_size) < 0) return -1;
-    }
-    memcpy(state->scratch + index, buf, size);
     return 0;
 }
 
 static int
 js_scratch_push(JSONDecoderState *state, unsigned char c) {
     return js_scratch_extend(state, &c, 1);
+}
+
+static int
+js_read_codepoint(JSONDecoderState *self, unsigned int *out) {
+    unsigned char c;
+    unsigned int cp = 0;
+    if (!js_remaining(self, 4)) return ms_err_truncated();
+    for (int i = 0; i < 4; i++) {
+        c = *self->input_pos++;
+        if (c >= '0' && c <= '9') {
+            c -= '0';
+        }
+        else if (c >= 'a' && c <= 'f') {
+            c = c - 'a' + 10;
+        }
+        else if (c >= 'A' && c <= 'F') {
+            c = c - 'A' + 10;
+        }
+        else {
+            js_err_invalid("invalid unicode escape");
+            return -1;
+        }
+        cp = (cp << 4) + c;
+    }
+    *out = cp;
+    return 0;
 }
 
 static int
@@ -5930,8 +5962,51 @@ js_parse_escape(JSONDecoderState *self) {
         case 'n': return js_scratch_push(self, '\n');
         case 'r': return js_scratch_push(self, '\r');
         case 't': return js_scratch_push(self, '\t');
-        case 'u':
-            /* TODO */
+        case 'u': {
+            unsigned int cp;
+            if (js_read_codepoint(self, &cp) < 0) return -1;
+
+            if (cp >= 0xD800 && cp <= 0xD8FF) {
+                /* utf-16 pair, parse 2nd pair */
+                unsigned int cp2;
+                if (!js_remaining(self, 6)) return ms_err_truncated();
+                if (self->input_pos[0] != '\\' || self->input_pos[1] != 'u') {
+                    js_err_invalid("unexpected end of hex escape");
+                    return -1;
+                }
+                self->input_pos += 2;
+                if (js_read_codepoint(self, &cp2) < 0) return -1;
+                if (cp2 < 0xDC00 || cp2 > 0xDFFF) {
+                    js_err_invalid("invalid utf-16 surrogate pair");
+                    return -1;
+                }
+                cp = 0x10000 + (((cp - 0xD800) << 10) | (cp2 - 0xDC00));
+            }
+
+            /* Encode the codepoint as utf-8 */
+            if (js_scratch_ensure_space(self, 4) < 0) return -1;
+            unsigned char *p = self->scratch + self->scratch_len;
+            if (cp < 0x80) {
+                *p++ = cp;
+                self->scratch_len += 1;
+            } else if (cp < 0x800) {
+                *p++ = 0xC0 | (cp >> 6);
+                *p++ = 0x80 | (cp & 0x3F);
+                self->scratch_len += 2;
+            } else if (cp < 0x10000) {
+                *p++ = 0xE0 | (cp >> 12);
+                *p++ = 0x80 | ((cp >> 6) & 0x3F);
+                *p++ = 0x80 | (cp & 0x3F);
+                self->scratch_len += 3;
+            } else {
+                *p++ = 0xF0 | (cp >> 18);
+                *p++ = 0x80 | ((cp >> 12) & 0x3F);
+                *p++ = 0x80 | ((cp >> 6) & 0x3F);
+                *p++ = 0x80 | (cp & 0x3F);
+                self->scratch_len += 4;
+            }
+            return 0;
+        }
         default:
             PyErr_SetString(msgspec_get_global_state()->DecodingError, "Invalid escape");
             return -1;
@@ -6367,6 +6442,10 @@ msgspec_json_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyO
     }
     state.tzinfo = tzinfo;
 
+    state.scratch = NULL;
+    state.scratch_capacity = 0;
+    state.scratch_len = 0;
+
     /* Only build TypeNode if required */
     state.type = NULL;
     if (type != NULL && type != st->typing_any) {
@@ -6379,9 +6458,6 @@ msgspec_json_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyO
         state.buffer_obj = buf;
         state.input_pos = buffer.buf;
         state.input_end = buffer.buf + buffer.len;
-        state.scratch = NULL;
-        state.scratch_capacity = 0;
-        state.scratch_len = 0;
 
         if (state.type != NULL) {
             res = js_decode(&state, state.type, state.type, -1, false);
