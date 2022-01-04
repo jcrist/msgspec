@@ -5619,9 +5619,21 @@ js_peek_skip_ws(JSONDecoderState *self, unsigned char *s)
     }
 }
 
-static MS_INLINE bool js_remaining(JSONDecoderState *self, ptrdiff_t remaining)
+static MS_INLINE bool
+js_remaining(JSONDecoderState *self, ptrdiff_t remaining)
 {
     return self->input_end - self->input_pos >= remaining;
+}
+
+static PyObject *
+js_err_invalid(const char *msg)
+{
+    PyErr_Format(
+        msgspec_get_global_state()->DecodingError,
+        "JSON is malformed: %s",
+        msg
+    );
+    return NULL;
 }
 
 static PyObject * js_decode(
@@ -5641,8 +5653,7 @@ js_decode_none(
     unsigned char c2 = *self->input_pos++;
     unsigned char c3 = *self->input_pos++;
     if (MS_UNLIKELY(c1 != 'u' || c2 != 'l' || c3 != 'l')) {
-        PyErr_SetString(msgspec_get_global_state()->DecodingError, "invalid value");
-        return NULL;
+        return js_err_invalid("invalid character");
     }
     if (type->types & (MS_TYPE_ANY | MS_TYPE_NONE)) {
         Py_INCREF(Py_None);
@@ -5664,8 +5675,7 @@ js_decode_true(
     unsigned char c2 = *self->input_pos++;
     unsigned char c3 = *self->input_pos++;
     if (MS_UNLIKELY(c1 != 'r' || c2 != 'u' || c3 != 'e')) {
-        PyErr_SetString(msgspec_get_global_state()->DecodingError, "invalid value");
-        return NULL;
+        return js_err_invalid("invalid character");
     }
     if (type->types & (MS_TYPE_ANY | MS_TYPE_BOOL)) {
         Py_INCREF(Py_True);
@@ -5688,8 +5698,7 @@ js_decode_false(
     unsigned char c3 = *self->input_pos++;
     unsigned char c4 = *self->input_pos++;
     if (MS_UNLIKELY(c1 != 'a' || c2 != 'l' || c3 != 's' || c4 != 'e')) {
-        PyErr_SetString(msgspec_get_global_state()->DecodingError, "invalid value");
-        return NULL;
+        return js_err_invalid("invalid character");
     }
     if (type->types & (MS_TYPE_ANY | MS_TYPE_BOOL)) {
         Py_INCREF(Py_False);
@@ -5702,9 +5711,11 @@ static PyObject *
 js_decode_list(
     JSONDecoderState *self, TypeNode *el_type, TypeNode *ctx, Py_ssize_t ctx_ind, bool is_key
 ) {
-    PyObject *out, *item;
+    PyObject *out, *item = NULL;
     unsigned char c;
-    bool empty = true;
+    bool first = true;
+
+    self->input_pos++; /* Skip '[' */
 
     out = PyList_New(0);
     if (out == NULL) return NULL;
@@ -5712,25 +5723,40 @@ js_decode_list(
         Py_DECREF(out);
         return NULL;
     }
-    self->input_pos++; /* Skip '[' */
     while (true) {
         if (MS_UNLIKELY(!js_peek_skip_ws(self, &c))) goto error;
+        /* Parse ']' or ',', then peek the next character */
         if (c == ']') {
             self->input_pos++;
             break;
         }
-        if (c == ',' && !empty) self->input_pos++;
+        else if (c == ',' && !first) {
+            self->input_pos++;
+            if (MS_UNLIKELY(!js_peek_skip_ws(self, &c))) goto error;
+        }
+        else if (first) {
+            /* Only the first item doesn't need a comma delimiter */
+            first = false;
+        }
+        else {
+            js_err_invalid("expected ',' or '}'");
+            goto error;
+        }
+
+        /* Parse item */
         item = js_decode(self, el_type, ctx, ctx_ind, is_key);
         if (item == NULL) goto error;
+
+        /* Append item to list */
         if (PyList_Append(out, item) < 0) goto error;
-        Py_DECREF(item);
-        empty = false;
+        Py_CLEAR(item);
     }
     Py_LeaveRecursiveCall();
     return out;
 error:
     Py_LeaveRecursiveCall();
     Py_DECREF(out);
+    Py_XDECREF(item);
     return NULL;
 }
 
@@ -5738,9 +5764,11 @@ static PyObject *
 js_decode_set(
     JSONDecoderState *self, TypeNode *el_type, TypeNode *ctx, Py_ssize_t ctx_ind
 ) {
-    PyObject *out, *item;
+    PyObject *out, *item = NULL;
     unsigned char c;
-    bool empty = true;
+    bool first = true;
+
+    self->input_pos++; /* Skip '[' */
 
     out = PySet_New(NULL);
     if (out == NULL) return NULL;
@@ -5748,25 +5776,40 @@ js_decode_set(
         Py_DECREF(out);
         return NULL;
     }
-    self->input_pos++; /* Skip '[' */
     while (true) {
         if (MS_UNLIKELY(!js_peek_skip_ws(self, &c))) goto error;
+        /* Parse ']' or ',', then peek the next character */
         if (c == ']') {
             self->input_pos++;
             break;
         }
-        if (c == ',' && !empty) self->input_pos++;
+        else if (c == ',' && !first) {
+            self->input_pos++;
+            if (MS_UNLIKELY(!js_peek_skip_ws(self, &c))) goto error;
+        }
+        else if (first) {
+            /* Only the first item doesn't need a comma delimiter */
+            first = false;
+        }
+        else {
+            js_err_invalid("expected ',' or '}'");
+            goto error;
+        }
+
+        /* Parse item */
         item = js_decode(self, el_type, ctx, ctx_ind, false);
         if (item == NULL) goto error;
+
+        /* Append item to set */
         if (PySet_Add(out, item) < 0) goto error;
-        Py_DECREF(item);
-        empty = false;
+        Py_CLEAR(item);
     }
     Py_LeaveRecursiveCall();
     return out;
 error:
     Py_LeaveRecursiveCall();
     Py_DECREF(out);
+    Py_XDECREF(item);
     return NULL;
 }
 
@@ -5942,6 +5985,109 @@ js_decode_string(JSONDecoderState *self, TypeNode *type, TypeNode *ctx, Py_ssize
 }
 
 static PyObject *
+js_decode_dict(
+    JSONDecoderState *self, TypeNode *key_type, TypeNode *val_type,
+    TypeNode *ctx, Py_ssize_t ctx_ind
+) {
+    PyObject *out, *key = NULL, *val = NULL;
+    unsigned char c;
+    bool first = true;
+
+    self->input_pos++; /* Skip '{' */
+
+    out = PyDict_New();
+    if (out == NULL) return NULL;
+
+    if (Py_EnterRecursiveCall(" while deserializing an object")) {
+        Py_DECREF(out);
+        return NULL;
+    }
+    while (true) {
+        /* Parse '}' or ',', then peek the next character */
+        if (MS_UNLIKELY(!js_peek_skip_ws(self, &c))) goto error;
+        if (c == '}') {
+            self->input_pos++;
+            break;
+        }
+        else if (c == ',' && !first) {
+            self->input_pos++;
+            if (MS_UNLIKELY(!js_peek_skip_ws(self, &c))) goto error;
+        }
+        else if (first) {
+            /* Only the first item doesn't need a comma delimiter */
+            first = false;
+        }
+        else {
+            js_err_invalid("expected ',' or '}'");
+            goto error;
+        }
+
+        /* Parse a string key */
+        if (c == '"') {
+            key = js_decode_string(self, key_type, ctx, ctx_ind);
+            if (key == NULL) goto error;
+        }
+        else if (c == ',') {
+            js_err_invalid("trailing comma in object");
+            goto error;
+        }
+        else {
+            js_err_invalid("key must be a string");
+            goto error;
+        }
+
+        /* Parse colon */
+        if (MS_UNLIKELY(!js_peek_skip_ws(self, &c))) goto error;
+        if (c != ':') {
+            js_err_invalid("expected ':'");
+            goto error;
+        }
+        self->input_pos++;
+
+        /* Parse value */
+        val = js_decode(self, val_type, ctx, ctx_ind, false);
+        if (val == NULL) goto error;
+
+        /* Add item to dict */
+        if (MS_UNLIKELY(PyDict_SetItem(out, key, val) < 0))
+            goto error;
+        Py_CLEAR(key);
+        Py_CLEAR(val);
+    }
+    Py_LeaveRecursiveCall();
+    return out;
+
+error:
+    Py_LeaveRecursiveCall();
+    Py_XDECREF(key);
+    Py_XDECREF(val);
+    Py_DECREF(out);
+    return NULL;
+}
+
+static PyObject *
+js_decode_object(
+    JSONDecoderState *self, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind, bool is_key
+) {
+    if (type->types & MS_TYPE_ANY) {
+        return js_decode_dict(self, type, type, ctx, ctx_ind);
+    }
+    else if (type->types & MS_TYPE_DICT) {
+        TypeNode *key, *val;
+        TypeNode_get_dict(type, &key, &val);
+        return js_decode_dict(self, key, val, ctx, ctx_ind);
+    }
+    /* TODO */
+    /*else if (type->types & MS_TYPE_STRUCT) {*/
+        /*StructMetaObject *struct_type = TypeNode_get_struct(type);*/
+        /*if (struct_type->asarray != OPT_TRUE) {*/
+            /*return mp_decode_type_struct_map(self, size, struct_type, type, is_key);*/
+        /*}*/
+    /*}*/
+    return mp_validation_error("dict", type, ctx, ctx_ind);
+}
+
+static PyObject *
 js_decode(
     JSONDecoderState *self, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind, bool is_key
 ) {
@@ -5954,14 +6100,10 @@ js_decode(
         case 't': return js_decode_true(self, type, ctx, ctx_ind);
         case 'f': return js_decode_false(self, type, ctx, ctx_ind);
         case '[': return js_decode_array(self, type, ctx, ctx_ind, is_key);
+        case '{': return js_decode_object(self, type, ctx, ctx_ind, is_key);
         case '"': return js_decode_string(self, type, ctx, ctx_ind);
         default: {
-            PyErr_Format(
-                msgspec_get_global_state()->DecodingError,
-                "unexpected character '%c'",
-                c
-            );
-            return NULL;
+            return js_err_invalid("invalid character");
         }
     }
 }
