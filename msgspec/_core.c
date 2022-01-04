@@ -3562,6 +3562,31 @@ static const char escape_table[256] = {
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 };
 
+/* GCC generates better code if the uncommon path in the str encoding loop is
+ * pulled out into a separate function. Clang generates the same code either
+ * way. */
+static int
+json_write_str_fragment(
+    EncoderState *self, const char *buf, Py_ssize_t start, Py_ssize_t i, char c, char escape
+) {
+    if (MS_LIKELY(start < i)) {
+        if (MS_UNLIKELY(ms_write(self, buf + start, i - start) < 0)) return -1;
+    }
+
+    /* Write the escaped character */
+    char escaped[6] = {'\\', escape, '0', '0'};
+    if (MS_UNLIKELY(escape == 'u')) {
+        static const char* const hex = "0123456789abcdef";
+        escaped[4] = hex[c >> 4];
+        escaped[5] = hex[c & 0xF];
+        if (MS_UNLIKELY(ms_write(self, escaped, 6) < 0)) return -1;
+    }
+    else {
+        if (MS_UNLIKELY(ms_write(self, escaped, 2) < 0)) return -1;
+    }
+    return i + 1;
+}
+
 static int
 json_encode_str(EncoderState *self, PyObject *obj) {
     Py_ssize_t i, len, start = 0;
@@ -3574,25 +3599,11 @@ json_encode_str(EncoderState *self, PyObject *obj) {
         /* Scan through until a character needs to be escaped */
         char c = buf[i];
         char escape = escape_table[(uint8_t)c];
-        if (MS_LIKELY(escape == 0)) continue;
-
-        /* Write the fragment that doesn't need to be escaped */
-        if (start < i) {
-            if (ms_write(self, buf + start, i - start) < 0) return -1;
+        if (MS_UNLIKELY(escape != 0)) {
+            if (MS_UNLIKELY((start = json_write_str_fragment(self, buf, start, i, c, escape)) < 0)) {
+                return -1;
+            }
         }
-
-        /* Write the escaped character */
-        char escaped[6] = {'\\', escape, '0', '0'};
-        if (MS_UNLIKELY(escape == 'u')) {
-            static const char* const hex = "0123456789abcdef";
-            escaped[4] = hex[c >> 4];
-            escaped[5] = hex[c & 0xF];
-            if (ms_write(self, escaped, 6) < 0) return -1;
-        }
-        else {
-            if (ms_write(self, escaped, 2) < 0) return -1;
-        }
-        start = i + 1;
     }
     /* Write the last unescaped fragment (if any) */
     if (start != len) {
