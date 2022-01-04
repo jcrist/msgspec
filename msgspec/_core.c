@@ -1753,6 +1753,45 @@ Struct_get_index(PyObject *obj, Py_ssize_t index) {
     return val;
 }
 
+static int
+Struct_fill_in_defaults(StructMetaObject *st_type, PyObject *obj) {
+    Py_ssize_t nfields, ndefaults, i;
+    bool should_untrack;
+
+    nfields = PyTuple_GET_SIZE(st_type->struct_fields);
+    ndefaults = PyTuple_GET_SIZE(st_type->struct_defaults);
+    should_untrack = PyObject_IS_GC(obj);
+
+    for (i = 0; i < nfields; i++) {
+        PyObject *val = Struct_get_index_noerror(obj, i);
+        if (val == NULL) {
+            if (i < (nfields - ndefaults)) {
+                PyErr_Format(
+                    msgspec_get_global_state()->DecodingError,
+                    "Error decoding `%s`: missing required field `%S`",
+                    ((PyTypeObject *)st_type)->tp_name,
+                    PyTuple_GET_ITEM(st_type->struct_fields, i)
+                );
+                return -1;
+            }
+            else {
+                /* Fill in default */
+                val = maybe_deepcopy_default(
+                    PyTuple_GET_ITEM(st_type->struct_defaults, i - (nfields - ndefaults))
+                );
+                if (val == NULL) return -1;
+                Struct_set_index(obj, i, val);
+            }
+        }
+        if (should_untrack) {
+            should_untrack = !OBJ_IS_GC(val);
+        }
+    }
+    if (should_untrack)
+        PyObject_GC_UnTrack(obj);
+    return 0;
+}
+
 static PyObject *
 Struct_vectorcall(PyTypeObject *cls, PyObject *const *args, size_t nargsf, PyObject *kwnames) {
     PyObject *self, *fields, *defaults, *field, *val;
@@ -4895,10 +4934,9 @@ static PyObject *
 mp_decode_type_struct_map(
     DecoderState *self, Py_ssize_t size, StructMetaObject *st_type, TypeNode *type, bool is_key
 ) {
-    Py_ssize_t i, key_size, field_index, nfields, ndefaults, pos = 0;
+    Py_ssize_t i, key_size, field_index, pos = 0;
     char *key = NULL;
     PyObject *res, *val = NULL;
-    int should_untrack;
 
     res = Struct_alloc((PyTypeObject *)(st_type));
     if (res == NULL) return NULL;
@@ -4925,38 +4963,8 @@ mp_decode_type_struct_map(
         }
     }
 
-    nfields = PyTuple_GET_SIZE(st_type->struct_fields);
-    ndefaults = PyTuple_GET_SIZE(st_type->struct_defaults);
-    should_untrack = PyObject_IS_GC(res);
-
-    for (i = 0; i < nfields; i++) {
-        val = Struct_get_index_noerror(res, i);
-        if (val == NULL) {
-            if (i < (nfields - ndefaults)) {
-                PyErr_Format(
-                    msgspec_get_global_state()->DecodingError,
-                    "Error decoding `%s`: missing required field `%S`",
-                    ((PyTypeObject *)st_type)->tp_name,
-                    PyTuple_GET_ITEM(st_type->struct_fields, i)
-                );
-                goto error;
-            }
-            else {
-                /* Fill in default */
-                val = maybe_deepcopy_default(
-                    PyTuple_GET_ITEM(st_type->struct_defaults, i - (nfields - ndefaults))
-                );
-                if (val == NULL) goto error;
-                Struct_set_index(res, i, val);
-            }
-        }
-        if (should_untrack) {
-            should_untrack = !OBJ_IS_GC(val);
-        }
-    }
+    if (Struct_fill_in_defaults(st_type, res) < 0) goto error;
     Py_LeaveRecursiveCall();
-    if (should_untrack)
-        PyObject_GC_UnTrack(res);
     return res;
 error:
     Py_LeaveRecursiveCall();
@@ -5636,6 +5644,12 @@ js_err_invalid(const char *msg)
     return NULL;
 }
 
+static int
+js_skip(JSONDecoderState *self) {
+    /* TODO! */
+    return -1;
+}
+
 static PyObject * js_decode(
     JSONDecoderState *self, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind, bool is_key
 );
@@ -6066,6 +6080,91 @@ error:
 }
 
 static PyObject *
+js_decode_struct_map(
+    JSONDecoderState *self, StructMetaObject *st_type, TypeNode *type, bool is_key
+) {
+    PyObject *out, *val = NULL;
+    Py_ssize_t key_size, field_index, pos = 0;
+    unsigned char c;
+    char *key = NULL;
+    bool first = true;
+
+    self->input_pos++; /* Skip '{' */
+
+    out = Struct_alloc((PyTypeObject *)(st_type));
+    if (out == NULL) return NULL;
+
+    if (Py_EnterRecursiveCall(" while deserializing an object")) {
+        Py_DECREF(out);
+        return NULL;
+    }
+    while (true) {
+        /* Parse '}' or ',', then peek the next character */
+        if (MS_UNLIKELY(!js_peek_skip_ws(self, &c))) goto error;
+        if (c == '}') {
+            self->input_pos++;
+            break;
+        }
+        else if (c == ',' && !first) {
+            self->input_pos++;
+            if (MS_UNLIKELY(!js_peek_skip_ws(self, &c))) goto error;
+        }
+        else if (first) {
+            /* Only the first item doesn't need a comma delimiter */
+            first = false;
+        }
+        else {
+            js_err_invalid("expected ',' or '}'");
+            goto error;
+        }
+
+        /* Parse a string key */
+        if (c == '"') {
+            key_size = js_decode_string_view(self, &key);
+            if (key_size < 0) goto error;
+        }
+        else if (c == ',') {
+            js_err_invalid("trailing comma in object");
+            goto error;
+        }
+        else {
+            js_err_invalid("key must be a string");
+            goto error;
+        }
+
+        /* Parse colon */
+        if (MS_UNLIKELY(!js_peek_skip_ws(self, &c))) goto error;
+        if (c != ':') {
+            js_err_invalid("expected ':'");
+            goto error;
+        }
+        self->input_pos++;
+
+        /* Parse value */
+        field_index = StructMeta_get_field_index(st_type, key, key_size, &pos);
+        if (field_index < 0) {
+            /* Skip unknown fields */
+            if (js_skip(self) < 0) goto error;
+        }
+        else {
+            val = js_decode(
+                self, st_type->struct_types[field_index], type, field_index, is_key
+            );
+            if (val == NULL) goto error;
+            Struct_set_index(out, field_index, val);
+        }
+    }
+    if (Struct_fill_in_defaults(st_type, out) < 0) goto error;
+    Py_LeaveRecursiveCall();
+    return out;
+
+error:
+    Py_LeaveRecursiveCall();
+    Py_DECREF(out);
+    return NULL;
+}
+
+static PyObject *
 js_decode_object(
     JSONDecoderState *self, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind, bool is_key
 ) {
@@ -6077,13 +6176,12 @@ js_decode_object(
         TypeNode_get_dict(type, &key, &val);
         return js_decode_dict(self, key, val, ctx, ctx_ind);
     }
-    /* TODO */
-    /*else if (type->types & MS_TYPE_STRUCT) {*/
-        /*StructMetaObject *struct_type = TypeNode_get_struct(type);*/
-        /*if (struct_type->asarray != OPT_TRUE) {*/
-            /*return mp_decode_type_struct_map(self, size, struct_type, type, is_key);*/
-        /*}*/
-    /*}*/
+    else if (type->types & MS_TYPE_STRUCT) {
+        StructMetaObject *struct_type = TypeNode_get_struct(type);
+        if (struct_type->asarray != OPT_TRUE) {
+            return js_decode_struct_map(self, struct_type, type, is_key);
+        }
+    }
     return mp_validation_error("dict", type, ctx, ctx_ind);
 }
 
