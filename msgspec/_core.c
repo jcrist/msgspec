@@ -280,6 +280,7 @@ typedef struct {
     PyObject *struct_defaults;
     Py_ssize_t *struct_offsets;
     TypeNode **struct_types;
+    bool json_compatible;
     char immutable;
     char asarray;
 } StructMetaObject;
@@ -1041,6 +1042,57 @@ done:
     return out;
 }
 
+static bool
+TypeNode_JSONCompatible(TypeNode *type) {
+    if (type->types & MS_TYPE_DICT) {
+        TypeNode *key, *val;
+        TypeNode_get_dict(type, &key, &val);
+        if (key->types & ~(MS_TYPE_ANY | MS_TYPE_STR)) {
+            PyObject *type_repr = TypeNode_Repr(type);
+            if (type_repr == NULL) return false;
+            PyErr_Format(
+                PyExc_TypeError,
+                "JSON doesn't support dicts with non-string keys - type %R is incompatible",
+                type_repr
+            );
+            Py_DECREF(type_repr);
+            return false;
+        }
+        if (!TypeNode_JSONCompatible(key)) return false;
+        if (!TypeNode_JSONCompatible(val)) return false;
+    }
+    else if (type->types & (MS_TYPE_LIST | MS_TYPE_SET | MS_TYPE_VARTUPLE)) {
+        TypeNode *item = TypeNode_get_array(type);
+        if (!TypeNode_JSONCompatible(item)) return false;
+    }
+    else if (type->types & MS_TYPE_STRUCT) {
+        Py_ssize_t nfields, i;
+        StructMetaObject *st_type = TypeNode_get_struct(type);
+        if (st_type->json_compatible) return true;
+        /* Pre-emptively set to True to prevent recursion */
+        st_type->json_compatible = true;
+
+        nfields = PyTuple_GET_SIZE(st_type->struct_fields);
+        for (i = 0; i < nfields; i++) {
+            if (!TypeNode_JSONCompatible(st_type->struct_types[i])) {
+                st_type->json_compatible = false;
+                return false;
+            }
+        }
+    }
+    else if (type->types & MS_TYPE_FIXTUPLE) {
+        Py_ssize_t i, offset;
+        TypeNodeExtra *tex = (TypeNodeExtra *)type;
+
+        offset = TypeNode_get_array_offset(type);
+        for (i = 0; i < tex->fixtuple_size; i++) {
+            if (!TypeNode_JSONCompatible(tex->extra[offset + i])) return false;
+        }
+    }
+    return true;
+}
+
+
 static PyTypeObject StructMixinType;
 
 /* To reduce overhead of repeatedly allocating & freeing messages (in e.g. a
@@ -1418,6 +1470,7 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
     cls->struct_offsets = offsets;
     cls->immutable = immutable;
     cls->asarray = asarray;
+    cls->json_compatible = false;  /* false means unknown or incompatible */
     return (PyObject *) cls;
 error:
     Py_XDECREF(arg_fields);
@@ -5427,7 +5480,6 @@ msgspec_msgpack_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, 
             PyErr_SetString(PyExc_TypeError, "tzinfo must be an instance of tzinfo");
             return NULL;
         }
-        Py_INCREF(tzinfo);
     }
     state.tzinfo = tzinfo;
 
@@ -5542,9 +5594,8 @@ JSONDecoder_init(JSONDecoder *self, PyObject *args, PyObject *kwds)
 
     /* Handle type */
     self->state.type = TypeNode_Convert(type);
-    if (self->state.type == NULL) {
-        return -1;
-    }
+    if (self->state.type == NULL) return -1;
+    if (!TypeNode_JSONCompatible(self->state.type)) return -1;
     Py_INCREF(type);
     self->orig_type = type;
 
@@ -6540,7 +6591,6 @@ msgspec_json_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyO
             PyErr_SetString(PyExc_TypeError, "tzinfo must be an instance of tzinfo");
             return NULL;
         }
-        Py_INCREF(tzinfo);
     }
     state.tzinfo = tzinfo;
 
@@ -6553,6 +6603,10 @@ msgspec_json_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyO
     if (type != NULL && type != st->typing_any) {
         state.type = TypeNode_Convert(type);
         if (state.type == NULL) return NULL;
+        if (!TypeNode_JSONCompatible(state.type)) {
+            TypeNode_Free(state.type);
+            return NULL;
+        }
     }
 
     buffer.buf = NULL;
