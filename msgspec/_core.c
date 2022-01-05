@@ -3613,7 +3613,7 @@ json_encode_str(EncoderState *self, PyObject *obj) {
     return ms_write(self, "\"", 1);
 }
 
-static const char base64_table[] =
+static const char base64_encode_table[] =
 "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 static int
@@ -3644,16 +3644,16 @@ json_encode_bin(EncoderState *self, const char* buf, Py_ssize_t len) {
         while (nbits >= 6) {
             unsigned char ind = (charbuf >> (nbits - 6)) & 0x3f;
             nbits -= 6;
-            *out++ = base64_table[ind];
+            *out++ = base64_encode_table[ind];
         }
     }
     if (nbits == 2) {
-        *out++ = base64_table[(charbuf & 3) << 4];
+        *out++ = base64_encode_table[(charbuf & 3) << 4];
         *out++ = '=';
         *out++ = '=';
     }
     else if (nbits == 4) {
-        *out++ = base64_table[(charbuf & 0xf) << 2];
+        *out++ = base64_encode_table[(charbuf & 0xf) << 2];
         *out++ = '=';
     }
     *out++ = '"';
@@ -6061,19 +6061,110 @@ js_decode_string_view(JSONDecoderState *self, char **out) {
             }
             default: {
                 self->input_pos += 1;
-                PyErr_SetString(msgspec_get_global_state()->DecodingError, "Invalid character");
+                js_err_invalid("Invalid character");
                 return -1;
             }
         }
     }
 }
 
+/* A table of the corresponding base64 value for each character, or -1 if an
+ * invalid character in the base64 alphabet (note the padding char '=' is
+ * handled elsewhere, so is marked as invalid here as well) */
+static const uint8_t base64_decode_table[] = {
+    -1,-1,-1,-1, -1,-1,-1,-1, -1,-1,-1,-1, -1,-1,-1,-1,
+    -1,-1,-1,-1, -1,-1,-1,-1, -1,-1,-1,-1, -1,-1,-1,-1,
+    -1,-1,-1,-1, -1,-1,-1,-1, -1,-1,-1,62, -1,-1,-1,63,
+    52,53,54,55, 56,57,58,59, 60,61,-1,-1, -1,-1,-1,-1,
+    -1, 0, 1, 2,  3, 4, 5, 6,  7, 8, 9,10, 11,12,13,14,
+    15,16,17,18, 19,20,21,22, 23,24,25,-1, -1,-1,-1,-1,
+    -1,26,27,28, 29,30,31,32, 33,34,35,36, 37,38,39,40,
+    41,42,43,44, 45,46,47,48, 49,50,51,-1, -1,-1,-1,-1,
+    -1,-1,-1,-1, -1,-1,-1,-1, -1,-1,-1,-1, -1,-1,-1,-1,
+    -1,-1,-1,-1, -1,-1,-1,-1, -1,-1,-1,-1, -1,-1,-1,-1,
+    -1,-1,-1,-1, -1,-1,-1,-1, -1,-1,-1,-1, -1,-1,-1,-1,
+    -1,-1,-1,-1, -1,-1,-1,-1, -1,-1,-1,-1, -1,-1,-1,-1,
+    -1,-1,-1,-1, -1,-1,-1,-1, -1,-1,-1,-1, -1,-1,-1,-1,
+    -1,-1,-1,-1, -1,-1,-1,-1, -1,-1,-1,-1, -1,-1,-1,-1,
+    -1,-1,-1,-1, -1,-1,-1,-1, -1,-1,-1,-1, -1,-1,-1,-1,
+    -1,-1,-1,-1, -1,-1,-1,-1, -1,-1,-1,-1, -1,-1,-1,-1,
+};
+
+static PyObject *
+js_decode_binary(
+    JSONDecoderState *self, const char *buffer, Py_ssize_t size,
+    TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind
+) {
+    PyObject *out = NULL;
+    char *bin_buffer;
+    Py_ssize_t bin_size, i;
+
+    if (size % 4 != 0) goto invalid;
+
+    int npad = 0;
+    if (size > 0 && buffer[size - 1] == '=') npad++;
+    if (size > 1 && buffer[size - 2] == '=') npad++;
+
+    bin_size = (size / 4) * 3 - npad;
+    if (type->types & MS_TYPE_BYTES) {
+        out = PyBytes_FromStringAndSize(NULL, bin_size);
+        if (out == NULL) return NULL;
+        bin_buffer = PyBytes_AS_STRING(out);
+    }
+    else {
+        out = PyByteArray_FromStringAndSize(NULL, bin_size);
+        if (out == NULL) return NULL;
+        bin_buffer = PyByteArray_AS_STRING(out);
+    }
+
+    int quad = 0;
+    uint8_t left_c = 0;
+    for (i = 0; i < size - npad; i++) {
+        uint8_t c = base64_decode_table[(uint8_t)(buffer[i])];
+        if (c >= 64) goto invalid;
+
+        switch (quad) {
+            case 0:
+                quad = 1;
+                left_c = c;
+                break;
+            case 1:
+                quad = 2;
+                *bin_buffer++ = (left_c << 2) | (c >> 4);
+                left_c = c & 0x0f;
+                break;
+            case 2:
+                quad = 3;
+                *bin_buffer++ = (left_c << 4) | (c >> 2);
+                left_c = c & 0x03;
+                break;
+            case 3:
+                quad = 0;
+                *bin_buffer++ = (left_c << 6) | c;
+                left_c = 0;
+                break;
+        }
+    }
+    return out;
+
+invalid:
+    Py_XDECREF(out);
+    PyErr_SetString(
+        msgspec_get_global_state()->DecodingError,
+        "Invalid base64 encoded string"
+    );
+    return NULL;
+}
+
 static PyObject *
 js_decode_string(JSONDecoderState *self, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind) {
-    if (MS_LIKELY(type->types & (MS_TYPE_ANY | MS_TYPE_STR | MS_TYPE_ENUM))) {
+    if (MS_LIKELY(type->types & (MS_TYPE_ANY | MS_TYPE_STR | MS_TYPE_ENUM | MS_TYPE_BYTES | MS_TYPE_BYTEARRAY))) {
         char *view = NULL;
         Py_ssize_t size = js_decode_string_view(self, &view);
         if (size < 0) return NULL;
+        if (MS_UNLIKELY(type->types & (MS_TYPE_BYTES | MS_TYPE_BYTEARRAY))) {
+            return js_decode_binary(self, view, size, type, ctx, ctx_ind);
+        }
         PyObject *val = PyUnicode_DecodeUTF8(view, size, NULL);
         if (val == NULL) return NULL;
         if (MS_UNLIKELY(type->types & MS_TYPE_ENUM)) {
