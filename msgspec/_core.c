@@ -2736,6 +2736,61 @@ static PyMemberDef Encoder_members[] = {
 };
 
 /*************************************************************************
+ * Shared Decoding Utilities                                             *
+ *************************************************************************/
+static MS_NOINLINE PyObject *
+ms_decode_type_enum(PyObject *val, TypeNode *type) {
+    if (val == NULL) return NULL;
+    PyObject *enum_obj = TypeNode_get_enum(type);
+    PyObject *out = PyObject_GetAttr(enum_obj, val);
+    Py_DECREF(val);
+    if (MS_UNLIKELY(out == NULL)) {
+        PyErr_Clear();
+        PyErr_Format(
+            msgspec_get_global_state()->DecodingError,
+            "Error decoding enum `%s`: invalid name `%S`",
+            ((PyTypeObject *)enum_obj)->tp_name,
+            val
+        );
+    }
+    return out;
+}
+
+static PyObject *
+ms_decode_type_intenum(PyObject *val, TypeNode *type) {
+    if (val == NULL) return NULL;
+
+    PyObject *out = NULL;
+    MsgspecState *st = msgspec_get_global_state();
+    PyObject *intenum = TypeNode_get_intenum(type);
+
+    /* Fast path for common case. This accesses a non-public member of the
+    * enum class to speedup lookups. If this fails, we clear errors and
+    * use the slower-but-more-public method instead. */
+    PyObject *member_table = PyObject_GetAttr(intenum, st->str__value2member_map_);
+    if (MS_LIKELY(member_table != NULL)) {
+        out = PyDict_GetItem(member_table, val);
+        Py_DECREF(member_table);
+        Py_XINCREF(out);
+    }
+    if (MS_UNLIKELY(out == NULL)) {
+        PyErr_Clear();
+        out = CALL_ONE_ARG(intenum, val);
+    }
+    Py_DECREF(val);
+    if (MS_UNLIKELY(out == NULL)) {
+        PyErr_Clear();
+        PyErr_Format(
+            st->DecodingError,
+            "Error decoding enum `%s`: invalid value `%S`",
+            ((PyTypeObject *)(intenum))->tp_name,
+            val
+        );
+    }
+    return out;
+}
+
+/*************************************************************************
  * MessagePack Encoder                                                   *
  *************************************************************************/
 
@@ -4482,44 +4537,10 @@ cleanup:
     return out;
 }
 
-static PyObject *
-mp_decode_type_intenum(DecoderState *self, PyObject *val, TypeNode *type) {
-    if (val == NULL) return NULL;
-
-    PyObject *out = NULL;
-    MsgspecState *st = msgspec_get_global_state();
-    PyObject *intenum = TypeNode_get_intenum(type);
-
-    /* Fast path for common case. This accesses a non-public member of the
-    * enum class to speedup lookups. If this fails, we clear errors and
-    * use the slower-but-more-public method instead. */
-    PyObject *member_table = PyObject_GetAttr(intenum, st->str__value2member_map_);
-    if (MS_LIKELY(member_table != NULL)) {
-        out = PyDict_GetItem(member_table, val);
-        Py_DECREF(member_table);
-        Py_XINCREF(out);
-    }
-    if (MS_UNLIKELY(out == NULL)) {
-        PyErr_Clear();
-        out = CALL_ONE_ARG(intenum, val);
-    }
-    Py_DECREF(val);
-    if (MS_UNLIKELY(out == NULL)) {
-        PyErr_Clear();
-        PyErr_Format(
-            st->DecodingError,
-            "Error decoding enum `%s`: invalid value `%S`",
-            ((PyTypeObject *)(intenum))->tp_name,
-            val
-        );
-    }
-    return out;
-}
-
 static MS_INLINE PyObject *
 mp_decode_type_int(DecoderState *self, int64_t x, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind) {
     if (type->types & MS_TYPE_INTENUM) {
-        return mp_decode_type_intenum(self, PyLong_FromLongLong(x), type);
+        return ms_decode_type_intenum(PyLong_FromLongLong(x), type);
     }
     else if (type->types & (MS_TYPE_ANY | MS_TYPE_INT)) {
         return PyLong_FromLongLong(x);
@@ -4533,7 +4554,7 @@ mp_decode_type_int(DecoderState *self, int64_t x, TypeNode *type, TypeNode *ctx,
 static MS_INLINE PyObject *
 mp_decode_type_uint(DecoderState *self, uint64_t x, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind) {
     if (type->types & MS_TYPE_INTENUM) {
-        return mp_decode_type_intenum(self, PyLong_FromUnsignedLongLong(x), type);
+        return ms_decode_type_intenum(PyLong_FromUnsignedLongLong(x), type);
     }
     else if (type->types & (MS_TYPE_ANY | MS_TYPE_INT)) {
         return PyLong_FromUnsignedLongLong(x);
@@ -4570,24 +4591,6 @@ mp_decode_type_float(DecoderState *self, double val, TypeNode *type, TypeNode *c
     return mp_validation_error("float", type, ctx, ctx_ind);
 }
 
-static MS_NOINLINE PyObject *
-mp_decode_type_enum(PyObject *val, TypeNode *type) {
-    if (val == NULL) return NULL;
-    PyObject *enum_obj = TypeNode_get_enum(type);
-    PyObject *out = PyObject_GetAttr(enum_obj, val);
-    Py_DECREF(val);
-    if (MS_UNLIKELY(out == NULL)) {
-        PyErr_Clear();
-        PyErr_Format(
-            msgspec_get_global_state()->DecodingError,
-            "Error decoding enum `%s`: invalid name `%S`",
-            ((PyTypeObject *)enum_obj)->tp_name,
-            val
-        );
-    }
-    return out;
-}
-
 static MS_INLINE PyObject *
 mp_decode_type_str(DecoderState *self, Py_ssize_t size, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind) {
     if (MS_LIKELY(type->types & (MS_TYPE_ANY | MS_TYPE_STR | MS_TYPE_ENUM))) {
@@ -4596,7 +4599,7 @@ mp_decode_type_str(DecoderState *self, Py_ssize_t size, TypeNode *type, TypeNode
         if (MS_UNLIKELY(mp_read(self, &s, size) < 0)) return NULL;
         val = PyUnicode_DecodeUTF8(s, size, NULL);
         if (MS_UNLIKELY(type->types & MS_TYPE_ENUM)) {
-            return mp_decode_type_enum(val, type);
+            return ms_decode_type_enum(val, type);
         }
         return val;
     }
@@ -5672,6 +5675,12 @@ js_read1(JSONDecoderState *self, unsigned char *c)
     return true;
 }
 
+static MS_INLINE char
+js_peek_or_null(JSONDecoderState *self) {
+    if (MS_UNLIKELY(self->input_pos == self->input_end)) return '\0';
+    return *self->input_pos;
+}
+
 static MS_INLINE bool
 js_peek_skip_ws(JSONDecoderState *self, unsigned char *s)
 {
@@ -6219,7 +6228,7 @@ js_decode_string(JSONDecoderState *self, TypeNode *type, TypeNode *ctx, Py_ssize
         PyObject *val = PyUnicode_DecodeUTF8(view, size, NULL);
         if (val == NULL) return NULL;
         if (MS_UNLIKELY(type->types & MS_TYPE_ENUM)) {
-            return mp_decode_type_enum(val, type);
+            return ms_decode_type_enum(val, type);
         }
         return val;
     }
@@ -6413,6 +6422,193 @@ js_decode_object(
     return mp_validation_error("dict", type, ctx, ctx_ind);
 }
 
+
+static MS_INLINE PyObject *
+js_build_integer(uint64_t mantissa, bool is_negative) {
+    if (is_negative) {
+        return PyLong_FromLongLong(-1 * (int64_t)mantissa);
+    }
+    return PyLong_FromUnsignedLongLong(mantissa);
+}
+
+static PyObject *
+js_build_float(
+    JSONDecoderState *self, uint64_t mantissa, int32_t exponent, bool is_negative, bool is_truncated
+) {
+    return Py_BuildValue("(kibb)", mantissa, exponent, is_negative, is_truncated);
+}
+
+#define is_digit(c) (c >= '0' && c <= '9')
+
+static PyObject *
+js_finish_decode_float(
+    JSONDecoderState *self, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind,
+    uint64_t mantissa, int32_t exponent, bool is_negative, bool is_truncated
+) {
+    if (type->types & (MS_TYPE_ANY | MS_TYPE_FLOAT)) {
+        return js_build_float(self, mantissa, exponent, is_negative, is_truncated);
+    }
+    return mp_validation_error("float", type, ctx, ctx_ind);
+}
+
+static PyObject *
+js_parse_number_exponent(
+    JSONDecoderState *self, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind,
+    uint64_t mantissa, int32_t exponent, bool is_negative, bool is_truncated
+) {
+    int32_t exp_sign = 1, exp_part = 0;
+
+    self->input_pos++;
+
+    char c = js_peek_or_null(self);
+    /* Parse exponent sign (if any) */
+    if (c == '+') {
+        self->input_pos++;
+    }
+    else if (c == '-') {
+        self->input_pos++;
+        exp_sign = -1;
+    }
+
+    /* Parse exponent digits */
+    while (self->input_pos < self->input_end && is_digit(*self->input_pos)) {
+        c = *self->input_pos++;
+        if (MS_LIKELY(exp_part < 10000)) {
+            exp_part = (int32_t)(exp_part * 10) + (uint32_t)(c - '0');
+        }
+    }
+
+    /* Error if no digits in exponent */
+    if (MS_UNLIKELY(exp_part == 0)) return js_err_invalid("invalid number");
+
+    exponent += exp_sign * exp_part;
+    return js_finish_decode_float(
+        self, type, ctx, ctx_ind, mantissa, exponent, is_negative, is_truncated
+    );
+}
+
+static PyObject *
+js_parse_number_decimal(
+    JSONDecoderState *self, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind,
+    uint64_t mantissa, int32_t exponent, bool is_negative, bool is_truncated
+) {
+    char c;
+    self->input_pos++;
+    /* Save the current read position to check if we read any decimal
+     * values after this loop */
+    unsigned char *dec_pos = self->input_pos;
+    /* Parse remaining digits until invalid/unknown character */
+    while (self->input_pos < self->input_end && is_digit(*self->input_pos)) {
+        c = *self->input_pos++;
+        uint64_t digit = c - '0';
+        uint64_t mantissa_10 = mantissa * 10;
+        uint64_t mantissa_new = mantissa_10 + digit;
+        if (MS_LIKELY(mantissa_new >= mantissa)) {
+            mantissa = mantissa_new;
+            exponent -= 1;
+        }
+        else if (c != '0') {
+            is_truncated = true;
+        }
+    }
+    /* Error if no digits after decimal */
+    if (MS_UNLIKELY(self->input_pos == dec_pos)) return js_err_invalid("invalid number");
+
+    c = js_peek_or_null(self);
+    if (c == 'e' || c == 'E') {
+        return js_parse_number_exponent(
+            self, type, ctx, ctx_ind, mantissa, exponent, is_negative, is_truncated
+        );
+    }
+    return js_finish_decode_float(
+        self, type, ctx, ctx_ind, mantissa, exponent, is_negative, is_truncated
+    );
+}
+
+static PyObject *
+js_maybe_decode_number(
+    JSONDecoderState *self, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind
+) {
+    uint64_t mantissa = 0;
+    int32_t exponent = 0;
+    bool is_truncated = false;
+    bool is_negative = false;
+
+    /* We know there is at least one byte available when this function is
+     * called */
+    char c = *self->input_pos;
+
+    /* Parse minus sign (if present) */
+    if (c == '-') {
+        self->input_pos++;
+        c = js_peek_or_null(self);
+        is_negative = true;
+    }
+
+    /* Parse integer */
+    if (MS_UNLIKELY(c == '0')) {
+        /* Ensure at most one leading zero */
+        self->input_pos++;
+        c = js_peek_or_null(self);
+        if (MS_UNLIKELY(is_digit(c))) return js_err_invalid("invalid number");
+    }
+    else if (MS_LIKELY('1' <= c && c <= '9')) {
+        mantissa = c - '0';
+        self->input_pos++;
+
+        /* Parse remaining integers until invalid/unknown character */
+        while (MS_LIKELY(self->input_pos < self->input_end)) {
+            c = *self->input_pos;
+            if (MS_UNLIKELY(!is_digit(c))) break;
+            self->input_pos++;
+            uint64_t digit = c - '0';
+            uint64_t mantissa_10 = mantissa * 10;
+            uint64_t mantissa_new = mantissa_10 + digit;
+            if (MS_LIKELY(mantissa_new >= mantissa)) {
+                mantissa = mantissa_new;
+            }
+            else {
+                exponent++;
+                if (c != '0') {
+                    is_truncated = true;
+                }
+            }
+        }
+    }
+    else {
+        return js_err_invalid("invalid character");
+    }
+
+    c = js_peek_or_null(self);
+    if (c == '.') {
+        return js_parse_number_decimal(
+            self, type, ctx, ctx_ind, mantissa, exponent, is_negative, is_truncated
+        );
+    }
+    else if (c == 'e' || c == 'E') {
+        return js_parse_number_exponent(
+            self, type, ctx, ctx_ind, mantissa, exponent, is_negative, is_truncated
+        );
+    }
+
+    /* If the number is too big for a uint64, it must be read as a float */
+    /* Likewise, if the number is negative and too big for an int64_t it must
+     * be read as a float */
+    if (MS_UNLIKELY(is_truncated || (is_negative && mantissa > (1ull << 63)))) {
+        return js_finish_decode_float(
+            self, type, ctx, ctx_ind, mantissa, exponent, is_negative, is_truncated
+        );
+    }
+    else if (MS_LIKELY(type->types & (MS_TYPE_ANY | MS_TYPE_INT | MS_TYPE_INTENUM))) {
+        PyObject *val = js_build_integer(mantissa, is_negative);
+        if (type->types & MS_TYPE_INTENUM) {
+            return ms_decode_type_intenum(val, type);
+        }
+        return val;
+    }
+    return mp_validation_error("int", type, ctx, ctx_ind);
+}
+
 static PyObject *
 js_decode(
     JSONDecoderState *self, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind, bool is_key
@@ -6428,9 +6624,7 @@ js_decode(
         case '[': return js_decode_array(self, type, ctx, ctx_ind, is_key);
         case '{': return js_decode_object(self, type, ctx, ctx_ind, is_key);
         case '"': return js_decode_string(self, type, ctx, ctx_ind);
-        default: {
-            return js_err_invalid("invalid character");
-        }
+        default: return js_maybe_decode_number(self, type, ctx, ctx_ind);
     }
 }
 
