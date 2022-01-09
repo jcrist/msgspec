@@ -6432,7 +6432,7 @@ js_build_integer(uint64_t mantissa, bool is_negative) {
     return PyLong_FromUnsignedLongLong(mantissa);
 }
 
-static MS_INLINE PyObject *
+static MS_NOINLINE PyObject *
 js_decode_extended_float(
     JSONDecoderState *self, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind
 ) {
@@ -6478,22 +6478,38 @@ js_maybe_decode_number(
         if (MS_UNLIKELY(is_digit(c))) return js_err_invalid("invalid number");
     }
     else {
-        /* Parse digits until invalid/unknown character */
-        unsigned char* start_pos = self->input_pos;
-        while (self->input_pos < self->input_end) {
+        /* Parse the integer part of the number.
+         *
+         * We can read the first 19 digits safely into a uint64 without
+         * checking for overflow. Removing overflow checks from the loop gives
+         * a measurable performance boost. */
+        size_t n_safe = Py_MIN(19, self->input_end - self->input_pos);
+        size_t n_safe_orig = n_safe;
+        while (n_safe) {
             c = *self->input_pos;
-            if (MS_UNLIKELY(!is_digit(c))) break;
+            if (!is_digit(c)) goto end_integer;
             self->input_pos++;
-            uint64_t mantissa2 = mantissa * 10 + (uint64_t)(c - '0');
-            if (MS_UNLIKELY(mantissa2 < mantissa)) {
-                return js_decode_extended_float(self, type, ctx, ctx_ind);
+            n_safe--;
+            mantissa = mantissa * 10 + (uint64_t)(c - '0');
+        }
+        if (n_safe_orig == 19) {
+            /* Reading a 20th digit may or may not cause overflow. Any
+             * additional digits definitely will. Read the 20th digit (and
+             * check for a 21st), taking the slow path upon overflow. */
+            c = js_peek_or_null(self);
+            if (is_digit(c)) {
+                self->input_pos++;
+                uint64_t mantissa2 = mantissa * 10 + (uint64_t)(c - '0');
+                if (MS_UNLIKELY(mantissa2 < mantissa || is_digit(js_peek_or_null(self)))) {
+                    return js_decode_extended_float(self, type, ctx, ctx_ind);
+                }
+                mantissa = mantissa2;
             }
-            mantissa = mantissa2;
         }
-        if (MS_UNLIKELY(self->input_pos == start_pos)) {
-            /* There must be at least one digit */
-            return js_err_invalid("invalid character");
-        }
+
+end_integer:
+        /* There must be at least one digit */
+        if (MS_UNLIKELY(n_safe == n_safe_orig)) return js_err_invalid("invalid character");
     }
 
     c = js_peek_or_null(self);
@@ -6549,7 +6565,7 @@ js_maybe_decode_number(
         exponent += exp_sign * exp_part;
     }
 
-    if (is_float) {
+    if (is_float || (is_negative && mantissa > 1ul << 63)) {
         return js_finish_decode_float(self, type, ctx, ctx_ind, mantissa, exponent, is_negative);
     }
     else if (MS_LIKELY(type->types & (MS_TYPE_ANY | MS_TYPE_INT | MS_TYPE_INTENUM))) {
