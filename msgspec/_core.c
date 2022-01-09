@@ -6431,11 +6431,11 @@ js_build_integer(uint64_t mantissa, bool is_negative) {
     return PyLong_FromUnsignedLongLong(mantissa);
 }
 
-static PyObject *
-js_build_float(
-    JSONDecoderState *self, uint64_t mantissa, int32_t exponent, bool is_negative, bool is_truncated
+static MS_INLINE PyObject *
+js_decode_extended_float(
+    JSONDecoderState *self, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind
 ) {
-    return Py_BuildValue("(kibb)", mantissa, exponent, is_negative, is_truncated);
+    return js_err_invalid("TODO");
 }
 
 #define is_digit(c) (c >= '0' && c <= '9')
@@ -6443,10 +6443,10 @@ js_build_float(
 static PyObject *
 js_finish_decode_float(
     JSONDecoderState *self, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind,
-    uint64_t mantissa, int32_t exponent, bool is_negative, bool is_truncated
+    uint64_t mantissa, int32_t exponent, bool is_negative
 ) {
     if (type->types & (MS_TYPE_ANY | MS_TYPE_FLOAT)) {
-        return js_build_float(self, mantissa, exponent, is_negative, is_truncated);
+        return Py_BuildValue("(kib)", mantissa, exponent, is_negative);
     }
     return mp_validation_error("float", type, ctx, ctx_ind);
 }
@@ -6454,7 +6454,7 @@ js_finish_decode_float(
 static PyObject *
 js_parse_number_exponent(
     JSONDecoderState *self, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind,
-    uint64_t mantissa, int32_t exponent, bool is_negative, bool is_truncated
+    uint64_t mantissa, int32_t exponent, bool is_negative
 ) {
     int32_t exp_sign = 1, exp_part = 0;
 
@@ -6483,14 +6483,14 @@ js_parse_number_exponent(
 
     exponent += exp_sign * exp_part;
     return js_finish_decode_float(
-        self, type, ctx, ctx_ind, mantissa, exponent, is_negative, is_truncated
+        self, type, ctx, ctx_ind, mantissa, exponent, is_negative
     );
 }
 
 static PyObject *
 js_parse_number_decimal(
     JSONDecoderState *self, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind,
-    uint64_t mantissa, int32_t exponent, bool is_negative, bool is_truncated
+    uint64_t mantissa, int32_t exponent, bool is_negative
 ) {
     char c;
     self->input_pos++;
@@ -6507,8 +6507,8 @@ js_parse_number_decimal(
             mantissa = mantissa_new;
             exponent -= 1;
         }
-        else if (c != '0') {
-            is_truncated = true;
+        else {
+            return js_decode_extended_float(self, type, ctx, ctx_ind);
         }
     }
     /* Error if no digits after decimal */
@@ -6517,13 +6517,14 @@ js_parse_number_decimal(
     c = js_peek_or_null(self);
     if (c == 'e' || c == 'E') {
         return js_parse_number_exponent(
-            self, type, ctx, ctx_ind, mantissa, exponent, is_negative, is_truncated
+            self, type, ctx, ctx_ind, mantissa, exponent, is_negative
         );
     }
     return js_finish_decode_float(
-        self, type, ctx, ctx_ind, mantissa, exponent, is_negative, is_truncated
+        self, type, ctx, ctx_ind, mantissa, exponent, is_negative
     );
 }
+
 
 static PyObject *
 js_maybe_decode_number(
@@ -6531,7 +6532,6 @@ js_maybe_decode_number(
 ) {
     uint64_t mantissa = 0;
     int32_t exponent = 0;
-    bool is_truncated = false;
     bool is_negative = false;
 
     /* We know there is at least one byte available when this function is
@@ -6557,22 +6557,12 @@ js_maybe_decode_number(
         self->input_pos++;
 
         /* Parse remaining integers until invalid/unknown character */
-        while (MS_LIKELY(self->input_pos < self->input_end)) {
+        while (self->input_pos < self->input_end) {
             c = *self->input_pos;
             if (MS_UNLIKELY(!is_digit(c))) break;
             self->input_pos++;
-            uint64_t digit = c - '0';
-            uint64_t mantissa_10 = mantissa * 10;
-            uint64_t mantissa_new = mantissa_10 + digit;
-            if (MS_LIKELY(mantissa_new >= mantissa)) {
-                mantissa = mantissa_new;
-            }
-            else {
-                exponent++;
-                if (c != '0') {
-                    is_truncated = true;
-                }
-            }
+            /* This many overflow, but we'll detect that later */
+            mantissa = mantissa * 10 + (uint64_t)(c - '0');
         }
     }
     else {
@@ -6582,24 +6572,16 @@ js_maybe_decode_number(
     c = js_peek_or_null(self);
     if (c == '.') {
         return js_parse_number_decimal(
-            self, type, ctx, ctx_ind, mantissa, exponent, is_negative, is_truncated
+            self, type, ctx, ctx_ind, mantissa, exponent, is_negative
         );
     }
     else if (c == 'e' || c == 'E') {
         return js_parse_number_exponent(
-            self, type, ctx, ctx_ind, mantissa, exponent, is_negative, is_truncated
+            self, type, ctx, ctx_ind, mantissa, exponent, is_negative
         );
     }
 
-    /* If the number is too big for a uint64, it must be read as a float */
-    /* Likewise, if the number is negative and too big for an int64_t it must
-     * be read as a float */
-    if (MS_UNLIKELY(is_truncated || (is_negative && mantissa > (1ull << 63)))) {
-        return js_finish_decode_float(
-            self, type, ctx, ctx_ind, mantissa, exponent, is_negative, is_truncated
-        );
-    }
-    else if (MS_LIKELY(type->types & (MS_TYPE_ANY | MS_TYPE_INT | MS_TYPE_INTENUM))) {
+    if (MS_LIKELY(type->types & (MS_TYPE_ANY | MS_TYPE_INT | MS_TYPE_INTENUM))) {
         PyObject *val = js_build_integer(mantissa, is_negative);
         if (type->types & MS_TYPE_INTENUM) {
             return ms_decode_type_intenum(val, type);
