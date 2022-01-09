@@ -3601,14 +3601,22 @@ json_encode_long(EncoderState *self, PyObject *obj) {
     int64_t xsigned = PyLong_AsLongLongAndOverflow(obj, &overflow);
     uint64_t x;
     if (overflow) {
-        PyErr_SetString(PyExc_OverflowError, "can't serialize ints larger than 64 bits");
-        return -1;
+        if (overflow > 0) {
+            neg = false;
+            x = PyLong_AsUnsignedLongLong(obj);
+            if (x == ((uint64_t)(-1)) && PyErr_Occurred()) return -1;
+        } else {
+            PyErr_SetString(PyExc_OverflowError, "can't serialize ints < -2**63");
+            return -1;
+        }
     }
     else if (xsigned == -1 && PyErr_Occurred()) {
         return -1;
     }
-    neg = xsigned < 0;
-    x = neg ? -xsigned : xsigned;
+    else {
+        neg = xsigned < 0;
+        x = neg ? -xsigned : xsigned;
+    }
     while (x >= 100) {
         int64_t const old = x;
         p -= 2;
