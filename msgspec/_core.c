@@ -7,6 +7,7 @@
 #include "structmember.h"
 
 #include "ryu.h"
+#include "atof.h"
 
 #ifdef __GNUC__
 #define MS_LIKELY(pred) __builtin_expect(!!(pred), 1)
@@ -6452,8 +6453,12 @@ js_finish_decode_float(
     JSONDecoderState *self, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind,
     uint64_t mantissa, int32_t exponent, bool is_negative
 ) {
-    if (type->types & (MS_TYPE_ANY | MS_TYPE_FLOAT)) {
-        return Py_BuildValue("(kib)", mantissa, exponent, is_negative);
+    if (MS_LIKELY(type->types & (MS_TYPE_ANY | MS_TYPE_FLOAT))) {
+        double val;
+        if (!reconstruct_double(mantissa, exponent, is_negative, &val)) {
+            return js_err_invalid("TODO, eisel-lemire fallback");
+        }
+        return PyFloat_FromDouble(val);
     }
     return mp_validation_error("float", type, ctx, ctx_ind);
 }
@@ -6522,7 +6527,6 @@ end_integer:
 
     c = js_peek_or_null(self);
     if (c == '.') {
-        char c;
         self->input_pos++;
         is_float = true;
         /* Save the current read position to check if we read any decimal
@@ -6544,7 +6548,6 @@ end_integer:
         c = js_peek_or_null(self);
     }
     if (c == 'e' || c == 'E') {
-        char c;
         int32_t exp_sign = 1, exp_part = 0;
         self->input_pos++;
         is_float = true;
