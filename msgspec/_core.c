@@ -6,6 +6,7 @@
 #include "datetime.h"
 #include "structmember.h"
 
+#include "common.h"
 #include "ryu.h"
 #include "atof.h"
 
@@ -6433,34 +6434,118 @@ js_decode_object(
 
 #define is_digit(c) (c >= '0' && c <= '9')
 
-static MS_INLINE PyObject *
-js_build_integer(uint64_t mantissa, bool is_negative) {
-    if (is_negative) {
-        return PyLong_FromLongLong(-1 * (int64_t)mantissa);
-    }
-    return PyLong_FromUnsignedLongLong(mantissa);
-}
-
 static MS_NOINLINE PyObject *
-js_decode_extended_float(
-    JSONDecoderState *self, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind
-) {
-    return js_err_invalid("TODO");
-}
+js_decode_extended_float(JSONDecoderState *self) {
+    uint32_t nd = 0;
+    int32_t dp = 0;
 
-static PyObject *
-js_finish_decode_float(
-    JSONDecoderState *self, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind,
-    uint64_t mantissa, int32_t exponent, bool is_negative
-) {
-    if (MS_LIKELY(type->types & (MS_TYPE_ANY | MS_TYPE_FLOAT))) {
-        double val;
-        if (!reconstruct_double(mantissa, exponent, is_negative, &val)) {
-            return js_err_invalid("TODO, eisel-lemire fallback");
-        }
-        return PyFloat_FromDouble(val);
+    ms_hpd dec;
+    dec.num_digits = 0;
+    dec.decimal_point = 0;
+    dec.negative = false;
+    dec.truncated = false;
+
+    /* We know there is at least one byte available when this function is
+     * called */
+    char c = *self->input_pos;
+
+    /* Parse minus sign (if present) */
+    if (c == '-') {
+        self->input_pos++;
+        c = js_peek_or_null(self);
+        dec.negative = true;
     }
-    return mp_validation_error("float", type, ctx, ctx_ind);
+
+    /* Parse integer */
+    if (MS_UNLIKELY(c == '0')) {
+        /* Ensure at most one leading zero */
+        self->input_pos++;
+        c = js_peek_or_null(self);
+        /* This _can't_ happen, since it would have been caught in the fast routine first */
+        /*if (MS_UNLIKELY(is_digit(c))) return js_err_invalid("invalid number");*/
+    }
+    else {
+        /* Parse the integer part of the number. */
+        while (self->input_pos < self->input_end && is_digit(*self->input_pos)) {
+            c = *self->input_pos++;
+            if (MS_LIKELY(nd < MS_HPD_MAX_DIGITS)) {
+                dec.digits[nd++] = (uint8_t)(c - '0');
+                dp = nd;
+            }
+            else if (c != '0') {
+                dec.truncated = true;
+            }
+        }
+        /* This _can't_ happen, since it would have been caught in the fast routine first */
+        /*if (MS_UNLIKELY(nd == 0)) return js_err_invalid("invalid character");*/
+    }
+
+    c = js_peek_or_null(self);
+    if (c == '.') {
+        self->input_pos++;
+        /* Track leading zeros implicitly */
+        /* XXX: I think if we set dp = -1 at the beginning this check can be removed */
+        /*if (nd == 0) dp--;*/
+        /* Parse remaining digits until invalid/unknown character */
+        unsigned char *cur_pos = self->input_pos;
+        while (self->input_pos < self->input_end && is_digit(*self->input_pos)) {
+            c = *self->input_pos++;
+            if (MS_LIKELY(nd < MS_HPD_MAX_DIGITS)) {
+                dec.digits[nd++] = (uint8_t)(c - '0');
+            }
+            else if (c != '0') {
+                dec.truncated = true;
+            }
+        }
+        /* Error if no digits after decimal */
+        if (MS_UNLIKELY(cur_pos == self->input_pos)) return js_err_invalid("invalid number");
+
+        c = js_peek_or_null(self);
+    }
+    if (c == 'e' || c == 'E') {
+        self->input_pos++;
+
+        int32_t exp_sign = 1, exp_part = 0;
+
+        c = js_peek_or_null(self);
+        /* Parse exponent sign (if any) */
+        if (c == '+') {
+            self->input_pos++;
+        }
+        else if (c == '-') {
+            self->input_pos++;
+            exp_sign = -1;
+        }
+
+        /* Parse exponent digits */
+        unsigned char *cur_pos = self->input_pos;
+        while (self->input_pos < self->input_end && is_digit(*self->input_pos)) {
+            c = *self->input_pos++;
+            if (MS_LIKELY(exp_part < MS_HPD_MAX_DIGITS + MS_HPD_DP_RANGE)) {
+                exp_part = (int32_t)(exp_part * 10) + (uint32_t)(c - '0');
+            }
+        }
+
+        /* Error if no digits in exponent */
+        if (MS_UNLIKELY(cur_pos == self->input_pos)) return js_err_invalid("invalid number");
+
+        dp += exp_sign * exp_part;
+    }
+
+    dec.num_digits = nd;
+    if (dp < -MS_HPD_DP_RANGE) {
+        dec.decimal_point = -(MS_HPD_DP_RANGE + 1);
+    }
+    else if (dp > MS_HPD_DP_RANGE) {
+        dec.decimal_point = (MS_HPD_DP_RANGE + 1);
+    }
+    else {
+        dec.decimal_point = dp;
+    }
+    ms_hpd_trim(&dec);
+    double res = ms_hpd_to_double(&dec);
+    if Py_IS_INFINITY(res) return js_err_invalid("number out of range");
+    return PyFloat_FromDouble(res);
 }
 
 static PyObject *
@@ -6471,6 +6556,8 @@ js_maybe_decode_number(
     int32_t exponent = 0;
     bool is_negative = false;
     bool is_float = false;
+
+    unsigned char *initial_pos = self->input_pos;
 
     /* We know there is at least one byte available when this function is
      * called */
@@ -6514,7 +6601,8 @@ js_maybe_decode_number(
                 self->input_pos++;
                 uint64_t mantissa2 = mantissa * 10 + (uint64_t)(c - '0');
                 if (MS_UNLIKELY(mantissa2 < mantissa || is_digit(js_peek_or_null(self)))) {
-                    return js_decode_extended_float(self, type, ctx, ctx_ind);
+                    self->input_pos = initial_pos;
+                    return js_decode_extended_float(self);
                 }
                 mantissa = mantissa2;
             }
@@ -6529,21 +6617,20 @@ end_integer:
     if (c == '.') {
         self->input_pos++;
         is_float = true;
-        /* Save the current read position to check if we read any decimal
-        * values after this loop */
-        unsigned char *dec_pos = self->input_pos;
         /* Parse remaining digits until invalid/unknown character */
+        unsigned char *cur_pos = self->input_pos;
         while (self->input_pos < self->input_end && is_digit(*self->input_pos)) {
             c = *self->input_pos++;
             uint64_t mantissa2 = mantissa * 10 + (uint64_t)(c - '0');
             if (MS_UNLIKELY(mantissa2 < mantissa)) {
-                return js_decode_extended_float(self, type, ctx, ctx_ind);
+                self->input_pos = initial_pos;
+                return js_decode_extended_float(self);
             }
             mantissa = mantissa2;
             exponent--;
         }
         /* Error if no digits after decimal */
-        if (MS_UNLIKELY(self->input_pos == dec_pos)) return js_err_invalid("invalid number");
+        if (MS_UNLIKELY(cur_pos == self->input_pos)) return js_err_invalid("invalid number");
 
         c = js_peek_or_null(self);
     }
@@ -6563,6 +6650,7 @@ end_integer:
         }
 
         /* Parse exponent digits */
+        unsigned char *cur_pos = self->input_pos;
         while (self->input_pos < self->input_end && is_digit(*self->input_pos)) {
             c = *self->input_pos++;
             if (MS_LIKELY(exp_part < 10000)) {
@@ -6571,16 +6659,28 @@ end_integer:
         }
 
         /* Error if no digits in exponent */
-        if (MS_UNLIKELY(exp_part == 0)) return js_err_invalid("invalid number");
+        if (MS_UNLIKELY(cur_pos == self->input_pos)) return js_err_invalid("invalid number");
 
         exponent += exp_sign * exp_part;
     }
 
     if (is_float || (is_negative && mantissa > 1ul << 63)) {
-        return js_finish_decode_float(self, type, ctx, ctx_ind, mantissa, exponent, is_negative);
+        if (MS_LIKELY(type->types & (MS_TYPE_ANY | MS_TYPE_FLOAT))) {
+            double val;
+            if (!reconstruct_double(mantissa, exponent, is_negative, &val)) {
+                self->input_pos = initial_pos;
+                return js_decode_extended_float(self);
+            }
+            return PyFloat_FromDouble(val);
+        }
+        return mp_validation_error("float", type, ctx, ctx_ind);
     }
     else if (MS_LIKELY(type->types & (MS_TYPE_ANY | MS_TYPE_INT | MS_TYPE_INTENUM))) {
-        PyObject *val = js_build_integer(mantissa, is_negative);
+        PyObject *val = (
+            is_negative ?
+            PyLong_FromLongLong(-1 * (int64_t)mantissa) :
+            PyLong_FromUnsignedLongLong(mantissa)
+        );
         if (type->types & MS_TYPE_INTENUM) {
             return ms_decode_type_intenum(val, type);
         }

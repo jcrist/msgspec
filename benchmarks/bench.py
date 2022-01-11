@@ -195,6 +195,24 @@ def bench_msgspec(n, no_gc, validate=False):
     return bench(enc.encode, dec.decode, n, convert, no_gc=no_gc)
 
 
+def bench_msgspec_json(n, no_gc, validate=False):
+    enc = msgspec.json.Encoder()
+    dec = msgspec.json.Decoder(Person if n == 1 else List[Person])
+
+    def convert_one(addresses=None, **kwargs):
+        addrs = [Address(**a) for a in addresses] if addresses else None
+        return Person(addresses=addrs, **kwargs)
+
+    def convert(data):
+        return (
+            [convert_one(**d) for d in data]
+            if isinstance(data, list)
+            else convert_one(**data)
+        )
+
+    return bench(enc.encode, dec.decode, n, convert, no_gc=no_gc)
+
+
 def bench_msgspec_asarray(n, no_gc, validate=False):
     enc = msgspec.msgpack.Encoder()
     dec = msgspec.msgpack.Decoder(Person2 if n == 1 else List[Person2])
@@ -250,6 +268,44 @@ def bench_orjson(n, no_gc, validate=False):
     return bench(orjson.dumps, loads, n, no_gc=no_gc)
 
 
+def bench_ujson(n, no_gc, validate=False):
+    import ujson
+    if validate:
+        if n == 1:
+
+            def loads(b):
+                return PersonModel(**ujson.loads(b))
+
+        else:
+
+            def loads(b):
+                return PeopleModel(items=ujson.loads(b)).items
+
+    else:
+        loads = ujson.loads
+
+    return bench(ujson.dumps, loads, n, no_gc=no_gc)
+
+
+def bench_json(n, no_gc, validate=False):
+    import json
+    if validate:
+        if n == 1:
+
+            def loads(b):
+                return PersonModel(**json.loads(b))
+
+        else:
+
+            def loads(b):
+                return PeopleModel(items=json.loads(b)).items
+
+    else:
+        loads = json.loads
+
+    return bench(json.dumps, loads, n, no_gc=no_gc)
+
+
 def bench_ormsgpack(n, no_gc, validate=False):
     if validate:
         if n == 1:
@@ -300,12 +356,15 @@ def bench_pyrobuf(n, no_gc, validate=False):
 
 
 BENCHMARKS = [
+    # ("json", bench_json),
+    # ("ujson", bench_ujson),
     ("orjson", bench_orjson),
     ("msgpack", bench_msgpack),
     ("ormsgpack", bench_ormsgpack),
-    ("msgspec", bench_msgspec),
-    ("msgspec asarray", bench_msgspec_asarray),
     ("pyrobuf", bench_pyrobuf),
+    ("msgspec.msgpack", bench_msgspec),
+    ("msgspec.msgpack\nasarray", bench_msgspec_asarray),
+    ("msgspec.json", bench_msgspec_json),
 ]
 
 
@@ -446,10 +505,12 @@ def run(
 ):
     results = []
     for name, func in BENCHMARKS:
-        print(f"- {name}...")
+        print(f"{name}")
         dumps_time, loads_time = func(n, no_gc, validate)
+        total_time = dumps_time + loads_time
         print(f"  dumps: {dumps_time * 1e6:.2f} us")
         print(f"  loads: {loads_time * 1e6:.2f} us")
+        print(f"  total: {total_time * 1e6:.2f} us")
         results.append((name, dumps_time, loads_time))
     if save_plot or save_json:
         import json
