@@ -1,24 +1,31 @@
-/* This file contains an implementation of the Eisel-Lemire algorithm, as
- * described in https://nigeltao.github.io/blog/2020/eisel-lemire.html. Much of
- * the implementation is based on the one available in Wuffs
- * (https://github.com/google/wuffs/blob/c104ae296c3557f946e4bd5ee8b85511f12c141c/internal/cgen/base/floatconv-submodule-code.c#L989),
- * the license of which is copied below:
+/* This file implements the core float parsing routines used in msgspec.
  *
- * """
- * Copyright 2020 The Wuffs Authors.
+ * It contains an implementation of the Eisel-Lemire algorithm, as described in
+ * https://nigeltao.github.io/blog/2020/eisel-lemire.html. Much of the
+ * implementation is based on the one available in Wuffs
+ * (https://github.com/google/wuffs/blob/c104ae296c3557f946e4bd5ee8b85511f12c141c/internal/cgen/base/floatconv-submodule-code.c#L989).
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * It also contains a fallback implementation using a High Precision Double
+ * (HPD). This method is based on the following blogpost by Nigel Tao (
+ * https://nigeltao.github.io/blog/2020/parse-number-f64-simple.html), as well
+ * as the implementation in Wuffs
+ * (https://github.com/google/wuffs/blob/c104ae296c3557f946e4bd5ee8b85511f12c141c/internal/cgen/base/floatconv-submodule-code.c#L1307-L1308).
+ *
+ * The Wuffs license is copied below:
+ *
+ * """ Copyright 2020 The Wuffs Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ * use this file except in compliance with the License.  You may obtain a copy
+ * of the License at
  *
  *    https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- * """
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
+ * License for the specific language governing permissions and limitations
+ * under the License.  """
  *
  * */
 
@@ -26,6 +33,7 @@
 #define MS_ATOF_H
 
 #include <stdint.h>
+#include <math.h>
 
 #if defined(_MSC_VER)
 #include <intrin.h>
@@ -105,7 +113,7 @@ static inline bool
 reconstruct_double(uint64_t man, int32_t exp, bool is_negative, double *out) {
     /* If both `man` and `10 ** exp` can be exactly represented as a double, we
      * can take a fast path */
-    if ((-22 <= exp) && (exp <= 22) && ((man >> 53) == 0)) {
+    if (MS_LIKELY((-22 <= exp) && (exp <= 22) && ((man >> 53) == 0))) {
         double d = (double)man;
         if (exp >= 0) {
             d *= ms_atof_f64_powers_of_10[exp];
@@ -118,10 +126,13 @@ reconstruct_double(uint64_t man, int32_t exp, bool is_negative, double *out) {
 
     /* Special case 0 handling. This is only hit if the mantissa is 0 and the
      * exponent is out of bounds above (i.e. rarely) */
-    if (man == 0) {
+    if (MS_UNLIKELY(man == 0)) {
         *out = is_negative ? -0.0 : 0.0;
         return true;
     }
+
+    /* Exponent is out of bounds */
+    if (exp > 288 || exp < -307) return false;
 
     /* The short comment headers below correspond to section titles in Nigel
      * Tao's blogpost. See
@@ -183,6 +194,271 @@ reconstruct_double(uint64_t man, int32_t exp, bool is_negative, double *out) {
 	uint64_t ret = ret_mantissa | (ret_exp2 << 52) | (((uint64_t)is_negative) << 63);
     memcpy(out, &ret, sizeof(double));
     return true;
+}
+
+/* Fallback parsing method using a High Precision Double (HPD) */
+#define MS_HPD_MAX_DIGITS 800
+#define MS_HPD_DP_RANGE 2047
+#define MS_HPD_MAX_SHIFT 60
+
+typedef struct ms_hpd
+{
+    uint32_t num_digits;
+    int32_t decimal_point;
+    bool negative;
+    bool truncated;
+    uint8_t digits[800];
+} ms_hpd;
+
+
+static inline void
+ms_hpd_trim(ms_hpd *dec) {
+    while ((dec->num_digits > 0) && (dec->digits[dec->num_digits - 1] == 0)) {
+        dec->num_digits--;
+    }
+    if (dec->num_digits == 0) {
+        dec->decimal_point = 0;
+    }
+}
+
+static uint32_t
+ms_hpd_lshift_num_new_digits(ms_hpd *hpd, uint32_t shift) {
+    shift &= 63;
+
+    uint32_t x_a = ms_atof_left_shift[shift];
+    uint32_t x_b = ms_atof_left_shift[shift + 1];
+    uint32_t num_new_digits = x_a >> 11;
+    uint32_t pow5_a = 0x7FF & x_a;
+    uint32_t pow5_b = 0x7FF & x_b;
+
+    const uint8_t* pow5 = &ms_atof_powers_of_5[pow5_a];
+    uint32_t i = 0;
+    uint32_t n = pow5_b - pow5_a;
+    for (; i < n; i++) {
+        if (i >= hpd->num_digits) {
+            return num_new_digits - 1;
+        } else if (hpd->digits[i] == pow5[i]) {
+            continue;
+        } else if (hpd->digits[i] < pow5[i]) {
+            return num_new_digits - 1;
+        } else {
+            return num_new_digits;
+        }
+    }
+    return num_new_digits;
+}
+
+static uint64_t
+ms_hpd_rounded_integer(ms_hpd *hpd) {
+    if ((hpd->num_digits == 0) || (hpd->decimal_point < 0)) {
+        return 0;
+    } else if (hpd->decimal_point > 18) {
+        return UINT64_MAX;
+    }
+
+    uint32_t dp = (uint32_t)(hpd->decimal_point);
+    uint64_t n = 0;
+    uint32_t i = 0;
+    for (; i < dp; i++) {
+        n = (10 * n) + ((i < hpd->num_digits) ? hpd->digits[i] : 0);
+    }
+
+    bool round_up = false;
+    if (dp < hpd->num_digits) {
+        round_up = hpd->digits[dp] >= 5;
+        if ((hpd->digits[dp] == 5) && (dp + 1 == hpd->num_digits)) {
+            round_up = hpd->truncated || ((dp > 0) && (1 & hpd->digits[dp - 1]));
+        }
+    }
+    if (round_up) {
+        n++;
+    }
+
+    return n;
+}
+
+static void
+ms_hpd_small_lshift(ms_hpd *hpd, uint32_t shift) {
+    if (hpd->num_digits == 0) {
+        return;
+    }
+    uint32_t num_new_digits = ms_hpd_lshift_num_new_digits(hpd, shift);
+    uint32_t rx = hpd->num_digits - 1;                   // Read  index.
+    uint32_t wx = hpd->num_digits - 1 + num_new_digits;  // Write index.
+    uint64_t n = 0;
+
+    while (((int32_t)rx) >= 0) {
+        n += ((uint64_t)(hpd->digits[rx])) << shift;
+        uint64_t quo = n / 10;
+        uint64_t rem = n - (10 * quo);
+        if (wx < MS_HPD_MAX_DIGITS) {
+            hpd->digits[wx] = (uint8_t)rem;
+        } else if (rem > 0) {
+            hpd->truncated = true;
+        }
+        n = quo;
+        wx--;
+        rx--;
+    }
+
+    while (n > 0) {
+        uint64_t quo = n / 10;
+        uint64_t rem = n - (10 * quo);
+        if (wx < MS_HPD_MAX_DIGITS) {
+            hpd->digits[wx] = (uint8_t)rem;
+        } else if (rem > 0) {
+            hpd->truncated = true;
+        }
+        n = quo;
+        wx--;
+    }
+
+    hpd->num_digits += num_new_digits;
+    if (hpd->num_digits > MS_HPD_MAX_DIGITS) {
+        hpd->num_digits = MS_HPD_MAX_DIGITS;
+    }
+    hpd->decimal_point += (int32_t)num_new_digits;
+    ms_hpd_trim(hpd);
+}
+
+static void
+ms_hpd_small_rshift(ms_hpd *hpd, uint32_t shift) {
+    uint32_t rx = 0;
+    uint32_t wx = 0;
+    uint64_t n = 0;
+
+    while ((n >> shift) == 0) {
+        if (rx < hpd->num_digits) {
+            n = (10 * n) + hpd->digits[rx++];
+        } else if (n == 0) {
+            return;
+        } else {
+            while ((n >> shift) == 0) {
+                n = 10 * n;
+                rx++;
+            }
+            break;
+        }
+    }
+    hpd->decimal_point -= ((int32_t)(rx - 1));
+    if (hpd->decimal_point < -MS_HPD_DP_RANGE) {
+        hpd->num_digits = 0;
+        hpd->decimal_point = 0;
+        hpd->truncated = false;
+        return;
+    }
+
+    uint64_t mask = (((uint64_t)(1)) << shift) - 1;
+    while (rx < hpd->num_digits) {
+        uint8_t new_digit = ((uint8_t)(n >> shift));
+        n = (10 * (n & mask)) + hpd->digits[rx++];
+        hpd->digits[wx++] = new_digit;
+    }
+
+    while (n > 0) {
+        uint8_t new_digit = ((uint8_t)(n >> shift));
+        n = 10 * (n & mask);
+        if (wx < MS_HPD_MAX_DIGITS) {
+            hpd->digits[wx++] = new_digit;
+        } else if (new_digit > 0) {
+            hpd->truncated = true;
+        }
+    }
+
+    hpd->num_digits = wx;
+    ms_hpd_trim(hpd);
+}
+
+static double
+ms_hpd_to_double(ms_hpd *hpd) {
+    static const uint32_t num_powers = 19;
+    static const uint8_t powers[19] = {
+        0,  3,  6,  9,  13, 16, 19, 23, 26, 29,
+        33, 36, 39, 43, 46, 49, 53, 56, 59,
+    };
+
+    if ((hpd->num_digits == 0) || (hpd->decimal_point < -326)) {
+        goto zero;
+    } else if (hpd->decimal_point > 310) {
+        goto infinity;
+    }
+
+    const int32_t f64_bias = -1023;
+    int32_t exp2 = 0;
+    while (hpd->decimal_point > 0) {
+        uint32_t n = (uint32_t)(+hpd->decimal_point);
+        uint32_t shift = (n < num_powers) ? powers[n] : MS_HPD_MAX_SHIFT;
+        ms_hpd_small_rshift(hpd, shift);
+        if (hpd->decimal_point < -MS_HPD_DP_RANGE) {
+            goto zero;
+        }
+        exp2 += (int32_t)shift;
+    }
+    while (hpd->decimal_point <= 0) {
+        uint32_t shift;
+        if (hpd->decimal_point == 0) {
+            if (hpd->digits[0] >= 5) {
+                break;
+            }
+            shift = (hpd->digits[0] < 2) ? 2 : 1;
+        } else {
+            uint32_t n = (uint32_t)(-hpd->decimal_point);
+            shift = (n < num_powers) ? powers[n] : MS_HPD_MAX_SHIFT;
+        }
+
+        ms_hpd_small_lshift(hpd, shift);
+        if (hpd->decimal_point > +MS_HPD_DP_RANGE) {
+            goto infinity;
+        }
+        exp2 -= (int32_t)shift;
+    }
+
+    exp2--;
+
+    while ((f64_bias + 1) > exp2) {
+        uint32_t n = (uint32_t)((f64_bias + 1) - exp2);
+        if (n > MS_HPD_MAX_SHIFT) {
+            n = MS_HPD_MAX_SHIFT;
+        }
+        ms_hpd_small_rshift(hpd, n);
+        exp2 += (int32_t)n;
+    }
+
+    if ((exp2 - f64_bias) >= 0x07FF) {
+        goto infinity;
+    }
+
+    ms_hpd_small_lshift(hpd, 53);
+    uint64_t man2 = ms_hpd_rounded_integer(hpd);
+
+    if ((man2 >> 53) != 0) {
+        man2 >>= 1;
+        exp2++;
+        if ((exp2 - f64_bias) >= 0x07FF) {
+            goto infinity;
+        }
+    }
+
+    if ((man2 >> 52) == 0) {
+        exp2 = f64_bias;
+    }
+
+    uint64_t exp2_bits = (uint64_t)((exp2 - f64_bias) & 0x07FF);
+    uint64_t bits = (
+        (man2 & 0x000FFFFFFFFFFFFF) |
+        (exp2_bits << 52) |
+        (hpd->negative ? 0x8000000000000000 : 0)
+    );
+
+    double ret;
+    memcpy(&ret, &bits, sizeof(double));
+    return ret;
+
+zero:
+    return hpd->negative ? -0.0 : 0.0;
+
+infinity:
+    return hpd->negative ? -INFINITY : INFINITY;
 }
 
 #endif
