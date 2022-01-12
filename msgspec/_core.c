@@ -3948,25 +3948,40 @@ json_encode_struct(EncoderState *self, PyObject *obj)
     PyObject *key, *val, *fields;
     Py_ssize_t i, len;
     int status = -1;
+    bool asarray = ((StructMetaObject *)Py_TYPE(obj))->asarray == OPT_TRUE;
 
     fields = StructMeta_GET_FIELDS(Py_TYPE(obj));
     len = PyTuple_GET_SIZE(fields);
 
-    if (len == 0) return ms_write(self, "{}", 2);
-    if (ms_write(self, "{", 1) < 0) return -1;
-    if (Py_EnterRecursiveCall(" while serializing an object"))
-        return -1;
-    for (i = 0; i < len; i++) {
-        key = PyTuple_GET_ITEM(fields, i);
-        val = Struct_get_index(obj, i);
-        if (val == NULL) goto cleanup;
-        if (json_encode_str_nocheck(self, key) < 0) goto cleanup;
-        if (ms_write(self, ":", 1) < 0) goto cleanup;
-        if (json_encode(self, val) < 0) goto cleanup;
-        if (ms_write(self, ",", 1) < 0) goto cleanup;
+    if (asarray) {
+        if (len == 0) return ms_write(self, "[]", 2);
+        if (ms_write(self, "[", 1) < 0) return -1;
+        if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
+        for (i = 0; i < len; i++) {
+            val = Struct_get_index(obj, i);
+            if (val == NULL) goto cleanup;
+            if (json_encode(self, val) < 0) goto cleanup;
+            if (ms_write(self, ",", 1) < 0) goto cleanup;
+        }
+        /* Overwrite trailing comma with ] */
+        *(self->output_buffer_raw + self->output_len - 1) = ']';
     }
-    /* Overwrite trailing comma with } */
-    *(self->output_buffer_raw + self->output_len - 1) = '}';
+    else {
+        if (len == 0) return ms_write(self, "{}", 2);
+        if (ms_write(self, "{", 1) < 0) return -1;
+        if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
+        for (i = 0; i < len; i++) {
+            key = PyTuple_GET_ITEM(fields, i);
+            val = Struct_get_index(obj, i);
+            if (val == NULL) goto cleanup;
+            if (json_encode_str_nocheck(self, key) < 0) goto cleanup;
+            if (ms_write(self, ":", 1) < 0) goto cleanup;
+            if (json_encode(self, val) < 0) goto cleanup;
+            if (ms_write(self, ",", 1) < 0) goto cleanup;
+        }
+        /* Overwrite trailing comma with } */
+        *(self->output_buffer_raw + self->output_len - 1) = '}';
+    }
     status = 0;
 cleanup:
     Py_LeaveRecursiveCall();
