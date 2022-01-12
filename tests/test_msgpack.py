@@ -226,6 +226,12 @@ class TestDecodeFunction:
         assert res == Point(1, 2)
         assert isinstance(res, Point)
 
+    def test_decode_with_trailing_characters_errors(self):
+        msg = msgspec.msgpack.encode([1, 2, 3]) + b"trailing"
+
+        with pytest.raises(msgspec.DecodingError):
+            msgspec.msgpack.decode(msg)
+
 
 class TestEncoderMisc:
     @pytest.mark.parametrize("x", [-(2 ** 63) - 1, 2 ** 64])
@@ -657,6 +663,14 @@ class TestDecoderMisc:
             msgspec.msgpack.Decoder(typ)
         assert f"more than one {kind}" in str(rec.value)
         assert repr(typ) in str(rec.value)
+
+    def test_decode_with_trailing_characters_errors(self):
+        dec = msgspec.msgpack.Decoder()
+
+        msg = msgspec.msgpack.encode([1, 2, 3]) + b"trailing"
+
+        with pytest.raises(msgspec.DecodingError):
+            dec.decode(msg)
 
 
 class TestTypedDecoder:

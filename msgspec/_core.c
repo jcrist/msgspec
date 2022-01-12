@@ -4297,6 +4297,19 @@ mp_read(DecoderState *self, char **s, Py_ssize_t n)
     return ms_err_truncated();
 }
 
+static MS_INLINE bool
+mp_has_trailing_characters(DecoderState *self)
+{
+    if (self->input_len != self->next_read_idx) {
+        PyErr_SetString(
+            msgspec_get_global_state()->DecodingError,
+            "MsgPack data is malformed: trailing characters"
+        );
+        return true;
+    }
+    return false;
+}
+
 static MS_INLINE Py_ssize_t
 mp_decode_size1(DecoderState *self) {
     char s = 0;
@@ -5343,10 +5356,13 @@ Decoder_decode(Decoder *self, PyObject *const *args, Py_ssize_t nargs)
         self->state.input_buffer = buffer.buf;
         self->state.input_len = buffer.len;
         self->state.next_read_idx = 0;
-        res = mp_decode_type(&(self->state), self->state.type, self->state.type, -1, false);
-    }
 
-    if (buffer.buf != NULL) {
+        res = mp_decode_type(&(self->state), self->state.type, self->state.type, -1, false);
+
+        if (res != NULL && mp_has_trailing_characters(&self->state)) {
+            res = NULL;
+        }
+
         PyBuffer_Release(&buffer);
         self->state.buffer_obj = NULL;
         self->state.input_buffer = NULL;
@@ -5511,14 +5527,14 @@ msgspec_msgpack_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, 
             TypeNode type_any = {MS_TYPE_ANY};
             res = mp_decode_type(&state, &type_any, &type_any, -1, false);
         }
+        PyBuffer_Release(&buffer);
+        if (res != NULL && mp_has_trailing_characters(&state)) {
+            res = NULL;
+        }
     }
 
     if (state.type != NULL) {
         TypeNode_Free(state.type);
-    }
-
-    if (buffer.buf != NULL) {
-        PyBuffer_Release(&buffer);
     }
     return res;
 }
@@ -5719,6 +5735,19 @@ js_err_invalid(const char *msg)
         msg
     );
     return NULL;
+}
+
+static MS_INLINE bool
+js_has_trailing_characters(JSONDecoderState *self)
+{
+    while (self->input_pos != self->input_end) {
+        unsigned char c = *self->input_pos++;
+        if (MS_UNLIKELY(!(c == ' ' || c == '\n' || c == '\t' || c == '\r'))) {
+            js_err_invalid("trailing characters");
+            return true;
+        }
+    }
+    return false;
 }
 
 static int js_skip(JSONDecoderState *self);
@@ -6230,7 +6259,7 @@ js_parse_escape(JSONDecoderState *self) {
                 js_err_invalid("invalid utf-16 surrogate pair");
                 return -1;
             }
-            else if (cp >= 0xD800 && cp <= 0xD8FF) {
+            else if (0xD800 <= cp && cp <= 0xDBFF) {
                 /* utf-16 pair, parse 2nd pair */
                 unsigned int cp2;
                 if (!js_remaining(self, 6)) return ms_err_truncated();
@@ -6927,7 +6956,7 @@ js_skip_string_escape(JSONDecoderState *self) {
                 js_err_invalid("invalid utf-16 surrogate pair");
                 return -1;
             }
-            else if (0xD800 <= cp && cp <= 0xD8FF) {
+            else if (0xD800 <= cp && cp <= 0xDBFF) {
                 /* utf-16 pair, parse 2nd pair */
                 unsigned int cp2;
                 if (!js_remaining(self, 6)) return ms_err_truncated();
@@ -7187,16 +7216,19 @@ JSONDecoder_decode(JSONDecoder *self, PyObject *const *args, Py_ssize_t nargs)
         self->state.buffer_obj = args[0];
         self->state.input_pos = buffer.buf;
         self->state.input_end = self->state.input_pos + buffer.len;
-        res = js_decode(&(self->state), self->state.type, self->state.type, -1, false);
-    }
 
-    if (buffer.buf != NULL) {
+        res = js_decode(&(self->state), self->state.type, self->state.type, -1, false);
+
+        if (res != NULL && js_has_trailing_characters(&self->state)) {
+            res = NULL;
+        }
+
         PyBuffer_Release(&buffer);
         self->state.buffer_obj = NULL;
         self->state.input_pos = NULL;
         self->state.input_end = NULL;
+        js_scratch_reset(&(self->state));
     }
-    js_scratch_reset(&(self->state));
 
     return res;
 }
@@ -7343,6 +7375,12 @@ msgspec_json_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyO
             TypeNode type_any = {MS_TYPE_ANY};
             res = js_decode(&state, &type_any, &type_any, -1, false);
         }
+
+        if (res != NULL && js_has_trailing_characters(&state)) {
+            res = NULL;
+        }
+
+        PyBuffer_Release(&buffer);
     }
 
     PyMem_Free(state.scratch);
@@ -7351,9 +7389,6 @@ msgspec_json_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyO
         TypeNode_Free(state.type);
     }
 
-    if (buffer.buf != NULL) {
-        PyBuffer_Release(&buffer);
-    }
     return res;
 }
 
