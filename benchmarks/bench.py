@@ -270,6 +270,7 @@ def bench_orjson(n, no_gc, validate=False):
 
 def bench_ujson(n, no_gc, validate=False):
     import ujson
+
     if validate:
         if n == 1:
 
@@ -289,6 +290,7 @@ def bench_ujson(n, no_gc, validate=False):
 
 def bench_json(n, no_gc, validate=False):
     import json
+
     if validate:
         if n == 1:
 
@@ -356,8 +358,8 @@ def bench_pyrobuf(n, no_gc, validate=False):
 
 
 BENCHMARKS = [
-    # ("json", bench_json),
-    # ("ujson", bench_ujson),
+    ("json", bench_json),
+    ("ujson", bench_ujson),
     ("orjson", bench_orjson),
     ("msgpack", bench_msgpack),
     ("ormsgpack", bench_ormsgpack),
