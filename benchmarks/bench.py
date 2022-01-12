@@ -177,13 +177,31 @@ def bench(dumps, loads, ndata, convert=None, no_gc=False):
     return dumps_time, loads_time
 
 
-def bench_msgspec(n, no_gc, validate=False):
+def bench_msgspec_msgpack(n, no_gc, validate=False):
     enc = msgspec.msgpack.Encoder()
     dec = msgspec.msgpack.Decoder(Person if n == 1 else List[Person])
 
     def convert_one(addresses=None, **kwargs):
         addrs = [Address(**a) for a in addresses] if addresses else None
         return Person(addresses=addrs, **kwargs)
+
+    def convert(data):
+        return (
+            [convert_one(**d) for d in data]
+            if isinstance(data, list)
+            else convert_one(**data)
+        )
+
+    return bench(enc.encode, dec.decode, n, convert, no_gc=no_gc)
+
+
+def bench_msgspec_msgpack_asarray(n, no_gc, validate=False):
+    enc = msgspec.msgpack.Encoder()
+    dec = msgspec.msgpack.Decoder(Person2 if n == 1 else List[Person2])
+
+    def convert_one(addresses=None, **kwargs):
+        addrs = [Address2(**a) for a in addresses] if addresses else None
+        return Person2(addresses=addrs, **kwargs)
 
     def convert(data):
         return (
@@ -213,9 +231,9 @@ def bench_msgspec_json(n, no_gc, validate=False):
     return bench(enc.encode, dec.decode, n, convert, no_gc=no_gc)
 
 
-def bench_msgspec_asarray(n, no_gc, validate=False):
-    enc = msgspec.msgpack.Encoder()
-    dec = msgspec.msgpack.Decoder(Person2 if n == 1 else List[Person2])
+def bench_msgspec_json_asarray(n, no_gc, validate=False):
+    enc = msgspec.json.Encoder()
+    dec = msgspec.json.Decoder(Person2 if n == 1 else List[Person2])
 
     def convert_one(addresses=None, **kwargs):
         addrs = [Address2(**a) for a in addresses] if addresses else None
@@ -364,9 +382,10 @@ BENCHMARKS = [
     ("msgpack", bench_msgpack),
     ("ormsgpack", bench_ormsgpack),
     ("pyrobuf", bench_pyrobuf),
-    ("msgspec.msgpack", bench_msgspec),
-    ("msgspec.msgpack\nasarray", bench_msgspec_asarray),
+    ("msgspec.msgpack", bench_msgspec_msgpack),
+    ("msgspec.msgpack asarray", bench_msgspec_msgpack_asarray),
     ("msgspec.json", bench_msgspec_json),
+    ("msgspec.json asarray", bench_msgspec_json_asarray),
 ]
 
 
@@ -513,7 +532,7 @@ def run(
         print(f"  dumps: {dumps_time * 1e6:.2f} us")
         print(f"  loads: {loads_time * 1e6:.2f} us")
         print(f"  total: {total_time * 1e6:.2f} us")
-        results.append((name, dumps_time, loads_time))
+        results.append((name.replace(" ", "\n"), dumps_time, loads_time))
     if save_plot or save_json:
         import json
         from bokeh.resources import CDN
