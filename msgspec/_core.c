@@ -5929,6 +5929,95 @@ js_decode_vartuple(
 }
 
 static PyObject *
+js_decode_fixtuple(
+    JSONDecoderState *self, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind, bool is_key
+) {
+    PyObject *out, *item, *typstr = NULL;
+    Py_ssize_t i = 0, offset;
+    unsigned char c;
+    bool first = true;
+    TypeNodeExtra *tex = (TypeNodeExtra *)type;
+    MsgspecState *st;
+
+    offset = TypeNode_get_array_offset(type);
+
+    self->input_pos++; /* Skip '[' */
+
+    out = PyTuple_New(tex->fixtuple_size);
+    if (out == NULL) return NULL;
+
+    if (Py_EnterRecursiveCall(" while deserializing an object")) {
+        Py_DECREF(out);
+        return NULL;
+    }
+
+    while (true) {
+        if (MS_UNLIKELY(!js_peek_skip_ws(self, &c))) goto error;
+        /* Parse ']' or ',', then peek the next character */
+        if (c == ']') {
+            self->input_pos++;
+            if (MS_UNLIKELY(i < tex->fixtuple_size)) goto size_error;
+            break;
+        }
+        else if (c == ',' && !first) {
+            self->input_pos++;
+            if (MS_UNLIKELY(!js_peek_skip_ws(self, &c))) goto error;
+        }
+        else if (first) {
+            /* Only the first item doesn't need a comma delimiter */
+            first = false;
+        }
+        else {
+            js_err_invalid("expected ',' or '}'");
+            goto error;
+        }
+
+        /* Check we don't have too many elements */
+        if (MS_UNLIKELY(i >= tex->fixtuple_size)) goto size_error;
+
+        /* Parse item */
+        item = js_decode(self, tex->extra[offset + i], ctx, ctx_ind, is_key);
+        if (item == NULL) goto error;
+
+        /* Add item to tuple */
+        PyTuple_SET_ITEM(out, i, item);
+        i++;
+    }
+    Py_LeaveRecursiveCall();
+    return out;
+
+size_error:
+    st = msgspec_get_global_state();
+    if (ctx->types & MS_TYPE_STRUCT && ctx_ind != -1) {
+        StructMetaObject *st_type = TypeNode_get_struct(ctx);
+        PyObject *field = PyTuple_GET_ITEM(st_type->struct_fields, ctx_ind);
+        if ((typstr = TypeNode_Repr(st_type->struct_types[ctx_ind])) != NULL) {
+            PyErr_Format(
+                st->DecodingError,
+                "Error decoding `%s` field `%S` (`%S`): expected tuple of length %zd",
+                ((PyTypeObject *)st_type)->tp_name,
+                field, typstr, tex->fixtuple_size
+            );
+        }
+    }
+    else {
+        if ((typstr = TypeNode_Repr(ctx)) != NULL) {
+            PyErr_Format(
+                st->DecodingError,
+                "Error decoding `%S`: expected tuple of length %zd",
+                typstr, tex->fixtuple_size
+            );
+        }
+    }
+    Py_XDECREF(typstr);
+
+error:
+    Py_LeaveRecursiveCall();
+    Py_DECREF(out);
+    return NULL;
+}
+
+static PyObject *
 js_decode_array(
     JSONDecoderState *self, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind, bool is_key
 ) {
@@ -5949,7 +6038,10 @@ js_decode_array(
     else if (type->types & MS_TYPE_VARTUPLE) {
         return js_decode_vartuple(self, TypeNode_get_array(type), ctx, ctx_ind, is_key);
     }
-    /* TODO: handle fixtuple and struct-array types */
+    else if (type->types & MS_TYPE_FIXTUPLE) {
+        return js_decode_fixtuple(self, type, ctx, ctx_ind, is_key);
+    }
+    /* TODO: struct asarray support */
     return mp_validation_error("list", type, ctx, ctx_ind);
 }
 
@@ -6664,18 +6756,11 @@ end_integer:
         exponent += exp_sign * exp_part;
     }
 
-    if (is_float || (is_negative && mantissa > 1ul << 63)) {
-        if (MS_LIKELY(type->types & (MS_TYPE_ANY | MS_TYPE_FLOAT))) {
-            double val;
-            if (!reconstruct_double(mantissa, exponent, is_negative, &val)) {
-                self->input_pos = initial_pos;
-                return js_decode_extended_float(self);
-            }
-            return PyFloat_FromDouble(val);
-        }
-        return mp_validation_error("float", type, ctx, ctx_ind);
+    if (MS_UNLIKELY(is_negative && mantissa > 1ul << 63)) {
+        is_float = true;
     }
-    else if (MS_LIKELY(type->types & (MS_TYPE_ANY | MS_TYPE_INT | MS_TYPE_INTENUM))) {
+        
+    if (!is_float && (type->types & (MS_TYPE_ANY | MS_TYPE_INT | MS_TYPE_INTENUM))) {
         PyObject *val = (
             is_negative ?
             PyLong_FromLongLong(-1 * (int64_t)mantissa) :
@@ -6686,7 +6771,15 @@ end_integer:
         }
         return val;
     }
-    return mp_validation_error("int", type, ctx, ctx_ind);
+    else if (type->types & (MS_TYPE_ANY | MS_TYPE_FLOAT)) {
+        double val;
+        if (!reconstruct_double(mantissa, exponent, is_negative, &val)) {
+            self->input_pos = initial_pos;
+            return js_decode_extended_float(self);
+        }
+        return PyFloat_FromDouble(val);
+    }
+    return mp_validation_error(is_float ? "float" : "int", type, ctx, ctx_ind);
 }
 
 static PyObject *
