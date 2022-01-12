@@ -5725,11 +5725,7 @@ js_err_invalid(const char *msg)
     return NULL;
 }
 
-static int
-js_skip(JSONDecoderState *self) {
-    /* TODO! */
-    return -1;
-}
+static int js_skip(JSONDecoderState *self);
 
 static PyObject * js_decode(
     JSONDecoderState *self, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind, bool is_key
@@ -6047,7 +6043,11 @@ js_parse_escape(JSONDecoderState *self) {
             unsigned int cp;
             if (js_read_codepoint(self, &cp) < 0) return -1;
 
-            if (cp >= 0xD800 && cp <= 0xD8FF) {
+            if (0xDC00 <= cp && cp <= 0xDFFF) {
+                js_err_invalid("invalid utf-16 surrogate pair");
+                return -1;
+            }
+            else if (cp >= 0xD800 && cp <= 0xD8FF) {
                 /* utf-16 pair, parse 2nd pair */
                 unsigned int cp2;
                 if (!js_remaining(self, 6)) return ms_err_truncated();
@@ -6707,6 +6707,270 @@ js_decode(
         default: return js_maybe_decode_number(self, type, ctx, ctx_ind);
     }
 }
+
+static int
+js_skip_ident(JSONDecoderState *self, const char *ident, size_t len) {
+    if (MS_UNLIKELY(!js_remaining(self, len))) return ms_err_truncated();
+    self->input_pos++;  /* Already checked first char */
+    if (memcmp(self->input_pos, ident, len) != 0) {
+        js_err_invalid("invalid character");
+        return -1;
+    }
+    self->input_pos += len;
+    return 0;
+}
+
+static int
+js_skip_string_escape(JSONDecoderState *self) {
+    unsigned char c;
+    if (!js_read1(self, &c)) return -1;
+
+    switch (c) {
+        case '"':
+        case '\\':
+        case '/':
+        case 'b':
+        case 'f':
+        case 'n':
+        case 'r':
+        case 't':
+            return 0;
+        case 'u': {
+            unsigned int cp;
+            if (js_read_codepoint(self, &cp) < 0) return -1;
+
+            if (0xDC00 <= cp && cp <= 0xDFFF) {
+                js_err_invalid("invalid utf-16 surrogate pair");
+                return -1;
+            }
+            else if (0xD800 <= cp && cp <= 0xD8FF) {
+                /* utf-16 pair, parse 2nd pair */
+                unsigned int cp2;
+                if (!js_remaining(self, 6)) return ms_err_truncated();
+                if (self->input_pos[0] != '\\' || self->input_pos[1] != 'u') {
+                    js_err_invalid("unexpected end of hex escape");
+                    return -1;
+                }
+                self->input_pos += 2;
+                if (js_read_codepoint(self, &cp2) < 0) return -1;
+                if (cp2 < 0xDC00 || cp2 > 0xDFFF) {
+                    js_err_invalid("invalid utf-16 surrogate pair");
+                    return -1;
+                }
+                cp = 0x10000 + (((cp - 0xD800) << 10) | (cp2 - 0xDC00));
+            }
+            return 0;
+        }
+        default: {
+            js_err_invalid("invalid escaped character");
+            return -1;
+        }
+    }
+}
+
+static int
+js_skip_string(JSONDecoderState *self) {
+    unsigned char c;
+    self->input_pos++; /* Skip '"' */
+    while (true) {
+        if (!js_read1(self, &c)) return -1;
+        if (MS_UNLIKELY(escape_table[c])) {
+            if (c == '"') {
+                return 0;
+            }
+            else if (c == '\\') {
+                if (js_skip_string_escape(self) < 0) return -1;
+            }
+            else {
+                js_err_invalid("invalid character");
+                return -1;
+            }
+        }
+    }
+}
+
+static int
+js_skip_array(JSONDecoderState *self) {
+    unsigned char c;
+    bool first = true;
+    int out = -1;
+
+    self->input_pos++; /* Skip '[' */
+
+    if (Py_EnterRecursiveCall(" while deserializing an object")) return -1;
+    while (true) {
+        if (MS_UNLIKELY(!js_peek_skip_ws(self, &c))) break;
+        if (c == ']') {
+            self->input_pos++;
+            out = 0;
+            break;
+        }
+        else if (c == ',' && !first) {
+            self->input_pos++;
+            if (MS_UNLIKELY(!js_peek_skip_ws(self, &c))) break;
+        }
+        else if (first) {
+            first = false;
+        }
+        else {
+            js_err_invalid("expected ',' or ']'");
+            break;
+        }
+
+        if (js_skip(self) < 0) break;
+    }
+    Py_LeaveRecursiveCall();
+    return out;
+}
+
+static int
+js_skip_object(JSONDecoderState *self) {
+    unsigned char c;
+    bool first = true;
+    int out = -1;
+
+    self->input_pos++; /* Skip '{' */
+
+    if (Py_EnterRecursiveCall(" while deserializing an object")) return -1;
+    while (true) {
+        if (MS_UNLIKELY(!js_peek_skip_ws(self, &c))) break;
+        if (c == '}') {
+            self->input_pos++;
+            out = 0;
+            break;
+        }
+        else if (c == ',' && !first) {
+            self->input_pos++;
+            if (MS_UNLIKELY(!js_peek_skip_ws(self, &c))) break;
+        }
+        else if (first) {
+            first = false;
+        }
+        else {
+            js_err_invalid("expected ',' or '}'");
+            break;
+        }
+
+        /* Skip key */
+        if (c == '"') {
+            if (js_skip_string(self) < 0) break;
+        }
+        else if (c == ',') {
+            js_err_invalid("trailing comma in object");
+            break;
+        }
+        else {
+            js_err_invalid("expected '\"'");
+            break;
+        }
+
+        /* Parse colon */
+        if (MS_UNLIKELY(!js_peek_skip_ws(self, &c))) break;
+        if (c != ':') {
+            js_err_invalid("expected ':'");
+            break;
+        }
+        self->input_pos++;
+
+        /* Skip value */
+        if (js_skip(self) < 0) break;
+    }
+    Py_LeaveRecursiveCall();
+    return out;
+}
+
+static int
+js_maybe_skip_number(JSONDecoderState *self) {
+    /* We know there is at least one byte available when this function is
+     * called */
+    char c = *self->input_pos;
+
+    /* Parse minus sign (if present) */
+    if (c == '-') {
+        self->input_pos++;
+        c = js_peek_or_null(self);
+    }
+
+    /* Parse integer */
+    if (MS_UNLIKELY(c == '0')) {
+        /* Ensure at most one leading zero */
+        self->input_pos++;
+        c = js_peek_or_null(self);
+        if (MS_UNLIKELY(is_digit(c))) {
+            js_err_invalid("invalid number");
+            return -1;
+        }
+    }
+    else {
+        /* Skip the integer part of the number. */
+        unsigned char *cur_pos = self->input_pos;
+        while (self->input_pos < self->input_end && is_digit(*self->input_pos)) {
+            self->input_pos++;
+        }
+        /* There must be at least one digit */
+        if (MS_UNLIKELY(cur_pos == self->input_pos)) {
+            js_err_invalid("invalid character");
+            return -1;
+        }
+    }
+
+    c = js_peek_or_null(self);
+    if (c == '.') {
+        self->input_pos++;
+        /* Skip remaining digits until invalid/unknown character */
+        unsigned char *cur_pos = self->input_pos;
+        while (self->input_pos < self->input_end && is_digit(*self->input_pos)) {
+            self->input_pos++;
+        }
+        /* Error if no digits after decimal */
+        if (MS_UNLIKELY(cur_pos == self->input_pos)) {
+            js_err_invalid("invalid number");
+            return -1;
+        }
+
+        c = js_peek_or_null(self);
+    }
+    if (c == 'e' || c == 'E') {
+        self->input_pos++;
+
+        /* Parse exponent sign (if any) */
+        c = js_peek_or_null(self);
+        if (c == '+' || c == '-') {
+            self->input_pos++;
+        }
+
+        /* Parse exponent digits */
+        unsigned char *cur_pos = self->input_pos;
+        while (self->input_pos < self->input_end && is_digit(*self->input_pos)) {
+            self->input_pos++;
+        }
+        /* Error if no digits in exponent */
+        if (MS_UNLIKELY(cur_pos == self->input_pos)) {
+            js_err_invalid("invalid number");
+            return -1;
+        }
+    }
+    return 0;
+}
+
+static int
+js_skip(JSONDecoderState *self)
+{
+    unsigned char c;
+
+    if (MS_UNLIKELY(!js_peek_skip_ws(self, &c))) return -1;
+
+    switch (c) {
+        case 'n': return js_skip_ident(self, "ull", 3);
+        case 't': return js_skip_ident(self, "rue", 3);
+        case 'f': return js_skip_ident(self, "alse", 4);
+        case '"': return js_skip_string(self);
+        case '[': return js_skip_array(self);
+        case '{': return js_skip_object(self);
+        default: return js_maybe_skip_number(self);
+    }
+}
+
 
 PyDoc_STRVAR(JSONDecoder_decode__doc__,
 "decode(self, buf)\n"
