@@ -6746,7 +6746,7 @@ js_decode_extended_float(JSONDecoderState *self) {
     }
     ms_hpd_trim(&dec);
     double res = ms_hpd_to_double(&dec);
-    if Py_IS_INFINITY(res) return js_err_invalid("number out of range");
+    if (Py_IS_INFINITY(res)) return js_err_invalid("number out of range");
     return PyFloat_FromDouble(res);
 }
 
