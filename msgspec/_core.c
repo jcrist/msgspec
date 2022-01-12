@@ -6018,6 +6018,96 @@ error:
 }
 
 static PyObject *
+js_decode_struct_array(
+    JSONDecoderState *self, StructMetaObject *st_type, TypeNode *type, bool is_key
+) {
+    Py_ssize_t nfields, ndefaults, npos, i = 0;
+    PyObject *out, *item = NULL;
+    unsigned char c;
+    bool should_untrack, first = true;
+
+    self->input_pos++; /* Skip '[' */
+
+    out = Struct_alloc((PyTypeObject *)(st_type));
+    if (out == NULL) return NULL;
+
+    nfields = PyTuple_GET_SIZE(st_type->struct_fields);
+    ndefaults = PyTuple_GET_SIZE(st_type->struct_defaults);
+    npos = nfields - ndefaults;
+    should_untrack = PyObject_IS_GC(out);
+
+    if (Py_EnterRecursiveCall(" while deserializing an object")) {
+        Py_DECREF(out);
+        return NULL;
+    }
+    while (true) {
+        if (MS_UNLIKELY(!js_peek_skip_ws(self, &c))) goto error;
+        /* Parse ']' or ',', then peek the next character */
+        if (c == ']') {
+            self->input_pos++;
+            break;
+        }
+        else if (c == ',' && !first) {
+            self->input_pos++;
+            if (MS_UNLIKELY(!js_peek_skip_ws(self, &c))) goto error;
+        }
+        else if (first) {
+            /* Only the first item doesn't need a comma delimiter */
+            first = false;
+        }
+        else {
+            js_err_invalid("expected ',' or '}'");
+            goto error;
+        }
+
+        if (MS_LIKELY(i < nfields)) {
+            /* Parse item */
+            item = js_decode(self, st_type->struct_types[i], type, i, is_key);
+            if (MS_UNLIKELY(item == NULL)) goto error;
+            Struct_set_index(out, i, item);
+            if (should_untrack) {
+                should_untrack = !OBJ_IS_GC(item);
+            }
+            i++;
+        }
+        else {
+            /* Skip trailing fields */
+            if (js_skip(self) < 0) goto error;
+        }
+    }
+
+    /* Check for missing required fields */
+    if (i < npos) {
+        PyErr_Format(
+            msgspec_get_global_state()->DecodingError,
+            "Error decoding `%s`: missing required field `%S`",
+            ((PyTypeObject *)st_type)->tp_name,
+            PyTuple_GET_ITEM(st_type->struct_fields, i)
+        );
+        goto error;
+    }
+    /* Fill in missing fields with defaults */
+    for (; i < nfields; i++) {
+        item = maybe_deepcopy_default(
+            PyTuple_GET_ITEM(st_type->struct_defaults, i - npos)
+        );
+        if (item == NULL) goto error;
+        Struct_set_index(out, i, item);
+        if (should_untrack) {
+            should_untrack = !OBJ_IS_GC(item);
+        }
+    }
+    Py_LeaveRecursiveCall();
+    if (should_untrack)
+        PyObject_GC_UnTrack(out);
+    return out;
+error:
+    Py_LeaveRecursiveCall();
+    Py_DECREF(out);
+    return NULL;
+}
+
+static PyObject *
 js_decode_array(
     JSONDecoderState *self, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind, bool is_key
 ) {
@@ -6041,7 +6131,12 @@ js_decode_array(
     else if (type->types & MS_TYPE_FIXTUPLE) {
         return js_decode_fixtuple(self, type, ctx, ctx_ind, is_key);
     }
-    /* TODO: struct asarray support */
+    else if (type->types & MS_TYPE_STRUCT) {
+        StructMetaObject *struct_type = TypeNode_get_struct(type);
+        if (struct_type->asarray == OPT_TRUE) {
+            return js_decode_struct_array(self, struct_type, type, is_key);
+        }
+    }
     return mp_validation_error("list", type, ctx, ctx_ind);
 }
 
@@ -6759,7 +6854,7 @@ end_integer:
     if (MS_UNLIKELY(is_negative && mantissa > 1ul << 63)) {
         is_float = true;
     }
-        
+
     if (!is_float && (type->types & (MS_TYPE_ANY | MS_TYPE_INT | MS_TYPE_INTENUM))) {
         PyObject *val = (
             is_negative ?
