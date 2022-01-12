@@ -11,25 +11,6 @@
 #include "atof.h"
 
 #ifdef __GNUC__
-#define MS_LIKELY(pred) __builtin_expect(!!(pred), 1)
-#define MS_UNLIKELY(pred) __builtin_expect(!!(pred), 0)
-#else
-#define MS_LIKELY(pred) (pred)
-#define MS_UNLIKELY(pred) (pred)
-#endif
-
-#ifdef __GNUC__
-#define MS_INLINE __attribute__((always_inline)) inline
-#define MS_NOINLINE __attribute__((noinline))
-#elif defined(_MSC_VER)
-#define MS_INLINE __forceinline inline
-#define MS_NOINLINE __declspec(noinline)
-#else
-#define MS_INLINE inline
-#define MS_NOINLINE
-#endif
-
-#ifdef __GNUC__
 #define ms_popcount(i) __builtin_popcount(i)
 #else
 static int
@@ -6866,7 +6847,7 @@ end_integer:
         exponent += exp_sign * exp_part;
     }
 
-    if (MS_UNLIKELY(is_negative && mantissa > 1ul << 63)) {
+    if (MS_UNLIKELY(is_negative && mantissa > 1ull << 63)) {
         is_float = true;
     }
 
@@ -7205,7 +7186,7 @@ JSONDecoder_decode(JSONDecoder *self, PyObject *const *args, Py_ssize_t nargs)
     if (PyObject_GetBuffer(args[0], &buffer, PyBUF_CONTIG_RO) >= 0) {
         self->state.buffer_obj = args[0];
         self->state.input_pos = buffer.buf;
-        self->state.input_end = buffer.buf + buffer.len;
+        self->state.input_end = self->state.input_pos + buffer.len;
         res = js_decode(&(self->state), self->state.type, self->state.type, -1, false);
     }
 
@@ -7354,7 +7335,7 @@ msgspec_json_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyO
     if (PyObject_GetBuffer(buf, &buffer, PyBUF_CONTIG_RO) >= 0) {
         state.buffer_obj = buf;
         state.input_pos = buffer.buf;
-        state.input_end = buffer.buf + buffer.len;
+        state.input_end = state.input_pos + buffer.len;
 
         if (state.type != NULL) {
             res = js_decode(&state, state.type, state.type, -1, false);

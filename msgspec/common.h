@@ -13,7 +13,7 @@
 #define MS_INLINE __attribute__((always_inline)) inline
 #define MS_NOINLINE __attribute__((noinline))
 #elif defined(_MSC_VER)
-#define MS_INLINE __forceinline inline
+#define MS_INLINE __forceinline
 #define MS_NOINLINE __declspec(noinline)
 #else
 #define MS_INLINE inline
