@@ -4,7 +4,20 @@ import versioneer
 from setuptools import setup
 from setuptools.extension import Extension
 
-ext_modules = [Extension("msgspec._core", [os.path.join("msgspec", "_core.c")])]
+DEBUG = os.environ.get("MSGSPEC_DEBUG", False)
+
+if DEBUG:
+    extra_compile_args = ["-O0", "-g"]
+else:
+    extra_compile_args = []
+
+ext_modules = [
+    Extension(
+        "msgspec._core",
+        [os.path.join("msgspec", "_core.c")],
+        extra_compile_args=extra_compile_args,
+    )
+]
 
 setup(
     name="msgspec",

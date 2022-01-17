@@ -173,7 +173,7 @@ ms_err_truncated(void)
 }
 
 /*************************************************************************
- * Parsing utilities                                                     *
+ * Utilities                                                             *
  *************************************************************************/
 
 static PyObject*
@@ -222,8 +222,80 @@ check_positional_nargs(Py_ssize_t nargs, Py_ssize_t min, Py_ssize_t max) {
     return 1;
 }
 
+/* A utility incrementally building strings */
+typedef struct strbuilder {
+    char *sep;
+    Py_ssize_t sep_size;
+    char *buffer;
+    Py_ssize_t size;  /* How many bytes have been written */
+    Py_ssize_t capacity;  /* How many bytes can be written */
+} strbuilder;
+
+static bool strbuilder_extend(strbuilder *self, const char *buf, Py_ssize_t nbytes) {
+    /* Optimization - store first write by reference.
+     *
+     * This is only possible because the appended buffers are assumed to be
+     * string constants (and thus their lifetime will exist after this call */
+    if (self->buffer == NULL) {
+        self->buffer = (char *)buf;
+        self->size = nbytes;
+        return true;
+    }
+
+    Py_ssize_t required = self->capacity + nbytes + self->sep_size;
+
+    if (!self->capacity) {
+        char *temp = self->buffer;
+        self->capacity = Py_MAX(16, required);
+        self->buffer = PyMem_Malloc(self->capacity);
+        if (self->buffer == NULL) return false;
+        memcpy(self->buffer, temp, self->size);
+    }
+    else if (required > self->capacity) {
+        self->capacity = required * 1.5;
+        char *new_buf = PyMem_Realloc(self->buffer, self->capacity);
+        if (new_buf == NULL) {
+            PyMem_Free(self->buffer);
+            self->buffer = NULL;
+            return false;
+        }
+        self->buffer = new_buf;
+    }
+    if (self->sep_size) {
+        memcpy(self->buffer + self->size, self->sep, self->sep_size);
+        self->size += self->sep_size;
+    }
+    memcpy(self->buffer + self->size, buf, nbytes);
+    self->size += nbytes;
+    return true;
+}
+
+static bool
+strbuilder_extend_unicode(strbuilder *self, PyObject *obj) {
+    Py_ssize_t size;
+    const char* buf = unicode_str_and_size(obj, &size);
+    return strbuilder_extend(self, buf, size);
+}
+
+static void
+strbuilder_reset(strbuilder *self) {
+    if (self->capacity != 0 && self->buffer != NULL) {
+        PyMem_Free(self->buffer);
+    }
+    self->buffer = NULL;
+    self->size = 0;
+    self->capacity = 0;
+}
+
+static PyObject *
+strbuilder_build(strbuilder *self) {
+    PyObject *out = PyUnicode_FromStringAndSize(self->buffer, self->size);
+    strbuilder_reset(self);
+    return out;
+}
+
 /*************************************************************************
- * Struct and TypeNode Types                                             *
+ * Struct, PathNode, and TypeNode Types                                  *
  *************************************************************************/
 
 #define MS_TYPE_ANY                 (1u << 0)
@@ -598,6 +670,57 @@ cleanup:
     Py_XDECREF(comma);
     Py_XDECREF(empty);
     return out;
+}
+
+
+static PyObject *
+typenode_simple_repr(TypeNode *self) {
+    strbuilder builder = {" | ", 3};
+
+    if (self->types & (MS_TYPE_ANY | MS_TYPE_CUSTOM | MS_TYPE_CUSTOM_GENERIC)) {
+        return PyUnicode_FromString("any");
+    }
+
+    if (self->types & MS_TYPE_BOOL) {
+        if (!strbuilder_extend(&builder, "bool", 4)) return NULL;
+    }
+    if (self->types & (MS_TYPE_INT | MS_TYPE_INTENUM)) {
+        if (!strbuilder_extend(&builder, "int", 3)) return NULL;
+    }
+    if (self->types & MS_TYPE_FLOAT) {
+        if (!strbuilder_extend(&builder, "float", 5)) return NULL;
+    }
+    if (self->types & (MS_TYPE_STR | MS_TYPE_ENUM)) {
+        if (!strbuilder_extend(&builder, "str", 3)) return NULL;
+    }
+    if (self->types & (MS_TYPE_BYTES | MS_TYPE_BYTEARRAY)) {
+        if (!strbuilder_extend(&builder, "bytes", 5)) return NULL;
+    }
+    if (self->types & MS_TYPE_DATETIME) {
+        if (!strbuilder_extend(&builder, "datetime", 8)) return NULL;
+    }
+    if (self->types & MS_TYPE_EXT) {
+        if (!strbuilder_extend(&builder, "ext", 3)) return NULL;
+    }
+    if (self->types & MS_TYPE_STRUCT) {
+        if (TypeNode_get_struct(self)->asarray == OPT_TRUE) {
+            if (!strbuilder_extend(&builder, "array", 5)) return NULL;
+        }
+        else {
+            if (!strbuilder_extend(&builder, "object", 6)) return NULL;
+        }
+    }
+    if (self->types & MS_TYPE_DICT) {
+        if (!strbuilder_extend(&builder, "object", 6)) return NULL;
+    }
+    if (self->types & (MS_TYPE_LIST | MS_TYPE_SET | MS_TYPE_VARTUPLE | MS_TYPE_FIXTUPLE)) {
+        if (!strbuilder_extend(&builder, "array", 5)) return NULL;
+    }
+    if (self->types & MS_TYPE_NONE) {
+        if (!strbuilder_extend(&builder, "null", 4)) return NULL;
+    }
+
+    return strbuilder_build(&builder);
 }
 
 typedef struct {
@@ -1075,6 +1198,139 @@ TypeNode_JSONCompatible(TypeNode *type) {
     return true;
 }
 
+#define PATH_ELLIPSIS -1
+#define PATH_KEY -2
+
+typedef struct PathNode {
+    struct PathNode *parent;
+    Py_ssize_t index;
+    StructMetaObject *struct_type;
+} PathNode;
+
+/* reverse the parent pointers in the path linked list */
+static PathNode *
+pathnode_reverse(PathNode *path) {
+    PathNode *current = path, *prev = NULL, *next = NULL;
+    while (current != NULL) {
+        next = current->parent;
+        current->parent = prev;
+        prev = current;
+        current = next;
+    }
+    return prev;
+}
+
+static PyObject *
+PathNode_ErrSuffix(PathNode *path) {
+    strbuilder parts = {0};
+    PathNode *path_orig;
+    PyObject *out = NULL, *path_repr = NULL, *groups = NULL, *group = NULL;
+
+    if (path == NULL) {
+        return PyUnicode_FromString("");
+    }
+
+    /* Reverse the parent pointers for easier printing */
+    path = pathnode_reverse(path);
+
+    /* Cache the original path to reset the parent pointers later */
+    path_orig = path;
+
+    /* Start with the root element */
+    if (!strbuilder_extend(&parts, "`$", 2)) goto cleanup;
+
+    while (path != NULL) {
+        if (path->struct_type != NULL) {
+            PyObject *name = PyTuple_GET_ITEM(
+                path->struct_type->struct_fields, path->index
+            );
+            if (!strbuilder_extend(&parts, ".", 1)) goto cleanup;
+            if (!strbuilder_extend_unicode(&parts, name)) goto cleanup;
+        }
+        else if (path->index == PATH_ELLIPSIS) {
+            if (!strbuilder_extend(&parts, "[...]", 5)) goto cleanup;
+        }
+        else if (path->index == PATH_KEY) {
+            if (groups == NULL) {
+                groups = PyList_New(0);
+                if (groups == NULL) goto cleanup;
+            }
+            if (!strbuilder_extend(&parts, "`", 1)) goto cleanup;
+            group = strbuilder_build(&parts);
+            if (group == NULL) goto cleanup;
+            if (PyList_Append(groups, group) < 0) goto cleanup;
+            Py_CLEAR(group);
+            strbuilder_extend(&parts, "`key", 4);
+        }
+        else {
+            char buf[20];
+            char *p = &buf[20];
+            Py_ssize_t x = path->index;
+            if (!strbuilder_extend(&parts, "[", 1)) goto cleanup;
+            while (x >= 100) {
+                const int64_t old = x;
+                p -= 2;
+                x /= 100;
+                memcpy(p, DIGIT_TABLE + ((old - (x * 100)) << 1), 2);
+            }
+            if (x >= 10) {
+                p -= 2;
+                memcpy(p, DIGIT_TABLE + (x << 1), 2);
+            }
+            else {
+                *--p = x + '0';
+            }
+            if (!strbuilder_extend(&parts, p, &buf[20] - p)) goto cleanup;
+            if (!strbuilder_extend(&parts, "]", 1)) goto cleanup;
+        }
+        path = path->parent;
+    }
+    if (!strbuilder_extend(&parts, "`", 1)) goto cleanup;
+
+    if (groups == NULL) {
+        path_repr = strbuilder_build(&parts);
+    }
+    else {
+        group = strbuilder_build(&parts);
+        if (group == NULL) goto cleanup;
+        if (PyList_Append(groups, group) < 0) goto cleanup;
+        PyObject *sep = PyUnicode_FromString(" in ");
+        if (sep == NULL) goto cleanup;
+        if (PyList_Reverse(groups) < 0) goto cleanup;
+        path_repr = PyUnicode_Join(sep, groups);
+        Py_DECREF(sep);
+    }
+
+    out = PyUnicode_FromFormat(" - at %U", path_repr);
+
+cleanup:
+    Py_XDECREF(path_repr);
+    Py_XDECREF(group);
+    Py_XDECREF(groups);
+    pathnode_reverse(path_orig);
+    strbuilder_reset(&parts);
+    return out;
+}
+
+#define ms_raise_validation_error(path, format, ...) \
+    do { \
+        MsgspecState *st = msgspec_get_global_state(); \
+        PyObject *suffix = PathNode_ErrSuffix(path); \
+        if (suffix != NULL) { \
+            PyErr_Format(st->DecodingError, format, __VA_ARGS__, suffix); \
+            Py_DECREF(suffix); \
+        } \
+    } while (0)
+
+static MS_NOINLINE PyObject *
+ms_validation_error(char *got, TypeNode *type, PathNode *path) {
+    PyObject *type_repr = typenode_simple_repr(type);
+    if (type_repr != NULL) {
+        ms_raise_validation_error(path, "Expected `%U`, got `%s`%U", type_repr, got);
+        Py_DECREF(type_repr);
+    }
+    return NULL;
+}
 
 static PyTypeObject StructMixinType;
 
@@ -1790,7 +2046,7 @@ Struct_get_index(PyObject *obj, Py_ssize_t index) {
 }
 
 static int
-Struct_fill_in_defaults(StructMetaObject *st_type, PyObject *obj) {
+Struct_fill_in_defaults(StructMetaObject *st_type, PyObject *obj, PathNode *path) {
     Py_ssize_t nfields, ndefaults, i;
     bool should_untrack;
 
@@ -1802,10 +2058,9 @@ Struct_fill_in_defaults(StructMetaObject *st_type, PyObject *obj) {
         PyObject *val = Struct_get_index_noerror(obj, i);
         if (val == NULL) {
             if (i < (nfields - ndefaults)) {
-                PyErr_Format(
-                    msgspec_get_global_state()->DecodingError,
-                    "Error decoding `%s`: missing required field `%S`",
-                    ((PyTypeObject *)st_type)->tp_name,
+                ms_raise_validation_error(
+                    path,
+                    "Object missing required field `%U`%U",
                     PyTuple_GET_ITEM(st_type->struct_fields, i)
                 );
                 return -1;
@@ -2721,26 +2976,22 @@ static PyMemberDef Encoder_members[] = {
 /*************************************************************************
  * Shared Decoding Utilities                                             *
  *************************************************************************/
+
 static MS_NOINLINE PyObject *
-ms_decode_type_enum(PyObject *val, TypeNode *type) {
+ms_decode_type_enum(PyObject *val, TypeNode *type, PathNode *path) {
     if (val == NULL) return NULL;
     PyObject *enum_obj = TypeNode_get_enum(type);
     PyObject *out = PyObject_GetAttr(enum_obj, val);
     Py_DECREF(val);
     if (MS_UNLIKELY(out == NULL)) {
         PyErr_Clear();
-        PyErr_Format(
-            msgspec_get_global_state()->DecodingError,
-            "Error decoding enum `%s`: invalid name `%S`",
-            ((PyTypeObject *)enum_obj)->tp_name,
-            val
-        );
+        ms_raise_validation_error(path, "Invalid enum value '%U'%U", val);
     }
     return out;
 }
 
 static PyObject *
-ms_decode_type_intenum(PyObject *val, TypeNode *type) {
+ms_decode_type_intenum(PyObject *val, TypeNode *type, PathNode *path) {
     if (val == NULL) return NULL;
 
     PyObject *out = NULL;
@@ -2754,22 +3005,19 @@ ms_decode_type_intenum(PyObject *val, TypeNode *type) {
     if (MS_LIKELY(member_table != NULL)) {
         out = PyDict_GetItem(member_table, val);
         Py_DECREF(member_table);
-        Py_XINCREF(out);
+        if (MS_LIKELY(out != NULL)) {
+            Py_DECREF(val);
+            Py_INCREF(out);
+            return out;
+        }
     }
+    PyErr_Clear();
+    out = CALL_ONE_ARG(intenum, val);
     if (MS_UNLIKELY(out == NULL)) {
         PyErr_Clear();
-        out = CALL_ONE_ARG(intenum, val);
+        ms_raise_validation_error(path, "Invalid enum value `%S`%U", val);
     }
     Py_DECREF(val);
-    if (MS_UNLIKELY(out == NULL)) {
-        PyErr_Clear();
-        PyErr_Format(
-            st->DecodingError,
-            "Error decoding enum `%s`: invalid value `%S`",
-            ((PyTypeObject *)(intenum))->tp_name,
-            val
-        );
-    }
     return out;
 }
 
@@ -4505,61 +4753,14 @@ mp_skip(DecoderState *self) {
     }
 }
 
-static PyObject * mp_decode_type(
-    DecoderState *self, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind, bool is_key
+static PyObject * mp_decode(
+    DecoderState *self, TypeNode *type, PathNode *path, bool is_key
 );
 
-static PyObject *
-mp_format_validation_error(const char *expected, const char *got, TypeNode *ctx, Py_ssize_t ctx_ind) {
-    MsgspecState *st = msgspec_get_global_state();
-    if (ctx->types & MS_TYPE_STRUCT && ctx_ind != -1) {
-        StructMetaObject *st_type = TypeNode_get_struct(ctx);
-        PyObject *field = PyTuple_GET_ITEM(st_type->struct_fields, ctx_ind);
-        PyObject *typstr = TypeNode_Repr(st_type->struct_types[ctx_ind]);
-        if (typstr == NULL) return NULL;
-        PyErr_Format(
-            st->DecodingError,
-            "Error decoding `%s` field `%S` (`%S`): expected `%s`, got `%s`",
-            ((PyTypeObject *)st_type)->tp_name,
-            field,
-            typstr,
-            expected,
-            got
-        );
-        Py_DECREF(typstr);
-    }
-    else {
-        PyObject *typstr = TypeNode_Repr(ctx);
-        if (typstr == NULL) return NULL;
-        PyErr_Format(
-            st->DecodingError,
-            "Error decoding `%S`: expected `%s`, got `%s`",
-            typstr,
-            expected,
-            got
-        );
-        Py_DECREF(typstr);
-    }
-    return NULL;
-}
-
-static MS_NOINLINE PyObject *
-mp_validation_error(char *got, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind) {
-    PyObject *out = NULL;
-    PyObject *repr = TypeNode_Repr(type);
-    if (repr == NULL) return NULL;
-    const char *expected = PyUnicode_AsUTF8(repr);
-    if (expected == NULL) goto cleanup;
-    out = mp_format_validation_error(expected, got, ctx, ctx_ind);
-cleanup:
-    Py_DECREF(repr);
-    return out;
-}
-
 static MS_INLINE PyObject *
-mp_decode_type_int(DecoderState *self, int64_t x, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind) {
+mp_decode_int(DecoderState *self, int64_t x, TypeNode *type, PathNode *path) {
     if (type->types & MS_TYPE_INTENUM) {
-        return ms_decode_type_intenum(PyLong_FromLongLong(x), type);
+        return ms_decode_type_intenum(PyLong_FromLongLong(x), type, path);
     }
     else if (type->types & (MS_TYPE_ANY | MS_TYPE_INT)) {
         return PyLong_FromLongLong(x);
@@ -4567,13 +4768,13 @@ mp_decode_type_int(DecoderState *self, int64_t x, TypeNode *type, TypeNode *ctx,
     else if (type->types & MS_TYPE_FLOAT) {
         return PyFloat_FromDouble(x);
     }
-    return mp_validation_error("int", type, ctx, ctx_ind);
+    return ms_validation_error("int", type, path);
 }
 
 static MS_INLINE PyObject *
-mp_decode_type_uint(DecoderState *self, uint64_t x, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind) {
+mp_decode_uint(DecoderState *self, uint64_t x, TypeNode *type, PathNode *path) {
     if (type->types & MS_TYPE_INTENUM) {
-        return ms_decode_type_intenum(PyLong_FromUnsignedLongLong(x), type);
+        return ms_decode_type_intenum(PyLong_FromUnsignedLongLong(x), type, path);
     }
     else if (type->types & (MS_TYPE_ANY | MS_TYPE_INT)) {
         return PyLong_FromUnsignedLongLong(x);
@@ -4581,53 +4782,53 @@ mp_decode_type_uint(DecoderState *self, uint64_t x, TypeNode *type, TypeNode *ct
     else if (type->types & MS_TYPE_FLOAT) {
         return PyFloat_FromDouble(x);
     }
-    return mp_validation_error("int", type, ctx, ctx_ind);
+    return ms_validation_error("int", type, path);
 }
 
 static MS_INLINE PyObject *
-mp_decode_type_none(DecoderState *self, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind) {
+mp_decode_none(DecoderState *self, TypeNode *type, PathNode *path) {
     if (type->types & (MS_TYPE_ANY | MS_TYPE_NONE)) {
         Py_INCREF(Py_None);
         return Py_None;
     }
-    return mp_validation_error("None", type, ctx, ctx_ind);
+    return ms_validation_error("None", type, path);
 }
 
 static MS_INLINE PyObject *
-mp_decode_type_bool(DecoderState *self, PyObject *val, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind) {
+mp_decode_bool(DecoderState *self, PyObject *val, TypeNode *type, PathNode *path) {
     if (type->types & (MS_TYPE_ANY | MS_TYPE_BOOL)) {
         Py_INCREF(val);
         return val;
     }
-    return mp_validation_error("bool", type, ctx, ctx_ind);
+    return ms_validation_error("bool", type, path);
 }
 
 static PyObject *
-mp_decode_type_float(DecoderState *self, double val, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind) {
+mp_decode_float(DecoderState *self, double val, TypeNode *type, PathNode *path) {
     if (type->types & (MS_TYPE_ANY | MS_TYPE_FLOAT)) {
         return PyFloat_FromDouble(val);
     }
-    return mp_validation_error("float", type, ctx, ctx_ind);
+    return ms_validation_error("float", type, path);
 }
 
 static MS_INLINE PyObject *
-mp_decode_type_str(DecoderState *self, Py_ssize_t size, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind) {
+mp_decode_str(DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *path) {
     if (MS_LIKELY(type->types & (MS_TYPE_ANY | MS_TYPE_STR | MS_TYPE_ENUM))) {
         char *s = NULL;
         PyObject *val;
         if (MS_UNLIKELY(mp_read(self, &s, size) < 0)) return NULL;
         val = PyUnicode_DecodeUTF8(s, size, NULL);
         if (MS_UNLIKELY(type->types & MS_TYPE_ENUM)) {
-            return ms_decode_type_enum(val, type);
+            return ms_decode_type_enum(val, type, path);
         }
         return val;
     }
-    return mp_validation_error("str", type, ctx, ctx_ind);
+    return ms_validation_error("str", type, path);
 }
 
 static PyObject *
-mp_decode_type_bin(
-    DecoderState *self, Py_ssize_t size, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind
+mp_decode_bin(
+    DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *path
 ) {
     if (MS_UNLIKELY(size < 0)) return NULL;
 
@@ -4640,12 +4841,12 @@ mp_decode_type_bin(
     else if (type->types & MS_TYPE_BYTEARRAY) {
         return PyByteArray_FromStringAndSize(s, size);
     }
-    return mp_validation_error("bytes", type, ctx, ctx_ind);
+    return ms_validation_error("bytes", type, path);
 }
 
 static PyObject *
-mp_decode_type_list(
-    DecoderState *self, Py_ssize_t size, TypeNode *el_type, TypeNode *ctx, Py_ssize_t ctx_ind
+mp_decode_list(
+    DecoderState *self, Py_ssize_t size, TypeNode *el_type, PathNode *path
 ) {
     Py_ssize_t i;
     PyObject *res, *item;
@@ -4659,7 +4860,8 @@ mp_decode_type_list(
         return NULL;
     }
     for (i = 0; i < size; i++) {
-        item = mp_decode_type(self, el_type, ctx, ctx_ind, false);
+        PathNode el_path = {path, i};
+        item = mp_decode(self, el_type, &el_path, false);
         if (MS_UNLIKELY(item == NULL)) {
             Py_CLEAR(res);
             break;
@@ -4671,8 +4873,8 @@ mp_decode_type_list(
 }
 
 static PyObject *
-mp_decode_type_set(
-    DecoderState *self, Py_ssize_t size, TypeNode *el_type, TypeNode *ctx, Py_ssize_t ctx_ind
+mp_decode_set(
+    DecoderState *self, Py_ssize_t size, TypeNode *el_type, PathNode *path
 ) {
     Py_ssize_t i;
     PyObject *res, *item;
@@ -4686,7 +4888,8 @@ mp_decode_type_set(
         return NULL;
     }
     for (i = 0; i < size; i++) {
-        item = mp_decode_type(self, el_type, ctx, ctx_ind, true);
+        PathNode el_path = {path, i};
+        item = mp_decode(self, el_type, &el_path, true);
         if (MS_UNLIKELY(item == NULL || PySet_Add(res, item) < 0)) {
             Py_CLEAR(res);
             break;
@@ -4698,8 +4901,8 @@ mp_decode_type_set(
 }
 
 static PyObject *
-mp_decode_type_vartuple(
-    DecoderState *self, Py_ssize_t size, TypeNode *el_type, TypeNode *ctx, Py_ssize_t ctx_ind, bool is_key
+mp_decode_vartuple(
+    DecoderState *self, Py_ssize_t size, TypeNode *el_type, PathNode *path, bool is_key
 ) {
     Py_ssize_t i;
     PyObject *res, *item;
@@ -4713,7 +4916,8 @@ mp_decode_type_vartuple(
         return NULL;
     }
     for (i = 0; i < size; i++) {
-        item = mp_decode_type(self, el_type, ctx, ctx_ind, is_key);
+        PathNode el_path = {path, i};
+        item = mp_decode(self, el_type, &el_path, is_key);
         if (MS_UNLIKELY(item == NULL)) {
             Py_CLEAR(res);
             break;
@@ -4725,8 +4929,8 @@ mp_decode_type_vartuple(
 }
 
 static PyObject *
-mp_decode_type_fixtuple(
-    DecoderState *self, Py_ssize_t size, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind, bool is_key
+mp_decode_fixtuple(
+    DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *path, bool is_key
 ) {
     Py_ssize_t i, offset;
     PyObject *res, *item;
@@ -4734,28 +4938,12 @@ mp_decode_type_fixtuple(
 
     if (size != tex->fixtuple_size) {
         /* tuple is the incorrect size, raise and return */
-        PyObject *typstr;
-        MsgspecState *st = msgspec_get_global_state();
-        if (ctx->types & MS_TYPE_STRUCT) {
-            StructMetaObject *st_type = TypeNode_get_struct(ctx);
-            PyObject *field = PyTuple_GET_ITEM(st_type->struct_fields, ctx_ind);
-            if ((typstr = TypeNode_Repr(st_type->struct_types[ctx_ind])) == NULL) return NULL;
-            PyErr_Format(
-                st->DecodingError,
-                "Error decoding `%s` field `%S` (`%S`): expected tuple of length %zd, got %zd",
-                ((PyTypeObject *)st_type)->tp_name,
-                field, typstr, tex->fixtuple_size, size
-            );
-        }
-        else {
-            if ((typstr = TypeNode_Repr(ctx)) == NULL) return NULL;
-            PyErr_Format(
-                st->DecodingError,
-                "Error decoding `%S`: expected tuple of length %zd, got %zd",
-                typstr, tex->fixtuple_size, size
-            );
-        }
-        Py_DECREF(typstr);
+        ms_raise_validation_error(
+            path,
+            "Expected `array` of length %zd, got %zd%U",
+            tex->fixtuple_size,
+            size
+        );
         return NULL;
     }
 
@@ -4770,7 +4958,8 @@ mp_decode_type_fixtuple(
 
     offset = TypeNode_get_array_offset(type);
     for (i = 0; i < tex->fixtuple_size; i++) {
-        item = mp_decode_type(self, tex->extra[offset + i], ctx, ctx_ind, is_key);
+        PathNode el_path = {path, i};
+        item = mp_decode(self, tex->extra[offset + i], &el_path, is_key);
         if (MS_UNLIKELY(item == NULL)) {
             Py_CLEAR(res);
             break;
@@ -4782,8 +4971,9 @@ mp_decode_type_fixtuple(
 }
 
 static PyObject *
-mp_decode_type_struct_array(
-    DecoderState *self, Py_ssize_t size, StructMetaObject *st_type, TypeNode *type, bool is_key
+mp_decode_struct_array(
+    DecoderState *self, Py_ssize_t size, StructMetaObject *st_type,
+    TypeNode *type, PathNode *path, bool is_key
 ) {
     Py_ssize_t i, nfields, ndefaults, npos;
     PyObject *res, *val = NULL;
@@ -4803,15 +4993,15 @@ mp_decode_type_struct_array(
     }
     for (i = 0; i < nfields; i++) {
         if (size > 0) {
-            val = mp_decode_type(self, st_type->struct_types[i], type, i, is_key);
+            PathNode el_path = {path, i};
+            val = mp_decode(self, st_type->struct_types[i], &el_path, is_key);
             if (MS_UNLIKELY(val == NULL)) goto error;
             size--;
         }
         else if (i < npos) {
-            PyErr_Format(
-                msgspec_get_global_state()->DecodingError,
-                "Error decoding `%s`: missing required field `%S`",
-                ((PyTypeObject *)st_type)->tp_name,
+            ms_raise_validation_error(
+                path,
+                "Object missing required field `%U`%U",
                 PyTuple_GET_ITEM(st_type->struct_fields, i)
             );
             goto error;
@@ -4846,44 +5036,47 @@ error:
 
 
 static PyObject *
-mp_decode_type_array(
-    DecoderState *self, Py_ssize_t size, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind, bool is_key
+mp_decode_array(
+    DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *path, bool is_key
 ) {
     if (type->types & MS_TYPE_ANY) {
         if (is_key) {
-            return mp_decode_type_vartuple(self, size, type, ctx, ctx_ind, is_key);
+            return mp_decode_vartuple(self, size, type, path, is_key);
         }
         else {
-            return mp_decode_type_list(self, size, type, ctx, ctx_ind);
+            return mp_decode_list(self, size, type, path);
         }
     }
     else if (type->types & MS_TYPE_LIST) {
-        return mp_decode_type_list(self, size, TypeNode_get_array(type), ctx, ctx_ind);
+        return mp_decode_list(self, size, TypeNode_get_array(type), path);
     }
     else if (type->types & MS_TYPE_SET) {
-        return mp_decode_type_set(self, size, TypeNode_get_array(type), ctx, ctx_ind);
+        return mp_decode_set(self, size, TypeNode_get_array(type), path);
     }
     else if (type->types & MS_TYPE_VARTUPLE) {
-        return mp_decode_type_vartuple(self, size, TypeNode_get_array(type), ctx, ctx_ind, is_key);
+        return mp_decode_vartuple(self, size, TypeNode_get_array(type), path, is_key);
     }
     else if (type->types & MS_TYPE_FIXTUPLE) {
-        return mp_decode_type_fixtuple(self, size, type, ctx, ctx_ind, is_key);
+        return mp_decode_fixtuple(self, size, type, path, is_key);
     }
     else if (type->types & MS_TYPE_STRUCT) {
         StructMetaObject *struct_type = TypeNode_get_struct(type);
         if (struct_type->asarray == OPT_TRUE) {
-            return mp_decode_type_struct_array(self, size, struct_type, type, is_key);
+            return mp_decode_struct_array(self, size, struct_type, type, path, is_key);
         }
     }
-    return mp_validation_error("list", type, ctx, ctx_ind);
+    return ms_validation_error("array", type, path);
 }
 
 static PyObject *
-mp_decode_type_dict(
-    DecoderState *self, Py_ssize_t size, TypeNode *key_type, TypeNode *val_type, TypeNode *ctx, Py_ssize_t ctx_ind
+mp_decode_dict(
+    DecoderState *self, Py_ssize_t size, TypeNode *key_type,
+    TypeNode *val_type, PathNode *path
 ) {
     Py_ssize_t i;
     PyObject *res, *key = NULL, *val = NULL;
+    PathNode key_path = {path, PATH_KEY, NULL};
+    PathNode val_path = {path, PATH_ELLIPSIS, NULL};
 
     res = PyDict_New();
     if (res == NULL) return NULL;
@@ -4894,10 +5087,10 @@ mp_decode_type_dict(
         return NULL;
     }
     for (i = 0; i < size; i++) {
-        key = mp_decode_type(self, key_type, ctx, ctx_ind, true);
+        key = mp_decode(self, key_type, &key_path, true);
         if (MS_UNLIKELY(key == NULL))
             goto error;
-        val = mp_decode_type(self, val_type, ctx, ctx_ind, false);
+        val = mp_decode(self, val_type, &val_path, false);
         if (MS_UNLIKELY(val == NULL))
             goto error;
         if (MS_UNLIKELY(PyDict_SetItem(res, key, val) < 0))
@@ -4916,7 +5109,7 @@ error:
 }
 
 static PyObject *
-mp_error_expected(char op, char *expected, TypeNode *ctx, Py_ssize_t ctx_ind) {
+mp_error_expected(char op, char *expected, PathNode *path) {
     char *got;
     if (-32 <= op && op <= 127) {
         got = "int";
@@ -4925,15 +5118,15 @@ mp_error_expected(char op, char *expected, TypeNode *ctx, Py_ssize_t ctx_ind) {
         got = "str";
     }
     else if ('\x90' <= op && op <= '\x9f') {
-        got = "list";
+        got = "array";
     }
     else if ('\x80' <= op && op <= '\x8f') {
-        got = "dict";
+        got = "object";
     }
     else {
         switch ((enum mp_code)op) {
             case MP_NIL:
-                got = "None";
+                got = "null";
                 break;
             case MP_TRUE:
             case MP_FALSE:
@@ -4965,11 +5158,11 @@ mp_error_expected(char op, char *expected, TypeNode *ctx, Py_ssize_t ctx_ind) {
                 break;
             case MP_ARRAY16:
             case MP_ARRAY32:
-                got = "list";
+                got = "array";
                 break;
             case MP_MAP16:
             case MP_MAP32:
-                got = "dict";
+                got = "object";
                 break;
             case MP_FIXEXT1:
             case MP_FIXEXT2:
@@ -4979,18 +5172,19 @@ mp_error_expected(char op, char *expected, TypeNode *ctx, Py_ssize_t ctx_ind) {
             case MP_EXT8:
             case MP_EXT16:
             case MP_EXT32:
-                got = "Ext";
+                got = "ext";
                 break;
             default:
                 got = "unknown";
                 break;
         }
     }
-    return mp_format_validation_error("str", got, ctx, ctx_ind);
+    ms_raise_validation_error(path, "Expected `str`, got `%s`%U", got);
+    return NULL;
 }
 
 static MS_INLINE Py_ssize_t
-mp_decode_cstr(DecoderState *self, char ** out, TypeNode *ctx) {
+mp_decode_cstr(DecoderState *self, char ** out, PathNode *path) {
     char op = 0;
     Py_ssize_t size;
     if (mp_read1(self, &op) < 0) return -1;
@@ -5008,7 +5202,7 @@ mp_decode_cstr(DecoderState *self, char ** out, TypeNode *ctx) {
         size = mp_decode_size4(self);
     }
     else {
-        mp_error_expected(op, "str", ctx, -1);
+        mp_error_expected(op, "str", path);
         return -1;
     }
 
@@ -5017,8 +5211,9 @@ mp_decode_cstr(DecoderState *self, char ** out, TypeNode *ctx) {
 }
 
 static PyObject *
-mp_decode_type_struct_map(
-    DecoderState *self, Py_ssize_t size, StructMetaObject *st_type, TypeNode *type, bool is_key
+mp_decode_struct_map(
+    DecoderState *self, Py_ssize_t size, StructMetaObject *st_type,
+    TypeNode *type, PathNode *path, bool is_key
 ) {
     Py_ssize_t i, key_size, field_index, pos = 0;
     char *key = NULL;
@@ -5032,7 +5227,8 @@ mp_decode_type_struct_map(
         return NULL;
     }
     for (i = 0; i < size; i++) {
-        key_size = mp_decode_cstr(self, &key, type);
+        PathNode key_path = {path, PATH_KEY, NULL};
+        key_size = mp_decode_cstr(self, &key, &key_path);
         if (MS_UNLIKELY(key_size < 0)) goto error;
 
         field_index = StructMeta_get_field_index(st_type, key, key_size, &pos);
@@ -5041,15 +5237,16 @@ mp_decode_type_struct_map(
             if (mp_skip(self) < 0) goto error;
         }
         else {
-            val = mp_decode_type(
-                self, st_type->struct_types[field_index], type, field_index, is_key
+            PathNode field_path = {path, field_index, st_type};
+            val = mp_decode(
+                self, st_type->struct_types[field_index], &field_path, is_key
             );
             if (val == NULL) goto error;
             Struct_set_index(res, field_index, val);
         }
     }
 
-    if (Struct_fill_in_defaults(st_type, res) < 0) goto error;
+    if (Struct_fill_in_defaults(st_type, res, path) < 0) goto error;
     Py_LeaveRecursiveCall();
     return res;
 error:
@@ -5059,28 +5256,31 @@ error:
 }
 
 static PyObject *
-mp_decode_type_map(
-    DecoderState *self, Py_ssize_t size, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind, bool is_key
+mp_decode_map(
+    DecoderState *self, Py_ssize_t size, TypeNode *type,
+    PathNode *path, bool is_key
 ) {
     if (type->types & MS_TYPE_ANY) {
-        return mp_decode_type_dict(self, size, type, type, ctx, ctx_ind);
+        return mp_decode_dict(self, size, type, type, path);
     }
     else if (type->types & MS_TYPE_DICT) {
         TypeNode *key, *val;
         TypeNode_get_dict(type, &key, &val);
-        return mp_decode_type_dict(self, size, key, val, ctx, ctx_ind);
+        return mp_decode_dict(self, size, key, val, path);
     }
     else if (type->types & MS_TYPE_STRUCT) {
         StructMetaObject *struct_type = TypeNode_get_struct(type);
         if (struct_type->asarray != OPT_TRUE) {
-            return mp_decode_type_struct_map(self, size, struct_type, type, is_key);
+            return mp_decode_struct_map(self, size, struct_type, type, path, is_key);
         }
     }
-    return mp_validation_error("dict", type, ctx, ctx_ind);
+    return ms_validation_error("object", type, path);
 }
 
 static PyObject *
-mp_decode_type_ext(DecoderState *self, Py_ssize_t size, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind) {
+mp_decode_ext(
+    DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *path
+) {
     Py_buffer *buffer;
     char code = 0, *data_buf = NULL;
     PyObject *data, *pycode = NULL, *view = NULL, *out = NULL;
@@ -5098,7 +5298,7 @@ mp_decode_type_ext(DecoderState *self, Py_ssize_t size, TypeNode *type, TypeNode
         return Ext_New(code, data);
     }
     else if (!(type->types & MS_TYPE_ANY)) {
-        return mp_validation_error("Ext", type, ctx, ctx_ind);
+        return ms_validation_error("ext", type, path);
     }
 
     /* Decode Any.
@@ -5132,13 +5332,13 @@ done:
 }
 
 static PyObject *
-mp_decode_type_custom(DecoderState *self, bool generic, TypeNode* type, TypeNode *ctx, Py_ssize_t ctx_ind) {
+mp_decode_custom(DecoderState *self, bool generic, TypeNode* type, PathNode *path) {
     PyObject *obj, *custom_cls = NULL, *out = NULL;
     int status;
     PyObject *custom_obj = TypeNode_get_custom(type);
     TypeNode type_any = {MS_TYPE_ANY};
 
-    if ((obj = mp_decode_type(self, &type_any, ctx, ctx_ind, false)) == NULL)
+    if ((obj = mp_decode(self, &type_any, path, false)) == NULL)
         return NULL;
 
     if (self->dec_hook != NULL) {
@@ -5167,11 +5367,11 @@ mp_decode_type_custom(DecoderState *self, bool generic, TypeNode* type, TypeNode
     /* Check that the decoded value matches the expected type */
     status = PyObject_IsInstance(out, custom_cls);
     if (status == 0) {
-        mp_format_validation_error(
+        ms_raise_validation_error(
+            path,
+            "Expected `%s`, got `%s`%U",
             ((PyTypeObject *)custom_cls)->tp_name,
-            Py_TYPE(out)->tp_name,
-            ctx,
-            ctx_ind
+            Py_TYPE(out)->tp_name
         );
         Py_CLEAR(out);
     }
@@ -5186,15 +5386,15 @@ mp_decode_type_custom(DecoderState *self, bool generic, TypeNode* type, TypeNode
 }
 
 static PyObject *
-mp_decode_type(
-    DecoderState *self, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind, bool is_key
+mp_decode(
+    DecoderState *self, TypeNode *type, PathNode *path, bool is_key
 ) {
     char op = 0;
     char *s = NULL;
 
     if (MS_UNLIKELY(type->types & (MS_TYPE_CUSTOM | MS_TYPE_CUSTOM_GENERIC))) {
-        return mp_decode_type_custom(
-            self, type->types & MS_TYPE_CUSTOM_GENERIC, type, ctx, ctx_ind
+        return mp_decode_custom(
+            self, type->types & MS_TYPE_CUSTOM_GENERIC, type, path
         );
     }
 
@@ -5203,55 +5403,55 @@ mp_decode_type(
     }
 
     if (-32 <= op && op <= 127) {
-        return mp_decode_type_int(self, op, type, ctx, ctx_ind);
+        return mp_decode_int(self, op, type, path);
     }
     else if ('\xa0' <= op && op <= '\xbf') {
-        return mp_decode_type_str(self, op & 0x1f, type, ctx, ctx_ind);
+        return mp_decode_str(self, op & 0x1f, type, path);
     }
     else if ('\x90' <= op && op <= '\x9f') {
-        return mp_decode_type_array(self, op & 0x0f, type, ctx, ctx_ind, is_key);
+        return mp_decode_array(self, op & 0x0f, type, path, is_key);
     }
     else if ('\x80' <= op && op <= '\x8f') {
-        return mp_decode_type_map(self, op & 0x0f, type, ctx, ctx_ind, is_key);
+        return mp_decode_map(self, op & 0x0f, type, path, is_key);
     }
     switch ((enum mp_code)op) {
         case MP_NIL:
-            return mp_decode_type_none(self, type, ctx, ctx_ind);
+            return mp_decode_none(self, type, path);
         case MP_TRUE:
-            return mp_decode_type_bool(self, Py_True, type, ctx, ctx_ind);
+            return mp_decode_bool(self, Py_True, type, path);
         case MP_FALSE:
-            return mp_decode_type_bool(self, Py_False, type, ctx, ctx_ind);
+            return mp_decode_bool(self, Py_False, type, path);
         case MP_UINT8:
             if (MS_UNLIKELY(mp_read(self, &s, 1) < 0)) return NULL;
-            return mp_decode_type_uint(self, *(uint8_t *)s, type, ctx, ctx_ind);
+            return mp_decode_uint(self, *(uint8_t *)s, type, path);
         case MP_UINT16:
             if (MS_UNLIKELY(mp_read(self, &s, 2) < 0)) return NULL;
-            return mp_decode_type_uint(self, _msgspec_load16(uint16_t, s), type, ctx, ctx_ind);
+            return mp_decode_uint(self, _msgspec_load16(uint16_t, s), type, path);
         case MP_UINT32:
             if (MS_UNLIKELY(mp_read(self, &s, 4) < 0)) return NULL;
-            return mp_decode_type_uint(self, _msgspec_load32(uint32_t, s), type, ctx, ctx_ind);
+            return mp_decode_uint(self, _msgspec_load32(uint32_t, s), type, path);
         case MP_UINT64:
             if (MS_UNLIKELY(mp_read(self, &s, 8) < 0)) return NULL;
-            return mp_decode_type_uint(self, _msgspec_load64(uint64_t, s), type, ctx, ctx_ind);
+            return mp_decode_uint(self, _msgspec_load64(uint64_t, s), type, path);
         case MP_INT8:
             if (MS_UNLIKELY(mp_read(self, &s, 1) < 0)) return NULL;
-            return mp_decode_type_int(self, *(int8_t *)s, type, ctx, ctx_ind);
+            return mp_decode_int(self, *(int8_t *)s, type, path);
         case MP_INT16:
             if (MS_UNLIKELY(mp_read(self, &s, 2) < 0)) return NULL;
-            return mp_decode_type_int(self, _msgspec_load16(int16_t, s), type, ctx, ctx_ind);
+            return mp_decode_int(self, _msgspec_load16(int16_t, s), type, path);
         case MP_INT32:
             if (MS_UNLIKELY(mp_read(self, &s, 4) < 0)) return NULL;
-            return mp_decode_type_int(self, _msgspec_load32(int32_t, s), type, ctx, ctx_ind);
+            return mp_decode_int(self, _msgspec_load32(int32_t, s), type, path);
         case MP_INT64:
             if (MS_UNLIKELY(mp_read(self, &s, 8) < 0)) return NULL;
-            return mp_decode_type_int(self, _msgspec_load64(int64_t, s), type, ctx, ctx_ind);
+            return mp_decode_int(self, _msgspec_load64(int64_t, s), type, path);
         case MP_FLOAT32: {
             float f = 0;
             uint32_t uf;
             if (mp_read(self, &s, 4) < 0) return NULL;
             uf = _msgspec_load32(uint32_t, s);
             memcpy(&f, &uf, 4);
-            return mp_decode_type_float(self, f, type, ctx, ctx_ind);
+            return mp_decode_float(self, f, type, path);
         }
         case MP_FLOAT64: {
             double f = 0;
@@ -5259,65 +5459,65 @@ mp_decode_type(
             if (mp_read(self, &s, 8) < 0) return NULL;
             uf = _msgspec_load64(uint64_t, s);
             memcpy(&f, &uf, 8);
-            return mp_decode_type_float(self, f, type, ctx, ctx_ind);
+            return mp_decode_float(self, f, type, path);
         }
         case MP_STR8: {
             Py_ssize_t size = mp_decode_size1(self);
             if (MS_UNLIKELY(size < 0)) return NULL;
-            return mp_decode_type_str(self, size, type, ctx, ctx_ind);
+            return mp_decode_str(self, size, type, path);
         }
         case MP_STR16: {
             Py_ssize_t size = mp_decode_size2(self);
             if (MS_UNLIKELY(size < 0)) return NULL;
-            return mp_decode_type_str(self, size, type, ctx, ctx_ind);
+            return mp_decode_str(self, size, type, path);
         }
         case MP_STR32: {
             Py_ssize_t size = mp_decode_size4(self);
             if (MS_UNLIKELY(size < 0)) return NULL;
-            return mp_decode_type_str(self, size, type, ctx, ctx_ind);
+            return mp_decode_str(self, size, type, path);
         }
         case MP_BIN8:
-            return mp_decode_type_bin(self, mp_decode_size1(self), type, ctx, ctx_ind);
+            return mp_decode_bin(self, mp_decode_size1(self), type, path);
         case MP_BIN16:
-            return mp_decode_type_bin(self, mp_decode_size2(self), type, ctx, ctx_ind);
+            return mp_decode_bin(self, mp_decode_size2(self), type, path);
         case MP_BIN32:
-            return mp_decode_type_bin(self, mp_decode_size4(self), type, ctx, ctx_ind);
+            return mp_decode_bin(self, mp_decode_size4(self), type, path);
         case MP_ARRAY16: {
             Py_ssize_t size = mp_decode_size2(self);
             if (MS_UNLIKELY(size < 0)) return NULL;
-            return mp_decode_type_array(self, size, type, ctx, ctx_ind, is_key);
+            return mp_decode_array(self, size, type, path, is_key);
         }
         case MP_ARRAY32: {
             Py_ssize_t size = mp_decode_size4(self);
             if (MS_UNLIKELY(size < 0)) return NULL;
-            return mp_decode_type_array(self, size, type, ctx, ctx_ind, is_key);
+            return mp_decode_array(self, size, type, path, is_key);
         }
         case MP_MAP16: {
             Py_ssize_t size = mp_decode_size2(self);
             if (MS_UNLIKELY(size < 0)) return NULL;
-            return mp_decode_type_map(self, size, type, ctx, ctx_ind, is_key);
+            return mp_decode_map(self, size, type, path, is_key);
         }
         case MP_MAP32: {
             Py_ssize_t size = mp_decode_size4(self);
             if (MS_UNLIKELY(size < 0)) return NULL;
-            return mp_decode_type_map(self, size, type, ctx, ctx_ind, is_key);
+            return mp_decode_map(self, size, type, path, is_key);
         }
         case MP_FIXEXT1:
-            return mp_decode_type_ext(self, 1, type, ctx, ctx_ind);
+            return mp_decode_ext(self, 1, type, path);
         case MP_FIXEXT2:
-            return mp_decode_type_ext(self, 2, type, ctx, ctx_ind);
+            return mp_decode_ext(self, 2, type, path);
         case MP_FIXEXT4:
-            return mp_decode_type_ext(self, 4, type, ctx, ctx_ind);
+            return mp_decode_ext(self, 4, type, path);
         case MP_FIXEXT8:
-            return mp_decode_type_ext(self, 8, type, ctx, ctx_ind);
+            return mp_decode_ext(self, 8, type, path);
         case MP_FIXEXT16:
-            return mp_decode_type_ext(self, 16, type, ctx, ctx_ind);
+            return mp_decode_ext(self, 16, type, path);
         case MP_EXT8:
-            return mp_decode_type_ext(self, mp_decode_size1(self), type, ctx, ctx_ind);
+            return mp_decode_ext(self, mp_decode_size1(self), type, path);
         case MP_EXT16:
-            return mp_decode_type_ext(self, mp_decode_size2(self), type, ctx, ctx_ind);
+            return mp_decode_ext(self, mp_decode_size2(self), type, path);
         case MP_EXT32:
-            return mp_decode_type_ext(self, mp_decode_size4(self), type, ctx, ctx_ind);
+            return mp_decode_ext(self, mp_decode_size4(self), type, path);
         default:
             PyErr_Format(msgspec_get_global_state()->DecodingError, "invalid opcode, '\\x%02x'.", op);
             return NULL;
@@ -5357,7 +5557,7 @@ Decoder_decode(Decoder *self, PyObject *const *args, Py_ssize_t nargs)
         self->state.input_len = buffer.len;
         self->state.next_read_idx = 0;
 
-        res = mp_decode_type(&(self->state), self->state.type, self->state.type, -1, false);
+        res = mp_decode(&(self->state), self->state.type, NULL, false);
 
         if (res != NULL && mp_has_trailing_characters(&self->state)) {
             res = NULL;
@@ -5522,10 +5722,10 @@ msgspec_msgpack_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, 
         state.input_len = buffer.len;
         state.next_read_idx = 0;
         if (state.type != NULL) {
-            res = mp_decode_type(&state, state.type, state.type, -1, false);
+            res = mp_decode(&state, state.type, NULL, false);
         } else {
             TypeNode type_any = {MS_TYPE_ANY};
-            res = mp_decode_type(&state, &type_any, &type_any, -1, false);
+            res = mp_decode(&state, &type_any, NULL, false);
         }
         PyBuffer_Release(&buffer);
         if (res != NULL && mp_has_trailing_characters(&state)) {
@@ -5753,13 +5953,11 @@ js_has_trailing_characters(JSONDecoderState *self)
 static int js_skip(JSONDecoderState *self);
 
 static PyObject * js_decode(
-    JSONDecoderState *self, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind, bool is_key
+    JSONDecoderState *self, TypeNode *type, PathNode *path, bool is_key
 );
 
 static PyObject *
-js_decode_none(
-    JSONDecoderState *self, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind
-) {
+js_decode_none(JSONDecoderState *self, TypeNode *type, PathNode *path) {
     if (MS_UNLIKELY(!js_remaining(self, 3))) {
         ms_err_truncated();
         return NULL;
@@ -5775,13 +5973,11 @@ js_decode_none(
         Py_INCREF(Py_None);
         return Py_None;
     }
-    return mp_validation_error("None", type, ctx, ctx_ind);
+    return ms_validation_error("null", type, path);
 }
 
 static PyObject *
-js_decode_true(
-    JSONDecoderState *self, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind
-) {
+js_decode_true(JSONDecoderState *self, TypeNode *type, PathNode *path) {
     if (MS_UNLIKELY(!js_remaining(self, 3))) {
         ms_err_truncated();
         return NULL;
@@ -5797,13 +5993,11 @@ js_decode_true(
         Py_INCREF(Py_True);
         return Py_True;
     }
-    return mp_validation_error("bool", type, ctx, ctx_ind);
+    return ms_validation_error("bool", type, path);
 }
 
 static PyObject *
-js_decode_false(
-    JSONDecoderState *self, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind
-) {
+js_decode_false(JSONDecoderState *self, TypeNode *type, PathNode *path) {
     if (MS_UNLIKELY(!js_remaining(self, 4))) {
         ms_err_truncated();
         return NULL;
@@ -5820,16 +6014,15 @@ js_decode_false(
         Py_INCREF(Py_False);
         return Py_False;
     }
-    return mp_validation_error("bool", type, ctx, ctx_ind);
+    return ms_validation_error("bool", type, path);
 }
 
 static PyObject *
-js_decode_list(
-    JSONDecoderState *self, TypeNode *el_type, TypeNode *ctx, Py_ssize_t ctx_ind, bool is_key
-) {
+js_decode_list(JSONDecoderState *self, TypeNode *el_type, PathNode *path, bool is_key) {
     PyObject *out, *item = NULL;
     unsigned char c;
     bool first = true;
+    PathNode el_path = {path, 0, NULL};
 
     self->input_pos++; /* Skip '[' */
 
@@ -5860,8 +6053,9 @@ js_decode_list(
         }
 
         /* Parse item */
-        item = js_decode(self, el_type, ctx, ctx_ind, is_key);
+        item = js_decode(self, el_type, &el_path, is_key);
         if (item == NULL) goto error;
+        el_path.index++;
 
         /* Append item to list */
         if (PyList_Append(out, item) < 0) goto error;
@@ -5877,12 +6071,11 @@ error:
 }
 
 static PyObject *
-js_decode_set(
-    JSONDecoderState *self, TypeNode *el_type, TypeNode *ctx, Py_ssize_t ctx_ind
-) {
+js_decode_set(JSONDecoderState *self, TypeNode *el_type, PathNode *path) {
     PyObject *out, *item = NULL;
     unsigned char c;
     bool first = true;
+    PathNode el_path = {path, 0, NULL};
 
     self->input_pos++; /* Skip '[' */
 
@@ -5913,8 +6106,9 @@ js_decode_set(
         }
 
         /* Parse item */
-        item = js_decode(self, el_type, ctx, ctx_ind, false);
+        item = js_decode(self, el_type, &el_path, false);
         if (item == NULL) goto error;
+        el_path.index++;
 
         /* Append item to set */
         if (PySet_Add(out, item) < 0) goto error;
@@ -5930,14 +6124,11 @@ error:
 }
 
 static PyObject *
-js_decode_vartuple(
-    JSONDecoderState *self, TypeNode *el_type,
-    TypeNode *ctx, Py_ssize_t ctx_ind, bool is_key
-) {
+js_decode_vartuple(JSONDecoderState *self, TypeNode *el_type, PathNode *path, bool is_key) {
     PyObject *list, *item, *out = NULL;
     Py_ssize_t size, i;
 
-    list = js_decode_list(self, el_type, ctx, ctx_ind, is_key);
+    list = js_decode_list(self, el_type, path, is_key);
     if (list == NULL) return NULL;
 
     size = PyList_GET_SIZE(list);
@@ -5954,15 +6145,13 @@ js_decode_vartuple(
 }
 
 static PyObject *
-js_decode_fixtuple(
-    JSONDecoderState *self, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind, bool is_key
-) {
-    PyObject *out, *item, *typstr = NULL;
+js_decode_fixtuple(JSONDecoderState *self, TypeNode *type, PathNode *path, bool is_key) {
+    PyObject *out, *item;
     Py_ssize_t i = 0, offset;
     unsigned char c;
     bool first = true;
     TypeNodeExtra *tex = (TypeNodeExtra *)type;
-    MsgspecState *st;
+    PathNode el_path = {path, 0, NULL};
 
     offset = TypeNode_get_array_offset(type);
 
@@ -6001,8 +6190,9 @@ js_decode_fixtuple(
         if (MS_UNLIKELY(i >= tex->fixtuple_size)) goto size_error;
 
         /* Parse item */
-        item = js_decode(self, tex->extra[offset + i], ctx, ctx_ind, is_key);
+        item = js_decode(self, tex->extra[offset + i], &el_path, is_key);
         if (item == NULL) goto error;
+        el_path.index++;
 
         /* Add item to tuple */
         PyTuple_SET_ITEM(out, i, item);
@@ -6012,30 +6202,11 @@ js_decode_fixtuple(
     return out;
 
 size_error:
-    st = msgspec_get_global_state();
-    if (ctx->types & MS_TYPE_STRUCT && ctx_ind != -1) {
-        StructMetaObject *st_type = TypeNode_get_struct(ctx);
-        PyObject *field = PyTuple_GET_ITEM(st_type->struct_fields, ctx_ind);
-        if ((typstr = TypeNode_Repr(st_type->struct_types[ctx_ind])) != NULL) {
-            PyErr_Format(
-                st->DecodingError,
-                "Error decoding `%s` field `%S` (`%S`): expected tuple of length %zd",
-                ((PyTypeObject *)st_type)->tp_name,
-                field, typstr, tex->fixtuple_size
-            );
-        }
-    }
-    else {
-        if ((typstr = TypeNode_Repr(ctx)) != NULL) {
-            PyErr_Format(
-                st->DecodingError,
-                "Error decoding `%S`: expected tuple of length %zd",
-                typstr, tex->fixtuple_size
-            );
-        }
-    }
-    Py_XDECREF(typstr);
-
+    ms_raise_validation_error(
+        path,
+        "Expected `array` of length %zd",
+        tex->fixtuple_size
+    );
 error:
     Py_LeaveRecursiveCall();
     Py_DECREF(out);
@@ -6044,12 +6215,14 @@ error:
 
 static PyObject *
 js_decode_struct_array(
-    JSONDecoderState *self, StructMetaObject *st_type, TypeNode *type, bool is_key
+    JSONDecoderState *self, StructMetaObject *st_type, TypeNode *type,
+    PathNode *path, bool is_key
 ) {
     Py_ssize_t nfields, ndefaults, npos, i = 0;
     PyObject *out, *item = NULL;
     unsigned char c;
     bool should_untrack, first = true;
+    PathNode el_path = {path, 0, st_type};
 
     self->input_pos++; /* Skip '[' */
 
@@ -6087,7 +6260,8 @@ js_decode_struct_array(
 
         if (MS_LIKELY(i < nfields)) {
             /* Parse item */
-            item = js_decode(self, st_type->struct_types[i], type, i, is_key);
+            el_path.index = i;
+            item = js_decode(self, st_type->struct_types[i], &el_path, is_key);
             if (MS_UNLIKELY(item == NULL)) goto error;
             Struct_set_index(out, i, item);
             if (should_untrack) {
@@ -6103,10 +6277,9 @@ js_decode_struct_array(
 
     /* Check for missing required fields */
     if (i < npos) {
-        PyErr_Format(
-            msgspec_get_global_state()->DecodingError,
-            "Error decoding `%s`: missing required field `%S`",
-            ((PyTypeObject *)st_type)->tp_name,
+        ms_raise_validation_error(
+            path,
+            "Object missing required field `%U`%U",
             PyTuple_GET_ITEM(st_type->struct_fields, i)
         );
         goto error;
@@ -6134,35 +6307,35 @@ error:
 
 static PyObject *
 js_decode_array(
-    JSONDecoderState *self, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind, bool is_key
+    JSONDecoderState *self, TypeNode *type, PathNode *path, bool is_key
 ) {
     if (type->types & MS_TYPE_ANY) {
         if (is_key) {
-            return js_decode_vartuple(self, type, ctx, ctx_ind, is_key);
+            return js_decode_vartuple(self, type, path, is_key);
         }
         else {
-            return js_decode_list(self, type, ctx, ctx_ind, false);
+            return js_decode_list(self, type, path, false);
         }
     }
     else if (type->types & MS_TYPE_LIST) {
-        return js_decode_list(self, TypeNode_get_array(type), ctx, ctx_ind, false);
+        return js_decode_list(self, TypeNode_get_array(type), path, false);
     }
     else if (type->types & MS_TYPE_SET) {
-        return js_decode_set(self, TypeNode_get_array(type), ctx, ctx_ind);
+        return js_decode_set(self, TypeNode_get_array(type), path);
     }
     else if (type->types & MS_TYPE_VARTUPLE) {
-        return js_decode_vartuple(self, TypeNode_get_array(type), ctx, ctx_ind, is_key);
+        return js_decode_vartuple(self, TypeNode_get_array(type), path, is_key);
     }
     else if (type->types & MS_TYPE_FIXTUPLE) {
-        return js_decode_fixtuple(self, type, ctx, ctx_ind, is_key);
+        return js_decode_fixtuple(self, type, path, is_key);
     }
     else if (type->types & MS_TYPE_STRUCT) {
         StructMetaObject *struct_type = TypeNode_get_struct(type);
         if (struct_type->asarray == OPT_TRUE) {
-            return js_decode_struct_array(self, struct_type, type, is_key);
+            return js_decode_struct_array(self, struct_type, type, path, is_key);
         }
     }
-    return mp_validation_error("list", type, ctx, ctx_ind);
+    return ms_validation_error("array", type, path);
 }
 
 #define JS_SCRATCH_MAX_SIZE 1024
@@ -6228,7 +6401,7 @@ js_read_codepoint(JSONDecoderState *self, unsigned int *out) {
             c = c - 'A' + 10;
         }
         else {
-            js_err_invalid("invalid unicode escape");
+            js_err_invalid("invalid character");
             return -1;
         }
         cp = (cp << 4) + c;
@@ -6301,7 +6474,7 @@ js_parse_escape(JSONDecoderState *self) {
             return 0;
         }
         default:
-            PyErr_SetString(msgspec_get_global_state()->DecodingError, "Invalid escape");
+            js_err_invalid("invalid escape character in string");
             return -1;
     }
     return 0;
@@ -6343,7 +6516,7 @@ js_decode_string_view(JSONDecoderState *self, char **out) {
             }
             default: {
                 self->input_pos += 1;
-                js_err_invalid("Invalid character");
+                js_err_invalid("invalid character");
                 return -1;
             }
         }
@@ -6375,7 +6548,7 @@ static const uint8_t base64_decode_table[] = {
 static PyObject *
 js_decode_binary(
     JSONDecoderState *self, const char *buffer, Py_ssize_t size,
-    TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind
+    TypeNode *type, PathNode *path
 ) {
     PyObject *out = NULL;
     char *bin_buffer;
@@ -6431,40 +6604,43 @@ js_decode_binary(
 
 invalid:
     Py_XDECREF(out);
-    PyErr_SetString(
-        msgspec_get_global_state()->DecodingError,
-        "Invalid base64 encoded string"
-    );
+    MsgspecState *st = msgspec_get_global_state();
+    PyObject *suffix = PathNode_ErrSuffix(path);
+    if (suffix != NULL) {
+        PyErr_Format(st->DecodingError, "Invalid base64 encoded string", suffix);
+        Py_DECREF(suffix);
+    }
     return NULL;
 }
 
 static PyObject *
-js_decode_string(JSONDecoderState *self, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind) {
+js_decode_string(JSONDecoderState *self, TypeNode *type, PathNode *path) {
     if (MS_LIKELY(type->types & (MS_TYPE_ANY | MS_TYPE_STR | MS_TYPE_ENUM | MS_TYPE_BYTES | MS_TYPE_BYTEARRAY))) {
         char *view = NULL;
         Py_ssize_t size = js_decode_string_view(self, &view);
         if (size < 0) return NULL;
         if (MS_UNLIKELY(type->types & (MS_TYPE_BYTES | MS_TYPE_BYTEARRAY))) {
-            return js_decode_binary(self, view, size, type, ctx, ctx_ind);
+            return js_decode_binary(self, view, size, type, path);
         }
         PyObject *val = PyUnicode_DecodeUTF8(view, size, NULL);
         if (val == NULL) return NULL;
         if (MS_UNLIKELY(type->types & MS_TYPE_ENUM)) {
-            return ms_decode_type_enum(val, type);
+            return ms_decode_type_enum(val, type, path);
         }
         return val;
     }
-    return mp_validation_error("str", type, ctx, ctx_ind);
+    return ms_validation_error("str", type, path);
 }
 
 static PyObject *
 js_decode_dict(
-    JSONDecoderState *self, TypeNode *key_type, TypeNode *val_type,
-    TypeNode *ctx, Py_ssize_t ctx_ind
+    JSONDecoderState *self, TypeNode *key_type, TypeNode *val_type, PathNode *path
 ) {
     PyObject *out, *key = NULL, *val = NULL;
     unsigned char c;
     bool first = true;
+    PathNode key_path = {path, PATH_KEY, NULL};
+    PathNode val_path = {path, PATH_ELLIPSIS, NULL};
 
     self->input_pos++; /* Skip '{' */
 
@@ -6497,7 +6673,7 @@ js_decode_dict(
 
         /* Parse a string key */
         if (c == '"') {
-            key = js_decode_string(self, key_type, ctx, ctx_ind);
+            key = js_decode_string(self, key_type, &key_path);
             if (key == NULL) goto error;
         }
         else if (c == ',') {
@@ -6518,7 +6694,7 @@ js_decode_dict(
         self->input_pos++;
 
         /* Parse value */
-        val = js_decode(self, val_type, ctx, ctx_ind, false);
+        val = js_decode(self, val_type, &val_path, false);
         if (val == NULL) goto error;
 
         /* Add item to dict */
@@ -6540,13 +6716,15 @@ error:
 
 static PyObject *
 js_decode_struct_map(
-    JSONDecoderState *self, StructMetaObject *st_type, TypeNode *type, bool is_key
+    JSONDecoderState *self, StructMetaObject *st_type, TypeNode *type,
+    PathNode *path, bool is_key
 ) {
     PyObject *out, *val = NULL;
     Py_ssize_t key_size, field_index, pos = 0;
     unsigned char c;
     char *key = NULL;
     bool first = true;
+    PathNode field_path = {path, 0, st_type};
 
     self->input_pos++; /* Skip '{' */
 
@@ -6606,14 +6784,15 @@ js_decode_struct_map(
             if (js_skip(self) < 0) goto error;
         }
         else {
+            field_path.index = field_index;
             val = js_decode(
-                self, st_type->struct_types[field_index], type, field_index, is_key
+                self, st_type->struct_types[field_index], &field_path, is_key
             );
             if (val == NULL) goto error;
             Struct_set_index(out, field_index, val);
         }
     }
-    if (Struct_fill_in_defaults(st_type, out) < 0) goto error;
+    if (Struct_fill_in_defaults(st_type, out, path) < 0) goto error;
     Py_LeaveRecursiveCall();
     return out;
 
@@ -6625,23 +6804,23 @@ error:
 
 static PyObject *
 js_decode_object(
-    JSONDecoderState *self, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind, bool is_key
+    JSONDecoderState *self, TypeNode *type, PathNode *path, bool is_key
 ) {
     if (type->types & MS_TYPE_ANY) {
-        return js_decode_dict(self, type, type, ctx, ctx_ind);
+        return js_decode_dict(self, type, type, path);
     }
     else if (type->types & MS_TYPE_DICT) {
         TypeNode *key, *val;
         TypeNode_get_dict(type, &key, &val);
-        return js_decode_dict(self, key, val, ctx, ctx_ind);
+        return js_decode_dict(self, key, val, path);
     }
     else if (type->types & MS_TYPE_STRUCT) {
         StructMetaObject *struct_type = TypeNode_get_struct(type);
         if (struct_type->asarray != OPT_TRUE) {
-            return js_decode_struct_map(self, struct_type, type, is_key);
+            return js_decode_struct_map(self, struct_type, type, path, is_key);
         }
     }
-    return mp_validation_error("dict", type, ctx, ctx_ind);
+    return ms_validation_error("object", type, path);
 }
 
 #define is_digit(c) (c >= '0' && c <= '9')
@@ -6761,9 +6940,7 @@ js_decode_extended_float(JSONDecoderState *self) {
 }
 
 static PyObject *
-js_maybe_decode_number(
-    JSONDecoderState *self, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind
-) {
+js_maybe_decode_number(JSONDecoderState *self, TypeNode *type, PathNode *path) {
     uint64_t mantissa = 0;
     int32_t exponent = 0;
     bool is_negative = false;
@@ -6887,7 +7064,7 @@ end_integer:
             PyLong_FromUnsignedLongLong(mantissa)
         );
         if (type->types & MS_TYPE_INTENUM) {
-            return ms_decode_type_intenum(val, type);
+            return ms_decode_type_intenum(val, type, path);
         }
         return val;
     }
@@ -6899,25 +7076,25 @@ end_integer:
         }
         return PyFloat_FromDouble(val);
     }
-    return mp_validation_error(is_float ? "float" : "int", type, ctx, ctx_ind);
+    return ms_validation_error(is_float ? "float" : "int", type, path);
 }
 
 static PyObject *
 js_decode(
-    JSONDecoderState *self, TypeNode *type, TypeNode *ctx, Py_ssize_t ctx_ind, bool is_key
+    JSONDecoderState *self, TypeNode *type, PathNode *path, bool is_key
 ) {
     unsigned char c;
 
     if (MS_UNLIKELY(!js_peek_skip_ws(self, &c))) return NULL;
 
     switch (c) {
-        case 'n': return js_decode_none(self, type, ctx, ctx_ind);
-        case 't': return js_decode_true(self, type, ctx, ctx_ind);
-        case 'f': return js_decode_false(self, type, ctx, ctx_ind);
-        case '[': return js_decode_array(self, type, ctx, ctx_ind, is_key);
-        case '{': return js_decode_object(self, type, ctx, ctx_ind, is_key);
-        case '"': return js_decode_string(self, type, ctx, ctx_ind);
-        default: return js_maybe_decode_number(self, type, ctx, ctx_ind);
+        case 'n': return js_decode_none(self, type, path);
+        case 't': return js_decode_true(self, type, path);
+        case 'f': return js_decode_false(self, type, path);
+        case '[': return js_decode_array(self, type, path, is_key);
+        case '{': return js_decode_object(self, type, path, is_key);
+        case '"': return js_decode_string(self, type, path);
+        default: return js_maybe_decode_number(self, type, path);
     }
 }
 
@@ -7217,7 +7394,7 @@ JSONDecoder_decode(JSONDecoder *self, PyObject *const *args, Py_ssize_t nargs)
         self->state.input_pos = buffer.buf;
         self->state.input_end = self->state.input_pos + buffer.len;
 
-        res = js_decode(&(self->state), self->state.type, self->state.type, -1, false);
+        res = js_decode(&(self->state), self->state.type, NULL, false);
 
         if (res != NULL && js_has_trailing_characters(&self->state)) {
             res = NULL;
@@ -7370,10 +7547,10 @@ msgspec_json_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyO
         state.input_end = state.input_pos + buffer.len;
 
         if (state.type != NULL) {
-            res = js_decode(&state, state.type, state.type, -1, false);
+            res = js_decode(&state, state.type, NULL, false);
         } else {
             TypeNode type_any = {MS_TYPE_ANY};
-            res = js_decode(&state, &type_any, &type_any, -1, false);
+            res = js_decode(&state, &type_any, NULL, false);
         }
 
         if (res != NULL && js_has_trailing_characters(&state)) {
@@ -7640,36 +7817,18 @@ PyInit__core(void)
         return NULL;
 
     /* Initialize cached constant strings */
-    st->str__name_ = PyUnicode_InternFromString("_name_");
-    if (st->str__name_ == NULL)
-        return NULL;
-    st->str__value2member_map_ = PyUnicode_InternFromString("_value2member_map_");
-    if (st->str__value2member_map_ == NULL)
-        return NULL;
-    st->str_name = PyUnicode_InternFromString("name");
-    if (st->str_name == NULL)
-        return NULL;
-    st->str_type = PyUnicode_InternFromString("type");
-    if (st->str_type == NULL)
-        return NULL;
-    st->str_enc_hook = PyUnicode_InternFromString("enc_hook");
-    if (st->str_enc_hook == NULL)
-        return NULL;
-    st->str_dec_hook = PyUnicode_InternFromString("dec_hook");
-    if (st->str_dec_hook == NULL)
-        return NULL;
-    st->str_ext_hook = PyUnicode_InternFromString("ext_hook");
-    if (st->str_ext_hook == NULL)
-        return NULL;
-    st->str_tzinfo = PyUnicode_InternFromString("tzinfo");
-    if (st->str_tzinfo == NULL)
-        return NULL;
-    st->str___origin__ = PyUnicode_InternFromString("__origin__");
-    if (st->str___origin__ == NULL)
-        return NULL;
-    st->str___args__ = PyUnicode_InternFromString("__args__");
-    if (st->str___args__ == NULL)
-        return NULL;
+#define CACHED_STRING(attr, str) \
+    if ((st->attr = PyUnicode_InternFromString(str)) == NULL) return NULL
+    CACHED_STRING(str__name_, "_name_");
+    CACHED_STRING(str__value2member_map_, "_value2member_map_");
+    CACHED_STRING(str_name, "name");
+    CACHED_STRING(str_type, "type");
+    CACHED_STRING(str_enc_hook, "enc_hook");
+    CACHED_STRING(str_dec_hook, "dec_hook");
+    CACHED_STRING(str_ext_hook, "ext_hook");
+    CACHED_STRING(str_tzinfo, "tzinfo");
+    CACHED_STRING(str___origin__, "__origin__");
+    CACHED_STRING(str___args__, "__args__");
 
     return m;
 }
