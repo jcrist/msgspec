@@ -4375,9 +4375,9 @@ typedef struct DecoderState {
 
     /* Per-message attributes */
     PyObject *buffer_obj;
-    char *input_buffer;
-    Py_ssize_t input_len;
-    Py_ssize_t next_read_idx;
+    char *input_start;
+    char *input_pos;
+    char *input_end;
 } DecoderState;
 
 typedef struct Decoder {
@@ -4526,20 +4526,19 @@ Decoder_repr(Decoder *self) {
 static MS_INLINE int
 mp_read1(DecoderState *self, char *s)
 {
-    if (MS_LIKELY(1 <= self->input_len - self->next_read_idx)) {
-        *s = *(self->input_buffer + self->next_read_idx);
-        self->next_read_idx += 1;
-        return 0;
+    if (MS_UNLIKELY(self->input_pos == self->input_end)) {
+        return ms_err_truncated();
     }
-    return ms_err_truncated();
+    *s = *self->input_pos++;
+    return 0;
 }
 
 static MS_INLINE int
 mp_read(DecoderState *self, char **s, Py_ssize_t n)
 {
-    if (MS_LIKELY(n <= self->input_len - self->next_read_idx)) {
-        *s = self->input_buffer + self->next_read_idx;
-        self->next_read_idx += n;
+    if (MS_LIKELY(n <= self->input_end - self->input_pos)) {
+        *s = self->input_pos;
+        self->input_pos += n;
         return 0;
     }
     return ms_err_truncated();
@@ -4548,7 +4547,7 @@ mp_read(DecoderState *self, char **s, Py_ssize_t n)
 static MS_INLINE bool
 mp_has_trailing_characters(DecoderState *self)
 {
-    if (self->input_len != self->next_read_idx) {
+    if (self->input_pos != self->input_end) {
         PyErr_SetString(
             msgspec_get_global_state()->DecodingError,
             "MsgPack data is malformed: trailing characters"
@@ -5553,9 +5552,9 @@ Decoder_decode(Decoder *self, PyObject *const *args, Py_ssize_t nargs)
 
     if (PyObject_GetBuffer(args[0], &buffer, PyBUF_CONTIG_RO) >= 0) {
         self->state.buffer_obj = args[0];
-        self->state.input_buffer = buffer.buf;
-        self->state.input_len = buffer.len;
-        self->state.next_read_idx = 0;
+        self->state.input_start = buffer.buf;
+        self->state.input_pos = buffer.buf;
+        self->state.input_end = self->state.input_pos + buffer.len;
 
         res = mp_decode(&(self->state), self->state.type, NULL, false);
 
@@ -5565,7 +5564,9 @@ Decoder_decode(Decoder *self, PyObject *const *args, Py_ssize_t nargs)
 
         PyBuffer_Release(&buffer);
         self->state.buffer_obj = NULL;
-        self->state.input_buffer = NULL;
+        self->state.input_start = NULL;
+        self->state.input_pos = NULL;
+        self->state.input_end = NULL;
     }
     return res;
 }
@@ -5718,9 +5719,9 @@ msgspec_msgpack_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, 
     buffer.buf = NULL;
     if (PyObject_GetBuffer(buf, &buffer, PyBUF_CONTIG_RO) >= 0) {
         state.buffer_obj = buf;
-        state.input_buffer = buffer.buf;
-        state.input_len = buffer.len;
-        state.next_read_idx = 0;
+        state.input_start = buffer.buf;
+        state.input_pos = buffer.buf;
+        state.input_end = state.input_pos + buffer.len;
         if (state.type != NULL) {
             res = mp_decode(&state, state.type, NULL, false);
         } else {
@@ -5756,6 +5757,7 @@ typedef struct JSONDecoderState {
 
     /* Per-message attributes */
     PyObject *buffer_obj;
+    unsigned char *input_start;
     unsigned char *input_pos;
     unsigned char *input_end;
 } JSONDecoderState;
@@ -7391,6 +7393,7 @@ JSONDecoder_decode(JSONDecoder *self, PyObject *const *args, Py_ssize_t nargs)
 
     if (PyObject_GetBuffer(args[0], &buffer, PyBUF_CONTIG_RO) >= 0) {
         self->state.buffer_obj = args[0];
+        self->state.input_start = buffer.buf;
         self->state.input_pos = buffer.buf;
         self->state.input_end = self->state.input_pos + buffer.len;
 
@@ -7402,6 +7405,7 @@ JSONDecoder_decode(JSONDecoder *self, PyObject *const *args, Py_ssize_t nargs)
 
         PyBuffer_Release(&buffer);
         self->state.buffer_obj = NULL;
+        self->state.input_start = NULL;
         self->state.input_pos = NULL;
         self->state.input_end = NULL;
         js_scratch_reset(&(self->state));
@@ -7543,6 +7547,7 @@ msgspec_json_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyO
     buffer.buf = NULL;
     if (PyObject_GetBuffer(buf, &buffer, PyBUF_CONTIG_RO) >= 0) {
         state.buffer_obj = buf;
+        state.input_start = buffer.buf;
         state.input_pos = buffer.buf;
         state.input_end = state.input_pos + buffer.len;
 
