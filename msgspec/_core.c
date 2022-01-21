@@ -168,7 +168,7 @@ msgspec_get_global_state(void)
 static int
 ms_err_truncated(void)
 {
-    PyErr_SetString(msgspec_get_global_state()->DecodingError, "input data was truncated");
+    PyErr_SetString(msgspec_get_global_state()->DecodingError, "Input data was truncated");
     return -1;
 }
 
@@ -4548,9 +4548,10 @@ static MS_INLINE bool
 mp_has_trailing_characters(DecoderState *self)
 {
     if (self->input_pos != self->input_end) {
-        PyErr_SetString(
+        PyErr_Format(
             msgspec_get_global_state()->DecodingError,
-            "MsgPack data is malformed: trailing characters"
+            "MsgPack data is malformed: trailing characters (byte %zd)",
+            (Py_ssize_t)(self->input_pos - self->input_start)
         );
         return true;
     }
@@ -4747,7 +4748,12 @@ mp_skip(DecoderState *self) {
         case MP_EXT32:
             return mp_skip_ext(self, mp_decode_size4(self));
         default:
-            PyErr_Format(msgspec_get_global_state()->DecodingError, "invalid opcode, '\\x%02x'.", op);
+            PyErr_Format(
+                msgspec_get_global_state()->DecodingError,
+                "MessagePack data is malformed: invalid opcode '\\x%02x' (byte %zd)",
+                op,
+                (Py_ssize_t)(self->input_pos - self->input_start - 1)
+            );
             return -1;
     }
 }
@@ -5518,7 +5524,12 @@ mp_decode(
         case MP_EXT32:
             return mp_decode_ext(self, mp_decode_size4(self), type, path);
         default:
-            PyErr_Format(msgspec_get_global_state()->DecodingError, "invalid opcode, '\\x%02x'.", op);
+            PyErr_Format(
+                msgspec_get_global_state()->DecodingError,
+                "MessagePack data is malformed: invalid opcode '\\x%02x' (byte %zd)",
+                op,
+                (Py_ssize_t)(self->input_pos - self->input_start - 1)
+            );
             return NULL;
     }
 }
@@ -5929,12 +5940,13 @@ js_remaining(JSONDecoderState *self, ptrdiff_t remaining)
 }
 
 static PyObject *
-js_err_invalid(const char *msg)
+js_err_invalid(JSONDecoderState *self, const char *msg)
 {
     PyErr_Format(
         msgspec_get_global_state()->DecodingError,
-        "JSON is malformed: %s",
-        msg
+        "JSON is malformed: %s (byte %zd)",
+        msg,
+        (Py_ssize_t)(self->input_pos - self->input_start)
     );
     return NULL;
 }
@@ -5945,7 +5957,7 @@ js_has_trailing_characters(JSONDecoderState *self)
     while (self->input_pos != self->input_end) {
         unsigned char c = *self->input_pos++;
         if (MS_UNLIKELY(!(c == ' ' || c == '\n' || c == '\t' || c == '\r'))) {
-            js_err_invalid("trailing characters");
+            js_err_invalid(self, "trailing characters");
             return true;
         }
     }
@@ -5969,7 +5981,7 @@ js_decode_none(JSONDecoderState *self, TypeNode *type, PathNode *path) {
     unsigned char c2 = *self->input_pos++;
     unsigned char c3 = *self->input_pos++;
     if (MS_UNLIKELY(c1 != 'u' || c2 != 'l' || c3 != 'l')) {
-        return js_err_invalid("invalid character");
+        return js_err_invalid(self, "invalid character");
     }
     if (type->types & (MS_TYPE_ANY | MS_TYPE_NONE)) {
         Py_INCREF(Py_None);
@@ -5989,7 +6001,7 @@ js_decode_true(JSONDecoderState *self, TypeNode *type, PathNode *path) {
     unsigned char c2 = *self->input_pos++;
     unsigned char c3 = *self->input_pos++;
     if (MS_UNLIKELY(c1 != 'r' || c2 != 'u' || c3 != 'e')) {
-        return js_err_invalid("invalid character");
+        return js_err_invalid(self, "invalid character");
     }
     if (type->types & (MS_TYPE_ANY | MS_TYPE_BOOL)) {
         Py_INCREF(Py_True);
@@ -6010,7 +6022,7 @@ js_decode_false(JSONDecoderState *self, TypeNode *type, PathNode *path) {
     unsigned char c3 = *self->input_pos++;
     unsigned char c4 = *self->input_pos++;
     if (MS_UNLIKELY(c1 != 'a' || c2 != 'l' || c3 != 's' || c4 != 'e')) {
-        return js_err_invalid("invalid character");
+        return js_err_invalid(self, "invalid character");
     }
     if (type->types & (MS_TYPE_ANY | MS_TYPE_BOOL)) {
         Py_INCREF(Py_False);
@@ -6050,7 +6062,12 @@ js_decode_list(JSONDecoderState *self, TypeNode *el_type, PathNode *path, bool i
             first = false;
         }
         else {
-            js_err_invalid("expected ',' or '}'");
+            js_err_invalid(self, "expected ',' or ']'");
+            goto error;
+        }
+
+        if (MS_UNLIKELY(c == ']')) {
+            js_err_invalid(self, "trailing comma in array");
             goto error;
         }
 
@@ -6103,7 +6120,12 @@ js_decode_set(JSONDecoderState *self, TypeNode *el_type, PathNode *path) {
             first = false;
         }
         else {
-            js_err_invalid("expected ',' or '}'");
+            js_err_invalid(self, "expected ',' or ']'");
+            goto error;
+        }
+
+        if (MS_UNLIKELY(c == ']')) {
+            js_err_invalid(self, "trailing comma in array");
             goto error;
         }
 
@@ -6184,7 +6206,12 @@ js_decode_fixtuple(JSONDecoderState *self, TypeNode *type, PathNode *path, bool 
             first = false;
         }
         else {
-            js_err_invalid("expected ',' or '}'");
+            js_err_invalid(self, "expected ',' or ']'");
+            goto error;
+        }
+
+        if (MS_UNLIKELY(c == ']')) {
+            js_err_invalid(self, "trailing comma in array");
             goto error;
         }
 
@@ -6256,7 +6283,12 @@ js_decode_struct_array(
             first = false;
         }
         else {
-            js_err_invalid("expected ',' or '}'");
+            js_err_invalid(self, "expected ',' or ']'");
+            goto error;
+        }
+
+        if (MS_UNLIKELY(c == ']')) {
+            js_err_invalid(self, "trailing comma in array");
             goto error;
         }
 
@@ -6403,7 +6435,7 @@ js_read_codepoint(JSONDecoderState *self, unsigned int *out) {
             c = c - 'A' + 10;
         }
         else {
-            js_err_invalid("invalid character");
+            js_err_invalid(self, "invalid character");
             return -1;
         }
         cp = (cp << 4) + c;
@@ -6431,7 +6463,7 @@ js_parse_escape(JSONDecoderState *self) {
             if (js_read_codepoint(self, &cp) < 0) return -1;
 
             if (0xDC00 <= cp && cp <= 0xDFFF) {
-                js_err_invalid("invalid utf-16 surrogate pair");
+                js_err_invalid(self, "invalid utf-16 surrogate pair");
                 return -1;
             }
             else if (0xD800 <= cp && cp <= 0xDBFF) {
@@ -6439,13 +6471,13 @@ js_parse_escape(JSONDecoderState *self) {
                 unsigned int cp2;
                 if (!js_remaining(self, 6)) return ms_err_truncated();
                 if (self->input_pos[0] != '\\' || self->input_pos[1] != 'u') {
-                    js_err_invalid("unexpected end of hex escape");
+                    js_err_invalid(self, "unexpected end of hex escape");
                     return -1;
                 }
                 self->input_pos += 2;
                 if (js_read_codepoint(self, &cp2) < 0) return -1;
                 if (cp2 < 0xDC00 || cp2 > 0xDFFF) {
-                    js_err_invalid("invalid utf-16 surrogate pair");
+                    js_err_invalid(self, "invalid utf-16 surrogate pair");
                     return -1;
                 }
                 cp = 0x10000 + (((cp - 0xD800) << 10) | (cp2 - 0xDC00));
@@ -6476,7 +6508,7 @@ js_parse_escape(JSONDecoderState *self) {
             return 0;
         }
         default:
-            js_err_invalid("invalid escape character in string");
+            js_err_invalid(self, "invalid escape character in string");
             return -1;
     }
     return 0;
@@ -6518,7 +6550,7 @@ js_decode_string_view(JSONDecoderState *self, char **out) {
             }
             default: {
                 self->input_pos += 1;
-                js_err_invalid("invalid character");
+                js_err_invalid(self, "invalid character");
                 return -1;
             }
         }
@@ -6609,7 +6641,7 @@ invalid:
     MsgspecState *st = msgspec_get_global_state();
     PyObject *suffix = PathNode_ErrSuffix(path);
     if (suffix != NULL) {
-        PyErr_Format(st->DecodingError, "Invalid base64 encoded string", suffix);
+        PyErr_Format(st->DecodingError, "Invalid base64 encoded string%U", suffix);
         Py_DECREF(suffix);
     }
     return NULL;
@@ -6669,7 +6701,7 @@ js_decode_dict(
             first = false;
         }
         else {
-            js_err_invalid("expected ',' or '}'");
+            js_err_invalid(self, "expected ',' or '}'");
             goto error;
         }
 
@@ -6678,19 +6710,19 @@ js_decode_dict(
             key = js_decode_string(self, key_type, &key_path);
             if (key == NULL) goto error;
         }
-        else if (c == ',') {
-            js_err_invalid("trailing comma in object");
+        else if (c == '}') {
+            js_err_invalid(self, "trailing comma in object");
             goto error;
         }
         else {
-            js_err_invalid("key must be a string");
+            js_err_invalid(self, "object keys must be strings");
             goto error;
         }
 
         /* Parse colon */
         if (MS_UNLIKELY(!js_peek_skip_ws(self, &c))) goto error;
         if (c != ':') {
-            js_err_invalid("expected ':'");
+            js_err_invalid(self, "expected ':'");
             goto error;
         }
         self->input_pos++;
@@ -6753,7 +6785,7 @@ js_decode_struct_map(
             first = false;
         }
         else {
-            js_err_invalid("expected ',' or '}'");
+            js_err_invalid(self, "expected ',' or '}'");
             goto error;
         }
 
@@ -6762,19 +6794,19 @@ js_decode_struct_map(
             key_size = js_decode_string_view(self, &key);
             if (key_size < 0) goto error;
         }
-        else if (c == ',') {
-            js_err_invalid("trailing comma in object");
+        else if (c == '}') {
+            js_err_invalid(self, "trailing comma in object");
             goto error;
         }
         else {
-            js_err_invalid("key must be a string");
+            js_err_invalid(self, "object keys must be strings");
             goto error;
         }
 
         /* Parse colon */
         if (MS_UNLIKELY(!js_peek_skip_ws(self, &c))) goto error;
         if (c != ':') {
-            js_err_invalid("expected ':'");
+            js_err_invalid(self, "expected ':'");
             goto error;
         }
         self->input_pos++;
@@ -6855,7 +6887,7 @@ js_decode_extended_float(JSONDecoderState *self) {
         self->input_pos++;
         c = js_peek_or_null(self);
         /* This _can't_ happen, since it would have been caught in the fast routine first */
-        /*if (MS_UNLIKELY(is_digit(c))) return js_err_invalid("invalid number");*/
+        /*if (MS_UNLIKELY(is_digit(c))) return js_err_invalid(self, "invalid number");*/
     }
     else {
         /* Parse the integer part of the number. */
@@ -6870,7 +6902,7 @@ js_decode_extended_float(JSONDecoderState *self) {
             }
         }
         /* This _can't_ happen, since it would have been caught in the fast routine first */
-        /*if (MS_UNLIKELY(nd == 0)) return js_err_invalid("invalid character");*/
+        /*if (MS_UNLIKELY(nd == 0)) return js_err_invalid(self, "invalid character");*/
     }
 
     c = js_peek_or_null(self);
@@ -6891,7 +6923,7 @@ js_decode_extended_float(JSONDecoderState *self) {
             }
         }
         /* Error if no digits after decimal */
-        if (MS_UNLIKELY(cur_pos == self->input_pos)) return js_err_invalid("invalid number");
+        if (MS_UNLIKELY(cur_pos == self->input_pos)) return js_err_invalid(self, "invalid number");
 
         c = js_peek_or_null(self);
     }
@@ -6920,7 +6952,7 @@ js_decode_extended_float(JSONDecoderState *self) {
         }
 
         /* Error if no digits in exponent */
-        if (MS_UNLIKELY(cur_pos == self->input_pos)) return js_err_invalid("invalid number");
+        if (MS_UNLIKELY(cur_pos == self->input_pos)) return js_err_invalid(self, "invalid number");
 
         dp += exp_sign * exp_part;
     }
@@ -6937,7 +6969,7 @@ js_decode_extended_float(JSONDecoderState *self) {
     }
     ms_hpd_trim(&dec);
     double res = ms_hpd_to_double(&dec);
-    if (Py_IS_INFINITY(res)) return js_err_invalid("number out of range");
+    if (Py_IS_INFINITY(res)) return js_err_invalid(self, "number out of range");
     return PyFloat_FromDouble(res);
 }
 
@@ -6966,7 +6998,7 @@ js_maybe_decode_number(JSONDecoderState *self, TypeNode *type, PathNode *path) {
         /* Ensure at most one leading zero */
         self->input_pos++;
         c = js_peek_or_null(self);
-        if (MS_UNLIKELY(is_digit(c))) return js_err_invalid("invalid number");
+        if (MS_UNLIKELY(is_digit(c))) return js_err_invalid(self, "invalid number");
     }
     else {
         /* Parse the integer part of the number.
@@ -7001,7 +7033,7 @@ js_maybe_decode_number(JSONDecoderState *self, TypeNode *type, PathNode *path) {
 
 end_integer:
         /* There must be at least one digit */
-        if (MS_UNLIKELY(n_safe == n_safe_orig)) return js_err_invalid("invalid character");
+        if (MS_UNLIKELY(n_safe == n_safe_orig)) return js_err_invalid(self, "invalid character");
     }
 
     c = js_peek_or_null(self);
@@ -7021,7 +7053,7 @@ end_integer:
             exponent--;
         }
         /* Error if no digits after decimal */
-        if (MS_UNLIKELY(cur_pos == self->input_pos)) return js_err_invalid("invalid number");
+        if (MS_UNLIKELY(cur_pos == self->input_pos)) return js_err_invalid(self, "invalid number");
 
         c = js_peek_or_null(self);
     }
@@ -7050,7 +7082,7 @@ end_integer:
         }
 
         /* Error if no digits in exponent */
-        if (MS_UNLIKELY(cur_pos == self->input_pos)) return js_err_invalid("invalid number");
+        if (MS_UNLIKELY(cur_pos == self->input_pos)) return js_err_invalid(self, "invalid number");
 
         exponent += exp_sign * exp_part;
     }
@@ -7105,7 +7137,7 @@ js_skip_ident(JSONDecoderState *self, const char *ident, size_t len) {
     if (MS_UNLIKELY(!js_remaining(self, len))) return ms_err_truncated();
     self->input_pos++;  /* Already checked first char */
     if (memcmp(self->input_pos, ident, len) != 0) {
-        js_err_invalid("invalid character");
+        js_err_invalid(self, "invalid character");
         return -1;
     }
     self->input_pos += len;
@@ -7132,7 +7164,7 @@ js_skip_string_escape(JSONDecoderState *self) {
             if (js_read_codepoint(self, &cp) < 0) return -1;
 
             if (0xDC00 <= cp && cp <= 0xDFFF) {
-                js_err_invalid("invalid utf-16 surrogate pair");
+                js_err_invalid(self, "invalid utf-16 surrogate pair");
                 return -1;
             }
             else if (0xD800 <= cp && cp <= 0xDBFF) {
@@ -7140,13 +7172,13 @@ js_skip_string_escape(JSONDecoderState *self) {
                 unsigned int cp2;
                 if (!js_remaining(self, 6)) return ms_err_truncated();
                 if (self->input_pos[0] != '\\' || self->input_pos[1] != 'u') {
-                    js_err_invalid("unexpected end of hex escape");
+                    js_err_invalid(self, "unexpected end of hex escape");
                     return -1;
                 }
                 self->input_pos += 2;
                 if (js_read_codepoint(self, &cp2) < 0) return -1;
                 if (cp2 < 0xDC00 || cp2 > 0xDFFF) {
-                    js_err_invalid("invalid utf-16 surrogate pair");
+                    js_err_invalid(self, "invalid utf-16 surrogate pair");
                     return -1;
                 }
                 cp = 0x10000 + (((cp - 0xD800) << 10) | (cp2 - 0xDC00));
@@ -7154,7 +7186,7 @@ js_skip_string_escape(JSONDecoderState *self) {
             return 0;
         }
         default: {
-            js_err_invalid("invalid escaped character");
+            js_err_invalid(self, "invalid escaped character");
             return -1;
         }
     }
@@ -7174,7 +7206,7 @@ js_skip_string(JSONDecoderState *self) {
                 if (js_skip_string_escape(self) < 0) return -1;
             }
             else {
-                js_err_invalid("invalid character");
+                js_err_invalid(self, "invalid character");
                 return -1;
             }
         }
@@ -7205,7 +7237,11 @@ js_skip_array(JSONDecoderState *self) {
             first = false;
         }
         else {
-            js_err_invalid("expected ',' or ']'");
+            js_err_invalid(self, "expected ',' or ']'");
+            break;
+        }
+        if (MS_UNLIKELY(c == ']')) {
+            js_err_invalid(self, "trailing comma in array");
             break;
         }
 
@@ -7239,7 +7275,7 @@ js_skip_object(JSONDecoderState *self) {
             first = false;
         }
         else {
-            js_err_invalid("expected ',' or '}'");
+            js_err_invalid(self, "expected ',' or '}'");
             break;
         }
 
@@ -7247,19 +7283,19 @@ js_skip_object(JSONDecoderState *self) {
         if (c == '"') {
             if (js_skip_string(self) < 0) break;
         }
-        else if (c == ',') {
-            js_err_invalid("trailing comma in object");
+        else if (c == '}') {
+            js_err_invalid(self, "trailing comma in object");
             break;
         }
         else {
-            js_err_invalid("expected '\"'");
+            js_err_invalid(self, "expected '\"'");
             break;
         }
 
         /* Parse colon */
         if (MS_UNLIKELY(!js_peek_skip_ws(self, &c))) break;
         if (c != ':') {
-            js_err_invalid("expected ':'");
+            js_err_invalid(self, "expected ':'");
             break;
         }
         self->input_pos++;
@@ -7289,7 +7325,7 @@ js_maybe_skip_number(JSONDecoderState *self) {
         self->input_pos++;
         c = js_peek_or_null(self);
         if (MS_UNLIKELY(is_digit(c))) {
-            js_err_invalid("invalid number");
+            js_err_invalid(self, "invalid number");
             return -1;
         }
     }
@@ -7301,7 +7337,7 @@ js_maybe_skip_number(JSONDecoderState *self) {
         }
         /* There must be at least one digit */
         if (MS_UNLIKELY(cur_pos == self->input_pos)) {
-            js_err_invalid("invalid character");
+            js_err_invalid(self, "invalid character");
             return -1;
         }
     }
@@ -7316,7 +7352,7 @@ js_maybe_skip_number(JSONDecoderState *self) {
         }
         /* Error if no digits after decimal */
         if (MS_UNLIKELY(cur_pos == self->input_pos)) {
-            js_err_invalid("invalid number");
+            js_err_invalid(self, "invalid number");
             return -1;
         }
 
@@ -7338,7 +7374,7 @@ js_maybe_skip_number(JSONDecoderState *self) {
         }
         /* Error if no digits in exponent */
         if (MS_UNLIKELY(cur_pos == self->input_pos)) {
-            js_err_invalid("invalid number");
+            js_err_invalid(self, "invalid number");
             return -1;
         }
     }
