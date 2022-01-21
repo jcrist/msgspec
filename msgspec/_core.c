@@ -586,6 +586,10 @@ typenode_from_collect_state(TypeNodeCollectState *state) {
     }
     if (state->custom_obj != NULL) {
         Py_INCREF(state->custom_obj);
+        /* Add `Any` to the type node, so the individual decode functions can
+         * check for `Any` alone, and only have to handle custom types in one
+         * location  (e.g. `mpack_decode`). */
+        out->type.types |= MS_TYPE_ANY;
         out->extra[e_ind++] = state->custom_obj;
     }
     if (state->dict_key_obj != NULL) {
@@ -2815,6 +2819,60 @@ ms_decode_type_intenum(PyObject *val, TypeNode *type, PathNode *path) {
     return out;
 }
 
+static PyObject *
+ms_decode_custom(PyObject *obj, PyObject *dec_hook, bool generic, TypeNode* type, PathNode *path) {
+    PyObject *custom_cls = NULL, *custom_obj, *out = NULL;
+    int status;
+
+    if (obj == NULL) return NULL;
+
+    custom_obj = TypeNode_get_custom(type);
+
+    if (dec_hook != NULL) {
+        out = PyObject_CallFunctionObjArgs(dec_hook, custom_obj, obj, NULL);
+        Py_DECREF(obj);
+        if (out == NULL)
+            return NULL;
+    }
+    else {
+        out = obj;
+    }
+
+    /* Generic classes must be checked based on __origin__ */
+    if (generic) {
+        MsgspecState *st = msgspec_get_global_state();
+        custom_cls = PyObject_GetAttr(custom_obj, st->str___origin__);
+        if (custom_cls == NULL) {
+            Py_DECREF(out);
+            return NULL;
+        }
+    }
+    else {
+        custom_cls = custom_obj;
+    }
+
+    /* Check that the decoded value matches the expected type */
+    status = PyObject_IsInstance(out, custom_cls);
+    if (status == 0) {
+        ms_raise_validation_error(
+            path,
+            "Expected `%s`, got `%s`%U",
+            ((PyTypeObject *)custom_cls)->tp_name,
+            Py_TYPE(out)->tp_name
+        );
+        Py_CLEAR(out);
+    }
+    else if (status == -1) {
+        Py_CLEAR(out);
+    }
+
+    if (generic) {
+        Py_DECREF(custom_cls);
+    }
+    return out;
+}
+
+
 /*************************************************************************
  * MessagePack Encoder                                                   *
  *************************************************************************/
@@ -4839,11 +4897,12 @@ mpack_decode_array(
     DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *path, bool is_key
 ) {
     if (type->types & MS_TYPE_ANY) {
+        TypeNode type_any = {MS_TYPE_ANY};
         if (is_key) {
-            return mpack_decode_vartuple(self, size, type, path, is_key);
+            return mpack_decode_vartuple(self, size, &type_any, path, is_key);
         }
         else {
-            return mpack_decode_list(self, size, type, path);
+            return mpack_decode_list(self, size, &type_any, path);
         }
     }
     else if (type->types & MS_TYPE_LIST) {
@@ -5060,7 +5119,8 @@ mpack_decode_map(
     PathNode *path, bool is_key
 ) {
     if (type->types & MS_TYPE_ANY) {
-        return mpack_decode_dict(self, size, type, type, path);
+        TypeNode type_any = {MS_TYPE_ANY};
+        return mpack_decode_dict(self, size, &type_any, &type_any, path);
     }
     else if (type->types & MS_TYPE_DICT) {
         TypeNode *key, *val;
@@ -5131,71 +5191,11 @@ done:
 }
 
 static PyObject *
-mpack_decode_custom(DecoderState *self, bool generic, TypeNode* type, PathNode *path) {
-    PyObject *obj, *custom_cls = NULL, *out = NULL;
-    int status;
-    PyObject *custom_obj = TypeNode_get_custom(type);
-    TypeNode type_any = {MS_TYPE_ANY};
-
-    if ((obj = mpack_decode(self, &type_any, path, false)) == NULL)
-        return NULL;
-
-    if (self->dec_hook != NULL) {
-        out = PyObject_CallFunctionObjArgs(self->dec_hook, custom_obj, obj, NULL);
-        Py_DECREF(obj);
-        if (out == NULL)
-            return NULL;
-    }
-    else {
-        out = obj;
-    }
-
-    /* Generic classes must be checked based on __origin__ */
-    if (generic) {
-        MsgspecState *st = msgspec_get_global_state();
-        custom_cls = PyObject_GetAttr(custom_obj, st->str___origin__);
-        if (custom_cls == NULL) {
-            Py_DECREF(out);
-            return NULL;
-        }
-    }
-    else {
-        custom_cls = custom_obj;
-    }
-
-    /* Check that the decoded value matches the expected type */
-    status = PyObject_IsInstance(out, custom_cls);
-    if (status == 0) {
-        ms_raise_validation_error(
-            path,
-            "Expected `%s`, got `%s`%U",
-            ((PyTypeObject *)custom_cls)->tp_name,
-            Py_TYPE(out)->tp_name
-        );
-        Py_CLEAR(out);
-    }
-    else if (status == -1) {
-        Py_CLEAR(out);
-    }
-
-    if (generic) {
-        Py_DECREF(custom_cls);
-    }
-    return out;
-}
-
-static PyObject *
-mpack_decode(
+mpack_decode_nocustom(
     DecoderState *self, TypeNode *type, PathNode *path, bool is_key
 ) {
     char op = 0;
     char *s = NULL;
-
-    if (MS_UNLIKELY(type->types & (MS_TYPE_CUSTOM | MS_TYPE_CUSTOM_GENERIC))) {
-        return mpack_decode_custom(
-            self, type->types & MS_TYPE_CUSTOM_GENERIC, type, path
-        );
-    }
 
     if (mpack_read1(self, &op) < 0) {
         return NULL;
@@ -5326,6 +5326,19 @@ mpack_decode(
             );
             return NULL;
     }
+}
+
+static PyObject *
+mpack_decode(
+    DecoderState *self, TypeNode *type, PathNode *path, bool is_key
+) {
+    PyObject *obj = mpack_decode_nocustom(self, type, path, is_key);
+    if (MS_UNLIKELY(type->types & (MS_TYPE_CUSTOM | MS_TYPE_CUSTOM_GENERIC))) {
+        return ms_decode_custom(
+            obj, self->dec_hook, type->types & MS_TYPE_CUSTOM_GENERIC, type, path
+        );
+    }
+    return obj;
 }
 
 PyDoc_STRVAR(Decoder_decode__doc__,
@@ -6138,11 +6151,12 @@ json_decode_array(
     JSONDecoderState *self, TypeNode *type, PathNode *path, bool is_key
 ) {
     if (type->types & MS_TYPE_ANY) {
+        TypeNode type_any = {MS_TYPE_ANY};
         if (is_key) {
-            return json_decode_vartuple(self, type, path, is_key);
+            return json_decode_vartuple(self, &type_any, path, is_key);
         }
         else {
-            return json_decode_list(self, type, path, false);
+            return json_decode_list(self, &type_any, path, false);
         }
     }
     else if (type->types & MS_TYPE_LIST) {
@@ -6635,7 +6649,8 @@ json_decode_object(
     JSONDecoderState *self, TypeNode *type, PathNode *path, bool is_key
 ) {
     if (type->types & MS_TYPE_ANY) {
-        return json_decode_dict(self, type, type, path);
+        TypeNode type_any = {MS_TYPE_ANY};
+        return json_decode_dict(self, &type_any, type, path);
     }
     else if (type->types & MS_TYPE_DICT) {
         TypeNode *key, *val;
@@ -6908,7 +6923,7 @@ end_integer:
 }
 
 static PyObject *
-json_decode(
+json_decode_nocustom(
     JSONDecoderState *self, TypeNode *type, PathNode *path, bool is_key
 ) {
     unsigned char c;
@@ -6924,6 +6939,19 @@ json_decode(
         case '"': return json_decode_string(self, type, path);
         default: return json_maybe_decode_number(self, type, path);
     }
+}
+
+static PyObject *
+json_decode(
+    JSONDecoderState *self, TypeNode *type, PathNode *path, bool is_key
+) {
+    PyObject *obj = json_decode_nocustom(self, type, path, is_key);
+    if (MS_UNLIKELY(type->types & (MS_TYPE_CUSTOM | MS_TYPE_CUSTOM_GENERIC))) {
+        return ms_decode_custom(
+            obj, self->dec_hook, type->types & MS_TYPE_CUSTOM_GENERIC, type, path
+        );
+    }
+    return obj;
 }
 
 static int
