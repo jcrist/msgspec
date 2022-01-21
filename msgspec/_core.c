@@ -3040,7 +3040,7 @@ PyDoc_STRVAR(Encoder__doc__,
 "    The size of the internal static write buffer."
 );
 
-enum mp_code {
+enum mpack_code {
     MP_NIL = '\xc0',
     MP_FALSE = '\xc2',
     MP_TRUE = '\xc3',
@@ -4524,7 +4524,7 @@ Decoder_repr(Decoder *self) {
 }
 
 static MS_INLINE int
-mp_read1(DecoderState *self, char *s)
+mpack_read1(DecoderState *self, char *s)
 {
     if (MS_UNLIKELY(self->input_pos == self->input_end)) {
         return ms_err_truncated();
@@ -4534,7 +4534,7 @@ mp_read1(DecoderState *self, char *s)
 }
 
 static MS_INLINE int
-mp_read(DecoderState *self, char **s, Py_ssize_t n)
+mpack_read(DecoderState *self, char **s, Py_ssize_t n)
 {
     if (MS_LIKELY(n <= self->input_end - self->input_pos)) {
         *s = self->input_pos;
@@ -4545,7 +4545,7 @@ mp_read(DecoderState *self, char **s, Py_ssize_t n)
 }
 
 static MS_INLINE bool
-mp_has_trailing_characters(DecoderState *self)
+mpack_has_trailing_characters(DecoderState *self)
 {
     if (self->input_pos != self->input_end) {
         PyErr_Format(
@@ -4559,23 +4559,23 @@ mp_has_trailing_characters(DecoderState *self)
 }
 
 static MS_INLINE Py_ssize_t
-mp_decode_size1(DecoderState *self) {
+mpack_decode_size1(DecoderState *self) {
     char s = 0;
-    if (mp_read1(self, &s) < 0) return -1;
+    if (mpack_read1(self, &s) < 0) return -1;
     return (Py_ssize_t)((unsigned char)s);
 }
 
 static MS_INLINE Py_ssize_t
-mp_decode_size2(DecoderState *self) {
+mpack_decode_size2(DecoderState *self) {
     char *s = NULL;
-    if (mp_read(self, &s, 2) < 0) return -1;
+    if (mpack_read(self, &s, 2) < 0) return -1;
     return (Py_ssize_t)(_msgspec_load16(uint16_t, s));
 }
 
 static MS_INLINE Py_ssize_t
-mp_decode_size4(DecoderState *self) {
+mpack_decode_size4(DecoderState *self) {
     char *s = NULL;
-    if (mp_read(self, &s, 4) < 0) return -1;
+    if (mpack_read(self, &s, 4) < 0) return -1;
     return (Py_ssize_t)(_msgspec_load32(uint32_t, s));
 }
 
@@ -4587,7 +4587,7 @@ mp_decode_size4(DecoderState *self) {
     } while (0);
 
 static PyObject *
-mp_decode_datetime(DecoderState *self, const char *data_buf, Py_ssize_t size) {
+mpack_decode_datetime(DecoderState *self, const char *data_buf, Py_ssize_t size) {
     uint64_t data64;
     uint32_t nanoseconds;
     int64_t seconds;
@@ -4642,10 +4642,10 @@ cleanup:
     return res;
 }
 
-static int mp_skip(DecoderState *self);
+static int mpack_skip(DecoderState *self);
 
 static int
-mp_skip_array(DecoderState *self, Py_ssize_t size) {
+mpack_skip_array(DecoderState *self, Py_ssize_t size) {
     int status = -1;
     Py_ssize_t i;
     if (size < 0) return -1;
@@ -4653,7 +4653,7 @@ mp_skip_array(DecoderState *self, Py_ssize_t size) {
 
     if (Py_EnterRecursiveCall(" while deserializing an object")) return -1;
     for (i = 0; i < size; i++) {
-        if (mp_skip(self) < 0) break;
+        if (mpack_skip(self) < 0) break;
     }
     status = 0;
     Py_LeaveRecursiveCall();
@@ -4661,92 +4661,92 @@ mp_skip_array(DecoderState *self, Py_ssize_t size) {
 }
 
 static int
-mp_skip_map(DecoderState *self, Py_ssize_t size) {
-    return mp_skip_array(self, size * 2);
+mpack_skip_map(DecoderState *self, Py_ssize_t size) {
+    return mpack_skip_array(self, size * 2);
 }
 
 static int
-mp_skip_ext(DecoderState *self, Py_ssize_t size) {
+mpack_skip_ext(DecoderState *self, Py_ssize_t size) {
     char *s;
     if (size < 0) return -1;
-    return mp_read(self, &s, size + 1);
+    return mpack_read(self, &s, size + 1);
 }
 
 static int
-mp_skip(DecoderState *self) {
+mpack_skip(DecoderState *self) {
     char *s = NULL;
     char op = 0;
     Py_ssize_t size;
 
-    if (mp_read1(self, &op) < 0) return -1;
+    if (mpack_read1(self, &op) < 0) return -1;
 
     if (-32 <= op && op <= 127) {
         return 0;
     }
     else if ('\xa0' <= op && op <= '\xbf') {
-        return mp_read(self, &s, op & 0x1f);
+        return mpack_read(self, &s, op & 0x1f);
     }
     else if ('\x90' <= op && op <= '\x9f') {
-        return mp_skip_array(self, op & 0x0f);
+        return mpack_skip_array(self, op & 0x0f);
     }
     else if ('\x80' <= op && op <= '\x8f') {
-        return mp_skip_map(self, op & 0x0f);
+        return mpack_skip_map(self, op & 0x0f);
     }
-    switch ((enum mp_code)op) {
+    switch ((enum mpack_code)op) {
         case MP_NIL:
         case MP_TRUE:
         case MP_FALSE:
             return 0;
         case MP_UINT8:
         case MP_INT8:
-            return mp_read1(self, &op);
+            return mpack_read1(self, &op);
         case MP_UINT16:
         case MP_INT16:
-            return mp_read(self, &s, 2);
+            return mpack_read(self, &s, 2);
         case MP_UINT32:
         case MP_INT32:
         case MP_FLOAT32:
-            return mp_read(self, &s, 4);
+            return mpack_read(self, &s, 4);
         case MP_UINT64:
         case MP_INT64:
         case MP_FLOAT64:
-            return mp_read(self, &s, 8);
+            return mpack_read(self, &s, 8);
         case MP_STR8:
         case MP_BIN8:
-            if ((size = mp_decode_size1(self)) < 0) return -1;
-            return mp_read(self, &s, size);
+            if ((size = mpack_decode_size1(self)) < 0) return -1;
+            return mpack_read(self, &s, size);
         case MP_STR16:
         case MP_BIN16:
-            if ((size = mp_decode_size2(self)) < 0) return -1;
-            return mp_read(self, &s, size);
+            if ((size = mpack_decode_size2(self)) < 0) return -1;
+            return mpack_read(self, &s, size);
         case MP_STR32:
         case MP_BIN32:
-            if ((size = mp_decode_size4(self)) < 0) return -1;
-            return mp_read(self, &s, size);
+            if ((size = mpack_decode_size4(self)) < 0) return -1;
+            return mpack_read(self, &s, size);
         case MP_ARRAY16:
-            return mp_skip_array(self, mp_decode_size2(self));
+            return mpack_skip_array(self, mpack_decode_size2(self));
         case MP_ARRAY32:
-            return mp_skip_array(self, mp_decode_size4(self));
+            return mpack_skip_array(self, mpack_decode_size4(self));
         case MP_MAP16:
-            return mp_skip_map(self, mp_decode_size2(self));
+            return mpack_skip_map(self, mpack_decode_size2(self));
         case MP_MAP32:
-            return mp_skip_map(self, mp_decode_size4(self));
+            return mpack_skip_map(self, mpack_decode_size4(self));
         case MP_FIXEXT1:
-            return mp_skip_ext(self, 1);
+            return mpack_skip_ext(self, 1);
         case MP_FIXEXT2:
-            return mp_skip_ext(self, 2);
+            return mpack_skip_ext(self, 2);
         case MP_FIXEXT4:
-            return mp_skip_ext(self, 4);
+            return mpack_skip_ext(self, 4);
         case MP_FIXEXT8:
-            return mp_skip_ext(self, 8);
+            return mpack_skip_ext(self, 8);
         case MP_FIXEXT16:
-            return mp_skip_ext(self, 16);
+            return mpack_skip_ext(self, 16);
         case MP_EXT8:
-            return mp_skip_ext(self, mp_decode_size1(self));
+            return mpack_skip_ext(self, mpack_decode_size1(self));
         case MP_EXT16:
-            return mp_skip_ext(self, mp_decode_size2(self));
+            return mpack_skip_ext(self, mpack_decode_size2(self));
         case MP_EXT32:
-            return mp_skip_ext(self, mp_decode_size4(self));
+            return mpack_skip_ext(self, mpack_decode_size4(self));
         default:
             PyErr_Format(
                 msgspec_get_global_state()->DecodingError,
@@ -4758,12 +4758,12 @@ mp_skip(DecoderState *self) {
     }
 }
 
-static PyObject * mp_decode(
+static PyObject * mpack_decode(
     DecoderState *self, TypeNode *type, PathNode *path, bool is_key
 );
 
 static MS_INLINE PyObject *
-mp_decode_int(DecoderState *self, int64_t x, TypeNode *type, PathNode *path) {
+mpack_decode_int(DecoderState *self, int64_t x, TypeNode *type, PathNode *path) {
     if (type->types & MS_TYPE_INTENUM) {
         return ms_decode_type_intenum(PyLong_FromLongLong(x), type, path);
     }
@@ -4777,7 +4777,7 @@ mp_decode_int(DecoderState *self, int64_t x, TypeNode *type, PathNode *path) {
 }
 
 static MS_INLINE PyObject *
-mp_decode_uint(DecoderState *self, uint64_t x, TypeNode *type, PathNode *path) {
+mpack_decode_uint(DecoderState *self, uint64_t x, TypeNode *type, PathNode *path) {
     if (type->types & MS_TYPE_INTENUM) {
         return ms_decode_type_intenum(PyLong_FromUnsignedLongLong(x), type, path);
     }
@@ -4791,7 +4791,7 @@ mp_decode_uint(DecoderState *self, uint64_t x, TypeNode *type, PathNode *path) {
 }
 
 static MS_INLINE PyObject *
-mp_decode_none(DecoderState *self, TypeNode *type, PathNode *path) {
+mpack_decode_none(DecoderState *self, TypeNode *type, PathNode *path) {
     if (type->types & (MS_TYPE_ANY | MS_TYPE_NONE)) {
         Py_INCREF(Py_None);
         return Py_None;
@@ -4800,7 +4800,7 @@ mp_decode_none(DecoderState *self, TypeNode *type, PathNode *path) {
 }
 
 static MS_INLINE PyObject *
-mp_decode_bool(DecoderState *self, PyObject *val, TypeNode *type, PathNode *path) {
+mpack_decode_bool(DecoderState *self, PyObject *val, TypeNode *type, PathNode *path) {
     if (type->types & (MS_TYPE_ANY | MS_TYPE_BOOL)) {
         Py_INCREF(val);
         return val;
@@ -4809,7 +4809,7 @@ mp_decode_bool(DecoderState *self, PyObject *val, TypeNode *type, PathNode *path
 }
 
 static PyObject *
-mp_decode_float(DecoderState *self, double val, TypeNode *type, PathNode *path) {
+mpack_decode_float(DecoderState *self, double val, TypeNode *type, PathNode *path) {
     if (type->types & (MS_TYPE_ANY | MS_TYPE_FLOAT)) {
         return PyFloat_FromDouble(val);
     }
@@ -4817,11 +4817,11 @@ mp_decode_float(DecoderState *self, double val, TypeNode *type, PathNode *path) 
 }
 
 static MS_INLINE PyObject *
-mp_decode_str(DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *path) {
+mpack_decode_str(DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *path) {
     if (MS_LIKELY(type->types & (MS_TYPE_ANY | MS_TYPE_STR | MS_TYPE_ENUM))) {
         char *s = NULL;
         PyObject *val;
-        if (MS_UNLIKELY(mp_read(self, &s, size) < 0)) return NULL;
+        if (MS_UNLIKELY(mpack_read(self, &s, size) < 0)) return NULL;
         val = PyUnicode_DecodeUTF8(s, size, NULL);
         if (MS_UNLIKELY(type->types & MS_TYPE_ENUM)) {
             return ms_decode_type_enum(val, type, path);
@@ -4832,13 +4832,13 @@ mp_decode_str(DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *pat
 }
 
 static PyObject *
-mp_decode_bin(
+mpack_decode_bin(
     DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *path
 ) {
     if (MS_UNLIKELY(size < 0)) return NULL;
 
     char *s = NULL;
-    if (MS_UNLIKELY(mp_read(self, &s, size) < 0)) return NULL;
+    if (MS_UNLIKELY(mpack_read(self, &s, size) < 0)) return NULL;
 
     if (type->types & (MS_TYPE_ANY | MS_TYPE_BYTES)) {
         return PyBytes_FromStringAndSize(s, size);
@@ -4850,7 +4850,7 @@ mp_decode_bin(
 }
 
 static PyObject *
-mp_decode_list(
+mpack_decode_list(
     DecoderState *self, Py_ssize_t size, TypeNode *el_type, PathNode *path
 ) {
     Py_ssize_t i;
@@ -4866,7 +4866,7 @@ mp_decode_list(
     }
     for (i = 0; i < size; i++) {
         PathNode el_path = {path, i};
-        item = mp_decode(self, el_type, &el_path, false);
+        item = mpack_decode(self, el_type, &el_path, false);
         if (MS_UNLIKELY(item == NULL)) {
             Py_CLEAR(res);
             break;
@@ -4878,7 +4878,7 @@ mp_decode_list(
 }
 
 static PyObject *
-mp_decode_set(
+mpack_decode_set(
     DecoderState *self, Py_ssize_t size, TypeNode *el_type, PathNode *path
 ) {
     Py_ssize_t i;
@@ -4894,7 +4894,7 @@ mp_decode_set(
     }
     for (i = 0; i < size; i++) {
         PathNode el_path = {path, i};
-        item = mp_decode(self, el_type, &el_path, true);
+        item = mpack_decode(self, el_type, &el_path, true);
         if (MS_UNLIKELY(item == NULL || PySet_Add(res, item) < 0)) {
             Py_CLEAR(res);
             break;
@@ -4906,7 +4906,7 @@ mp_decode_set(
 }
 
 static PyObject *
-mp_decode_vartuple(
+mpack_decode_vartuple(
     DecoderState *self, Py_ssize_t size, TypeNode *el_type, PathNode *path, bool is_key
 ) {
     Py_ssize_t i;
@@ -4922,7 +4922,7 @@ mp_decode_vartuple(
     }
     for (i = 0; i < size; i++) {
         PathNode el_path = {path, i};
-        item = mp_decode(self, el_type, &el_path, is_key);
+        item = mpack_decode(self, el_type, &el_path, is_key);
         if (MS_UNLIKELY(item == NULL)) {
             Py_CLEAR(res);
             break;
@@ -4934,7 +4934,7 @@ mp_decode_vartuple(
 }
 
 static PyObject *
-mp_decode_fixtuple(
+mpack_decode_fixtuple(
     DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *path, bool is_key
 ) {
     Py_ssize_t i, offset;
@@ -4964,7 +4964,7 @@ mp_decode_fixtuple(
     offset = TypeNode_get_array_offset(type);
     for (i = 0; i < tex->fixtuple_size; i++) {
         PathNode el_path = {path, i};
-        item = mp_decode(self, tex->extra[offset + i], &el_path, is_key);
+        item = mpack_decode(self, tex->extra[offset + i], &el_path, is_key);
         if (MS_UNLIKELY(item == NULL)) {
             Py_CLEAR(res);
             break;
@@ -4976,7 +4976,7 @@ mp_decode_fixtuple(
 }
 
 static PyObject *
-mp_decode_struct_array(
+mpack_decode_struct_array(
     DecoderState *self, Py_ssize_t size, StructMetaObject *st_type,
     TypeNode *type, PathNode *path, bool is_key
 ) {
@@ -4999,7 +4999,7 @@ mp_decode_struct_array(
     for (i = 0; i < nfields; i++) {
         if (size > 0) {
             PathNode el_path = {path, i};
-            val = mp_decode(self, st_type->struct_types[i], &el_path, is_key);
+            val = mpack_decode(self, st_type->struct_types[i], &el_path, is_key);
             if (MS_UNLIKELY(val == NULL)) goto error;
             size--;
         }
@@ -5025,7 +5025,7 @@ mp_decode_struct_array(
     }
     /* Ignore all trailing fields */
     while (size > 0) {
-        if (mp_skip(self) < 0)
+        if (mpack_skip(self) < 0)
             goto error;
         size--;
     }
@@ -5041,40 +5041,40 @@ error:
 
 
 static PyObject *
-mp_decode_array(
+mpack_decode_array(
     DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *path, bool is_key
 ) {
     if (type->types & MS_TYPE_ANY) {
         if (is_key) {
-            return mp_decode_vartuple(self, size, type, path, is_key);
+            return mpack_decode_vartuple(self, size, type, path, is_key);
         }
         else {
-            return mp_decode_list(self, size, type, path);
+            return mpack_decode_list(self, size, type, path);
         }
     }
     else if (type->types & MS_TYPE_LIST) {
-        return mp_decode_list(self, size, TypeNode_get_array(type), path);
+        return mpack_decode_list(self, size, TypeNode_get_array(type), path);
     }
     else if (type->types & MS_TYPE_SET) {
-        return mp_decode_set(self, size, TypeNode_get_array(type), path);
+        return mpack_decode_set(self, size, TypeNode_get_array(type), path);
     }
     else if (type->types & MS_TYPE_VARTUPLE) {
-        return mp_decode_vartuple(self, size, TypeNode_get_array(type), path, is_key);
+        return mpack_decode_vartuple(self, size, TypeNode_get_array(type), path, is_key);
     }
     else if (type->types & MS_TYPE_FIXTUPLE) {
-        return mp_decode_fixtuple(self, size, type, path, is_key);
+        return mpack_decode_fixtuple(self, size, type, path, is_key);
     }
     else if (type->types & MS_TYPE_STRUCT) {
         StructMetaObject *struct_type = TypeNode_get_struct(type);
         if (struct_type->asarray == OPT_TRUE) {
-            return mp_decode_struct_array(self, size, struct_type, type, path, is_key);
+            return mpack_decode_struct_array(self, size, struct_type, type, path, is_key);
         }
     }
     return ms_validation_error("array", type, path);
 }
 
 static PyObject *
-mp_decode_dict(
+mpack_decode_dict(
     DecoderState *self, Py_ssize_t size, TypeNode *key_type,
     TypeNode *val_type, PathNode *path
 ) {
@@ -5092,10 +5092,10 @@ mp_decode_dict(
         return NULL;
     }
     for (i = 0; i < size; i++) {
-        key = mp_decode(self, key_type, &key_path, true);
+        key = mpack_decode(self, key_type, &key_path, true);
         if (MS_UNLIKELY(key == NULL))
             goto error;
-        val = mp_decode(self, val_type, &val_path, false);
+        val = mpack_decode(self, val_type, &val_path, false);
         if (MS_UNLIKELY(val == NULL))
             goto error;
         if (MS_UNLIKELY(PyDict_SetItem(res, key, val) < 0))
@@ -5114,7 +5114,7 @@ error:
 }
 
 static PyObject *
-mp_error_expected(char op, char *expected, PathNode *path) {
+mpack_error_expected(char op, char *expected, PathNode *path) {
     char *got;
     if (-32 <= op && op <= 127) {
         got = "int";
@@ -5129,7 +5129,7 @@ mp_error_expected(char op, char *expected, PathNode *path) {
         got = "object";
     }
     else {
-        switch ((enum mp_code)op) {
+        switch ((enum mpack_code)op) {
             case MP_NIL:
                 got = "null";
                 break;
@@ -5189,34 +5189,34 @@ mp_error_expected(char op, char *expected, PathNode *path) {
 }
 
 static MS_INLINE Py_ssize_t
-mp_decode_cstr(DecoderState *self, char ** out, PathNode *path) {
+mpack_decode_cstr(DecoderState *self, char ** out, PathNode *path) {
     char op = 0;
     Py_ssize_t size;
-    if (mp_read1(self, &op) < 0) return -1;
+    if (mpack_read1(self, &op) < 0) return -1;
 
     if ('\xa0' <= op && op <= '\xbf') {
         size = op & 0x1f;
     }
     else if (op == MP_STR8) {
-        size = mp_decode_size1(self);
+        size = mpack_decode_size1(self);
     }
     else if (op == MP_STR16) {
-        size = mp_decode_size2(self);
+        size = mpack_decode_size2(self);
     }
     else if (op == MP_STR32) {
-        size = mp_decode_size4(self);
+        size = mpack_decode_size4(self);
     }
     else {
-        mp_error_expected(op, "str", path);
+        mpack_error_expected(op, "str", path);
         return -1;
     }
 
-    if (mp_read(self, out, size) < 0) return -1;
+    if (mpack_read(self, out, size) < 0) return -1;
     return size;
 }
 
 static PyObject *
-mp_decode_struct_map(
+mpack_decode_struct_map(
     DecoderState *self, Py_ssize_t size, StructMetaObject *st_type,
     TypeNode *type, PathNode *path, bool is_key
 ) {
@@ -5233,17 +5233,17 @@ mp_decode_struct_map(
     }
     for (i = 0; i < size; i++) {
         PathNode key_path = {path, PATH_KEY, NULL};
-        key_size = mp_decode_cstr(self, &key, &key_path);
+        key_size = mpack_decode_cstr(self, &key, &key_path);
         if (MS_UNLIKELY(key_size < 0)) goto error;
 
         field_index = StructMeta_get_field_index(st_type, key, key_size, &pos);
         if (field_index < 0) {
             /* Skip unknown fields */
-            if (mp_skip(self) < 0) goto error;
+            if (mpack_skip(self) < 0) goto error;
         }
         else {
             PathNode field_path = {path, field_index, st_type};
-            val = mp_decode(
+            val = mpack_decode(
                 self, st_type->struct_types[field_index], &field_path, is_key
             );
             if (val == NULL) goto error;
@@ -5261,29 +5261,29 @@ error:
 }
 
 static PyObject *
-mp_decode_map(
+mpack_decode_map(
     DecoderState *self, Py_ssize_t size, TypeNode *type,
     PathNode *path, bool is_key
 ) {
     if (type->types & MS_TYPE_ANY) {
-        return mp_decode_dict(self, size, type, type, path);
+        return mpack_decode_dict(self, size, type, type, path);
     }
     else if (type->types & MS_TYPE_DICT) {
         TypeNode *key, *val;
         TypeNode_get_dict(type, &key, &val);
-        return mp_decode_dict(self, size, key, val, path);
+        return mpack_decode_dict(self, size, key, val, path);
     }
     else if (type->types & MS_TYPE_STRUCT) {
         StructMetaObject *struct_type = TypeNode_get_struct(type);
         if (struct_type->asarray != OPT_TRUE) {
-            return mp_decode_struct_map(self, size, struct_type, type, path, is_key);
+            return mpack_decode_struct_map(self, size, struct_type, type, path, is_key);
         }
     }
     return ms_validation_error("object", type, path);
 }
 
 static PyObject *
-mp_decode_ext(
+mpack_decode_ext(
     DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *path
 ) {
     Py_buffer *buffer;
@@ -5291,11 +5291,11 @@ mp_decode_ext(
     PyObject *data, *pycode = NULL, *view = NULL, *out = NULL;
 
     if (size < 0) return NULL;
-    if (mp_read1(self, &code) < 0) return NULL;
-    if (mp_read(self, &data_buf, size) < 0) return NULL;
+    if (mpack_read1(self, &code) < 0) return NULL;
+    if (mpack_read(self, &data_buf, size) < 0) return NULL;
 
     if (type->types & MS_TYPE_DATETIME && code == -1) {
-        return mp_decode_datetime(self, data_buf, size);
+        return mpack_decode_datetime(self, data_buf, size);
     }
     else if (type->types & MS_TYPE_EXT) {
         data = PyBytes_FromStringAndSize(data_buf, size);
@@ -5312,7 +5312,7 @@ mp_decode_ext(
      * - otherwise return Ext object
      * */
     if (code == -1) {
-        return mp_decode_datetime(self, data_buf, size);
+        return mpack_decode_datetime(self, data_buf, size);
     }
     else if (self->ext_hook == NULL) {
         data = PyBytes_FromStringAndSize(data_buf, size);
@@ -5337,13 +5337,13 @@ done:
 }
 
 static PyObject *
-mp_decode_custom(DecoderState *self, bool generic, TypeNode* type, PathNode *path) {
+mpack_decode_custom(DecoderState *self, bool generic, TypeNode* type, PathNode *path) {
     PyObject *obj, *custom_cls = NULL, *out = NULL;
     int status;
     PyObject *custom_obj = TypeNode_get_custom(type);
     TypeNode type_any = {MS_TYPE_ANY};
 
-    if ((obj = mp_decode(self, &type_any, path, false)) == NULL)
+    if ((obj = mpack_decode(self, &type_any, path, false)) == NULL)
         return NULL;
 
     if (self->dec_hook != NULL) {
@@ -5391,138 +5391,138 @@ mp_decode_custom(DecoderState *self, bool generic, TypeNode* type, PathNode *pat
 }
 
 static PyObject *
-mp_decode(
+mpack_decode(
     DecoderState *self, TypeNode *type, PathNode *path, bool is_key
 ) {
     char op = 0;
     char *s = NULL;
 
     if (MS_UNLIKELY(type->types & (MS_TYPE_CUSTOM | MS_TYPE_CUSTOM_GENERIC))) {
-        return mp_decode_custom(
+        return mpack_decode_custom(
             self, type->types & MS_TYPE_CUSTOM_GENERIC, type, path
         );
     }
 
-    if (mp_read1(self, &op) < 0) {
+    if (mpack_read1(self, &op) < 0) {
         return NULL;
     }
 
     if (-32 <= op && op <= 127) {
-        return mp_decode_int(self, op, type, path);
+        return mpack_decode_int(self, op, type, path);
     }
     else if ('\xa0' <= op && op <= '\xbf') {
-        return mp_decode_str(self, op & 0x1f, type, path);
+        return mpack_decode_str(self, op & 0x1f, type, path);
     }
     else if ('\x90' <= op && op <= '\x9f') {
-        return mp_decode_array(self, op & 0x0f, type, path, is_key);
+        return mpack_decode_array(self, op & 0x0f, type, path, is_key);
     }
     else if ('\x80' <= op && op <= '\x8f') {
-        return mp_decode_map(self, op & 0x0f, type, path, is_key);
+        return mpack_decode_map(self, op & 0x0f, type, path, is_key);
     }
-    switch ((enum mp_code)op) {
+    switch ((enum mpack_code)op) {
         case MP_NIL:
-            return mp_decode_none(self, type, path);
+            return mpack_decode_none(self, type, path);
         case MP_TRUE:
-            return mp_decode_bool(self, Py_True, type, path);
+            return mpack_decode_bool(self, Py_True, type, path);
         case MP_FALSE:
-            return mp_decode_bool(self, Py_False, type, path);
+            return mpack_decode_bool(self, Py_False, type, path);
         case MP_UINT8:
-            if (MS_UNLIKELY(mp_read(self, &s, 1) < 0)) return NULL;
-            return mp_decode_uint(self, *(uint8_t *)s, type, path);
+            if (MS_UNLIKELY(mpack_read(self, &s, 1) < 0)) return NULL;
+            return mpack_decode_uint(self, *(uint8_t *)s, type, path);
         case MP_UINT16:
-            if (MS_UNLIKELY(mp_read(self, &s, 2) < 0)) return NULL;
-            return mp_decode_uint(self, _msgspec_load16(uint16_t, s), type, path);
+            if (MS_UNLIKELY(mpack_read(self, &s, 2) < 0)) return NULL;
+            return mpack_decode_uint(self, _msgspec_load16(uint16_t, s), type, path);
         case MP_UINT32:
-            if (MS_UNLIKELY(mp_read(self, &s, 4) < 0)) return NULL;
-            return mp_decode_uint(self, _msgspec_load32(uint32_t, s), type, path);
+            if (MS_UNLIKELY(mpack_read(self, &s, 4) < 0)) return NULL;
+            return mpack_decode_uint(self, _msgspec_load32(uint32_t, s), type, path);
         case MP_UINT64:
-            if (MS_UNLIKELY(mp_read(self, &s, 8) < 0)) return NULL;
-            return mp_decode_uint(self, _msgspec_load64(uint64_t, s), type, path);
+            if (MS_UNLIKELY(mpack_read(self, &s, 8) < 0)) return NULL;
+            return mpack_decode_uint(self, _msgspec_load64(uint64_t, s), type, path);
         case MP_INT8:
-            if (MS_UNLIKELY(mp_read(self, &s, 1) < 0)) return NULL;
-            return mp_decode_int(self, *(int8_t *)s, type, path);
+            if (MS_UNLIKELY(mpack_read(self, &s, 1) < 0)) return NULL;
+            return mpack_decode_int(self, *(int8_t *)s, type, path);
         case MP_INT16:
-            if (MS_UNLIKELY(mp_read(self, &s, 2) < 0)) return NULL;
-            return mp_decode_int(self, _msgspec_load16(int16_t, s), type, path);
+            if (MS_UNLIKELY(mpack_read(self, &s, 2) < 0)) return NULL;
+            return mpack_decode_int(self, _msgspec_load16(int16_t, s), type, path);
         case MP_INT32:
-            if (MS_UNLIKELY(mp_read(self, &s, 4) < 0)) return NULL;
-            return mp_decode_int(self, _msgspec_load32(int32_t, s), type, path);
+            if (MS_UNLIKELY(mpack_read(self, &s, 4) < 0)) return NULL;
+            return mpack_decode_int(self, _msgspec_load32(int32_t, s), type, path);
         case MP_INT64:
-            if (MS_UNLIKELY(mp_read(self, &s, 8) < 0)) return NULL;
-            return mp_decode_int(self, _msgspec_load64(int64_t, s), type, path);
+            if (MS_UNLIKELY(mpack_read(self, &s, 8) < 0)) return NULL;
+            return mpack_decode_int(self, _msgspec_load64(int64_t, s), type, path);
         case MP_FLOAT32: {
             float f = 0;
             uint32_t uf;
-            if (mp_read(self, &s, 4) < 0) return NULL;
+            if (mpack_read(self, &s, 4) < 0) return NULL;
             uf = _msgspec_load32(uint32_t, s);
             memcpy(&f, &uf, 4);
-            return mp_decode_float(self, f, type, path);
+            return mpack_decode_float(self, f, type, path);
         }
         case MP_FLOAT64: {
             double f = 0;
             uint64_t uf;
-            if (mp_read(self, &s, 8) < 0) return NULL;
+            if (mpack_read(self, &s, 8) < 0) return NULL;
             uf = _msgspec_load64(uint64_t, s);
             memcpy(&f, &uf, 8);
-            return mp_decode_float(self, f, type, path);
+            return mpack_decode_float(self, f, type, path);
         }
         case MP_STR8: {
-            Py_ssize_t size = mp_decode_size1(self);
+            Py_ssize_t size = mpack_decode_size1(self);
             if (MS_UNLIKELY(size < 0)) return NULL;
-            return mp_decode_str(self, size, type, path);
+            return mpack_decode_str(self, size, type, path);
         }
         case MP_STR16: {
-            Py_ssize_t size = mp_decode_size2(self);
+            Py_ssize_t size = mpack_decode_size2(self);
             if (MS_UNLIKELY(size < 0)) return NULL;
-            return mp_decode_str(self, size, type, path);
+            return mpack_decode_str(self, size, type, path);
         }
         case MP_STR32: {
-            Py_ssize_t size = mp_decode_size4(self);
+            Py_ssize_t size = mpack_decode_size4(self);
             if (MS_UNLIKELY(size < 0)) return NULL;
-            return mp_decode_str(self, size, type, path);
+            return mpack_decode_str(self, size, type, path);
         }
         case MP_BIN8:
-            return mp_decode_bin(self, mp_decode_size1(self), type, path);
+            return mpack_decode_bin(self, mpack_decode_size1(self), type, path);
         case MP_BIN16:
-            return mp_decode_bin(self, mp_decode_size2(self), type, path);
+            return mpack_decode_bin(self, mpack_decode_size2(self), type, path);
         case MP_BIN32:
-            return mp_decode_bin(self, mp_decode_size4(self), type, path);
+            return mpack_decode_bin(self, mpack_decode_size4(self), type, path);
         case MP_ARRAY16: {
-            Py_ssize_t size = mp_decode_size2(self);
+            Py_ssize_t size = mpack_decode_size2(self);
             if (MS_UNLIKELY(size < 0)) return NULL;
-            return mp_decode_array(self, size, type, path, is_key);
+            return mpack_decode_array(self, size, type, path, is_key);
         }
         case MP_ARRAY32: {
-            Py_ssize_t size = mp_decode_size4(self);
+            Py_ssize_t size = mpack_decode_size4(self);
             if (MS_UNLIKELY(size < 0)) return NULL;
-            return mp_decode_array(self, size, type, path, is_key);
+            return mpack_decode_array(self, size, type, path, is_key);
         }
         case MP_MAP16: {
-            Py_ssize_t size = mp_decode_size2(self);
+            Py_ssize_t size = mpack_decode_size2(self);
             if (MS_UNLIKELY(size < 0)) return NULL;
-            return mp_decode_map(self, size, type, path, is_key);
+            return mpack_decode_map(self, size, type, path, is_key);
         }
         case MP_MAP32: {
-            Py_ssize_t size = mp_decode_size4(self);
+            Py_ssize_t size = mpack_decode_size4(self);
             if (MS_UNLIKELY(size < 0)) return NULL;
-            return mp_decode_map(self, size, type, path, is_key);
+            return mpack_decode_map(self, size, type, path, is_key);
         }
         case MP_FIXEXT1:
-            return mp_decode_ext(self, 1, type, path);
+            return mpack_decode_ext(self, 1, type, path);
         case MP_FIXEXT2:
-            return mp_decode_ext(self, 2, type, path);
+            return mpack_decode_ext(self, 2, type, path);
         case MP_FIXEXT4:
-            return mp_decode_ext(self, 4, type, path);
+            return mpack_decode_ext(self, 4, type, path);
         case MP_FIXEXT8:
-            return mp_decode_ext(self, 8, type, path);
+            return mpack_decode_ext(self, 8, type, path);
         case MP_FIXEXT16:
-            return mp_decode_ext(self, 16, type, path);
+            return mpack_decode_ext(self, 16, type, path);
         case MP_EXT8:
-            return mp_decode_ext(self, mp_decode_size1(self), type, path);
+            return mpack_decode_ext(self, mpack_decode_size1(self), type, path);
         case MP_EXT16:
-            return mp_decode_ext(self, mp_decode_size2(self), type, path);
+            return mpack_decode_ext(self, mpack_decode_size2(self), type, path);
         case MP_EXT32:
-            return mp_decode_ext(self, mp_decode_size4(self), type, path);
+            return mpack_decode_ext(self, mpack_decode_size4(self), type, path);
         default:
             PyErr_Format(
                 msgspec_get_global_state()->DecodingError,
@@ -5567,9 +5567,9 @@ Decoder_decode(Decoder *self, PyObject *const *args, Py_ssize_t nargs)
         self->state.input_pos = buffer.buf;
         self->state.input_end = self->state.input_pos + buffer.len;
 
-        res = mp_decode(&(self->state), self->state.type, NULL, false);
+        res = mpack_decode(&(self->state), self->state.type, NULL, false);
 
-        if (res != NULL && mp_has_trailing_characters(&self->state)) {
+        if (res != NULL && mpack_has_trailing_characters(&self->state)) {
             res = NULL;
         }
 
@@ -5734,13 +5734,13 @@ msgspec_msgpack_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, 
         state.input_pos = buffer.buf;
         state.input_end = state.input_pos + buffer.len;
         if (state.type != NULL) {
-            res = mp_decode(&state, state.type, NULL, false);
+            res = mpack_decode(&state, state.type, NULL, false);
         } else {
             TypeNode type_any = {MS_TYPE_ANY};
-            res = mp_decode(&state, &type_any, NULL, false);
+            res = mpack_decode(&state, &type_any, NULL, false);
         }
         PyBuffer_Release(&buffer);
-        if (res != NULL && mp_has_trailing_characters(&state)) {
+        if (res != NULL && mpack_has_trailing_characters(&state)) {
             res = NULL;
         }
     }
@@ -5899,7 +5899,7 @@ JSONDecoder_repr(JSONDecoder *self) {
 }
 
 static MS_INLINE bool
-js_read1(JSONDecoderState *self, unsigned char *c)
+json_read1(JSONDecoderState *self, unsigned char *c)
 {
     if (MS_UNLIKELY(self->input_pos == self->input_end)) {
         ms_err_truncated();
@@ -5911,13 +5911,13 @@ js_read1(JSONDecoderState *self, unsigned char *c)
 }
 
 static MS_INLINE char
-js_peek_or_null(JSONDecoderState *self) {
+json_peek_or_null(JSONDecoderState *self) {
     if (MS_UNLIKELY(self->input_pos == self->input_end)) return '\0';
     return *self->input_pos;
 }
 
 static MS_INLINE bool
-js_peek_skip_ws(JSONDecoderState *self, unsigned char *s)
+json_peek_skip_ws(JSONDecoderState *self, unsigned char *s)
 {
     while (true) {
         if (MS_UNLIKELY(self->input_pos == self->input_end)) {
@@ -5934,13 +5934,13 @@ js_peek_skip_ws(JSONDecoderState *self, unsigned char *s)
 }
 
 static MS_INLINE bool
-js_remaining(JSONDecoderState *self, ptrdiff_t remaining)
+json_remaining(JSONDecoderState *self, ptrdiff_t remaining)
 {
     return self->input_end - self->input_pos >= remaining;
 }
 
 static PyObject *
-js_err_invalid(JSONDecoderState *self, const char *msg)
+json_err_invalid(JSONDecoderState *self, const char *msg)
 {
     PyErr_Format(
         msgspec_get_global_state()->DecodingError,
@@ -5952,27 +5952,27 @@ js_err_invalid(JSONDecoderState *self, const char *msg)
 }
 
 static MS_INLINE bool
-js_has_trailing_characters(JSONDecoderState *self)
+json_has_trailing_characters(JSONDecoderState *self)
 {
     while (self->input_pos != self->input_end) {
         unsigned char c = *self->input_pos++;
         if (MS_UNLIKELY(!(c == ' ' || c == '\n' || c == '\t' || c == '\r'))) {
-            js_err_invalid(self, "trailing characters");
+            json_err_invalid(self, "trailing characters");
             return true;
         }
     }
     return false;
 }
 
-static int js_skip(JSONDecoderState *self);
+static int json_skip(JSONDecoderState *self);
 
-static PyObject * js_decode(
+static PyObject * json_decode(
     JSONDecoderState *self, TypeNode *type, PathNode *path, bool is_key
 );
 
 static PyObject *
-js_decode_none(JSONDecoderState *self, TypeNode *type, PathNode *path) {
-    if (MS_UNLIKELY(!js_remaining(self, 3))) {
+json_decode_none(JSONDecoderState *self, TypeNode *type, PathNode *path) {
+    if (MS_UNLIKELY(!json_remaining(self, 3))) {
         ms_err_truncated();
         return NULL;
     }
@@ -5981,7 +5981,7 @@ js_decode_none(JSONDecoderState *self, TypeNode *type, PathNode *path) {
     unsigned char c2 = *self->input_pos++;
     unsigned char c3 = *self->input_pos++;
     if (MS_UNLIKELY(c1 != 'u' || c2 != 'l' || c3 != 'l')) {
-        return js_err_invalid(self, "invalid character");
+        return json_err_invalid(self, "invalid character");
     }
     if (type->types & (MS_TYPE_ANY | MS_TYPE_NONE)) {
         Py_INCREF(Py_None);
@@ -5991,8 +5991,8 @@ js_decode_none(JSONDecoderState *self, TypeNode *type, PathNode *path) {
 }
 
 static PyObject *
-js_decode_true(JSONDecoderState *self, TypeNode *type, PathNode *path) {
-    if (MS_UNLIKELY(!js_remaining(self, 3))) {
+json_decode_true(JSONDecoderState *self, TypeNode *type, PathNode *path) {
+    if (MS_UNLIKELY(!json_remaining(self, 3))) {
         ms_err_truncated();
         return NULL;
     }
@@ -6001,7 +6001,7 @@ js_decode_true(JSONDecoderState *self, TypeNode *type, PathNode *path) {
     unsigned char c2 = *self->input_pos++;
     unsigned char c3 = *self->input_pos++;
     if (MS_UNLIKELY(c1 != 'r' || c2 != 'u' || c3 != 'e')) {
-        return js_err_invalid(self, "invalid character");
+        return json_err_invalid(self, "invalid character");
     }
     if (type->types & (MS_TYPE_ANY | MS_TYPE_BOOL)) {
         Py_INCREF(Py_True);
@@ -6011,8 +6011,8 @@ js_decode_true(JSONDecoderState *self, TypeNode *type, PathNode *path) {
 }
 
 static PyObject *
-js_decode_false(JSONDecoderState *self, TypeNode *type, PathNode *path) {
-    if (MS_UNLIKELY(!js_remaining(self, 4))) {
+json_decode_false(JSONDecoderState *self, TypeNode *type, PathNode *path) {
+    if (MS_UNLIKELY(!json_remaining(self, 4))) {
         ms_err_truncated();
         return NULL;
     }
@@ -6022,7 +6022,7 @@ js_decode_false(JSONDecoderState *self, TypeNode *type, PathNode *path) {
     unsigned char c3 = *self->input_pos++;
     unsigned char c4 = *self->input_pos++;
     if (MS_UNLIKELY(c1 != 'a' || c2 != 'l' || c3 != 's' || c4 != 'e')) {
-        return js_err_invalid(self, "invalid character");
+        return json_err_invalid(self, "invalid character");
     }
     if (type->types & (MS_TYPE_ANY | MS_TYPE_BOOL)) {
         Py_INCREF(Py_False);
@@ -6032,7 +6032,7 @@ js_decode_false(JSONDecoderState *self, TypeNode *type, PathNode *path) {
 }
 
 static PyObject *
-js_decode_list(JSONDecoderState *self, TypeNode *el_type, PathNode *path, bool is_key) {
+json_decode_list(JSONDecoderState *self, TypeNode *el_type, PathNode *path, bool is_key) {
     PyObject *out, *item = NULL;
     unsigned char c;
     bool first = true;
@@ -6047,7 +6047,7 @@ js_decode_list(JSONDecoderState *self, TypeNode *el_type, PathNode *path, bool i
         return NULL;
     }
     while (true) {
-        if (MS_UNLIKELY(!js_peek_skip_ws(self, &c))) goto error;
+        if (MS_UNLIKELY(!json_peek_skip_ws(self, &c))) goto error;
         /* Parse ']' or ',', then peek the next character */
         if (c == ']') {
             self->input_pos++;
@@ -6055,24 +6055,24 @@ js_decode_list(JSONDecoderState *self, TypeNode *el_type, PathNode *path, bool i
         }
         else if (c == ',' && !first) {
             self->input_pos++;
-            if (MS_UNLIKELY(!js_peek_skip_ws(self, &c))) goto error;
+            if (MS_UNLIKELY(!json_peek_skip_ws(self, &c))) goto error;
         }
         else if (first) {
             /* Only the first item doesn't need a comma delimiter */
             first = false;
         }
         else {
-            js_err_invalid(self, "expected ',' or ']'");
+            json_err_invalid(self, "expected ',' or ']'");
             goto error;
         }
 
         if (MS_UNLIKELY(c == ']')) {
-            js_err_invalid(self, "trailing comma in array");
+            json_err_invalid(self, "trailing comma in array");
             goto error;
         }
 
         /* Parse item */
-        item = js_decode(self, el_type, &el_path, is_key);
+        item = json_decode(self, el_type, &el_path, is_key);
         if (item == NULL) goto error;
         el_path.index++;
 
@@ -6090,7 +6090,7 @@ error:
 }
 
 static PyObject *
-js_decode_set(JSONDecoderState *self, TypeNode *el_type, PathNode *path) {
+json_decode_set(JSONDecoderState *self, TypeNode *el_type, PathNode *path) {
     PyObject *out, *item = NULL;
     unsigned char c;
     bool first = true;
@@ -6105,7 +6105,7 @@ js_decode_set(JSONDecoderState *self, TypeNode *el_type, PathNode *path) {
         return NULL;
     }
     while (true) {
-        if (MS_UNLIKELY(!js_peek_skip_ws(self, &c))) goto error;
+        if (MS_UNLIKELY(!json_peek_skip_ws(self, &c))) goto error;
         /* Parse ']' or ',', then peek the next character */
         if (c == ']') {
             self->input_pos++;
@@ -6113,24 +6113,24 @@ js_decode_set(JSONDecoderState *self, TypeNode *el_type, PathNode *path) {
         }
         else if (c == ',' && !first) {
             self->input_pos++;
-            if (MS_UNLIKELY(!js_peek_skip_ws(self, &c))) goto error;
+            if (MS_UNLIKELY(!json_peek_skip_ws(self, &c))) goto error;
         }
         else if (first) {
             /* Only the first item doesn't need a comma delimiter */
             first = false;
         }
         else {
-            js_err_invalid(self, "expected ',' or ']'");
+            json_err_invalid(self, "expected ',' or ']'");
             goto error;
         }
 
         if (MS_UNLIKELY(c == ']')) {
-            js_err_invalid(self, "trailing comma in array");
+            json_err_invalid(self, "trailing comma in array");
             goto error;
         }
 
         /* Parse item */
-        item = js_decode(self, el_type, &el_path, false);
+        item = json_decode(self, el_type, &el_path, false);
         if (item == NULL) goto error;
         el_path.index++;
 
@@ -6148,11 +6148,11 @@ error:
 }
 
 static PyObject *
-js_decode_vartuple(JSONDecoderState *self, TypeNode *el_type, PathNode *path, bool is_key) {
+json_decode_vartuple(JSONDecoderState *self, TypeNode *el_type, PathNode *path, bool is_key) {
     PyObject *list, *item, *out = NULL;
     Py_ssize_t size, i;
 
-    list = js_decode_list(self, el_type, path, is_key);
+    list = json_decode_list(self, el_type, path, is_key);
     if (list == NULL) return NULL;
 
     size = PyList_GET_SIZE(list);
@@ -6169,7 +6169,7 @@ js_decode_vartuple(JSONDecoderState *self, TypeNode *el_type, PathNode *path, bo
 }
 
 static PyObject *
-js_decode_fixtuple(JSONDecoderState *self, TypeNode *type, PathNode *path, bool is_key) {
+json_decode_fixtuple(JSONDecoderState *self, TypeNode *type, PathNode *path, bool is_key) {
     PyObject *out, *item;
     Py_ssize_t i = 0, offset;
     unsigned char c;
@@ -6190,7 +6190,7 @@ js_decode_fixtuple(JSONDecoderState *self, TypeNode *type, PathNode *path, bool 
     }
 
     while (true) {
-        if (MS_UNLIKELY(!js_peek_skip_ws(self, &c))) goto error;
+        if (MS_UNLIKELY(!json_peek_skip_ws(self, &c))) goto error;
         /* Parse ']' or ',', then peek the next character */
         if (c == ']') {
             self->input_pos++;
@@ -6199,19 +6199,19 @@ js_decode_fixtuple(JSONDecoderState *self, TypeNode *type, PathNode *path, bool 
         }
         else if (c == ',' && !first) {
             self->input_pos++;
-            if (MS_UNLIKELY(!js_peek_skip_ws(self, &c))) goto error;
+            if (MS_UNLIKELY(!json_peek_skip_ws(self, &c))) goto error;
         }
         else if (first) {
             /* Only the first item doesn't need a comma delimiter */
             first = false;
         }
         else {
-            js_err_invalid(self, "expected ',' or ']'");
+            json_err_invalid(self, "expected ',' or ']'");
             goto error;
         }
 
         if (MS_UNLIKELY(c == ']')) {
-            js_err_invalid(self, "trailing comma in array");
+            json_err_invalid(self, "trailing comma in array");
             goto error;
         }
 
@@ -6219,7 +6219,7 @@ js_decode_fixtuple(JSONDecoderState *self, TypeNode *type, PathNode *path, bool 
         if (MS_UNLIKELY(i >= tex->fixtuple_size)) goto size_error;
 
         /* Parse item */
-        item = js_decode(self, tex->extra[offset + i], &el_path, is_key);
+        item = json_decode(self, tex->extra[offset + i], &el_path, is_key);
         if (item == NULL) goto error;
         el_path.index++;
 
@@ -6243,7 +6243,7 @@ error:
 }
 
 static PyObject *
-js_decode_struct_array(
+json_decode_struct_array(
     JSONDecoderState *self, StructMetaObject *st_type, TypeNode *type,
     PathNode *path, bool is_key
 ) {
@@ -6268,7 +6268,7 @@ js_decode_struct_array(
         return NULL;
     }
     while (true) {
-        if (MS_UNLIKELY(!js_peek_skip_ws(self, &c))) goto error;
+        if (MS_UNLIKELY(!json_peek_skip_ws(self, &c))) goto error;
         /* Parse ']' or ',', then peek the next character */
         if (c == ']') {
             self->input_pos++;
@@ -6276,26 +6276,26 @@ js_decode_struct_array(
         }
         else if (c == ',' && !first) {
             self->input_pos++;
-            if (MS_UNLIKELY(!js_peek_skip_ws(self, &c))) goto error;
+            if (MS_UNLIKELY(!json_peek_skip_ws(self, &c))) goto error;
         }
         else if (first) {
             /* Only the first item doesn't need a comma delimiter */
             first = false;
         }
         else {
-            js_err_invalid(self, "expected ',' or ']'");
+            json_err_invalid(self, "expected ',' or ']'");
             goto error;
         }
 
         if (MS_UNLIKELY(c == ']')) {
-            js_err_invalid(self, "trailing comma in array");
+            json_err_invalid(self, "trailing comma in array");
             goto error;
         }
 
         if (MS_LIKELY(i < nfields)) {
             /* Parse item */
             el_path.index = i;
-            item = js_decode(self, st_type->struct_types[i], &el_path, is_key);
+            item = json_decode(self, st_type->struct_types[i], &el_path, is_key);
             if (MS_UNLIKELY(item == NULL)) goto error;
             Struct_set_index(out, i, item);
             if (should_untrack) {
@@ -6305,7 +6305,7 @@ js_decode_struct_array(
         }
         else {
             /* Skip trailing fields */
-            if (js_skip(self) < 0) goto error;
+            if (json_skip(self) < 0) goto error;
         }
     }
 
@@ -6340,33 +6340,33 @@ error:
 }
 
 static PyObject *
-js_decode_array(
+json_decode_array(
     JSONDecoderState *self, TypeNode *type, PathNode *path, bool is_key
 ) {
     if (type->types & MS_TYPE_ANY) {
         if (is_key) {
-            return js_decode_vartuple(self, type, path, is_key);
+            return json_decode_vartuple(self, type, path, is_key);
         }
         else {
-            return js_decode_list(self, type, path, false);
+            return json_decode_list(self, type, path, false);
         }
     }
     else if (type->types & MS_TYPE_LIST) {
-        return js_decode_list(self, TypeNode_get_array(type), path, false);
+        return json_decode_list(self, TypeNode_get_array(type), path, false);
     }
     else if (type->types & MS_TYPE_SET) {
-        return js_decode_set(self, TypeNode_get_array(type), path);
+        return json_decode_set(self, TypeNode_get_array(type), path);
     }
     else if (type->types & MS_TYPE_VARTUPLE) {
-        return js_decode_vartuple(self, TypeNode_get_array(type), path, is_key);
+        return json_decode_vartuple(self, TypeNode_get_array(type), path, is_key);
     }
     else if (type->types & MS_TYPE_FIXTUPLE) {
-        return js_decode_fixtuple(self, type, path, is_key);
+        return json_decode_fixtuple(self, type, path, is_key);
     }
     else if (type->types & MS_TYPE_STRUCT) {
         StructMetaObject *struct_type = TypeNode_get_struct(type);
         if (struct_type->asarray == OPT_TRUE) {
-            return js_decode_struct_array(self, struct_type, type, path, is_key);
+            return json_decode_struct_array(self, struct_type, type, path, is_key);
         }
     }
     return ms_validation_error("array", type, path);
@@ -6375,7 +6375,7 @@ js_decode_array(
 #define JS_SCRATCH_MAX_SIZE 1024
 
 static int
-js_scratch_resize(JSONDecoderState *state, ssize_t size) {
+json_scratch_resize(JSONDecoderState *state, ssize_t size) {
     unsigned char *temp = PyMem_Realloc(state->scratch, size);
     if (MS_UNLIKELY(temp == NULL)) {
         PyErr_NoMemory();
@@ -6387,42 +6387,42 @@ js_scratch_resize(JSONDecoderState *state, ssize_t size) {
 }
 
 static int
-js_scratch_ensure_space(JSONDecoderState *state, Py_ssize_t size) {
+json_scratch_ensure_space(JSONDecoderState *state, Py_ssize_t size) {
     Py_ssize_t required = state->scratch_len + size;
     if (required >= state->scratch_capacity) {
         size_t new_size = Py_MAX(8, 1.5 * required);
-        if (js_scratch_resize(state, new_size) < 0) return -1;
+        if (json_scratch_resize(state, new_size) < 0) return -1;
     }
     return 0;
 }
 
 static int
-js_scratch_reset(JSONDecoderState *state) {
+json_scratch_reset(JSONDecoderState *state) {
     state->scratch_len = 0;
     if (state->scratch_capacity > JS_SCRATCH_MAX_SIZE) {
-        if (js_scratch_resize(state, JS_SCRATCH_MAX_SIZE) < 0) return -1;
+        if (json_scratch_resize(state, JS_SCRATCH_MAX_SIZE) < 0) return -1;
     }
     return 0;
 }
 
 static int
-js_scratch_extend(JSONDecoderState *state, const void *buf, Py_ssize_t size) {
-    if (js_scratch_ensure_space(state, size) < 0) return -1;
+json_scratch_extend(JSONDecoderState *state, const void *buf, Py_ssize_t size) {
+    if (json_scratch_ensure_space(state, size) < 0) return -1;
     memcpy(state->scratch + state->scratch_len, buf, size);
     state->scratch_len += size;
     return 0;
 }
 
 static int
-js_scratch_push(JSONDecoderState *state, unsigned char c) {
-    return js_scratch_extend(state, &c, 1);
+json_scratch_push(JSONDecoderState *state, unsigned char c) {
+    return json_scratch_extend(state, &c, 1);
 }
 
 static int
-js_read_codepoint(JSONDecoderState *self, unsigned int *out) {
+json_read_codepoint(JSONDecoderState *self, unsigned int *out) {
     unsigned char c;
     unsigned int cp = 0;
-    if (!js_remaining(self, 4)) return ms_err_truncated();
+    if (!json_remaining(self, 4)) return ms_err_truncated();
     for (int i = 0; i < 4; i++) {
         c = *self->input_pos++;
         if (c >= '0' && c <= '9') {
@@ -6435,7 +6435,7 @@ js_read_codepoint(JSONDecoderState *self, unsigned int *out) {
             c = c - 'A' + 10;
         }
         else {
-            js_err_invalid(self, "invalid character");
+            json_err_invalid(self, "invalid character");
             return -1;
         }
         cp = (cp << 4) + c;
@@ -6445,46 +6445,46 @@ js_read_codepoint(JSONDecoderState *self, unsigned int *out) {
 }
 
 static int
-js_parse_escape(JSONDecoderState *self) {
+json_parse_escape(JSONDecoderState *self) {
     unsigned char c;
-    if (!js_read1(self, &c)) return -1;
+    if (!json_read1(self, &c)) return -1;
 
     switch (c) {
-        case '"': return js_scratch_push(self, '"');
-        case '\\': return js_scratch_push(self, '\\');
-        case '/': return js_scratch_push(self, '/');
-        case 'b': return js_scratch_push(self, '\b');
-        case 'f': return js_scratch_push(self, '\f');
-        case 'n': return js_scratch_push(self, '\n');
-        case 'r': return js_scratch_push(self, '\r');
-        case 't': return js_scratch_push(self, '\t');
+        case '"': return json_scratch_push(self, '"');
+        case '\\': return json_scratch_push(self, '\\');
+        case '/': return json_scratch_push(self, '/');
+        case 'b': return json_scratch_push(self, '\b');
+        case 'f': return json_scratch_push(self, '\f');
+        case 'n': return json_scratch_push(self, '\n');
+        case 'r': return json_scratch_push(self, '\r');
+        case 't': return json_scratch_push(self, '\t');
         case 'u': {
             unsigned int cp;
-            if (js_read_codepoint(self, &cp) < 0) return -1;
+            if (json_read_codepoint(self, &cp) < 0) return -1;
 
             if (0xDC00 <= cp && cp <= 0xDFFF) {
-                js_err_invalid(self, "invalid utf-16 surrogate pair");
+                json_err_invalid(self, "invalid utf-16 surrogate pair");
                 return -1;
             }
             else if (0xD800 <= cp && cp <= 0xDBFF) {
                 /* utf-16 pair, parse 2nd pair */
                 unsigned int cp2;
-                if (!js_remaining(self, 6)) return ms_err_truncated();
+                if (!json_remaining(self, 6)) return ms_err_truncated();
                 if (self->input_pos[0] != '\\' || self->input_pos[1] != 'u') {
-                    js_err_invalid(self, "unexpected end of hex escape");
+                    json_err_invalid(self, "unexpected end of hex escape");
                     return -1;
                 }
                 self->input_pos += 2;
-                if (js_read_codepoint(self, &cp2) < 0) return -1;
+                if (json_read_codepoint(self, &cp2) < 0) return -1;
                 if (cp2 < 0xDC00 || cp2 > 0xDFFF) {
-                    js_err_invalid(self, "invalid utf-16 surrogate pair");
+                    json_err_invalid(self, "invalid utf-16 surrogate pair");
                     return -1;
                 }
                 cp = 0x10000 + (((cp - 0xD800) << 10) | (cp2 - 0xDC00));
             }
 
             /* Encode the codepoint as utf-8 */
-            if (js_scratch_ensure_space(self, 4) < 0) return -1;
+            if (json_scratch_ensure_space(self, 4) < 0) return -1;
             unsigned char *p = self->scratch + self->scratch_len;
             if (cp < 0x80) {
                 *p++ = cp;
@@ -6508,14 +6508,14 @@ js_parse_escape(JSONDecoderState *self) {
             return 0;
         }
         default:
-            js_err_invalid(self, "invalid escape character in string");
+            json_err_invalid(self, "invalid escape character in string");
             return -1;
     }
     return 0;
 }
 
 static Py_ssize_t
-js_decode_string_view(JSONDecoderState *self, char **out) {
+json_decode_string_view(JSONDecoderState *self, char **out) {
     Py_ssize_t size;
     self->scratch_len = 0;
     self->input_pos++; /* Skip '"' */
@@ -6534,7 +6534,7 @@ js_decode_string_view(JSONDecoderState *self, char **out) {
                     size = self->input_pos - start;
                 }
                 else {
-                    if (js_scratch_extend(self, start, self->input_pos - start) < 0) return -1;
+                    if (json_scratch_extend(self, start, self->input_pos - start) < 0) return -1;
                     *out = (char *)(self->scratch);
                     size = self->scratch_len;
                 }
@@ -6542,15 +6542,15 @@ js_decode_string_view(JSONDecoderState *self, char **out) {
                 return size;
             }
             case '\\': {
-                if (js_scratch_extend(self, start, self->input_pos - start) < 0) return -1;
+                if (json_scratch_extend(self, start, self->input_pos - start) < 0) return -1;
                 self->input_pos += 1;
-                if (js_parse_escape(self) < 0) return -1;
+                if (json_parse_escape(self) < 0) return -1;
                 start = self->input_pos;
                 break;
             }
             default: {
                 self->input_pos += 1;
-                js_err_invalid(self, "invalid character");
+                json_err_invalid(self, "invalid character");
                 return -1;
             }
         }
@@ -6580,7 +6580,7 @@ static const uint8_t base64_decode_table[] = {
 };
 
 static PyObject *
-js_decode_binary(
+json_decode_binary(
     JSONDecoderState *self, const char *buffer, Py_ssize_t size,
     TypeNode *type, PathNode *path
 ) {
@@ -6648,13 +6648,13 @@ invalid:
 }
 
 static PyObject *
-js_decode_string(JSONDecoderState *self, TypeNode *type, PathNode *path) {
+json_decode_string(JSONDecoderState *self, TypeNode *type, PathNode *path) {
     if (MS_LIKELY(type->types & (MS_TYPE_ANY | MS_TYPE_STR | MS_TYPE_ENUM | MS_TYPE_BYTES | MS_TYPE_BYTEARRAY))) {
         char *view = NULL;
-        Py_ssize_t size = js_decode_string_view(self, &view);
+        Py_ssize_t size = json_decode_string_view(self, &view);
         if (size < 0) return NULL;
         if (MS_UNLIKELY(type->types & (MS_TYPE_BYTES | MS_TYPE_BYTEARRAY))) {
-            return js_decode_binary(self, view, size, type, path);
+            return json_decode_binary(self, view, size, type, path);
         }
         PyObject *val = PyUnicode_DecodeUTF8(view, size, NULL);
         if (val == NULL) return NULL;
@@ -6667,7 +6667,7 @@ js_decode_string(JSONDecoderState *self, TypeNode *type, PathNode *path) {
 }
 
 static PyObject *
-js_decode_dict(
+json_decode_dict(
     JSONDecoderState *self, TypeNode *key_type, TypeNode *val_type, PathNode *path
 ) {
     PyObject *out, *key = NULL, *val = NULL;
@@ -6687,48 +6687,48 @@ js_decode_dict(
     }
     while (true) {
         /* Parse '}' or ',', then peek the next character */
-        if (MS_UNLIKELY(!js_peek_skip_ws(self, &c))) goto error;
+        if (MS_UNLIKELY(!json_peek_skip_ws(self, &c))) goto error;
         if (c == '}') {
             self->input_pos++;
             break;
         }
         else if (c == ',' && !first) {
             self->input_pos++;
-            if (MS_UNLIKELY(!js_peek_skip_ws(self, &c))) goto error;
+            if (MS_UNLIKELY(!json_peek_skip_ws(self, &c))) goto error;
         }
         else if (first) {
             /* Only the first item doesn't need a comma delimiter */
             first = false;
         }
         else {
-            js_err_invalid(self, "expected ',' or '}'");
+            json_err_invalid(self, "expected ',' or '}'");
             goto error;
         }
 
         /* Parse a string key */
         if (c == '"') {
-            key = js_decode_string(self, key_type, &key_path);
+            key = json_decode_string(self, key_type, &key_path);
             if (key == NULL) goto error;
         }
         else if (c == '}') {
-            js_err_invalid(self, "trailing comma in object");
+            json_err_invalid(self, "trailing comma in object");
             goto error;
         }
         else {
-            js_err_invalid(self, "object keys must be strings");
+            json_err_invalid(self, "object keys must be strings");
             goto error;
         }
 
         /* Parse colon */
-        if (MS_UNLIKELY(!js_peek_skip_ws(self, &c))) goto error;
+        if (MS_UNLIKELY(!json_peek_skip_ws(self, &c))) goto error;
         if (c != ':') {
-            js_err_invalid(self, "expected ':'");
+            json_err_invalid(self, "expected ':'");
             goto error;
         }
         self->input_pos++;
 
         /* Parse value */
-        val = js_decode(self, val_type, &val_path, false);
+        val = json_decode(self, val_type, &val_path, false);
         if (val == NULL) goto error;
 
         /* Add item to dict */
@@ -6749,7 +6749,7 @@ error:
 }
 
 static PyObject *
-js_decode_struct_map(
+json_decode_struct_map(
     JSONDecoderState *self, StructMetaObject *st_type, TypeNode *type,
     PathNode *path, bool is_key
 ) {
@@ -6771,42 +6771,42 @@ js_decode_struct_map(
     }
     while (true) {
         /* Parse '}' or ',', then peek the next character */
-        if (MS_UNLIKELY(!js_peek_skip_ws(self, &c))) goto error;
+        if (MS_UNLIKELY(!json_peek_skip_ws(self, &c))) goto error;
         if (c == '}') {
             self->input_pos++;
             break;
         }
         else if (c == ',' && !first) {
             self->input_pos++;
-            if (MS_UNLIKELY(!js_peek_skip_ws(self, &c))) goto error;
+            if (MS_UNLIKELY(!json_peek_skip_ws(self, &c))) goto error;
         }
         else if (first) {
             /* Only the first item doesn't need a comma delimiter */
             first = false;
         }
         else {
-            js_err_invalid(self, "expected ',' or '}'");
+            json_err_invalid(self, "expected ',' or '}'");
             goto error;
         }
 
         /* Parse a string key */
         if (c == '"') {
-            key_size = js_decode_string_view(self, &key);
+            key_size = json_decode_string_view(self, &key);
             if (key_size < 0) goto error;
         }
         else if (c == '}') {
-            js_err_invalid(self, "trailing comma in object");
+            json_err_invalid(self, "trailing comma in object");
             goto error;
         }
         else {
-            js_err_invalid(self, "object keys must be strings");
+            json_err_invalid(self, "object keys must be strings");
             goto error;
         }
 
         /* Parse colon */
-        if (MS_UNLIKELY(!js_peek_skip_ws(self, &c))) goto error;
+        if (MS_UNLIKELY(!json_peek_skip_ws(self, &c))) goto error;
         if (c != ':') {
-            js_err_invalid(self, "expected ':'");
+            json_err_invalid(self, "expected ':'");
             goto error;
         }
         self->input_pos++;
@@ -6815,11 +6815,11 @@ js_decode_struct_map(
         field_index = StructMeta_get_field_index(st_type, key, key_size, &pos);
         if (field_index < 0) {
             /* Skip unknown fields */
-            if (js_skip(self) < 0) goto error;
+            if (json_skip(self) < 0) goto error;
         }
         else {
             field_path.index = field_index;
-            val = js_decode(
+            val = json_decode(
                 self, st_type->struct_types[field_index], &field_path, is_key
             );
             if (val == NULL) goto error;
@@ -6837,21 +6837,21 @@ error:
 }
 
 static PyObject *
-js_decode_object(
+json_decode_object(
     JSONDecoderState *self, TypeNode *type, PathNode *path, bool is_key
 ) {
     if (type->types & MS_TYPE_ANY) {
-        return js_decode_dict(self, type, type, path);
+        return json_decode_dict(self, type, type, path);
     }
     else if (type->types & MS_TYPE_DICT) {
         TypeNode *key, *val;
         TypeNode_get_dict(type, &key, &val);
-        return js_decode_dict(self, key, val, path);
+        return json_decode_dict(self, key, val, path);
     }
     else if (type->types & MS_TYPE_STRUCT) {
         StructMetaObject *struct_type = TypeNode_get_struct(type);
         if (struct_type->asarray != OPT_TRUE) {
-            return js_decode_struct_map(self, struct_type, type, path, is_key);
+            return json_decode_struct_map(self, struct_type, type, path, is_key);
         }
     }
     return ms_validation_error("object", type, path);
@@ -6860,7 +6860,7 @@ js_decode_object(
 #define is_digit(c) (c >= '0' && c <= '9')
 
 static MS_NOINLINE PyObject *
-js_decode_extended_float(JSONDecoderState *self) {
+json_decode_extended_float(JSONDecoderState *self) {
     uint32_t nd = 0;
     int32_t dp = 0;
 
@@ -6877,7 +6877,7 @@ js_decode_extended_float(JSONDecoderState *self) {
     /* Parse minus sign (if present) */
     if (c == '-') {
         self->input_pos++;
-        c = js_peek_or_null(self);
+        c = json_peek_or_null(self);
         dec.negative = true;
     }
 
@@ -6885,9 +6885,9 @@ js_decode_extended_float(JSONDecoderState *self) {
     if (MS_UNLIKELY(c == '0')) {
         /* Ensure at most one leading zero */
         self->input_pos++;
-        c = js_peek_or_null(self);
+        c = json_peek_or_null(self);
         /* This _can't_ happen, since it would have been caught in the fast routine first */
-        /*if (MS_UNLIKELY(is_digit(c))) return js_err_invalid(self, "invalid number");*/
+        /*if (MS_UNLIKELY(is_digit(c))) return json_err_invalid(self, "invalid number");*/
     }
     else {
         /* Parse the integer part of the number. */
@@ -6902,10 +6902,10 @@ js_decode_extended_float(JSONDecoderState *self) {
             }
         }
         /* This _can't_ happen, since it would have been caught in the fast routine first */
-        /*if (MS_UNLIKELY(nd == 0)) return js_err_invalid(self, "invalid character");*/
+        /*if (MS_UNLIKELY(nd == 0)) return json_err_invalid(self, "invalid character");*/
     }
 
-    c = js_peek_or_null(self);
+    c = json_peek_or_null(self);
     if (c == '.') {
         self->input_pos++;
         /* Track leading zeros implicitly */
@@ -6923,16 +6923,16 @@ js_decode_extended_float(JSONDecoderState *self) {
             }
         }
         /* Error if no digits after decimal */
-        if (MS_UNLIKELY(cur_pos == self->input_pos)) return js_err_invalid(self, "invalid number");
+        if (MS_UNLIKELY(cur_pos == self->input_pos)) return json_err_invalid(self, "invalid number");
 
-        c = js_peek_or_null(self);
+        c = json_peek_or_null(self);
     }
     if (c == 'e' || c == 'E') {
         self->input_pos++;
 
         int32_t exp_sign = 1, exp_part = 0;
 
-        c = js_peek_or_null(self);
+        c = json_peek_or_null(self);
         /* Parse exponent sign (if any) */
         if (c == '+') {
             self->input_pos++;
@@ -6952,7 +6952,7 @@ js_decode_extended_float(JSONDecoderState *self) {
         }
 
         /* Error if no digits in exponent */
-        if (MS_UNLIKELY(cur_pos == self->input_pos)) return js_err_invalid(self, "invalid number");
+        if (MS_UNLIKELY(cur_pos == self->input_pos)) return json_err_invalid(self, "invalid number");
 
         dp += exp_sign * exp_part;
     }
@@ -6969,12 +6969,12 @@ js_decode_extended_float(JSONDecoderState *self) {
     }
     ms_hpd_trim(&dec);
     double res = ms_hpd_to_double(&dec);
-    if (Py_IS_INFINITY(res)) return js_err_invalid(self, "number out of range");
+    if (Py_IS_INFINITY(res)) return json_err_invalid(self, "number out of range");
     return PyFloat_FromDouble(res);
 }
 
 static PyObject *
-js_maybe_decode_number(JSONDecoderState *self, TypeNode *type, PathNode *path) {
+json_maybe_decode_number(JSONDecoderState *self, TypeNode *type, PathNode *path) {
     uint64_t mantissa = 0;
     int32_t exponent = 0;
     bool is_negative = false;
@@ -6989,7 +6989,7 @@ js_maybe_decode_number(JSONDecoderState *self, TypeNode *type, PathNode *path) {
     /* Parse minus sign (if present) */
     if (c == '-') {
         self->input_pos++;
-        c = js_peek_or_null(self);
+        c = json_peek_or_null(self);
         is_negative = true;
     }
 
@@ -6997,8 +6997,8 @@ js_maybe_decode_number(JSONDecoderState *self, TypeNode *type, PathNode *path) {
     if (MS_UNLIKELY(c == '0')) {
         /* Ensure at most one leading zero */
         self->input_pos++;
-        c = js_peek_or_null(self);
-        if (MS_UNLIKELY(is_digit(c))) return js_err_invalid(self, "invalid number");
+        c = json_peek_or_null(self);
+        if (MS_UNLIKELY(is_digit(c))) return json_err_invalid(self, "invalid number");
     }
     else {
         /* Parse the integer part of the number.
@@ -7019,13 +7019,13 @@ js_maybe_decode_number(JSONDecoderState *self, TypeNode *type, PathNode *path) {
             /* Reading a 20th digit may or may not cause overflow. Any
              * additional digits definitely will. Read the 20th digit (and
              * check for a 21st), taking the slow path upon overflow. */
-            c = js_peek_or_null(self);
+            c = json_peek_or_null(self);
             if (is_digit(c)) {
                 self->input_pos++;
                 uint64_t mantissa2 = mantissa * 10 + (uint64_t)(c - '0');
-                if (MS_UNLIKELY(mantissa2 < mantissa || is_digit(js_peek_or_null(self)))) {
+                if (MS_UNLIKELY(mantissa2 < mantissa || is_digit(json_peek_or_null(self)))) {
                     self->input_pos = initial_pos;
-                    return js_decode_extended_float(self);
+                    return json_decode_extended_float(self);
                 }
                 mantissa = mantissa2;
             }
@@ -7033,10 +7033,10 @@ js_maybe_decode_number(JSONDecoderState *self, TypeNode *type, PathNode *path) {
 
 end_integer:
         /* There must be at least one digit */
-        if (MS_UNLIKELY(n_safe == n_safe_orig)) return js_err_invalid(self, "invalid character");
+        if (MS_UNLIKELY(n_safe == n_safe_orig)) return json_err_invalid(self, "invalid character");
     }
 
-    c = js_peek_or_null(self);
+    c = json_peek_or_null(self);
     if (c == '.') {
         self->input_pos++;
         is_float = true;
@@ -7047,22 +7047,22 @@ end_integer:
             uint64_t mantissa2 = mantissa * 10 + (uint64_t)(c - '0');
             if (MS_UNLIKELY(mantissa2 < mantissa)) {
                 self->input_pos = initial_pos;
-                return js_decode_extended_float(self);
+                return json_decode_extended_float(self);
             }
             mantissa = mantissa2;
             exponent--;
         }
         /* Error if no digits after decimal */
-        if (MS_UNLIKELY(cur_pos == self->input_pos)) return js_err_invalid(self, "invalid number");
+        if (MS_UNLIKELY(cur_pos == self->input_pos)) return json_err_invalid(self, "invalid number");
 
-        c = js_peek_or_null(self);
+        c = json_peek_or_null(self);
     }
     if (c == 'e' || c == 'E') {
         int32_t exp_sign = 1, exp_part = 0;
         self->input_pos++;
         is_float = true;
 
-        c = js_peek_or_null(self);
+        c = json_peek_or_null(self);
         /* Parse exponent sign (if any) */
         if (c == '+') {
             self->input_pos++;
@@ -7082,7 +7082,7 @@ end_integer:
         }
 
         /* Error if no digits in exponent */
-        if (MS_UNLIKELY(cur_pos == self->input_pos)) return js_err_invalid(self, "invalid number");
+        if (MS_UNLIKELY(cur_pos == self->input_pos)) return json_err_invalid(self, "invalid number");
 
         exponent += exp_sign * exp_part;
     }
@@ -7106,7 +7106,7 @@ end_integer:
         double val;
         if (!reconstruct_double(mantissa, exponent, is_negative, &val)) {
             self->input_pos = initial_pos;
-            return js_decode_extended_float(self);
+            return json_decode_extended_float(self);
         }
         return PyFloat_FromDouble(val);
     }
@@ -7114,30 +7114,30 @@ end_integer:
 }
 
 static PyObject *
-js_decode(
+json_decode(
     JSONDecoderState *self, TypeNode *type, PathNode *path, bool is_key
 ) {
     unsigned char c;
 
-    if (MS_UNLIKELY(!js_peek_skip_ws(self, &c))) return NULL;
+    if (MS_UNLIKELY(!json_peek_skip_ws(self, &c))) return NULL;
 
     switch (c) {
-        case 'n': return js_decode_none(self, type, path);
-        case 't': return js_decode_true(self, type, path);
-        case 'f': return js_decode_false(self, type, path);
-        case '[': return js_decode_array(self, type, path, is_key);
-        case '{': return js_decode_object(self, type, path, is_key);
-        case '"': return js_decode_string(self, type, path);
-        default: return js_maybe_decode_number(self, type, path);
+        case 'n': return json_decode_none(self, type, path);
+        case 't': return json_decode_true(self, type, path);
+        case 'f': return json_decode_false(self, type, path);
+        case '[': return json_decode_array(self, type, path, is_key);
+        case '{': return json_decode_object(self, type, path, is_key);
+        case '"': return json_decode_string(self, type, path);
+        default: return json_maybe_decode_number(self, type, path);
     }
 }
 
 static int
-js_skip_ident(JSONDecoderState *self, const char *ident, size_t len) {
-    if (MS_UNLIKELY(!js_remaining(self, len))) return ms_err_truncated();
+json_skip_ident(JSONDecoderState *self, const char *ident, size_t len) {
+    if (MS_UNLIKELY(!json_remaining(self, len))) return ms_err_truncated();
     self->input_pos++;  /* Already checked first char */
     if (memcmp(self->input_pos, ident, len) != 0) {
-        js_err_invalid(self, "invalid character");
+        json_err_invalid(self, "invalid character");
         return -1;
     }
     self->input_pos += len;
@@ -7145,9 +7145,9 @@ js_skip_ident(JSONDecoderState *self, const char *ident, size_t len) {
 }
 
 static int
-js_skip_string_escape(JSONDecoderState *self) {
+json_skip_string_escape(JSONDecoderState *self) {
     unsigned char c;
-    if (!js_read1(self, &c)) return -1;
+    if (!json_read1(self, &c)) return -1;
 
     switch (c) {
         case '"':
@@ -7161,24 +7161,24 @@ js_skip_string_escape(JSONDecoderState *self) {
             return 0;
         case 'u': {
             unsigned int cp;
-            if (js_read_codepoint(self, &cp) < 0) return -1;
+            if (json_read_codepoint(self, &cp) < 0) return -1;
 
             if (0xDC00 <= cp && cp <= 0xDFFF) {
-                js_err_invalid(self, "invalid utf-16 surrogate pair");
+                json_err_invalid(self, "invalid utf-16 surrogate pair");
                 return -1;
             }
             else if (0xD800 <= cp && cp <= 0xDBFF) {
                 /* utf-16 pair, parse 2nd pair */
                 unsigned int cp2;
-                if (!js_remaining(self, 6)) return ms_err_truncated();
+                if (!json_remaining(self, 6)) return ms_err_truncated();
                 if (self->input_pos[0] != '\\' || self->input_pos[1] != 'u') {
-                    js_err_invalid(self, "unexpected end of hex escape");
+                    json_err_invalid(self, "unexpected end of hex escape");
                     return -1;
                 }
                 self->input_pos += 2;
-                if (js_read_codepoint(self, &cp2) < 0) return -1;
+                if (json_read_codepoint(self, &cp2) < 0) return -1;
                 if (cp2 < 0xDC00 || cp2 > 0xDFFF) {
-                    js_err_invalid(self, "invalid utf-16 surrogate pair");
+                    json_err_invalid(self, "invalid utf-16 surrogate pair");
                     return -1;
                 }
                 cp = 0x10000 + (((cp - 0xD800) << 10) | (cp2 - 0xDC00));
@@ -7186,27 +7186,27 @@ js_skip_string_escape(JSONDecoderState *self) {
             return 0;
         }
         default: {
-            js_err_invalid(self, "invalid escaped character");
+            json_err_invalid(self, "invalid escaped character");
             return -1;
         }
     }
 }
 
 static int
-js_skip_string(JSONDecoderState *self) {
+json_skip_string(JSONDecoderState *self) {
     unsigned char c;
     self->input_pos++; /* Skip '"' */
     while (true) {
-        if (!js_read1(self, &c)) return -1;
+        if (!json_read1(self, &c)) return -1;
         if (MS_UNLIKELY(escape_table[c])) {
             if (c == '"') {
                 return 0;
             }
             else if (c == '\\') {
-                if (js_skip_string_escape(self) < 0) return -1;
+                if (json_skip_string_escape(self) < 0) return -1;
             }
             else {
-                js_err_invalid(self, "invalid character");
+                json_err_invalid(self, "invalid character");
                 return -1;
             }
         }
@@ -7214,7 +7214,7 @@ js_skip_string(JSONDecoderState *self) {
 }
 
 static int
-js_skip_array(JSONDecoderState *self) {
+json_skip_array(JSONDecoderState *self) {
     unsigned char c;
     bool first = true;
     int out = -1;
@@ -7223,7 +7223,7 @@ js_skip_array(JSONDecoderState *self) {
 
     if (Py_EnterRecursiveCall(" while deserializing an object")) return -1;
     while (true) {
-        if (MS_UNLIKELY(!js_peek_skip_ws(self, &c))) break;
+        if (MS_UNLIKELY(!json_peek_skip_ws(self, &c))) break;
         if (c == ']') {
             self->input_pos++;
             out = 0;
@@ -7231,28 +7231,28 @@ js_skip_array(JSONDecoderState *self) {
         }
         else if (c == ',' && !first) {
             self->input_pos++;
-            if (MS_UNLIKELY(!js_peek_skip_ws(self, &c))) break;
+            if (MS_UNLIKELY(!json_peek_skip_ws(self, &c))) break;
         }
         else if (first) {
             first = false;
         }
         else {
-            js_err_invalid(self, "expected ',' or ']'");
+            json_err_invalid(self, "expected ',' or ']'");
             break;
         }
         if (MS_UNLIKELY(c == ']')) {
-            js_err_invalid(self, "trailing comma in array");
+            json_err_invalid(self, "trailing comma in array");
             break;
         }
 
-        if (js_skip(self) < 0) break;
+        if (json_skip(self) < 0) break;
     }
     Py_LeaveRecursiveCall();
     return out;
 }
 
 static int
-js_skip_object(JSONDecoderState *self) {
+json_skip_object(JSONDecoderState *self) {
     unsigned char c;
     bool first = true;
     int out = -1;
@@ -7261,7 +7261,7 @@ js_skip_object(JSONDecoderState *self) {
 
     if (Py_EnterRecursiveCall(" while deserializing an object")) return -1;
     while (true) {
-        if (MS_UNLIKELY(!js_peek_skip_ws(self, &c))) break;
+        if (MS_UNLIKELY(!json_peek_skip_ws(self, &c))) break;
         if (c == '}') {
             self->input_pos++;
             out = 0;
@@ -7269,46 +7269,46 @@ js_skip_object(JSONDecoderState *self) {
         }
         else if (c == ',' && !first) {
             self->input_pos++;
-            if (MS_UNLIKELY(!js_peek_skip_ws(self, &c))) break;
+            if (MS_UNLIKELY(!json_peek_skip_ws(self, &c))) break;
         }
         else if (first) {
             first = false;
         }
         else {
-            js_err_invalid(self, "expected ',' or '}'");
+            json_err_invalid(self, "expected ',' or '}'");
             break;
         }
 
         /* Skip key */
         if (c == '"') {
-            if (js_skip_string(self) < 0) break;
+            if (json_skip_string(self) < 0) break;
         }
         else if (c == '}') {
-            js_err_invalid(self, "trailing comma in object");
+            json_err_invalid(self, "trailing comma in object");
             break;
         }
         else {
-            js_err_invalid(self, "expected '\"'");
+            json_err_invalid(self, "expected '\"'");
             break;
         }
 
         /* Parse colon */
-        if (MS_UNLIKELY(!js_peek_skip_ws(self, &c))) break;
+        if (MS_UNLIKELY(!json_peek_skip_ws(self, &c))) break;
         if (c != ':') {
-            js_err_invalid(self, "expected ':'");
+            json_err_invalid(self, "expected ':'");
             break;
         }
         self->input_pos++;
 
         /* Skip value */
-        if (js_skip(self) < 0) break;
+        if (json_skip(self) < 0) break;
     }
     Py_LeaveRecursiveCall();
     return out;
 }
 
 static int
-js_maybe_skip_number(JSONDecoderState *self) {
+json_maybe_skip_number(JSONDecoderState *self) {
     /* We know there is at least one byte available when this function is
      * called */
     char c = *self->input_pos;
@@ -7316,16 +7316,16 @@ js_maybe_skip_number(JSONDecoderState *self) {
     /* Parse minus sign (if present) */
     if (c == '-') {
         self->input_pos++;
-        c = js_peek_or_null(self);
+        c = json_peek_or_null(self);
     }
 
     /* Parse integer */
     if (MS_UNLIKELY(c == '0')) {
         /* Ensure at most one leading zero */
         self->input_pos++;
-        c = js_peek_or_null(self);
+        c = json_peek_or_null(self);
         if (MS_UNLIKELY(is_digit(c))) {
-            js_err_invalid(self, "invalid number");
+            json_err_invalid(self, "invalid number");
             return -1;
         }
     }
@@ -7337,12 +7337,12 @@ js_maybe_skip_number(JSONDecoderState *self) {
         }
         /* There must be at least one digit */
         if (MS_UNLIKELY(cur_pos == self->input_pos)) {
-            js_err_invalid(self, "invalid character");
+            json_err_invalid(self, "invalid character");
             return -1;
         }
     }
 
-    c = js_peek_or_null(self);
+    c = json_peek_or_null(self);
     if (c == '.') {
         self->input_pos++;
         /* Skip remaining digits until invalid/unknown character */
@@ -7352,17 +7352,17 @@ js_maybe_skip_number(JSONDecoderState *self) {
         }
         /* Error if no digits after decimal */
         if (MS_UNLIKELY(cur_pos == self->input_pos)) {
-            js_err_invalid(self, "invalid number");
+            json_err_invalid(self, "invalid number");
             return -1;
         }
 
-        c = js_peek_or_null(self);
+        c = json_peek_or_null(self);
     }
     if (c == 'e' || c == 'E') {
         self->input_pos++;
 
         /* Parse exponent sign (if any) */
-        c = js_peek_or_null(self);
+        c = json_peek_or_null(self);
         if (c == '+' || c == '-') {
             self->input_pos++;
         }
@@ -7374,7 +7374,7 @@ js_maybe_skip_number(JSONDecoderState *self) {
         }
         /* Error if no digits in exponent */
         if (MS_UNLIKELY(cur_pos == self->input_pos)) {
-            js_err_invalid(self, "invalid number");
+            json_err_invalid(self, "invalid number");
             return -1;
         }
     }
@@ -7382,20 +7382,20 @@ js_maybe_skip_number(JSONDecoderState *self) {
 }
 
 static int
-js_skip(JSONDecoderState *self)
+json_skip(JSONDecoderState *self)
 {
     unsigned char c;
 
-    if (MS_UNLIKELY(!js_peek_skip_ws(self, &c))) return -1;
+    if (MS_UNLIKELY(!json_peek_skip_ws(self, &c))) return -1;
 
     switch (c) {
-        case 'n': return js_skip_ident(self, "ull", 3);
-        case 't': return js_skip_ident(self, "rue", 3);
-        case 'f': return js_skip_ident(self, "alse", 4);
-        case '"': return js_skip_string(self);
-        case '[': return js_skip_array(self);
-        case '{': return js_skip_object(self);
-        default: return js_maybe_skip_number(self);
+        case 'n': return json_skip_ident(self, "ull", 3);
+        case 't': return json_skip_ident(self, "rue", 3);
+        case 'f': return json_skip_ident(self, "alse", 4);
+        case '"': return json_skip_string(self);
+        case '[': return json_skip_array(self);
+        case '{': return json_skip_object(self);
+        default: return json_maybe_skip_number(self);
     }
 }
 
@@ -7433,9 +7433,9 @@ JSONDecoder_decode(JSONDecoder *self, PyObject *const *args, Py_ssize_t nargs)
         self->state.input_pos = buffer.buf;
         self->state.input_end = self->state.input_pos + buffer.len;
 
-        res = js_decode(&(self->state), self->state.type, NULL, false);
+        res = json_decode(&(self->state), self->state.type, NULL, false);
 
-        if (res != NULL && js_has_trailing_characters(&self->state)) {
+        if (res != NULL && json_has_trailing_characters(&self->state)) {
             res = NULL;
         }
 
@@ -7444,7 +7444,7 @@ JSONDecoder_decode(JSONDecoder *self, PyObject *const *args, Py_ssize_t nargs)
         self->state.input_start = NULL;
         self->state.input_pos = NULL;
         self->state.input_end = NULL;
-        js_scratch_reset(&(self->state));
+        json_scratch_reset(&(self->state));
     }
 
     return res;
@@ -7588,13 +7588,13 @@ msgspec_json_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyO
         state.input_end = state.input_pos + buffer.len;
 
         if (state.type != NULL) {
-            res = js_decode(&state, state.type, NULL, false);
+            res = json_decode(&state, state.type, NULL, false);
         } else {
             TypeNode type_any = {MS_TYPE_ANY};
-            res = js_decode(&state, &type_any, NULL, false);
+            res = json_decode(&state, &type_any, NULL, false);
         }
 
-        if (res != NULL && js_has_trailing_characters(&state)) {
+        if (res != NULL && json_has_trailing_characters(&state)) {
             res = NULL;
         }
 
