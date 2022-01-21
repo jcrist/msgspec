@@ -537,55 +537,13 @@ class TestDecoderMisc:
         with pytest.raises(TypeError, match="Oh no!"):
             dec.decode(buf)
 
-    @pytest.mark.parametrize("typ, typstr", [(None, "None"), (Any, "Any")])
-    def test_decoder_none_any_repr(self, typ, typstr):
+    def test_decoder_repr(self):
+        typ = List[Dict[int, float]]
         dec = msgspec.msgpack.Decoder(typ)
-        assert repr(dec) == f"Decoder({typstr})"
-        # Optionality of None/Any doesn't change things
-        dec = msgspec.msgpack.Decoder(Optional[typ])
-        assert repr(dec) == f"Decoder({typstr})"
+        assert repr(dec) == f"msgspec.msgpack.Decoder({typ!r})"
 
-    def test_decoder_union_with_any_is_just_any(self):
-        dec = msgspec.msgpack.Decoder(Union[int, float, str, Any, Node, None])
-        assert repr(dec) == "Decoder(Any)"
-
-    @pytest.mark.parametrize(
-        "typ, typstr",
-        [
-            (bool, "bool"),
-            (int, "int"),
-            (float, "float"),
-            (str, "str"),
-            (bytes, "bytes"),
-            (bytearray, "bytearray"),
-            (datetime.datetime, "datetime"),
-            (msgspec.msgpack.Ext, "Ext"),
-            (Dict, "Dict[Any, Any]"),
-            (Dict[int, str], "Dict[int, str]"),
-            (List, "List[Any]"),
-            (List[Optional[int]], "List[Optional[int]]"),
-            (Set, "Set[Any]"),
-            (Set[Optional[int]], "Set[Optional[int]]"),
-            (Tuple, "Tuple[Any, ...]"),
-            (Tuple[Optional[int], ...], "Tuple[Optional[int], ...]"),
-            (Tuple[int, str], "Tuple[int, str]"),
-            (Person, "Person"),
-            (FruitInt, "FruitInt"),
-            (FruitStr, "FruitStr"),
-            (Deque, "typing.Deque"),
-            (Deque[int], str(Deque[int])),
-            (List[Optional[Dict[str, Person]]], "List[Optional[Dict[str, Person]]]"),
-            (Union[int, float], "Union[int, float]"),
-            (Union[Person, str, int], "Union[int, str, Person]"),
-        ],
-    )
-    def test_decoder_repr(self, typ, typstr):
-        dec = msgspec.msgpack.Decoder(typ)
-        assert repr(dec) == f"Decoder({typstr})"
-
-        if "Union" not in typstr:
-            dec = msgspec.msgpack.Decoder(Optional[typ])
-            assert repr(dec) == f"Decoder(Optional[{typstr}])"
+        dec = msgspec.msgpack.Decoder()
+        assert repr(dec) == f"msgspec.msgpack.Decoder({Any!r})"
 
     def test_decoder_unsupported_type(self):
         with pytest.raises(TypeError):
@@ -673,6 +631,14 @@ class TestTypedDecoder:
         s = msgspec.msgpack.Encoder().encode(val)
         with pytest.raises(msgspec.DecodingError, match=msg):
             dec.decode(s)
+
+    def test_any(self):
+        dec = msgspec.msgpack.Decoder(Any)
+        assert dec.decode(msgspec.msgpack.encode([1, 2, 3])) == [1, 2, 3]
+
+        # A union that includes `Any` is just `Any`
+        dec = msgspec.msgpack.Decoder(Union[Any, float, int, None])
+        assert dec.decode(msgspec.msgpack.encode([1, 2, 3])) == [1, 2, 3]
 
     def test_none(self):
         enc = msgspec.msgpack.Encoder()
