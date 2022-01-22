@@ -24,11 +24,13 @@ ms_popcount(uint32_t i) {
 
 #if PY_VERSION_HEX < 0x03090000
 #define IS_TRACKED _PyObject_GC_IS_TRACKED
-#define CALL_ONE_ARG(fn, arg) PyObject_CallFunctionObjArgs((fn), (arg), NULL)
+#define CALL_ONE_ARG _PyObject_CallOneArg
+#define CALL_METHOD_ONE_ARG _PyObject_CallMethodOneArg
 #define SET_SIZE(obj, size) (((PyVarObject *)obj)->ob_size = size)
 #else
 #define IS_TRACKED  PyObject_GC_IsTracked
-#define CALL_ONE_ARG(fn, arg) PyObject_CallOneArg((fn), (arg))
+#define CALL_ONE_ARG PyObject_CallOneArg
+#define CALL_METHOD_ONE_ARG PyObject_CallMethodOneArg
 #define SET_SIZE(obj, size) Py_SET_SIZE(obj, size)
 #endif
 
@@ -135,6 +137,7 @@ typedef struct {
     PyObject *str_dec_hook;
     PyObject *str_ext_hook;
     PyObject *str_tzinfo;
+    PyObject *str_utcoffset;
     PyObject *str___origin__;
     PyObject *str___args__;
     PyObject *typing_list;
@@ -3919,6 +3922,111 @@ json_encode_enum(EncoderState *self, PyObject *obj)
     return status;
 }
 
+static MS_INLINE char *
+json_write_fixint(char *p, uint32_t x, int width) {
+    p += width;
+    for (int i = 0; i < width; i++) {
+        *--p = (x % 10) + '0';
+        x = x / 10;
+    }
+    return p + width;
+}
+
+#define MS_HAS_TZINFO(o)  (((_PyDateTime_BaseTZInfo *)(o))->hastzinfo)
+#if PY_VERSION_HEX < 0x030a00f0
+#define MS_GET_TZINFO(o)      (MS_HAS_TZINFO(o) ? \
+    ((PyDateTime_DateTime *)(o))->tzinfo : Py_None)
+#else
+#define MS_GET_TZINFO PyDateTime_DATE_GET_TZINFO
+#endif
+
+static int
+json_encode_datetime(EncoderState *self, PyObject *obj)
+{
+    uint32_t year = PyDateTime_GET_YEAR(obj);
+    uint8_t month = PyDateTime_GET_MONTH(obj);
+    uint8_t day = PyDateTime_GET_DAY(obj);
+
+    uint8_t hour = PyDateTime_DATE_GET_HOUR(obj);
+    uint8_t minute = PyDateTime_DATE_GET_MINUTE(obj);
+    uint8_t second = PyDateTime_DATE_GET_SECOND(obj);
+    uint32_t microsecond = PyDateTime_DATE_GET_MICROSECOND(obj);
+    int32_t offset_days = 0, offset_secs = 0;
+
+    if (MS_HAS_TZINFO(obj)) {
+        PyObject *tzinfo = MS_GET_TZINFO(obj);
+        if (tzinfo != PyDateTime_TimeZone_UTC) {
+            MsgspecState *st = msgspec_get_global_state();
+            PyObject *offset = CALL_METHOD_ONE_ARG(tzinfo, st->str_utcoffset, obj);
+            if (offset == NULL) return -1;
+            if (PyDelta_Check(offset)) {
+                offset_days = PyDateTime_DELTA_GET_DAYS(offset);
+                offset_secs = PyDateTime_DELTA_GET_SECONDS(offset);
+            }
+            else if (offset != Py_None) {
+                PyErr_SetString(
+                    PyExc_TypeError,
+                    "datetime.tzinfo.utcoffset returned a non-timedelta object"
+                );
+                Py_DECREF(offset);
+                return -1;
+            }
+            Py_DECREF(offset);
+        }
+    }
+
+    char buf[34];
+    char *p = buf;
+    memset(p, '0', 34);
+
+    *p++ = '"';
+    p = json_write_fixint(p, year, 4);
+    *p++ = '-';
+    p = json_write_fixint(p, month, 2);
+    *p++ = '-';
+    p = json_write_fixint(p, day, 2);
+    *p++ = 'T';
+    p = json_write_fixint(p, hour, 2);
+    *p++ = ':';
+    p = json_write_fixint(p, minute, 2);
+    *p++ = ':';
+    p = json_write_fixint(p, second, 2);
+    if (microsecond) {
+        *p++ = '.';
+        p = json_write_fixint(p, microsecond, 6);
+    }
+    if (offset_days == 0 && offset_secs == 0) {
+        *p++ = 'Z';
+    }
+    else {
+        if (offset_days == -1) {
+            *p++ = '-';
+            offset_secs = 86400 - offset_secs;
+        }
+        else {
+            *p++ = '+';
+        }
+        uint8_t offset_hour = offset_secs / 3600;
+        uint8_t offset_min = (offset_secs / 60) % 60;
+        /* If the offset isn't an even number of minutes, RFC 3339
+        * indicates that the offset should be rounded to the nearest
+        * possible hour:min pair */
+        bool round_up = (offset_secs - (offset_hour * 3600 + offset_min * 60)) > 30;
+        if (MS_UNLIKELY(round_up)) {
+            offset_min++;
+            if (offset_min == 60) {
+                offset_min = 0;
+                offset_hour++;
+            }
+        }
+        p = json_write_fixint(p, offset_hour, 2);
+        *p++ = ':';
+        p = json_write_fixint(p, offset_min, 2);
+    }
+    *p++ = '"';
+    return ms_write(self, buf, p - buf);
+}
+
 static int
 json_encode_list(EncoderState *self, PyObject *obj)
 {
@@ -4107,6 +4215,9 @@ json_encode(EncoderState *self, PyObject *obj)
     }
     else if (Py_TYPE(type) == &StructMetaType) {
         return json_encode_struct(self, obj);
+    }
+    else if (type == PyDateTimeAPI->DateTimeType) {
+        return json_encode_datetime(self, obj);
     }
     else if (type == &PyBytes_Type) {
         return json_encode_bytes(self, obj);
@@ -7474,6 +7585,7 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->str_dec_hook);
     Py_CLEAR(st->str_ext_hook);
     Py_CLEAR(st->str_tzinfo);
+    Py_CLEAR(st->str_utcoffset);
     Py_CLEAR(st->str___origin__);
     Py_CLEAR(st->str___args__);
     Py_CLEAR(st->typing_dict);
@@ -7690,6 +7802,7 @@ PyInit__core(void)
     CACHED_STRING(str_dec_hook, "dec_hook");
     CACHED_STRING(str_ext_hook, "ext_hook");
     CACHED_STRING(str_tzinfo, "tzinfo");
+    CACHED_STRING(str_utcoffset, "utcoffset");
     CACHED_STRING(str___origin__, "__origin__");
     CACHED_STRING(str___args__, "__args__");
 
