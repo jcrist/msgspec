@@ -34,6 +34,8 @@ ms_popcount(uint32_t i) {
 #define SET_SIZE(obj, size) Py_SET_SIZE(obj, size)
 #endif
 
+#define is_digit(c) (c >= '0' && c <= '9')
+
 /* Easy access to NoneType object */
 #define NONE_TYPE ((PyObject *)(Py_TYPE(Py_None)))
 
@@ -5677,12 +5679,15 @@ typedef struct JSONDecoderState {
     /* Configuration */
     TypeNode *type;
     PyObject *dec_hook;
-    PyObject *tzinfo;
 
     /* Temporary scratch space */
     unsigned char *scratch;
     ssize_t scratch_capacity;
     Py_ssize_t scratch_len;
+
+    /* Timezone cache */
+    int tzoffset;
+    PyObject *tzinfo;
 
     /* Per-message attributes */
     PyObject *buffer_obj;
@@ -5698,7 +5703,7 @@ typedef struct JSONDecoder {
 } JSONDecoder;
 
 PyDoc_STRVAR(JSONDecoder__doc__,
-"Decoder(type='Any', *, dec_hook=None, tzinfo=None)\n"
+"Decoder(type='Any', *, dec_hook=None)\n"
 "--\n"
 "\n"
 "A JSON decoder.\n"
@@ -5715,23 +5720,17 @@ PyDoc_STRVAR(JSONDecoder__doc__,
 "    signature ``dec_hook(type: Type, obj: Any) -> Any``, where ``type`` is the\n"
 "    expected message type, and ``obj`` is the decoded representation composed\n"
 "    of only basic MessagePack types. This hook should transform ``obj`` into\n"
-"    type ``type``, or raise a ``TypeError`` if unsupported.\n"
-"tzinfo : datetime.tzinfo, optional\n"
-"    The timezone to use when decoding ``datetime.datetime`` objects. Defaults\n"
-"    to ``None`` for \"naive\" datetimes."
+"    type ``type``, or raise a ``TypeError`` if unsupported."
 );
 static int
 JSONDecoder_init(JSONDecoder *self, PyObject *args, PyObject *kwds)
 {
-    static char *kwlist[] = {"type", "dec_hook", "tzinfo", NULL};
+    static char *kwlist[] = {"type", "dec_hook", NULL};
     MsgspecState *st = msgspec_get_global_state();
     PyObject *type = st->typing_any;
     PyObject *dec_hook = NULL;
-    PyObject *tzinfo = NULL;
 
-    if (!PyArg_ParseTupleAndKeywords(
-            args, kwds, "|O$OOO", kwlist, &type, &dec_hook, &tzinfo
-        )) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|O$OO", kwlist, &type, &dec_hook)) {
         return -1;
     }
 
@@ -5755,20 +5754,9 @@ JSONDecoder_init(JSONDecoder *self, PyObject *args, PyObject *kwds)
     Py_INCREF(type);
     self->orig_type = type;
 
-    /* Handle tzinfo */
-    if (tzinfo == Py_None) {
-        tzinfo = NULL;
-    }
-    if (tzinfo != NULL) {
-        int ok = PyObject_IsInstance(tzinfo, (PyObject *)(PyDateTimeAPI->TZInfoType));
-        if (ok == -1) return -1;
-        if (ok == 0) {
-            PyErr_SetString(PyExc_TypeError, "tzinfo must be an instance of tzinfo");
-            return -1;
-        }
-        Py_INCREF(tzinfo);
-    }
-    self->state.tzinfo = tzinfo;
+    /* Init timezone cache */
+    self->state.tzoffset = 0;
+    self->state.tzinfo = NULL;
 
     /* Init scratch space */
     self->state.scratch = NULL;
@@ -5785,6 +5773,7 @@ JSONDecoder_traverse(JSONDecoder *self, visitproc visit, void *arg)
     if (out != 0) return out;
     Py_VISIT(self->orig_type);
     Py_VISIT(self->state.dec_hook);
+    Py_VISIT(self->state.tzinfo);
     return 0;
 }
 
@@ -5794,8 +5783,9 @@ JSONDecoder_dealloc(JSONDecoder *self)
     TypeNode_Free(self->state.type);
     Py_XDECREF(self->orig_type);
     Py_XDECREF(self->state.dec_hook);
-    Py_TYPE(self)->tp_free((PyObject *)self);
+    Py_XDECREF(self->state.tzinfo);
     PyMem_Free(self->state.scratch);
+    Py_TYPE(self)->tp_free((PyObject *)self);
 }
 
 static PyObject *
@@ -6566,14 +6556,153 @@ invalid:
     return NULL;
 }
 
+static inline const char *
+json_read_fixint(const char *buf, int width, int *out) {
+    int x = 0;
+    for (int i = 0; i < width; i++) {
+        char c = *buf++;
+        if (!is_digit(c)) return NULL;
+        x = x * 10 + (c - '0');
+    }
+    *out = x;
+    return buf;
+}
+
+static PyObject *
+json_decode_datetime(
+    JSONDecoderState *self, const char *buf, Py_ssize_t size, PathNode *path
+) {
+    int year, month, day, hour, minute, second, microsecond = 0, offset = 0;
+    const char *buf_end = buf + size;
+    char c;
+    MsgspecState *st;
+    PyObject *tzinfo, *suffix;
+
+    /* A valid datetime is at least 20 characters in length */
+    if (size < 20) goto invalid;
+
+    /* Parse date */
+    if ((buf = json_read_fixint(buf, 4, &year)) == NULL) goto invalid;
+    if (*buf++ != '-') goto invalid;
+    if ((buf = json_read_fixint(buf, 2, &month)) == NULL) goto invalid;
+    if (*buf++ != '-') goto invalid;
+    if ((buf = json_read_fixint(buf, 2, &day)) == NULL) goto invalid;
+
+    /* Date/time separator can be T or t */
+    c = *buf++;
+    if (!(c == 'T' || c == 't')) goto invalid;
+
+    /* Parse time */
+    if ((buf = json_read_fixint(buf, 2, &hour)) == NULL) goto invalid;
+    if (*buf++ != ':') goto invalid;
+    if ((buf = json_read_fixint(buf, 2, &minute)) == NULL) goto invalid;
+    if (*buf++ != ':') goto invalid;
+    if ((buf = json_read_fixint(buf, 2, &second)) == NULL) goto invalid;
+
+    /* This is the last read that doesn't need a bounds check */
+    c = *buf++;
+
+    /* Parse decimal if present.
+     *
+     * We accept up to 6 decimal digits and error if more are present. We
+     * *could* instead drop the excessive digits and round, but that's more
+     * complicated. Other systems commonly accept 3 or 6 digits, but RFC3339
+     * doesn't specify a decimal precision.  */
+    if (c == '.') {
+        int ndigits = 0;
+        while (buf < buf_end) {
+            c = *buf++;
+            if (!is_digit(c)) break;
+            ndigits++;
+            /* if decimal precision is higher than we support, error */
+            if (ndigits > 6) goto invalid;
+            microsecond = microsecond * 10 + (c - '0');
+        }
+        /* Error if no digits after decimal */
+        if (ndigits == 0) goto invalid;
+        int pow10[6] = {100000, 10000, 1000, 100, 10, 1};
+        /* Scale microseconds appropriately */
+        microsecond *= pow10[ndigits - 1];
+    }
+
+    /* Parse timezone */
+    if (!(c == 'Z' || c == 'z')) {
+        int offset_hour, offset_min;
+        if (c == '-') {
+            offset = -1;
+        }
+        else if (c == '+') {
+            offset = 1;
+        }
+        else {
+            goto invalid;
+        }
+
+        if (buf_end - buf < 5) goto invalid;
+
+        if ((buf = json_read_fixint(buf, 2, &offset_hour)) == NULL) goto invalid;
+        if (*buf++ != ':') goto invalid;
+        if ((buf = json_read_fixint(buf, 2, &offset_min)) == NULL) goto invalid;
+        if (offset_hour > 23 || offset_min > 59) goto invalid;
+        offset *= (offset_hour * 60 * 60 + offset_min * 60);
+    }
+
+    if (buf != buf_end) goto invalid;
+
+    if (offset == 0) {
+        tzinfo = PyDateTime_TimeZone_UTC;
+    }
+    else {
+        if (offset != self->tzoffset) {
+            PyObject *delta = NULL, *tzinfo = NULL;
+            if ((delta = PyDelta_FromDSU(0, offset, 0)) == NULL) return NULL;
+            if ((tzinfo = PyTimeZone_FromOffset(delta)) == NULL) {
+                Py_DECREF(delta);
+                return NULL;
+            }
+            /* Cache the tzinfo object, assuming subsequent datetimes will
+            * use the same timezone. */
+            Py_XDECREF(self->tzinfo);
+            self->tzinfo = tzinfo;
+            self->tzoffset = offset;
+            Py_DECREF(delta);
+        }
+        tzinfo = self->tzinfo;
+    }
+
+    return PyDateTimeAPI->DateTime_FromDateAndTime(
+        year, month, day, hour, minute, second, microsecond,
+        tzinfo, PyDateTimeAPI->DateTimeType
+    );
+
+invalid:
+    st = msgspec_get_global_state();
+    suffix = PathNode_ErrSuffix(path);
+    if (suffix != NULL) {
+        PyErr_Format(st->DecodingError, "Invalid RFC3339 encoded datetime%U", suffix);
+        Py_DECREF(suffix);
+    }
+    return NULL;
+}
+
 static PyObject *
 json_decode_string(JSONDecoderState *self, TypeNode *type, PathNode *path) {
-    if (MS_LIKELY(type->types & (MS_TYPE_ANY | MS_TYPE_STR | MS_TYPE_ENUM | MS_TYPE_BYTES | MS_TYPE_BYTEARRAY))) {
+    if (
+        MS_LIKELY(
+            type->types & (
+                MS_TYPE_ANY | MS_TYPE_STR | MS_TYPE_ENUM |
+                MS_TYPE_BYTES | MS_TYPE_BYTEARRAY | MS_TYPE_DATETIME
+            )
+        )
+    ) {
         char *view = NULL;
         Py_ssize_t size = json_decode_string_view(self, &view);
         if (size < 0) return NULL;
         if (MS_UNLIKELY(type->types & (MS_TYPE_BYTES | MS_TYPE_BYTEARRAY))) {
             return json_decode_binary(self, view, size, type, path);
+        }
+        else if (MS_UNLIKELY(type->types & MS_TYPE_DATETIME)) {
+            return json_decode_datetime(self, view, size, path);
         }
         PyObject *val = PyUnicode_DecodeUTF8(view, size, NULL);
         if (val == NULL) return NULL;
@@ -6776,8 +6905,6 @@ json_decode_object(
     }
     return ms_validation_error("object", type, path);
 }
-
-#define is_digit(c) (c >= '0' && c <= '9')
 
 static MS_NOINLINE PyObject *
 json_decode_extended_float(JSONDecoderState *self) {
@@ -7414,7 +7541,7 @@ static PyTypeObject JSONDecoder_Type = {
 };
 
 PyDoc_STRVAR(msgspec_json_decode__doc__,
-"decode(buf, *, type='Any', dec_hook=None, tzinfo=None)\n"
+"decode(buf, *, type='Any', dec_hook=None)\n"
 "--\n"
 "\n"
 "Deserialize an object from bytes.\n"
@@ -7434,9 +7561,6 @@ PyDoc_STRVAR(msgspec_json_decode__doc__,
 "    expected message type, and ``obj`` is the decoded representation composed\n"
 "    of only basic JSON types. This hook should transform ``obj`` into type\n"
 "    ``type``, or raise a ``TypeError`` if unsupported.\n"
-"tzinfo : datetime.tzinfo, optional\n"
-"    The timezone to use when decoding ``datetime.datetime`` objects. Defaults\n"
-"    to ``None`` for \"naive\" datetimes.\n"
 "\n"
 "Returns\n"
 "-------\n"
@@ -7450,7 +7574,7 @@ PyDoc_STRVAR(msgspec_json_decode__doc__,
 static PyObject*
 msgspec_json_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
 {
-    PyObject *res = NULL, *buf = NULL, *type = NULL, *dec_hook = NULL, *tzinfo = NULL;
+    PyObject *res = NULL, *buf = NULL, *type = NULL, *dec_hook = NULL;
     JSONDecoderState state;
     Py_buffer buffer;
     MsgspecState *st = msgspec_get_global_state();
@@ -7462,7 +7586,6 @@ msgspec_json_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyO
         Py_ssize_t nkwargs = PyTuple_GET_SIZE(kwnames);
         if ((type = find_keyword(kwnames, args + nargs, st->str_type)) != NULL) nkwargs--;
         if ((dec_hook = find_keyword(kwnames, args + nargs, st->str_dec_hook)) != NULL) nkwargs--;
-        if ((tzinfo = find_keyword(kwnames, args + nargs, st->str_tzinfo)) != NULL) nkwargs--;
         if (nkwargs > 0) {
             PyErr_SetString(
                 PyExc_TypeError,
@@ -7484,20 +7607,11 @@ msgspec_json_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyO
     }
     state.dec_hook = dec_hook;
 
-    /* Handle tzinfo */
-    if (tzinfo == Py_None) {
-        tzinfo = NULL;
-    }
-    if (tzinfo != NULL) {
-        int ok = PyObject_IsInstance(tzinfo, (PyObject *)(PyDateTimeAPI->TZInfoType));
-        if (ok == -1) return NULL;
-        if (ok == 0) {
-            PyErr_SetString(PyExc_TypeError, "tzinfo must be an instance of tzinfo");
-            return NULL;
-        }
-    }
-    state.tzinfo = tzinfo;
+    /* Init timezone cache */
+    state.tzoffset = 0;
+    state.tzinfo = NULL;
 
+    /* Init scratch space */
     state.scratch = NULL;
     state.scratch_capacity = 0;
     state.scratch_len = 0;
@@ -7534,6 +7648,7 @@ msgspec_json_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyO
         PyBuffer_Release(&buffer);
     }
 
+    Py_XDECREF(state.tzinfo);
     PyMem_Free(state.scratch);
 
     if (state.type != NULL) {
