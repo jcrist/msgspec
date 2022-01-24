@@ -23,14 +23,14 @@ ms_popcount(uint32_t i) {
 #endif
 
 #if PY_VERSION_HEX < 0x03090000
-#define IS_TRACKED _PyObject_GC_IS_TRACKED
-#define CALL_ONE_ARG _PyObject_CallOneArg
-#define CALL_METHOD_ONE_ARG _PyObject_CallMethodOneArg
+#define IS_TRACKED(o) _PyObject_GC_IS_TRACKED(o)
+#define CALL_ONE_ARG(f, a) PyObject_CallFunctionObjArgs(f, a, NULL)
+#define CALL_METHOD_ONE_ARG(o, n, a) PyObject_CallMethodObjArgs(o, n, a, NULL)
 #define SET_SIZE(obj, size) (((PyVarObject *)obj)->ob_size = size)
 #else
-#define IS_TRACKED  PyObject_GC_IsTracked
-#define CALL_ONE_ARG PyObject_CallOneArg
-#define CALL_METHOD_ONE_ARG PyObject_CallMethodOneArg
+#define IS_TRACKED(o)  PyObject_GC_IsTracked(o)
+#define CALL_ONE_ARG(f, a) PyObject_CallOneArg(f, a)
+#define CALL_METHOD_ONE_ARG(o, n, a) PyObject_CallMethodOneArg(o, n, a)
 #define SET_SIZE(obj, size) Py_SET_SIZE(obj, size)
 #endif
 
@@ -39,7 +39,7 @@ ms_popcount(uint32_t i) {
 #define MS_GET_TZINFO(o)      (MS_HAS_TZINFO(o) ? \
     ((PyDateTime_DateTime *)(o))->tzinfo : Py_None)
 #else
-#define MS_GET_TZINFO PyDateTime_DATE_GET_TZINFO
+#define MS_GET_TZINFO(o) PyDateTime_DATE_GET_TZINFO(o)
 #endif
 
 #define is_digit(c) (c >= '0' && c <= '9')
