@@ -34,14 +34,6 @@ ms_popcount(uint32_t i) {
 #define SET_SIZE(obj, size) Py_SET_SIZE(obj, size)
 #endif
 
-#define MS_HAS_TZINFO(o)  (((_PyDateTime_BaseTZInfo *)(o))->hastzinfo)
-#if PY_VERSION_HEX < 0x030a00f0
-#define MS_GET_TZINFO(o)      (MS_HAS_TZINFO(o) ? \
-    ((PyDateTime_DateTime *)(o))->tzinfo : Py_None)
-#else
-#define MS_GET_TZINFO(o) PyDateTime_DATE_GET_TZINFO(o)
-#endif
-
 #define is_digit(c) (c >= '0' && c <= '9')
 
 /* Easy access to NoneType object */
@@ -80,6 +72,191 @@ unicode_str_and_size(PyObject *str, Py_ssize_t *size) {
     }
     return PyUnicode_AsUTF8AndSize(str, size);
 }
+
+/*************************************************************************
+ * Datetime utilities                                                    *
+ *************************************************************************/
+
+#define MS_HAS_TZINFO(o)  (((_PyDateTime_BaseTZInfo *)(o))->hastzinfo)
+#if PY_VERSION_HEX < 0x030a00f0
+#define MS_GET_TZINFO(o)      (MS_HAS_TZINFO(o) ? \
+    ((PyDateTime_DateTime *)(o))->tzinfo : Py_None)
+#else
+#define MS_GET_TZINFO(o) PyDateTime_DATE_GET_TZINFO(o)
+#endif
+
+static bool
+is_leap_year(int year)
+{
+    unsigned int y = (unsigned int)year;
+    return y % 4 == 0 && (y % 100 != 0 || y % 400 == 0);
+}
+
+static int
+days_in_month(int year, int month) {
+    static const uint8_t ndays[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+    if (month == 2 && is_leap_year(year))
+        return 29;
+    else
+        return ndays[month - 1];
+}
+
+static inline int
+divmod(int x, int y, int *r) {
+    int quo = x / y;
+    *r = x - quo * y;
+    if (*r < 0) {
+        --quo;
+        *r += y;
+    }
+    return quo;
+}
+
+/* Convert a *valid* datetime with a tz offset (in minutes) to UTC time.
+ * Returns -1 on error, but no error indicator set */
+static int
+datetime_apply_tz_offset(
+    int *year, int *month, int *day, int *hour,
+    int *minute, int tz_offset
+) {
+    *minute -= tz_offset;
+    if (*minute < 0 || *minute >= 60) {
+        *hour += divmod(*minute, 60, minute);
+    }
+    if (*hour < 0 || *hour >= 24) {
+        *day += divmod(*hour, 24, hour);
+    }
+    /* days can only be off by +/- day */
+    if (*day == 0) {
+        --*month;
+        if (*month > 0)
+            *day = days_in_month(*year, *month);
+        else {
+            --*year;
+            *month = 12;
+            *day = 31;
+        }
+    }
+    else if (*day == days_in_month(*year, *month) + 1) {
+        ++*month;
+        *day = 1;
+        if (*month > 12) {
+            *month = 1;
+            ++*year;
+        }
+    }
+    if (1 <= *year && *year <= 9999)
+        return 0;
+    return -1;
+}
+
+/* Days since 0001-01-01, the min value for python's datetime objects */
+static int
+days_since_min_datetime(int year, int month, int day)
+{
+    int out = day;
+    static const int _days_before_month[] = {
+        0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334
+    };
+    out += _days_before_month[month - 1];
+    if (month > 2 && is_leap_year(year)) out++;
+
+    year--; /* makes math easier */
+    out += year*365 + year/4 - year/100 + year/400;
+
+    return out;
+}
+
+static void
+datetime_to_epoch(PyObject *obj, int64_t *seconds, int32_t *nanoseconds) {
+    int64_t d = days_since_min_datetime(
+        PyDateTime_GET_YEAR(obj),
+        PyDateTime_GET_MONTH(obj),
+        PyDateTime_GET_DAY(obj)
+    ) - 719163;  /* days_since_min_datetime(1970, 1, 1) */
+    int64_t s = (
+        PyDateTime_DATE_GET_HOUR(obj) * 3600
+        + PyDateTime_DATE_GET_MINUTE(obj) * 60
+        + PyDateTime_DATE_GET_SECOND(obj)
+    );
+    int64_t us = PyDateTime_DATE_GET_MICROSECOND(obj);
+
+    *seconds = 86400 * d + s;
+    *nanoseconds = us * 1000;
+}
+
+/* Python datetimes bounded between (inclusive)
+ * [0001-01-01T00:00:00.000000, 9999-12-31T23:59:59.999999] UTC */
+#define MS_EPOCH_SECS_MAX 253402300800
+#define MS_EPOCH_SECS_MIN -62135596800
+#define MS_DAYS_PER_400Y (365*400 + 97)
+#define MS_DAYS_PER_100Y (365*100 + 24)
+#define MS_DAYS_PER_4Y   (365*4 + 1)
+
+/* Epoch -> datetime conversion borrowed and modified from the implementation
+ * in musl, found at
+ * http://git.musl-libc.org/cgit/musl/tree/src/time/__secs_to_tm.c. musl is
+ * copyright Rich Felker et. al, and is licensed under the standard MIT
+ * license.  */
+static PyObject *
+datetime_from_epoch(int64_t epoch_secs, uint32_t epoch_nanos) {
+	int64_t days, secs, years;
+	int months, remdays, remsecs, remyears;
+	int qc_cycles, c_cycles, q_cycles;
+    /* Start in Mar not Jan, so leap day is on end */
+	static const char days_in_month[] = {31, 30, 31, 30, 31, 31, 30, 31, 30, 31, 31, 29};
+
+    /* Offset to 2000-03-01, a mod 400 year, immediately after feb 29 */
+	secs = epoch_secs - (946684800LL + 86400 * (31 + 29));
+	days = secs / 86400;
+	remsecs = secs % 86400;
+	if (remsecs < 0) {
+		remsecs += 86400;
+		days--;
+	}
+
+	qc_cycles = days / MS_DAYS_PER_400Y;
+	remdays = days % MS_DAYS_PER_400Y;
+	if (remdays < 0) {
+		remdays += MS_DAYS_PER_400Y;
+		qc_cycles--;
+	}
+
+	c_cycles = remdays / MS_DAYS_PER_100Y;
+	if (c_cycles == 4) c_cycles--;
+	remdays -= c_cycles * MS_DAYS_PER_100Y;
+
+	q_cycles = remdays / MS_DAYS_PER_4Y;
+	if (q_cycles == 25) q_cycles--;
+	remdays -= q_cycles * MS_DAYS_PER_4Y;
+
+	remyears = remdays / 365;
+	if (remyears == 4) remyears--;
+	remdays -= remyears * 365;
+
+	years = remyears + 4*q_cycles + 100*c_cycles + 400LL*qc_cycles;
+
+	for (months = 0; days_in_month[months] <= remdays; months++)
+		remdays -= days_in_month[months];
+
+	if (months >= 10) {
+		months -= 12;
+		years++;
+	}
+
+    return PyDateTimeAPI->DateTime_FromDateAndTime(
+        years + 2000,
+        months + 3,
+        remdays + 1,
+        remsecs / 3600,
+        remsecs / 60 % 60,
+        remsecs % 60,
+        epoch_nanos / 1000,
+        PyDateTime_TimeZone_UTC,
+        PyDateTimeAPI->DateTimeType
+    );
+}
+
 
 /*************************************************************************
  * Endian handling macros                                                *
@@ -1288,7 +1465,6 @@ StructMeta_get_field_index(
     }
     return -1;
 }
-
 
 static int
 dict_discard(PyObject *dict, PyObject *key) {
@@ -3450,48 +3626,6 @@ mpack_encode_enum(EncoderState *self, PyObject *obj)
     return status;
 }
 
-static bool
-is_leap_year(int year)
-{
-    unsigned int y = (unsigned int)year;
-    return y % 4 == 0 && (y % 100 != 0 || y % 400 == 0);
-}
-
-/* Days since 0001-01-01, the min value for python's datetime objects */
-static int
-days_since_min_datetime(int year, int month, int day)
-{
-    int out = day;
-    static const int _days_before_month[] = {
-        0, 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334
-    };
-    out += _days_before_month[month];
-    if (month > 2 && is_leap_year(year)) out++;
-
-    year--; /* makes math easier */
-    out += year*365 + year/4 - year/100 + year/400;
-
-    return out;
-}
-
-static void
-datetime_to_epoch(PyObject *obj, int64_t *seconds, int32_t *nanoseconds) {
-    int64_t d = days_since_min_datetime(
-        PyDateTime_GET_YEAR(obj),
-        PyDateTime_GET_MONTH(obj),
-        PyDateTime_GET_DAY(obj)
-    ) - 719163;  /* days_since_min_datetime(1970, 1, 1) */
-    int64_t s = (
-        PyDateTime_DATE_GET_HOUR(obj) * 3600
-        + PyDateTime_DATE_GET_MINUTE(obj) * 60
-        + PyDateTime_DATE_GET_SECOND(obj)
-    );
-    int64_t us = PyDateTime_DATE_GET_MICROSECOND(obj);
-
-    *seconds = 86400 * d + s;
-    *nanoseconds = us * 1000;
-}
-
 static int
 mpack_encode_datetime(EncoderState *self, PyObject *obj)
 {
@@ -4585,78 +4719,6 @@ mpack_decode_size4(DecoderState *self) {
     return (Py_ssize_t)(_msgspec_load32(uint32_t, s));
 }
 
-/* Python datetimes bounded between (inclusive)
- * [0001-01-01T00:00:00.000000, 9999-12-31T23:59:59.999999] UTC */
-#define MS_EPOCH_SECS_MAX 253402300800
-#define MS_EPOCH_SECS_MIN -62135596800
-#define MS_DAYS_PER_400Y (365*400 + 97)
-#define MS_DAYS_PER_100Y (365*100 + 24)
-#define MS_DAYS_PER_4Y   (365*4 + 1)
-
-/* Epoch -> datetime conversion borrowed and modified from the implementation
- * in musl, found at
- * http://git.musl-libc.org/cgit/musl/tree/src/time/__secs_to_tm.c. musl is
- * copyright Rich Felker et. al, and is licensed under the standard MIT
- * license.  */
-static PyObject *
-epoch_to_datetime(int64_t epoch_secs, uint32_t epoch_nanos) {
-	int64_t days, secs, years;
-	int months, remdays, remsecs, remyears;
-	int qc_cycles, c_cycles, q_cycles;
-    /* Start in Mar not Jan, so leap day is on end */
-	static const char days_in_month[] = {31, 30, 31, 30, 31, 31, 30, 31, 30, 31, 31, 29};
-
-    /* Offset to 2000-03-01, a mod 400 year, immediately after feb 29 */
-	secs = epoch_secs - (946684800LL + 86400 * (31 + 29));
-	days = secs / 86400;
-	remsecs = secs % 86400;
-	if (remsecs < 0) {
-		remsecs += 86400;
-		days--;
-	}
-
-	qc_cycles = days / MS_DAYS_PER_400Y;
-	remdays = days % MS_DAYS_PER_400Y;
-	if (remdays < 0) {
-		remdays += MS_DAYS_PER_400Y;
-		qc_cycles--;
-	}
-
-	c_cycles = remdays / MS_DAYS_PER_100Y;
-	if (c_cycles == 4) c_cycles--;
-	remdays -= c_cycles * MS_DAYS_PER_100Y;
-
-	q_cycles = remdays / MS_DAYS_PER_4Y;
-	if (q_cycles == 25) q_cycles--;
-	remdays -= q_cycles * MS_DAYS_PER_4Y;
-
-	remyears = remdays / 365;
-	if (remyears == 4) remyears--;
-	remdays -= remyears * 365;
-
-	years = remyears + 4*q_cycles + 100*c_cycles + 400LL*qc_cycles;
-
-	for (months = 0; days_in_month[months] <= remdays; months++)
-		remdays -= days_in_month[months];
-
-	if (months >= 10) {
-		months -= 12;
-		years++;
-	}
-
-    return PyDateTimeAPI->DateTime_FromDateAndTime(
-        years + 2000,
-        months + 3,
-        remdays + 1,
-        remsecs / 3600,
-        remsecs / 60 % 60,
-        remsecs % 60,
-        epoch_nanos / 1000,
-        PyDateTime_TimeZone_UTC,
-        PyDateTimeAPI->DateTimeType
-    );
-}
-
 static PyObject *
 mpack_decode_datetime(
     DecoderState *self, const char *data_buf, Py_ssize_t size, PathNode *path
@@ -4697,8 +4759,7 @@ mpack_decode_datetime(
         err_msg = "Timestamp is out of range%U";
         goto invalid;
     }
-
-    return epoch_to_datetime(seconds, nanoseconds);
+    return datetime_from_epoch(seconds, nanoseconds);
 
 invalid:
     st = msgspec_get_global_state();
@@ -5769,10 +5830,6 @@ typedef struct JSONDecoderState {
     ssize_t scratch_capacity;
     Py_ssize_t scratch_len;
 
-    /* Timezone cache */
-    int tzoffset;
-    PyObject *tzinfo;
-
     /* Per-message attributes */
     PyObject *buffer_obj;
     unsigned char *input_start;
@@ -5838,10 +5895,6 @@ JSONDecoder_init(JSONDecoder *self, PyObject *args, PyObject *kwds)
     Py_INCREF(type);
     self->orig_type = type;
 
-    /* Init timezone cache */
-    self->state.tzoffset = 0;
-    self->state.tzinfo = NULL;
-
     /* Init scratch space */
     self->state.scratch = NULL;
     self->state.scratch_capacity = 0;
@@ -5857,7 +5910,6 @@ JSONDecoder_traverse(JSONDecoder *self, visitproc visit, void *arg)
     if (out != 0) return out;
     Py_VISIT(self->orig_type);
     Py_VISIT(self->state.dec_hook);
-    Py_VISIT(self->state.tzinfo);
     return 0;
 }
 
@@ -5867,7 +5919,6 @@ JSONDecoder_dealloc(JSONDecoder *self)
     TypeNode_Free(self->state.type);
     Py_XDECREF(self->orig_type);
     Py_XDECREF(self->state.dec_hook);
-    Py_XDECREF(self->state.tzinfo);
     PyMem_Free(self->state.scratch);
     Py_TYPE(self)->tp_free((PyObject *)self);
 }
@@ -6660,7 +6711,7 @@ json_decode_datetime(
     const char *buf_end = buf + size;
     char c;
     MsgspecState *st;
-    PyObject *tzinfo, *suffix;
+    PyObject *suffix;
 
     /* A valid datetime is at least 20 characters in length */
     if (size < 20) goto invalid;
@@ -6728,35 +6779,28 @@ json_decode_datetime(
         if (*buf++ != ':') goto invalid;
         if ((buf = json_read_fixint(buf, 2, &offset_min)) == NULL) goto invalid;
         if (offset_hour > 23 || offset_min > 59) goto invalid;
-        offset *= (offset_hour * 60 * 60 + offset_min * 60);
+        offset *= (offset_hour * 60 + offset_min);
     }
 
+    /* Check for trailing characters */
     if (buf != buf_end) goto invalid;
 
-    if (offset == 0) {
-        tzinfo = PyDateTime_TimeZone_UTC;
-    }
-    else {
-        if (offset != self->tzoffset) {
-            PyObject *delta = NULL, *tzinfo = NULL;
-            if ((delta = PyDelta_FromDSU(0, offset, 0)) == NULL) return NULL;
-            if ((tzinfo = PyTimeZone_FromOffset(delta)) == NULL) {
-                Py_DECREF(delta);
-                return NULL;
-            }
-            /* Cache the tzinfo object, assuming subsequent datetimes will
-            * use the same timezone. */
-            Py_XDECREF(self->tzinfo);
-            self->tzinfo = tzinfo;
-            self->tzoffset = offset;
-            Py_DECREF(delta);
-        }
-        tzinfo = self->tzinfo;
-    }
+    /* Ensure all numbers are valid */
+    if (year == 0) goto invalid;
+    if (day == 0 || day > days_in_month(year, month)) goto invalid;
+    if (month == 0 || month > 12) goto invalid;
+    if (hour > 23) goto invalid;
+    if (minute > 59) goto invalid;
+    if (second > 59) goto invalid;
 
+    if (offset) {
+        if (datetime_apply_tz_offset(&year, &month, &day, &hour, &minute, offset) < 0) {
+            goto invalid;
+        }
+    }
     return PyDateTimeAPI->DateTime_FromDateAndTime(
         year, month, day, hour, minute, second, microsecond,
-        tzinfo, PyDateTimeAPI->DateTimeType
+        PyDateTime_TimeZone_UTC, PyDateTimeAPI->DateTimeType
     );
 
 invalid:
@@ -7690,10 +7734,6 @@ msgspec_json_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyO
     }
     state.dec_hook = dec_hook;
 
-    /* Init timezone cache */
-    state.tzoffset = 0;
-    state.tzinfo = NULL;
-
     /* Init scratch space */
     state.scratch = NULL;
     state.scratch_capacity = 0;
@@ -7731,7 +7771,6 @@ msgspec_json_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyO
         PyBuffer_Release(&buffer);
     }
 
-    Py_XDECREF(state.tzinfo);
     PyMem_Free(state.scratch);
 
     if (state.type != NULL) {
