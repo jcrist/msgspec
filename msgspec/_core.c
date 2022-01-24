@@ -34,6 +34,14 @@ ms_popcount(uint32_t i) {
 #define SET_SIZE(obj, size) Py_SET_SIZE(obj, size)
 #endif
 
+#define MS_HAS_TZINFO(o)  (((_PyDateTime_BaseTZInfo *)(o))->hastzinfo)
+#if PY_VERSION_HEX < 0x030a00f0
+#define MS_GET_TZINFO(o)      (MS_HAS_TZINFO(o) ? \
+    ((PyDateTime_DateTime *)(o))->tzinfo : Py_None)
+#else
+#define MS_GET_TZINFO PyDateTime_DATE_GET_TZINFO
+#endif
+
 #define is_digit(c) (c >= '0' && c <= '9')
 
 /* Easy access to NoneType object */
@@ -138,7 +146,6 @@ typedef struct {
     PyObject *str_enc_hook;
     PyObject *str_dec_hook;
     PyObject *str_ext_hook;
-    PyObject *str_tzinfo;
     PyObject *str_utcoffset;
     PyObject *str___origin__;
     PyObject *str___args__;
@@ -149,7 +156,7 @@ typedef struct {
     PyObject *typing_union;
     PyObject *typing_any;
     PyObject *get_type_hints;
-    PyObject *timestamp;
+    PyObject *astimezone;
 } MsgspecState;
 
 /* Forward declaration of the msgspec module definition. */
@@ -3443,21 +3450,76 @@ mpack_encode_enum(EncoderState *self, PyObject *obj)
     return status;
 }
 
+static bool
+is_leap_year(int year)
+{
+    unsigned int y = (unsigned int)year;
+    return y % 4 == 0 && (y % 100 != 0 || y % 400 == 0);
+}
+
+/* Days since 0001-01-01, the min value for python's datetime objects */
+static int
+days_since_min_datetime(int year, int month, int day)
+{
+    int out = day;
+    static const int _days_before_month[] = {
+        0, 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334
+    };
+    out += _days_before_month[month];
+    if (month > 2 && is_leap_year(year)) out++;
+
+    year--; /* makes math easier */
+    out += year*365 + year/4 - year/100 + year/400;
+
+    return out;
+}
+
+static void
+datetime_to_epoch(PyObject *obj, int64_t *seconds, int32_t *nanoseconds) {
+    int64_t d = days_since_min_datetime(
+        PyDateTime_GET_YEAR(obj),
+        PyDateTime_GET_MONTH(obj),
+        PyDateTime_GET_DAY(obj)
+    ) - 719163;  /* days_since_min_datetime(1970, 1, 1) */
+    int64_t s = (
+        PyDateTime_DATE_GET_HOUR(obj) * 3600
+        + PyDateTime_DATE_GET_MINUTE(obj) * 60
+        + PyDateTime_DATE_GET_SECOND(obj)
+    );
+    int64_t us = PyDateTime_DATE_GET_MICROSECOND(obj);
+
+    *seconds = 86400 * d + s;
+    *nanoseconds = us * 1000;
+}
+
 static int
 mpack_encode_datetime(EncoderState *self, PyObject *obj)
 {
     int64_t seconds;
     int32_t nanoseconds;
-    PyObject *timestamp;
-    MsgspecState *st = msgspec_get_global_state();
+    PyObject *tzinfo;
 
-    timestamp = CALL_ONE_ARG(st->timestamp, obj);
-    if (timestamp == NULL) return -1;
+    if (!MS_HAS_TZINFO(obj)) {
+        PyErr_SetString(
+            msgspec_get_global_state()->EncodingError,
+            "Can't encode naive datetime objects"
+        );
+        return -1;
+    }
 
-    /* No need to check for overflow here, datetime.datetime can't represent
-     * dates out of an int64_t timestamp range anyway */
-    seconds = (int64_t)floor(PyFloat_AS_DOUBLE(timestamp));
-    nanoseconds = PyDateTime_DATE_GET_MICROSECOND(obj) * 1000;
+    tzinfo = MS_GET_TZINFO(obj);
+    if (tzinfo == PyDateTime_TimeZone_UTC) {
+        datetime_to_epoch(obj, &seconds, &nanoseconds);
+    }
+    else {
+        PyObject *temp = PyObject_CallFunctionObjArgs(
+            msgspec_get_global_state()->astimezone,
+            obj, PyDateTime_TimeZone_UTC, NULL
+        );
+        if (temp == NULL) return -1;
+        datetime_to_epoch(temp, &seconds, &nanoseconds);
+        Py_DECREF(temp);
+    }
 
     if ((seconds >> 34) == 0) {
         uint64_t data64 = ((uint64_t)nanoseconds << 34) | (uint64_t)seconds;
@@ -3934,14 +3996,6 @@ json_write_fixint(char *p, uint32_t x, int width) {
     return p + width;
 }
 
-#define MS_HAS_TZINFO(o)  (((_PyDateTime_BaseTZInfo *)(o))->hastzinfo)
-#if PY_VERSION_HEX < 0x030a00f0
-#define MS_GET_TZINFO(o)      (MS_HAS_TZINFO(o) ? \
-    ((PyDateTime_DateTime *)(o))->tzinfo : Py_None)
-#else
-#define MS_GET_TZINFO PyDateTime_DATE_GET_TZINFO
-#endif
-
 static int
 json_encode_datetime(EncoderState *self, PyObject *obj)
 {
@@ -3954,27 +4008,34 @@ json_encode_datetime(EncoderState *self, PyObject *obj)
     uint8_t second = PyDateTime_DATE_GET_SECOND(obj);
     uint32_t microsecond = PyDateTime_DATE_GET_MICROSECOND(obj);
     int32_t offset_days = 0, offset_secs = 0;
+    PyObject *tzinfo;
 
-    if (MS_HAS_TZINFO(obj)) {
-        PyObject *tzinfo = MS_GET_TZINFO(obj);
-        if (tzinfo != PyDateTime_TimeZone_UTC) {
-            MsgspecState *st = msgspec_get_global_state();
-            PyObject *offset = CALL_METHOD_ONE_ARG(tzinfo, st->str_utcoffset, obj);
-            if (offset == NULL) return -1;
-            if (PyDelta_Check(offset)) {
-                offset_days = PyDateTime_DELTA_GET_DAYS(offset);
-                offset_secs = PyDateTime_DELTA_GET_SECONDS(offset);
-            }
-            else if (offset != Py_None) {
-                PyErr_SetString(
-                    PyExc_TypeError,
-                    "datetime.tzinfo.utcoffset returned a non-timedelta object"
-                );
-                Py_DECREF(offset);
-                return -1;
-            }
-            Py_DECREF(offset);
+    if (!MS_HAS_TZINFO(obj)) {
+        PyErr_SetString(
+            msgspec_get_global_state()->EncodingError,
+            "Can't encode naive datetime objects"
+        );
+        return -1;
+    }
+
+    tzinfo = MS_GET_TZINFO(obj);
+    if (tzinfo != PyDateTime_TimeZone_UTC) {
+        MsgspecState *st = msgspec_get_global_state();
+        PyObject *offset = CALL_METHOD_ONE_ARG(tzinfo, st->str_utcoffset, obj);
+        if (offset == NULL) return -1;
+        if (PyDelta_Check(offset)) {
+            offset_days = PyDateTime_DELTA_GET_DAYS(offset);
+            offset_secs = PyDateTime_DELTA_GET_SECONDS(offset);
         }
+        else if (offset != Py_None) {
+            PyErr_SetString(
+                PyExc_TypeError,
+                "datetime.tzinfo.utcoffset returned a non-timedelta object"
+            );
+            Py_DECREF(offset);
+            return -1;
+        }
+        Py_DECREF(offset);
     }
 
     char buf[34];
@@ -4336,7 +4397,6 @@ typedef struct DecoderState {
     TypeNode *type;
     PyObject *dec_hook;
     PyObject *ext_hook;
-    PyObject *tzinfo;
 
     /* Per-message attributes */
     PyObject *buffer_obj;
@@ -4352,7 +4412,7 @@ typedef struct Decoder {
 } Decoder;
 
 PyDoc_STRVAR(Decoder__doc__,
-"Decoder(type='Any', *, dec_hook=None, ext_hook=None, tzinfo=None)\n"
+"Decoder(type='Any', *, dec_hook=None, ext_hook=None)\n"
 "--\n"
 "\n"
 "A MessagePack decoder.\n"
@@ -4377,23 +4437,19 @@ PyDoc_STRVAR(Decoder__doc__,
 "    message. Note that ``data`` is a memoryview into the larger message\n"
 "    buffer - any references created to the underlying buffer without copying\n"
 "    the data out will cause the full message buffer to persist in memory.\n"
-"    If not provided, extension types will decode as ``msgspec.Ext`` objects.\n"
-"tzinfo : datetime.tzinfo, optional\n"
-"    The timezone to use when decoding ``datetime.datetime`` objects. Defaults\n"
-"    to ``None`` for \"naive\" datetimes."
+"    If not provided, extension types will decode as ``msgspec.Ext`` objects."
 );
 static int
 Decoder_init(Decoder *self, PyObject *args, PyObject *kwds)
 {
-    static char *kwlist[] = {"type", "dec_hook", "ext_hook", "tzinfo", NULL};
+    static char *kwlist[] = {"type", "dec_hook", "ext_hook", NULL};
     MsgspecState *st = msgspec_get_global_state();
     PyObject *type = st->typing_any;
     PyObject *ext_hook = NULL;
     PyObject *dec_hook = NULL;
-    PyObject *tzinfo = NULL;
 
     if (!PyArg_ParseTupleAndKeywords(
-            args, kwds, "|O$OOO", kwlist, &type, &dec_hook, &ext_hook, &tzinfo
+            args, kwds, "|O$OO", kwlist, &type, &dec_hook, &ext_hook
         )) {
         return -1;
     }
@@ -4431,21 +4487,6 @@ Decoder_init(Decoder *self, PyObject *args, PyObject *kwds)
     }
     Py_INCREF(type);
     self->orig_type = type;
-
-    /* Handle tzinfo */
-    if (tzinfo == Py_None) {
-        tzinfo = NULL;
-    }
-    if (tzinfo != NULL) {
-        int ok = PyObject_IsInstance(tzinfo, (PyObject *)(PyDateTimeAPI->TZInfoType));
-        if (ok == -1) return -1;
-        if (ok == 0) {
-            PyErr_SetString(PyExc_TypeError, "tzinfo must be an instance of tzinfo");
-            return -1;
-        }
-        Py_INCREF(tzinfo);
-    }
-    self->state.tzinfo = tzinfo;
     return 0;
 }
 
@@ -4544,19 +4585,88 @@ mpack_decode_size4(DecoderState *self) {
     return (Py_ssize_t)(_msgspec_load32(uint32_t, s));
 }
 
-#define DATETIME_SET_MICROSECOND(o, v) \
-    do { \
-        ((PyDateTime_DateTime *)o)->data[7] = ((v) & 0xff0000) >> 16; \
-        ((PyDateTime_DateTime *)o)->data[8] = ((v) & 0x00ff00) >> 8; \
-        ((PyDateTime_DateTime *)o)->data[9] = ((v) & 0x0000ff); \
-    } while (0);
+/* Python datetimes bounded between (inclusive)
+ * [0001-01-01T00:00:00.000000, 9999-12-31T23:59:59.999999] UTC */
+#define MS_EPOCH_SECS_MAX 253402300800
+#define MS_EPOCH_SECS_MIN -62135596800
+#define MS_DAYS_PER_400Y (365*400 + 97)
+#define MS_DAYS_PER_100Y (365*100 + 24)
+#define MS_DAYS_PER_4Y   (365*4 + 1)
+
+/* Epoch -> datetime conversion borrowed and modified from the implementation
+ * in musl, found at
+ * http://git.musl-libc.org/cgit/musl/tree/src/time/__secs_to_tm.c. musl is
+ * copyright Rich Felker et. al, and is licensed under the standard MIT
+ * license.  */
+static PyObject *
+epoch_to_datetime(int64_t epoch_secs, uint32_t epoch_nanos) {
+	int64_t days, secs, years;
+	int months, remdays, remsecs, remyears;
+	int qc_cycles, c_cycles, q_cycles;
+    /* Start in Mar not Jan, so leap day is on end */
+	static const char days_in_month[] = {31, 30, 31, 30, 31, 31, 30, 31, 30, 31, 31, 29};
+
+    /* Offset to 2000-03-01, a mod 400 year, immediately after feb 29 */
+	secs = epoch_secs - (946684800LL + 86400 * (31 + 29));
+	days = secs / 86400;
+	remsecs = secs % 86400;
+	if (remsecs < 0) {
+		remsecs += 86400;
+		days--;
+	}
+
+	qc_cycles = days / MS_DAYS_PER_400Y;
+	remdays = days % MS_DAYS_PER_400Y;
+	if (remdays < 0) {
+		remdays += MS_DAYS_PER_400Y;
+		qc_cycles--;
+	}
+
+	c_cycles = remdays / MS_DAYS_PER_100Y;
+	if (c_cycles == 4) c_cycles--;
+	remdays -= c_cycles * MS_DAYS_PER_100Y;
+
+	q_cycles = remdays / MS_DAYS_PER_4Y;
+	if (q_cycles == 25) q_cycles--;
+	remdays -= q_cycles * MS_DAYS_PER_4Y;
+
+	remyears = remdays / 365;
+	if (remyears == 4) remyears--;
+	remdays -= remyears * 365;
+
+	years = remyears + 4*q_cycles + 100*c_cycles + 400LL*qc_cycles;
+
+	for (months = 0; days_in_month[months] <= remdays; months++)
+		remdays -= days_in_month[months];
+
+	if (months >= 10) {
+		months -= 12;
+		years++;
+	}
+
+    return PyDateTimeAPI->DateTime_FromDateAndTime(
+        years + 2000,
+        months + 3,
+        remdays + 1,
+        remsecs / 3600,
+        remsecs / 60 % 60,
+        remsecs % 60,
+        epoch_nanos / 1000,
+        PyDateTime_TimeZone_UTC,
+        PyDateTimeAPI->DateTimeType
+    );
+}
 
 static PyObject *
-mpack_decode_datetime(DecoderState *self, const char *data_buf, Py_ssize_t size) {
+mpack_decode_datetime(
+    DecoderState *self, const char *data_buf, Py_ssize_t size, PathNode *path
+) {
     uint64_t data64;
     uint32_t nanoseconds;
     int64_t seconds;
-    PyObject *timestamp = NULL, *args = NULL, *res = NULL;
+    MsgspecState *st;
+    PyObject *suffix;
+    char *err_msg;
 
     switch (size) {
         case 4:
@@ -4573,38 +4683,31 @@ mpack_decode_datetime(DecoderState *self, const char *data_buf, Py_ssize_t size)
             seconds = _msgspec_load64(uint64_t, data_buf + 4);
             break;
         default:
-            PyErr_SetString(PyExc_ValueError, "Invalid MessagePack timestamp");
-            return NULL;
+            err_msg = "Invalid MessagePack timestamp%U";
+            goto invalid;
     }
 
     if (nanoseconds > 999999999) {
-        PyErr_SetString(
-            PyExc_ValueError,
-            "Invalid MessagePack timestamp: nanoseconds out of range"
-        );
+        err_msg = "Invalid MessagePack timestamp: nanoseconds out of range%U";
+        goto invalid;
+    }
+    /* Error on out-of-bounds datetimes. This leaves ample space in an int, so
+     * no need to check for overflow later. */
+	if (seconds < MS_EPOCH_SECS_MIN || seconds > MS_EPOCH_SECS_MAX) {
+        err_msg = "Timestamp is out of range%U";
+        goto invalid;
     }
 
-    timestamp = PyLong_FromLongLong(seconds);
-    if (timestamp == NULL) goto cleanup;
-    if (self->tzinfo == NULL) {
-        args = PyTuple_Pack(1, timestamp);
-    } else {
-        args = PyTuple_Pack(2, timestamp, self->tzinfo);
+    return epoch_to_datetime(seconds, nanoseconds);
+
+invalid:
+    st = msgspec_get_global_state();
+    suffix = PathNode_ErrSuffix(path);
+    if (suffix != NULL) {
+        PyErr_Format(st->DecodingError, err_msg, suffix);
+        Py_DECREF(suffix);
     }
-    if (args == NULL) goto cleanup;
-    res = PyDateTime_FromTimestamp(args);
-    if (res == NULL) goto cleanup;
-
-    /* Set the microseconds directly, rather than passing a float to
-     * `PyDateTime_FromTimestamp`. This avoids resolution issues on larger
-     * timestamps, ensuring we successfully roundtrip all values.
-     */
-    DATETIME_SET_MICROSECOND(res, nanoseconds / 1000);
-
-cleanup:
-    Py_XDECREF(timestamp);
-    Py_XDECREF(args);
-    return res;
+    return NULL;
 }
 
 static int mpack_skip(DecoderState *self);
@@ -5262,7 +5365,7 @@ mpack_decode_ext(
     if (mpack_read(self, &data_buf, size) < 0) return NULL;
 
     if (type->types & MS_TYPE_DATETIME && code == -1) {
-        return mpack_decode_datetime(self, data_buf, size);
+        return mpack_decode_datetime(self, data_buf, size, path);
     }
     else if (type->types & MS_TYPE_EXT) {
         data = PyBytes_FromStringAndSize(data_buf, size);
@@ -5279,7 +5382,7 @@ mpack_decode_ext(
      * - otherwise return Ext object
      * */
     if (code == -1) {
-        return mpack_decode_datetime(self, data_buf, size);
+        return mpack_decode_datetime(self, data_buf, size, path);
     }
     else if (self->ext_hook == NULL) {
         data = PyBytes_FromStringAndSize(data_buf, size);
@@ -5514,7 +5617,6 @@ static PyMemberDef Decoder_members[] = {
     {"type", T_OBJECT_EX, offsetof(Decoder, orig_type), READONLY, "The Decoder type"},
     {"dec_hook", T_OBJECT, offsetof(Decoder, state.dec_hook), READONLY, "The Decoder dec_hook"},
     {"ext_hook", T_OBJECT, offsetof(Decoder, state.ext_hook), READONLY, "The Decoder ext_hook"},
-    {"tzinfo", T_OBJECT, offsetof(Decoder, state.tzinfo), READONLY, "The Decoder tzinfo"},
     {NULL},
 };
 
@@ -5535,7 +5637,7 @@ static PyTypeObject Decoder_Type = {
 
 
 PyDoc_STRVAR(msgspec_msgpack_decode__doc__,
-"decode(buf, *, type='Any', dec_hook=None, ext_hook=None, tzinfo=None)\n"
+"decode(buf, *, type='Any', dec_hook=None, ext_hook=None)\n"
 "--\n"
 "\n"
 "Deserialize an object from bytes.\n"
@@ -5563,9 +5665,6 @@ PyDoc_STRVAR(msgspec_msgpack_decode__doc__,
 "    buffer - any references created to the underlying buffer without copying\n"
 "    the data out will cause the full message buffer to persist in memory.\n"
 "    If not provided, extension types will decode as ``msgspec.Ext`` objects.\n"
-"tzinfo : datetime.tzinfo, optional\n"
-"    The timezone to use when decoding ``datetime.datetime`` objects. Defaults\n"
-"    to ``None`` for \"naive\" datetimes.\n"
 "\n"
 "Returns\n"
 "-------\n"
@@ -5579,7 +5678,7 @@ PyDoc_STRVAR(msgspec_msgpack_decode__doc__,
 static PyObject*
 msgspec_msgpack_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
 {
-    PyObject *res = NULL, *buf = NULL, *type = NULL, *dec_hook = NULL, *ext_hook = NULL, *tzinfo = NULL;
+    PyObject *res = NULL, *buf = NULL, *type = NULL, *dec_hook = NULL, *ext_hook = NULL;
     DecoderState state;
     Py_buffer buffer;
     MsgspecState *st = msgspec_get_global_state();
@@ -5592,7 +5691,6 @@ msgspec_msgpack_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, 
         if ((type = find_keyword(kwnames, args + nargs, st->str_type)) != NULL) nkwargs--;
         if ((dec_hook = find_keyword(kwnames, args + nargs, st->str_dec_hook)) != NULL) nkwargs--;
         if ((ext_hook = find_keyword(kwnames, args + nargs, st->str_ext_hook)) != NULL) nkwargs--;
-        if ((tzinfo = find_keyword(kwnames, args + nargs, st->str_tzinfo)) != NULL) nkwargs--;
         if (nkwargs > 0) {
             PyErr_SetString(
                 PyExc_TypeError,
@@ -5625,20 +5723,6 @@ msgspec_msgpack_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, 
         }
     }
     state.ext_hook = ext_hook;
-
-    /* Handle tzinfo */
-    if (tzinfo == Py_None) {
-        tzinfo = NULL;
-    }
-    if (tzinfo != NULL) {
-        int ok = PyObject_IsInstance(tzinfo, (PyObject *)(PyDateTimeAPI->TZInfoType));
-        if (ok == -1) return NULL;
-        if (ok == 0) {
-            PyErr_SetString(PyExc_TypeError, "tzinfo must be an instance of tzinfo");
-            return NULL;
-        }
-    }
-    state.tzinfo = tzinfo;
 
     /* Only build TypeNode if required */
     state.type = NULL;
@@ -7521,7 +7605,6 @@ static struct PyMethodDef JSONDecoder_methods[] = {
 static PyMemberDef JSONDecoder_members[] = {
     {"type", T_OBJECT_EX, offsetof(JSONDecoder, orig_type), READONLY, "The Decoder type"},
     {"dec_hook", T_OBJECT, offsetof(JSONDecoder, state.dec_hook), READONLY, "The Decoder dec_hook"},
-    {"tzinfo", T_OBJECT, offsetof(JSONDecoder, state.tzinfo), READONLY, "The Decoder tzinfo"},
     {NULL},
 };
 
@@ -7699,7 +7782,6 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->str_enc_hook);
     Py_CLEAR(st->str_dec_hook);
     Py_CLEAR(st->str_ext_hook);
-    Py_CLEAR(st->str_tzinfo);
     Py_CLEAR(st->str_utcoffset);
     Py_CLEAR(st->str___origin__);
     Py_CLEAR(st->str___args__);
@@ -7710,7 +7792,7 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->typing_union);
     Py_CLEAR(st->typing_any);
     Py_CLEAR(st->get_type_hints);
-    Py_CLEAR(st->timestamp);
+    Py_CLEAR(st->astimezone);
     return 0;
 }
 
@@ -7749,7 +7831,7 @@ msgspec_traverse(PyObject *m, visitproc visit, void *arg)
     Py_VISIT(st->typing_union);
     Py_VISIT(st->typing_any);
     Py_VISIT(st->get_type_hints);
-    Py_VISIT(st->timestamp);
+    Py_VISIT(st->astimezone);
     return 0;
 }
 
@@ -7893,7 +7975,7 @@ PyInit__core(void)
     }
     st->EnumType = (PyTypeObject *)temp_obj;
 
-    /* Get the datetime.datetime.timestamp method */
+    /* Get the datetime.datetime.astimezone method */
     temp_module = PyImport_ImportModule("datetime");
     if (temp_module == NULL)
         return NULL;
@@ -7901,9 +7983,9 @@ PyInit__core(void)
     Py_DECREF(temp_module);
     if (temp_obj == NULL)
         return NULL;
-    st->timestamp = PyObject_GetAttrString(temp_obj, "timestamp");
+    st->astimezone = PyObject_GetAttrString(temp_obj, "astimezone");
     Py_DECREF(temp_obj);
-    if (st->timestamp == NULL)
+    if (st->astimezone == NULL)
         return NULL;
 
     /* Initialize cached constant strings */
@@ -7916,7 +7998,6 @@ PyInit__core(void)
     CACHED_STRING(str_enc_hook, "enc_hook");
     CACHED_STRING(str_dec_hook, "dec_hook");
     CACHED_STRING(str_ext_hook, "ext_hook");
-    CACHED_STRING(str_tzinfo, "tzinfo");
     CACHED_STRING(str_utcoffset, "utcoffset");
     CACHED_STRING(str___origin__, "__origin__");
     CACHED_STRING(str___args__, "__args__");

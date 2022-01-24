@@ -6,7 +6,6 @@ import enum
 import gc
 import itertools
 import math
-import os
 import pickle
 import struct
 import sys
@@ -14,6 +13,8 @@ import sys
 import pytest
 
 import msgspec
+
+UTC = datetime.timezone.utc
 
 
 class FruitInt(enum.IntEnum):
@@ -725,7 +726,7 @@ class TestTypedDecoder:
 
     def test_datetime(self):
         dec = msgspec.msgpack.Decoder(datetime.datetime)
-        x = datetime.datetime.now()
+        x = datetime.datetime.now(UTC)
         res = dec.decode(msgspec.msgpack.encode(x))
         assert x == res
 
@@ -1171,7 +1172,7 @@ class TestTypedDecoder:
             (tuple, (1, 2)),
             (Tuple[int, int], (1, 2)),
             (dict, {1: 2}),
-            (datetime.datetime, datetime.datetime.now()),
+            (datetime.datetime, datetime.datetime.now(UTC)),
         ],
     )
     def test_optional(self, typ, value):
@@ -1210,7 +1211,7 @@ class TestTypedDecoder:
             ([int, float], [1, 2.5]),
             (
                 [datetime.datetime, msgspec.msgpack.Ext, int, str],
-                [datetime.datetime.now(), msgspec.msgpack.Ext(1, b"two"), 1, "two"],
+                [datetime.datetime.now(UTC), msgspec.msgpack.Ext(1, b"two"), 1, "two"],
             ),
             ([str, bytearray], ["three", bytearray(b"four")]),
             ([bool, None, float, str], [True, None, 1.5, "test"]),
@@ -1436,79 +1437,42 @@ class TestExt:
             msgspec.msgpack.decode(msg, ext_hook=ext_hook)
 
 
-skip_windows = pytest.mark.skipif(
-    os.name == "nt",
-    reason="This test fails on windows due to bounds on the OS time handling routines",
-)
-
-
 class TestTimestampExt:
     def check(self, dt, msg):
         assert msgspec.msgpack.encode(dt) == msg
         assert msgspec.msgpack.decode(msg) == dt
 
-    @skip_windows
     def test_timestamp32_lower(self):
-        dt = datetime.datetime.fromtimestamp(0)
+        dt = datetime.datetime.fromtimestamp(0, UTC)
         msg = b"\xd6\xff\x00\x00\x00\x00"
         self.check(dt, msg)
 
     def test_timestamp32_upper(self):
-        dt = datetime.datetime.fromtimestamp(2 ** 32 - 1)
+        dt = datetime.datetime.fromtimestamp(2 ** 32 - 1, UTC)
         msg = b"\xd6\xff\xff\xff\xff\xff"
         self.check(dt, msg)
 
-    @skip_windows
     def test_timestamp64_lower(self):
-        dt = datetime.datetime.fromtimestamp(1e-6)
+        dt = datetime.datetime.fromtimestamp(1e-6, UTC)
         msg = b"\xd7\xff\x00\x00\x0f\xa0\x00\x00\x00\x00"
         self.check(dt, msg)
 
     def test_timestamp64_upper(self):
-        dt = datetime.datetime.fromtimestamp(2 ** 34) - datetime.timedelta(
+        dt = datetime.datetime.fromtimestamp(2 ** 34, UTC) - datetime.timedelta(
             microseconds=1
         )
         msg = b"\xd7\xff\xeek\x18c\xff\xff\xff\xff"
         self.check(dt, msg)
 
-    @skip_windows
     def test_timestamp96_lower(self):
-        dt = datetime.datetime.fromtimestamp(-1e-6)
+        dt = datetime.datetime.fromtimestamp(-1e-6, UTC)
         msg = b"\xc7\x0c\xff;\x9a\xc6\x18\xff\xff\xff\xff\xff\xff\xff\xff"
         self.check(dt, msg)
 
     def test_timestamp96_upper(self):
-        dt = datetime.datetime.fromtimestamp(2 ** 34)
+        dt = datetime.datetime.fromtimestamp(2 ** 34, UTC)
         msg = b"\xc7\x0c\xff\x00\x00\x00\x00\x00\x00\x00\x04\x00\x00\x00\x00"
         self.check(dt, msg)
-
-    def test_tzinfo_kwarg(self):
-        dec = msgspec.msgpack.Decoder()
-        assert dec.tzinfo is None
-
-        dec = msgspec.msgpack.Decoder(tzinfo=None)
-        assert dec.tzinfo is None
-
-        dec = msgspec.msgpack.Decoder(tzinfo=datetime.timezone.utc)
-        assert dec.tzinfo is datetime.timezone.utc
-
-        with pytest.raises(TypeError, match="tzinfo"):
-            msgspec.msgpack.Decoder(tzinfo=1)
-
-        msg = msgspec.msgpack.encode(1)
-        with pytest.raises(TypeError, match="tzinfo"):
-            msgspec.msgpack.decode(msg, tzinfo=1)
-
-    @pytest.mark.parametrize("timestamp", [0, 0.001, 2 ** 32 - 1])
-    def test_decode_with_tzinfo(self, timestamp):
-        dt = datetime.datetime.fromtimestamp(timestamp, datetime.timezone.utc)
-
-        msg = msgspec.msgpack.encode(dt)
-
-        dec = msgspec.msgpack.Decoder(tzinfo=datetime.timezone.utc)
-
-        assert dec.decode(msg) == dt
-        assert msgspec.msgpack.decode(msg, tzinfo=datetime.timezone.utc) == dt
 
 
 class CommonTypeTestBase:

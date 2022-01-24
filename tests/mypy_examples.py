@@ -94,13 +94,3 @@ def check_msgpack_Ext() -> None:
     ext = msgspec.msgpack.Ext(1, b"test")
     reveal_type(ext.code)  # assert "int" in typ
     reveal_type(ext.data)  # assert "bytes" in typ
-
-
-def check_msgpack_tzinfo() -> None:
-    dec = msgspec.msgpack.Decoder()
-    reveal_type(dec.tzinfo)  # assert "tzinfo" in typ
-
-    msgspec.msgpack.Decoder(tzinfo=None)
-    msgspec.msgpack.Decoder(tzinfo=datetime.timezone.utc)
-    msgspec.msgpack.decode(b"test", tzinfo=None)
-    msgspec.msgpack.decode(b"test", tzinfo=datetime.timezone.utc)

@@ -18,14 +18,12 @@ class Decoder(Generic[T]):
     type: Type[T]
     dec_hook: dec_hook_sig
     ext_hook: ext_hook_sig
-    tzinfo: Optional[datetime.tzinfo]
     @overload
     def __init__(
         self: Decoder[Any],
         *,
         dec_hook: dec_hook_sig = None,
         ext_hook: ext_hook_sig = None,
-        tzinfo: Optional[datetime.tzinfo] = None,
     ) -> None: ...
     @overload
     def __init__(
@@ -34,7 +32,6 @@ class Decoder(Generic[T]):
         *,
         dec_hook: dec_hook_sig = None,
         ext_hook: ext_hook_sig = None,
-        tzinfo: Optional[datetime.tzinfo] = None,
     ) -> None: ...
     def decode(self, data: bytes) -> T: ...
 
@@ -58,7 +55,6 @@ def decode(
     *,
     dec_hook: dec_hook_sig = None,
     ext_hook: ext_hook_sig = None,
-    tzinfo: Optional[datetime.tzinfo] = None,
 ) -> Any: ...
 @overload
 def decode(
@@ -67,6 +63,5 @@ def decode(
     type: Type[T] = ...,
     dec_hook: dec_hook_sig = None,
     ext_hook: ext_hook_sig = None,
-    tzinfo: Optional[datetime.tzinfo] = None,
 ) -> T: ...
 def encode(obj: Any, *, enc_hook: enc_hook_sig = None) -> bytes: ...
