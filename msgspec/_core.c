@@ -2812,10 +2812,6 @@ encoder_encode_into_common(
 
     status = encode(state, obj);
 
-    if (status == 0) {
-        FAST_BYTEARRAY_SHRINK(state->output_buffer, state->output_len);
-    }
-
     /* Reset buffer */
     state->output_buffer = old_buf;
     state->resize_buffer = &ms_resize_bytes;
@@ -2823,7 +2819,11 @@ encoder_encode_into_common(
         state->output_buffer_raw = PyBytes_AS_STRING(old_buf);
     }
 
-    Py_RETURN_NONE;
+    if (status == 0) {
+        FAST_BYTEARRAY_SHRINK(buf, state->output_len);
+        Py_RETURN_NONE;
+    }
+    return NULL;
 }
 
 PyDoc_STRVAR(Encoder_encode__doc__,
@@ -2964,7 +2964,7 @@ static PyMemberDef Encoder_members[] = {
  *************************************************************************/
 
 static MS_NOINLINE PyObject *
-ms_decode_type_enum(PyObject *val, TypeNode *type, PathNode *path) {
+ms_decode_enum(PyObject *val, TypeNode *type, PathNode *path) {
     if (val == NULL) return NULL;
     PyObject *enum_obj = TypeNode_get_enum(type);
     PyObject *out = PyObject_GetAttr(enum_obj, val);
@@ -2977,7 +2977,7 @@ ms_decode_type_enum(PyObject *val, TypeNode *type, PathNode *path) {
 }
 
 static PyObject *
-ms_decode_type_intenum(PyObject *val, TypeNode *type, PathNode *path) {
+ms_decode_intenum(PyObject *val, TypeNode *type, PathNode *path) {
     if (val == NULL) return NULL;
 
     PyObject *out = NULL;
@@ -4894,7 +4894,7 @@ static PyObject * mpack_decode(
 static MS_INLINE PyObject *
 mpack_decode_int(DecoderState *self, int64_t x, TypeNode *type, PathNode *path) {
     if (type->types & MS_TYPE_INTENUM) {
-        return ms_decode_type_intenum(PyLong_FromLongLong(x), type, path);
+        return ms_decode_intenum(PyLong_FromLongLong(x), type, path);
     }
     else if (type->types & (MS_TYPE_ANY | MS_TYPE_INT)) {
         return PyLong_FromLongLong(x);
@@ -4908,7 +4908,7 @@ mpack_decode_int(DecoderState *self, int64_t x, TypeNode *type, PathNode *path) 
 static MS_INLINE PyObject *
 mpack_decode_uint(DecoderState *self, uint64_t x, TypeNode *type, PathNode *path) {
     if (type->types & MS_TYPE_INTENUM) {
-        return ms_decode_type_intenum(PyLong_FromUnsignedLongLong(x), type, path);
+        return ms_decode_intenum(PyLong_FromUnsignedLongLong(x), type, path);
     }
     else if (type->types & (MS_TYPE_ANY | MS_TYPE_INT)) {
         return PyLong_FromUnsignedLongLong(x);
@@ -4953,7 +4953,7 @@ mpack_decode_str(DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *
         if (MS_UNLIKELY(mpack_read(self, &s, size) < 0)) return NULL;
         val = PyUnicode_DecodeUTF8(s, size, NULL);
         if (MS_UNLIKELY(type->types & MS_TYPE_ENUM)) {
-            return ms_decode_type_enum(val, type, path);
+            return ms_decode_enum(val, type, path);
         }
         return val;
     }
@@ -6294,7 +6294,6 @@ json_decode_struct_array(
     PyObject *out, *item = NULL;
     unsigned char c;
     bool should_untrack, first = true;
-    PathNode el_path = {path, 0, st_type};
 
     self->input_pos++; /* Skip '[' */
 
@@ -6337,7 +6336,7 @@ json_decode_struct_array(
 
         if (MS_LIKELY(i < nfields)) {
             /* Parse item */
-            el_path.index = i;
+            PathNode el_path = {path, i};
             item = json_decode(self, st_type->struct_types[i], &el_path, is_key);
             if (MS_UNLIKELY(item == NULL)) goto error;
             Struct_set_index(out, i, item);
@@ -6479,7 +6478,7 @@ json_read_codepoint(JSONDecoderState *self, unsigned int *out) {
             c = c - 'A' + 10;
         }
         else {
-            json_err_invalid(self, "invalid character");
+            json_err_invalid(self, "invalid character in unicode escape");
             return -1;
         }
         cp = (cp << 4) + c;
@@ -6515,7 +6514,7 @@ json_parse_escape(JSONDecoderState *self) {
                 unsigned int cp2;
                 if (!json_remaining(self, 6)) return ms_err_truncated();
                 if (self->input_pos[0] != '\\' || self->input_pos[1] != 'u') {
-                    json_err_invalid(self, "unexpected end of hex escape");
+                    json_err_invalid(self, "unexpected end of escaped utf-16 surrogate pair");
                     return -1;
                 }
                 self->input_pos += 2;
@@ -6835,7 +6834,7 @@ json_decode_string(JSONDecoderState *self, TypeNode *type, PathNode *path) {
         PyObject *val = PyUnicode_DecodeUTF8(view, size, NULL);
         if (val == NULL) return NULL;
         if (MS_UNLIKELY(type->types & MS_TYPE_ENUM)) {
-            return ms_decode_type_enum(val, type, path);
+            return ms_decode_enum(val, type, path);
         }
         return val;
     }
@@ -7070,11 +7069,11 @@ json_decode_extended_float(JSONDecoderState *self) {
             c = *self->input_pos++;
             if (MS_LIKELY(nd < MS_HPD_MAX_DIGITS)) {
                 dec.digits[nd++] = (uint8_t)(c - '0');
-                dp = nd;
             }
             else if (c != '0') {
                 dec.truncated = true;
             }
+            dp++;
         }
         /* This _can't_ happen, since it would have been caught in the fast routine first */
         /*if (MS_UNLIKELY(nd == 0)) return json_err_invalid(self, "invalid character");*/
@@ -7083,18 +7082,26 @@ json_decode_extended_float(JSONDecoderState *self) {
     c = json_peek_or_null(self);
     if (c == '.') {
         self->input_pos++;
-        /* Track leading zeros implicitly */
-        /* XXX: I think if we set dp = -1 at the beginning this check can be removed */
-        /*if (nd == 0) dp--;*/
         /* Parse remaining digits until invalid/unknown character */
         unsigned char *cur_pos = self->input_pos;
         while (self->input_pos < self->input_end && is_digit(*self->input_pos)) {
             c = *self->input_pos++;
-            if (MS_LIKELY(nd < MS_HPD_MAX_DIGITS)) {
-                dec.digits[nd++] = (uint8_t)(c - '0');
+            if (c == '0') {
+                if (nd == 0) {
+                    /* Track leading zeros implicitly */
+                    dp--;
+                }
+                else if (nd < MS_HPD_MAX_DIGITS) {
+                    dec.digits[nd++] = (uint8_t)(c - '0');
+                }
             }
-            else if (c != '0') {
-                dec.truncated = true;
+            else if ('1' <= c && c <= '9') {
+                if (nd < MS_HPD_MAX_DIGITS) {
+                    dec.digits[nd++] = (uint8_t)(c - '0');
+                }
+                else {
+                    dec.truncated = true;
+                }
             }
         }
         /* Error if no digits after decimal */
@@ -7105,7 +7112,7 @@ json_decode_extended_float(JSONDecoderState *self) {
     if (c == 'e' || c == 'E') {
         self->input_pos++;
 
-        int32_t exp_sign = 1, exp_part = 0;
+        int64_t exp_sign = 1, exp_part = 0;
 
         c = json_peek_or_null(self);
         /* Parse exponent sign (if any) */
@@ -7121,8 +7128,8 @@ json_decode_extended_float(JSONDecoderState *self) {
         unsigned char *cur_pos = self->input_pos;
         while (self->input_pos < self->input_end && is_digit(*self->input_pos)) {
             c = *self->input_pos++;
-            if (MS_LIKELY(exp_part < MS_HPD_MAX_DIGITS + MS_HPD_DP_RANGE)) {
-                exp_part = (int32_t)(exp_part * 10) + (uint32_t)(c - '0');
+            if (MS_LIKELY(exp_part < 922337203685477580)) {  /* won't overflow int64_t */
+                exp_part = (int64_t)(exp_part * 10) + (c - '0');
             }
         }
 
@@ -7168,6 +7175,8 @@ json_maybe_decode_number(JSONDecoderState *self, TypeNode *type, PathNode *path)
         is_negative = true;
     }
 
+    unsigned char *first_digit_pos = self->input_pos;
+
     /* Parse integer */
     if (MS_UNLIKELY(c == '0')) {
         /* Ensure at most one leading zero */
@@ -7195,12 +7204,12 @@ json_maybe_decode_number(JSONDecoderState *self, TypeNode *type, PathNode *path)
              * additional digits definitely will. Read the 20th digit (and
              * check for a 21st), taking the slow path upon overflow. */
             c = json_peek_or_null(self);
-            if (is_digit(c)) {
+            if (MS_UNLIKELY(is_digit(c))) {
                 self->input_pos++;
                 uint64_t mantissa2 = mantissa * 10 + (uint64_t)(c - '0');
-                if (MS_UNLIKELY(mantissa2 < mantissa || is_digit(json_peek_or_null(self)))) {
-                    self->input_pos = initial_pos;
-                    return json_decode_extended_float(self);
+                bool overflowed = (mantissa2 < mantissa) || ((mantissa2 - (uint64_t)(c - '0')) / 10) != mantissa;
+                if (MS_UNLIKELY(overflowed || is_digit(json_peek_or_null(self)))) {
+                    goto fallback_extended;
                 }
                 mantissa = mantissa2;
             }
@@ -7216,22 +7225,30 @@ end_integer:
         self->input_pos++;
         is_float = true;
         /* Parse remaining digits until invalid/unknown character */
-        unsigned char *cur_pos = self->input_pos;
+        unsigned char *first_dec_digit = self->input_pos;
         while (self->input_pos < self->input_end && is_digit(*self->input_pos)) {
             c = *self->input_pos++;
-            uint64_t mantissa2 = mantissa * 10 + (uint64_t)(c - '0');
-            if (MS_UNLIKELY(mantissa2 < mantissa)) {
-                self->input_pos = initial_pos;
-                return json_decode_extended_float(self);
-            }
-            mantissa = mantissa2;
-            exponent--;
+            mantissa = mantissa * 10 + (uint64_t)(c - '0');
         }
         /* Error if no digits after decimal */
-        if (MS_UNLIKELY(cur_pos == self->input_pos)) return json_err_invalid(self, "invalid number");
+        if (MS_UNLIKELY(first_dec_digit == self->input_pos)) return json_err_invalid(self, "invalid number");
+        exponent = first_dec_digit - self->input_pos;
 
         c = json_peek_or_null(self);
+
+        /* This is may be an overestimate of significant digits, only fix if it matters */
+        uint32_t ndigits = self->input_pos - first_digit_pos;
+        if (MS_UNLIKELY(ndigits > 19)) {
+            /* Fix ndigits estimate by trimming leading zeros/decimal */
+            const uint8_t* p = first_digit_pos;
+            while (*p == '0' || *p == '.') p++;
+            ndigits -= (p - first_digit_pos);
+            if (ndigits > 19) {
+                goto fallback_extended;
+            }
+        }
     }
+
     if (c == 'e' || c == 'E') {
         int32_t exp_sign = 1, exp_part = 0;
         self->input_pos++;
@@ -7273,19 +7290,28 @@ end_integer:
             PyLong_FromUnsignedLongLong(mantissa)
         );
         if (type->types & MS_TYPE_INTENUM) {
-            return ms_decode_type_intenum(val, type, path);
+            return ms_decode_intenum(val, type, path);
         }
         return val;
     }
     else if (type->types & (MS_TYPE_ANY | MS_TYPE_FLOAT)) {
         double val;
         if (!reconstruct_double(mantissa, exponent, is_negative, &val)) {
-            self->input_pos = initial_pos;
-            return json_decode_extended_float(self);
+            goto fallback_extended;
         }
         return PyFloat_FromDouble(val);
     }
-    return ms_validation_error(is_float ? "float" : "int", type, path);
+    if (!is_float) {
+        return ms_validation_error("int", type, path);
+    }
+    return ms_validation_error("float", type, path);
+
+fallback_extended:
+    self->input_pos = initial_pos;
+    if (MS_UNLIKELY(!(type->types & (MS_TYPE_ANY | MS_TYPE_FLOAT)))) {
+        return ms_validation_error("float", type, path);
+    }
+    return json_decode_extended_float(self);
 }
 
 static PyObject *

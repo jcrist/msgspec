@@ -398,7 +398,7 @@ class TestEncoderMisc:
         enc.encode_into(msg, buf, -1)
         assert buf == b"01234" + encoded
 
-    def tesT_encode_into_handles_errors_properly(self):
+    def test_encode_into_handles_errors_properly(self):
         enc = msgspec.msgpack.Encoder()
         out1 = enc.encode([1, 2, 3])
 
