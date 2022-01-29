@@ -623,6 +623,7 @@ class TestFloat:
             3.196104012172126e-27,
             9.007199254740991e15,
             9.007199254740992e15,
+            3.1462737709539517e18,
         ],
     )
     def test_roundtrip_float_tricky_cases(self, x):
