@@ -674,7 +674,8 @@ class TestFloat:
 
         def randfloats(N):
             while N:
-                x = struct.unpack("!d", rand.randbytes(8))[0]
+                dbytes = rand.getrandbits(64).to_bytes(8, "big")
+                x = struct.unpack("!d", dbytes)[0]
                 if math.isfinite(x):
                     N -= 1
                     yield x

@@ -55,7 +55,7 @@ jobs:
       - name: Build & Test Wheels
         uses: joerick/cibuildwheel@v1.9.0
         env:
-          CIBW_TEST_REQUIRES: "pytest msgpack orjson"
+          CIBW_TEST_REQUIRES: "pytest msgpack"
           CIBW_TEST_COMMAND: "pytest {project}/tests"
           CIBW_BUILD: "cp38-* cp39-* cp310-*"
           CIBW_SKIP: "*-win32 *_i686 *_s390x *_ppc64le"
