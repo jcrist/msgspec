@@ -4,6 +4,7 @@ accepted/rejected appropriately."""
 
 import msgspec
 import pytest
+import itertools
 
 valid_cases = [
     b"[1e-2]",
@@ -295,12 +296,12 @@ invalid_cases = [
 ]
 
 
-@pytest.mark.parametrize("case", valid_cases)
+@pytest.mark.parametrize("case", valid_cases, ids=itertools.count())
 def test_valid(case):
     msgspec.json.decode(case)
 
 
-@pytest.mark.parametrize("case", invalid_cases)
+@pytest.mark.parametrize("case", invalid_cases, ids=itertools.count())
 def test_invalid(case):
     expected_errors = (msgspec.DecodingError, UnicodeDecodeError, RecursionError)
     with pytest.raises(expected_errors):

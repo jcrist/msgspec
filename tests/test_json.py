@@ -1025,6 +1025,7 @@ class TestFloat:
             ),
             "-2240084132271013504.131248280843119943687942846658579428",
         ],
+        ids=itertools.count(),
     )
     def test_decode_float_cases_from_fastfloat(self, s):
         """Some tricky test cases from
@@ -1049,6 +1050,7 @@ class TestFloat:
             "0." + "0" * 900 + "12345" * 400 + "1e875",
             "1" * 30000 + "e-30000",
         ],
+        ids=itertools.count(),
     )
     def test_decode_long_float_truncated_but_exp_brings_back_in_bounds(self, s):
         """The digits part of these would put them over the limit to inf, but
@@ -1095,6 +1097,7 @@ class TestFloat:
             (b"1" * 25 + b".2e+", "invalid number"),
             (b"1" * 25 + b".2ea", "invalid number"),
         ],
+        ids=itertools.count(),
     )
     def test_decode_long_float_malformed(self, s, error):
         with pytest.raises(msgspec.DecodingError, match=error):
@@ -1112,6 +1115,7 @@ class TestFloat:
             b"1" * 3000 + b"e-2600",
             b"-" + b"1" * 3000 + b"e-2600",
         ],
+        ids=itertools.count(),
     )
     def test_decode_float_out_of_bounds(self, s):
         with pytest.raises(msgspec.DecodingError, match="out of range"):
