@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import enum
 import base64
+import datetime
 import itertools
 import gc
 import json
@@ -9,6 +10,10 @@ import math
 import random
 import struct
 import sys
+import uuid
+import types
+import textwrap
+from contextlib import contextmanager
 from typing import Any, List, Set, Tuple, Union, Dict, Optional
 
 import pytest
@@ -53,6 +58,144 @@ class PersonAA(msgspec.Struct, asarray=True):
 class Node(msgspec.Struct):
     left: Optional[Node] = None
     right: Optional[Node] = None
+
+
+@contextmanager
+def temp_module(code):
+    """Mutually recursive struct types defined inside functions don't work (and
+    probably never will). To avoid populating a bunch of test structs in the
+    top level of this module, we instead create a temporary module per test to
+    exec whatever is needed for that test"""
+    code = textwrap.dedent(code)
+    name = f"temp_{uuid.uuid4().hex}"
+    ns = {"__name__": name}
+    exec(code, ns)
+    mod = types.ModuleType(name)
+    for k, v in ns.items():
+        setattr(mod, k, v)
+
+    try:
+        sys.modules[name] = mod
+        yield mod
+    finally:
+        sys.modules.pop(name, None)
+
+
+class TestInvalidJSONTypes:
+    def test_invalid_type_union(self):
+        types = [str, datetime.datetime, bytes, bytearray]
+        for length in [2, 3, 4]:
+            for types in itertools.combinations(types, length):
+                if set(types) == {bytes, bytearray}:
+                    continue
+                with pytest.raises(TypeError, match="not supported"):
+                    msgspec.json.Decoder(Union[types])
+
+    def test_invalid_type_dict_non_str_key(self):
+        with pytest.raises(TypeError, match="not supported"):
+            msgspec.json.Decoder(Dict[int, int])
+
+    def test_invalid_type_in_collection(self):
+        with pytest.raises(TypeError, match="not supported"):
+            msgspec.json.Decoder(List[Union[int, Dict[int, int]]])
+
+        with pytest.raises(TypeError, match="not supported"):
+            msgspec.json.Decoder(List[Dict[str, Union[int, str, bytes]]])
+
+    @pytest.mark.parametrize("preinit", [False, True])
+    def test_invalid_dict_type_in_struct(self, preinit):
+        class Test(msgspec.Struct):
+            a: int
+            b: Dict[int, str]
+            c: str
+
+        if preinit:
+            # Creating a msgpack decoder pre-parses the type definition
+            msgspec.msgpack.Decoder(Test)
+
+        with pytest.raises(TypeError, match="not supported"):
+            msgspec.json.Decoder(Test)
+
+        # Msgpack decoder still works
+        dec = msgspec.msgpack.Decoder(Test)
+        msg = Test(1, {2: "three"}, "four")
+        assert dec.decode(msgspec.msgpack.encode(msg)) == msg
+
+    @pytest.mark.parametrize("preinit", [False, True])
+    def test_invalid_union_type_in_struct(self, preinit):
+        class Test(msgspec.Struct):
+            a: int
+            b: Union[str, bytes]
+            c: str
+
+        if preinit:
+            # Creating a msgpack decoder pre-parses the type definition
+            msgspec.msgpack.Decoder(Test)
+
+        with pytest.raises(TypeError, match="not supported"):
+            msgspec.json.Decoder(Test)
+
+        # Msgpack decoder still works
+        dec = msgspec.msgpack.Decoder(Test)
+        msg = Test(1, "two", "three")
+        assert dec.decode(msgspec.msgpack.encode(msg)) == msg
+
+    @pytest.mark.parametrize("preinit", [False, True])
+    def test_invalid_type_nested_in_struct(self, preinit):
+        source = """
+        import msgspec
+        from typing import List, Dict
+
+        class Inner(msgspec.Struct):
+            a: List[Dict[int, int]]
+            b: int
+
+        class Outer(msgspec.Struct):
+            a: List[Inner]
+            b: bool
+        """
+        with temp_module(source) as mod:
+            if preinit:
+                msgspec.msgpack.Decoder(mod.Outer)
+
+            with pytest.raises(TypeError, match="not supported"):
+                msgspec.json.Decoder(mod.Outer)
+
+            dec = msgspec.msgpack.Decoder(mod.Outer)
+            msg = mod.Outer([mod.Inner([{2: 3}], 1)], False)
+            assert dec.decode(msgspec.msgpack.encode(msg)) == msg
+
+    @pytest.mark.parametrize("preinit", [False, True])
+    @pytest.mark.parametrize("kind", ["A", "B", "C"])
+    def test_invalid_type_recursive(self, preinit, kind):
+        source = """
+        import msgspec
+        from typing import Optional, Dict
+
+        class A(msgspec.Struct):
+            x: Optional[dict]
+            y: Optional[B]
+
+        class B(msgspec.Struct):
+            x: Optional[dict]
+            y: Optional[C]
+
+        class C(msgspec.Struct):
+            x: Optional[Dict[int, int]]
+            y: Optional[A]
+        """
+
+        with temp_module(source) as mod:
+            cls = getattr(mod, kind)
+            if preinit:
+                msgspec.msgpack.Decoder(cls)
+
+            with pytest.raises(TypeError, match="not supported"):
+                msgspec.json.Decoder(cls)
+
+            dec = msgspec.msgpack.Decoder(cls)
+            msg = {"x": None, "y": {"x": None, "y": {"x": None, "y": None}}}
+            assert isinstance(dec.decode(msgspec.msgpack.encode(msg)), cls)
 
 
 class TestEncodeFunction:
