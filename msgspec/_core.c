@@ -525,13 +525,14 @@ typedef struct {
     Py_ssize_t *struct_offsets;
     TypeNode **struct_types;
     bool json_compatible;
+    bool traversing;
     char immutable;
     char asarray;
 } StructMetaObject;
 
 static PyTypeObject StructMetaType;
 static PyTypeObject Ext_Type;
-static int StructMeta_prep_types(PyObject *self);
+static int StructMeta_prep_types(PyObject *self, bool err_not_json, bool *json_compatible);
 
 #define StructMeta_GET_FIELDS(s) (((StructMetaObject *)(s))->struct_fields);
 #define StructMeta_GET_NFIELDS(s) (PyTuple_GET_SIZE((((StructMetaObject *)(s))->struct_fields)));
@@ -552,7 +553,7 @@ TypeNode_get_size(TypeNode *type, Py_ssize_t *n_typenode) {
     }
     else if (!(type->types & MS_TYPE_ANY)) {
         n_obj = ms_popcount(
-            type->types & (MS_TYPE_STRUCT | MS_TYPE_INTENUM | MS_TYPE_ENUM | MS_TYPE_DICT)
+            type->types & (MS_TYPE_STRUCT | MS_TYPE_INTENUM | MS_TYPE_ENUM)
         );
 
         if (type->types & MS_TYPE_DICT) n_type += 2;
@@ -596,14 +597,14 @@ TypeNode_get_dict_obj(TypeNode *type) {
 
 static MS_INLINE void
 TypeNode_get_dict(TypeNode *type, TypeNode **key, TypeNode **val) {
-    Py_ssize_t i = ms_popcount(type->types & (MS_TYPE_STRUCT | MS_TYPE_INTENUM | MS_TYPE_ENUM | MS_TYPE_DICT));
+    Py_ssize_t i = ms_popcount(type->types & (MS_TYPE_STRUCT | MS_TYPE_INTENUM | MS_TYPE_ENUM));
     *key = ((TypeNodeExtra *)type)->extra[i];
     *val = ((TypeNodeExtra *)type)->extra[i + 1];
 }
 
 static MS_INLINE Py_ssize_t
 TypeNode_get_array_offset(TypeNode *type) {
-    Py_ssize_t i = ms_popcount(type->types & (MS_TYPE_STRUCT | MS_TYPE_INTENUM | MS_TYPE_ENUM | MS_TYPE_DICT));
+    Py_ssize_t i = ms_popcount(type->types & (MS_TYPE_STRUCT | MS_TYPE_INTENUM | MS_TYPE_ENUM));
     if (type->types & MS_TYPE_DICT) i += 2;
     return i;
 }
@@ -708,15 +709,14 @@ typedef struct {
     PyObject *enum_obj;
     PyObject *custom_obj;
     PyObject *array_el_obj;
-    PyObject *dict_obj;
     PyObject *dict_key_obj;
     PyObject *dict_val_obj;
 } TypeNodeCollectState;
 
-static TypeNode * TypeNode_Convert(PyObject *type);
+static TypeNode * TypeNode_Convert(PyObject *type, bool err_not_json, bool *json_compatible);
 
 static TypeNode *
-typenode_from_collect_state(TypeNodeCollectState *state) {
+typenode_from_collect_state(TypeNodeCollectState *state, bool err_not_json, bool *json_compatible) {
     Py_ssize_t e_ind, n_extra = 0, fixtuple_size = 0;
     bool has_fixtuple = false;
 
@@ -724,7 +724,7 @@ typenode_from_collect_state(TypeNodeCollectState *state) {
     if (state->intenum_obj != NULL) n_extra++;
     if (state->enum_obj != NULL) n_extra++;
     if (state->custom_obj != NULL) n_extra++;
-    if (state->dict_key_obj != NULL) n_extra += 3;
+    if (state->dict_key_obj != NULL) n_extra += 2;
     if (state->array_el_obj != NULL) {
         if (PyTuple_Check(state->array_el_obj)) {
             has_fixtuple = true;
@@ -761,7 +761,9 @@ typenode_from_collect_state(TypeNodeCollectState *state) {
     /* Populate `extra` fields in order */
     e_ind = 0;
     if (state->struct_obj != NULL) {
-        if (StructMeta_prep_types(state->struct_obj) < 0) goto error;
+        if (StructMeta_prep_types(state->struct_obj, err_not_json, json_compatible) < 0) {
+            goto error;
+        }
         Py_INCREF(state->struct_obj);
         out->extra[e_ind++] = state->struct_obj;
     }
@@ -782,25 +784,43 @@ typenode_from_collect_state(TypeNodeCollectState *state) {
         out->extra[e_ind++] = state->custom_obj;
     }
     if (state->dict_key_obj != NULL) {
-        Py_INCREF(state->dict_obj);
-        out->extra[e_ind++] = state->dict_obj;
-        TypeNode *temp = TypeNode_Convert(state->dict_key_obj);
+        TypeNode *temp = TypeNode_Convert(state->dict_key_obj, err_not_json, json_compatible);
         if (temp == NULL) goto error;
         out->extra[e_ind++] = temp;
-        temp = TypeNode_Convert(state->dict_val_obj);
+        /* Check that JSON dict keys are strings */
+        if (temp->types & ~(MS_TYPE_ANY | MS_TYPE_STR)) {
+            if (err_not_json) {
+                PyErr_Format(
+                    PyExc_TypeError,
+                    "JSON doesn't support dicts with non-string keys "
+                    "- type `%R` is not supported",
+                    state->context
+                );
+                goto error;  /* temp already added to `out`, gets freed below */
+            }
+            if (json_compatible != NULL)
+                *json_compatible = false;
+        }
+        temp = TypeNode_Convert(state->dict_val_obj, err_not_json, json_compatible);
         if (temp == NULL) goto error;
         out->extra[e_ind++] = temp;
     }
     if (state->array_el_obj != NULL) {
         if (has_fixtuple) {
             for (Py_ssize_t i = 0; i < fixtuple_size; i++) {
-                TypeNode *temp = TypeNode_Convert(PyTuple_GET_ITEM(state->array_el_obj, i));
+                TypeNode *temp = TypeNode_Convert(
+                    PyTuple_GET_ITEM(state->array_el_obj, i),
+                    err_not_json,
+                    json_compatible
+                );
                 if (temp == NULL) goto error;
                 out->extra[e_ind++] = temp;
             }
         }
         else {
-            TypeNode *temp = TypeNode_Convert(state->array_el_obj);
+            TypeNode *temp = TypeNode_Convert(
+                state->array_el_obj, err_not_json, json_compatible
+            );
             if (temp == NULL) goto error;
             out->extra[e_ind++] = temp;
         }
@@ -825,7 +845,9 @@ typenode_collect_err_unique(TypeNodeCollectState *state, const char *kind) {
 }
 
 static int
-typenode_collect_check_invariants(TypeNodeCollectState *state) {
+typenode_collect_check_invariants(
+    TypeNodeCollectState *state, bool err_not_json, bool *json_compatible
+) {
     /* Ensure at least one type is set */
     if (state->types == 0) {
         PyErr_Format(PyExc_RuntimeError, "No types found, this is likely a bug!");
@@ -890,6 +912,24 @@ typenode_collect_check_invariants(TypeNodeCollectState *state) {
         return -1;
     }
 
+    /* JSON serializes more types as strings, ensure they don't conflict in a union */
+    if (
+        ms_popcount(
+            state->types & (MS_TYPE_STR | MS_TYPE_BYTES | MS_TYPE_BYTEARRAY | MS_TYPE_DATETIME)
+        ) > 1
+    ) {
+        if (err_not_json) {
+            PyErr_Format(
+                PyExc_TypeError,
+                "JSON type unions may contain at most one of `str`, `bytes`, "
+                "`bytearray` or `datetime` - type `%R` is not supported",
+                state->context
+            );
+            return -1;
+        }
+        if (json_compatible != NULL)
+            *json_compatible = false;
+    }
     return 0;
 }
 
@@ -899,8 +939,6 @@ typenode_collect_dict(TypeNodeCollectState *state, PyObject *obj, PyObject *key,
         return typenode_collect_err_unique(state, "dict");
     }
     state->types |= MS_TYPE_DICT;
-    Py_INCREF(obj);
-    state->dict_obj = obj;
     Py_INCREF(key);
     state->dict_key_obj = key;
     Py_INCREF(val);
@@ -940,7 +978,6 @@ typenode_collect_clear_state(TypeNodeCollectState *state) {
     Py_CLEAR(state->enum_obj);
     Py_CLEAR(state->custom_obj);
     Py_CLEAR(state->array_el_obj);
-    Py_CLEAR(state->dict_obj);
     Py_CLEAR(state->dict_key_obj);
     Py_CLEAR(state->dict_val_obj);
 }
@@ -1119,7 +1156,7 @@ done:
 }
 
 static TypeNode *
-TypeNode_Convert(PyObject *obj) {
+TypeNode_Convert(PyObject *obj, bool err_not_json, bool *json_compatible) {
     TypeNode *out = NULL;
     TypeNodeCollectState state = {0};
     state.context = obj;
@@ -1127,62 +1164,12 @@ TypeNode_Convert(PyObject *obj) {
     /* Traverse `obj` to collect all type annotations at this level */
     if (typenode_collect_type(&state, obj) < 0) goto done;
     /* Check type invariants to ensure Union types are valid */
-    if (typenode_collect_check_invariants(&state) < 0) goto done;
+    if (typenode_collect_check_invariants(&state, err_not_json, json_compatible) < 0) goto done;
     /* Populate a new TypeNode, recursing into subtypes as needed */
-    out = typenode_from_collect_state(&state);
+    out = typenode_from_collect_state(&state, err_not_json, json_compatible);
 done:
     typenode_collect_clear_state(&state);
     return out;
-}
-
-static bool
-TypeNode_JSONCompatible(TypeNode *type) {
-    if (type->types & MS_TYPE_DICT) {
-        TypeNode *key, *val;
-        TypeNode_get_dict(type, &key, &val);
-        if (key->types & ~(MS_TYPE_ANY | MS_TYPE_STR)) {
-            PyObject *type_repr = PyObject_Repr(TypeNode_get_dict_obj(type));
-            if (type_repr == NULL) return false;
-            PyErr_Format(
-                PyExc_TypeError,
-                "JSON doesn't support dicts with non-string keys - type %R is incompatible",
-                type_repr
-            );
-            Py_DECREF(type_repr);
-            return false;
-        }
-        if (!TypeNode_JSONCompatible(key)) return false;
-        if (!TypeNode_JSONCompatible(val)) return false;
-    }
-    else if (type->types & (MS_TYPE_LIST | MS_TYPE_SET | MS_TYPE_VARTUPLE)) {
-        TypeNode *item = TypeNode_get_array(type);
-        if (!TypeNode_JSONCompatible(item)) return false;
-    }
-    else if (type->types & MS_TYPE_STRUCT) {
-        Py_ssize_t nfields, i;
-        StructMetaObject *st_type = TypeNode_get_struct(type);
-        if (st_type->json_compatible) return true;
-        /* Pre-emptively set to True to prevent recursion */
-        st_type->json_compatible = true;
-
-        nfields = PyTuple_GET_SIZE(st_type->struct_fields);
-        for (i = 0; i < nfields; i++) {
-            if (!TypeNode_JSONCompatible(st_type->struct_types[i])) {
-                st_type->json_compatible = false;
-                return false;
-            }
-        }
-    }
-    else if (type->types & MS_TYPE_FIXTUPLE) {
-        Py_ssize_t i, offset;
-        TypeNodeExtra *tex = (TypeNodeExtra *)type;
-
-        offset = TypeNode_get_array_offset(type);
-        for (i = 0; i < tex->fixtuple_size; i++) {
-            if (!TypeNode_JSONCompatible(tex->extra[offset + i])) return false;
-        }
-    }
-    return true;
 }
 
 #define PATH_ELLIPSIS -1
@@ -1695,7 +1682,6 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
     cls->struct_offsets = offsets;
     cls->immutable = immutable;
     cls->asarray = asarray;
-    cls->json_compatible = false;  /* false means unknown or incompatible */
     return (PyObject *) cls;
 error:
     Py_XDECREF(arg_fields);
@@ -1713,14 +1699,34 @@ error:
 }
 
 static int
-StructMeta_prep_types(PyObject *py_self) {
+StructMeta_prep_types(PyObject *py_self, bool err_not_json, bool *json_compatible) {
     StructMetaObject *self = (StructMetaObject *)py_self;
     MsgspecState *st;
     TypeNode *type;
+    TypeNode **struct_types = NULL;
     Py_ssize_t i, nfields;
     PyObject *obj, *field, *annotations = NULL;
+    bool struct_is_json_compatible = true;
 
-    if (self->struct_types != NULL) return 0;
+    /* Types are currently being prepped, recursive type */
+    if (self->traversing) return 0;
+
+    if (self->struct_types) {
+        if (!self->json_compatible) {
+            if (json_compatible != NULL) {
+                *json_compatible = false;
+            }
+            if (!err_not_json) return 0;
+            /* If we want to error, we need to recurse again here. This won't
+             * modify any internal state, since it will error too early. */
+        }
+        else {
+            return 0;
+        }
+    }
+
+    /* Prevent recursion, clear on return */
+    self->traversing = true;
 
     nfields = PyTuple_GET_SIZE(self->struct_fields);
 
@@ -1728,33 +1734,41 @@ StructMeta_prep_types(PyObject *py_self) {
     annotations = CALL_ONE_ARG(st->get_type_hints, py_self);
     if (annotations == NULL) goto error;
 
-    self->struct_types = PyMem_Calloc(nfields, sizeof(TypeNode*));
-    if (self->struct_types == NULL)  {
+    struct_types = PyMem_Calloc(nfields, sizeof(TypeNode*));
+    if (struct_types == NULL)  {
         PyErr_NoMemory();
-        return -1;
+        goto error;
     }
 
     for (i = 0; i < nfields; i++) {
+        bool field_is_json_compatible = true;
         field = PyTuple_GET_ITEM(self->struct_fields, i);
         obj = PyDict_GetItem(annotations, field);
         if (obj == NULL) goto error;
-        type = TypeNode_Convert(obj);
+        type = TypeNode_Convert(obj, err_not_json, &field_is_json_compatible);
         if (type == NULL) goto error;
-        self->struct_types[i] = type;
+        struct_types[i] = type;
+        struct_is_json_compatible &= field_is_json_compatible;
     }
+
+    self->traversing = false;
+    self->struct_types = struct_types;
+    self->json_compatible = struct_is_json_compatible;
+    if (!struct_is_json_compatible && json_compatible != NULL)
+        *json_compatible = false;
 
     Py_DECREF(annotations);
     return 0;
 
 error:
+    self->traversing = false;
     Py_XDECREF(annotations);
-    if (self->struct_types != NULL) {
+    if (struct_types != NULL) {
         for (i = 0; i < nfields; i++) {
-            TypeNode_Free(self->struct_types[i]);
+            TypeNode_Free(struct_types[i]);
         }
     }
-    PyMem_Free(self->struct_types);
-    self->struct_types = NULL;
+    PyMem_Free(struct_types);
     return -1;
 }
 
@@ -4615,7 +4629,7 @@ Decoder_init(Decoder *self, PyObject *args, PyObject *kwds)
     self->state.ext_hook = ext_hook;
 
     /* Handle type */
-    self->state.type = TypeNode_Convert(type);
+    self->state.type = TypeNode_Convert(type, false, NULL);
     if (self->state.type == NULL) {
         return -1;
     }
@@ -5788,7 +5802,7 @@ msgspec_msgpack_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, 
     /* Only build TypeNode if required */
     state.type = NULL;
     if (type != NULL && type != st->typing_any) {
-        state.type = TypeNode_Convert(type);
+        state.type = TypeNode_Convert(type, false, NULL);
         if (state.type == NULL) return NULL;
     }
 
@@ -5889,9 +5903,8 @@ JSONDecoder_init(JSONDecoder *self, PyObject *args, PyObject *kwds)
     self->state.dec_hook = dec_hook;
 
     /* Handle type */
-    self->state.type = TypeNode_Convert(type);
+    self->state.type = TypeNode_Convert(type, true, NULL);
     if (self->state.type == NULL) return -1;
-    if (!TypeNode_JSONCompatible(self->state.type)) return -1;
     Py_INCREF(type);
     self->orig_type = type;
 
@@ -7768,12 +7781,8 @@ msgspec_json_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyO
     /* Only build TypeNode if required */
     state.type = NULL;
     if (type != NULL && type != st->typing_any) {
-        state.type = TypeNode_Convert(type);
+        state.type = TypeNode_Convert(type, true, NULL);
         if (state.type == NULL) return NULL;
-        if (!TypeNode_JSONCompatible(state.type)) {
-            TypeNode_Free(state.type);
-            return NULL;
-        }
     }
 
     buffer.buf = NULL;
