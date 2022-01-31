@@ -5892,7 +5892,7 @@ JSONDecoder_init(JSONDecoder *self, PyObject *args, PyObject *kwds)
     PyObject *type = st->typing_any;
     PyObject *dec_hook = NULL;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|O$OO", kwlist, &type, &dec_hook)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|O$O", kwlist, &type, &dec_hook)) {
         return -1;
     }
 

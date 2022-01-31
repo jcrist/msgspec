@@ -14,7 +14,7 @@ import uuid
 import types
 import textwrap
 from contextlib import contextmanager
-from typing import Any, List, Set, Tuple, Union, Dict, Optional
+from typing import Any, List, Set, Tuple, Union, Dict, Optional, NamedTuple, Deque
 
 import pytest
 
@@ -58,6 +58,11 @@ class PersonAA(msgspec.Struct, asarray=True):
 class Node(msgspec.Struct):
     left: Optional[Node] = None
     right: Optional[Node] = None
+
+
+class Point(NamedTuple):
+    x: float
+    y: float
 
 
 @contextmanager
@@ -439,6 +444,237 @@ class TestEncoderMisc:
         # Encoder still works
         out2 = enc.encode([1, 2, 3])
         assert out1 == out2
+
+
+class TestDecodeFunction:
+    def test_decode(self):
+        assert msgspec.json.decode(b"[1, 2, 3]") == [1, 2, 3]
+
+    def test_decode_type_keyword(self):
+        assert msgspec.json.decode(b"[1, 2, 3]", type=Set[int]) == {1, 2, 3}
+
+        with pytest.raises(msgspec.DecodingError):
+            assert msgspec.json.decode(b"[1, 2, 3]", type=Set[str])
+
+    def test_decode_type_any(self):
+        assert msgspec.json.decode(b"[1, 2, 3]", type=Any) == [1, 2, 3]
+
+    def test_decode_invalid_type(self):
+        with pytest.raises(TypeError, match="Type '1' is not supported"):
+            msgspec.json.decode(b"[]", type=1)
+
+    def test_decode_invalid_buf(self):
+        with pytest.raises(TypeError):
+            msgspec.json.decode(1)
+
+    def test_decode_parse_arguments_errors(self):
+        buf = b"[1, 2, 3]"
+
+        with pytest.raises(TypeError, match="Missing 1 required argument"):
+            msgspec.json.decode()
+
+        with pytest.raises(TypeError, match="Extra positional arguments"):
+            msgspec.json.decode(buf, List[int])
+
+        with pytest.raises(TypeError, match="Extra positional arguments"):
+            msgspec.json.decode(buf, 2, 3)
+
+        with pytest.raises(TypeError, match="Extra keyword arguments"):
+            msgspec.json.decode(buf, bad=1)
+
+        with pytest.raises(TypeError, match="Extra keyword arguments"):
+            msgspec.json.decode(buf, type=List[int], extra=1)
+
+    def test_decode_dec_hook(self):
+        def dec_hook(typ, obj):
+            assert typ is Point
+            return typ(*obj)
+
+        res = msgspec.json.decode(b"[1, 2]", type=Point, dec_hook=dec_hook)
+        assert res == Point(1, 2)
+        assert isinstance(res, Point)
+
+    def test_decode_with_trailing_characters_errors(self):
+        with pytest.raises(msgspec.DecodingError):
+            msgspec.json.decode(b'[1, 2, 3]"trailing"')
+
+
+class TestDecoderMisc:
+    def test_decoder_type_attribute(self):
+        dec = msgspec.json.Decoder()
+        assert dec.type is Any
+
+        dec = msgspec.json.Decoder(int)
+        assert dec.type is int
+
+    def test_decoder_dec_hook_attribute(self):
+        def dec_hook(typ, obj):
+            pass
+
+        dec = msgspec.json.Decoder()
+        assert dec.dec_hook is None
+
+        dec = msgspec.json.Decoder(dec_hook=None)
+        assert dec.dec_hook is None
+
+        dec = msgspec.json.Decoder(dec_hook=dec_hook)
+        assert dec.dec_hook is dec_hook
+
+    def test_decoder_dec_hook_not_callable(self):
+        with pytest.raises(TypeError):
+            msgspec.json.Decoder(dec_hook=1)
+
+    def test_decoder_dec_hook(self):
+        called = False
+
+        def dec_hook(typ, obj):
+            nonlocal called
+            called = True
+            assert typ is Point
+            return Point(*obj)
+
+        dec = msgspec.json.Decoder(type=List[Point], dec_hook=dec_hook)
+        msg = dec.decode(b"[[1,2],[3,4],[5,6]]")
+        assert called
+        assert msg == [Point(1, 2), Point(3, 4), Point(5, 6)]
+        assert isinstance(msg[0], Point)
+
+    def test_decode_dec_hook_errors(self):
+        def dec_hook(typ, obj):
+            assert obj == "some string"
+            raise TypeError("Oh no!")
+
+        dec = msgspec.json.Decoder(type=Point, dec_hook=dec_hook)
+
+        with pytest.raises(TypeError, match="Oh no!"):
+            dec.decode(b'"some string"')
+
+    def test_decode_dec_hook_wrong_type(self):
+        dec = msgspec.json.Decoder(type=Point, dec_hook=lambda t, o: o)
+
+        with pytest.raises(
+            msgspec.DecodingError,
+            match="Expected `Point`, got `list`",
+        ):
+            dec.decode(b"[1, 2]")
+
+    def test_decode_dec_hook_wrong_type_in_struct(self):
+        class Test(msgspec.Struct):
+            point: Point
+            other: int
+
+        dec = msgspec.json.Decoder(type=Test, dec_hook=lambda t, o: o)
+
+        with pytest.raises(msgspec.DecodingError) as rec:
+            dec.decode(b'{"point": [1, 2], "other": 3}')
+
+        assert "Expected `Point`, got `list` - at `$.point`" == str(rec.value)
+
+    def test_decode_dec_hook_wrong_type_generic(self):
+        dec = msgspec.json.Decoder(type=Deque[int], dec_hook=lambda t, o: o)
+
+        with pytest.raises(msgspec.DecodingError) as rec:
+            dec.decode(b"[1, 2, 3]")
+
+        assert "Expected `collections.deque`, got `list`" == str(rec.value)
+
+    def test_decode_dec_hook_isinstance_errors(self):
+        class Metaclass(type):
+            def __instancecheck__(self, obj):
+                raise TypeError("Oh no!")
+
+        class Custom(metaclass=Metaclass):
+            pass
+
+        dec = msgspec.json.Decoder(type=Custom)
+
+        with pytest.raises(TypeError, match="Oh no!"):
+            dec.decode(b"1")
+
+    def test_decoder_repr(self):
+        typ = List[Dict[str, float]]
+        dec = msgspec.json.Decoder(typ)
+        assert repr(dec) == f"msgspec.json.Decoder({typ!r})"
+
+        dec = msgspec.json.Decoder()
+        assert repr(dec) == f"msgspec.json.Decoder({Any!r})"
+
+    def test_decoder_unsupported_type(self):
+        with pytest.raises(TypeError):
+            msgspec.json.Decoder(1)
+
+    def test_decoder_validates_struct_definition_unsupported_types(self):
+        """Struct definitions aren't validated until first use"""
+
+        class Test(msgspec.Struct):
+            a: 1
+
+        with pytest.raises(TypeError):
+            msgspec.json.Decoder(Test)
+
+    @pytest.mark.parametrize("typ", [Union[int, Deque], Union[Deque, int]])
+    def test_err_union_with_custom_type(self, typ):
+        with pytest.raises(TypeError) as rec:
+            msgspec.json.Decoder(typ)
+        assert "custom type" in str(rec.value)
+        assert repr(typ) in str(rec.value)
+
+    @pytest.mark.parametrize("typ", [Union[dict, Person], Union[Person, dict]])
+    def test_err_union_with_struct_and_dict(self, typ):
+        with pytest.raises(TypeError) as rec:
+            msgspec.json.Decoder(typ)
+        assert "both a Struct type and a dict type" in str(rec.value)
+        assert repr(typ) in str(rec.value)
+
+    @pytest.mark.parametrize("typ", [Union[PersonAA, list], Union[tuple, PersonAA]])
+    def test_err_union_with_struct_asarray_and_array(self, typ):
+        with pytest.raises(TypeError) as rec:
+            msgspec.json.Decoder(typ)
+        assert "asarray=True" in str(rec.value)
+        assert "Type unions containing" in str(rec.value)
+        assert repr(typ) in str(rec.value)
+
+    @pytest.mark.parametrize("typ", [Union[FruitInt, int], Union[int, FruitInt]])
+    def test_err_union_with_intenum_and_int(self, typ):
+        with pytest.raises(TypeError) as rec:
+            msgspec.json.Decoder(typ)
+        assert "int and an IntEnum" in str(rec.value)
+        assert repr(typ) in str(rec.value)
+
+    @pytest.mark.parametrize("typ", [Union[FruitStr, str], Union[str, FruitStr]])
+    def test_err_union_with_enum_and_str(self, typ):
+        with pytest.raises(TypeError) as rec:
+            msgspec.json.Decoder(typ)
+        assert "str and an Enum" in str(rec.value)
+        assert repr(typ) in str(rec.value)
+
+    @pytest.mark.parametrize(
+        "typ,kind",
+        [
+            (Union[Person, PersonAA], "Struct"),
+            (Union[Person, Node], "Struct"),
+            (Union[FruitInt, VeggieInt], "IntEnum"),
+            (Union[FruitStr, VeggieStr], "Enum"),
+            (Union[Dict[int, float], dict], "dict"),
+            (Union[List[int], List[float]], "array-like"),
+            (Union[List[int], tuple], "array-like"),
+            (Union[set, tuple], "array-like"),
+            (Union[Tuple[int, ...], list], "array-like"),
+            (Union[Tuple[int, float, str], set], "array-like"),
+            (Union[Deque, int, Point], "custom"),
+        ],
+    )
+    def test_err_union_conflicts(self, typ, kind):
+        with pytest.raises(TypeError) as rec:
+            msgspec.json.Decoder(typ)
+        assert f"more than one {kind}" in str(rec.value)
+        assert repr(typ) in str(rec.value)
+
+    def test_decode_with_trailing_characters_errors(self):
+        dec = msgspec.json.Decoder()
+
+        with pytest.raises(msgspec.DecodingError):
+            dec.decode(b'[1, 2, 3]"trailing"')
 
 
 class TestLiterals:
