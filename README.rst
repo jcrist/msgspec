@@ -3,11 +3,11 @@ msgspec
 
 |github| |pypi|
 
-``msgspec`` is a fast and friendly implementation of the `MessagePack
-<https://msgpack.org>`__ (``msgpack``) protocol for Python 3.8+. In addition to
-serialization/deserialization, it supports message validation using schemas
-defined via Python's `type annotations
-<https://docs.python.org/3/library/typing.html>`__.
+``msgspec`` is a *fast* and *friendly* serialization library for Python 3.8+,
+currently supporting both `JSON <https://json.org>`__ and `MessagePack
+<https://msgpack.org>`__ (``msgpack``). It integrates well with Python's `type
+annotations <https://docs.python.org/3/library/typing.html>`__, supporting
+ergonomic (and performant!) schema validation.
 
 .. code-block:: python
 
@@ -23,18 +23,19 @@ defined via Python's `type annotations
     # Create a `User` object
     alice = User("alice", groups=["admin", "engineering"])
 
-    # Serialize `alice` to `bytes` using the MessagePack protocol
-    serialized_data = msgspec.msgpack.encode(alice)
+    # Serialize `alice` to `bytes` as JSON
+    serialized_data = msgspec.json.encode(alice)
 
     # Deserialize and validate the message as a User type
-    user = msgspec.msgpack.decode(serialized_data, type=User)
+    user = msgspec.json.decode(serialized_data, type=User)
 
     assert user == alice
 
 ``msgspec`` is designed to be as performant as possible, while retaining some
 of the nicities of validation libraries like `pydantic
-<https://pydantic-docs.helpmanual.io/>`__. For supported types, serializing a
-message with ``msgspec`` can be *~2-4x faster* than alternative libraries.
+<https://pydantic-docs.helpmanual.io/>`__. For supported types,
+serializing/deserializing a message with ``msgspec`` can be *~2-20x faster*
+than alternative libraries.
 
 .. image:: https://github.com/jcrist/msgspec/raw/master/docs/source/_static/bench-1.png
     :target: https://jcristharif.com/msgspec/benchmarks.html
