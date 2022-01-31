@@ -5719,7 +5719,7 @@ static PyTypeObject Decoder_Type = {
 
 
 PyDoc_STRVAR(msgspec_msgpack_decode__doc__,
-"decode(buf, *, type='Any', dec_hook=None, ext_hook=None)\n"
+"msgpack_decode(buf, *, type='Any', dec_hook=None, ext_hook=None)\n"
 "--\n"
 "\n"
 "Deserialize an object from bytes.\n"
@@ -5876,7 +5876,7 @@ PyDoc_STRVAR(JSONDecoder__doc__,
 "    A Python type (in type annotation form) to decode the object as. If\n"
 "    provided, the message will be type checked and decoded as the specified\n"
 "    type. Defaults to `Any`, in which case the message will be decoded using\n"
-"    the default MessagePack types.\n"
+"    the default JSON types.\n"
 "dec_hook : Callable, optional\n"
 "    An optional callback for handling decoding custom types. Should have the\n"
 "    signature ``dec_hook(type: Type, obj: Any) -> Any``, where ``type`` is the\n"
@@ -7714,7 +7714,7 @@ static PyTypeObject JSONDecoder_Type = {
 };
 
 PyDoc_STRVAR(msgspec_json_decode__doc__,
-"decode(buf, *, type='Any', dec_hook=None)\n"
+"json_decode(buf, *, type='Any', dec_hook=None)\n"
 "--\n"
 "\n"
 "Deserialize an object from bytes.\n"

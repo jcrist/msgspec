@@ -10,6 +10,22 @@ Struct
     :members:
 
 
+JSON
+----
+
+.. currentmodule:: msgspec.json
+
+.. autoclass:: Encoder
+    :members: encode, encode_into
+
+.. autoclass:: Decoder
+    :members: decode
+
+.. autofunction:: encode
+
+.. autofunction:: decode
+
+
 MessagePack
 -----------
 
