@@ -4206,16 +4206,14 @@ json_encode_datetime(EncoderState *self, PyObject *obj)
         *p++ = '.';
         p = json_write_fixint(p, microsecond, 6);
     }
-    if (offset_days == 0 && offset_secs == 0) {
+    if (MS_LIKELY(offset_secs == 0)) {
         *p++ = 'Z';
     }
     else {
+        char sign = '+';
         if (offset_days == -1) {
-            *p++ = '-';
+            sign = '-';
             offset_secs = 86400 - offset_secs;
-        }
-        else {
-            *p++ = '+';
         }
         uint8_t offset_hour = offset_secs / 3600;
         uint8_t offset_min = (offset_secs / 60) % 60;
@@ -4228,11 +4226,20 @@ json_encode_datetime(EncoderState *self, PyObject *obj)
             if (offset_min == 60) {
                 offset_min = 0;
                 offset_hour++;
+                if (offset_hour == 24) {
+                    offset_hour = 0;
+                }
             }
         }
-        p = json_write_fixint(p, offset_hour, 2);
-        *p++ = ':';
-        p = json_write_fixint(p, offset_min, 2);
+        if (offset_hour == 0 && offset_min == 0) {
+            *p++ = 'Z';
+        }
+        else {
+            *p++ = sign;
+            p = json_write_fixint(p, offset_hour, 2);
+            *p++ = ':';
+            p = json_write_fixint(p, offset_min, 2);
+        }
     }
     *p++ = '"';
     return ms_write(self, buf, p - buf);
@@ -6028,11 +6035,11 @@ static PyObject * json_decode(
 
 static PyObject *
 json_decode_none(JSONDecoderState *self, TypeNode *type, PathNode *path) {
+    self->input_pos++;  /* Already checked as 'n' */
     if (MS_UNLIKELY(!json_remaining(self, 3))) {
         ms_err_truncated();
         return NULL;
     }
-    self->input_pos++;  /* Already checked as 'n' */
     unsigned char c1 = *self->input_pos++;
     unsigned char c2 = *self->input_pos++;
     unsigned char c3 = *self->input_pos++;
@@ -6048,11 +6055,11 @@ json_decode_none(JSONDecoderState *self, TypeNode *type, PathNode *path) {
 
 static PyObject *
 json_decode_true(JSONDecoderState *self, TypeNode *type, PathNode *path) {
+    self->input_pos++;  /* Already checked as 't' */
     if (MS_UNLIKELY(!json_remaining(self, 3))) {
         ms_err_truncated();
         return NULL;
     }
-    self->input_pos++;  /* Already checked as 't' */
     unsigned char c1 = *self->input_pos++;
     unsigned char c2 = *self->input_pos++;
     unsigned char c3 = *self->input_pos++;
@@ -6068,11 +6075,11 @@ json_decode_true(JSONDecoderState *self, TypeNode *type, PathNode *path) {
 
 static PyObject *
 json_decode_false(JSONDecoderState *self, TypeNode *type, PathNode *path) {
+    self->input_pos++;  /* Already checked as 'f' */
     if (MS_UNLIKELY(!json_remaining(self, 4))) {
         ms_err_truncated();
         return NULL;
     }
-    self->input_pos++;  /* Already checked as 'f' */
     unsigned char c1 = *self->input_pos++;
     unsigned char c2 = *self->input_pos++;
     unsigned char c3 = *self->input_pos++;
@@ -7361,8 +7368,8 @@ json_decode(
 
 static int
 json_skip_ident(JSONDecoderState *self, const char *ident, size_t len) {
-    if (MS_UNLIKELY(!json_remaining(self, len))) return ms_err_truncated();
     self->input_pos++;  /* Already checked first char */
+    if (MS_UNLIKELY(!json_remaining(self, len))) return ms_err_truncated();
     if (memcmp(self->input_pos, ident, len) != 0) {
         json_err_invalid(self, "invalid character");
         return -1;
