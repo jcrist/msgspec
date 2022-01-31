@@ -592,6 +592,188 @@ class TestBinary:
             msgspec.json.decode(s, type=bytes)
 
 
+class TestDatetime:
+    def test_encode_datetime(self):
+        # All fields, zero padded
+        x = datetime.datetime(1, 2, 3, 4, 5, 6, 7, datetime.timezone.utc)
+        s = msgspec.json.encode(x)
+        assert s == b'"0001-02-03T04:05:06.000007Z"'
+
+        # All fields, no zeros
+        x = datetime.datetime(1234, 12, 31, 14, 56, 27, 123456, datetime.timezone.utc)
+        s = msgspec.json.encode(x)
+        assert s == b'"1234-12-31T14:56:27.123456Z"'
+
+    def test_encode_datetime_no_microsecond(self):
+        x = datetime.datetime(1234, 12, 31, 14, 56, 27, 0, datetime.timezone.utc)
+        s = msgspec.json.encode(x)
+        assert s == b'"1234-12-31T14:56:27Z"'
+
+    @pytest.mark.parametrize(
+        "offset",
+        [
+            datetime.timedelta(0),
+            datetime.timedelta(days=1, microseconds=-1),
+            datetime.timedelta(days=-1, microseconds=1),
+            datetime.timedelta(days=1, seconds=-29),
+            datetime.timedelta(days=-1, seconds=29),
+            datetime.timedelta(days=0, seconds=30),
+            datetime.timedelta(days=0, seconds=-30),
+        ],
+    )
+    def test_encode_datetime_offset_is_appx_equal_to_utc(self, offset):
+        tz = datetime.timezone(offset)
+        x = datetime.datetime(1234, 12, 31, 14, 56, 27, 123456, tz)
+        s = msgspec.json.encode(x)
+        assert s == b'"1234-12-31T14:56:27.123456Z"'
+
+    @pytest.mark.parametrize(
+        "offset, expected",
+        [
+            (
+                datetime.timedelta(days=1, seconds=-30),
+                b'"1234-12-31T14:56:27.123456+23:59"',
+            ),
+            (
+                datetime.timedelta(days=-1, seconds=30),
+                b'"1234-12-31T14:56:27.123456-23:59"',
+            ),
+            (
+                datetime.timedelta(minutes=19, seconds=32, microseconds=130000),
+                b'"1234-12-31T14:56:27.123456+00:20"',
+            ),
+        ],
+    )
+    def test_encode_datetime_offset_rounds_to_nearest_minute(self, offset, expected):
+        tz = datetime.timezone(offset)
+        x = datetime.datetime(1234, 12, 31, 14, 56, 27, 123456, tz)
+        s = msgspec.json.encode(x)
+        assert s == expected
+
+    @pytest.mark.parametrize(
+        "dt",
+        [
+            "0001-02-03T04:05:06.000007",
+            "0001-02-03T04:05:06.007",
+            "0001-02-03T04:05:06",
+            "2021-12-11T21:19:22.123456",
+        ],
+    )
+    @pytest.mark.parametrize("suffix", ["Z", "+00:00", "-00:00"])
+    def test_decode_datetime_utc(self, dt, suffix):
+        dt += suffix
+        exp = datetime.datetime.fromisoformat(dt.replace("Z", "+00:00"))
+        s = f'"{dt}"'.encode("utf-8")
+        res = msgspec.json.decode(s, type=datetime.datetime)
+        assert res == exp
+
+    @pytest.mark.parametrize(
+        "dt",
+        [
+            "2000-12-31T12:00:01",
+            "2000-01-01T00:00:01",
+            "2000-01-31T12:01:01",
+            "2000-02-01T12:01:01",
+            "2000-02-28T12:01:01",
+            "2000-02-29T12:01:01",
+            "2000-03-01T12:01:01",
+        ],
+    )
+    @pytest.mark.parametrize("sign", ["-", "+"])
+    @pytest.mark.parametrize("hour", [0, 8, 12, 16, 23])
+    @pytest.mark.parametrize("minute", [0, 30])
+    def test_decode_datetime_with_timezone(self, dt, sign, hour, minute):
+        s = f"{dt}{sign}{hour:02}:{minute:02}"
+        json_s = f'"{s}"'.encode("utf-8")
+        exp = datetime.datetime.fromisoformat(s)
+        res = msgspec.json.decode(json_s, type=datetime.datetime)
+        assert res == exp
+
+    @pytest.mark.parametrize("t", ["T", "t"])
+    @pytest.mark.parametrize("z", ["Z", "z"])
+    def test_decode_datetime_not_case_sensitive(self, t, z):
+        """Both T & Z can be upper/lowercase"""
+        s = f'"0001-02-03{t}04:05:06.000007{z}"'.encode("utf-8")
+        exp = datetime.datetime(1, 2, 3, 4, 5, 6, 7, datetime.timezone.utc)
+        res = msgspec.json.decode(s, type=datetime.datetime)
+        assert res == exp
+
+    def test_decode_min_datetime(self):
+        res = msgspec.json.decode(b'"0001-01-01T00:00:00Z"', type=datetime.datetime)
+        exp = datetime.datetime.min.replace(tzinfo=datetime.timezone.utc)
+        assert res == exp
+
+    def test_decode_max_datetime(self):
+        res = msgspec.json.decode(
+            b'"9999-12-31T23:59:59.999999Z"', type=datetime.datetime
+        )
+        exp = datetime.datetime.max.replace(tzinfo=datetime.timezone.utc)
+        assert res == exp
+
+    @pytest.mark.parametrize(
+        "s",
+        [
+            # Incorrect field lengths
+            b'"001-02-03T04:05:06.000007Z"',
+            b'"0001-2-03T04:05:06.000007Z"',
+            b'"0001-02-3T04:05:06.000007Z"',
+            b'"0001-02-03T4:05:06.000007Z"',
+            b'"0001-02-03T04:5:06.000007Z"',
+            b'"0001-02-03T04:05:6.000007Z"',
+            b'"0001-02-03T04:05:06.0000007Z"',
+            b'"0001-02-03T04:05:06.000007+0:00"',
+            b'"0001-02-03T04:05:06.000007+00:0"',
+            # Trailing data
+            b'"0001-02-03T04:05:06.000007+00:00:00"',
+            # Truncated
+            b'"0001-02-03T04:05:"',
+            # Missing timezone
+            b'"0001-02-03T04:05:06"',
+            # Missing +/-
+            b'"0001-02-03T04:05:06.00000700:00"',
+            # Missing digits after decimal
+            b'"0001-02-03T04:05:06.Z"',
+            # Invalid characters
+            b'"000a-02-03T04:05:06.000007Z"',
+            b'"0001-0a-03T04:05:06.000007Z"',
+            b'"0001-02-0aT04:05:06.000007Z"',
+            b'"0001-02-03T0a:05:06.000007Z"',
+            b'"0001-02-03T04:0a:06.000007Z"',
+            b'"0001-02-03T04:05:0a.000007Z"',
+            b'"0001-02-03T04:05:06.00000aZ"',
+            b'"0001-02-03T04:05:06.000007a"',
+            b'"0001-02-03T04:05:06.000007+0a:00"',
+            b'"0001-02-03T04:05:06.000007+00:0a"',
+            # Year out of range
+            b'"0000-02-03T04:05:06.000007Z"',
+            # Month out of range
+            b'"0001-00-03T04:05:06.000007Z"',
+            b'"0001-13-03T04:05:06.000007Z"',
+            # Day out of range for month
+            b'"0001-02-00:05:06.000007Z"',
+            b'"0001-02-29:05:06.000007Z"',
+            b'"2000-02-30:05:06.000007Z"',
+            # Hour out of range
+            b'"0001-02-03T24:05:06.000007Z"',
+            # Minute out of range
+            b'"0001-02-03T04:60:06.000007Z"',
+            # Second out of range
+            b'"0001-02-03T04:05:60.000007Z"',
+            # Timezone hour out of range
+            b'"0001-02-03T04:05:06.000007+24:00"',
+            b'"0001-02-03T04:05:06.000007-24:00"',
+            # Timezone minute out of range
+            b'"0001-02-03T04:05:06.000007+00:60"',
+            b'"0001-02-03T04:05:06.000007-00:60"',
+            # Year out of range with timezone applied
+            b'"9999-12-31T23:59:59-00:01"',
+        ],
+    )
+    def test_decode_datetime_malformed(self, s):
+        with pytest.raises(msgspec.DecodingError, match="Invalid RFC3339"):
+            msgspec.json.decode(s, type=datetime.datetime)
+
+
 class TestEnum:
     def test_encode_enum(self):
         s = msgspec.json.encode(FruitStr.APPLE)
@@ -1385,6 +1567,39 @@ class TestStruct:
         with pytest.raises(msgspec.DecodingError, match=error):
             msgspec.json.decode(s, type=type)
 
+    @pytest.mark.parametrize("asarray", [False, True])
+    def test_struct_gc_maybe_untracked_on_decode(self, asarray):
+        class Test(msgspec.Struct, asarray=asarray):
+            x: Any
+            y: Any
+            z: Tuple = ()
+
+        enc = msgspec.json.Encoder()
+        dec = msgspec.json.Decoder(List[Test])
+
+        ts = [
+            Test(1, 2),
+            Test(3, "hello"),
+            Test([], []),
+            Test({}, {}),
+            Test(None, None, ()),
+        ]
+        a, b, c, d, e = dec.decode(enc.encode(ts))
+        assert not gc.is_tracked(a)
+        assert not gc.is_tracked(b)
+        assert gc.is_tracked(c)
+        assert gc.is_tracked(d)
+        assert not gc.is_tracked(e)
+
+    def test_struct_recursive_definition(self):
+        enc = msgspec.json.Encoder()
+        dec = msgspec.json.Decoder(Node)
+
+        x = Node(Node(Node(), Node(Node())))
+        s = enc.encode(x)
+        res = dec.decode(s)
+        assert res == x
+
 
 class TestStructArray:
     def test_struct_asarray(self):
@@ -1452,35 +1667,22 @@ class TestStructArray:
         ):
             array_dec.decode(map_msg)
 
-    @pytest.mark.parametrize("asarray", [False, True])
-    def test_struct_gc_maybe_untracked_on_decode(self, asarray):
-        class Test(msgspec.Struct, asarray=asarray):
-            x: Any
-            y: Any
-            z: Tuple = ()
+    @pytest.mark.parametrize(
+        "s, error",
+        [
+            (b"[", "truncated"),
+            (b"[1", "truncated"),
+            (b"[,]", "invalid character"),
+            (b"[, 1]", "invalid character"),
+            (b"[1, ]", "trailing comma in array"),
+            (b"[1, 2 3]", r"expected ',' or ']'"),
+        ],
+    )
+    def test_decode_struct_asarray_malformed(self, s, error):
+        class Point(msgspec.Struct, asarray=True):
+            x: int
+            y: int
+            z: int
 
-        enc = msgspec.json.Encoder()
-        dec = msgspec.json.Decoder(List[Test])
-
-        ts = [
-            Test(1, 2),
-            Test(3, "hello"),
-            Test([], []),
-            Test({}, {}),
-            Test(None, None, ()),
-        ]
-        a, b, c, d, e = dec.decode(enc.encode(ts))
-        assert not gc.is_tracked(a)
-        assert not gc.is_tracked(b)
-        assert gc.is_tracked(c)
-        assert gc.is_tracked(d)
-        assert not gc.is_tracked(e)
-
-    def test_struct_recursive_definition(self):
-        enc = msgspec.json.Encoder()
-        dec = msgspec.json.Decoder(Node)
-
-        x = Node(Node(Node(), Node(Node())))
-        s = enc.encode(x)
-        res = dec.decode(s)
-        assert res == x
+        with pytest.raises(msgspec.DecodingError, match=error):
+            msgspec.json.decode(s, type=Point)
