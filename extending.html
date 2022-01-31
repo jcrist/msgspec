@@ -6,7 +6,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
 
-    <title>Extending &#8212; msgspec 0+untagged.1.g098810a documentation</title>
+    <title>Extending &#8212; msgspec 0+untagged.1.ga6cceb1 documentation</title>
     <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
     <link rel="stylesheet" type="text/css" href="_static/alabaster.css" />
     <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
@@ -37,13 +37,13 @@
 <h1>Extending<a class="headerlink" href="#extending" title="Permalink to this headline">¶</a></h1>
 <p>To support serializing/deserializing types other than those <a class="reference internal" href="usage.html#supported-types"><span class="std std-ref">natively
 supported</span></a>, <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> provides a few callbacks to
-<code class="xref py py-obj docutils literal notranslate"><span class="pre">Encoder</span></code>/<code class="xref py py-obj docutils literal notranslate"><span class="pre">Decoder</span></code>.</p>
+<a class="reference internal" href="api.html#msgspec.msgpack.Encoder" title="msgspec.msgpack.Encoder"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Encoder</span></code></a>/<a class="reference internal" href="api.html#msgspec.msgpack.Decoder" title="msgspec.msgpack.Decoder"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Decoder</span></code></a>.</p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">enc_hook</span></code> in <code class="xref py py-obj docutils literal notranslate"><span class="pre">Encoder</span></code>, for transforming custom types into values
+<li><p><code class="docutils literal notranslate"><span class="pre">enc_hook</span></code> in <a class="reference internal" href="api.html#msgspec.msgpack.Encoder" title="msgspec.msgpack.Encoder"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Encoder</span></code></a>, for transforming custom types into values
 that <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> <a class="reference internal" href="usage.html#supported-types"><span class="std std-ref">natively supported types</span></a>.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">dec_hook</span></code> in <code class="xref py py-obj docutils literal notranslate"><span class="pre">Decoder</span></code>, for converting natively supported types back into
+<li><p><code class="docutils literal notranslate"><span class="pre">dec_hook</span></code> in <a class="reference internal" href="api.html#msgspec.msgpack.Decoder" title="msgspec.msgpack.Decoder"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Decoder</span></code></a>, for converting natively supported types back into
 a custom type when using <a class="reference internal" href="usage.html#typed-deserialization"><span class="std std-ref">typed deserialization</span></a>.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">ext_hook</span></code> in <code class="xref py py-obj docutils literal notranslate"><span class="pre">Decoder</span></code>, for converting MessagePack extensions back into
+<li><p><code class="docutils literal notranslate"><span class="pre">ext_hook</span></code> in <a class="reference internal" href="api.html#msgspec.msgpack.Decoder" title="msgspec.msgpack.Decoder"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Decoder</span></code></a>, for converting MessagePack extensions back into
 custom types.</p></li>
 </ul>
 <p>These should have the following signatures:</p>
@@ -88,9 +88,9 @@ the message.</p>
 (e.g. a <a class="reference external" href="https://docs.python.org/3/library/collections.html#collections.OrderedDict" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collections.OrderedDict</span></code></a> is similar to a <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a>).  This can be
 accomplished by defining two callback functions:</p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">enc_hook</span></code> in <code class="xref py py-obj docutils literal notranslate"><span class="pre">Encoder</span></code>, for transforming custom types into values
+<li><p><code class="docutils literal notranslate"><span class="pre">enc_hook</span></code> in <a class="reference internal" href="api.html#msgspec.msgpack.Encoder" title="msgspec.msgpack.Encoder"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Encoder</span></code></a>, for transforming custom types into values
 that <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> already knows how to serialize.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">dec_hook</span></code> in <code class="xref py py-obj docutils literal notranslate"><span class="pre">Decoder</span></code>, for converting natively supported types back into
+<li><p><code class="docutils literal notranslate"><span class="pre">dec_hook</span></code> in <a class="reference internal" href="api.html#msgspec.msgpack.Decoder" title="msgspec.msgpack.Decoder"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Decoder</span></code></a>, for converting natively supported types back into
 a custom type when using <a class="reference internal" href="usage.html#typed-deserialization"><span class="std std-ref">typed deserialization</span></a>.</p></li>
 </ul>
 <p>Here we define <code class="docutils literal notranslate"><span class="pre">enc_hook</span></code> and <code class="docutils literal notranslate"><span class="pre">dec_hook</span></code> callbacks to convert
@@ -127,8 +127,8 @@ as MessagePack <code class="docutils literal notranslate"><span class="pre">map<
 <span class="c1"># Create an encoder and a decoder using the custom callbacks.</span>
 <span class="c1"># Note that typed deserialization is required for successful</span>
 <span class="c1"># roundtripping here, so we pass `MyMessage` to `Decoder`.</span>
-<span class="n">enc</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">Encoder</span><span class="p">(</span><span class="n">enc_hook</span><span class="o">=</span><span class="n">enc_hook</span><span class="p">)</span>
-<span class="n">dec</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">Decoder</span><span class="p">(</span><span class="n">MyMessage</span><span class="p">,</span> <span class="n">dec_hook</span><span class="o">=</span><span class="n">dec_hook</span><span class="p">)</span>
+<span class="n">enc</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">msgpack</span><span class="o">.</span><span class="n">Encoder</span><span class="p">(</span><span class="n">enc_hook</span><span class="o">=</span><span class="n">enc_hook</span><span class="p">)</span>
+<span class="n">dec</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">msgpack</span><span class="o">.</span><span class="n">Decoder</span><span class="p">(</span><span class="n">MyMessage</span><span class="p">,</span> <span class="n">dec_hook</span><span class="o">=</span><span class="n">dec_hook</span><span class="p">)</span>
 
 <span class="c1"># An example message</span>
 <span class="n">msg</span> <span class="o">=</span> <span class="n">MyMessage</span><span class="p">(</span>
@@ -153,21 +153,21 @@ Extensions consist of:</p>
 extension.</p></li>
 <li><p>An arbitrary byte buffer of data (up to <code class="docutils literal notranslate"><span class="pre">(2^32)</span> <span class="pre">-</span> <span class="pre">1</span></code> in length).</p></li>
 </ul>
-<p>By default extensions are serialized to/from <code class="xref py py-obj docutils literal notranslate"><span class="pre">Ext</span></code> objects.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">ext</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">Ext</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;some data&quot;</span><span class="p">)</span>  <span class="c1"># an extension object, with type code 1</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">ext</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">ext2</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+<p>By default extensions are serialized to/from <a class="reference internal" href="api.html#msgspec.msgpack.Ext" title="msgspec.msgpack.Ext"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Ext</span></code></a> objects.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">ext</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">msgpack</span><span class="o">.</span><span class="n">Ext</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;some data&quot;</span><span class="p">)</span>  <span class="c1"># an extension object, with type code 1</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">msgpack</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">ext</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">ext2</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">msgpack</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">ext</span> <span class="o">==</span> <span class="n">ext2</span>  <span class="c1"># deserializes as an Ext object</span>
 <span class="go">True</span>
 </pre></div>
 </div>
-<p>While manually creating <code class="xref py py-obj docutils literal notranslate"><span class="pre">Ext</span></code> objects from buffers can be useful, usually the
+<p>While manually creating <a class="reference internal" href="api.html#msgspec.msgpack.Ext" title="msgspec.msgpack.Ext"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Ext</span></code></a> objects from buffers can be useful, usually the
 user wants to map extension types to/from their own custom objects. This can be
 accomplished by defining two callback functions:</p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">enc_hook</span></code> in <code class="xref py py-obj docutils literal notranslate"><span class="pre">Encoder</span></code>, for transforming custom types into values
+<li><p><code class="docutils literal notranslate"><span class="pre">enc_hook</span></code> in <a class="reference internal" href="api.html#msgspec.msgpack.Encoder" title="msgspec.msgpack.Encoder"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Encoder</span></code></a>, for transforming custom types into values
 that <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> already knows how to serialize.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">ext_hook</span></code> in <code class="xref py py-obj docutils literal notranslate"><span class="pre">Decoder</span></code>, for converting extensions back into those
+<li><p><code class="docutils literal notranslate"><span class="pre">ext_hook</span></code> in <a class="reference internal" href="api.html#msgspec.msgpack.Decoder" title="msgspec.msgpack.Decoder"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Decoder</span></code></a>, for converting extensions back into those
 custom types.</p></li>
 </ul>
 <p>This method defines a new extension type, and sends this type information
@@ -203,7 +203,7 @@ objects to/from this binary representation as a MessagePack extension.</p>
         <span class="n">data</span> <span class="o">=</span> <span class="n">struct</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span><span class="s1">&#39;dd&#39;</span><span class="p">,</span> <span class="n">obj</span><span class="o">.</span><span class="n">real</span><span class="p">,</span> <span class="n">obj</span><span class="o">.</span><span class="n">imag</span><span class="p">)</span>
 
         <span class="c1"># Return an `Ext` object so msgspec serializes it as an extension type.</span>
-        <span class="k">return</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">Ext</span><span class="p">(</span><span class="n">COMPLEX_TYPE_CODE</span><span class="p">,</span> <span class="n">data</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">msgpack</span><span class="o">.</span><span class="n">Ext</span><span class="p">(</span><span class="n">COMPLEX_TYPE_CODE</span><span class="p">,</span> <span class="n">data</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="c1"># Raise a TypeError for other types</span>
         <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Objects of type </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span><span class="si">}</span><span class="s2"> are not supported&quot;</span><span class="p">)</span>
@@ -221,8 +221,8 @@ objects to/from this binary representation as a MessagePack extension.</p>
 
 
 <span class="c1"># Create an encoder and a decoder using the custom callbacks</span>
-<span class="n">enc</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">Encoder</span><span class="p">(</span><span class="n">enc_hook</span><span class="o">=</span><span class="n">enc_hook</span><span class="p">)</span>
-<span class="n">dec</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">Decoder</span><span class="p">(</span><span class="n">ext_hook</span><span class="o">=</span><span class="n">ext_hook</span><span class="p">)</span>
+<span class="n">enc</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">msgpack</span><span class="o">.</span><span class="n">Encoder</span><span class="p">(</span><span class="n">enc_hook</span><span class="o">=</span><span class="n">enc_hook</span><span class="p">)</span>
+<span class="n">dec</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">msgpack</span><span class="o">.</span><span class="n">Decoder</span><span class="p">(</span><span class="n">ext_hook</span><span class="o">=</span><span class="n">ext_hook</span><span class="p">)</span>
 
 <span class="c1"># Define a message that contains complex numbers</span>
 <span class="n">msg</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;roots&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">,</span> <span class="mi">1</span> <span class="o">+</span> <span class="mf">0.5</span><span class="n">j</span><span class="p">,</span> <span class="mi">1</span> <span class="o">-</span> <span class="mf">0.5</span><span class="n">j</span><span class="p">]}</span>

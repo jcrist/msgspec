@@ -1,10 +1,11 @@
 msgspec
 =======
 
-``msgspec`` is a fast and friendly implementation of the `MessagePack
-<https://msgpack.org>`__ protocol for Python 3.8+. In addition to
-serialization/deserialization, it supports message validation using schemas
-defined via Python's `type annotations`_.
+``msgspec`` is a *fast* and *friendly* serialization library for Python 3.8+,
+currently supporting both `JSON <https://json.org>`__ and `MessagePack
+<https://msgpack.org>`__ (``msgpack``). It integrates well with Python's `type
+annotations <https://docs.python.org/3/library/typing.html>`__, supporting
+ergonomic (and performant!) schema validation.
 
 .. code-block:: python
 
@@ -20,11 +21,11 @@ defined via Python's `type annotations`_.
     # Create a `User` object
     alice = User("alice", groups=["admin", "engineering"])
 
-    # Serialize `alice` to `bytes` using the MessagePack protocol
-    serialized_data = msgspec.encode(alice)
+    # Serialize `alice` to `bytes` as JSON
+    serialized_data = msgspec.json.encode(alice)
 
     # Deserialize and validate the message as a User type
-    user = msgspec.decode(serialized_data, type=User)
+    user = msgspec.json.decode(serialized_data, type=User)
 
     assert user == alice
 
@@ -41,8 +42,8 @@ Highlights
   deserialization in a declaritive way.  ``msgspec`` also works well with other
   type-checking tooling like `mypy <https://mypy.readthedocs.io>`_, providing
   excellent editor integration.
-- ``msgspec`` is **flexible**. Unlike other libraries like ``msgpack`` or
-  ``json``, ``msgspec`` natively supports a wider range of Python builtin
+- ``msgspec`` is **flexible**. Unlike other libraries like ``json`` or
+  ``msgpack``, ``msgspec`` natively supports a wider range of Python builtin
   types. Support for additional types can also be added through :doc:`extensions
   <extending>`.
 - ``msgspec`` supports :ref:`"schema evolution" <schema-evolution>`. Messages can

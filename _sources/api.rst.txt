@@ -1,46 +1,54 @@
 API Docs
 ========
 
-.. currentmodule:: msgspec
-
-Encoder
--------
-
-.. autoclass:: Encoder
-    :members: encode, encode_into
-
-
-Decoder
--------
-
-.. autoclass:: Decoder
-    :members: decode
-
-
 Struct
 ------
+
+.. currentmodule:: msgspec
 
 .. autoclass:: Struct
     :members:
 
 
-Ext
----
+JSON
+----
+
+.. currentmodule:: msgspec.json
+
+.. autoclass:: Encoder
+    :members: encode, encode_into
+
+.. autoclass:: Decoder
+    :members: decode
+
+.. autofunction:: encode
+
+.. autofunction:: decode
+
+
+MessagePack
+-----------
+
+.. currentmodule:: msgspec.msgpack
+
+.. autoclass:: Encoder
+    :members: encode, encode_into
+
+.. autoclass:: Decoder
+    :members: decode
 
 .. autoclass:: Ext
     :members:
 
+.. autofunction:: encode
 
-Functions
----------
-
-.. autofunction:: msgspec.encode
-
-.. autofunction:: msgspec.decode
+.. autofunction:: decode
 
 
 Exceptions
 ----------
+
+.. currentmodule:: msgspec
 
 .. autoexception:: MsgspecError
     :show-inheritance:
