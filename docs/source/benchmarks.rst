@@ -16,6 +16,10 @@ Benchmarks
     you choose different serialization formats. I encourage you to write your
     own benchmarks before making these decisions.
 
+
+Benchmark - Encoding/Decoding
+-----------------------------
+
 Here we show a simple benchmark serializing some structured data. The data
 we're serializing has the following schema (defined here using `msgspec.Struct`
 types):
@@ -56,8 +60,8 @@ Each benchmark creates one or more instances of a ``Person`` message, and
 serializes it/deserializes it in a loop. The `full benchmark source can be
 found here <https://github.com/jcrist/msgspec/tree/master/benchmarks>`__.
 
-Benchmark - 1 Object
---------------------
+1 Object
+^^^^^^^^
 
 Some workflows involve sending around very small messages. Here the overhead
 per function call dominates (parsing of options, allocating temporary buffers,
@@ -91,8 +95,8 @@ That said, all of these methods serialize/deserialize pretty quickly relative
 to other python operations, so unless you're counting every microsecond your
 choice here probably doesn't matter that much.
 
-Benchmark - 1000 Objects
-------------------------
+1000 Objects
+^^^^^^^^^^^^
 
 Here we serialize a list of 1000 ``Person`` objects. There's a lot more data
 here, so the per-call overhead will no longer dominate, and we're now measuring
@@ -103,8 +107,8 @@ the efficiency of the encoding/decoding.
     <div class="bk-root" id="bench-1k"></div>
 
 
-Benchmark - with Validation
----------------------------
+Schema Validation
+^^^^^^^^^^^^^^^^^
 
 The above benchmarks aren't 100% fair to ``msgspec`` or ``pyrobuf``. Both
 libraries also perform schema validation on deserialization, checking that the
@@ -141,6 +145,54 @@ of these issues. Only a single pass over the decoded data is taken, and the
 specified output types are created correctly the first time, avoiding the need
 for additional unnecessary allocations.
 
+
+Benchmark - Structs
+-------------------
+
+Here we benchmark common `msgspec.Struct` operations, comparing their
+performance against other similar libraries. The cases compared are:
+
+- Standard Python classes
+- attrs_
+- dataclasses_
+- pydantic_
+- ``msgspec``
+
+For each library, the following operations are benchmarked:
+
+- Time to define a new class. Many libraries that abstract away class
+  boilerplate add overhead when defining classes, slowing import times for
+  libraries that make use of these classes.
+- Time to create an instance of that class.
+- Time to compare two instances.
+
+The `full benchmark source can be found here
+<https://github.com/jcrist/msgspec/tree/master/benchmarks/bench_structs.py>`__.
+
+**Results:**
+
++----------------------+-------------+-------------+--------------+
+|                      | define (μs) | create (μs) | compare (μs) |
++======================+=============+=============+==============+
+| **standard classes** | 4.21        | 0.47        | 0.12         |
++----------------------+-------------+-------------+--------------+
+| **attrs**            | 690.21      | 0.84        | 0.30         |
++----------------------+-------------+-------------+--------------+
+| **dataclasses**      | 300.48      | 0.63        | 0.28         |
++----------------------+-------------+-------------+--------------+
+| **pydantic**         | 420.09      | 6.25        | 11.78        |
++----------------------+-------------+-------------+--------------+
+| **msgspec**          | 13.61       | 0.09        | 0.02         |
++----------------------+-------------+-------------+--------------+
+
+- Standard Python classes are the fastest to import (any library can only add
+  overhead here). Still, ``msgspec`` isn't *that* much slower, especially
+  compared to other options.
+- Structs are optimized to be cheap to create, and that shows for the creation
+  benchmark. They're roughly 5x faster than standard python classes here.
+- Same goes for comparison, with structs measuring roughly 6x faster than
+  standard python classes.
+
 .. raw:: html
 
     <script type="text/javascript" src="https://cdn.bokeh.org/bokeh/release/bokeh-2.3.2.min.js" integrity="XypntL49z55iwGVUW4qsEu83zKL3XEcz0MjuGOQ9SlaaQ68X/g+k1FcioZi7oQAc" crossorigin="anonymous"></script>
@@ -165,5 +217,7 @@ for additional unnecessary allocations.
 .. _msgpack: https://github.com/msgpack/msgpack-python
 .. _orjson: https://github.com/ijl/orjson
 .. _pyrobuf: https://github.com/appnexus/pyrobuf
-.. _pydantic: https://pydantic-docs.helpmanual.io/
 .. _ujson: https://github.com/ultrajson/ultrajson
+.. _attrs: https://www.attrs.org
+.. _dataclasses: https://docs.python.org/3/library/dataclasses.html
+.. _pydantic: https://pydantic-docs.helpmanual.io/
