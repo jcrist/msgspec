@@ -6030,7 +6030,7 @@ json_has_trailing_characters(JSONDecoderState *self)
 static int json_skip(JSONDecoderState *self);
 
 static PyObject * json_decode(
-    JSONDecoderState *self, TypeNode *type, PathNode *path, bool is_key
+    JSONDecoderState *self, TypeNode *type, PathNode *path
 );
 
 static PyObject *
@@ -6095,7 +6095,7 @@ json_decode_false(JSONDecoderState *self, TypeNode *type, PathNode *path) {
 }
 
 static PyObject *
-json_decode_list(JSONDecoderState *self, TypeNode *el_type, PathNode *path, bool is_key) {
+json_decode_list(JSONDecoderState *self, TypeNode *el_type, PathNode *path) {
     PyObject *out, *item = NULL;
     unsigned char c;
     bool first = true;
@@ -6135,7 +6135,7 @@ json_decode_list(JSONDecoderState *self, TypeNode *el_type, PathNode *path, bool
         }
 
         /* Parse item */
-        item = json_decode(self, el_type, &el_path, is_key);
+        item = json_decode(self, el_type, &el_path);
         if (item == NULL) goto error;
         el_path.index++;
 
@@ -6193,7 +6193,7 @@ json_decode_set(JSONDecoderState *self, TypeNode *el_type, PathNode *path) {
         }
 
         /* Parse item */
-        item = json_decode(self, el_type, &el_path, false);
+        item = json_decode(self, el_type, &el_path);
         if (item == NULL) goto error;
         el_path.index++;
 
@@ -6211,11 +6211,11 @@ error:
 }
 
 static PyObject *
-json_decode_vartuple(JSONDecoderState *self, TypeNode *el_type, PathNode *path, bool is_key) {
+json_decode_vartuple(JSONDecoderState *self, TypeNode *el_type, PathNode *path) {
     PyObject *list, *item, *out = NULL;
     Py_ssize_t size, i;
 
-    list = json_decode_list(self, el_type, path, is_key);
+    list = json_decode_list(self, el_type, path);
     if (list == NULL) return NULL;
 
     size = PyList_GET_SIZE(list);
@@ -6232,7 +6232,7 @@ json_decode_vartuple(JSONDecoderState *self, TypeNode *el_type, PathNode *path, 
 }
 
 static PyObject *
-json_decode_fixtuple(JSONDecoderState *self, TypeNode *type, PathNode *path, bool is_key) {
+json_decode_fixtuple(JSONDecoderState *self, TypeNode *type, PathNode *path) {
     PyObject *out, *item;
     Py_ssize_t i = 0, offset;
     unsigned char c;
@@ -6282,7 +6282,7 @@ json_decode_fixtuple(JSONDecoderState *self, TypeNode *type, PathNode *path, boo
         if (MS_UNLIKELY(i >= tex->fixtuple_size)) goto size_error;
 
         /* Parse item */
-        item = json_decode(self, tex->extra[offset + i], &el_path, is_key);
+        item = json_decode(self, tex->extra[offset + i], &el_path);
         if (item == NULL) goto error;
         el_path.index++;
 
@@ -6308,7 +6308,7 @@ error:
 static PyObject *
 json_decode_struct_array(
     JSONDecoderState *self, StructMetaObject *st_type, TypeNode *type,
-    PathNode *path, bool is_key
+    PathNode *path
 ) {
     Py_ssize_t nfields, ndefaults, npos, i = 0;
     PyObject *out, *item = NULL;
@@ -6357,7 +6357,7 @@ json_decode_struct_array(
         if (MS_LIKELY(i < nfields)) {
             /* Parse item */
             PathNode el_path = {path, i};
-            item = json_decode(self, st_type->struct_types[i], &el_path, is_key);
+            item = json_decode(self, st_type->struct_types[i], &el_path);
             if (MS_UNLIKELY(item == NULL)) goto error;
             Struct_set_index(out, i, item);
             if (should_untrack) {
@@ -6403,33 +6403,28 @@ error:
 
 static PyObject *
 json_decode_array(
-    JSONDecoderState *self, TypeNode *type, PathNode *path, bool is_key
+    JSONDecoderState *self, TypeNode *type, PathNode *path
 ) {
     if (type->types & MS_TYPE_ANY) {
         TypeNode type_any = {MS_TYPE_ANY};
-        if (is_key) {
-            return json_decode_vartuple(self, &type_any, path, is_key);
-        }
-        else {
-            return json_decode_list(self, &type_any, path, false);
-        }
+        return json_decode_list(self, &type_any, path);
     }
     else if (type->types & MS_TYPE_LIST) {
-        return json_decode_list(self, TypeNode_get_array(type), path, false);
+        return json_decode_list(self, TypeNode_get_array(type), path);
     }
     else if (type->types & MS_TYPE_SET) {
         return json_decode_set(self, TypeNode_get_array(type), path);
     }
     else if (type->types & MS_TYPE_VARTUPLE) {
-        return json_decode_vartuple(self, TypeNode_get_array(type), path, is_key);
+        return json_decode_vartuple(self, TypeNode_get_array(type), path);
     }
     else if (type->types & MS_TYPE_FIXTUPLE) {
-        return json_decode_fixtuple(self, type, path, is_key);
+        return json_decode_fixtuple(self, type, path);
     }
     else if (type->types & MS_TYPE_STRUCT) {
         StructMetaObject *struct_type = TypeNode_get_struct(type);
         if (struct_type->asarray == OPT_TRUE) {
-            return json_decode_struct_array(self, struct_type, type, path, is_key);
+            return json_decode_struct_array(self, struct_type, type, path);
         }
     }
     return ms_validation_error("array", type, path);
@@ -6923,7 +6918,7 @@ json_decode_dict(
         self->input_pos++;
 
         /* Parse value */
-        val = json_decode(self, val_type, &val_path, false);
+        val = json_decode(self, val_type, &val_path);
         if (val == NULL) goto error;
 
         /* Add item to dict */
@@ -6946,7 +6941,7 @@ error:
 static PyObject *
 json_decode_struct_map(
     JSONDecoderState *self, StructMetaObject *st_type, TypeNode *type,
-    PathNode *path, bool is_key
+    PathNode *path
 ) {
     PyObject *out, *val = NULL;
     Py_ssize_t key_size, field_index, pos = 0;
@@ -7015,7 +7010,7 @@ json_decode_struct_map(
         else {
             field_path.index = field_index;
             val = json_decode(
-                self, st_type->struct_types[field_index], &field_path, is_key
+                self, st_type->struct_types[field_index], &field_path
             );
             if (val == NULL) goto error;
             Struct_set_index(out, field_index, val);
@@ -7033,7 +7028,7 @@ error:
 
 static PyObject *
 json_decode_object(
-    JSONDecoderState *self, TypeNode *type, PathNode *path, bool is_key
+    JSONDecoderState *self, TypeNode *type, PathNode *path
 ) {
     if (type->types & MS_TYPE_ANY) {
         TypeNode type_any = {MS_TYPE_ANY};
@@ -7047,7 +7042,7 @@ json_decode_object(
     else if (type->types & MS_TYPE_STRUCT) {
         StructMetaObject *struct_type = TypeNode_get_struct(type);
         if (struct_type->asarray != OPT_TRUE) {
-            return json_decode_struct_map(self, struct_type, type, path, is_key);
+            return json_decode_struct_map(self, struct_type, type, path);
         }
     }
     return ms_validation_error("object", type, path);
@@ -7336,7 +7331,7 @@ fallback_extended:
 
 static PyObject *
 json_decode_nocustom(
-    JSONDecoderState *self, TypeNode *type, PathNode *path, bool is_key
+    JSONDecoderState *self, TypeNode *type, PathNode *path
 ) {
     unsigned char c;
 
@@ -7346,8 +7341,8 @@ json_decode_nocustom(
         case 'n': return json_decode_none(self, type, path);
         case 't': return json_decode_true(self, type, path);
         case 'f': return json_decode_false(self, type, path);
-        case '[': return json_decode_array(self, type, path, is_key);
-        case '{': return json_decode_object(self, type, path, is_key);
+        case '[': return json_decode_array(self, type, path);
+        case '{': return json_decode_object(self, type, path);
         case '"': return json_decode_string(self, type, path);
         default: return json_maybe_decode_number(self, type, path);
     }
@@ -7355,9 +7350,9 @@ json_decode_nocustom(
 
 static PyObject *
 json_decode(
-    JSONDecoderState *self, TypeNode *type, PathNode *path, bool is_key
+    JSONDecoderState *self, TypeNode *type, PathNode *path
 ) {
-    PyObject *obj = json_decode_nocustom(self, type, path, is_key);
+    PyObject *obj = json_decode_nocustom(self, type, path);
     if (MS_UNLIKELY(type->types & (MS_TYPE_CUSTOM | MS_TYPE_CUSTOM_GENERIC))) {
         return ms_decode_custom(
             obj, self->dec_hook, type->types & MS_TYPE_CUSTOM_GENERIC, type, path
@@ -7667,7 +7662,7 @@ JSONDecoder_decode(JSONDecoder *self, PyObject *const *args, Py_ssize_t nargs)
         self->state.input_pos = buffer.buf;
         self->state.input_end = self->state.input_pos + buffer.len;
 
-        res = json_decode(&(self->state), self->state.type, NULL, false);
+        res = json_decode(&(self->state), self->state.type, NULL);
 
         if (res != NULL && json_has_trailing_characters(&self->state)) {
             res = NULL;
@@ -7800,10 +7795,10 @@ msgspec_json_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyO
         state.input_end = state.input_pos + buffer.len;
 
         if (state.type != NULL) {
-            res = json_decode(&state, state.type, NULL, false);
+            res = json_decode(&state, state.type, NULL);
         } else {
             TypeNode type_any = {MS_TYPE_ANY};
-            res = json_decode(&state, &type_any, NULL, false);
+            res = json_decode(&state, &type_any, NULL);
         }
 
         if (res != NULL && json_has_trailing_characters(&state)) {
