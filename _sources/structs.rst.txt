@@ -2,10 +2,10 @@ Structs
 =======
 
 Structs are the preferred way of defining structured data types in ``msgspec``.
-They're written in C and are quite speedy and lightweight (measurably faster to
-create/compare/encode/decode than similar options like dataclasses_, attrs_, or
-pydantic_). They're great for representing structured data both for
-serialization and for use in an application.
+They're written in C and are quite speedy and lightweight (:doc:`measurably
+faster <benchmarks>` to create/compare/encode/decode than similar options like
+dataclasses_, attrs_, or pydantic_). They're great for representing structured
+data both for serialization and for use in an application.
 
 Structs are defined by subclassing from `msgspec.Struct` and annotating the
 types of individual fields. Default values can also be provided for any

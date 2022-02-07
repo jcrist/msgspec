@@ -193,10 +193,10 @@
           <section id="structs">
 <h1>Structs<a class="headerlink" href="#structs" title="Permalink to this headline">¶</a></h1>
 <p>Structs are the preferred way of defining structured data types in <code class="docutils literal notranslate"><span class="pre">msgspec</span></code>.
-They’re written in C and are quite speedy and lightweight (measurably faster to
-create/compare/encode/decode than similar options like <a class="reference external" href="https://docs.python.org/3/library/dataclasses.html">dataclasses</a>, <a class="reference external" href="https://www.attrs.org/en/stable/index.html">attrs</a>, or
-<a class="reference external" href="https://pydantic-docs.helpmanual.io/">pydantic</a>). They’re great for representing structured data both for
-serialization and for use in an application.</p>
+They’re written in C and are quite speedy and lightweight (<a class="reference internal" href="benchmarks.html"><span class="doc">measurably
+faster</span></a> to create/compare/encode/decode than similar options like
+<a class="reference external" href="https://docs.python.org/3/library/dataclasses.html">dataclasses</a>, <a class="reference external" href="https://www.attrs.org/en/stable/index.html">attrs</a>, or <a class="reference external" href="https://pydantic-docs.helpmanual.io/">pydantic</a>). They’re great for representing structured
+data both for serialization and for use in an application.</p>
 <p>Structs are defined by subclassing from <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> and annotating the
 types of individual fields. Default values can also be provided for any
 optional arguments. Here we define a struct representing a user, with one
