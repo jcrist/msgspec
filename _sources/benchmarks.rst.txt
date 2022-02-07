@@ -40,11 +40,17 @@ types):
 
 The libraries we're benchmarking are the following:
 
-- ``msgpack`` - msgpack_ with dict message types
+- ``ujson`` - ujson_ with dict message types
 - ``orjson`` - orjson_ with dict message types
+- ``msgpack`` - msgpack_ with dict message types
 - ``pyrobuf`` - pyrobuf_ with protobuf message types
-- ``msgspec`` - msgspec_ with `msgspec.Struct` message types
-- ``msgspec asarray`` - msgspec_ with `msgspec.Struct` message types configured with ``asarray=True``
+- ``msgspec msgpack`` - msgspec_'s MessagePack encoding, with `msgspec.Struct`
+  message types
+- ``msgspec msgpack asarray`` - msgspec_'s MessagePack encoding, with
+  `msgspec.Struct` message types configured with ``asarray=True``
+- ``msgspec json`` - msgspec_'s JSON encoding, with `msgspec.Struct` message types
+- ``msgspec json asarray`` - msgspec_'s JSON encoding, with `msgspec.Struct`
+  message types configured with ``asarray=True``
 
 Each benchmark creates one or more instances of a ``Person`` message, and
 serializes it/deserializes it in a loop. The `full benchmark source can be
@@ -64,14 +70,22 @@ etc...).
 .. note::
 
     You can use the radio buttons on the bottom to sort by encode time, decode
-    time, or total roundtrip time.
+    time, total roundtrip time, or serialized message size. Hovering over a bar
+    will also display its corresponding value.
 
-From the chart above, you can see that ``msgspec asarray`` is the fastest
-method for both serialization and deserialization, closely followed by
-``msgspec`` (with ``msgpack`` and ``orjson`` not too far behind). I'm actually
-surprised at how much overhead ``pyrobuf`` has (the actual protobuf encoding
-should be pretty efficient), I suspect there's some optimizations that could
-still be done there.
+From the chart above, you can see that ``msgspec msgpack asarray`` is the
+fastest method for both serialization and deserialization. It also results in
+the smallest serialized message size, just edging out ``pyrobuf``. This makes
+sense; with ``asarray=True`` `Struct` types don’t serialize the field names in
+each message (things like ``"first"``, ``"last"``, …), only the values, leading
+to smaller messages and higher performance.
+
+The ``msgspec msgpack`` and ``msgspec json`` benchmarks also performed quite
+well, encoding/decoding faster than all other options, even those implementing
+the same serialization protocol. This is partly due to the use of `Struct`
+types here - since all keys are statically known, the msgspec decoders can
+apply a few optimizations not available to other Python libraries that rely on
+`dict` types instead.
 
 That said, all of these methods serialize/deserialize pretty quickly relative
 to other python operations, so unless you're counting every microsecond your
@@ -94,11 +108,11 @@ Benchmark - with Validation
 
 The above benchmarks aren't 100% fair to ``msgspec`` or ``pyrobuf``. Both
 libraries also perform schema validation on deserialization, checking that the
-message matches the specified schema. Neither ``msgpack`` nor ``orjson``
-support this builtin. Instead, many users perform validation post
+message matches the specified schema. None of the other options benchmarked
+support this natively. Instead, many users perform validation post
 deserialization using additional tools like pydantic_. Here we add the cost of
-Pydantic validation to ``msgpack`` and ``orjson`` to ensure all benchmarks are
-doing both deserialization and validation.
+schema validation during deserialization, using pydantic_ for all libraries
+lacking builtin validation.
 
 .. raw:: html
 
@@ -109,6 +123,23 @@ doing both deserialization and validation.
 
     <div class="bk-root" id="bench-1k-validate"></div>
 
+
+These plots show the performance benefit of performing type validation during
+message decoding (as done by ``msgspec`` and pyrobuf_) rather than as a
+secondary step with a third-party library like pydantic_. Validating after
+decoding is slower for two reasons:
+
+- It requires traversing over the entire output structure a second time (which
+  can be slow due to pointer chasing)
+
+- It may require converting some python objects to their desired output types
+  (e.g. converting a decoded `dict` to a pydantic_ model), resulting in
+  allocating many temporary python objects.
+
+In contrast, libraries like ``msgspec`` that validate during decoding have none
+of these issues. Only a single pass over the decoded data is taken, and the
+specified output types are created correctly the first time, avoiding the need
+for additional unnecessary allocations.
 
 .. raw:: html
 
@@ -135,3 +166,4 @@ doing both deserialization and validation.
 .. _orjson: https://github.com/ijl/orjson
 .. _pyrobuf: https://github.com/appnexus/pyrobuf
 .. _pydantic: https://pydantic-docs.helpmanual.io/
+.. _ujson: https://github.com/ultrajson/ultrajson

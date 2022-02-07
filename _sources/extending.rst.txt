@@ -1,18 +1,16 @@
 Extending
 =========
 
-.. currentmodule:: msgspec.msgpack
+To allow encoding/decoding types other than those :ref:`natively supported
+<supported-types>`, ``msgspec`` provides a few callbacks to
+``Encoder``/``Decoder``.
 
-To support serializing/deserializing types other than those :ref:`natively
-supported <supported-types>`, ``msgspec`` provides a few callbacks to
-`Encoder`/`Decoder`.
-
-- ``enc_hook`` in `Encoder`, for transforming custom types into values
-  that ``msgspec`` :ref:`natively supported types <supported-types>`.
-- ``dec_hook`` in `Decoder`, for converting natively supported types back into
+- ``enc_hook``, for transforming custom types into values
+  that ``msgspec``:ref:`natively supports <supported-types>`.
+- ``dec_hook``, for converting natively supported types back into
   a custom type when using :ref:`typed deserialization <typed-deserialization>`.
-- ``ext_hook`` in `Decoder`, for converting MessagePack extensions back into
-  custom types.
+- ``ext_hook`` (MessagePack only), for converting `MessagePack extensions`_
+  back into custom types.
 
 These should have the following signatures:
 
@@ -30,8 +28,8 @@ These should have the following signatures:
         pass
 
     def ext_hook(code: int, data: memoryview) -> Any:
-        """Given an extension type code and data buffer, deserialize whatever
-        custom object the extension type represents"""
+        """MessagePack only. Given an extension type code and data buffer,
+        deserialize whatever custom object the extension type represents"""
         pass
 
 These can be composed together to form complex behaviors as needed.
@@ -63,25 +61,26 @@ This method works best for types that are similar to a natively supported type
 (e.g. a `collections.OrderedDict` is similar to a `dict`).  This can be
 accomplished by defining two callback functions:
 
-- ``enc_hook`` in `Encoder`, for transforming custom types into values
+- ``enc_hook`` in ``Encoder``, for transforming custom types into values
   that ``msgspec`` already knows how to serialize.
-- ``dec_hook`` in `Decoder`, for converting natively supported types back into
-  a custom type when using :ref:`typed deserialization <typed-deserialization>`.
+- ``dec_hook`` in ``Decoder``, for converting natively supported types back
+  into a custom type when using :ref:`typed deserialization
+  <typed-deserialization>`.
 
 Here we define ``enc_hook`` and ``dec_hook`` callbacks to convert
-`collections.OrderedDict` objects to/from dicts, which are serialized natively
-as MessagePack ``map`` types.
+`decimal.Decimal` objects to/from strings, which are then natively handled by
+``msgspec``.
 
 .. code-block:: python
 
     import msgspec
     from typing import Any, Type
-    from collections import OrderedDict
+    from decimal import Decimal
 
     def enc_hook(obj: Any) -> Any:
-        if isinstance(obj, OrderedDict):
-            # convert the OrderedDict to a dict
-            return dict(obj)
+        if isinstance(obj, Decimal):
+            # convert the Decimal to a str
+            return str(obj)
         else:
             # Raise a TypeError for other types
             raise TypeError(f"Objects of type {type(obj)} are not supported")
@@ -89,29 +88,29 @@ as MessagePack ``map`` types.
 
     def dec_hook(type: Type, obj: Any) -> Any:
         # `type` here is the value of the custom type annotation being decoded.
-        if type is OrderedDict:
-            # Convert ``obj`` (which should be a ``dict``) to an OrderedDict
-            return OrderedDict(obj)
+        if type is Decimal:
+            # Convert ``obj`` (which should be a ``str``) to a Decimal
+            return Decimal(obj)
         else:
             # Raise a TypeError for other types
             raise TypeError(f"Objects of type {type} are not supported")
 
 
-    # Define a message that contains an OrderedDict
+    # Define a message that contains a Decimal
     class MyMessage(msgspec.Struct):
         field_1: str
-        field_2: OrderedDict
+        field_2: Decimal
 
     # Create an encoder and a decoder using the custom callbacks.
     # Note that typed deserialization is required for successful
     # roundtripping here, so we pass `MyMessage` to `Decoder`.
-    enc = msgspec.msgpack.Encoder(enc_hook=enc_hook)
-    dec = msgspec.msgpack.Decoder(MyMessage, dec_hook=dec_hook)
+    enc = msgspec.json.Encoder(enc_hook=enc_hook)
+    dec = msgspec.json.Decoder(MyMessage, dec_hook=dec_hook)
 
     # An example message
     msg = MyMessage(
         "some string",
-        OrderedDict([("a", 1), ("b", 2)])
+        Decimal("3.1415926535897932384626433832795"),
     )
 
     # Encode and decode the message to show that things work
@@ -119,21 +118,19 @@ as MessagePack ``map`` types.
     msg2 = dec.decode(buf)
     assert msg == msg2  # True
 
+.. _defining-extensions:
 
-.. _extensions:
+Defining a custom extension (MessagePack only)
+----------------------------------------------
 
-Defining a custom extension
----------------------------
-
-The MessagePack specification provides support for defining custom
-`Extensions <https://github.com/msgpack/msgpack/blob/master/spec.md#extension-types>`__.
+The MessagePack specification provides support for defining custom Extensions_.
 Extensions consist of:
 
 - An integer code (between 0 and 127, inclusive) representing the "type" of the
   extension.
 - An arbitrary byte buffer of data (up to ``(2^32) - 1`` in length).
 
-By default extensions are serialized to/from `Ext` objects.
+By default extensions are serialized to/from `msgspec.msgpack.Ext` objects.
 
 .. code-block:: python
 
@@ -147,10 +144,11 @@ While manually creating `Ext` objects from buffers can be useful, usually the
 user wants to map extension types to/from their own custom objects. This can be
 accomplished by defining two callback functions:
 
-- ``enc_hook`` in `Encoder`, for transforming custom types into values
-  that ``msgspec`` already knows how to serialize.
-- ``ext_hook`` in `Decoder`, for converting extensions back into those
-  custom types.
+- ``enc_hook`` in `msgspec.msgpack.Encoder`, for transforming custom types into
+  values that ``msgspec`` already knows how to serialize.
+
+- ``ext_hook`` in `msgspec.msgpack.Decoder`, for converting extensions back
+  into those custom types.
 
 This method defines a new extension type, and sends this type information
 along as part of the message. This means that when properly configured, custom
@@ -230,4 +228,6 @@ objects to/from this binary representation as a MessagePack extension.
     message buffer around for longer than necessary, resulting in increased
     memory usage.
 
+.. _extensions:
+.. _MessagePack extensions:
 .. _MessagePack extension: https://github.com/msgpack/msgpack/blob/master/spec.md#extension-types
