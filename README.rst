@@ -1,30 +1,31 @@
 msgspec
 =======
 
-|github| |pypi|
+|github| |pypi| |conda|
 
-``msgspec`` is a *fast* and *friendly* serialization library for Python 3.8+,
-currently supporting both `JSON <https://json.org>`__ and `MessagePack
-<https://msgpack.org>`__ (``msgpack``). It integrates well with Python's `type
-annotations <https://docs.python.org/3/library/typing.html>`__, supporting
-ergonomic (and performant!) schema validation.
+``msgspec`` is a *fast* and *friendly* serialization library for Python,
+supporting both `JSON <https://json.org>`__ and `MessagePack
+<https://msgpack.org>`__. It integrates well with Python's `type annotations
+<https://docs.python.org/3/library/typing.html>`__, providing ergonomic (and
+performant!) schema validation.
 
 .. code-block:: python
 
-    from typing import Optional, List
+    from typing import Optional, Set
     import msgspec
 
     # Define a schema for a `User` type
     class User(msgspec.Struct):
         name: str
-        groups: List[str] = []
+        groups: Set[str] = set()
         email: Optional[str] = None
 
     # Create a `User` object
-    alice = User("alice", groups=["admin", "engineering"])
+    alice = User("alice", groups={"admin", "engineering"})
 
     # Serialize `alice` to `bytes` as JSON
     serialized_data = msgspec.json.encode(alice)
+    # b'{"name":"alice","groups":["admin","engineering"],"email":null}'
 
     # Deserialize and validate the message as a User type
     user = msgspec.json.decode(serialized_data, type=User)
@@ -34,7 +35,7 @@ ergonomic (and performant!) schema validation.
 ``msgspec`` is designed to be as performant as possible, while retaining some
 of the nicities of validation libraries like `pydantic
 <https://pydantic-docs.helpmanual.io/>`__. For supported types,
-serializing/deserializing a message with ``msgspec`` can be *~2-20x faster*
+encoding/decoding a message with ``msgspec`` can be *~2-20x faster*
 than alternative libraries.
 
 .. image:: https://github.com/jcrist/msgspec/raw/master/docs/source/_static/bench-1.png
@@ -53,3 +54,5 @@ New BSD. See the
    :target: https://github.com/jcrist/msgspec/actions/workflows/ci.yml
 .. |pypi| image:: https://img.shields.io/pypi/v/msgspec.svg
    :target: https://pypi.org/project/msgspec/
+.. |conda| image:: https://img.shields.io/conda/vn/conda-forge/msgspec.svg
+   :target: https://anaconda.org/conda-forge/msgspec

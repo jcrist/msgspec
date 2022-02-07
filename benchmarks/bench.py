@@ -1,15 +1,15 @@
+import gc
 import random
 import string
 import timeit
 from typing import List, Optional
 
-import gc
 import msgpack
 import msgspec
 import orjson
-import ormsgpack
-import pydantic
 import proto_bench
+import pydantic
+import ujson
 
 
 class Address(msgspec.Struct):
@@ -168,13 +168,15 @@ def bench(dumps, loads, ndata, convert=None, no_gc=False):
     dumps_time = t / n
 
     data = dumps(data)
+    size = len(data)
+
     gc.collect()
     timer = timeit.Timer(
         "func(data)", setup=setup, globals={"func": loads, "data": data, "gc": gc}
     )
     n, t = timer.autorange()
     loads_time = t / n
-    return dumps_time, loads_time
+    return dumps_time, loads_time, size
 
 
 def bench_msgspec_msgpack(n, no_gc, validate=False):
@@ -268,27 +270,7 @@ def bench_msgpack(n, no_gc, validate=False):
     return bench(packer.pack, loads, n, no_gc=no_gc)
 
 
-def bench_orjson(n, no_gc, validate=False):
-    if validate:
-        if n == 1:
-
-            def loads(b):
-                return PersonModel(**orjson.loads(b))
-
-        else:
-
-            def loads(b):
-                return PeopleModel(items=orjson.loads(b)).items
-
-    else:
-        loads = orjson.loads
-
-    return bench(orjson.dumps, loads, n, no_gc=no_gc)
-
-
 def bench_ujson(n, no_gc, validate=False):
-    import ujson
-
     if validate:
         if n == 1:
 
@@ -306,42 +288,22 @@ def bench_ujson(n, no_gc, validate=False):
     return bench(ujson.dumps, loads, n, no_gc=no_gc)
 
 
-def bench_json(n, no_gc, validate=False):
-    import json
-
+def bench_orjson(n, no_gc, validate=False):
     if validate:
         if n == 1:
 
             def loads(b):
-                return PersonModel(**json.loads(b))
+                return PersonModel(**orjson.loads(b))
 
         else:
 
             def loads(b):
-                return PeopleModel(items=json.loads(b)).items
+                return PeopleModel(items=orjson.loads(b)).items
 
     else:
-        loads = json.loads
+        loads = orjson.loads
 
-    return bench(json.dumps, loads, n, no_gc=no_gc)
-
-
-def bench_ormsgpack(n, no_gc, validate=False):
-    if validate:
-        if n == 1:
-
-            def loads(b):
-                return PersonModel(**ormsgpack.unpackb(b))
-
-        else:
-
-            def loads(b):
-                return PeopleModel(items=ormsgpack.unpackb(b)).items
-
-    else:
-        loads = ormsgpack.unpackb
-
-    return bench(ormsgpack.packb, loads, n, no_gc=no_gc)
+    return bench(orjson.dumps, loads, n, no_gc=no_gc)
 
 
 def bench_pyrobuf(n, no_gc, validate=False):
@@ -376,16 +338,14 @@ def bench_pyrobuf(n, no_gc, validate=False):
 
 
 BENCHMARKS = [
-    ("json", bench_json),
     ("ujson", bench_ujson),
     ("orjson", bench_orjson),
     ("msgpack", bench_msgpack),
-    ("ormsgpack", bench_ormsgpack),
     ("pyrobuf", bench_pyrobuf),
-    ("msgspec.msgpack", bench_msgspec_msgpack),
-    ("msgspec.msgpack asarray", bench_msgspec_msgpack_asarray),
-    ("msgspec.json", bench_msgspec_json),
-    ("msgspec.json asarray", bench_msgspec_json_asarray),
+    ("msgspec msgpack", bench_msgspec_msgpack),
+    ("msgspec msgpack asarray", bench_msgspec_msgpack_asarray),
+    ("msgspec json", bench_msgspec_json),
+    ("msgspec json asarray", bench_msgspec_json_asarray),
 ]
 
 
@@ -408,7 +368,9 @@ def format_bytes(n):
 
 
 def preprocess_results(results):
-    data = dict(zip(["benchmark", "encode", "decode"], map(list, zip(*results))))
+    data = dict(
+        zip(["benchmark", "encode", "decode", "size"], map(list, zip(*results)))
+    )
     data["total"] = [d + l for d, l in zip(data["encode"], data["decode"])]
 
     max_time = max(data["total"])
@@ -426,27 +388,45 @@ def preprocess_results(results):
         data[f"{k}_labels"] = [format_time(t) for t in data[k]]
         data[k] = [scale * t for t in data[k]]
 
-    return data, time_unit
+    max_size = max(data["size"])
+    if max_size < 1e3:
+        size_unit = "B"
+        scale = 1
+    elif max_size < 1e6:
+        size_unit = "KiB"
+        scale = 1e3
+    elif max_size < 1e9:
+        size_unit = "MiB"
+        scale = 1e6
+
+    data["size_labels"] = [format_bytes(s) for s in data["size"]]
+    data["size"] = [s / scale for s in data["size"]]
+
+    return data, time_unit, size_unit
 
 
-def make_plot(results, title):
+def make_plot(results, title, include_size=False):
     import json
     import bokeh.plotting as bp
     from bokeh.transform import dodge
     from bokeh.layouts import column
     from bokeh.models import CustomJS, RadioGroup, FactorRange
 
-    data, time_unit = preprocess_results(results)
+    data, time_unit, size_unit = preprocess_results(results)
 
     sort_options = ["total", "encode", "decode"]
+
+    if include_size:
+        sort_options.append("size")
+    else:
+        del data["size"]
+
     sort_orders = [
         list(zip(*sorted(zip(data[order], data["benchmark"]), reverse=True)))[1]
         for order in sort_options
     ]
 
     source = bp.ColumnDataSource(data=data)
-    tooltips = [("time", "@$name")]
-
     x_range = FactorRange(*sort_orders[0])
 
     p = bp.figure(
@@ -456,10 +436,9 @@ def make_plot(results, title):
         title=title,
         toolbar_location=None,
         tools="",
-        tooltips=tooltips,
+        tooltips=[("time", "@$name")],
         sizing_mode="scale_width",
     )
-
     p.vbar(
         x=dodge("benchmark", -0.25, range=p.x_range),
         top="encode",
@@ -487,7 +466,6 @@ def make_plot(results, title):
         legend_label="total",
         name="total_labels",
     )
-
     p.x_range.range_padding = 0.1
     p.xgrid.grid_line_color = None
     p.ygrid.grid_line_color = None
@@ -495,6 +473,29 @@ def make_plot(results, title):
     p.yaxis.minor_tick_line_color = None
     p.legend.location = "top_right"
     p.legend.orientation = "horizontal"
+
+    if include_size:
+        # Hide the x-axis labels on the time plot
+        p.xaxis.visible = False
+
+        size_plot = bp.figure(
+            x_range=x_range,
+            plot_height=150,
+            plot_width=660,
+            title=None,
+            toolbar_location=None,
+            tools="hover",
+            tooltips=[("size", "@size_labels")],
+            sizing_mode="scale_width",
+        )
+        size_plot.vbar(x="benchmark", top="size", width=0.8, source=source)
+
+        size_plot.x_range.range_padding = 0.1
+        size_plot.xgrid.grid_line_color = None
+        size_plot.ygrid.grid_line_color = None
+        size_plot.y_range.start = 0
+        size_plot.yaxis.axis_label = f"Size ({size_unit})"
+        size_plot.yaxis.minor_tick_line_color = None
 
     # Setup widget
     select = RadioGroup(
@@ -511,7 +512,10 @@ def make_plot(results, title):
         ),
     )
     select.js_on_click(callback)
-    out = column(p, select, sizing_mode="scale_width")
+    if include_size:
+        out = column(p, size_plot, select, sizing_mode="scale_width")
+    else:
+        out = column(p, select, sizing_mode="scale_width")
     return out
 
 
@@ -523,22 +527,24 @@ def run(
     save_json=False,
     no_gc=False,
     validate=False,
+    include_size=False,
 ):
     results = []
     for name, func in BENCHMARKS:
         print(f"{name}")
-        dumps_time, loads_time = func(n, no_gc, validate)
+        dumps_time, loads_time, size = func(n, no_gc, validate)
         total_time = dumps_time + loads_time
         print(f"  dumps: {dumps_time * 1e6:.2f} us")
         print(f"  loads: {loads_time * 1e6:.2f} us")
         print(f"  total: {total_time * 1e6:.2f} us")
-        results.append((name.replace(" ", "\n"), dumps_time, loads_time))
+        print(f"   size: {format_bytes(size)}")
+        results.append((name.replace(" ", "\n"), dumps_time, loads_time, size))
     if save_plot or save_json:
         import json
         from bokeh.resources import CDN
         from bokeh.embed import file_html, json_item
 
-        plot = make_plot(results, plot_title)
+        plot = make_plot(results, plot_title, include_size=include_size)
         if save_plot:
             with open(f"{plot_name}.html", "w") as f:
                 html = file_html(plot, CDN, "Benchmarks")
@@ -549,7 +555,9 @@ def run(
                 f.write(data)
 
 
-def run_1(save_plot=False, save_json=False, no_gc=False, validate=False):
+def run_1(
+    save_plot=False, save_json=False, no_gc=False, validate=False, include_size=False
+):
     print(f"Benchmark - 1 object (validate={validate})")
     if validate:
         path = "bench-1-validate"
@@ -557,10 +565,12 @@ def run_1(save_plot=False, save_json=False, no_gc=False, validate=False):
     else:
         path = "bench-1"
         title = "Benchmark - 1 object"
-    run(1, title, path, save_plot, save_json, no_gc, validate)
+    run(1, title, path, save_plot, save_json, no_gc, validate, include_size)
 
 
-def run_1k(save_plot=False, save_json=False, no_gc=False, validate=False):
+def run_1k(
+    save_plot=False, save_json=False, no_gc=False, validate=False, include_size=False
+):
     print(f"Benchmark - 1k objects (validate={validate})")
     if validate:
         path = "bench-1k-validate"
@@ -568,12 +578,14 @@ def run_1k(save_plot=False, save_json=False, no_gc=False, validate=False):
     else:
         path = "bench-1k"
         title = "Benchmark - 1000 objects"
-    run(1000, title, path, save_plot, save_json, no_gc, validate)
+    run(1000, title, path, save_plot, save_json, no_gc, validate, include_size)
 
 
-def run_all(save_plot=False, save_json=False, no_gc=False, validate=False):
+def run_all(
+    save_plot=False, save_json=False, no_gc=False, validate=False, include_size=False
+):
     for runner in [run_1, run_1k]:
-        runner(save_plot, save_json, no_gc, validate)
+        runner(save_plot, save_json, no_gc, validate, include_size)
 
 
 benchmarks = {"all": run_all, "1": run_1, "1k": run_1k}
@@ -611,8 +623,15 @@ def main():
         action="store_true",
         help="whether to ensure all serializers include validation on deserialization",
     )
+    parser.add_argument(
+        "--include-size",
+        action="store_true",
+        help="whether to include message size information in the generated plots",
+    )
     args = parser.parse_args()
-    benchmarks[args.benchmark](args.plot, args.json, args.no_gc, args.validate)
+    benchmarks[args.benchmark](
+        args.plot, args.json, args.no_gc, args.validate, args.include_size
+    )
 
 
 if __name__ == "__main__":

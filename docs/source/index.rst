@@ -1,47 +1,52 @@
 msgspec
 =======
 
-``msgspec`` is a *fast* and *friendly* serialization library for Python 3.8+,
-currently supporting both `JSON <https://json.org>`__ and `MessagePack
-<https://msgpack.org>`__ (``msgpack``). It integrates well with Python's `type
-annotations <https://docs.python.org/3/library/typing.html>`__, supporting
-ergonomic (and performant!) schema validation.
+``msgspec`` is a *fast* and *friendly* serialization library for Python,
+supporting both `JSON <https://json.org>`__ and `MessagePack
+<https://msgpack.org>`__. It integrates well with Python's `type annotations
+<https://docs.python.org/3/library/typing.html>`__, providing ergonomic (and
+performant!) schema validation.
 
 .. code-block:: python
 
-    from typing import Optional, List
+    from typing import Optional, Set
     import msgspec
 
     # Define a schema for a `User` type
     class User(msgspec.Struct):
         name: str
-        groups: List[str] = []
+        groups: Set[str] = set()
         email: Optional[str] = None
 
     # Create a `User` object
-    alice = User("alice", groups=["admin", "engineering"])
+    alice = User("alice", groups={"admin", "engineering"})
 
     # Serialize `alice` to `bytes` as JSON
     serialized_data = msgspec.json.encode(alice)
+    # b'{"name":"alice","groups":["admin","engineering"],"email":null}'
 
     # Deserialize and validate the message as a User type
     user = msgspec.json.decode(serialized_data, type=User)
 
     assert user == alice
 
+``msgspec`` is designed to be as performant as possible, while retaining some
+of the nicities of validation libraries like `pydantic
+<https://pydantic-docs.helpmanual.io/>`__. For supported types,
+encoding/decoding a message with ``msgspec`` can be *~2-20x faster* than
+alternative libraries.
+
 
 Highlights
 ----------
 
-.. cssclass:: spaced
-
 - ``msgspec`` is **fast**. :doc:`benchmarks` show it's among the fastest
   serialization methods for Python.
 - ``msgspec`` is **friendly**. Through use of Python's `type annotations`_,
-  messages can be :ref:`validated <typed-deserialization>` during
-  deserialization in a declaritive way.  ``msgspec`` also works well with other
-  type-checking tooling like `mypy <https://mypy.readthedocs.io>`_, providing
-  excellent editor integration.
+  messages are :ref:`validated <typed-deserialization>` during deserialization
+  in a declaritive way. ``msgspec`` also works well with other type-checking
+  tooling like `mypy <https://mypy.readthedocs.io>`_, providing excellent
+  editor integration.
 - ``msgspec`` is **flexible**. Unlike other libraries like ``json`` or
   ``msgpack``, ``msgspec`` natively supports a wider range of Python builtin
   types. Support for additional types can also be added through :doc:`extensions
@@ -76,6 +81,7 @@ is required.
     :maxdepth: 2
 
     usage.rst
+    structs.rst
     extending.rst
     benchmarks.rst
     api.rst
