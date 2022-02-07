@@ -1,5 +1,3 @@
-import msgspec
-
 project = "msgspec"
 copyright = "2022, Jim Crist-Harif"
 author = "Jim Crist-Harif"
