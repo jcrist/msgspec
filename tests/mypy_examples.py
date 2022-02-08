@@ -8,6 +8,16 @@ import msgspec
 # Structs                                                #
 ##########################################################
 
+def check___version__() -> None:
+    reveal_type(msgspec.__version__)  # assert "str" in typ
+
+
+def check_exceptions() -> None:
+    reveal_type(msgspec.DecodingError)  # assert "Any" not in typ
+    reveal_type(msgspec.EncodingError)  # assert "Any" not in typ
+    reveal_type(msgspec.MsgspecError)  # assert "Any" not in typ
+
+
 def check_struct() -> None:
     class Test(msgspec.Struct):
         x: int
