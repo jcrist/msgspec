@@ -4,10 +4,8 @@ msgspec
 |github| |pypi| |conda|
 
 ``msgspec`` is a *fast* and *friendly* serialization library for Python,
-supporting both `JSON <https://json.org>`__ and `MessagePack
-<https://msgpack.org>`__. It integrates well with Python's `type annotations
-<https://docs.python.org/3/library/typing.html>`__, providing ergonomic (and
-performant!) schema validation.
+supporting both JSON_ and MessagePack_. It integrates well with Python's `type
+annotations`_, providing ergonomic (and performant!) schema validation.
 
 **Define** your message schemas using standard Python type annotations.
 
@@ -50,10 +48,9 @@ performant!) schema validation.
     msgspec.DecodingError: Expected `str`, got `int` - at `$.groups[0]`
 
 ``msgspec`` is designed to be as performant as possible, while retaining some
-of the nicities of validation libraries like `pydantic
-<https://pydantic-docs.helpmanual.io/>`__. For supported types,
-encoding/decoding a message with ``msgspec`` can be *~2-40x faster*
-than alternative libraries.
+of the nicities of validation libraries like pydantic_. For supported types,
+encoding/decoding a message with ``msgspec`` can be *~2-40x faster* than
+alternative libraries.
 
 .. image:: https://github.com/jcrist/msgspec/raw/master/docs/source/_static/bench-1.png
     :target: https://jcristharif.com/msgspec/benchmarks.html
@@ -66,6 +63,11 @@ LICENSE
 
 New BSD. See the
 `License File <https://github.com/jcrist/msgspec/blob/master/LICENSE>`_.
+
+.. _type annotations: https://docs.python.org/3/library/typing.html
+.. _JSON: https://json.org
+.. _MessagePack: https://msgpack.org
+.. _pydantic: https://pydantic-docs.helpmanual.io/
 
 .. |github| image:: https://github.com/jcrist/msgspec/actions/workflows/ci.yml/badge.svg
    :target: https://github.com/jcrist/msgspec/actions/workflows/ci.yml

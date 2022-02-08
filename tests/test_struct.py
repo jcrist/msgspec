@@ -657,7 +657,7 @@ def test_struct_handles_missing_attributes():
         pickle.dumps(t)
 
 
-@pytest.mark.parametrize("option", ["immutable", "asarray"])
+@pytest.mark.parametrize("option", ["frozen", "asarray"])
 def test_struct_option_precedence(option):
     def get(cls):
         return getattr(cls, option)
@@ -710,28 +710,28 @@ def test_invalid_option_raises():
             pass
 
 
-class ImmutablePoint(Struct, immutable=True):
+class FrozenPoint(Struct, frozen=True):
     x: int
     y: int
 
 
-class TestImmutable:
-    def test_immutable_objects_no_setattr(self):
-        p = ImmutablePoint(1, 2)
-        with pytest.raises(TypeError, match="immutable type: 'ImmutablePoint'"):
+class TestFrozen:
+    def test_frozen_objects_no_setattr(self):
+        p = FrozenPoint(1, 2)
+        with pytest.raises(AttributeError, match="immutable type: 'FrozenPoint'"):
             p.x = 3
 
-    def test_immutable_objects_hashable(self):
-        p1 = ImmutablePoint(1, 2)
-        p2 = ImmutablePoint(1, 2)
-        p3 = ImmutablePoint(1, 3)
+    def test_frozen_objects_hashable(self):
+        p1 = FrozenPoint(1, 2)
+        p2 = FrozenPoint(1, 2)
+        p3 = FrozenPoint(1, 3)
         assert hash(p1) == hash(p2)
         assert hash(p1) != hash(p3)
         assert p1 == p2
         assert p1 != p3
 
-    def test_immutable_objects_hash_errors_if_field_unhashable(self):
-        p = ImmutablePoint(1, [2])
+    def test_frozen_objects_hash_errors_if_field_unhashable(self):
+        p = FrozenPoint(1, [2])
         with pytest.raises(TypeError):
             hash(p)
 

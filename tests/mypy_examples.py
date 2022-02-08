@@ -30,8 +30,8 @@ def check_struct_asarray() -> None:
     reveal_type(t.y)  # assert "str" in typ
 
 
-def check_struct_immutable() -> None:
-    class Test(msgspec.Struct, immutable=True):
+def check_struct_frozen() -> None:
+    class Test(msgspec.Struct, frozen=True):
         x: int
         y: str
 
