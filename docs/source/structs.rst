@@ -89,16 +89,16 @@ for converting a struct to a dict.
     >>> p.to_dict()
     {"x": 1.0, "y": 2.0}
 
-Immutability
-------------
+Frozen Instances
+----------------
 
-A struct type can optionally be marked as immutable by specifying
-``immutable=True``. This disables modifying field values after initialization,
+A struct type can optionally be marked as "frozen" by specifying
+``frozen=True``. This disables modifying attributes after initialization,
 and adds a ``__hash__`` method to the class definition.
 
 .. code-block:: python
 
-    >>> class Point(msgspec.Struct, immutable=True):
+    >>> class Point(msgspec.Struct, frozen=True):
     ...     """This struct is immutable & hashable"""
     ...     x: float
     ...     y: float
@@ -106,13 +106,13 @@ and adds a ``__hash__`` method to the class definition.
 
     >>> p = Point(1.0, 2.0)
 
-    >>> {p: 1}  # immutable structs are hashable, and can be keys in dicts
+    >>> {p: 1}  # frozen structs are hashable, and can be keys in dicts
     {Point(1.0, 2.0): 1}
 
-    >>> p.x = 2.0  # immutable structs cannot be modified after creation
+    >>> p.x = 2.0  # frozen structs cannot be modified after creation
     Traceback (most recent call last):
         ...
-    TypeError: immutable type: 'Point'
+    AttributeError: immutable type: 'Point'
 
 Encoding/Decoding as Arrays
 ---------------------------

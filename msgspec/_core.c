@@ -526,7 +526,7 @@ typedef struct {
     TypeNode **struct_types;
     bool json_compatible;
     bool traversing;
-    char immutable;
+    char frozen;
     char asarray;
 } StructMetaObject;
 
@@ -1475,15 +1475,15 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
     PyObject *default_val, *field;
     Py_ssize_t nfields, ndefaults, i, j, k;
     Py_ssize_t *offsets = NULL, *base_offsets;
-    int arg_immutable = -1, arg_asarray = -1, immutable = -1, asarray = -1;
+    int arg_frozen = -1, arg_asarray = -1, frozen = -1, asarray = -1;
 
-    static char *kwlist[] = {"name", "bases", "dict", "immutable", "asarray", NULL};
+    static char *kwlist[] = {"name", "bases", "dict", "frozen", "asarray", NULL};
 
     /* Parse arguments: (name, bases, dict) */
     if (!PyArg_ParseTupleAndKeywords(
             args, kwargs, "UO!O!|$pp:StructMeta.__new__", kwlist,
             &name, &PyTuple_Type, &bases, &PyDict_Type, &orig_dict,
-            &arg_immutable, &arg_asarray))
+            &arg_frozen, &arg_asarray))
         return NULL;
 
     if (PyDict_GetItemString(orig_dict, "__init__") != NULL) {
@@ -1522,7 +1522,7 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
             );
             goto error;
         }
-        immutable = STRUCT_MERGE_OPTIONS(immutable, ((StructMetaObject *)base)->immutable);
+        frozen = STRUCT_MERGE_OPTIONS(frozen, ((StructMetaObject *)base)->frozen);
         asarray = STRUCT_MERGE_OPTIONS(asarray, ((StructMetaObject *)base)->asarray);
         base_fields = StructMeta_GET_FIELDS(base);
         base_defaults = StructMeta_GET_DEFAULTS(base);
@@ -1552,7 +1552,7 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
             Py_DECREF(offset);
         }
     }
-    immutable = STRUCT_MERGE_OPTIONS(immutable, arg_immutable);
+    frozen = STRUCT_MERGE_OPTIONS(frozen, arg_frozen);
     asarray = STRUCT_MERGE_OPTIONS(asarray, arg_asarray);
 
     new_dict = PyDict_Copy(orig_dict);
@@ -1680,7 +1680,7 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
     cls->struct_fields = fields;
     cls->struct_defaults = defaults;
     cls->struct_offsets = offsets;
-    cls->immutable = immutable;
+    cls->frozen = frozen;
     cls->asarray = asarray;
     return (PyObject *) cls;
 error:
@@ -1816,9 +1816,9 @@ StructMeta_dealloc(StructMetaObject *self)
 }
 
 static PyObject*
-StructMeta_immutable(StructMetaObject *self, void *closure)
+StructMeta_frozen(StructMetaObject *self, void *closure)
 {
-    if (self->immutable == OPT_TRUE) { Py_RETURN_TRUE; }
+    if (self->frozen == OPT_TRUE) { Py_RETURN_TRUE; }
     else { Py_RETURN_FALSE; }
 }
 
@@ -1929,7 +1929,7 @@ static PyMemberDef StructMeta_members[] = {
 
 static PyGetSetDef StructMeta_getset[] = {
     {"__signature__", (getter) StructMeta_signature, NULL, NULL, NULL},
-    {"immutable", (getter) StructMeta_immutable, NULL, NULL, NULL},
+    {"frozen", (getter) StructMeta_frozen, NULL, NULL, NULL},
     {"asarray", (getter) StructMeta_asarray, NULL, NULL, NULL},
     {NULL},
 };
@@ -2167,8 +2167,12 @@ error:
 
 static int
 Struct_setattro(PyObject *self, PyObject *key, PyObject *value) {
-    if (((StructMetaObject *)Py_TYPE(self))->immutable == OPT_TRUE) {
-        PyErr_Format(PyExc_TypeError, "immutable type: '%s'", Py_TYPE(self)->tp_name);
+    if (((StructMetaObject *)Py_TYPE(self))->frozen == OPT_TRUE) {
+        PyErr_Format(
+            PyExc_AttributeError,
+            "immutable type: '%s'",
+            Py_TYPE(self)->tp_name
+        );
         return -1;
     }
     if (PyObject_GenericSetAttr(self, key, value) < 0)
@@ -2255,7 +2259,7 @@ Struct_hash(PyObject *self) {
     Py_ssize_t i, nfields;
     Py_uhash_t acc = MS_HASH_XXPRIME_5;
 
-    if (((StructMetaObject *)Py_TYPE(self))->immutable != OPT_TRUE) {
+    if (((StructMetaObject *)Py_TYPE(self))->frozen != OPT_TRUE) {
         PyErr_Format(PyExc_TypeError, "unhashable type: '%s'", Py_TYPE(self)->tp_name);
         return -1;
     }
@@ -2423,10 +2427,10 @@ PyDoc_STRVAR(Struct__doc__,
 "Additional class options can be enabled by passing keywords to the class\n"
 "definition (see example below). The following options exist:\n"
 "\n"
-"- ``immutable``: whether instances of the class are immutable. If true,\n"
+"- ``frozen``: whether instances of the class are pseudo-immutable. If true,\n"
 "  attribute assignment is disabled and a corresponding ``__hash__`` is defined.\n"
 "- ``asarray``: whether instances of the class should be serialized as\n"
-"  MessagePack arrays, rather than dicts (the default).\n"
+"  arrays rather than dicts (the default).\n"
 "\n"
 "Structs automatically define ``__init__``, ``__eq__``, ``__repr__``, and\n"
 "``__copy__`` methods. Additional methods can be defined on the class as\n"
@@ -2448,13 +2452,13 @@ PyDoc_STRVAR(Struct__doc__,
 "Dog(name='snickers', breed='corgi', is_good_boy=True)\n"
 "\n"
 "Additional struct options can be set as part of the class definition. Here\n"
-"we define a new `Struct` type for an immutable `Point` object.\n"
+"we define a new `Struct` type for a frozen `Point` object.\n"
 "\n"
-">>> class Point(Struct, immutable=True):\n"
+">>> class Point(Struct, frozen=True):\n"
 "...     x: float\n"
 "...     y: float\n"
 "...\n"
-">>> {Point(1.5, 2.0): 1}  # immutable structs are hashable\n"
+">>> {Point(1.5, 2.0): 1}  # frozen structs are hashable\n"
 "{Point(1.5, 2.0): 1}"
 );
 
@@ -4711,7 +4715,7 @@ mpack_has_trailing_characters(DecoderState *self)
     if (self->input_pos != self->input_end) {
         PyErr_Format(
             msgspec_get_global_state()->DecodingError,
-            "MsgPack data is malformed: trailing characters (byte %zd)",
+            "MessagePack data is malformed: trailing characters (byte %zd)",
             (Py_ssize_t)(self->input_pos - self->input_start)
         );
         return true;
@@ -5881,8 +5885,8 @@ PyDoc_STRVAR(JSONDecoder__doc__,
 "    An optional callback for handling decoding custom types. Should have the\n"
 "    signature ``dec_hook(type: Type, obj: Any) -> Any``, where ``type`` is the\n"
 "    expected message type, and ``obj`` is the decoded representation composed\n"
-"    of only basic MessagePack types. This hook should transform ``obj`` into\n"
-"    type ``type``, or raise a ``TypeError`` if unsupported."
+"    of only basic JSON types. This hook should transform ``obj`` into type\n"
+"    ``type``, or raise a ``TypeError`` if unsupported."
 );
 static int
 JSONDecoder_init(JSONDecoder *self, PyObject *args, PyObject *kwds)
