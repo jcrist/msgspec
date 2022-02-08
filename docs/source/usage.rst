@@ -167,7 +167,7 @@ If a message doesn't match the expected type, an error is raised.
     ... )
     Traceback (most recent call last):
       File "<stdin>", line 1, in <module>
-    msgspec.DecodingError: Expected `str`, got `int` - at `$[1].groups[1]`
+    msgspec.DecodeError: Expected `str`, got `int` - at `$[1].groups[1]`
 
 Unlike some other libraries (e.g. pydantic_), ``msgspec`` won't perform any
 unsafe implicit conversion. For example, if an integer is specified and a
@@ -179,7 +179,7 @@ the string to an int.
     >>> msgspec.json.decode(b'[1, 2, "3"]', type=List[int])
     Traceback (most recent call last):
       File "<stdin>", line 1, in <module>
-    msgspec.DecodingError: Expected `int`, got `str` - at `$[2]`
+    msgspec.DecodeError: Expected `int`, got `str` - at `$[2]`
 
 The *one exception* to this rule is float handling - if a `float` is specified
 and an integer is decoded, the integer will be converted to a float. This is
@@ -231,7 +231,7 @@ MessagePack.
 
 Integers map to JSON numbers/MessagePack integers. Only values that fit in an
 ``int64`` or ``uint64`` (within ``[-2**63, 2**64 - 1]``, inclusive) are
-supported. Values outside this range will raise a `msgspec.DecodingError`
+supported. Values outside this range will raise a `msgspec.DecodeError`
 during decoding.
 
 .. code-block:: python
@@ -336,7 +336,7 @@ or doesn't match any valid `enum.IntEnum` member.
     >>> msgspec.json.decode(b'4', type=JobState)
     Traceback (most recent call last):
       File "<stdin>", line 1, in <module>
-    msgspec.DecodingError: Invalid enum value `4`
+    msgspec.DecodeError: Invalid enum value `4`
 
 ``Enum``
 ~~~~~~~~
@@ -362,7 +362,7 @@ isn't a string or doesn't match any valid `enum.Enum` member.
     >>> msgspec.json.decode(b'"GRAPE"', type=Fruit)
     Traceback (most recent call last):
       File "<stdin>", line 1, in <module>
-    msgspec.DecodingError: Invalid enum value 'GRAPE'
+    msgspec.DecodeError: Invalid enum value 'GRAPE'
 
 ``datetime``
 ~~~~~~~~~~~~
@@ -392,7 +392,7 @@ to UTC.
     >>> msgspec.json.decode(b'"oops not a date"', type=datetime.datetime)
     Traceback (most recent call last):
       File "<stdin>", line 1, in <module>
-    msgspec.DecodingError: Invalid RFC3339 encoded datetime
+    msgspec.DecodeError: Invalid RFC3339 encoded datetime
 
 ``list`` / ``tuple`` / ``set``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -422,7 +422,7 @@ provided).
     ... msgspec.json.decode(b'[1, 2, "oops"]', type=Set[int])
     Traceback (most recent call last):
       File "<stdin>", line 1, in <module>
-    msgspec.DecodingError: Expected `int`, got `str` - at `$[2]`
+    msgspec.DecodeError: Expected `int`, got `str` - at `$[2]`
 
 ``dict``
 ~~~~~~~~
@@ -448,7 +448,7 @@ values don't match their respective types (if specified).
     ... msgspec.json.decode(b'{"x":1,"y":"oops"}', type=Dict[str, int])
     Traceback (most recent call last):
       File "<stdin>", line 1, in <module>
-    msgspec.DecodingError: Expected `int`, got `str` - at `$[...]`
+    msgspec.DecodeError: Expected `int`, got `str` - at `$[...]`
 
 ``Struct``
 ~~~~~~~~~~
@@ -498,7 +498,7 @@ doesn't match or if any required fields are missing.
     >>> msgspec.json.decode(wrong_type, type=User)
     Traceback (most recent call last):
       File "<stdin>", line 1, in <module>
-    msgspec.DecodingError: Expected `str`, got `int` - at `$.groups[1]`
+    msgspec.DecodeError: Expected `str`, got `int` - at `$.groups[1]`
 
 If you pass ``asarray=True`` when defining the struct type, they're instead
 treated as ``array`` types during encoding/decoding (with fields serialized in
@@ -530,7 +530,7 @@ defaults applied. Type checking also still applies.
     >>> msgspec.json.decode(b'["david", ["finance", 123]]')
     Traceback (most recent call last):
       File "<stdin>", line 1, in <module>
-    msgspec.DecodingError: Expected `str`, got `int` - at `$[1][1]`
+    msgspec.DecodeError: Expected `str`, got `int` - at `$[1][1]`
 
 ``Union`` /  ``Optional``
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -575,7 +575,7 @@ Union restrictions are as follows:
     >>> decoder.decode(b'false')
     Traceback (most recent call last):
       File "<stdin>", line 1, in <module>
-    msgspec.DecodingError: Expected `int | str | array`, got `bool`
+    msgspec.DecodeError: Expected `int | str | array`, got `bool`
 
 ``Any``
 ~~~~~~~

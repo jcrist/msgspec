@@ -1,8 +1,8 @@
 from ._core import (
     Struct,
     MsgspecError,
-    EncodingError,
-    DecodingError,
+    EncodeError,
+    DecodeError,
 )
 from . import msgpack
 from . import json
