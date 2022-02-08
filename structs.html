@@ -272,12 +272,12 @@ for converting a struct to a dict.</p>
 <span class="go">{"x": 1.0, "y": 2.0}</span>
 </pre></div>
 </div>
-<section id="immutability">
-<h2>Immutability<a class="headerlink" href="#immutability" title="Permalink to this headline">¶</a></h2>
-<p>A struct type can optionally be marked as immutable by specifying
-<code class="docutils literal notranslate"><span class="pre">immutable=True</span></code>. This disables modifying field values after initialization,
+<section id="frozen-instances">
+<h2>Frozen Instances<a class="headerlink" href="#frozen-instances" title="Permalink to this headline">¶</a></h2>
+<p>A struct type can optionally be marked as “frozen” by specifying
+<code class="docutils literal notranslate"><span class="pre">frozen=True</span></code>. This disables modifying attributes after initialization,
 and adds a <code class="docutils literal notranslate"><span class="pre">__hash__</span></code> method to the class definition.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">Point</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">immutable</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">Point</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
 <span class="gp">... </span>    <span class="sd">"""This struct is immutable &amp; hashable"""</span>
 <span class="gp">... </span>    <span class="n">x</span><span class="p">:</span> <span class="nb">float</span>
 <span class="gp">... </span>    <span class="n">y</span><span class="p">:</span> <span class="nb">float</span>
@@ -285,13 +285,13 @@ and adds a <code class="docutils literal notranslate"><span class="pre">__hash__
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">p</span> <span class="o">=</span> <span class="n">Point</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">)</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="p">{</span><span class="n">p</span><span class="p">:</span> <span class="mi">1</span><span class="p">}</span>  <span class="c1"># immutable structs are hashable, and can be keys in dicts</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">{</span><span class="n">p</span><span class="p">:</span> <span class="mi">1</span><span class="p">}</span>  <span class="c1"># frozen structs are hashable, and can be keys in dicts</span>
 <span class="go">{Point(1.0, 2.0): 1}</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">p</span><span class="o">.</span><span class="n">x</span> <span class="o">=</span> <span class="mf">2.0</span>  <span class="c1"># immutable structs cannot be modified after creation</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">p</span><span class="o">.</span><span class="n">x</span> <span class="o">=</span> <span class="mf">2.0</span>  <span class="c1"># frozen structs cannot be modified after creation</span>
 <span class="gt">Traceback (most recent call last):</span>
     <span class="o">...</span>
-<span class="gr">TypeError</span>: <span class="n">immutable type: 'Point'</span>
+<span class="gr">AttributeError</span>: <span class="n">immutable type: 'Point'</span>
 </pre></div>
 </div>
 </section>
@@ -410,7 +410,7 @@ decode a message into a type validated <a class="reference internal" href="api.h
           <div class="toc-tree">
             <ul>
 <li><a class="reference internal" href="#">Structs</a><ul>
-<li><a class="reference internal" href="#immutability">Immutability</a></li>
+<li><a class="reference internal" href="#frozen-instances">Frozen Instances</a></li>
 <li><a class="reference internal" href="#encoding-decoding-as-arrays">Encoding/Decoding as Arrays</a></li>
 <li><a class="reference internal" href="#type-validation">Type Validation</a></li>
 </ul>
