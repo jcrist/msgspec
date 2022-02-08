@@ -341,7 +341,7 @@ only checked when <em>decoding</em> a serialized message when using a <code clas
 <span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'{"x": 1.0, "y": "oops"}'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Point</span><span class="p">)</span>
 <span class="gt">Traceback (most recent call last):</span>
   File <span class="nb">"&lt;stdin&gt;"</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
-<span class="gr">msgspec.DecodingError</span>: <span class="n">Expected `float`, got `str` - at `$.y`</span>
+<span class="gr">msgspec.DecodeError</span>: <span class="n">Expected `float`, got `str` - at `$.y`</span>
 </pre></div>
 </div>
 <p>This is intentional. Static type checkers like <a class="reference external" href="https://mypy.readthedocs.io/en/stable/">mypy</a>/<a class="reference external" href="https://github.com/microsoft/pyright">pyright</a> work well with

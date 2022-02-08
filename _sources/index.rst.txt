@@ -14,7 +14,7 @@ annotations`_ , providing ergonomic (and performant!) schema validation.
     >>> import msgspec
 
     >>> class User(msgspec.Struct):
-    ...     """A msgspec Struct type representing a User"""
+    ...     """A new type describing a User"""
     ...     name: str
     ...     groups: Set[str] = set()
     ...     email: Optional[str] = None
@@ -43,7 +43,7 @@ annotations`_ , providing ergonomic (and performant!) schema validation.
     >>> msgspec.json.decode(b'{"name":"bob","groups":[123]}', type=User)
     Traceback (most recent call last):
       File "<stdin>", line 1, in <module>
-    msgspec.DecodingError: Expected `str`, got `int` - at `$.groups[0]`
+    msgspec.DecodeError: Expected `str`, got `int` - at `$.groups[0]`
 
 ``msgspec`` is designed to be as performant as possible, while retaining some
 of the nicities of validation libraries like pydantic_. For supported types,
