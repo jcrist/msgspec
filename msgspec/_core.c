@@ -200,49 +200,49 @@ datetime_to_epoch(PyObject *obj, int64_t *seconds, int32_t *nanoseconds) {
  * license.  */
 static PyObject *
 datetime_from_epoch(int64_t epoch_secs, uint32_t epoch_nanos) {
-	int64_t days, secs, years;
-	int months, remdays, remsecs, remyears;
-	int qc_cycles, c_cycles, q_cycles;
+    int64_t days, secs, years;
+    int months, remdays, remsecs, remyears;
+    int qc_cycles, c_cycles, q_cycles;
     /* Start in Mar not Jan, so leap day is on end */
-	static const char days_in_month[] = {31, 30, 31, 30, 31, 31, 30, 31, 30, 31, 31, 29};
+    static const char days_in_month[] = {31, 30, 31, 30, 31, 31, 30, 31, 30, 31, 31, 29};
 
     /* Offset to 2000-03-01, a mod 400 year, immediately after feb 29 */
-	secs = epoch_secs - (946684800LL + 86400 * (31 + 29));
-	days = secs / 86400;
-	remsecs = secs % 86400;
-	if (remsecs < 0) {
-		remsecs += 86400;
-		days--;
-	}
+    secs = epoch_secs - (946684800LL + 86400 * (31 + 29));
+    days = secs / 86400;
+    remsecs = secs % 86400;
+    if (remsecs < 0) {
+        remsecs += 86400;
+        days--;
+    }
 
-	qc_cycles = days / MS_DAYS_PER_400Y;
-	remdays = days % MS_DAYS_PER_400Y;
-	if (remdays < 0) {
-		remdays += MS_DAYS_PER_400Y;
-		qc_cycles--;
-	}
+    qc_cycles = days / MS_DAYS_PER_400Y;
+    remdays = days % MS_DAYS_PER_400Y;
+    if (remdays < 0) {
+        remdays += MS_DAYS_PER_400Y;
+        qc_cycles--;
+    }
 
-	c_cycles = remdays / MS_DAYS_PER_100Y;
-	if (c_cycles == 4) c_cycles--;
-	remdays -= c_cycles * MS_DAYS_PER_100Y;
+    c_cycles = remdays / MS_DAYS_PER_100Y;
+    if (c_cycles == 4) c_cycles--;
+    remdays -= c_cycles * MS_DAYS_PER_100Y;
 
-	q_cycles = remdays / MS_DAYS_PER_4Y;
-	if (q_cycles == 25) q_cycles--;
-	remdays -= q_cycles * MS_DAYS_PER_4Y;
+    q_cycles = remdays / MS_DAYS_PER_4Y;
+    if (q_cycles == 25) q_cycles--;
+    remdays -= q_cycles * MS_DAYS_PER_4Y;
 
-	remyears = remdays / 365;
-	if (remyears == 4) remyears--;
-	remdays -= remyears * 365;
+    remyears = remdays / 365;
+    if (remyears == 4) remyears--;
+    remdays -= remyears * 365;
 
-	years = remyears + 4*q_cycles + 100*c_cycles + 400LL*qc_cycles;
+    years = remyears + 4*q_cycles + 100*c_cycles + 400LL*qc_cycles;
 
-	for (months = 0; days_in_month[months] <= remdays; months++)
-		remdays -= days_in_month[months];
+    for (months = 0; days_in_month[months] <= remdays; months++)
+        remdays -= days_in_month[months];
 
-	if (months >= 10) {
-		months -= 12;
-		years++;
-	}
+    if (months >= 10) {
+        months -= 12;
+        years++;
+    }
 
     return PyDateTimeAPI->DateTime_FromDateAndTime(
         years + 2000,
@@ -4780,7 +4780,7 @@ mpack_decode_datetime(
     }
     /* Error on out-of-bounds datetimes. This leaves ample space in an int, so
      * no need to check for overflow later. */
-	if (seconds < MS_EPOCH_SECS_MIN || seconds > MS_EPOCH_SECS_MAX) {
+    if (seconds < MS_EPOCH_SECS_MIN || seconds > MS_EPOCH_SECS_MAX) {
         err_msg = "Timestamp is out of range%U";
         goto invalid;
     }
@@ -5852,7 +5852,7 @@ typedef struct JSONDecoderState {
 
     /* Temporary scratch space */
     unsigned char *scratch;
-    ssize_t scratch_capacity;
+    Py_ssize_t scratch_capacity;
     Py_ssize_t scratch_len;
 
     /* Per-message attributes */
@@ -6437,7 +6437,7 @@ json_decode_array(
 #define JS_SCRATCH_MAX_SIZE 1024
 
 static int
-json_scratch_resize(JSONDecoderState *state, ssize_t size) {
+json_scratch_resize(JSONDecoderState *state, Py_ssize_t size) {
     unsigned char *temp = PyMem_Realloc(state->scratch, size);
     if (MS_UNLIKELY(temp == NULL)) {
         PyErr_NoMemory();
