@@ -312,8 +312,8 @@ datetime_from_epoch(int64_t epoch_secs, uint32_t epoch_nanos) {
 /* State of the msgspec module */
 typedef struct {
     PyObject *MsgspecError;
-    PyObject *EncodingError;
-    PyObject *DecodingError;
+    PyObject *EncodeError;
+    PyObject *DecodeError;
     PyObject *StructType;
     PyTypeObject *EnumType;
     PyObject *str__name_;
@@ -357,7 +357,7 @@ msgspec_get_global_state(void)
 static int
 ms_err_truncated(void)
 {
-    PyErr_SetString(msgspec_get_global_state()->DecodingError, "Input data was truncated");
+    PyErr_SetString(msgspec_get_global_state()->DecodeError, "Input data was truncated");
     return -1;
 }
 
@@ -1291,7 +1291,7 @@ cleanup:
         MsgspecState *st = msgspec_get_global_state(); \
         PyObject *suffix = PathNode_ErrSuffix(path); \
         if (suffix != NULL) { \
-            PyErr_Format(st->DecodingError, format, __VA_ARGS__, suffix); \
+            PyErr_Format(st->DecodeError, format, __VA_ARGS__, suffix); \
             Py_DECREF(suffix); \
         } \
     } while (0)
@@ -3269,7 +3269,7 @@ mpack_encode_str(EncoderState *self, PyObject *obj)
             return -1;
     } else {
         PyErr_SetString(
-            msgspec_get_global_state()->EncodingError,
+            msgspec_get_global_state()->EncodeError,
             "Can't encode strings longer than 2**32 - 1"
         );
         return -1;
@@ -3300,7 +3300,7 @@ mpack_encode_bin(EncoderState *self, const char* buf, Py_ssize_t len) {
             return -1;
     } else {
         PyErr_SetString(
-            msgspec_get_global_state()->EncodingError,
+            msgspec_get_global_state()->EncodeError,
             "Can't encode bytes-like objects longer than 2**32 - 1"
         );
         return -1;
@@ -3356,7 +3356,7 @@ mpack_encode_array_header(EncoderState *self, Py_ssize_t len, const char* typnam
             return -1;
     } else {
         PyErr_Format(
-            msgspec_get_global_state()->EncodingError,
+            msgspec_get_global_state()->EncodeError,
             "Can't encode %s longer than 2**32 - 1",
             typname
         );
@@ -3457,7 +3457,7 @@ mpack_encode_map_header(EncoderState *self, Py_ssize_t len, const char* typname)
             return -1;
     } else {
         PyErr_Format(
-            msgspec_get_global_state()->EncodingError,
+            msgspec_get_global_state()->EncodeError,
             "Can't encode %s longer than 2**32 - 1",
             typname
         );
@@ -3599,7 +3599,7 @@ mpack_encode_ext(EncoderState *self, PyObject *obj)
     }
     else {
         PyErr_SetString(
-            msgspec_get_global_state()->EncodingError,
+            msgspec_get_global_state()->EncodeError,
             "Can't encode Ext objects with data longer than 2**32 - 1"
         );
         goto done;
@@ -3635,7 +3635,7 @@ mpack_encode_enum(EncoderState *self, PyObject *obj)
         status = mpack_encode_str(self, name);
     } else {
         PyErr_SetString(
-            msgspec_get_global_state()->EncodingError,
+            msgspec_get_global_state()->EncodeError,
             "Enum's with non-str names aren't supported"
         );
         status = -1;
@@ -3653,7 +3653,7 @@ mpack_encode_datetime(EncoderState *self, PyObject *obj)
 
     if (!MS_HAS_TZINFO(obj)) {
         PyErr_SetString(
-            msgspec_get_global_state()->EncodingError,
+            msgspec_get_global_state()->EncodeError,
             "Can't encode naive datetime objects"
         );
         return -1;
@@ -4042,7 +4042,7 @@ json_encode_bin(EncoderState *self, const char* buf, Py_ssize_t len) {
 
     if (len >= (1LL << 32)) {
         PyErr_SetString(
-            msgspec_get_global_state()->EncodingError,
+            msgspec_get_global_state()->EncodeError,
             "Can't encode bytes-like objects longer than 2**32 - 1"
         );
         return -1;
@@ -4129,7 +4129,7 @@ json_encode_enum(EncoderState *self, PyObject *obj)
         status = json_encode_str(self, name);
     } else {
         PyErr_SetString(
-            msgspec_get_global_state()->EncodingError,
+            msgspec_get_global_state()->EncodeError,
             "Enum's with non-str names aren't supported"
         );
         status = -1;
@@ -4164,7 +4164,7 @@ json_encode_datetime(EncoderState *self, PyObject *obj)
 
     if (!MS_HAS_TZINFO(obj)) {
         PyErr_SetString(
-            msgspec_get_global_state()->EncodingError,
+            msgspec_get_global_state()->EncodeError,
             "Can't encode naive datetime objects"
         );
         return -1;
@@ -4714,7 +4714,7 @@ mpack_has_trailing_characters(DecoderState *self)
 {
     if (self->input_pos != self->input_end) {
         PyErr_Format(
-            msgspec_get_global_state()->DecodingError,
+            msgspec_get_global_state()->DecodeError,
             "MessagePack data is malformed: trailing characters (byte %zd)",
             (Py_ssize_t)(self->input_pos - self->input_start)
         );
@@ -4790,7 +4790,7 @@ invalid:
     st = msgspec_get_global_state();
     suffix = PathNode_ErrSuffix(path);
     if (suffix != NULL) {
-        PyErr_Format(st->DecodingError, err_msg, suffix);
+        PyErr_Format(st->DecodeError, err_msg, suffix);
         Py_DECREF(suffix);
     }
     return NULL;
@@ -4903,7 +4903,7 @@ mpack_skip(DecoderState *self) {
             return mpack_skip_ext(self, mpack_decode_size4(self));
         default:
             PyErr_Format(
-                msgspec_get_global_state()->DecodingError,
+                msgspec_get_global_state()->DecodeError,
                 "MessagePack data is malformed: invalid opcode '\\x%02x' (byte %zd)",
                 op,
                 (Py_ssize_t)(self->input_pos - self->input_start - 1)
@@ -5621,7 +5621,7 @@ mpack_decode_nocustom(
             return mpack_decode_ext(self, mpack_decode_size4(self), type, path);
         default:
             PyErr_Format(
-                msgspec_get_global_state()->DecodingError,
+                msgspec_get_global_state()->DecodeError,
                 "MessagePack data is malformed: invalid opcode '\\x%02x' (byte %zd)",
                 op,
                 (Py_ssize_t)(self->input_pos - self->input_start - 1)
@@ -6010,7 +6010,7 @@ static PyObject *
 json_err_invalid(JSONDecoderState *self, const char *msg)
 {
     PyErr_Format(
-        msgspec_get_global_state()->DecodingError,
+        msgspec_get_global_state()->DecodeError,
         "JSON is malformed: %s (byte %zd)",
         msg,
         (Py_ssize_t)(self->input_pos - self->input_start)
@@ -6703,7 +6703,7 @@ invalid:
     MsgspecState *st = msgspec_get_global_state();
     PyObject *suffix = PathNode_ErrSuffix(path);
     if (suffix != NULL) {
-        PyErr_Format(st->DecodingError, "Invalid base64 encoded string%U", suffix);
+        PyErr_Format(st->DecodeError, "Invalid base64 encoded string%U", suffix);
         Py_DECREF(suffix);
     }
     return NULL;
@@ -6825,7 +6825,7 @@ invalid:
     st = msgspec_get_global_state();
     suffix = PathNode_ErrSuffix(path);
     if (suffix != NULL) {
-        PyErr_Format(st->DecodingError, "Invalid RFC3339 encoded datetime%U", suffix);
+        PyErr_Format(st->DecodeError, "Invalid RFC3339 encoded datetime%U", suffix);
         Py_DECREF(suffix);
     }
     return NULL;
@@ -7851,8 +7851,8 @@ msgspec_clear(PyObject *m)
 {
     MsgspecState *st = msgspec_get_state(m);
     Py_CLEAR(st->MsgspecError);
-    Py_CLEAR(st->EncodingError);
-    Py_CLEAR(st->DecodingError);
+    Py_CLEAR(st->EncodeError);
+    Py_CLEAR(st->DecodeError);
     Py_CLEAR(st->StructType);
     Py_CLEAR(st->EnumType);
     Py_CLEAR(st->str__name_);
@@ -7900,8 +7900,8 @@ msgspec_traverse(PyObject *m, visitproc visit, void *arg)
 
     MsgspecState *st = msgspec_get_state(m);
     Py_VISIT(st->MsgspecError);
-    Py_VISIT(st->EncodingError);
-    Py_VISIT(st->DecodingError);
+    Py_VISIT(st->EncodeError);
+    Py_VISIT(st->DecodeError);
     Py_VISIT(st->StructType);
     Py_VISIT(st->EnumType);
     Py_VISIT(st->typing_dict);
@@ -7997,29 +7997,29 @@ PyInit__core(void)
     );
     if (st->MsgspecError == NULL)
         return NULL;
-    st->EncodingError = PyErr_NewExceptionWithDoc(
-        "msgspec.EncodingError",
+    st->EncodeError = PyErr_NewExceptionWithDoc(
+        "msgspec.EncodeError",
         "An error occurred while encoding an object",
         st->MsgspecError, NULL
     );
-    if (st->EncodingError == NULL)
+    if (st->EncodeError == NULL)
         return NULL;
-    st->DecodingError = PyErr_NewExceptionWithDoc(
-        "msgspec.DecodingError",
+    st->DecodeError = PyErr_NewExceptionWithDoc(
+        "msgspec.DecodeError",
         "An error occurred while decoding an object",
         st->MsgspecError, NULL
     );
-    if (st->DecodingError == NULL)
+    if (st->DecodeError == NULL)
         return NULL;
 
     Py_INCREF(st->MsgspecError);
     if (PyModule_AddObject(m, "MsgspecError", st->MsgspecError) < 0)
         return NULL;
-    Py_INCREF(st->EncodingError);
-    if (PyModule_AddObject(m, "EncodingError", st->EncodingError) < 0)
+    Py_INCREF(st->EncodeError);
+    if (PyModule_AddObject(m, "EncodeError", st->EncodeError) < 0)
         return NULL;
-    Py_INCREF(st->DecodingError);
-    if (PyModule_AddObject(m, "DecodingError", st->DecodingError) < 0)
+    Py_INCREF(st->DecodeError);
+    if (PyModule_AddObject(m, "DecodeError", st->DecodeError) < 0)
         return NULL;
 
 #define SET_REF(attr, name) \

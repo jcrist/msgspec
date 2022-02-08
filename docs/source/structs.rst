@@ -167,7 +167,7 @@ only checked when *decoding* a serialized message when using a `typed decoder
     ... msgspec.json.decode(b'{"x": 1.0, "y": "oops"}', type=Point)
     Traceback (most recent call last):
       File "<stdin>", line 1, in <module>
-    msgspec.DecodingError: Expected `float`, got `str` - at `$.y`
+    msgspec.DecodeError: Expected `float`, got `str` - at `$.y`
 
 This is intentional. Static type checkers like mypy_/pyright_ work well with
 ``msgspec``, and can be used to catch bugs without ever running your code. When

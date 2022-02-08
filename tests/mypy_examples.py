@@ -13,8 +13,8 @@ def check___version__() -> None:
 
 
 def check_exceptions() -> None:
-    reveal_type(msgspec.DecodingError)  # assert "Any" not in typ
-    reveal_type(msgspec.EncodingError)  # assert "Any" not in typ
+    reveal_type(msgspec.DecodeError)  # assert "Any" not in typ
+    reveal_type(msgspec.EncodeError)  # assert "Any" not in typ
     reveal_type(msgspec.MsgspecError)  # assert "Any" not in typ
 
 

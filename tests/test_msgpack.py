@@ -187,7 +187,7 @@ class TestDecodeFunction:
     def test_decode_type_keyword(self):
         assert msgspec.msgpack.decode(self.buf, type=List[int]) == [1, 2, 3]
 
-        with pytest.raises(msgspec.DecodingError):
+        with pytest.raises(msgspec.DecodeError):
             assert msgspec.msgpack.decode(self.buf, type=List[str])
 
     def test_decode_type_any(self):
@@ -230,7 +230,7 @@ class TestDecodeFunction:
     def test_decode_with_trailing_characters_errors(self):
         msg = msgspec.msgpack.encode([1, 2, 3]) + b"trailing"
 
-        with pytest.raises(msgspec.DecodingError):
+        with pytest.raises(msgspec.DecodeError):
             msgspec.msgpack.decode(msg)
 
 
@@ -497,7 +497,7 @@ class TestDecoderMisc:
         buf = msgspec.msgpack.encode((1, 2))
 
         with pytest.raises(
-            msgspec.DecodingError,
+            msgspec.DecodeError,
             match="Expected `Point`, got `list`",
         ):
             dec.decode(buf)
@@ -510,7 +510,7 @@ class TestDecoderMisc:
         dec = msgspec.msgpack.Decoder(type=Test, dec_hook=lambda t, o: o)
         buf = msgspec.msgpack.encode(Test((1, 2), 3))
 
-        with pytest.raises(msgspec.DecodingError) as rec:
+        with pytest.raises(msgspec.DecodeError) as rec:
             dec.decode(buf)
 
         assert "Expected `Point`, got `list` - at `$.point`" == str(rec.value)
@@ -519,7 +519,7 @@ class TestDecoderMisc:
         dec = msgspec.msgpack.Decoder(type=Deque[int], dec_hook=lambda t, o: o)
         buf = msgspec.msgpack.encode([1, 2, 3])
 
-        with pytest.raises(msgspec.DecodingError) as rec:
+        with pytest.raises(msgspec.DecodeError) as rec:
             dec.decode(buf)
 
         assert "Expected `collections.deque`, got `list`" == str(rec.value)
@@ -622,7 +622,7 @@ class TestDecoderMisc:
 
         msg = msgspec.msgpack.encode([1, 2, 3]) + b"trailing"
 
-        with pytest.raises(msgspec.DecodingError):
+        with pytest.raises(msgspec.DecodeError):
             dec.decode(msg)
 
 
@@ -630,7 +630,7 @@ class TestTypedDecoder:
     def check_unexpected_type(self, dec_type, val, msg):
         dec = msgspec.msgpack.Decoder(dec_type)
         s = msgspec.msgpack.Encoder().encode(val)
-        with pytest.raises(msgspec.DecodingError, match=msg):
+        with pytest.raises(msgspec.DecodeError, match=msg):
             dec.decode(s)
 
     def test_any(self):
@@ -645,7 +645,7 @@ class TestTypedDecoder:
         enc = msgspec.msgpack.Encoder()
         dec = msgspec.msgpack.Decoder(None)
         assert dec.decode(enc.encode(None)) is None
-        with pytest.raises(msgspec.DecodingError, match="Expected `null`"):
+        with pytest.raises(msgspec.DecodeError, match="Expected `null`"):
             assert dec.decode(enc.encode(1))
 
     @pytest.mark.parametrize("x", [False, True])
@@ -751,7 +751,7 @@ class TestTypedDecoder:
         x = [1, "two", b"three"]
         res = dec.decode(enc.encode(x))
         assert res == x
-        with pytest.raises(msgspec.DecodingError, match="Expected `array`"):
+        with pytest.raises(msgspec.DecodeError, match="Expected `array`"):
             dec.decode(enc.encode(1))
 
     def test_list_typed(self):
@@ -761,7 +761,7 @@ class TestTypedDecoder:
         res = dec.decode(enc.encode(x))
         assert res == x
         with pytest.raises(
-            msgspec.DecodingError,
+            msgspec.DecodeError,
             match=r"Expected `int`, got `str` - at `\$\[2\]`",
         ):
             dec.decode(enc.encode([1, 2, "three"]))
@@ -781,7 +781,7 @@ class TestTypedDecoder:
         x = {1, "two", b"three"}
         res = dec.decode(enc.encode(x))
         assert res == x
-        with pytest.raises(msgspec.DecodingError, match="Expected `array`"):
+        with pytest.raises(msgspec.DecodeError, match="Expected `array`"):
             dec.decode(enc.encode(1))
 
     def test_set_typed(self):
@@ -791,7 +791,7 @@ class TestTypedDecoder:
         res = dec.decode(enc.encode(x))
         assert res == x
         with pytest.raises(
-            msgspec.DecodingError,
+            msgspec.DecodeError,
             match=r"Expected `int`, got `str` - at `\$\[2\]`",
         ):
             dec.decode(enc.encode([1, 2, "three"]))
@@ -811,7 +811,7 @@ class TestTypedDecoder:
         x = (1, "two", b"three")
         res = dec.decode(enc.encode(x))
         assert res == x
-        with pytest.raises(msgspec.DecodingError, match="Expected `array`, got `int`"):
+        with pytest.raises(msgspec.DecodeError, match="Expected `array`, got `int`"):
             dec.decode(enc.encode(1))
 
     def test_vartuple_typed(self):
@@ -821,7 +821,7 @@ class TestTypedDecoder:
         res = dec.decode(enc.encode(x))
         assert res == x
         with pytest.raises(
-            msgspec.DecodingError,
+            msgspec.DecodeError,
             match=r"Expected `int`, got `str` - at `\$\[2\]`",
         ):
             dec.decode(enc.encode((1, 2, "three")))
@@ -832,10 +832,10 @@ class TestTypedDecoder:
         x = (1, "two", b"three")
         res = dec.decode(enc.encode(x))
         assert res == x
-        with pytest.raises(msgspec.DecodingError, match="Expected `array`, got `int`"):
+        with pytest.raises(msgspec.DecodeError, match="Expected `array`, got `int`"):
             dec.decode(enc.encode(1))
         with pytest.raises(
-            msgspec.DecodingError, match="Expected `array` of length 3, got 2"
+            msgspec.DecodeError, match="Expected `array` of length 3, got 2"
         ):
             dec.decode(enc.encode((1, 2)))
 
@@ -845,10 +845,10 @@ class TestTypedDecoder:
         x = (1, "two", b"three")
         res = dec.decode(enc.encode(x))
         assert res == x
-        with pytest.raises(msgspec.DecodingError, match="Expected `bytes`"):
+        with pytest.raises(msgspec.DecodeError, match="Expected `bytes`"):
             dec.decode(enc.encode((1, "two", "three")))
         with pytest.raises(
-            msgspec.DecodingError, match="Expected `array` of length 3, got 2"
+            msgspec.DecodeError, match="Expected `array` of length 3, got 2"
         ):
             dec.decode(enc.encode((1, 2)))
 
@@ -868,7 +868,7 @@ class TestTypedDecoder:
         res = dec.decode(enc.encode(x))
         assert res == x
         with pytest.raises(
-            msgspec.DecodingError, match=r"Expected `object`, got `int`"
+            msgspec.DecodeError, match=r"Expected `object`, got `int`"
         ):
             dec.decode(enc.encode(1))
 
@@ -879,7 +879,7 @@ class TestTypedDecoder:
         res = dec.decode(enc.encode(x))
         assert res == x
         with pytest.raises(
-            msgspec.DecodingError, match=r"Expected `str`, got `int` - at `key` in `\$`"
+            msgspec.DecodeError, match=r"Expected `str`, got `int` - at `key` in `\$`"
         ):
             dec.decode(enc.encode({1: 2}))
 
@@ -890,7 +890,7 @@ class TestTypedDecoder:
         res = dec.decode(enc.encode(x))
         assert res == x
         with pytest.raises(
-            msgspec.DecodingError, match=r"Expected `str`, got `int` - at `\$\[...\]`"
+            msgspec.DecodeError, match=r"Expected `str`, got `int` - at `\$\[...\]`"
         ):
             dec.decode(enc.encode({1: 2}))
 
@@ -901,11 +901,11 @@ class TestTypedDecoder:
         res = dec.decode(enc.encode(x))
         assert res == x
         with pytest.raises(
-            msgspec.DecodingError, match=r"Expected `str`, got `int` - at `key` in `\$`"
+            msgspec.DecodeError, match=r"Expected `str`, got `int` - at `key` in `\$`"
         ):
             dec.decode(enc.encode({1: 2}))
         with pytest.raises(
-            msgspec.DecodingError, match=r"Expected `int`, got `str` - at `\$\[...\]`"
+            msgspec.DecodeError, match=r"Expected `int`, got `str` - at `\$\[...\]`"
         ):
             dec.decode(enc.encode({"a": "two"}))
 
@@ -917,18 +917,18 @@ class TestTypedDecoder:
         assert enc.encode("APPLE") == a
         assert dec.decode(a) == FruitStr.APPLE
 
-        with pytest.raises(msgspec.DecodingError, match="truncated"):
+        with pytest.raises(msgspec.DecodeError, match="truncated"):
             dec.decode(a[:-2])
 
-        with pytest.raises(msgspec.DecodingError, match="Invalid enum value 'MISSING'"):
+        with pytest.raises(msgspec.DecodeError, match="Invalid enum value 'MISSING'"):
             dec.decode(enc.encode("MISSING"))
 
         with pytest.raises(
-            msgspec.DecodingError, match=r"Invalid enum value 'MISSING' - at `\$\[0\]`"
+            msgspec.DecodeError, match=r"Invalid enum value 'MISSING' - at `\$\[0\]`"
         ):
             msgspec.msgpack.decode(enc.encode(["MISSING"]), type=List[FruitStr])
 
-        with pytest.raises(msgspec.DecodingError):
+        with pytest.raises(msgspec.DecodeError):
             dec.decode(enc.encode(1))
 
     def test_int_enum(self):
@@ -939,18 +939,18 @@ class TestTypedDecoder:
         assert enc.encode(1) == a
         assert dec.decode(a) == FruitInt.APPLE
 
-        with pytest.raises(msgspec.DecodingError, match="truncated"):
+        with pytest.raises(msgspec.DecodeError, match="truncated"):
             dec.decode(a[:-2])
 
-        with pytest.raises(msgspec.DecodingError, match="Invalid enum value `1000`"):
+        with pytest.raises(msgspec.DecodeError, match="Invalid enum value `1000`"):
             dec.decode(enc.encode(1000))
 
         with pytest.raises(
-            msgspec.DecodingError, match=r"Invalid enum value `1000` - at `\$\[0\]`"
+            msgspec.DecodeError, match=r"Invalid enum value `1000` - at `\$\[0\]`"
         ):
             msgspec.msgpack.decode(enc.encode([1000]), type=List[FruitInt])
 
-        with pytest.raises(msgspec.DecodingError):
+        with pytest.raises(msgspec.DecodeError):
             dec.decode(enc.encode("INVALID"))
 
     def test_struct(self):
@@ -967,14 +967,14 @@ class TestTypedDecoder:
         )
         assert dec.decode(a) == x
 
-        with pytest.raises(msgspec.DecodingError, match="truncated"):
+        with pytest.raises(msgspec.DecodeError, match="truncated"):
             dec.decode(a[:-2])
 
-        with pytest.raises(msgspec.DecodingError, match="Expected `object`, got `int`"):
+        with pytest.raises(msgspec.DecodeError, match="Expected `object`, got `int`"):
             dec.decode(enc.encode(1))
 
         with pytest.raises(
-            msgspec.DecodingError, match=r"Expected `str`, got `int` - at `key` in `\$`"
+            msgspec.DecodeError, match=r"Expected `str`, got `int` - at `key` in `\$`"
         ):
             dec.decode(enc.encode({1: "harry"}))
 
@@ -984,26 +984,26 @@ class TestTypedDecoder:
 
         bad = enc.encode({"first": "harry", "last": "potter", "age": "thirteen"})
         with pytest.raises(
-            msgspec.DecodingError, match=r"Expected `int`, got `str` - at `\$.age`"
+            msgspec.DecodeError, match=r"Expected `int`, got `str` - at `\$.age`"
         ):
             dec.decode(bad)
 
     def test_struct_missing_fields(self):
         bad = msgspec.msgpack.encode({"first": "harry", "last": "potter"})
         with pytest.raises(
-            msgspec.DecodingError, match="Object missing required field `age`"
+            msgspec.DecodeError, match="Object missing required field `age`"
         ):
             msgspec.msgpack.decode(bad, type=Person)
 
         bad = msgspec.msgpack.encode({})
         with pytest.raises(
-            msgspec.DecodingError, match="Object missing required field `first`"
+            msgspec.DecodeError, match="Object missing required field `first`"
         ):
             msgspec.msgpack.decode(bad, type=Person)
 
         bad = msgspec.msgpack.encode([{"first": "harry", "last": "potter"}])
         with pytest.raises(
-            msgspec.DecodingError,
+            msgspec.DecodeError,
             match=r"Object missing required field `age` - at `\$\[0\]`",
         ):
             msgspec.msgpack.decode(bad, type=List[Person])
@@ -1059,27 +1059,27 @@ class TestTypedDecoder:
         assert enc.encode(("harry", "potter", 13, False)) == a
         assert dec.decode(a) == x
 
-        with pytest.raises(msgspec.DecodingError, match="truncated"):
+        with pytest.raises(msgspec.DecodeError, match="truncated"):
             dec.decode(a[:-2])
 
-        with pytest.raises(msgspec.DecodingError, match="Expected `array`, got `int`"):
+        with pytest.raises(msgspec.DecodeError, match="Expected `array`, got `int`"):
             dec.decode(enc.encode(1))
 
         # Wrong field type
         bad = enc.encode(("harry", "potter", "thirteen"))
         with pytest.raises(
-            msgspec.DecodingError, match=r"Expected `int`, got `str` - at `\$\[2\]`"
+            msgspec.DecodeError, match=r"Expected `int`, got `str` - at `\$\[2\]`"
         ):
             dec.decode(bad)
 
         # Missing fields
         bad = enc.encode(("harry", "potter"))
-        with pytest.raises(msgspec.DecodingError, match="missing required field `age`"):
+        with pytest.raises(msgspec.DecodeError, match="missing required field `age`"):
             dec.decode(bad)
 
         bad = enc.encode(())
         with pytest.raises(
-            msgspec.DecodingError, match="missing required field `first`"
+            msgspec.DecodeError, match="missing required field `first`"
         ):
             dec.decode(bad)
 
@@ -1113,11 +1113,11 @@ class TestTypedDecoder:
         assert array_dec.decode(array_msg) == array_sol
         assert dec.decode(map_msg) == sol
         with pytest.raises(
-            msgspec.DecodingError, match="Expected `object`, got `array`"
+            msgspec.DecodeError, match="Expected `object`, got `array`"
         ):
             dec.decode(array_msg)
         with pytest.raises(
-            msgspec.DecodingError, match="Expected `array`, got `object`"
+            msgspec.DecodeError, match="Expected `array`, got `object`"
         ):
             array_dec.decode(map_msg)
 
@@ -1185,7 +1185,7 @@ class TestTypedDecoder:
         assert dec.decode(s2) is None
 
         dec = msgspec.msgpack.Decoder(typ)
-        with pytest.raises(msgspec.DecodingError):
+        with pytest.raises(msgspec.DecodeError):
             dec.decode(s2)
 
     @pytest.mark.parametrize(
@@ -1286,7 +1286,7 @@ class TestTypedDecoder:
     def test_union_error(self):
         msg = msgspec.msgpack.encode(1)
         with pytest.raises(
-            msgspec.DecodingError, match="Expected `bool | string`, got `int`"
+            msgspec.DecodeError, match="Expected `bool | string`, got `int`"
         ):
             msgspec.msgpack.decode(msg, type=Union[bool, str])
 
@@ -1294,7 +1294,7 @@ class TestTypedDecoder:
         b = msgspec.msgpack.Encoder().encode([{"a": 1}])
         dec = msgspec.msgpack.Decoder(List[Dict[str, str]])
         with pytest.raises(
-            msgspec.DecodingError,
+            msgspec.DecodeError,
             match=r"Expected `str`, got `int` - at `\$\[0\]\[...\]`",
         ):
             dec.decode(b)
@@ -1391,7 +1391,7 @@ class TestExt:
 
     def test_ext_typed_decoder_error(self):
         dec = msgspec.msgpack.Decoder(msgspec.msgpack.Ext)
-        with pytest.raises(msgspec.DecodingError, match="Expected `ext`, got `int`"):
+        with pytest.raises(msgspec.DecodeError, match="Expected `ext`, got `int`"):
             assert dec.decode(msgspec.msgpack.encode(1))
 
     @pytest.mark.parametrize("use_function", [True, False])

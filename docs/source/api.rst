@@ -53,8 +53,8 @@ Exceptions
 .. autoexception:: MsgspecError
     :show-inheritance:
 
-.. autoexception:: EncodingError
+.. autoexception:: EncodeError
     :show-inheritance:
 
-.. autoexception:: DecodingError
+.. autoexception:: DecodeError
     :show-inheritance:
