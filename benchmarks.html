@@ -3,7 +3,7 @@
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
     <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
-<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="API Docs" href="api.html" /><link rel="prev" title="Extending" href="extending.html" />
+<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="API Docs" href="api.html" /><link rel="prev" title="Performance Tips" href="perf-tips.html" />
 
     <meta name="generator" content="sphinx-4.4.0, furo 2022.01.02"/>
         <title>Benchmarks</title>
@@ -162,6 +162,7 @@
 <li class="toctree-l1"><a class="reference internal" href="usage.html">Usage</a></li>
 <li class="toctree-l1"><a class="reference internal" href="structs.html">Structs</a></li>
 <li class="toctree-l1"><a class="reference internal" href="extending.html">Extending</a></li>
+<li class="toctree-l1"><a class="reference internal" href="perf-tips.html">Performance Tips</a></li>
 <li class="toctree-l1 current current-page"><a class="current reference internal" href="#">Benchmarks</a></li>
 <li class="toctree-l1"><a class="reference internal" href="api.html">API Docs</a></li>
 </ul>
@@ -206,7 +207,7 @@ you choose different serialization formats. I encourage you to write your
 own benchmarks before making these decisions.</p>
 </div>
 <section id="benchmark-encoding-decoding">
-<h2>Benchmark - Encoding/Decoding<a class="headerlink" href="#benchmark-encoding-decoding" title="Permalink to this headline">¶</a></h2>
+<span id="encoding-benchmark"></span><h2>Benchmark - Encoding/Decoding<a class="headerlink" href="#benchmark-encoding-decoding" title="Permalink to this headline">¶</a></h2>
 <p>Here we show a simple benchmark serializing some structured data. The data
 we’re serializing has the following schema (defined here using <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a>
 types):</p>
@@ -304,7 +305,7 @@ for additional unnecessary allocations.</p>
 </section>
 </section>
 <section id="benchmark-structs">
-<h2>Benchmark - Structs<a class="headerlink" href="#benchmark-structs" title="Permalink to this headline">¶</a></h2>
+<span id="struct-benchmark"></span><h2>Benchmark - Structs<a class="headerlink" href="#benchmark-structs" title="Permalink to this headline">¶</a></h2>
 <p>Here we benchmark common <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> operations, comparing their
 performance against other similar libraries. The cases compared are:</p>
 <ul class="simple">
@@ -407,14 +408,14 @@ fetch('_static/bench-1k-validate.json')
               </div>
               <svg><use href="#svg-arrow-right"></use></svg>
             </a>
-          <a class="prev-page" href="extending.html">
+          <a class="prev-page" href="perf-tips.html">
               <svg><use href="#svg-arrow-right"></use></svg>
               <div class="page-info">
                 <div class="context">
                   <span>Previous</span>
                 </div>
                 
-                <div class="title">Extending</div>
+                <div class="title">Performance Tips</div>
                 
               </div>
             </a>

@@ -17,6 +17,9 @@ Benchmarks
     own benchmarks before making these decisions.
 
 
+.. _encoding-benchmark:
+
+
 Benchmark - Encoding/Decoding
 -----------------------------
 
@@ -145,6 +148,7 @@ of these issues. Only a single pass over the decoded data is taken, and the
 specified output types are created correctly the first time, avoiding the need
 for additional unnecessary allocations.
 
+.. _struct-benchmark:
 
 Benchmark - Structs
 -------------------
