@@ -105,5 +105,6 @@ is required.
     usage.rst
     structs.rst
     extending.rst
+    perf-tips.rst
     benchmarks.rst
     api.rst
