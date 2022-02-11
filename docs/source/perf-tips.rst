@@ -125,8 +125,8 @@ For example:
         # Note that this overwrites any previous contents.
         encoder.encode_into(msg, buffer)
 
-        # Write the buffer to the socket
-        socket.sendall(buffer)
+    # Write the buffer to the socket
+    socket.sendall(buffer)
 
 A few caveats:
 
