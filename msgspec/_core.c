@@ -2,6 +2,7 @@
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <limits.h>
 #include "Python.h"
 #include "datetime.h"
 #include "structmember.h"
@@ -317,7 +318,7 @@ typedef struct {
     PyObject *StructType;
     PyTypeObject *EnumType;
     PyObject *str__name_;
-    PyObject *str__value2member_map_;
+    PyObject *str___msgspec_lookup__;
     PyObject *str_name;
     PyObject *str_type;
     PyObject *str_enc_hook;
@@ -484,6 +485,299 @@ strbuilder_build(strbuilder *self) {
 }
 
 /*************************************************************************
+ * Lookup Tables for ints & strings                                      *
+ *************************************************************************/
+
+static PyTypeObject IntLookup_Type;
+
+typedef struct IntLookupObject {
+    PyObject_VAR_HEAD
+    int64_t offset;
+    bool compact;
+    PyObject* table[];
+} IntLookupObject;
+
+static PyObject**
+_IntLookup_lookup_int64(IntLookupObject *self, int64_t key)
+{
+    int64_t entry_val;
+    PyObject **entry, **table = self->table;
+    size_t hash = key;
+    size_t perturb = hash;
+    size_t mask = Py_SIZE(self) - 1;
+    size_t i = hash & mask;
+
+    while (true) {
+        entry = &table[i];
+        if (*entry == NULL) return entry;
+        int overflow = 0;
+        entry_val = PyLong_AsLongLongAndOverflow(*entry, &overflow);
+        if (!overflow) {
+            if (entry_val == -1 && PyErr_Occurred()) return NULL;
+            if (entry_val == key) return entry;
+        }
+        /* Collision, perturb and try again */
+        perturb >>= 5;
+        i = mask & (i*5 + perturb + 1);
+    }
+    /* Unreachable */
+    return NULL;
+}
+
+static PyObject**
+_IntLookup_lookup_uint64(IntLookupObject *self, uint64_t key)
+{
+    uint64_t entry_val;
+    PyObject **entry, **table = self->table;
+    size_t hash = key;
+    size_t perturb = hash;
+    size_t mask = Py_SIZE(self) - 1;
+    size_t i = hash & mask;
+
+    while (true) {
+        entry = &table[i];
+        if (*entry == NULL) return entry;
+        entry_val = PyLong_AsUnsignedLongLong(*entry);
+        if (entry_val == ((uint64_t)-1) && PyErr_Occurred()) {
+            /* Negative value, can't match key */
+            PyErr_Clear();
+        }
+        else if (entry_val == key) {
+            return entry;
+        }
+        /* Collision, perturb and try again */
+        perturb >>= 5;
+        i = mask & (i*5 + perturb + 1);
+    }
+    /* Unreachable */
+    return NULL;
+}
+
+static int
+IntLookup_Add(IntLookupObject *self, PyObject *item) {
+    int overflow = 0;
+    int64_t ival = PyLong_AsLongLongAndOverflow(item, &overflow);
+    if (!overflow) {
+        if (ival == -1 && PyErr_Occurred()) return -1;
+        PyObject **entry = _IntLookup_lookup_int64(self, ival);
+        if (entry == NULL) return -1;
+        if (*entry == NULL) {
+            *entry = item;
+            Py_INCREF(item);
+        }
+    }
+    else {
+        uint64_t uval = PyLong_AsUnsignedLongLong(item);
+        if (uval == ((uint64_t)-1) && PyErr_Occurred()) return -1;
+        PyObject **entry = _IntLookup_lookup_uint64(self, uval);
+        if (entry == NULL) return -1;
+        if (*entry == NULL) {
+            *entry = item;
+            Py_INCREF(item);
+        }
+    }
+    return 0;
+}
+
+static IntLookupObject *
+IntLookup_New(PyObject *arg)
+{
+    Py_ssize_t nitems;
+    PyObject *item, *items;
+    IntLookupObject *self = NULL;
+    int64_t imin = LLONG_MAX, imax = LLONG_MIN;
+    bool uint64_present = false;
+
+    if (!PyTuple_CheckExact(arg)) {
+        items = PySequence_Tuple(arg);
+        if (items == NULL) return NULL;
+    }
+    else {
+        items = arg;
+    }
+
+    nitems = PyTuple_GET_SIZE(items);
+
+    /* Must have at least one item */
+    if (nitems == 0) {
+        PyErr_Format(
+            PyExc_TypeError,
+            "Enum types must have at least one item, %R is invalid",
+            arg
+        );
+        goto cleanup;
+    }
+
+    /* Find the min/max of items, and error if any item isn't an integer or is
+     * out of range */
+    for (Py_ssize_t i = 0; i < nitems; i++) {
+        int64_t ival;
+        int overflow = 0;
+        PyObject* item;
+
+        item = PyTuple_GET_ITEM(items, i);
+        ival = PyLong_AsLongLongAndOverflow(item, &overflow);
+        if (overflow) {
+            uint64_present = true;
+        }
+        else if (ival == -1 && PyErr_Occurred()) {
+            goto cleanup;
+        }
+        else {
+            if (ival < imin) {
+                imin = ival;
+            }
+            if (ival > imax) {
+                imax = ival;
+            }
+        }
+    }
+
+    /* Calculate range without overflow */
+    uint64_t range;
+    if (imax > 0) {
+        range = imax;
+        range -= imin;
+    }
+    else {
+        range = imax - imin;
+    }
+
+    if (!uint64_present && (range < 1.4 * nitems)) {
+        size_t size = range + 1;
+        /* Use compact representation */
+        self = PyObject_GC_NewVar(IntLookupObject, &IntLookup_Type, size);
+        if (self == NULL) goto cleanup;
+        self->offset = imin;
+        self->compact = true;
+        for (size_t i = 0; i < size; i++) {
+            self->table[i] = NULL;
+        }
+        for (Py_ssize_t i = 0; i < nitems; i++) {
+            item = PyTuple_GET_ITEM(items, i);
+            int64_t ival = PyLong_AsLongLong(item);
+            if (ival == -1 && PyErr_Occurred()) {
+                Py_CLEAR(self);
+                goto cleanup;
+            }
+            self->table[ival - imin] = item;
+            Py_INCREF(item);
+        }
+    }
+    else {
+        /* Use hashtable */
+        size_t needed = nitems * 4 / 3;
+        size_t size = 8;
+        while (size < (size_t)needed) {
+            size <<= 1;
+        }
+        self = PyObject_GC_NewVar(IntLookupObject, &IntLookup_Type, size);
+        if (self == NULL) goto cleanup;
+        self->compact = false;
+        for (size_t i = 0; i < size; i++) {
+            self->table[i] = NULL;
+        }
+        for (Py_ssize_t i = 0; i < nitems; i++) {
+            item = PyTuple_GET_ITEM(items, i);
+            if (IntLookup_Add(self, item) < 0) {
+                Py_CLEAR(self);
+                goto cleanup;
+            }
+        }
+    }
+
+cleanup:
+    if (arg != items) {
+        Py_DECREF(items);
+    }
+    if (self != NULL) {
+        PyObject_GC_Track(self);
+    }
+    return self;
+}
+
+static int
+IntLookup_traverse(IntLookupObject *self, visitproc visit, void *arg)
+{
+    for (Py_ssize_t i = 0; i < Py_SIZE(self); i++) {
+        Py_VISIT(self->table[i]);
+    }
+    return 0;
+}
+
+static int
+IntLookup_clear(IntLookupObject *self)
+{
+    for (Py_ssize_t i = 0; i < Py_SIZE(self); i++) {
+        Py_CLEAR(self->table[i]);
+    }
+    return 0;
+}
+
+static void
+IntLookup_dealloc(IntLookupObject *self)
+{
+    PyObject_GC_UnTrack(self);
+    IntLookup_clear(self);
+    Py_TYPE(self)->tp_free((PyObject *)self);
+}
+
+static PyObject *
+_IntLookup_get_compact(IntLookupObject *self, int64_t key) {
+    Py_ssize_t index = key - self->offset;
+    if (index >= 0 && index < Py_SIZE(self)) {
+        return self->table[index];
+    }
+    return NULL;
+}
+
+static PyObject *
+IntLookup_GetInt64(IntLookupObject *self, int64_t key) {
+    PyObject *out;
+    if (self->compact) {
+        out = _IntLookup_get_compact(self, key);
+    }
+    else {
+        PyObject **entry = _IntLookup_lookup_int64(self, key);
+        if (entry == NULL) return NULL;
+        out = *entry;
+    }
+    if (out != NULL) {
+        Py_INCREF(out);
+    }
+    return out;
+}
+
+static PyObject *
+IntLookup_GetUInt64(IntLookupObject *self, uint64_t key) {
+    PyObject *out;
+    if (self->compact) {
+        out = _IntLookup_get_compact(self, key);
+    }
+    else {
+        PyObject **entry = _IntLookup_lookup_uint64(self, key);
+        if (entry == NULL) return NULL;
+        out = *entry;
+    }
+    if (out != NULL) {
+        Py_INCREF(out);
+    }
+    return out;
+}
+
+static PyTypeObject IntLookup_Type = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "msgspec._core.IntLookup",
+    .tp_basicsize = sizeof(IntLookupObject),
+    .tp_itemsize = sizeof(PyObject *),
+    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
+    .tp_dealloc = (destructor) IntLookup_dealloc,
+    .tp_clear = (inquiry)IntLookup_clear,
+    .tp_traverse = (traverseproc) IntLookup_traverse,
+};
+
+
+/*************************************************************************
  * Struct, PathNode, and TypeNode Types                                  *
  *************************************************************************/
 
@@ -577,7 +871,7 @@ TypeNode_get_custom(TypeNode *type) {
     return ((TypeNodeExtra *)type)->extra[0];
 }
 
-static MS_INLINE PyObject *
+static MS_INLINE IntLookupObject *
 TypeNode_get_intenum(TypeNode *type) {
     Py_ssize_t i = (type->types & MS_TYPE_STRUCT) != 0;
     return ((TypeNodeExtra *)type)->extra[i];
@@ -768,8 +1062,29 @@ typenode_from_collect_state(TypeNodeCollectState *state, bool err_not_json, bool
         out->extra[e_ind++] = state->struct_obj;
     }
     if (state->intenum_obj != NULL) {
-        Py_INCREF(state->intenum_obj);
-        out->extra[e_ind++] = state->intenum_obj;
+        MsgspecState *st = msgspec_get_global_state();
+        PyObject *lookup = PyObject_GetAttr(state->intenum_obj, st->str___msgspec_lookup__);
+        if (lookup == NULL) {
+            /* IntLookup isn't created yet, create and store on enum class */
+            PyErr_Clear();
+            lookup = (PyObject *)IntLookup_New(state->intenum_obj);
+            if (lookup == NULL) goto error;
+            if (PyObject_SetAttr(state->intenum_obj, st->str___msgspec_lookup__, lookup) < 0) {
+                Py_DECREF(lookup);
+                goto error;
+            }
+        }
+        else if (Py_TYPE(lookup) != &IntLookup_Type) {
+            /* the lookup attribute has been overwritten, error */
+            Py_DECREF(lookup);
+            PyErr_Format(
+                PyExc_RuntimeError,
+                "%R.__msgspec_lookup__ has been overwritten",
+                state->intenum_obj
+            );
+            goto error;
+        }
+        out->extra[e_ind++] = lookup;
     }
     if (state->enum_obj != NULL) {
         Py_INCREF(state->enum_obj);
@@ -2995,35 +3310,25 @@ ms_decode_enum(PyObject *val, TypeNode *type, PathNode *path) {
 }
 
 static PyObject *
-ms_decode_intenum(PyObject *val, TypeNode *type, PathNode *path) {
-    if (val == NULL) return NULL;
-
-    PyObject *out = NULL;
-    MsgspecState *st = msgspec_get_global_state();
-    PyObject *intenum = TypeNode_get_intenum(type);
-
-    /* Fast path for common case. This accesses a non-public member of the
-    * enum class to speedup lookups. If this fails, we clear errors and
-    * use the slower-but-more-public method instead. */
-    PyObject *member_table = PyObject_GetAttr(intenum, st->str__value2member_map_);
-    if (MS_LIKELY(member_table != NULL)) {
-        out = PyDict_GetItem(member_table, val);
-        Py_DECREF(member_table);
-        if (MS_LIKELY(out != NULL)) {
-            Py_DECREF(val);
-            Py_INCREF(out);
-            return out;
-        }
+ms_decode_intenum_int64(int64_t val, TypeNode *type, PathNode *path) {
+    IntLookupObject *lookup = TypeNode_get_intenum(type);
+    PyObject *out = IntLookup_GetInt64(lookup, val);
+    if (out == NULL) {
+        ms_raise_validation_error(path, "Invalid enum value `%lld`%U", val);
     }
-    PyErr_Clear();
-    out = CALL_ONE_ARG(intenum, val);
-    if (MS_UNLIKELY(out == NULL)) {
-        PyErr_Clear();
-        ms_raise_validation_error(path, "Invalid enum value `%S`%U", val);
-    }
-    Py_DECREF(val);
     return out;
 }
+
+static PyObject *
+ms_decode_intenum_uint64(uint64_t val, TypeNode *type, PathNode *path) {
+    IntLookupObject *lookup = TypeNode_get_intenum(type);
+    PyObject *out = IntLookup_GetUInt64(lookup, val);
+    if (out == NULL) {
+        ms_raise_validation_error(path, "Invalid enum value `%llu`%U", val);
+    }
+    return out;
+}
+
 
 static PyObject *
 ms_decode_custom(PyObject *obj, PyObject *dec_hook, bool generic, TypeNode* type, PathNode *path) {
@@ -4919,7 +5224,7 @@ static PyObject * mpack_decode(
 static MS_INLINE PyObject *
 mpack_decode_int(DecoderState *self, int64_t x, TypeNode *type, PathNode *path) {
     if (type->types & MS_TYPE_INTENUM) {
-        return ms_decode_intenum(PyLong_FromLongLong(x), type, path);
+        return ms_decode_intenum_int64(x, type, path);
     }
     else if (type->types & (MS_TYPE_ANY | MS_TYPE_INT)) {
         return PyLong_FromLongLong(x);
@@ -4933,7 +5238,7 @@ mpack_decode_int(DecoderState *self, int64_t x, TypeNode *type, PathNode *path) 
 static MS_INLINE PyObject *
 mpack_decode_uint(DecoderState *self, uint64_t x, TypeNode *type, PathNode *path) {
     if (type->types & MS_TYPE_INTENUM) {
-        return ms_decode_intenum(PyLong_FromUnsignedLongLong(x), type, path);
+        return ms_decode_intenum_uint64(x, type, path);
     }
     else if (type->types & (MS_TYPE_ANY | MS_TYPE_INT)) {
         return PyLong_FromUnsignedLongLong(x);
@@ -7303,15 +7608,18 @@ end_integer:
     }
 
     if (!is_float && (type->types & (MS_TYPE_ANY | MS_TYPE_INT | MS_TYPE_INTENUM))) {
-        PyObject *val = (
-            is_negative ?
-            PyLong_FromLongLong(-1 * (int64_t)mantissa) :
-            PyLong_FromUnsignedLongLong(mantissa)
-        );
-        if (type->types & MS_TYPE_INTENUM) {
-            return ms_decode_intenum(val, type, path);
+        if (MS_UNLIKELY(type->types & MS_TYPE_INTENUM)) {
+            if (is_negative) {
+                return ms_decode_intenum_int64(-1 * (int64_t)mantissa, type, path);
+            }
+            return ms_decode_intenum_uint64(mantissa, type, path);
         }
-        return val;
+        else if (MS_UNLIKELY(is_negative)) {
+            return PyLong_FromLongLong(-1 * (int64_t)mantissa);
+        }
+        else {
+            return PyLong_FromUnsignedLongLong(mantissa);
+        }
     }
     else if (type->types & (MS_TYPE_ANY | MS_TYPE_FLOAT)) {
         double val;
@@ -7856,7 +8164,7 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->StructType);
     Py_CLEAR(st->EnumType);
     Py_CLEAR(st->str__name_);
-    Py_CLEAR(st->str__value2member_map_);
+    Py_CLEAR(st->str___msgspec_lookup__);
     Py_CLEAR(st->str_name);
     Py_CLEAR(st->str_type);
     Py_CLEAR(st->str_enc_hook);
@@ -7940,6 +8248,8 @@ PyInit__core(void)
     }
 
     StructMetaType.tp_base = &PyType_Type;
+    if (PyType_Ready(&IntLookup_Type) < 0)
+        return NULL;
     if (PyType_Ready(&StructMetaType) < 0)
         return NULL;
     if (PyType_Ready(&StructMixinType) < 0)
@@ -8072,7 +8382,7 @@ PyInit__core(void)
 #define CACHED_STRING(attr, str) \
     if ((st->attr = PyUnicode_InternFromString(str)) == NULL) return NULL
     CACHED_STRING(str__name_, "_name_");
-    CACHED_STRING(str__value2member_map_, "_value2member_map_");
+    CACHED_STRING(str___msgspec_lookup__, "__msgspec_lookup__");
     CACHED_STRING(str_name, "name");
     CACHED_STRING(str_type, "type");
     CACHED_STRING(str_enc_hook, "enc_hook");
