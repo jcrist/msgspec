@@ -1,11 +1,39 @@
 import enum
 import gc
 import sys
+import random
+import string
 import weakref
 
 import pytest
 
 import msgspec
+
+
+class Rand:
+    """Random source, pulled out into fixture with repr so the seed is
+    displayed on failing tests"""
+
+    def __init__(self, seed=0):
+        self.seed = seed or random.randint(0, 2 ** 32 - 1)
+        self.rand = random.Random(self.seed)
+
+    def __repr__(self):
+        return f"Rand({self.seed})"
+
+    def str(self, n, m=0):
+        """
+        randstr(N) -> random string of length N.
+        randstr(N,M) -> random string between lengths N & M
+        """
+        if m:
+            n = self.rand.randint(n, m)
+        return "".join(self.rand.choices(string.ascii_letters, k=n))
+
+
+@pytest.fixture
+def rand():
+    yield Rand()
 
 
 class TestIntEnum:
@@ -144,3 +172,115 @@ class TestIntEnum:
         for bad in [0, 7, 9, 56, -min(values), -max(values), 2 ** 64 - 1, -(2 ** 63)]:
             with pytest.raises(msgspec.DecodeError):
                 dec.decode(msgspec.msgpack.encode(bad))
+
+
+class TestEnum:
+    def test_empty_errors(self):
+        class Empty(enum.Enum):
+            pass
+
+        with pytest.raises(TypeError, match="Enum types must have at least one item"):
+            msgspec.msgpack.Decoder(Empty)
+
+    def test_str_lookup_reused(self):
+        class Test(enum.Enum):
+            A = 1
+            B = 2
+
+        dec = msgspec.msgpack.Decoder(Test)  # noqa
+        count = sys.getrefcount(Test.__msgspec_lookup__)
+        dec2 = msgspec.msgpack.Decoder(Test)
+        count2 = sys.getrefcount(Test.__msgspec_lookup__)
+        assert count2 == count + 1
+
+        # Reference count decreases when decoder is dropped
+        del dec2
+        gc.collect()
+        count3 = sys.getrefcount(Test.__msgspec_lookup__)
+        assert count == count3
+
+    def test_str_lookup_gc(self):
+        class Test(enum.Enum):
+            A = 1
+            B = 2
+
+        dec = msgspec.msgpack.Decoder(Test)
+        assert gc.is_tracked(Test.__msgspec_lookup__)
+
+        # Deleting all references and running GC cleans up cycle
+        ref = weakref.ref(Test)
+        del Test
+        del dec
+        gc.collect()
+        assert ref() is None
+
+    def test_msgspec_lookup_overwritten(self):
+        class Test(enum.Enum):
+            A = 1
+
+        Test.__msgspec_lookup__ = 1
+
+        with pytest.raises(RuntimeError, match="__msgspec_lookup__"):
+            msgspec.msgpack.Decoder(Test)
+
+    @pytest.mark.parametrize("length", [2, 8, 16])
+    @pytest.mark.parametrize("nitems", [1, 3, 6, 12, 24, 48])
+    def test_random_enum_same_lengths(self, rand, length, nitems):
+        def strgen(length):
+            """Yields unique random fixed-length strings"""
+            seen = set()
+            while True:
+                x = rand.str(length)
+                if x in seen:
+                    continue
+                seen.add(x)
+                yield x
+
+        unique_str = strgen(length).__next__
+
+        myenum = enum.Enum("myenum", [unique_str() for _ in range(nitems)])
+        dec = msgspec.msgpack.Decoder(myenum)
+
+        for val in myenum:
+            msg = msgspec.msgpack.encode(val.name)
+            val2 = dec.decode(msg)
+            assert val == val2
+
+        for _ in range(10):
+            key = unique_str()
+            with pytest.raises(msgspec.DecodeError):
+                dec.decode(msgspec.msgpack.encode(key))
+
+        # Try bad of different lengths
+        for bad_length in [1, 7, 15, 30]:
+            assert bad_length != length
+            key = rand.str(bad_length)
+            with pytest.raises(msgspec.DecodeError):
+                dec.decode(msgspec.msgpack.encode(key))
+
+    @pytest.mark.parametrize("nitems", [1, 3, 6, 12, 24, 48])
+    def test_random_enum_different_lengths(self, rand, nitems):
+        def strgen():
+            """Yields unique random strings"""
+            seen = set()
+            while True:
+                x = rand.str(1, 32)
+                if x in seen:
+                    continue
+                seen.add(x)
+                yield x
+
+        unique_str = strgen().__next__
+
+        myenum = enum.Enum("myenum", [unique_str() for _ in range(nitems)])
+        dec = msgspec.msgpack.Decoder(myenum)
+
+        for val in myenum:
+            msg = msgspec.msgpack.encode(val.name)
+            val2 = dec.decode(msg)
+            assert val == val2
+
+        for _ in range(10):
+            key = unique_str()
+            with pytest.raises(msgspec.DecodeError):
+                dec.decode(msgspec.msgpack.encode(key))
