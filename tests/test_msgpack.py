@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from typing import Dict, Set, List, Tuple, Optional, Any, Union, NamedTuple, Deque
 import datetime
 import enum
 import gc
@@ -9,6 +8,7 @@ import math
 import pickle
 import struct
 import sys
+from typing import Dict, Set, List, Tuple, Optional, Any, Union, NamedTuple, Deque, Literal
 
 import pytest
 
@@ -581,18 +581,26 @@ class TestDecoderMisc:
         assert "Type unions containing" in str(rec.value)
         assert repr(typ) in str(rec.value)
 
-    @pytest.mark.parametrize("typ", [Union[FruitInt, int], Union[int, FruitInt]])
-    def test_err_union_with_intenum_and_int(self, typ):
+    @pytest.mark.parametrize(
+        "types",
+        [(FruitInt, int), (FruitInt, Literal[1, 2])]
+    )
+    def test_err_union_with_multiple_int_like_types(self, types):
+        typ = Union[types]
         with pytest.raises(TypeError) as rec:
             msgspec.msgpack.Decoder(typ)
-        assert "int and an IntEnum" in str(rec.value)
+        assert "int-like" in str(rec.value)
         assert repr(typ) in str(rec.value)
 
-    @pytest.mark.parametrize("typ", [Union[FruitStr, str], Union[str, FruitStr]])
-    def test_err_union_with_enum_and_str(self, typ):
+    @pytest.mark.parametrize(
+        "types",
+        [(FruitStr, str), (FruitStr, Literal["one", "two"])]
+    )
+    def test_err_union_with_multiple_str_like_types(self, types):
+        typ = Union[types]
         with pytest.raises(TypeError) as rec:
             msgspec.msgpack.Decoder(typ)
-        assert "str and an Enum" in str(rec.value)
+        assert "str-like" in str(rec.value)
         assert repr(typ) in str(rec.value)
 
     @pytest.mark.parametrize(
