@@ -5,12 +5,12 @@
     <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
 <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Benchmarks" href="benchmarks.html" /><link rel="prev" title="Extending" href="extending.html" />
 
-    <meta name="generator" content="sphinx-4.4.0, furo 2022.01.02"/>
+    <meta name="generator" content="sphinx-4.4.0, furo 2022.02.14.1"/>
         <title>Performance Tips</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
-    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=df49af52631e7917044a9c21a57f7b83170a6dd0" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=a8f031f701c6af50c9919b48f173a5785af06fac" />
     <link rel="stylesheet" type="text/css" href="_static/copybutton.css" />
-    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?digest=fade93df149f7c5fedb3ff897f799dc7d283b420" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?digest=25ceb02ed1c46dc30f2321ff83e92799f69dfdb9" />
     
     
 
@@ -42,17 +42,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
   <symbol id="svg-toc" viewBox="0 0 24 24">
     <title>Contents</title>
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-      <path stroke="none" d="M0 0h24v24H0z" />
-      <line x1="4" y1="6" x2="20" y2="6" />
-      <line x1="10" y1="12" x2="20" y2="12" />
-      <line x1="6" y1="18" x2="20" y2="18" />
+    <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 1024 1024">
+      <path d="M408 442h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8zm-8 204c0 4.4 3.6 8 8 8h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56zm504-486H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm0 632H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zM115.4 518.9L271.7 642c5.8 4.6 14.4.5 14.4-6.9V388.9c0-7.4-8.5-11.5-14.4-6.9L115.4 505.1a8.74 8.74 0 0 0 0 13.8z"/>
     </svg>
   </symbol>
   <symbol id="svg-menu" viewBox="0 0 24 24">
     <title>Menu</title>
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
       stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
       <line x1="3" y1="12" x2="21" y2="12"></line>
       <line x1="3" y1="6" x2="21" y2="6"></line>
@@ -61,14 +57,14 @@
   </symbol>
   <symbol id="svg-arrow-right" viewBox="0 0 24 24">
     <title>Expand</title>
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
       stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
       <polyline points="9 18 15 12 9 6"></polyline>
     </svg>
   </symbol>
   <symbol id="svg-sun" viewBox="0 0 24 24">
     <title>Light mode</title>
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
       stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
       <circle cx="12" cy="12" r="5"></circle>
       <line x1="12" y1="1" x2="12" y2="3"></line>
@@ -83,7 +79,7 @@
   </symbol>
   <symbol id="svg-moon" viewBox="0 0 24 24">
     <title>Dark mode</title>
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
       stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
       <path stroke="none" d="M0 0h24v24H0z" fill="none" />
       <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
@@ -91,7 +87,7 @@
   </symbol>
   <symbol id="svg-sun-half" viewBox="0 0 24 24">
     <title>Auto light/dark mode</title>
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
       stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-shadow">
       <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
       <circle cx="12" cy="12" r="9" />
@@ -169,6 +165,7 @@
 
 </div>
 </div>
+
       </div>
       
     </div>
@@ -176,8 +173,7 @@
   <div class="main">
     <div class="content">
       <div class="article-container">
-        <div class="content-icon-container">
-          <div class="theme-toggle-container theme-toggle-content">
+        <div class="content-icon-container"><div class="theme-toggle-container theme-toggle-content">
             <button class="theme-toggle">
               <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
               <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
@@ -192,12 +188,12 @@
         </div>
         <article role="main">
           <section id="performance-tips">
-<h1>Performance Tips<a class="headerlink" href="#performance-tips" title="Permalink to this headline">¶</a></h1>
+<h1>Performance Tips<a class="headerlink" href="#performance-tips" title="Permalink to this headline">#</a></h1>
 <p>Here we present a few tips and tricks for squeezing maximum performance out of
 <code class="docutils literal notranslate"><span class="pre">msgspec</span></code>. They’re presented in order from “sane, definitely a good idea” to
 “fast, but you may not want to do this”.</p>
 <section id="reuse-encoders-decoders">
-<h2>Reuse Encoders/Decoders<a class="headerlink" href="#reuse-encoders-decoders" title="Permalink to this headline">¶</a></h2>
+<h2>Reuse Encoders/Decoders<a class="headerlink" href="#reuse-encoders-decoders" title="Permalink to this headline">#</a></h2>
 <p>Every call to a top-level <code class="docutils literal notranslate"><span class="pre">encode</span></code> function like <a class="reference internal" href="api.html#msgspec.json.encode" title="msgspec.json.encode"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.json.encode</span></code></a>
 allocates some temporary internal state used for encoding. While fine for
 normal use, for maximum performance you’ll want to create an <code class="docutils literal notranslate"><span class="pre">Encoder</span></code> (e.g.
@@ -225,14 +221,14 @@ typed, you may need to create multiple decoders, one for each type.</p>
 </div>
 </section>
 <section id="use-structs">
-<h2>Use Structs<a class="headerlink" href="#use-structs" title="Permalink to this headline">¶</a></h2>
+<h2>Use Structs<a class="headerlink" href="#use-structs" title="Permalink to this headline">#</a></h2>
 <p><a class="reference internal" href="structs.html"><span class="doc">Structs</span></a> are msgspec’s native way of expressing user-defined types.
 They’re <a class="reference internal" href="benchmarks.html#encoding-benchmark"><span class="std std-ref">fast to encode/decode</span></a> and <a class="reference internal" href="benchmarks.html#struct-benchmark"><span class="std std-ref">fast to use</span></a>. If you have data with a known schema, we recommend
 defining a <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> type (or types) for your schema and preferring that
 over other types like <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a>/<a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#module-dataclasses" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses</span></code></a>/…</p>
 </section>
 <section id="avoid-decoding-unused-fields">
-<h2>Avoid Decoding Unused Fields<a class="headerlink" href="#avoid-decoding-unused-fields" title="Permalink to this headline">¶</a></h2>
+<h2>Avoid Decoding Unused Fields<a class="headerlink" href="#avoid-decoding-unused-fields" title="Permalink to this headline">#</a></h2>
 <p>When decoding large inputs, sometimes you’re only interested in a few specific
 fields. Since decoding large objects is inherently allocation heavy, it may be
 beneficial to define a smaller <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> type that only has the fields
@@ -268,14 +264,14 @@ performance is a bottleneck in your workflow, you may benefit from this
 technique.</p>
 </section>
 <section id="reduce-allocations">
-<h2>Reduce Allocations<a class="headerlink" href="#reduce-allocations" title="Permalink to this headline">¶</a></h2>
+<h2>Reduce Allocations<a class="headerlink" href="#reduce-allocations" title="Permalink to this headline">#</a></h2>
 <p>Every call to <code class="docutils literal notranslate"><span class="pre">encode</span></code>/<code class="docutils literal notranslate"><span class="pre">Encoder.encode</span></code> allocates a new <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytes</span></code></a> object for
 the output. <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> exposes an alternative <code class="docutils literal notranslate"><span class="pre">Encoder.encode_into</span></code> (e.g.
 <a class="reference internal" href="api.html#msgspec.json.Encoder.encode_into" title="msgspec.json.Encoder.encode_into"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.json.Encoder.encode_into</span></code></a>) that writes into a pre-allocated
 <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytearray" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytearray</span></code></a> instead (possibly reallocating to increase capacity).</p>
 <p>This has a few uses:</p>
 <section id="reusing-an-output-buffer">
-<h3>Reusing an output buffer<a class="headerlink" href="#reusing-an-output-buffer" title="Permalink to this headline">¶</a></h3>
+<h3>Reusing an output buffer<a class="headerlink" href="#reusing-an-output-buffer" title="Permalink to this headline">#</a></h3>
 <p>If you’re encoding and writing messages to a socket/file in a hot loop, you
 <em>may</em> benefit from allocating a single <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytearray" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytearray</span></code></a> buffer once and reusing it
 for every message.</p>
@@ -310,7 +306,7 @@ method can benefit your workload.</p></li>
 </ul>
 </section>
 <section id="line-delimited-json">
-<h3>Line-Delimited JSON<a class="headerlink" href="#line-delimited-json" title="Permalink to this headline">¶</a></h3>
+<h3>Line-Delimited JSON<a class="headerlink" href="#line-delimited-json" title="Permalink to this headline">#</a></h3>
 <p>Some protocols require appending a suffix to an encoded message. One place
 where this comes up is when encoding <a class="reference external" href="https://en.wikipedia.org/wiki/JSON_streaming#Line-delimited_JSON">line-delimited JSON</a>, where every
 payload contains a JSON message followed by <code class="xref py py-obj docutils literal notranslate"><span class="pre">b"n"</span></code>.</p>
@@ -345,7 +341,7 @@ avoided by using <a class="reference internal" href="api.html#msgspec.json.Encod
 </div>
 </section>
 <section id="length-prefix-framing">
-<h3>Length-Prefix Framing<a class="headerlink" href="#length-prefix-framing" title="Permalink to this headline">¶</a></h3>
+<h3>Length-Prefix Framing<a class="headerlink" href="#length-prefix-framing" title="Permalink to this headline">#</a></h3>
 <p>Some protocols require prepending a prefix to an encoded message. This comes up
 in <a class="reference external" href="https://eli.thegreenplace.net/2011/08/02/length-prefix-framing-for-protocol-buffers">Length-prefix framing</a>
 , where every message is prefixed by its length stored as a fixed-width integer
@@ -376,7 +372,7 @@ efficient to do using <code class="docutils literal notranslate"><span class="pr
 </section>
 </section>
 <section id="use-messagepack">
-<h2>Use MessagePack<a class="headerlink" href="#use-messagepack" title="Permalink to this headline">¶</a></h2>
+<h2>Use MessagePack<a class="headerlink" href="#use-messagepack" title="Permalink to this headline">#</a></h2>
 <p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> supports both <a class="reference external" href="https://json.org">JSON</a> and <a class="reference external" href="https://msgpack.org">MessagePack</a> protocols. The latter is less
 commonly used, but <a class="reference internal" href="benchmarks.html#encoding-benchmark"><span class="std std-ref">can be more performant</span></a>. If
 performance is an issue (and MessagePack is an acceptable solution), you may
@@ -385,7 +381,7 @@ protocols with a consistent interface, switching from <code class="docutils lite
 <code class="docutils literal notranslate"><span class="pre">msgspec.msgpack</span></code> should be fairly painless.</p>
 </section>
 <section id="use-asarray-true">
-<h2>Use <code class="docutils literal notranslate"><span class="pre">asarray=True</span></code><a class="headerlink" href="#use-asarray-true" title="Permalink to this headline">¶</a></h2>
+<h2>Use <code class="docutils literal notranslate"><span class="pre">asarray=True</span></code><a class="headerlink" href="#use-asarray-true" title="Permalink to this headline">#</a></h2>
 <p>One touted benefit of <a class="reference external" href="https://json.org">JSON</a> and <a class="reference external" href="https://msgpack.org">MessagePack</a> is that they’re “self-describing”
 protocols. JSON objects serialize their field names along with their values. If
 both ends of a connection already know the field names though, serializing them
@@ -441,15 +437,21 @@ average another ~2x speedup for decoding (and ~1.5x speedup for encoding).</p>
               </div>
             </a>
         </div>
-
-        <div class="related-information">
-              Copyright &#169; 2022, Jim Crist-Harif |
-          Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> and <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
-          <a href="https://github.com/pradyunsg/furo">Furo theme</a>.
-            | <a class="muted-link" href="_sources/perf-tips.rst.txt"
-               rel="nofollow">
-              Show Source
-            </a>
+        <div class="bottom-of-page">
+          <div class="left-details">
+            <div class="copyright">
+                Copyright &#169; 2022, Jim Crist-Harif
+            </div>
+            Made with <a href="https://www.sphinx-doc.org/">Sphinx</a> and <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
+            
+            <a href="https://github.com/pradyunsg/furo">Furo</a>
+            
+          </div>
+          <div class="right-details">
+            <div class="icons">
+              
+            </div>
+          </div>
         </div>
         
       </footer>

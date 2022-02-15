@@ -5,12 +5,12 @@
     <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
 <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="API Docs" href="api.html" /><link rel="prev" title="Performance Tips" href="perf-tips.html" />
 
-    <meta name="generator" content="sphinx-4.4.0, furo 2022.01.02"/>
+    <meta name="generator" content="sphinx-4.4.0, furo 2022.02.14.1"/>
         <title>Benchmarks</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
-    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=df49af52631e7917044a9c21a57f7b83170a6dd0" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=a8f031f701c6af50c9919b48f173a5785af06fac" />
     <link rel="stylesheet" type="text/css" href="_static/copybutton.css" />
-    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?digest=fade93df149f7c5fedb3ff897f799dc7d283b420" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?digest=25ceb02ed1c46dc30f2321ff83e92799f69dfdb9" />
     
     
 
@@ -42,17 +42,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
   <symbol id="svg-toc" viewBox="0 0 24 24">
     <title>Contents</title>
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-      <path stroke="none" d="M0 0h24v24H0z" />
-      <line x1="4" y1="6" x2="20" y2="6" />
-      <line x1="10" y1="12" x2="20" y2="12" />
-      <line x1="6" y1="18" x2="20" y2="18" />
+    <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 1024 1024">
+      <path d="M408 442h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8zm-8 204c0 4.4 3.6 8 8 8h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56zm504-486H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm0 632H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zM115.4 518.9L271.7 642c5.8 4.6 14.4.5 14.4-6.9V388.9c0-7.4-8.5-11.5-14.4-6.9L115.4 505.1a8.74 8.74 0 0 0 0 13.8z"/>
     </svg>
   </symbol>
   <symbol id="svg-menu" viewBox="0 0 24 24">
     <title>Menu</title>
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
       stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
       <line x1="3" y1="12" x2="21" y2="12"></line>
       <line x1="3" y1="6" x2="21" y2="6"></line>
@@ -61,14 +57,14 @@
   </symbol>
   <symbol id="svg-arrow-right" viewBox="0 0 24 24">
     <title>Expand</title>
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
       stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
       <polyline points="9 18 15 12 9 6"></polyline>
     </svg>
   </symbol>
   <symbol id="svg-sun" viewBox="0 0 24 24">
     <title>Light mode</title>
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
       stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
       <circle cx="12" cy="12" r="5"></circle>
       <line x1="12" y1="1" x2="12" y2="3"></line>
@@ -83,7 +79,7 @@
   </symbol>
   <symbol id="svg-moon" viewBox="0 0 24 24">
     <title>Dark mode</title>
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
       stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
       <path stroke="none" d="M0 0h24v24H0z" fill="none" />
       <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
@@ -91,7 +87,7 @@
   </symbol>
   <symbol id="svg-sun-half" viewBox="0 0 24 24">
     <title>Auto light/dark mode</title>
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
       stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-shadow">
       <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
       <circle cx="12" cy="12" r="9" />
@@ -169,6 +165,7 @@
 
 </div>
 </div>
+
       </div>
       
     </div>
@@ -176,8 +173,7 @@
   <div class="main">
     <div class="content">
       <div class="article-container">
-        <div class="content-icon-container">
-          <div class="theme-toggle-container theme-toggle-content">
+        <div class="content-icon-container"><div class="theme-toggle-container theme-toggle-content">
             <button class="theme-toggle">
               <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
               <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
@@ -192,7 +188,7 @@
         </div>
         <article role="main">
           <section id="benchmarks">
-<h1>Benchmarks<a class="headerlink" href="#benchmarks" title="Permalink to this headline">¶</a></h1>
+<h1>Benchmarks<a class="headerlink" href="#benchmarks" title="Permalink to this headline">#</a></h1>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>Benchmarks are <em>hard</em>.</p>
@@ -207,7 +203,7 @@ you choose different serialization formats. I encourage you to write your
 own benchmarks before making these decisions.</p>
 </div>
 <section id="benchmark-encoding-decoding">
-<span id="encoding-benchmark"></span><h2>Benchmark - Encoding/Decoding<a class="headerlink" href="#benchmark-encoding-decoding" title="Permalink to this headline">¶</a></h2>
+<span id="encoding-benchmark"></span><h2>Benchmark - Encoding/Decoding<a class="headerlink" href="#benchmark-encoding-decoding" title="Permalink to this headline">#</a></h2>
 <p>Here we show a simple benchmark serializing some structured data. The data
 we’re serializing has the following schema (defined here using <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a>
 types):</p>
@@ -246,7 +242,7 @@ message types configured with <code class="docutils literal notranslate"><span c
 serializes it/deserializes it in a loop. The <a class="reference external" href="https://github.com/jcrist/msgspec/tree/master/benchmarks">full benchmark source can be
 found here</a>.</p>
 <section id="object">
-<h3>1 Object<a class="headerlink" href="#object" title="Permalink to this headline">¶</a></h3>
+<h3>1 Object<a class="headerlink" href="#object" title="Permalink to this headline">#</a></h3>
 <p>Some workflows involve sending around very small messages. Here the overhead
 per function call dominates (parsing of options, allocating temporary buffers,
 etc…).</p>
@@ -273,13 +269,13 @@ to other python operations, so unless you’re counting every microsecond your
 choice here probably doesn’t matter that much.</p>
 </section>
 <section id="objects">
-<h3>1000 Objects<a class="headerlink" href="#objects" title="Permalink to this headline">¶</a></h3>
+<h3>1000 Objects<a class="headerlink" href="#objects" title="Permalink to this headline">#</a></h3>
 <p>Here we serialize a list of 1000 <code class="docutils literal notranslate"><span class="pre">Person</span></code> objects. There’s a lot more data
 here, so the per-call overhead will no longer dominate, and we’re now measuring
 the efficiency of the encoding/decoding.</p>
 <div class="bk-root" id="bench-1k"></div></section>
 <section id="schema-validation">
-<h3>Schema Validation<a class="headerlink" href="#schema-validation" title="Permalink to this headline">¶</a></h3>
+<h3>Schema Validation<a class="headerlink" href="#schema-validation" title="Permalink to this headline">#</a></h3>
 <p>The above benchmarks aren’t 100% fair to <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> or <code class="docutils literal notranslate"><span class="pre">pyrobuf</span></code>. Both
 libraries also perform schema validation on deserialization, checking that the
 message matches the specified schema. None of the other options benchmarked
@@ -305,7 +301,7 @@ for additional unnecessary allocations.</p>
 </section>
 </section>
 <section id="benchmark-structs">
-<span id="struct-benchmark"></span><h2>Benchmark - Structs<a class="headerlink" href="#benchmark-structs" title="Permalink to this headline">¶</a></h2>
+<span id="struct-benchmark"></span><h2>Benchmark - Structs<a class="headerlink" href="#benchmark-structs" title="Permalink to this headline">#</a></h2>
 <p>Here we benchmark common <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> operations, comparing their
 performance against other similar libraries. The cases compared are:</p>
 <ul class="simple">
@@ -420,15 +416,21 @@ fetch('_static/bench-1k-validate.json')
               </div>
             </a>
         </div>
-
-        <div class="related-information">
-              Copyright &#169; 2022, Jim Crist-Harif |
-          Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> and <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
-          <a href="https://github.com/pradyunsg/furo">Furo theme</a>.
-            | <a class="muted-link" href="_sources/benchmarks.rst.txt"
-               rel="nofollow">
-              Show Source
-            </a>
+        <div class="bottom-of-page">
+          <div class="left-details">
+            <div class="copyright">
+                Copyright &#169; 2022, Jim Crist-Harif
+            </div>
+            Made with <a href="https://www.sphinx-doc.org/">Sphinx</a> and <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
+            
+            <a href="https://github.com/pradyunsg/furo">Furo</a>
+            
+          </div>
+          <div class="right-details">
+            <div class="icons">
+              
+            </div>
+          </div>
         </div>
         
       </footer>
