@@ -14,7 +14,7 @@ import uuid
 import types
 import textwrap
 from contextlib import contextmanager
-from typing import Any, List, Set, Tuple, Union, Dict, Optional, NamedTuple, Deque
+from typing import Any, List, Set, Tuple, Union, Dict, Optional, NamedTuple, Deque, Literal
 
 import pytest
 
@@ -88,10 +88,11 @@ def temp_module(code):
 
 class TestInvalidJSONTypes:
     def test_invalid_type_union(self):
-        types = [str, datetime.datetime, bytes, bytearray]
+        literal = Literal["a", "b"]
+        types = [FruitStr, literal, str, datetime.datetime, bytes, bytearray]
         for length in [2, 3, 4]:
             for types in itertools.combinations(types, length):
-                if set(types) == {bytes, bytearray}:
+                if set(types) in ({bytes, bytearray}, {str, literal}):
                     continue
                 with pytest.raises(TypeError, match="not supported"):
                     msgspec.json.Decoder(Union[types])
@@ -634,18 +635,26 @@ class TestDecoderMisc:
         assert "Type unions containing" in str(rec.value)
         assert repr(typ) in str(rec.value)
 
-    @pytest.mark.parametrize("typ", [Union[FruitInt, int], Union[int, FruitInt]])
-    def test_err_union_with_intenum_and_int(self, typ):
+    @pytest.mark.parametrize(
+        "types",
+        [(FruitInt, int), (FruitInt, Literal[1, 2])]
+    )
+    def test_err_union_with_multiple_int_like_types(self, types):
+        typ = Union[types]
         with pytest.raises(TypeError) as rec:
             msgspec.json.Decoder(typ)
-        assert "int and an IntEnum" in str(rec.value)
+        assert "int-like" in str(rec.value)
         assert repr(typ) in str(rec.value)
 
-    @pytest.mark.parametrize("typ", [Union[FruitStr, str], Union[str, FruitStr]])
-    def test_err_union_with_enum_and_str(self, typ):
+    @pytest.mark.parametrize(
+        "types",
+        [(FruitStr, str), (FruitStr, Literal["one", "two"])]
+    )
+    def test_err_union_with_multiple_str_like_types(self, types):
+        typ = Union[types]
         with pytest.raises(TypeError) as rec:
             msgspec.json.Decoder(typ)
-        assert "str and an Enum" in str(rec.value)
+        assert "str-like" in str(rec.value)
         assert repr(typ) in str(rec.value)
 
     @pytest.mark.parametrize(

@@ -334,6 +334,7 @@ typedef struct {
     PyObject *typing_dict;
     PyObject *typing_union;
     PyObject *typing_any;
+    PyObject *typing_literal;
     PyObject *get_type_hints;
     PyObject *astimezone;
 } MsgspecState;
@@ -989,6 +990,8 @@ static PyTypeObject StrLookup_Type = {
 #define MS_TYPE_SET                 (1u << 17)
 #define MS_TYPE_VARTUPLE            (1u << 18)
 #define MS_TYPE_FIXTUPLE            (1u << 19)
+#define MS_TYPE_INTLITERAL          (1u << 20)
+#define MS_TYPE_STRLITERAL          (1u << 21)
 
 typedef struct TypeNode {
     uint32_t types;
@@ -1035,9 +1038,12 @@ TypeNode_get_size(TypeNode *type, Py_ssize_t *n_typenode) {
     }
     else if (!(type->types & MS_TYPE_ANY)) {
         n_obj = ms_popcount(
-            type->types & (MS_TYPE_STRUCT | MS_TYPE_INTENUM | MS_TYPE_ENUM)
+            type->types & (
+                MS_TYPE_STRUCT | MS_TYPE_INTENUM |
+                MS_TYPE_INTLITERAL | MS_TYPE_ENUM |
+                MS_TYPE_STRLITERAL
+            )
         );
-
         if (type->types & MS_TYPE_DICT) n_type += 2;
         /* Only one array generic is allowed in a union */
         if (type->types & (MS_TYPE_LIST | MS_TYPE_SET | MS_TYPE_VARTUPLE)) n_type++;
@@ -1060,33 +1066,41 @@ TypeNode_get_custom(TypeNode *type) {
 }
 
 static MS_INLINE IntLookupObject *
-TypeNode_get_intenum(TypeNode *type) {
+TypeNode_get_int_enum_or_literal(TypeNode *type) {
     Py_ssize_t i = (type->types & MS_TYPE_STRUCT) != 0;
     return ((TypeNodeExtra *)type)->extra[i];
 }
 
 static MS_INLINE StrLookupObject *
-TypeNode_get_enum(TypeNode *type) {
-    Py_ssize_t i = ms_popcount(type->types & (MS_TYPE_STRUCT | MS_TYPE_INTENUM));
-    return ((TypeNodeExtra *)type)->extra[i];
-}
-
-static MS_INLINE PyObject *
-TypeNode_get_dict_obj(TypeNode *type) {
-    Py_ssize_t i = ms_popcount(type->types & (MS_TYPE_STRUCT | MS_TYPE_INTENUM | MS_TYPE_ENUM));
+TypeNode_get_str_enum_or_literal(TypeNode *type) {
+    Py_ssize_t i = ms_popcount(
+        type->types & (MS_TYPE_STRUCT | MS_TYPE_INTENUM | MS_TYPE_INTLITERAL)
+    );
     return ((TypeNodeExtra *)type)->extra[i];
 }
 
 static MS_INLINE void
 TypeNode_get_dict(TypeNode *type, TypeNode **key, TypeNode **val) {
-    Py_ssize_t i = ms_popcount(type->types & (MS_TYPE_STRUCT | MS_TYPE_INTENUM | MS_TYPE_ENUM));
+    Py_ssize_t i = ms_popcount(
+        type->types & (
+            MS_TYPE_STRUCT | MS_TYPE_INTENUM |
+            MS_TYPE_INTLITERAL | MS_TYPE_ENUM |
+            MS_TYPE_STRLITERAL
+        )
+    );
     *key = ((TypeNodeExtra *)type)->extra[i];
     *val = ((TypeNodeExtra *)type)->extra[i + 1];
 }
 
 static MS_INLINE Py_ssize_t
 TypeNode_get_array_offset(TypeNode *type) {
-    Py_ssize_t i = ms_popcount(type->types & (MS_TYPE_STRUCT | MS_TYPE_INTENUM | MS_TYPE_ENUM));
+    Py_ssize_t i = ms_popcount(
+        type->types & (
+            MS_TYPE_STRUCT | MS_TYPE_INTENUM |
+            MS_TYPE_INTLITERAL | MS_TYPE_ENUM |
+            MS_TYPE_STRLITERAL
+        )
+    );
     if (type->types & MS_TYPE_DICT) i += 2;
     return i;
 }
@@ -1144,13 +1158,13 @@ typenode_simple_repr(TypeNode *self) {
     if (self->types & MS_TYPE_BOOL) {
         if (!strbuilder_extend(&builder, "bool", 4)) return NULL;
     }
-    if (self->types & (MS_TYPE_INT | MS_TYPE_INTENUM)) {
+    if (self->types & (MS_TYPE_INT | MS_TYPE_INTENUM | MS_TYPE_INTLITERAL)) {
         if (!strbuilder_extend(&builder, "int", 3)) return NULL;
     }
     if (self->types & MS_TYPE_FLOAT) {
         if (!strbuilder_extend(&builder, "float", 5)) return NULL;
     }
-    if (self->types & (MS_TYPE_STR | MS_TYPE_ENUM)) {
+    if (self->types & (MS_TYPE_STR | MS_TYPE_ENUM | MS_TYPE_STRLITERAL)) {
         if (!strbuilder_extend(&builder, "str", 3)) return NULL;
     }
     if (self->types & (MS_TYPE_BYTES | MS_TYPE_BYTEARRAY)) {
@@ -1193,6 +1207,11 @@ typedef struct {
     PyObject *array_el_obj;
     PyObject *dict_key_obj;
     PyObject *dict_val_obj;
+    PyObject *literals;
+    PyObject *int_literal_values;
+    PyObject *int_literal_lookup;
+    PyObject *str_literal_values;
+    PyObject *str_literal_lookup;
 } TypeNodeCollectState;
 
 static TypeNode * TypeNode_Convert(PyObject *type, bool err_not_json, bool *json_compatible);
@@ -1204,7 +1223,9 @@ typenode_from_collect_state(TypeNodeCollectState *state, bool err_not_json, bool
 
     if (state->struct_obj != NULL) n_extra++;
     if (state->intenum_obj != NULL) n_extra++;
+    if (state->int_literal_lookup != NULL) n_extra++;
     if (state->enum_obj != NULL) n_extra++;
+    if (state->str_literal_lookup != NULL) n_extra++;
     if (state->custom_obj != NULL) n_extra++;
     if (state->dict_key_obj != NULL) n_extra += 2;
     if (state->array_el_obj != NULL) {
@@ -1274,6 +1295,10 @@ typenode_from_collect_state(TypeNodeCollectState *state, bool err_not_json, bool
         }
         out->extra[e_ind++] = lookup;
     }
+    if (state->int_literal_lookup != NULL) {
+        Py_INCREF(state->int_literal_lookup);
+        out->extra[e_ind++] = state->int_literal_lookup;
+    }
     if (state->enum_obj != NULL) {
         MsgspecState *st = msgspec_get_global_state();
         PyObject *lookup = PyObject_GetAttr(state->enum_obj, st->str___msgspec_lookup__);
@@ -1301,6 +1326,10 @@ typenode_from_collect_state(TypeNodeCollectState *state, bool err_not_json, bool
             goto error;
         }
         out->extra[e_ind++] = lookup;
+    }
+    if (state->str_literal_lookup != NULL) {
+        Py_INCREF(state->str_literal_lookup);
+        out->extra[e_ind++] = state->str_literal_lookup;
     }
     if (state->custom_obj != NULL) {
         Py_INCREF(state->custom_obj);
@@ -1417,23 +1446,35 @@ typenode_collect_check_invariants(
         }
     }
 
-    /* Ensure IntEnum doesn't conflict with int */
-    if (state->intenum_obj && state->types & MS_TYPE_INT) {
+    /* If int & int literals are both present, drop literals */
+    if (state->types & MS_TYPE_INT && state->int_literal_lookup) {
+        state->types &= ~MS_TYPE_INTLITERAL;
+        Py_CLEAR(state->int_literal_lookup);
+    }
+
+    /* If str & str literals are both present, drop literals */
+    if (state->types & MS_TYPE_STR && state->str_literal_lookup) {
+        state->types &= ~MS_TYPE_STRLITERAL;
+        Py_CLEAR(state->str_literal_lookup);
+    }
+
+    /* Ensure int-like types don't conflict */
+    if (ms_popcount(state->types & (MS_TYPE_INT | MS_TYPE_INTLITERAL | MS_TYPE_INTENUM)) > 1) {
         PyErr_Format(
             PyExc_TypeError,
-            "Type unions may not contain both int and an IntEnum "
-            "- type `%R` is not supported",
+            "Type unions may not contain more than one int-like type (`int`, "
+            "`IntEnum`, `Literal[int values]`) - type `%R` is not supported",
             state->context
         );
         return -1;
     }
 
-    /* Ensure Enum doesn't conflict with str */
-    if (state->enum_obj && state->types & MS_TYPE_STR) {
+    /* Ensure str-like types don't conflict */
+    if (ms_popcount(state->types & (MS_TYPE_STR | MS_TYPE_STRLITERAL | MS_TYPE_ENUM)) > 1) {
         PyErr_Format(
             PyExc_TypeError,
-            "Type unions may not contain both str and an Enum "
-            "- type `%R` is not supported",
+            "Type unions may not contain more than one str-like type (`str`, "
+            "`Enum`, `Literal[str values]`) - type `%R` is not supported",
             state->context
         );
         return -1;
@@ -1442,14 +1483,18 @@ typenode_collect_check_invariants(
     /* JSON serializes more types as strings, ensure they don't conflict in a union */
     if (
         ms_popcount(
-            state->types & (MS_TYPE_STR | MS_TYPE_BYTES | MS_TYPE_BYTEARRAY | MS_TYPE_DATETIME)
+            state->types & (
+                MS_TYPE_STR | MS_TYPE_STRLITERAL | MS_TYPE_ENUM |
+                MS_TYPE_BYTES | MS_TYPE_BYTEARRAY | MS_TYPE_DATETIME
+            )
         ) > 1
     ) {
         if (err_not_json) {
             PyErr_Format(
                 PyExc_TypeError,
-                "JSON type unions may contain at most one of `str`, `bytes`, "
-                "`bytearray` or `datetime` - type `%R` is not supported",
+                "JSON type unions may not contain more than one str-like type "
+                "(`str`, `Enum`, `Literal[str values]`, `bytes`, `bytearray`, "
+                "`datetime`) - type `%R` is not supported",
                 state->context
             );
             return -1;
@@ -1497,6 +1542,171 @@ typenode_collect_custom(TypeNodeCollectState *state, uint32_t type, PyObject *ob
     return 0;
 }
 
+static int
+typenode_collect_literal(TypeNodeCollectState *state, PyObject *literal) {
+    MsgspecState *st = msgspec_get_global_state();
+
+    PyObject *args = PyObject_GetAttr(literal, st->str___args__);
+    /* This should never happen, since we know this is a `Literal` object */
+    if (args == NULL) return -1;
+
+    Py_ssize_t size = PyTuple_Size(args);
+    if (size < 0) return -1;
+
+    for (Py_ssize_t i = 0; i < size; i++) {
+        PyObject *obj = PyTuple_GET_ITEM(args, i);
+        PyTypeObject *type = Py_TYPE(obj);
+
+        if (obj == Py_None || obj == NONE_TYPE) {
+            state->types |= MS_TYPE_NONE;
+        }
+        else if (type == &PyLong_Type) {
+            if (state->int_literal_values == NULL) {
+                state->types |= MS_TYPE_INTLITERAL;
+                state->int_literal_values = PySet_New(NULL);
+                if (state->int_literal_values == NULL) goto error;
+            }
+            if (PySet_Add(state->int_literal_values, obj) < 0) goto error;
+        }
+        else if (type == &PyUnicode_Type) {
+            if (state->str_literal_values == NULL) {
+                state->types |= MS_TYPE_STRLITERAL;
+                state->str_literal_values = PySet_New(NULL);
+                if (state->str_literal_values == NULL) goto error;
+            }
+            if (PySet_Add(state->str_literal_values, obj) < 0) goto error;
+        }
+        else {
+            /* Check for nested Literal */
+            PyObject *origin = PyObject_GetAttr(obj, st->str___origin__);
+            if (origin == NULL) {
+                PyErr_Clear();
+                goto invalid;
+            }
+            else if (origin != st->typing_literal) {
+                Py_DECREF(origin);
+                goto invalid;
+            }
+            Py_DECREF(origin);
+            if (typenode_collect_literal(state, obj) < 0) goto error;
+        }
+    }
+
+    Py_DECREF(args);
+    return 0;
+
+invalid:
+    PyErr_Format(
+        PyExc_TypeError,
+        "Literal may only contain `None`/integers/strings - %R is not supported",
+        literal
+    );
+
+error:
+    Py_DECREF(args);
+    return -1;
+}
+
+static int
+typenode_collect_convert_literals(TypeNodeCollectState *state) {
+    if (state->literals == NULL) {
+        /* Nothing to do */
+        return 0;
+    }
+
+    Py_ssize_t n = PyList_GET_SIZE(state->literals);
+
+    if (n == 1) {
+        MsgspecState *st = msgspec_get_global_state();
+        PyObject *literal = PyList_GET_ITEM(state->literals, 0);
+
+        /* Check if cached, otherwise create and cache */
+        PyObject *cached = PyObject_GetAttr(literal, st->str___msgspec_lookup__);
+        if (cached != NULL) {
+            /* Extract and store the lookups */
+            if (PyTuple_CheckExact(cached) && PyTuple_GET_SIZE(cached) == 2) {
+                PyObject *int_lookup = PyTuple_GET_ITEM(cached, 0);
+                PyObject *str_lookup = PyTuple_GET_ITEM(cached, 1);
+                if (
+                    (
+                        (int_lookup == Py_None || Py_TYPE(int_lookup) == &IntLookup_Type) &&
+                        (str_lookup == Py_None || Py_TYPE(str_lookup) == &StrLookup_Type)
+                    )
+                ) {
+                    if (Py_TYPE(int_lookup) == &IntLookup_Type) {
+                        Py_INCREF(int_lookup);
+                        state->types |= MS_TYPE_INTLITERAL;
+                        state->int_literal_lookup = int_lookup;
+                    }
+                    if (Py_TYPE(str_lookup) == &StrLookup_Type) {
+                        Py_INCREF(str_lookup);
+                        state->types |= MS_TYPE_STRLITERAL;
+                        state->str_literal_lookup = str_lookup;
+                    }
+                    Py_DECREF(cached);
+                    return 0;
+                }
+            }
+            Py_DECREF(cached);
+            PyErr_Format(
+                PyExc_RuntimeError,
+                "%R.__msgspec_lookup__ has been overwritten",
+                literal
+            );
+            return -1;
+        }
+        else {
+            /* Clear the AttributError from the cache lookup */
+            PyErr_Clear();
+
+            /* Collect all values in the literal */
+            if (typenode_collect_literal(state, literal) < 0) return -1;
+
+            /* Convert values to lookup objects (if values exist for each type) */
+            if (state->int_literal_values != NULL) {
+                state->types |= MS_TYPE_INTLITERAL;
+                state->int_literal_lookup = (PyObject *)IntLookup_New(state->int_literal_values);
+                if (state->int_literal_lookup == NULL) return -1;
+            }
+            if (state->str_literal_values != NULL) {
+                state->types |= MS_TYPE_STRLITERAL;
+                state->str_literal_lookup = (PyObject *)StrLookup_New(state->str_literal_values);
+                if (state->str_literal_lookup == NULL) return -1;
+            }
+
+            /* Cache the lookups as a tuple on the `Literal` object */
+            PyObject *cached = PyTuple_Pack(
+                2,
+                state->int_literal_lookup == NULL ? Py_None : state->int_literal_lookup,
+                state->str_literal_lookup == NULL ? Py_None : state->str_literal_lookup
+            );
+            if (cached == NULL) return -1;
+            int out = PyObject_SetAttr(literal, st->str___msgspec_lookup__, cached);
+            Py_DECREF(cached);
+            return out;
+        }
+    }
+    else {
+        /* Collect all values in all literals */
+        for (Py_ssize_t i = 0; i < n; i++) {
+            PyObject *literal = PyList_GET_ITEM(state->literals, i);
+            if (typenode_collect_literal(state, literal) < 0) return -1;
+        }
+        /* Convert values to lookup objects (if values exist for each type) */
+        if (state->int_literal_values != NULL) {
+            state->types |= MS_TYPE_INTLITERAL;
+            state->int_literal_lookup = (PyObject *)IntLookup_New(state->int_literal_values);
+            if (state->int_literal_lookup == NULL) return -1;
+        }
+        if (state->str_literal_values != NULL) {
+            state->types |= MS_TYPE_STRLITERAL;
+            state->str_literal_lookup = (PyObject *)StrLookup_New(state->str_literal_values);
+            if (state->str_literal_lookup == NULL) return -1;
+        }
+        return 0;
+    }
+}
+
 static void
 typenode_collect_clear_state(TypeNodeCollectState *state) {
     Py_CLEAR(state->struct_obj);
@@ -1507,6 +1717,11 @@ typenode_collect_clear_state(TypeNodeCollectState *state) {
     Py_CLEAR(state->array_el_obj);
     Py_CLEAR(state->dict_key_obj);
     Py_CLEAR(state->dict_val_obj);
+    Py_CLEAR(state->literals);
+    Py_CLEAR(state->int_literal_values);
+    Py_CLEAR(state->int_literal_lookup);
+    Py_CLEAR(state->str_literal_values);
+    Py_CLEAR(state->str_literal_lookup);
 }
 
 static int
@@ -1666,6 +1881,14 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
         }
         goto done;
     }
+    else if (origin == st->typing_literal) {
+        if (state->literals == NULL) {
+            state->literals = PyList_New(0);
+            if (state->literals == NULL) goto done;
+        }
+        out = PyList_Append(state->literals, obj);
+        goto done;
+    }
     else {
         if (!PyType_Check(origin)) goto invalid;
         /* A parametrized type, but not one we natively support. */
@@ -1690,6 +1913,8 @@ TypeNode_Convert(PyObject *obj, bool err_not_json, bool *json_compatible) {
 
     /* Traverse `obj` to collect all type annotations at this level */
     if (typenode_collect_type(&state, obj) < 0) goto done;
+    /* Handle literals in a second pass */
+    if (typenode_collect_convert_literals(&state) < 0) goto done;
     /* Check type invariants to ensure Union types are valid */
     if (typenode_collect_check_invariants(&state, err_not_json, json_compatible) < 0) goto done;
     /* Populate a new TypeNode, recursing into subtypes as needed */
@@ -3509,8 +3734,8 @@ static PyMemberDef Encoder_members[] = {
  *************************************************************************/
 
 static MS_NOINLINE PyObject *
-ms_decode_enum(const char *name, Py_ssize_t size, TypeNode *type, PathNode *path) {
-    StrLookupObject *lookup = TypeNode_get_enum(type);
+ms_decode_str_enum_or_literal(const char *name, Py_ssize_t size, TypeNode *type, PathNode *path) {
+    StrLookupObject *lookup = TypeNode_get_str_enum_or_literal(type);
     PyObject *out = StrLookup_Get(lookup, name, size);
     if (out == NULL) {
         PyObject *val = PyUnicode_DecodeUTF8(name, size, NULL);
@@ -3522,8 +3747,8 @@ ms_decode_enum(const char *name, Py_ssize_t size, TypeNode *type, PathNode *path
 }
 
 static PyObject *
-ms_decode_intenum_int64(int64_t val, TypeNode *type, PathNode *path) {
-    IntLookupObject *lookup = TypeNode_get_intenum(type);
+ms_decode_int_enum_or_literal_int64(int64_t val, TypeNode *type, PathNode *path) {
+    IntLookupObject *lookup = TypeNode_get_int_enum_or_literal(type);
     PyObject *out = IntLookup_GetInt64(lookup, val);
     if (out == NULL) {
         ms_raise_validation_error(path, "Invalid enum value `%lld`%U", val);
@@ -3532,8 +3757,8 @@ ms_decode_intenum_int64(int64_t val, TypeNode *type, PathNode *path) {
 }
 
 static PyObject *
-ms_decode_intenum_uint64(uint64_t val, TypeNode *type, PathNode *path) {
-    IntLookupObject *lookup = TypeNode_get_intenum(type);
+ms_decode_int_enum_or_literal_uint64(uint64_t val, TypeNode *type, PathNode *path) {
+    IntLookupObject *lookup = TypeNode_get_int_enum_or_literal(type);
     PyObject *out = IntLookup_GetUInt64(lookup, val);
     if (out == NULL) {
         ms_raise_validation_error(path, "Invalid enum value `%llu`%U", val);
@@ -5435,8 +5660,8 @@ static PyObject * mpack_decode(
 
 static MS_INLINE PyObject *
 mpack_decode_int(DecoderState *self, int64_t x, TypeNode *type, PathNode *path) {
-    if (type->types & MS_TYPE_INTENUM) {
-        return ms_decode_intenum_int64(x, type, path);
+    if (type->types & (MS_TYPE_INTENUM | MS_TYPE_INTLITERAL)) {
+        return ms_decode_int_enum_or_literal_int64(x, type, path);
     }
     else if (type->types & (MS_TYPE_ANY | MS_TYPE_INT)) {
         return PyLong_FromLongLong(x);
@@ -5449,8 +5674,8 @@ mpack_decode_int(DecoderState *self, int64_t x, TypeNode *type, PathNode *path) 
 
 static MS_INLINE PyObject *
 mpack_decode_uint(DecoderState *self, uint64_t x, TypeNode *type, PathNode *path) {
-    if (type->types & MS_TYPE_INTENUM) {
-        return ms_decode_intenum_uint64(x, type, path);
+    if (type->types & (MS_TYPE_INTENUM | MS_TYPE_INTLITERAL)) {
+        return ms_decode_int_enum_or_literal_uint64(x, type, path);
     }
     else if (type->types & (MS_TYPE_ANY | MS_TYPE_INT)) {
         return PyLong_FromUnsignedLongLong(x);
@@ -5489,11 +5714,11 @@ mpack_decode_float(DecoderState *self, double val, TypeNode *type, PathNode *pat
 
 static MS_INLINE PyObject *
 mpack_decode_str(DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *path) {
-    if (MS_LIKELY(type->types & (MS_TYPE_ANY | MS_TYPE_STR | MS_TYPE_ENUM))) {
+    if (MS_LIKELY(type->types & (MS_TYPE_ANY | MS_TYPE_STR | MS_TYPE_ENUM | MS_TYPE_STRLITERAL))) {
         char *s = NULL;
         if (MS_UNLIKELY(mpack_read(self, &s, size) < 0)) return NULL;
-        if (MS_UNLIKELY(type->types & MS_TYPE_ENUM)) {
-            return ms_decode_enum(s, size, type, path);
+        if (MS_UNLIKELY(type->types & (MS_TYPE_ENUM | MS_TYPE_STRLITERAL))) {
+            return ms_decode_str_enum_or_literal(s, size, type, path);
         }
         return PyUnicode_DecodeUTF8(s, size, NULL);
     }
@@ -7351,7 +7576,7 @@ json_decode_string(JSONDecoderState *self, TypeNode *type, PathNode *path) {
     if (
         MS_LIKELY(
             type->types & (
-                MS_TYPE_ANY | MS_TYPE_STR | MS_TYPE_ENUM |
+                MS_TYPE_ANY | MS_TYPE_STR | MS_TYPE_ENUM | MS_TYPE_STRLITERAL |
                 MS_TYPE_BYTES | MS_TYPE_BYTEARRAY | MS_TYPE_DATETIME
             )
         )
@@ -7365,8 +7590,8 @@ json_decode_string(JSONDecoderState *self, TypeNode *type, PathNode *path) {
         else if (MS_UNLIKELY(type->types & MS_TYPE_DATETIME)) {
             return json_decode_datetime(self, view, size, path);
         }
-        else if (MS_UNLIKELY(type->types & MS_TYPE_ENUM)) {
-            return ms_decode_enum(view, size, type, path);
+        else if (MS_UNLIKELY(type->types & (MS_TYPE_ENUM | MS_TYPE_STRLITERAL))) {
+            return ms_decode_str_enum_or_literal(view, size, type, path);
         }
         return PyUnicode_DecodeUTF8(view, size, NULL);
     }
@@ -7815,12 +8040,12 @@ end_integer:
         is_float = true;
     }
 
-    if (!is_float && (type->types & (MS_TYPE_ANY | MS_TYPE_INT | MS_TYPE_INTENUM))) {
-        if (MS_UNLIKELY(type->types & MS_TYPE_INTENUM)) {
+    if (!is_float && (type->types & (MS_TYPE_ANY | MS_TYPE_INT | MS_TYPE_INTENUM | MS_TYPE_INTLITERAL))) {
+        if (MS_UNLIKELY(type->types & (MS_TYPE_INTENUM | MS_TYPE_INTLITERAL))) {
             if (is_negative) {
-                return ms_decode_intenum_int64(-1 * (int64_t)mantissa, type, path);
+                return ms_decode_int_enum_or_literal_int64(-1 * (int64_t)mantissa, type, path);
             }
-            return ms_decode_intenum_uint64(mantissa, type, path);
+            return ms_decode_int_enum_or_literal_uint64(mantissa, type, path);
         }
         else if (MS_UNLIKELY(is_negative)) {
             return PyLong_FromLongLong(-1 * (int64_t)mantissa);
@@ -8388,6 +8613,7 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->typing_tuple);
     Py_CLEAR(st->typing_union);
     Py_CLEAR(st->typing_any);
+    Py_CLEAR(st->typing_literal);
     Py_CLEAR(st->get_type_hints);
     Py_CLEAR(st->astimezone);
     return 0;
@@ -8427,6 +8653,7 @@ msgspec_traverse(PyObject *m, visitproc visit, void *arg)
     Py_VISIT(st->typing_tuple);
     Py_VISIT(st->typing_union);
     Py_VISIT(st->typing_any);
+    Py_VISIT(st->typing_literal);
     Py_VISIT(st->get_type_hints);
     Py_VISIT(st->astimezone);
     return 0;
@@ -8558,6 +8785,7 @@ PyInit__core(void)
     SET_REF(typing_dict, "Dict");
     SET_REF(typing_union, "Union");
     SET_REF(typing_any, "Any");
+    SET_REF(typing_literal, "Literal");
     SET_REF(get_type_hints, "get_type_hints");
     Py_DECREF(temp_module);
 
