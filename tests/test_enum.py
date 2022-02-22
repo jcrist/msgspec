@@ -4,6 +4,7 @@ import sys
 import random
 import string
 import weakref
+from typing import Literal, List, Union
 
 import pytest
 
@@ -284,3 +285,130 @@ class TestEnum:
             key = unique_str()
             with pytest.raises(msgspec.DecodeError):
                 dec.decode(msgspec.msgpack.encode(key))
+
+
+class TestLiterals:
+    def test_empty_errors(self):
+        with pytest.raises(TypeError, match="Literal types must have at least one item"):
+            msgspec.msgpack.Decoder(Literal[()])
+
+    @pytest.mark.parametrize(
+        "values",
+        [
+            [0, 1, 2, 2 ** 64],
+            [0, 1, 2, -(2 ** 63) - 1],
+            [0, 1, 2, 2 ** 63 + 1, -(2 ** 64)],
+        ],
+    )
+    def test_int_literal_values_out_of_range(self, values):
+        literal = Literal[tuple(values)]
+
+        with pytest.raises(OverflowError):
+            msgspec.msgpack.Decoder(literal)
+
+    @pytest.mark.parametrize(
+        "typ",
+        [
+            Literal[1, False],
+            Literal["ok", b"bad"],
+            Literal[1, object()],
+            Union[Literal[1, 2], Literal[3, False]],
+            Union[Literal["one", "two"], Literal[3, False]],
+            Literal[Literal[1, 2], Literal[3, False]],
+            Literal[Literal["one", "two"], Literal[3, False]],
+            Literal[1, 2, List[int]],
+            Literal[1, 2, List],
+        ]
+    )
+    def test_invalid_values(self, typ):
+        with pytest.raises(TypeError, match="not supported"):
+            msgspec.msgpack.Decoder(typ)
+
+    def test_literal_valid_values(self):
+        literal = Literal[1, "two", None]
+
+        dec = msgspec.msgpack.Decoder(literal)
+        assert literal.__msgspec_lookup__[0] is not None
+        assert literal.__msgspec_lookup__[1] is not None
+
+        for val in [1, "two", None]:
+            assert dec.decode(msgspec.msgpack.encode(val)) == val
+
+    @pytest.mark.parametrize(
+        "values",
+        [(1, 2), ("one", "two"), (1, 2, "three", "four")]
+    )
+    def test_caching(self, values):
+        literal = Literal[values]
+
+        dec = msgspec.msgpack.Decoder(literal)  # noqa
+
+        int_lookup, str_lookup = literal.__msgspec_lookup__
+        assert (int_lookup is not None) == any(isinstance(i, int) for i in values)
+        assert (str_lookup is not None) == any(isinstance(i, str) for i in values)
+
+        intcount = sys.getrefcount(int_lookup)
+        strcount = sys.getrefcount(str_lookup)
+
+        dec2 = msgspec.msgpack.Decoder(literal)
+
+        if int_lookup is not None:
+            assert sys.getrefcount(int_lookup) == intcount + 1
+        if str_lookup is not None:
+            assert sys.getrefcount(str_lookup) == strcount + 1
+
+        # Reference count decreases when decoder is dropped
+        del dec2
+        gc.collect()
+
+        if int_lookup is not None:
+            assert sys.getrefcount(int_lookup) == intcount
+        if str_lookup is not None:
+            assert sys.getrefcount(str_lookup) == strcount
+
+    @pytest.mark.parametrize("val", [None, (), (1,), (1, 2), (1, 2, 3)])
+    def test_msgspec_lookup_overwritten(self, val):
+        literal = Literal[1, 2, 3]
+
+        literal.__msgspec_lookup__ = val
+
+        with pytest.raises(RuntimeError, match="__msgspec_lookup__"):
+            msgspec.msgpack.Decoder(literal)
+
+    def test_multiple_literals(self):
+        integers = Literal[-1, -2, -3]
+        strings = Literal["apple", "banana"]
+        both = Union[integers, strings]
+
+        dec = msgspec.msgpack.Decoder(both)
+
+        assert not hasattr(both, "__msgspec_lookup__")
+
+        for val in [-1, -2, -3, "apple", "banana"]:
+            assert dec.decode(msgspec.msgpack.encode(val)) == val
+
+        with pytest.raises(msgspec.DecodeError, match="Invalid enum value `4`"):
+            dec.decode(msgspec.msgpack.encode(4))
+
+        with pytest.raises(msgspec.DecodeError, match="Invalid enum value 'carrot'"):
+            dec.decode(msgspec.msgpack.encode("carrot"))
+
+    def test_nested_literals(self):
+        """Python 3.9+ automatically denest literals, can drop this test when
+        python 3.8 is dropped"""
+        integers = Literal[-1, -2, -3]
+        strings = Literal["apple", "banana"]
+        both = Literal[integers, strings]
+
+        dec = msgspec.msgpack.Decoder(both)
+
+        assert hasattr(both, "__msgspec_lookup__")
+
+        for val in [-1, -2, -3, "apple", "banana"]:
+            assert dec.decode(msgspec.msgpack.encode(val)) == val
+
+        with pytest.raises(msgspec.DecodeError, match="Invalid enum value `4`"):
+            dec.decode(msgspec.msgpack.encode(4))
+
+        with pytest.raises(msgspec.DecodeError, match="Invalid enum value 'carrot'"):
+            dec.decode(msgspec.msgpack.encode("carrot"))

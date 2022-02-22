@@ -1145,6 +1145,40 @@ class TestIntEnum:
             msgspec.json.decode(b'{"fruit": 3}', type=Test)
 
 
+class TestLiteral:
+    @pytest.mark.parametrize(
+        "values",
+        [(1, 2, 3), ("one", "two", "three"), (1, 2, "three", "four"), (1, None), ("one", None)]
+    )
+    def test_literal(self, values):
+        literal = Literal[values]
+        dec = msgspec.json.Decoder(literal)
+        for val in values:
+            assert dec.decode(msgspec.json.encode(val)) == val
+
+        for bad in ["bad", 1234]:
+            with pytest.raises(msgspec.DecodeError):
+                dec.decode(msgspec.json.encode(bad))
+
+    def test_int_literal_errors(self):
+        dec = msgspec.json.Decoder(Literal[1, 2, 3])
+
+        with pytest.raises(msgspec.DecodeError, match="Invalid enum value `4`"):
+            dec.decode(b"4")
+
+        with pytest.raises(msgspec.DecodeError, match="Expected `int`, got `str`"):
+            dec.decode(b'"bad"')
+
+    def test_str_literal_errors(self):
+        dec = msgspec.json.Decoder(Literal["one", "two", "three"])
+
+        with pytest.raises(msgspec.DecodeError, match="Expected `str`, got `int`"):
+            dec.decode(b"4")
+
+        with pytest.raises(msgspec.DecodeError, match="Invalid enum value 'bad'"):
+            dec.decode(b'"bad"')
+
+
 class TestFloat:
     @pytest.mark.parametrize(
         "x",

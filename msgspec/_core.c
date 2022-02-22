@@ -1553,6 +1553,15 @@ typenode_collect_literal(TypeNodeCollectState *state, PyObject *literal) {
     Py_ssize_t size = PyTuple_Size(args);
     if (size < 0) return -1;
 
+    if (size == 0) {
+        PyErr_Format(
+            PyExc_TypeError,
+            "Literal types must have at least one item, %R is invalid",
+            literal
+        );
+        return -1;
+    }
+
     for (Py_ssize_t i = 0; i < size; i++) {
         PyObject *obj = PyTuple_GET_ITEM(args, i);
         PyTypeObject *type = Py_TYPE(obj);
@@ -1598,7 +1607,7 @@ typenode_collect_literal(TypeNodeCollectState *state, PyObject *literal) {
 invalid:
     PyErr_Format(
         PyExc_TypeError,
-        "Literal may only contain `None`/integers/strings - %R is not supported",
+        "Literal may only contain None/integers/strings - %R is not supported",
         literal
     );
 

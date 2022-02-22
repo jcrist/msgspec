@@ -961,6 +961,36 @@ class TestTypedDecoder:
         with pytest.raises(msgspec.DecodeError):
             dec.decode(enc.encode("INVALID"))
 
+    def test_str_literal(self):
+        literal = Literal["one", "two"]
+        enc = msgspec.msgpack.Encoder()
+        dec = msgspec.msgpack.Decoder(literal)
+
+        assert dec.decode(enc.encode("one")) == "one"
+
+        with pytest.raises(msgspec.DecodeError, match="Invalid enum value 'MISSING'"):
+            dec.decode(enc.encode("MISSING"))
+
+        with pytest.raises(
+            msgspec.DecodeError, match=r"Invalid enum value 'MISSING' - at `\$\[0\]`"
+        ):
+            msgspec.msgpack.decode(enc.encode(["MISSING"]), type=List[literal])
+
+    def test_int_literal(self):
+        literal = Literal[1, 2, 3]
+        enc = msgspec.msgpack.Encoder()
+        dec = msgspec.msgpack.Decoder(literal)
+
+        assert dec.decode(enc.encode(1)) == 1
+
+        with pytest.raises(msgspec.DecodeError, match="Invalid enum value `1000`"):
+            dec.decode(enc.encode(1000))
+
+        with pytest.raises(
+            msgspec.DecodeError, match=r"Invalid enum value `1000` - at `\$\[0\]`"
+        ):
+            msgspec.msgpack.decode(enc.encode([1000]), type=List[literal])
+
     def test_struct(self):
         enc = msgspec.msgpack.Encoder()
         dec = msgspec.msgpack.Decoder(Person)
