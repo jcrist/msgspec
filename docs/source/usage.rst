@@ -114,6 +114,7 @@ following types are supported (with a few restrictions, see
 - `typing.Any`
 - `typing.Optional`
 - `typing.Union`
+- `typing.Literal`
 - `msgspec.msgpack.Ext`
 - `enum.Enum` derived types
 - `enum.IntEnum` derived types
@@ -532,18 +533,57 @@ defaults applied. Type checking also still applies.
       File "<stdin>", line 1, in <module>
     msgspec.DecodeError: Expected `str`, got `int` - at `$[1][1]`
 
+``Literal``
+~~~~~~~~~~~
+
+`typing.Literal` types can be used to ensure that a decoded object is within a
+set of valid values. An `enum.Enum` or `enum.IntEnum` can be used for the same
+purpose, but with a `typing.Literal` the decoded values are literal `int` or
+`str` instances rather than `enum` objects.
+
+A literal can be composed of any of the following objects:
+
+- `None`
+- `int` values
+- `str` values
+- Nested `typing.Literal` types
+
+An error is raised during decoding if the value isn't in the set of valid
+values, or doesn't match any of their component types.
+
+.. code-block:: python
+
+    >>> from typing import Literal
+
+    >>> msgspec.json.decode(b'1', type=Literal[1, 2, 3])
+    1
+
+    >>> msgspec.json.decode(b'"one"', type=Literal["one", "two", "three"])
+    'one'
+
+    >>> msgspec.json.decode(b'4', type=Literal[1, 2, 3])
+    Traceback (most recent call last):
+      File "<stdin>", line 1, in <module>
+    msgspec.DecodeError: Invalid enum value `4`
+
+    >>> msgspec.json.decode(b'"bad"', type=Literal[1, 2, 3])
+    Traceback (most recent call last):
+      File "<stdin>", line 1, in <module>
+    msgspec.DecodeError: Expected `int`, got `str`
+
 ``Union`` /  ``Optional``
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Type unions are supported, with a few restrictions. These restrictions are in
 place to remove any ambiguity during decoding - given an encoded value there
-must always be a single type in a given `Union` that can decode that value.
+must always be a single type in a given `typing.Union` that can decode that
+value.
 
 Union restrictions are as follows:
 
-- Unions may contain at most one of `int` / `IntEnum`
+- Unions may contain at most one of `int` / `enum.IntEnum`
 
-- Unions may contain at most one of `str` / `Enum`. `msgspec.json.Decoder`
+- Unions may contain at most one of `str` / `enum.Enum`. `msgspec.json.Decoder`
   extends this requirement to also include `datetime` / `bytes` / `bytearray`.
 
 - Unions may contain at most one `Struct` type
