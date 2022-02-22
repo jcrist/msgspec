@@ -289,7 +289,9 @@ class TestEnum:
 
 class TestLiterals:
     def test_empty_errors(self):
-        with pytest.raises(TypeError, match="Literal types must have at least one item"):
+        with pytest.raises(
+            TypeError, match="Literal types must have at least one item"
+        ):
             msgspec.msgpack.Decoder(Literal[()])
 
     @pytest.mark.parametrize(
@@ -318,7 +320,7 @@ class TestLiterals:
             Literal[Literal["one", "two"], Literal[3, False]],
             Literal[1, 2, List[int]],
             Literal[1, 2, List],
-        ]
+        ],
     )
     def test_invalid_values(self, typ):
         with pytest.raises(TypeError, match="not supported"):
@@ -335,8 +337,7 @@ class TestLiterals:
             assert dec.decode(msgspec.msgpack.encode(val)) == val
 
     @pytest.mark.parametrize(
-        "values",
-        [(1, 2), ("one", "two"), (1, 2, "three", "four")]
+        "values", [(1, 2), ("one", "two"), (1, 2, "three", "four")]
     )
     def test_caching(self, values):
         literal = Literal[values]
@@ -368,7 +369,7 @@ class TestLiterals:
 
     @pytest.mark.parametrize("val", [None, (), (1,), (1, 2), (1, 2, 3)])
     def test_msgspec_lookup_overwritten(self, val):
-        literal = Literal[1, 2, 3]
+        literal = Literal["a", "highly", "improbable", "set", "of", "strings"]
 
         literal.__msgspec_lookup__ = val
 
