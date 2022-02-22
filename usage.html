@@ -288,6 +288,7 @@ following types are supported (with a few restrictions, see
 <li><p><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.Any</span></code></a></p></li>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.Optional</span></code></a></p></li>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Union" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.Union</span></code></a></p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.Literal</span></code></a></p></li>
 <li><p><a class="reference internal" href="api.html#msgspec.msgpack.Ext" title="msgspec.msgpack.Ext"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.msgpack.Ext</span></code></a></p></li>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.Enum" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enum.Enum</span></code></a> derived types</p></li>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.IntEnum" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enum.IntEnum</span></code></a> derived types</p></li>
@@ -663,15 +664,51 @@ defaults applied. Type checking also still applies.</p>
 </pre></div>
 </div>
 </section>
+<section id="literal">
+<h3><code class="docutils literal notranslate"><span class="pre">Literal</span></code><a class="headerlink" href="#literal" title="Permalink to this headline">#</a></h3>
+<p><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.Literal</span></code></a> types can be used to ensure that a decoded object is within a
+set of valid values. An <a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.Enum" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enum.Enum</span></code></a> or <a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.IntEnum" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enum.IntEnum</span></code></a> can be used for the same
+purpose, but with a <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.Literal</span></code></a> the decoded values are literal <a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">int</span></code></a> or
+<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">str</span></code></a> instances rather than <a class="reference external" href="https://docs.python.org/3/library/enum.html#module-enum" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enum</span></code></a> objects.</p>
+<p>A literal can be composed of any of the following objects:</p>
+<ul class="simple">
+<li><p><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a></p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">int</span></code></a> values</p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">str</span></code></a> values</p></li>
+<li><p>Nested <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.Literal</span></code></a> types</p></li>
+</ul>
+<p>An error is raised during decoding if the value isn’t in the set of valid
+values, or doesn’t match any of their component types.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Literal</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'1'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Literal</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">])</span>
+<span class="go">1</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'"one"'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Literal</span><span class="p">[</span><span class="s2">"one"</span><span class="p">,</span> <span class="s2">"two"</span><span class="p">,</span> <span class="s2">"three"</span><span class="p">])</span>
+<span class="go">'one'</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'4'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Literal</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">])</span>
+<span class="gt">Traceback (most recent call last):</span>
+  File <span class="nb">"&lt;stdin&gt;"</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+<span class="gr">msgspec.DecodeError</span>: <span class="n">Invalid enum value `4`</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'"bad"'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Literal</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">])</span>
+<span class="gt">Traceback (most recent call last):</span>
+  File <span class="nb">"&lt;stdin&gt;"</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+<span class="gr">msgspec.DecodeError</span>: <span class="n">Expected `int`, got `str`</span>
+</pre></div>
+</div>
+</section>
 <section id="union-optional">
 <h3><code class="docutils literal notranslate"><span class="pre">Union</span></code> /  <code class="docutils literal notranslate"><span class="pre">Optional</span></code><a class="headerlink" href="#union-optional" title="Permalink to this headline">#</a></h3>
 <p>Type unions are supported, with a few restrictions. These restrictions are in
 place to remove any ambiguity during decoding - given an encoded value there
-must always be a single type in a given <code class="xref py py-obj docutils literal notranslate"><span class="pre">Union</span></code> that can decode that value.</p>
+must always be a single type in a given <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Union" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.Union</span></code></a> that can decode that
+value.</p>
 <p>Union restrictions are as follows:</p>
 <ul class="simple">
-<li><p>Unions may contain at most one of <a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">int</span></code></a> / <code class="xref py py-obj docutils literal notranslate"><span class="pre">IntEnum</span></code></p></li>
-<li><p>Unions may contain at most one of <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">str</span></code></a> / <code class="xref py py-obj docutils literal notranslate"><span class="pre">Enum</span></code>. <a class="reference internal" href="api.html#msgspec.json.Decoder" title="msgspec.json.Decoder"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.json.Decoder</span></code></a>
+<li><p>Unions may contain at most one of <a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">int</span></code></a> / <a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.IntEnum" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enum.IntEnum</span></code></a></p></li>
+<li><p>Unions may contain at most one of <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">str</span></code></a> / <a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.Enum" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enum.Enum</span></code></a>. <a class="reference internal" href="api.html#msgspec.json.Decoder" title="msgspec.json.Decoder"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.json.Decoder</span></code></a>
 extends this requirement to also include <a class="reference external" href="https://docs.python.org/3/library/datetime.html#module-datetime" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime</span></code></a> / <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytes</span></code></a> / <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytearray" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytearray</span></code></a>.</p></li>
 <li><p>Unions may contain at most one <code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code> type</p></li>
 <li><p>Unions may contain at most one of <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a> / <code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code> (with <code class="docutils literal notranslate"><span class="pre">asarray=False</span></code>)</p></li>
@@ -890,6 +927,7 @@ efficiently skipped without decoding.</p>
 <li><a class="reference internal" href="#list-tuple-set"><code class="docutils literal notranslate"><span class="pre">list</span></code> / <code class="docutils literal notranslate"><span class="pre">tuple</span></code> / <code class="docutils literal notranslate"><span class="pre">set</span></code></a></li>
 <li><a class="reference internal" href="#dict"><code class="docutils literal notranslate"><span class="pre">dict</span></code></a></li>
 <li><a class="reference internal" href="#struct"><code class="docutils literal notranslate"><span class="pre">Struct</span></code></a></li>
+<li><a class="reference internal" href="#literal"><code class="docutils literal notranslate"><span class="pre">Literal</span></code></a></li>
 <li><a class="reference internal" href="#union-optional"><code class="docutils literal notranslate"><span class="pre">Union</span></code> /  <code class="docutils literal notranslate"><span class="pre">Optional</span></code></a></li>
 <li><a class="reference internal" href="#any"><code class="docutils literal notranslate"><span class="pre">Any</span></code></a></li>
 </ul>
