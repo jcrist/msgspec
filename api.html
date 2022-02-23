@@ -206,6 +206,10 @@ definition (see example below). The following options exist:</p>
 attribute assignment is disabled and a corresponding <code class="docutils literal notranslate"><span class="pre">__hash__</span></code> is defined.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">asarray</span></code>: whether instances of the class should be serialized as
 arrays rather than dicts (the default).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">nogc</span></code>: whether garbage collection is disabled for this class. Enabling,
+this <em>may</em> help reduce GC pressure, but will result in reference cycles
+composed of only nogc structs going uncollected. It is the user’s
+responsibility to ensure that cycles don’t occur when setting <code class="docutils literal notranslate"><span class="pre">nogc=True</span></code>.</p></li>
 </ul>
 <p>Structs automatically define <code class="docutils literal notranslate"><span class="pre">__init__</span></code>, <code class="docutils literal notranslate"><span class="pre">__eq__</span></code>, <code class="docutils literal notranslate"><span class="pre">__repr__</span></code>, and
 <code class="docutils literal notranslate"><span class="pre">__copy__</span></code> methods. Additional methods can be defined on the class as

@@ -319,6 +319,67 @@ average another ~2x speedup for decoding (and ~1.5x speedup for encoding).</p>
 </pre></div>
 </div>
 </section>
+<section id="disabling-garbage-collection-advanced">
+<h2>Disabling Garbage Collection (Advanced)<a class="headerlink" href="#disabling-garbage-collection-advanced" title="Permalink to this headline">#</a></h2>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>This is an advanced optimization, and only recommended for users who fully
+understand the implications of disabling the GC.</p>
+</div>
+<p>Python uses <a class="reference external" href="https://en.wikipedia.org/wiki/Reference_counting">reference counting</a> to detect when memory can be freed, with a
+periodic <a class="reference external" href="https://devguide.python.org/garbage_collector/">cyclic garbage collector</a> pass to detect and free cyclic references.
+Garbage collection (GC) is triggered by the number of uncollected GC-enabled
+(objects that contain other objects) objects passing a certain threshold. This
+design means that garbage collection passes often run during code that creates
+a lot of objects (for example, deserializing a large message).</p>
+<p>By default, <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> types will only be tracked if they contain a
+reference to a tracked object themselves. This means that structs referencing
+only scalar values (ints, strings, bools, …) won’t contribute to GC load, but
+structs referencing containers (lists, dicts, structs, …) will.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">msgspec</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Any</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">gc</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">Example</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="n">x</span><span class="p">:</span> <span class="n">Any</span>
+<span class="gp">... </span>    <span class="n">y</span><span class="p">:</span> <span class="n">Any</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">ex1</span> <span class="o">=</span> <span class="n">Example</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="s2">"two"</span><span class="p">)</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># ex1 is untracked, since it only references untracked objects</span>
+<span class="gp">... </span><span class="n">gc</span><span class="o">.</span><span class="n">is_tracked</span><span class="p">(</span><span class="n">ex1</span><span class="p">)</span>
+<span class="go">False</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">ex2</span> <span class="o">=</span> <span class="n">Example</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">],</span> <span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># ex2 is tracked, since it references tracked objects</span>
+<span class="gp">... </span><span class="n">gc</span><span class="o">.</span><span class="n">is_tracked</span><span class="p">(</span><span class="n">ex2</span><span class="p">)</span>
+<span class="go">True</span>
+</pre></div>
+</div>
+<p>If you <em>are certain</em> that your struct types can <em>never</em> participate in a
+reference cycle, you <em>may</em> find a performance boost from setting <code class="docutils literal notranslate"><span class="pre">nogc=True</span></code>
+on a struct definition. This boost is tricky to measure in isolation, since it
+should only result in the garbage collector not running as frequently - an
+integration benchmark is recommended to determine if this is worthwhile for
+your workload. A workload is likely to benefit from this optimization in the
+following situations:</p>
+<ul class="simple">
+<li><p>You’re allocating a lot of struct objects at once (for example, decoding a
+large object). Setting <code class="docutils literal notranslate"><span class="pre">nogc=True</span></code> on these types will reduce the
+likelihood of a GC pass occurring while decoding, improving application
+latency.</p></li>
+<li><p>You have a large number of long-lived struct objects. Setting <code class="docutils literal notranslate"><span class="pre">nogc=True</span></code>
+on these types will reduce the load on the GC during collection cycles of
+later generations.</p></li>
+</ul>
+<p>Struct types with <code class="docutils literal notranslate"><span class="pre">nogc=True</span></code> will never be tracked, even if they reference
+container types. It is your responsibility to ensure cycles with these objects
+don’t occur, as a cycle containing only <code class="docutils literal notranslate"><span class="pre">nogc=True</span></code> structs will <em>never</em> be
+collected (leading to a memory leak).</p>
+</section>
 <section id="type-validation">
 <h2>Type Validation<a class="headerlink" href="#type-validation" title="Permalink to this headline">#</a></h2>
 <p>Unlike some other libraries (e.g. <a class="reference external" href="https://pydantic-docs.helpmanual.io/">pydantic</a>), the type annotations on a
@@ -415,6 +476,7 @@ decode a message into a type validated <a class="reference internal" href="api.h
 <li><a class="reference internal" href="#">Structs</a><ul>
 <li><a class="reference internal" href="#frozen-instances">Frozen Instances</a></li>
 <li><a class="reference internal" href="#encoding-decoding-as-arrays">Encoding/Decoding as Arrays</a></li>
+<li><a class="reference internal" href="#disabling-garbage-collection-advanced">Disabling Garbage Collection (Advanced)</a></li>
 <li><a class="reference internal" href="#type-validation">Type Validation</a></li>
 </ul>
 </li>
