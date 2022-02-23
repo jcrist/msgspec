@@ -8,7 +8,18 @@ import math
 import pickle
 import struct
 import sys
-from typing import Dict, Set, List, Tuple, Optional, Any, Union, NamedTuple, Deque, Literal
+from typing import (
+    Dict,
+    Set,
+    List,
+    Tuple,
+    Optional,
+    Any,
+    Union,
+    NamedTuple,
+    Deque,
+    Literal,
+)
 
 import pytest
 
@@ -581,10 +592,7 @@ class TestDecoderMisc:
         assert "Type unions containing" in str(rec.value)
         assert repr(typ) in str(rec.value)
 
-    @pytest.mark.parametrize(
-        "types",
-        [(FruitInt, int), (FruitInt, Literal[1, 2])]
-    )
+    @pytest.mark.parametrize("types", [(FruitInt, int), (FruitInt, Literal[1, 2])])
     def test_err_union_with_multiple_int_like_types(self, types):
         typ = Union[types]
         with pytest.raises(TypeError) as rec:
@@ -593,8 +601,7 @@ class TestDecoderMisc:
         assert repr(typ) in str(rec.value)
 
     @pytest.mark.parametrize(
-        "types",
-        [(FruitStr, str), (FruitStr, Literal["one", "two"])]
+        "types", [(FruitStr, str), (FruitStr, Literal["one", "two"])]
     )
     def test_err_union_with_multiple_str_like_types(self, types):
         typ = Union[types]
@@ -875,9 +882,7 @@ class TestTypedDecoder:
         x = {1: "one", "two": 2, b"three": 3.0}
         res = dec.decode(enc.encode(x))
         assert res == x
-        with pytest.raises(
-            msgspec.DecodeError, match=r"Expected `object`, got `int`"
-        ):
+        with pytest.raises(msgspec.DecodeError, match=r"Expected `object`, got `int`"):
             dec.decode(enc.encode(1))
 
     def test_dict_any_val(self):
@@ -1116,9 +1121,7 @@ class TestTypedDecoder:
             dec.decode(bad)
 
         bad = enc.encode(())
-        with pytest.raises(
-            msgspec.DecodeError, match="missing required field `first`"
-        ):
+        with pytest.raises(msgspec.DecodeError, match="missing required field `first`"):
             dec.decode(bad)
 
         # Extra fields ignored
@@ -1150,13 +1153,9 @@ class TestTypedDecoder:
 
         assert array_dec.decode(array_msg) == array_sol
         assert dec.decode(map_msg) == sol
-        with pytest.raises(
-            msgspec.DecodeError, match="Expected `object`, got `array`"
-        ):
+        with pytest.raises(msgspec.DecodeError, match="Expected `object`, got `array`"):
             dec.decode(array_msg)
-        with pytest.raises(
-            msgspec.DecodeError, match="Expected `array`, got `object`"
-        ):
+        with pytest.raises(msgspec.DecodeError, match="Expected `array`, got `object`"):
             array_dec.decode(map_msg)
 
     @pytest.mark.parametrize("asarray", [False, True])
@@ -1182,6 +1181,22 @@ class TestTypedDecoder:
         assert gc.is_tracked(c)
         assert gc.is_tracked(d)
         assert not gc.is_tracked(e)
+
+    @pytest.mark.parametrize("asarray", [False, True])
+    def test_struct_nogc_always_untracked_on_decode(self, asarray):
+        class Test(msgspec.Struct, asarray=asarray, nogc=True):
+            x: Any
+            y: Any
+
+        dec = msgspec.msgpack.Decoder(List[Test])
+
+        ts = [
+            Test(1, 2),
+            Test([], []),
+            Test({}, {}),
+        ]
+        for obj in dec.decode(msgspec.msgpack.encode(ts)):
+            assert not gc.is_tracked(obj)
 
     def test_struct_recursive_definition(self):
         enc = msgspec.msgpack.Encoder()

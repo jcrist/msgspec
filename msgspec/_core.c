@@ -1013,6 +1013,7 @@ typedef struct {
     bool traversing;
     char frozen;
     char asarray;
+    char nogc;
 } StructMetaObject;
 
 static PyTypeObject StructMetaType;
@@ -2236,15 +2237,17 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
     PyObject *default_val, *field;
     Py_ssize_t nfields, ndefaults, i, j, k;
     Py_ssize_t *offsets = NULL, *base_offsets;
-    int arg_frozen = -1, arg_asarray = -1, frozen = -1, asarray = -1;
+    int arg_frozen = -1, frozen = -1;
+    int arg_asarray = -1, asarray = -1;
+    int arg_nogc = -1, nogc = -1;
 
-    static char *kwlist[] = {"name", "bases", "dict", "frozen", "asarray", NULL};
+    static char *kwlist[] = {"name", "bases", "dict", "frozen", "asarray", "nogc", NULL};
 
     /* Parse arguments: (name, bases, dict) */
     if (!PyArg_ParseTupleAndKeywords(
-            args, kwargs, "UO!O!|$pp:StructMeta.__new__", kwlist,
+            args, kwargs, "UO!O!|$ppp:StructMeta.__new__", kwlist,
             &name, &PyTuple_Type, &bases, &PyDict_Type, &orig_dict,
-            &arg_frozen, &arg_asarray))
+            &arg_frozen, &arg_asarray, &arg_nogc))
         return NULL;
 
     if (PyDict_GetItemString(orig_dict, "__init__") != NULL) {
@@ -2285,6 +2288,7 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
         }
         frozen = STRUCT_MERGE_OPTIONS(frozen, ((StructMetaObject *)base)->frozen);
         asarray = STRUCT_MERGE_OPTIONS(asarray, ((StructMetaObject *)base)->asarray);
+        nogc = STRUCT_MERGE_OPTIONS(nogc, ((StructMetaObject *)base)->nogc);
         base_fields = StructMeta_GET_FIELDS(base);
         base_defaults = StructMeta_GET_DEFAULTS(base);
         base_offsets = StructMeta_GET_OFFSETS(base);
@@ -2315,6 +2319,7 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
     }
     frozen = STRUCT_MERGE_OPTIONS(frozen, arg_frozen);
     asarray = STRUCT_MERGE_OPTIONS(asarray, arg_asarray);
+    nogc = STRUCT_MERGE_OPTIONS(nogc, arg_nogc);
 
     new_dict = PyDict_Copy(orig_dict);
     if (new_dict == NULL)
@@ -2443,6 +2448,7 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
     cls->struct_offsets = offsets;
     cls->frozen = frozen;
     cls->asarray = asarray;
+    cls->nogc = nogc;
     return (PyObject *) cls;
 error:
     Py_XDECREF(arg_fields);
@@ -2591,6 +2597,13 @@ StructMeta_asarray(StructMetaObject *self, void *closure)
 }
 
 static PyObject*
+StructMeta_nogc(StructMetaObject *self, void *closure)
+{
+    if (self->nogc == OPT_TRUE) { Py_RETURN_TRUE; }
+    else { Py_RETURN_FALSE; }
+}
+
+static PyObject*
 StructMeta_signature(StructMetaObject *self, void *closure)
 {
     Py_ssize_t nfields, ndefaults, npos, i;
@@ -2692,6 +2705,7 @@ static PyGetSetDef StructMeta_getset[] = {
     {"__signature__", (getter) StructMeta_signature, NULL, NULL, NULL},
     {"frozen", (getter) StructMeta_frozen, NULL, NULL, NULL},
     {"asarray", (getter) StructMeta_asarray, NULL, NULL, NULL},
+    {"nogc", (getter) StructMeta_nogc, NULL, NULL, NULL},
     {NULL},
 };
 
@@ -2810,6 +2824,7 @@ static int
 Struct_fill_in_defaults(StructMetaObject *st_type, PyObject *obj, PathNode *path) {
     Py_ssize_t nfields, ndefaults, i;
     bool should_untrack;
+    bool nogc = st_type->nogc == OPT_TRUE;
 
     nfields = PyTuple_GET_SIZE(st_type->struct_fields);
     ndefaults = PyTuple_GET_SIZE(st_type->struct_defaults);
@@ -2839,7 +2854,7 @@ Struct_fill_in_defaults(StructMetaObject *st_type, PyObject *obj, PathNode *path
             should_untrack = !OBJ_IS_GC(val);
         }
     }
-    if (should_untrack)
+    if (should_untrack || nogc)
         PyObject_GC_UnTrack(obj);
     return 0;
 }
@@ -2848,7 +2863,8 @@ static PyObject *
 Struct_vectorcall(PyTypeObject *cls, PyObject *const *args, size_t nargsf, PyObject *kwnames) {
     PyObject *self, *fields, *defaults, *field, *val;
     Py_ssize_t nargs, nkwargs, nfields, ndefaults, npos, i;
-    int should_untrack;
+    bool should_untrack;
+    bool nogc = ((StructMetaObject *)cls)->nogc == OPT_TRUE;
 
     self = Struct_alloc(cls);
     if (self == NULL)
@@ -2917,7 +2933,7 @@ Struct_vectorcall(PyTypeObject *cls, PyObject *const *args, size_t nargsf, PyObj
         );
         goto error;
     }
-    if (should_untrack)
+    if (should_untrack || nogc)
         PyObject_GC_UnTrack(self);
     return self;
 
@@ -2928,7 +2944,9 @@ error:
 
 static int
 Struct_setattro(PyObject *self, PyObject *key, PyObject *value) {
-    if (((StructMetaObject *)Py_TYPE(self))->frozen == OPT_TRUE) {
+    bool frozen = ((StructMetaObject *)Py_TYPE(self))->frozen == OPT_TRUE;
+    bool nogc = ((StructMetaObject *)Py_TYPE(self))->nogc == OPT_TRUE;
+    if (frozen) {
         PyErr_Format(
             PyExc_AttributeError,
             "immutable type: '%s'",
@@ -2938,7 +2956,7 @@ Struct_setattro(PyObject *self, PyObject *key, PyObject *value) {
     }
     if (PyObject_GenericSetAttr(self, key, value) < 0)
         return -1;
-    if (value != NULL && OBJ_IS_GC(value) && !IS_TRACKED(self))
+    if (value != NULL && !nogc && OBJ_IS_GC(value) && !IS_TRACKED(self))
         PyObject_GC_Track(self);
     return 0;
 }
@@ -5885,7 +5903,8 @@ mpack_decode_struct_array(
 ) {
     Py_ssize_t i, nfields, ndefaults, npos;
     PyObject *res, *val = NULL;
-    int should_untrack;
+    bool should_untrack;
+    bool nogc = st_type->nogc == OPT_TRUE;
 
     res = Struct_alloc((PyTypeObject *)(st_type));
     if (res == NULL) return NULL;
@@ -5933,7 +5952,7 @@ mpack_decode_struct_array(
         size--;
     }
     Py_LeaveRecursiveCall();
-    if (should_untrack)
+    if (should_untrack || nogc)
         PyObject_GC_UnTrack(res);
     return res;
 error:
@@ -7067,6 +7086,7 @@ json_decode_struct_array(
     PyObject *out, *item = NULL;
     unsigned char c;
     bool should_untrack, first = true;
+    bool nogc = st_type->nogc == OPT_TRUE;
 
     self->input_pos++; /* Skip '[' */
 
@@ -7145,7 +7165,7 @@ json_decode_struct_array(
         }
     }
     Py_LeaveRecursiveCall();
-    if (should_untrack)
+    if (should_untrack || nogc)
         PyObject_GC_UnTrack(out);
     return out;
 error:

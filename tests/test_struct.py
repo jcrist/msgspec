@@ -607,6 +607,24 @@ def test_struct_gc_not_added_if_not_needed():
     assert not gc.is_tracked(t)
 
 
+def test_struct_nogc():
+    """nogc structs are never tracked, even if they reference a container type"""
+
+    class Test(Struct, nogc=True):
+        x: object
+        y: object
+
+    assert not gc.is_tracked(Test(1, 2))
+    assert not gc.is_tracked(Test([1, 2, 3], 1))
+    assert not gc.is_tracked(Test(1, [1, 2, 3]))
+
+    # Tracked status doesn't change on mutation
+    t = Test(1, 2)
+    assert not gc.is_tracked(t)
+    t.x = []
+    assert not gc.is_tracked(t)
+
+
 def test_struct_gc_set_on_copy():
     """Copying doesn't go through the struct constructor"""
 
@@ -657,7 +675,7 @@ def test_struct_handles_missing_attributes():
         pickle.dumps(t)
 
 
-@pytest.mark.parametrize("option", ["frozen", "asarray"])
+@pytest.mark.parametrize("option", ["frozen", "asarray", "nogc"])
 def test_struct_option_precedence(option):
     def get(cls):
         return getattr(cls, option)
