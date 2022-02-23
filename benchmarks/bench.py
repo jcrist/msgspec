@@ -12,13 +12,16 @@ import pydantic
 import ujson
 
 
-class Address(msgspec.Struct):
+NOGC = True
+
+
+class Address(msgspec.Struct, nogc=NOGC):
     street: str
     state: str
     zip: int
 
 
-class Person(msgspec.Struct):
+class Person(msgspec.Struct, nogc=NOGC):
     first: str
     last: str
     age: int
@@ -27,13 +30,13 @@ class Person(msgspec.Struct):
     email: Optional[str] = None
 
 
-class Address2(msgspec.Struct, asarray=True):
+class Address2(msgspec.Struct, asarray=True, nogc=NOGC):
     street: str
     state: str
     zip: int
 
 
-class Person2(msgspec.Struct, asarray=True):
+class Person2(msgspec.Struct, asarray=True, nogc=NOGC):
     first: str
     last: str
     age: int

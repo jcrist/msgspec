@@ -14,7 +14,18 @@ import uuid
 import types
 import textwrap
 from contextlib import contextmanager
-from typing import Any, List, Set, Tuple, Union, Dict, Optional, NamedTuple, Deque, Literal
+from typing import (
+    Any,
+    List,
+    Set,
+    Tuple,
+    Union,
+    Dict,
+    Optional,
+    NamedTuple,
+    Deque,
+    Literal,
+)
 
 import pytest
 
@@ -635,10 +646,7 @@ class TestDecoderMisc:
         assert "Type unions containing" in str(rec.value)
         assert repr(typ) in str(rec.value)
 
-    @pytest.mark.parametrize(
-        "types",
-        [(FruitInt, int), (FruitInt, Literal[1, 2])]
-    )
+    @pytest.mark.parametrize("types", [(FruitInt, int), (FruitInt, Literal[1, 2])])
     def test_err_union_with_multiple_int_like_types(self, types):
         typ = Union[types]
         with pytest.raises(TypeError) as rec:
@@ -647,8 +655,7 @@ class TestDecoderMisc:
         assert repr(typ) in str(rec.value)
 
     @pytest.mark.parametrize(
-        "types",
-        [(FruitStr, str), (FruitStr, Literal["one", "two"])]
+        "types", [(FruitStr, str), (FruitStr, Literal["one", "two"])]
     )
     def test_err_union_with_multiple_str_like_types(self, types):
         typ = Union[types]
@@ -831,9 +838,7 @@ class TestBinary:
         "s", [b'"Y"', b'"YQ"', b'"YQ="', b'"YQI"', b'"YQI=="', b'"YQJj="', b'"AB*D"']
     )
     def test_malformed_base64_encoding(self, s):
-        with pytest.raises(
-            msgspec.DecodeError, match="Invalid base64 encoded string"
-        ):
+        with pytest.raises(msgspec.DecodeError, match="Invalid base64 encoded string"):
             msgspec.json.decode(s, type=bytes)
 
 
@@ -1148,7 +1153,13 @@ class TestIntEnum:
 class TestLiteral:
     @pytest.mark.parametrize(
         "values",
-        [(1, 2, 3), ("one", "two", "three"), (1, 2, "three", "four"), (1, None), ("one", None)]
+        [
+            (1, 2, 3),
+            ("one", "two", "three"),
+            (1, 2, "three", "four"),
+            (1, None),
+            ("one", None),
+        ],
     )
     def test_literal(self, values):
         literal = Literal[values]
@@ -1870,6 +1881,22 @@ class TestStruct:
         assert gc.is_tracked(d)
         assert not gc.is_tracked(e)
 
+    @pytest.mark.parametrize("asarray", [False, True])
+    def test_struct_nogc_always_untracked_on_decode(self, asarray):
+        class Test(msgspec.Struct, asarray=asarray, nogc=True):
+            x: Any
+            y: Any
+
+        dec = msgspec.json.Decoder(List[Test])
+
+        ts = [
+            Test(1, 2),
+            Test([], []),
+            Test({}, {}),
+        ]
+        for obj in dec.decode(msgspec.json.encode(ts)):
+            assert not gc.is_tracked(obj)
+
     def test_struct_recursive_definition(self):
         enc = msgspec.json.Encoder()
         dec = msgspec.json.Decoder(Node)
@@ -1905,9 +1932,7 @@ class TestStructArray:
             dec.decode(bad)
 
         bad = msgspec.json.encode(())
-        with pytest.raises(
-            msgspec.DecodeError, match="missing required field `first`"
-        ):
+        with pytest.raises(msgspec.DecodeError, match="missing required field `first`"):
             dec.decode(bad)
 
         # Extra fields ignored
@@ -1937,13 +1962,9 @@ class TestStructArray:
 
         assert array_dec.decode(array_msg) == array_sol
         assert dec.decode(map_msg) == sol
-        with pytest.raises(
-            msgspec.DecodeError, match="Expected `object`, got `array`"
-        ):
+        with pytest.raises(msgspec.DecodeError, match="Expected `object`, got `array`"):
             dec.decode(array_msg)
-        with pytest.raises(
-            msgspec.DecodeError, match="Expected `array`, got `object`"
-        ):
+        with pytest.raises(msgspec.DecodeError, match="Expected `array`, got `object`"):
             array_dec.decode(map_msg)
 
     @pytest.mark.parametrize(
