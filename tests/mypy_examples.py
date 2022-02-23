@@ -51,6 +51,17 @@ def check_struct_frozen() -> None:
     reveal_type(t.y)  # assert "str" in typ
 
 
+def check_struct_nogc() -> None:
+    class Test(msgspec.Struct, nogc=True):
+        x: int
+        y: str
+
+    t = Test(1, "foo")
+    reveal_type(t)  # assert "Test" in typ
+    reveal_type(t.x)  # assert "int" in typ
+    reveal_type(t.y)  # assert "str" in typ
+
+
 def check_struct_methods() -> None:
     class Point(msgspec.Struct):
         x: int

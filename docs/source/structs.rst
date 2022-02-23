@@ -143,6 +143,71 @@ average another ~2x speedup for decoding (and ~1.5x speedup for encoding).
     >>> msgspec.json.decode(msg, type=AsArrayStruct)
     AsArrayStruct(my_first_field="some string", my_second_field=2)
 
+Disabling Garbage Collection (Advanced)
+---------------------------------------
+
+.. warning::
+
+    This is an advanced optimization, and only recommended for users who fully
+    understand the implications of disabling the GC.
+
+Python uses `reference counting`_ to detect when memory can be freed, with a
+periodic `cyclic garbage collector`_ pass to detect and free cyclic references.
+Garbage collection (GC) is triggered by the number of uncollected GC-enabled
+(objects that contain other objects) objects passing a certain threshold. This
+design means that garbage collection passes often run during code that creates
+a lot of objects (for example, deserializing a large message).
+
+By default, `msgspec.Struct` types will only be tracked if they contain a
+reference to a tracked object themselves. This means that structs referencing
+only scalar values (ints, strings, bools, ...) won't contribute to GC load, but
+structs referencing containers (lists, dicts, structs, ...) will.
+
+.. code-block:: python
+
+    >>> import msgspec
+
+    >>> from typing import Any
+
+    >>> import gc
+
+    >>> class Example(msgspec.Struct):
+    ...     x: Any
+    ...     y: Any
+
+    >>> ex1 = Example(1, "two")
+
+    >>> # ex1 is untracked, since it only references untracked objects
+    ... gc.is_tracked(ex1)
+    False
+
+    >>> ex2 = Example([1, 2, 3], (4, 5, 6))
+
+    >>> # ex2 is tracked, since it references tracked objects
+    ... gc.is_tracked(ex2)
+    True
+
+If you *are certain* that your struct types can *never* participate in a
+reference cycle, you *may* find a performance boost from setting ``nogc=True``
+on a struct definition. This boost is tricky to measure in isolation, since it
+should only result in the garbage collector not running as frequently - an
+integration benchmark is recommended to determine if this is worthwhile for
+your workload. A workload is likely to benefit from this optimization in the
+following situations:
+
+- You're allocating a lot of struct objects at once (for example, decoding a
+  large object). Setting ``nogc=True`` on these types will reduce the
+  likelihood of a GC pass occurring while decoding, improving application
+  latency.
+- You have a large number of long-lived struct objects. Setting ``nogc=True``
+  on these types will reduce the load on the GC during collection cycles of
+  later generations.
+
+Struct types with ``nogc=True`` will never be tracked, even if they reference
+container types. It is your responsibility to ensure cycles with these objects
+don't occur, as a cycle containing only ``nogc=True`` structs will *never* be
+collected (leading to a memory leak).
+
 Type Validation
 ---------------
 
@@ -189,3 +254,5 @@ decode a message into a type validated `msgspec.Struct` than into an untyped
 .. _pydantic: https://pydantic-docs.helpmanual.io/
 .. _mypy: https://mypy.readthedocs.io/en/stable/
 .. _pyright: https://github.com/microsoft/pyright
+.. _reference counting: https://en.wikipedia.org/wiki/Reference_counting
+.. _cyclic garbage collector: https://devguide.python.org/garbage_collector/
