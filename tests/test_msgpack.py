@@ -640,6 +640,16 @@ class TestDecoderMisc:
         with pytest.raises(msgspec.DecodeError):
             dec.decode(msg)
 
+    @pytest.mark.skipif(sys.version_info[:2] < (3, 10), reason="3.10 only")
+    def test_310_union_types(self):
+        dec = msgspec.msgpack.Decoder(int | str | None)
+        assert dec.decode(msgspec.msgpack.encode(1)) == 1
+        assert dec.decode(msgspec.msgpack.encode("abc")) == "abc"
+        assert dec.decode(msgspec.msgpack.encode(None)) is None
+        msg = msgspec.msgpack.encode(1.5)
+        with pytest.raises(msgspec.DecodeError):
+            dec.decode(msg)
+
 
 class TestTypedDecoder:
     def check_unexpected_type(self, dec_type, val, msg):

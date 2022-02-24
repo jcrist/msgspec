@@ -336,6 +336,9 @@ typedef struct {
     PyObject *typing_any;
     PyObject *typing_literal;
     PyObject *get_type_hints;
+#if PY_VERSION_HEX >= 0x030a00f0
+    PyObject *types_uniontype;
+#endif
     PyObject *astimezone;
 } MsgspecState;
 
@@ -1837,6 +1840,21 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
     else if (obj == (PyObject*)(&PyTuple_Type) || obj == st->typing_tuple) {
         return typenode_collect_array(state, MS_TYPE_VARTUPLE, st->typing_any);
     }
+
+    /* Python 3.10+ types.UnionType (e.g. int | None). It's annoying that this
+     * defines `__args__` but not `__origin__`, so isn't backwards compatible
+     * with logic for typing.Union. */
+    #if PY_VERSION_HEX >= 0x030a00f0
+    if (Py_TYPE(obj) == (PyTypeObject *)(st->types_uniontype)) {
+        args = PyObject_GetAttr(obj, st->str___args__);
+        if (args == NULL) goto done;
+        for (Py_ssize_t i = 0; i < PyTuple_Size(args); i++) {
+            out = typenode_collect_type(state, PyTuple_GET_ITEM(args, i));
+            if (out < 0) break;
+        }
+        goto done;
+    }
+    #endif
 
     /* Attempt to extract __origin__/__args__ from the obj as a typing object */
     if ((origin = PyObject_GetAttr(obj, st->str___origin__)) == NULL ||
@@ -8648,6 +8666,9 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->typing_any);
     Py_CLEAR(st->typing_literal);
     Py_CLEAR(st->get_type_hints);
+#if PY_VERSION_HEX >= 0x030a00f0
+    Py_CLEAR(st->types_uniontype);
+#endif
     Py_CLEAR(st->astimezone);
     return 0;
 }
@@ -8688,6 +8709,9 @@ msgspec_traverse(PyObject *m, visitproc visit, void *arg)
     Py_VISIT(st->typing_any);
     Py_VISIT(st->typing_literal);
     Py_VISIT(st->get_type_hints);
+#if PY_VERSION_HEX >= 0x030a00f0
+    Py_VISIT(st->types_uniontype);
+#endif
     Py_VISIT(st->astimezone);
     return 0;
 }
@@ -8821,6 +8845,13 @@ PyInit__core(void)
     SET_REF(typing_literal, "Literal");
     SET_REF(get_type_hints, "get_type_hints");
     Py_DECREF(temp_module);
+
+#if PY_VERSION_HEX >= 0x030a00f0
+    temp_module = PyImport_ImportModule("types");
+    if (temp_module == NULL) return NULL;
+    SET_REF(types_uniontype, "UnionType");
+    Py_DECREF(temp_module);
+#endif
 
     /* Get the EnumType */
     temp_module = PyImport_ImportModule("enum");
