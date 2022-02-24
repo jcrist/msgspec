@@ -5,10 +5,10 @@
     <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
 <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Structs" href="structs.html" /><link rel="prev" title="msgspec" href="index.html" />
 
-    <meta name="generator" content="sphinx-4.4.0, furo 2022.02.14.1"/>
+    <meta name="generator" content="sphinx-4.4.0, furo 2022.02.23"/>
         <title>Usage</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
-    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=a8f031f701c6af50c9919b48f173a5785af06fac" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=3c656993158f05539f962c5cea52a5e6c184bb8c" />
     <link rel="stylesheet" type="text/css" href="_static/copybutton.css" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?digest=25ceb02ed1c46dc30f2321ff83e92799f69dfdb9" />
     
@@ -173,6 +173,12 @@
   <div class="main">
     <div class="content">
       <div class="article-container">
+        <a href="#" class="back-to-top muted-link">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+          </svg>
+          <span>Back to top</span>
+        </a>
         <div class="content-icon-container"><div class="theme-toggle-container theme-toggle-content">
             <button class="theme-toggle">
               <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
@@ -241,7 +247,7 @@ protocol.</p>
 </pre></div>
 </div>
 <p>Note that if you’re making multiple calls to <code class="docutils literal notranslate"><span class="pre">decode</span></code>, it’s more efficient to
-create a <code class="docutils literal notranslate"><span class="pre">Decoder</span></code> once and use the <code class="docutils literal notranslate"><span class="pre">Decoder.encode</span></code> method instead.</p>
+create a <code class="docutils literal notranslate"><span class="pre">Decoder</span></code> once and use the <code class="docutils literal notranslate"><span class="pre">Decoder.decode</span></code> method instead.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">msgspec</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Create a JSON decoder</span>
@@ -269,9 +275,8 @@ objects into a <a class="reference internal" href="api.html#msgspec.Struct" titl
 <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a>).</p></li>
 </ul>
 <p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> uses Python <a class="reference external" href="https://docs.python.org/3/library/typing.html">type annotations</a> to describe the expected types.
-While commonly used with <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> types, most combinations of the
-following types are supported (with a few restrictions, see
-<a class="reference internal" href="#supported-types"><span class="std std-ref">Supported Types</span></a> for more information):</p>
+Most combinations of the following types are supported (see
+<a class="reference internal" href="#supported-types"><span class="std std-ref">Supported Types</span></a> for a few restrictions):</p>
 <ul class="simple">
 <li><p><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a></p></li>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bool</span></code></a></p></li>
