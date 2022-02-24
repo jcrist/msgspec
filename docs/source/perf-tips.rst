@@ -148,7 +148,7 @@ Line-Delimited JSON
 
 Some protocols require appending a suffix to an encoded message. One place
 where this comes up is when encoding `line-delimited JSON`_, where every
-payload contains a JSON message followed by `b"\n"`.
+payload contains a JSON message followed by ``b"\n"``.
 
 This *could* be handled in python as:
 
