@@ -117,31 +117,37 @@ and adds a ``__hash__`` method to the class definition.
 Encoding/Decoding as Arrays
 ---------------------------
 
-By default Struct objects encode like dicts, with both the keys and values
-present in the message. If you need higher performance (at the cost of more
-inscrutable message encoding), you can set ``asarray=True`` on a struct
-definition. Structs with this option enabled are encoded/decoded like array
-types, removing the field names from the encoded message. This can provide on
-average another ~2x speedup for decoding (and ~1.5x speedup for encoding).
+By default Struct objects encode the same dicts, with both the keys and values
+present in the message.
 
 .. code-block:: python
 
-    >>> class AsArrayStruct(msgspec.Struct, asarray=True):
-    ...     """This struct is serialized like an array (instead of like
-    ...     a dict). This means no field names are sent as part of the
-    ...     message, speeding up encoding/decoding."""
-    ...     my_first_field: str
-    ...     my_second_field: int
+    >>> import msgspec
 
-    >>> x = AsArrayStruct("some string", 2)
+    >>> class Point(msgspec.Struct):
+    ...     x: int
+    ...     y: int
 
-    >>> msg = msgspec.json.encode(x)
+    >>> msgspec.json.encode(Point(1, 2))
+    b'{"x":1,"y":2}'
 
-    >>> msg
-    b'["some string",2]'
+If you need higher performance (at the cost of more inscrutable message
+encoding), you can set ``asarray=True`` on a struct definition. Structs with
+this option enabled are encoded/decoded as array-like types, removing the field
+names from the encoded message. This can provide on average another ~2x speedup
+for decoding (and ~1.5x speedup for encoding).
 
-    >>> msgspec.json.decode(msg, type=AsArrayStruct)
-    AsArrayStruct(my_first_field="some string", my_second_field=2)
+.. code-block:: python
+
+    >>> class Point2(msgspec.Struct, asarray=True):
+    ...     x: int
+    ...     y: int
+
+    >>> msgspec.json.encode(Point2(1, 2))
+    b'[1,2]'
+
+    >>> msgspec.json.decode(b'[3,4]', type=Point2)
+    Point2(x=3, y=4)
 
 Disabling Garbage Collection (Advanced)
 ---------------------------------------
@@ -247,8 +253,40 @@ performance benefit when not using it. In fact, in most cases it's faster to
 decode a message into a type validated `msgspec.Struct` than into an untyped
 `dict`.
 
+Pattern Matching
+----------------
+
+If using Python 3.10+, `msgspec.Struct` types can be used in `pattern matching`_
+blocks. Replicating an example from `PEP 636`_:
+
+.. code-block:: python
+
+    # NOTE: this example requires Python 3.10+
+    >>> import msgspec
+
+    >>> class Point(msgspec.Struct):
+    ...     x: float
+    ...     y: float
+
+    >>> def where_is(point):
+    ...     match point:
+    ...         case Point(0, 0):
+    ...             print("Origin")
+    ...         case Point(0, y):
+    ...             print(f"Y={y}")
+    ...         case Point(x, 0):
+    ...             print(f"X={x}")
+    ...         case Point():
+    ...             print("Somewhere else")
+    ...         case _:
+    ...             print("Not a point")
+
+    >>> where_is(Point(0, 6))
+    "Y=6"
+
 .. _type annotations: https://docs.python.org/3/library/typing.html
 .. _pattern matching: https://docs.python.org/3/reference/compound_stmts.html#the-match-statement
+.. _PEP 636: https://www.python.org/dev/peps/pep-0636/
 .. _dataclasses: https://docs.python.org/3/library/dataclasses.html
 .. _attrs: https://www.attrs.org/en/stable/index.html
 .. _pydantic: https://pydantic-docs.helpmanual.io/

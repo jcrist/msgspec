@@ -61,7 +61,7 @@ protocol.
     {'hello': 'world'}
 
 Note that if you're making multiple calls to ``decode``, it's more efficient to
-create a ``Decoder`` once and use the ``Decoder.encode`` method instead.
+create a ``Decoder`` once and use the ``Decoder.decode`` method instead.
 
 .. code-block:: python
 
@@ -95,9 +95,8 @@ decoding. This serves a few purposes:
   `dict`).
 
 ``msgspec`` uses Python `type annotations`_ to describe the expected types.
-While commonly used with `msgspec.Struct` types, most combinations of the
-following types are supported (with a few restrictions, see
-:ref:`supported-types` for more information):
+Most combinations of the following types are supported (see
+:ref:`supported-types` for a few restrictions):
 
 - `None`
 - `bool`
