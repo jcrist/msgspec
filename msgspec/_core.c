@@ -7041,9 +7041,15 @@ msgspec_msgpack_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, 
     }
     state.ext_hook = ext_hook;
 
-    /* Only build TypeNode if required */
+    /* Allocated Any & Struct type nodes (simple, common cases) on the stack,
+     * everything else on the heap */
     state.type = NULL;
-    if (type != NULL && type != st->typing_any) {
+    if (type == NULL || type == st->typing_any) {
+    }
+    else if (Py_TYPE(type) == &StructMetaType) {
+        if (StructMeta_prep_types(type, false, NULL) < 0) return NULL;
+    }
+    else {
         state.type = TypeNode_Convert(type, false, NULL);
         if (state.type == NULL) return NULL;
     }
@@ -7056,9 +7062,18 @@ msgspec_msgpack_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, 
         state.input_end = state.input_pos + buffer.len;
         if (state.type != NULL) {
             res = mpack_decode(&state, state.type, NULL, false);
-        } else {
+        }
+        else if (type == NULL || type == st->typing_any) {
             TypeNode type_any = {MS_TYPE_ANY};
             res = mpack_decode(&state, &type_any, NULL, false);
+        }
+        else {
+            struct {
+                uint32_t types;
+                Py_ssize_t fixtuple_size;
+                void* extra[1];
+            } type_obj = {MS_TYPE_STRUCT, 0, {type}};
+            res = mpack_decode(&state, (TypeNode*)(&type_obj), NULL, false);
         }
         PyBuffer_Release(&buffer);
         if (res != NULL && mpack_has_trailing_characters(&state)) {
@@ -9222,9 +9237,15 @@ msgspec_json_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyO
     state.scratch_capacity = 0;
     state.scratch_len = 0;
 
-    /* Only build TypeNode if required */
+    /* Allocated Any & Struct type nodes (simple, common cases) on the stack,
+     * everything else on the heap */
     state.type = NULL;
-    if (type != NULL && type != st->typing_any) {
+    if (type == NULL || type == st->typing_any) {
+    }
+    else if (Py_TYPE(type) == &StructMetaType) {
+        if (StructMeta_prep_types(type, true, NULL) < 0) return NULL;
+    }
+    else {
         state.type = TypeNode_Convert(type, true, NULL);
         if (state.type == NULL) return NULL;
     }
@@ -9238,9 +9259,18 @@ msgspec_json_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyO
 
         if (state.type != NULL) {
             res = json_decode(&state, state.type, NULL);
-        } else {
+        }
+        else if (type == NULL || type == st->typing_any) {
             TypeNode type_any = {MS_TYPE_ANY};
             res = json_decode(&state, &type_any, NULL);
+        }
+        else {
+            struct {
+                uint32_t types;
+                Py_ssize_t fixtuple_size;
+                void* extra[1];
+            } type_obj = {MS_TYPE_STRUCT, 0, {type}};
+            res = json_decode(&state, (TypeNode*)(&type_obj), NULL);
         }
 
         if (res != NULL && json_has_trailing_characters(&state)) {

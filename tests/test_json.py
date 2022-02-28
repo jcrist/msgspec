@@ -471,6 +471,28 @@ class TestDecodeFunction:
     def test_decode_type_any(self):
         assert msgspec.json.decode(b"[1, 2, 3]", type=Any) == [1, 2, 3]
 
+    def test_decode_type_struct(self):
+        class Point(msgspec.Struct):
+            x: int
+            y: int
+
+        for _ in range(2):
+            assert msgspec.json.decode(b'{"x":1,"y":2}', type=Point) == Point(1, 2)
+
+    def test_decode_type_struct_not_json_compatible(self):
+        class Test(msgspec.Struct):
+            x: Dict[int, str]
+
+        with pytest.raises(TypeError, match="not supported"):
+            msgspec.json.decode(b'{"x": {1: "two"}}', type=Test)
+
+    def test_decode_type_struct_invalid_type(self):
+        class Test(msgspec.Struct):
+            x: 1
+
+        with pytest.raises(TypeError):
+            msgspec.json.decode(b'{}', type=Test)
+
     def test_decode_invalid_type(self):
         with pytest.raises(TypeError, match="Type '1' is not supported"):
             msgspec.json.decode(b"[]", type=1)
