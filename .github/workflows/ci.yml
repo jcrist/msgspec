@@ -53,7 +53,7 @@ jobs:
       - uses: actions/checkout@v2
 
       - name: Build & Test Wheels
-        uses: joerick/cibuildwheel@v1.9.0
+        uses: pypa/cibuildwheel@v2.3.1
         env:
           CIBW_TEST_REQUIRES: "pytest msgpack"
           CIBW_TEST_COMMAND: "pytest {project}/tests"
