@@ -22,6 +22,7 @@ class __StructMeta(type):
     ) -> "__StructMeta": ...
 
 class Struct(metaclass=__StructMeta):
+    __struct_fields__: Tuple[str, ...]
     def __init__(self, *args: Any, **kwargs: Any) -> None: ...
     def __init_subclass__(
         cls, asarray: bool = False, frozen: bool = False, nogc: bool = False
