@@ -76,6 +76,20 @@ def check_struct_methods() -> None:
     repr(a)
 
 
+def check_struct_attributes() -> None:
+    class Point(msgspec.Struct):
+        x: int
+        y: int
+
+    for field in Point.__struct_fields__:
+        reveal_type(field)  # assert "str" in typ
+
+    p = Point(1, 2)
+
+    for field in p.__struct_fields__:
+        reveal_type(field)  # assert "str" in typ
+
+
 ##########################################################
 # MessagePack                                            #
 ##########################################################
