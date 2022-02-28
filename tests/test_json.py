@@ -702,7 +702,7 @@ class TestDecoderMisc:
             dec.decode(b'1.5')
 
 
-class TestLiterals:
+class TestBoolAndNone:
     def test_encode_none(self):
         assert msgspec.json.encode(None) == b"null"
 
@@ -1730,6 +1730,13 @@ class TestDict:
             msgspec.DecodeError, match=r"Expected `int`, got `str` - at `\$\[...\]`"
         ):
             dec.decode(b'{"a": "bad"}')
+
+    def test_decode_typed_dict_literal_key(self):
+        dec = msgspec.json.Decoder(Dict[Literal["a", "b"], int])
+        assert dec.decode(b'{"a": 1, "b": 2}') == {"a": 1, "b": 2}
+
+        with pytest.raises(msgspec.DecodeError, match="Invalid enum value 'c'"):
+            dec.decode(b'{"a": 1, "c": 2}')
 
     @pytest.mark.parametrize(
         "s, error",
