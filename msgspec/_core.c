@@ -1348,7 +1348,7 @@ typenode_from_collect_state(TypeNodeCollectState *state, bool err_not_json, bool
         if (temp == NULL) goto error;
         out->extra[e_ind++] = temp;
         /* Check that JSON dict keys are strings */
-        if (temp->types & ~(MS_TYPE_ANY | MS_TYPE_STR)) {
+        if (temp->types & ~(MS_TYPE_ANY | MS_TYPE_STR | MS_TYPE_STRLITERAL)) {
             if (err_not_json) {
                 PyErr_Format(
                     PyExc_TypeError,
