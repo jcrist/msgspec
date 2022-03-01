@@ -25,7 +25,12 @@ class Struct(metaclass=__StructMeta):
     __struct_fields__: ClassVar[Tuple[str, ...]]
     def __init__(self, *args: Any, **kwargs: Any) -> None: ...
     def __init_subclass__(
-        cls, asarray: bool = False, frozen: bool = False, nogc: bool = False
+        cls,
+        tag: Union[None, bool, str, Callable[[str], str]] = None,
+        tag_field: Union[None, str] = None,
+        frozen: bool = False,
+        asarray: bool = False,
+        nogc: bool = False,
     ) -> None: ...
 
 class MsgspecError(Exception): ...

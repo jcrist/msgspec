@@ -328,6 +328,7 @@ typedef struct {
     PyObject *str_utcoffset;
     PyObject *str___origin__;
     PyObject *str___args__;
+    PyObject *str_dollartype;
     PyObject *typing_list;
     PyObject *typing_set;
     PyObject *typing_tuple;
@@ -1012,6 +1013,9 @@ typedef struct {
     PyObject *struct_defaults;
     Py_ssize_t *struct_offsets;
     TypeNode **struct_types;
+    PyObject *struct_tag_field;  /* str or NULL */
+    PyObject *struct_tag_value;  /* str or NULL */
+    PyObject *struct_tag;        /* True, str, or NULL */
     bool json_compatible;
     bool traversing;
     char frozen;
@@ -2255,17 +2259,22 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
     PyObject *default_val, *field;
     Py_ssize_t nfields, ndefaults, i, j, k;
     Py_ssize_t *offsets = NULL, *base_offsets;
+    PyObject *tag_field_temp = NULL, *tag_temp = NULL, *arg_tag_field = NULL, *arg_tag = NULL;
+    PyObject *tag = NULL, *tag_field = NULL,  *tag_value = NULL;
     int arg_frozen = -1, frozen = -1;
     int arg_asarray = -1, asarray = -1;
     int arg_nogc = -1, nogc = -1;
 
-    static char *kwlist[] = {"name", "bases", "dict", "frozen", "asarray", "nogc", NULL};
+    static char *kwlist[] = {
+        "name", "bases", "dict", "tag_field", "tag", "frozen", "asarray", "nogc", NULL
+    };
 
     /* Parse arguments: (name, bases, dict) */
     if (!PyArg_ParseTupleAndKeywords(
-            args, kwargs, "UO!O!|$ppp:StructMeta.__new__", kwlist,
+            args, kwargs, "UO!O!|$OOppp:StructMeta.__new__", kwlist,
             &name, &PyTuple_Type, &bases, &PyDict_Type, &orig_dict,
-            &arg_frozen, &arg_asarray, &arg_nogc))
+            &arg_tag_field, &arg_tag, &arg_frozen, &arg_asarray, &arg_nogc)
+    )
         return NULL;
 
     if (PyDict_GetItemString(orig_dict, "__init__") != NULL) {
@@ -2304,6 +2313,15 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
             );
             goto error;
         }
+        /* Inherit config fields */
+        PyObject *base_tag_field = ((StructMetaObject *)base)->struct_tag_field;
+        if (base_tag_field != NULL) {
+            tag_field_temp = base_tag_field;
+        }
+        PyObject *base_tag = ((StructMetaObject *)base)->struct_tag;
+        if (base_tag != NULL) {
+            tag_temp = base_tag;
+        }
         frozen = STRUCT_MERGE_OPTIONS(frozen, ((StructMetaObject *)base)->frozen);
         asarray = STRUCT_MERGE_OPTIONS(asarray, ((StructMetaObject *)base)->asarray);
         nogc = STRUCT_MERGE_OPTIONS(nogc, ((StructMetaObject *)base)->nogc);
@@ -2335,6 +2353,8 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
             Py_DECREF(offset);
         }
     }
+    if (arg_tag != NULL && arg_tag != Py_None) { tag_temp = arg_tag; }
+    if (arg_tag_field != NULL && arg_tag_field != Py_None) { tag_field_temp = arg_tag_field; }
     frozen = STRUCT_MERGE_OPTIONS(frozen, arg_frozen);
     asarray = STRUCT_MERGE_OPTIONS(asarray, arg_asarray);
     nogc = STRUCT_MERGE_OPTIONS(nogc, arg_nogc);
@@ -2426,6 +2446,69 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
         goto error;
     Py_CLEAR(slots);
 
+    /* If tag is False, then tagging is explicitly disabled */
+    if (tag_temp != Py_False && (tag_temp != NULL || tag_field_temp != NULL)) {
+        /* This block populates `tag` / `tag_field` / `tag_value`
+         *
+         * These variables hold *new* (incref'd) references to their objects,
+         * previously all references were only borrowed. Using a new variable
+         * makes cleanup on error easier, since we only want to cleanup new
+         * references.
+         */
+        
+        /* First xincref and stash the `tag` arg, which will later be set on
+         * the class. */
+        Py_XINCREF(tag_temp);
+        tag = tag_temp;
+
+        /* Next determine the tag value
+         * Note: `None` was already normalized to NULL */
+        if (tag_temp == NULL || tag_temp == Py_True) {
+            Py_INCREF(name);
+            tag_value = name;
+        }
+        else {
+            if (PyCallable_Check(tag_temp)) {
+                tag_value = CALL_ONE_ARG(tag_temp, name);
+                if (tag_value == NULL) goto error;
+            }
+            else {
+                Py_INCREF(tag_temp);
+                tag_value = tag_temp;
+            }
+            if (!PyUnicode_CheckExact(tag_value)) {
+                PyErr_SetString(PyExc_TypeError, "`tag` must be a `str`");
+                goto error;
+            }
+        }
+
+        /* Next determine the tag_field to use.
+         * Note: `None` was already normalized to NULL */
+        if (tag_field_temp == NULL) {
+            MsgspecState *st = msgspec_get_global_state();
+            tag_field = st->str_dollartype;
+            Py_INCREF(tag_field);
+        }
+        else if (PyUnicode_CheckExact(tag_field_temp)) {
+            tag_field = tag_field_temp;
+            Py_INCREF(tag_field);
+        }
+        else {
+            PyErr_SetString(PyExc_TypeError, "`tag_field` must be a `str`");
+            goto error;
+        }
+        int contains = PySequence_Contains(fields, tag_field);
+        if (contains < 0) goto error;
+        if (contains) {
+            PyErr_Format(
+                PyExc_ValueError,
+                "`tag_field='%U' conflicts with an existing field of that name",
+                tag_field
+            );
+            goto error;
+        }
+    }
+
     new_args = Py_BuildValue("(OOO)", name, bases, new_dict);
     if (new_args == NULL)
         goto error;
@@ -2464,6 +2547,9 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
     cls->struct_fields = fields;
     cls->struct_defaults = defaults;
     cls->struct_offsets = offsets;
+    cls->struct_tag = tag;
+    cls->struct_tag_field = tag_field;
+    cls->struct_tag_value = tag_value;
     cls->frozen = frozen;
     cls->asarray = asarray;
     cls->nogc = nogc;
@@ -2478,6 +2564,9 @@ error:
     Py_XDECREF(new_args);
     Py_XDECREF(offsets_lk);
     Py_XDECREF(offset);
+    Py_XDECREF(tag);
+    Py_XDECREF(tag_field);
+    Py_XDECREF(tag_value);
     if (offsets != NULL)
         PyMem_Free(offsets);
     return NULL;
@@ -2584,6 +2673,9 @@ StructMeta_clear(StructMetaObject *self)
     nfields = PyTuple_GET_SIZE(self->struct_fields);
     Py_CLEAR(self->struct_fields);
     Py_CLEAR(self->struct_defaults);
+    Py_CLEAR(self->struct_tag_field);
+    Py_CLEAR(self->struct_tag_value);
+    Py_CLEAR(self->struct_tag);
     PyMem_Free(self->struct_offsets);
     if (self->struct_types != NULL) {
         for (i = 0; i < nfields; i++) {
@@ -2715,6 +2807,8 @@ cleanup:
 static PyMemberDef StructMeta_members[] = {
     {"__struct_fields__", T_OBJECT_EX, offsetof(StructMetaObject, struct_fields), READONLY, "Struct fields"},
     {"__struct_defaults__", T_OBJECT_EX, offsetof(StructMetaObject, struct_defaults), READONLY, "Struct defaults"},
+    {"__struct_tag_field__", T_OBJECT, offsetof(StructMetaObject, struct_tag_field), READONLY, "Struct tag field"},
+    {"__struct_tag__", T_OBJECT, offsetof(StructMetaObject, struct_tag_value), READONLY, "Struct tag value"},
     {"__match_args__", T_OBJECT_EX, offsetof(StructMetaObject, struct_fields), READONLY, "Positional match args"},
     {NULL},
 };
@@ -8658,6 +8752,7 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->str_utcoffset);
     Py_CLEAR(st->str___origin__);
     Py_CLEAR(st->str___args__);
+    Py_CLEAR(st->str_dollartype);
     Py_CLEAR(st->typing_dict);
     Py_CLEAR(st->typing_list);
     Py_CLEAR(st->typing_set);
@@ -8895,6 +8990,7 @@ PyInit__core(void)
     CACHED_STRING(str_utcoffset, "utcoffset");
     CACHED_STRING(str___origin__, "__origin__");
     CACHED_STRING(str___args__, "__args__");
+    CACHED_STRING(str_dollartype, "$type");
 
     return m;
 }

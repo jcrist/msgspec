@@ -757,3 +757,101 @@ class TestFrozen:
         p = Point(1, 2)
         with pytest.raises(TypeError, match="unhashable type"):
             hash(p)
+
+
+class TestTagAndTagField:
+    @pytest.mark.parametrize(
+        "opts, tag_field, tag",
+        [
+            # Default & explicit NULL
+            ({}, None, None),
+            ({"tag": None, "tag_field": None}, None, None),
+            # tag=True
+            ({"tag": True}, "$type", "Test"),
+            ({"tag": True, "tag_field": "test"}, "test", "Test"),
+            # tag=False
+            ({"tag": False}, None, None),
+            ({"tag": False, "tag_field": "type"}, None, None),
+            # tag str
+            ({"tag": "test"}, "$type", "test"),
+            (dict(tag="test", tag_field="type"), "type", "test"),
+            # tag callable
+            (dict(tag=lambda n: n.lower()), "$type", "test"),
+            (dict(tag=lambda n: n.lower(), tag_field="type"), "type", "test"),
+            # tag_field alone
+            (dict(tag_field="type"), "type", "Test"),
+        ]
+    )
+    def test_config(self, opts, tag_field, tag):
+        class Test(Struct, **opts):
+            x: int
+            y: int
+
+        assert Test.__struct_tag_field__ == tag_field
+        assert Test.__struct_tag__ == tag
+
+    @pytest.mark.parametrize(
+        "opts1, opts2, tag_field, tag",
+        [
+            # tag=True
+            ({"tag": True}, {}, "$type", "S2"),
+            ({"tag": True}, {"tag": None}, "$type", "S2"),
+            ({"tag": True}, {"tag": False}, None, None),
+            ({"tag": True}, {"tag_field": "foo"}, "foo", "S2"),
+            # tag str
+            ({"tag": "test"}, {}, "$type", "test"),
+            ({"tag": "test"}, {"tag": "test2"}, "$type", "test2"),
+            ({"tag": "test"}, {"tag": None}, "$type", "test"),
+            ({"tag": "test"}, {"tag_field": "foo"}, "foo", "test"),
+            # tag callable
+            ({"tag": lambda n: n.lower()}, {}, "$type", "s2"),
+            ({"tag": lambda n: n.lower()}, {"tag": False}, None, None),
+            ({"tag": lambda n: n.lower()}, {"tag": None}, "$type", "s2"),
+            ({"tag": lambda n: n.lower()}, {"tag_field": "foo"}, "foo", "s2"),
+        ]
+    )
+    def test_inheritance(self, opts1, opts2, tag_field, tag):
+        class S1(Struct, **opts1):
+            pass
+
+        class S2(S1, **opts2):
+            pass
+
+        assert S2.__struct_tag_field__ == tag_field
+        assert S2.__struct_tag__ == tag
+
+    @pytest.mark.parametrize("tag", [b"bad", lambda n: b"bad"])
+    def test_tag_wrong_type(self, tag):
+        with pytest.raises(TypeError, match="`tag` must be a `str`"):
+            class Test(Struct, tag=tag):
+                pass
+
+    def test_tag_field_wrong_type(self):
+        with pytest.raises(TypeError, match="`tag_field` must be a `str`"):
+            class Test(Struct, tag_field=b"bad"):
+                pass
+
+    def test_tag_field_collision(self):
+        with pytest.raises(ValueError, match="tag_field='y'"):
+            class Test(Struct, tag_field="y"):
+                x: int
+                y: int
+
+    def test_tag_field_inheritance_collision(self):
+        # Inherit the tag field
+        class Base(Struct, tag_field="y"):
+            pass
+
+        with pytest.raises(ValueError, match="tag_field='y'"):
+            class Test(Base):
+                x: int
+                y: int
+
+        # Inherit the field
+        class Base(Struct):
+            x: int
+            y: int
+
+        with pytest.raises(ValueError, match="tag_field='y'"):
+            class Test(Base, tag_field="y"):  # noqa
+                pass

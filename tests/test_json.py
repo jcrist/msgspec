@@ -695,11 +695,11 @@ class TestDecoderMisc:
     @pytest.mark.skipif(sys.version_info[:2] < (3, 10), reason="3.10 only")
     def test_310_union_types(self):
         dec = msgspec.json.Decoder(int | str | None)
-        assert dec.decode(b'1') == 1
+        assert dec.decode(b"1") == 1
         assert dec.decode(b'"abc"') == "abc"
-        assert dec.decode(b'null') is None
+        assert dec.decode(b"null") is None
         with pytest.raises(msgspec.DecodeError):
-            dec.decode(b'1.5')
+            dec.decode(b"1.5")
 
 
 class TestBoolAndNone:
