@@ -62,6 +62,29 @@ def check_struct_nogc() -> None:
     reveal_type(t.y)  # assert "str" in typ
 
 
+def check_struct_tag_tag_field() -> None:
+    class Test1(msgspec.Struct, tag=None):
+        pass
+
+    class Test2(msgspec.Struct, tag=True):
+        pass
+
+    class Test3(msgspec.Struct, tag=False):
+        pass
+
+    class Test4(msgspec.Struct, tag="mytag"):
+        pass
+
+    class Test5(msgspec.Struct, tag=lambda n: n.lower()):
+        pass
+
+    class Test6(msgspec.Struct, tag_field=None):
+        pass
+
+    class Test7(msgspec.Struct, tag_field="type"):
+        pass
+
+
 def check_struct_methods() -> None:
     class Point(msgspec.Struct):
         x: int
