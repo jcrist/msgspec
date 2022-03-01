@@ -1,5 +1,5 @@
 from typing import Type
-from typing import Callable, Tuple, Any, Union, TypeVar
+from typing import Callable, Tuple, Any, Union, TypeVar, ClassVar
 
 # Use `__dataclass_transform__` to catch more errors under pyright. Since we don't expose
 # the underlying metaclass, hide it under an underscore name. See
@@ -22,7 +22,7 @@ class __StructMeta(type):
     ) -> "__StructMeta": ...
 
 class Struct(metaclass=__StructMeta):
-    __struct_fields__: Tuple[str, ...]
+    __struct_fields__: ClassVar[Tuple[str, ...]]
     def __init__(self, *args: Any, **kwargs: Any) -> None: ...
     def __init_subclass__(
         cls, asarray: bool = False, frozen: bool = False, nogc: bool = False
