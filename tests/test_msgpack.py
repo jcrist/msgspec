@@ -1006,217 +1006,6 @@ class TestTypedDecoder:
         ):
             msgspec.msgpack.decode(enc.encode([1000]), type=List[literal])
 
-    def test_struct(self):
-        enc = msgspec.msgpack.Encoder()
-        dec = msgspec.msgpack.Decoder(Person)
-
-        x = Person(first="harry", last="potter", age=13)
-        a = enc.encode(x)
-        assert (
-            enc.encode(
-                {"first": "harry", "last": "potter", "age": 13, "prefect": False}
-            )
-            == a
-        )
-        assert dec.decode(a) == x
-
-        with pytest.raises(msgspec.DecodeError, match="truncated"):
-            dec.decode(a[:-2])
-
-        with pytest.raises(msgspec.DecodeError, match="Expected `object`, got `int`"):
-            dec.decode(enc.encode(1))
-
-        with pytest.raises(
-            msgspec.DecodeError, match=r"Expected `str`, got `int` - at `key` in `\$`"
-        ):
-            dec.decode(enc.encode({1: "harry"}))
-
-    def test_struct_field_wrong_type(self):
-        enc = msgspec.msgpack.Encoder()
-        dec = msgspec.msgpack.Decoder(Person)
-
-        bad = enc.encode({"first": "harry", "last": "potter", "age": "thirteen"})
-        with pytest.raises(
-            msgspec.DecodeError, match=r"Expected `int`, got `str` - at `\$.age`"
-        ):
-            dec.decode(bad)
-
-    def test_struct_missing_fields(self):
-        bad = msgspec.msgpack.encode({"first": "harry", "last": "potter"})
-        with pytest.raises(
-            msgspec.DecodeError, match="Object missing required field `age`"
-        ):
-            msgspec.msgpack.decode(bad, type=Person)
-
-        bad = msgspec.msgpack.encode({})
-        with pytest.raises(
-            msgspec.DecodeError, match="Object missing required field `first`"
-        ):
-            msgspec.msgpack.decode(bad, type=Person)
-
-        bad = msgspec.msgpack.encode([{"first": "harry", "last": "potter"}])
-        with pytest.raises(
-            msgspec.DecodeError,
-            match=r"Object missing required field `age` - at `\$\[0\]`",
-        ):
-            msgspec.msgpack.decode(bad, type=List[Person])
-
-    @pytest.mark.parametrize(
-        "extra",
-        [
-            None,
-            False,
-            True,
-            1,
-            2.0,
-            "three",
-            b"four",
-            [1, 2],
-            {3: 4},
-            msgspec.msgpack.Ext(1, b"12345"),
-            msgspec.msgpack.Ext(1, b""),
-        ],
-    )
-    def test_struct_ignore_extra_fields(self, extra):
-        enc = msgspec.msgpack.Encoder()
-        dec = msgspec.msgpack.Decoder(Person)
-
-        a = enc.encode(
-            {
-                "extra1": extra,
-                "first": "harry",
-                "extra2": extra,
-                "last": "potter",
-                "age": 13,
-                "extra3": extra,
-            }
-        )
-        res = dec.decode(a)
-        assert res == Person("harry", "potter", 13)
-
-    def test_struct_defaults_missing_fields(self):
-        enc = msgspec.msgpack.Encoder()
-        dec = msgspec.msgpack.Decoder(Person)
-
-        a = enc.encode({"first": "harry", "last": "potter", "age": 13})
-        res = dec.decode(a)
-        assert res == Person("harry", "potter", 13)
-        assert res.prefect is False
-
-    def test_struct_asarray(self):
-        enc = msgspec.msgpack.Encoder()
-        dec = msgspec.msgpack.Decoder(PersonAA)
-
-        x = PersonAA(first="harry", last="potter", age=13)
-        a = enc.encode(x)
-        assert enc.encode(("harry", "potter", 13, False)) == a
-        assert dec.decode(a) == x
-
-        with pytest.raises(msgspec.DecodeError, match="truncated"):
-            dec.decode(a[:-2])
-
-        with pytest.raises(msgspec.DecodeError, match="Expected `array`, got `int`"):
-            dec.decode(enc.encode(1))
-
-        # Wrong field type
-        bad = enc.encode(("harry", "potter", "thirteen"))
-        with pytest.raises(
-            msgspec.DecodeError, match=r"Expected `int`, got `str` - at `\$\[2\]`"
-        ):
-            dec.decode(bad)
-
-        # Missing fields
-        bad = enc.encode(("harry", "potter"))
-        with pytest.raises(msgspec.DecodeError, match="missing required field `age`"):
-            dec.decode(bad)
-
-        bad = enc.encode(())
-        with pytest.raises(msgspec.DecodeError, match="missing required field `first`"):
-            dec.decode(bad)
-
-        # Extra fields ignored
-        dec2 = msgspec.msgpack.Decoder(List[PersonAA])
-        msg = enc.encode(
-            [
-                ("harry", "potter", 13, False, 1, 2, 3, 4),
-                ("ron", "weasley", 13, False, 5, 6),
-            ]
-        )
-        res = dec2.decode(msg)
-        assert res == [PersonAA("harry", "potter", 13), PersonAA("ron", "weasley", 13)]
-
-        # Defaults applied
-        res = dec.decode(enc.encode(("harry", "potter", 13)))
-        assert res == PersonAA("harry", "potter", 13)
-        assert res.prefect is False
-
-    def test_struct_map_and_asarray_messages_cant_mix(self):
-        array_msg = msgspec.msgpack.encode(("harry", "potter", 13))
-        map_msg = msgspec.msgpack.encode(
-            {"first": "harry", "last": "potter", "age": 13}
-        )
-        sol = Person("harry", "potter", 13)
-        array_sol = PersonAA("harry", "potter", 13)
-
-        dec = msgspec.msgpack.Decoder(Person)
-        array_dec = msgspec.msgpack.Decoder(PersonAA)
-
-        assert array_dec.decode(array_msg) == array_sol
-        assert dec.decode(map_msg) == sol
-        with pytest.raises(msgspec.DecodeError, match="Expected `object`, got `array`"):
-            dec.decode(array_msg)
-        with pytest.raises(msgspec.DecodeError, match="Expected `array`, got `object`"):
-            array_dec.decode(map_msg)
-
-    @pytest.mark.parametrize("asarray", [False, True])
-    def test_struct_gc_maybe_untracked_on_decode(self, asarray):
-        class Test(msgspec.Struct, asarray=asarray):
-            x: Any
-            y: Any
-            z: Tuple = ()
-
-        enc = msgspec.msgpack.Encoder()
-        dec = msgspec.msgpack.Decoder(List[Test])
-
-        ts = [
-            Test(1, 2),
-            Test(3, "hello"),
-            Test([], []),
-            Test({}, {}),
-            Test(None, None, ()),
-        ]
-        a, b, c, d, e = dec.decode(enc.encode(ts))
-        assert not gc.is_tracked(a)
-        assert not gc.is_tracked(b)
-        assert gc.is_tracked(c)
-        assert gc.is_tracked(d)
-        assert not gc.is_tracked(e)
-
-    @pytest.mark.parametrize("asarray", [False, True])
-    def test_struct_nogc_always_untracked_on_decode(self, asarray):
-        class Test(msgspec.Struct, asarray=asarray, nogc=True):
-            x: Any
-            y: Any
-
-        dec = msgspec.msgpack.Decoder(List[Test])
-
-        ts = [
-            Test(1, 2),
-            Test([], []),
-            Test({}, {}),
-        ]
-        for obj in dec.decode(msgspec.msgpack.encode(ts)):
-            assert not gc.is_tracked(obj)
-
-    def test_struct_recursive_definition(self):
-        enc = msgspec.msgpack.Encoder()
-        dec = msgspec.msgpack.Decoder(Node)
-
-        x = Node(Node(Node(), Node(Node())))
-        s = enc.encode(x)
-        res = dec.decode(s)
-        assert res == x
-
     @pytest.mark.parametrize(
         "typ, value",
         [
@@ -1635,3 +1424,278 @@ class TestCompatibility(CommonTypeTestBase):
 
         assert_eq(dec.decode(msgpack.dumps(x)), x)
         assert_eq(msgpack.loads(enc.encode(x)), x)
+
+
+class TestStruct:
+    @pytest.mark.parametrize("tag", [False, True])
+    def test_encode_empty_struct(self, tag):
+        class Test(msgspec.Struct, tag=tag):
+            pass
+
+        if tag:
+            msg = {"$type": "Test"}
+        else:
+            msg = {}
+        s = msgspec.msgpack.encode(Test())
+        s2 = msgspec.msgpack.encode(msg)
+        assert s == s2
+
+    @pytest.mark.parametrize("tag", [False, True])
+    def test_encode_one_field_struct(self, tag):
+        class Test(msgspec.Struct, tag=tag):
+            a: int
+
+        if tag:
+            msg = {"$type": "Test", "a": 1}
+        else:
+            msg = {"a": 1}
+        s = msgspec.msgpack.encode(Test(a=1))
+        s2 = msgspec.msgpack.encode(msg)
+        assert s == s2
+
+    @pytest.mark.parametrize("tag", [False, True])
+    def test_encode_two_field_struct(self, tag):
+        class Test(msgspec.Struct, tag=tag):
+            a: int
+            b: str
+
+        if tag:
+            msg = {"$type": "Test", "a": 1, "b": "two"}
+        else:
+            msg = {"a": 1, "b": "two"}
+        s = msgspec.msgpack.encode(Test(a=1, b="two"))
+        s2 = msgspec.msgpack.encode(msg)
+        assert s == s2
+
+    def test_decode_struct(self):
+        dec = msgspec.msgpack.Decoder(Person)
+        msg = msgspec.msgpack.encode(
+            {"first": "harry", "last": "potter", "age": 13, "prefect": False}
+        )
+        x = dec.decode(msg)
+        assert x == Person("harry", "potter", 13, False)
+
+        with pytest.raises(msgspec.DecodeError, match="Expected `object`, got `int`"):
+            dec.decode(msgspec.msgpack.encode(1))
+
+    def test_decode_struct_field_wrong_type(self):
+        dec = msgspec.msgpack.Decoder(Person)
+
+        msg = msgspec.msgpack.encode({"first": "harry", "last": "potter", "age": "bad"})
+        with pytest.raises(
+            msgspec.DecodeError, match=r"Expected `int`, got `str` - at `\$.age`"
+        ):
+            dec.decode(msg)
+
+    def test_decode_struct_missing_fields(self):
+        bad = msgspec.msgpack.encode({"first": "harry", "last": "potter"})
+        with pytest.raises(
+            msgspec.DecodeError, match="Object missing required field `age`"
+        ):
+            msgspec.msgpack.decode(bad, type=Person)
+
+        bad = msgspec.msgpack.encode({})
+        with pytest.raises(
+            msgspec.DecodeError, match="Object missing required field `first`"
+        ):
+            msgspec.msgpack.decode(bad, type=Person)
+
+        bad = msgspec.msgpack.encode([{"first": "harry", "last": "potter"}])
+        with pytest.raises(
+            msgspec.DecodeError,
+            match=r"Object missing required field `age` - at `\$\[0\]`",
+        ):
+            msgspec.msgpack.decode(bad, type=List[Person])
+
+    @pytest.mark.parametrize(
+        "extra",
+        [
+            None,
+            False,
+            True,
+            1,
+            2.0,
+            "three",
+            b"four",
+            [1, 2],
+            {3: 4},
+            msgspec.msgpack.Ext(1, b"12345"),
+            msgspec.msgpack.Ext(1, b""),
+        ],
+    )
+    def test_decode_struct_ignore_extra_fields(self, extra):
+        enc = msgspec.msgpack.Encoder()
+        dec = msgspec.msgpack.Decoder(Person)
+
+        a = enc.encode(
+            {
+                "extra1": extra,
+                "first": "harry",
+                "extra2": extra,
+                "last": "potter",
+                "age": 13,
+                "extra3": extra,
+            }
+        )
+        res = dec.decode(a)
+        assert res == Person("harry", "potter", 13)
+
+    def test_decode_struct_defaults_missing_fields(self):
+        dec = msgspec.msgpack.Decoder(Person)
+
+        a = msgspec.msgpack.encode({"first": "harry", "last": "potter", "age": 13})
+        res = dec.decode(a)
+        assert res == Person("harry", "potter", 13)
+        assert res.prefect is False
+
+    @pytest.mark.parametrize("asarray", [False, True])
+    def test_struct_gc_maybe_untracked_on_decode(self, asarray):
+        class Test(msgspec.Struct, asarray=asarray):
+            x: Any
+            y: Any
+            z: Tuple = ()
+
+        enc = msgspec.msgpack.Encoder()
+        dec = msgspec.msgpack.Decoder(List[Test])
+
+        ts = [
+            Test(1, 2),
+            Test(3, "hello"),
+            Test([], []),
+            Test({}, {}),
+            Test(None, None, ()),
+        ]
+        a, b, c, d, e = dec.decode(enc.encode(ts))
+        assert not gc.is_tracked(a)
+        assert not gc.is_tracked(b)
+        assert gc.is_tracked(c)
+        assert gc.is_tracked(d)
+        assert not gc.is_tracked(e)
+
+    @pytest.mark.parametrize("asarray", [False, True])
+    def test_struct_nogc_always_untracked_on_decode(self, asarray):
+        class Test(msgspec.Struct, asarray=asarray, nogc=True):
+            x: Any
+            y: Any
+
+        dec = msgspec.msgpack.Decoder(List[Test])
+
+        ts = [
+            Test(1, 2),
+            Test([], []),
+            Test({}, {}),
+        ]
+        for obj in dec.decode(msgspec.msgpack.encode(ts)):
+            assert not gc.is_tracked(obj)
+
+    def test_struct_recursive_definition(self):
+        enc = msgspec.msgpack.Encoder()
+        dec = msgspec.msgpack.Decoder(Node)
+
+        x = Node(Node(Node(), Node(Node())))
+        s = enc.encode(x)
+        res = dec.decode(s)
+        assert res == x
+
+
+class TestStructArray:
+    @pytest.mark.parametrize("tag", [False, True])
+    def test_encode_empty_struct(self, tag):
+        class Test(msgspec.Struct, asarray=True, tag=tag):
+            pass
+
+        s = msgspec.msgpack.encode(Test())
+        if tag:
+            msg = ["Test"]
+        else:
+            msg = []
+        s2 = msgspec.msgpack.encode(msg)
+        assert s == s2
+
+    @pytest.mark.parametrize("tag", [False, True])
+    def test_encode_one_field_struct(self, tag):
+        class Test(msgspec.Struct, asarray=True, tag=tag):
+            a: int
+
+        s = msgspec.msgpack.encode(Test(a=1))
+        if tag:
+            msg = ["Test", 1]
+        else:
+            msg = [1]
+        s2 = msgspec.msgpack.encode(msg)
+        assert s == s2
+
+    @pytest.mark.parametrize("tag", [False, True])
+    def test_encode_two_field_struct(self, tag):
+        class Test(msgspec.Struct, asarray=True, tag=tag):
+            a: int
+            b: str
+
+        s = msgspec.msgpack.encode(Test(a=1, b="two"))
+        if tag:
+            msg = ["Test", 1, "two"]
+        else:
+            msg = [1, "two"]
+        s2 = msgspec.msgpack.encode(msg)
+        assert s == s2
+
+    def test_struct_asarray(self):
+        dec = msgspec.msgpack.Decoder(PersonAA)
+
+        x = PersonAA(first="harry", last="potter", age=13)
+        a = msgspec.msgpack.encode(x)
+        assert msgspec.msgpack.encode(("harry", "potter", 13, False)) == a
+        assert dec.decode(a) == x
+
+        with pytest.raises(msgspec.DecodeError, match="Expected `array`, got `int`"):
+            dec.decode(b"1")
+
+        # Wrong field type
+        bad = msgspec.msgpack.encode(("harry", "potter", "thirteen"))
+        with pytest.raises(
+            msgspec.DecodeError, match=r"Expected `int`, got `str` - at `\$\[2\]`"
+        ):
+            dec.decode(bad)
+
+        # Missing fields
+        bad = msgspec.msgpack.encode(("harry", "potter"))
+        with pytest.raises(msgspec.DecodeError, match="missing required field `age`"):
+            dec.decode(bad)
+
+        bad = msgspec.msgpack.encode(())
+        with pytest.raises(msgspec.DecodeError, match="missing required field `first`"):
+            dec.decode(bad)
+
+        # Extra fields ignored
+        dec2 = msgspec.msgpack.Decoder(List[PersonAA])
+        msg = msgspec.msgpack.encode(
+            [
+                ("harry", "potter", 13, False, 1, 2, 3, 4),
+                ("ron", "weasley", 13, False, 5, 6),
+            ]
+        )
+        res = dec2.decode(msg)
+        assert res == [PersonAA("harry", "potter", 13), PersonAA("ron", "weasley", 13)]
+
+        # Defaults applied
+        res = dec.decode(msgspec.msgpack.encode(("harry", "potter", 13)))
+        assert res == PersonAA("harry", "potter", 13)
+        assert res.prefect is False
+
+    def test_struct_map_and_asarray_messages_cant_mix(self):
+        array_msg = msgspec.msgpack.encode(("harry", "potter", 13))
+        map_msg = msgspec.msgpack.encode(
+            {"first": "harry", "last": "potter", "age": 13}
+        )
+        sol = Person("harry", "potter", 13)
+        array_sol = PersonAA("harry", "potter", 13)
+
+        dec = msgspec.msgpack.Decoder(Person)
+        array_dec = msgspec.msgpack.Decoder(PersonAA)
+
+        assert array_dec.decode(array_msg) == array_sol
+        assert dec.decode(map_msg) == sol
+        with pytest.raises(msgspec.DecodeError, match="Expected `object`, got `array`"):
+            dec.decode(array_msg)
+        with pytest.raises(msgspec.DecodeError, match="Expected `array`, got `object`"):
+            array_dec.decode(map_msg)

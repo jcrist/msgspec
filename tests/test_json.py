@@ -1758,27 +1758,39 @@ class TestDict:
 
 
 class TestStruct:
-    def test_encode_empty_struct(self):
-        class Test(msgspec.Struct):
+    @pytest.mark.parametrize("tag", [False, True])
+    def test_encode_empty_struct(self, tag):
+        class Test(msgspec.Struct, tag=tag):
             pass
 
         s = msgspec.json.encode(Test())
-        assert s == b"{}"
+        if tag:
+            assert s == b'{"$type":"Test"}'
+        else:
+            assert s == b"{}"
 
-    def test_encode_one_field_struct(self):
-        class Test(msgspec.Struct):
+    @pytest.mark.parametrize("tag", [False, True])
+    def test_encode_one_field_struct(self, tag):
+        class Test(msgspec.Struct, tag=tag):
             a: int
 
         s = msgspec.json.encode(Test(a=1))
-        assert s == b'{"a":1}'
+        if tag:
+            assert s == b'{"$type":"Test","a":1}'
+        else:
+            assert s == b'{"a":1}'
 
-    def test_encode_two_field_struct(self):
-        class Test(msgspec.Struct):
+    @pytest.mark.parametrize("tag", [False, True])
+    def test_encode_two_field_struct(self, tag):
+        class Test(msgspec.Struct, tag=tag):
             a: int
             b: str
 
         s = msgspec.json.encode(Test(a=1, b="two"))
-        assert s == b'{"a":1,"b":"two"}'
+        if tag:
+            assert s == b'{"$type":"Test","a":1,"b":"two"}'
+        else:
+            assert s == b'{"a":1,"b":"two"}'
 
     def test_decode_struct(self):
         dec = msgspec.json.Decoder(Person)
@@ -1924,6 +1936,40 @@ class TestStruct:
 
 
 class TestStructArray:
+    @pytest.mark.parametrize("tag", [False, True])
+    def test_encode_empty_struct(self, tag):
+        class Test(msgspec.Struct, asarray=True, tag=tag):
+            pass
+
+        s = msgspec.json.encode(Test())
+        if tag:
+            assert s == b'["Test"]'
+        else:
+            assert s == b"[]"
+
+    @pytest.mark.parametrize("tag", [False, True])
+    def test_encode_one_field_struct(self, tag):
+        class Test(msgspec.Struct, asarray=True, tag=tag):
+            a: int
+
+        s = msgspec.json.encode(Test(a=1))
+        if tag:
+            assert s == b'["Test",1]'
+        else:
+            assert s == b'[1]'
+
+    @pytest.mark.parametrize("tag", [False, True])
+    def test_encode_two_field_struct(self, tag):
+        class Test(msgspec.Struct, asarray=True, tag=tag):
+            a: int
+            b: str
+
+        s = msgspec.json.encode(Test(a=1, b="two"))
+        if tag:
+            assert s == b'["Test",1,"two"]'
+        else:
+            assert s == b'[1,"two"]'
+
     def test_struct_asarray(self):
         dec = msgspec.json.Decoder(PersonAA)
 
