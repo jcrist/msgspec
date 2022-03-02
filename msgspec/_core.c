@@ -4378,13 +4378,18 @@ mpack_encode_dict(EncoderState *self, PyObject *obj)
 static int
 mpack_encode_struct(EncoderState *self, PyObject *obj)
 {
-    PyObject *key, *val, *fields;
-    Py_ssize_t i, len;
-    int status = -1;
-    bool asarray = ((StructMetaObject *)Py_TYPE(obj))->asarray == OPT_TRUE;
+    PyObject *key, *val, *fields, *tag_field, *tag_value;
+    Py_ssize_t i, nfields, len;
+    int tagged, status = -1;
+    StructMetaObject *struct_type = (StructMetaObject *)Py_TYPE(obj);
+    bool asarray = struct_type->asarray == OPT_TRUE;
 
-    fields = StructMeta_GET_FIELDS(Py_TYPE(obj));
-    len = PyTuple_GET_SIZE(fields);
+    tag_field = struct_type->struct_tag_field;
+    tag_value = struct_type->struct_tag_value;
+    tagged = tag_value != NULL;
+    fields = struct_type->struct_fields;
+    nfields = PyTuple_GET_SIZE(fields);
+    len = nfields + tagged;
 
     if (asarray) {
         if (mpack_encode_array_header(self, len, "structs") < 0) return -1;
@@ -4396,7 +4401,10 @@ mpack_encode_struct(EncoderState *self, PyObject *obj)
     if (Py_EnterRecursiveCall(" while serializing an object"))
         return -1;
     if (asarray) {
-        for (i = 0; i < len; i++) {
+        if (tagged) {
+            if (mpack_encode_str(self, tag_value) < 0) goto cleanup;
+        }
+        for (i = 0; i < nfields; i++) {
             val = Struct_get_index(obj, i);
             if (val == NULL || mpack_encode(self, val) < 0) {
                 goto cleanup;
@@ -4404,7 +4412,11 @@ mpack_encode_struct(EncoderState *self, PyObject *obj)
         }
     }
     else {
-        for (i = 0; i < len; i++) {
+        if (tagged) {
+            if (mpack_encode_str(self, tag_field) < 0) goto cleanup;
+            if (mpack_encode_str(self, tag_value) < 0) goto cleanup;
+        }
+        for (i = 0; i < nfields; i++) {
             key = PyTuple_GET_ITEM(fields, i);
             val = Struct_get_index(obj, i);
             if (val == NULL || mpack_encode_str(self, key) < 0 || mpack_encode(self, val) < 0) {
@@ -5241,18 +5253,25 @@ cleanup:
 static int
 json_encode_struct(EncoderState *self, PyObject *obj)
 {
-    PyObject *key, *val, *fields;
+    PyObject *key, *val, *fields, *tag_field, *tag_value;
     Py_ssize_t i, len;
-    int status = -1;
-    bool asarray = ((StructMetaObject *)Py_TYPE(obj))->asarray == OPT_TRUE;
+    int tagged, status = -1;
+    StructMetaObject *struct_type = (StructMetaObject *)Py_TYPE(obj);
 
-    fields = StructMeta_GET_FIELDS(Py_TYPE(obj));
+    tag_field = struct_type->struct_tag_field;
+    tag_value = struct_type->struct_tag_value;
+    tagged = tag_value != NULL;
+    fields = struct_type->struct_fields;
     len = PyTuple_GET_SIZE(fields);
 
-    if (asarray) {
-        if (len == 0) return ms_write(self, "[]", 2);
+    if (struct_type->asarray == OPT_TRUE) {
+        if ((len + tagged) == 0) return ms_write(self, "[]", 2);
         if (ms_write(self, "[", 1) < 0) return -1;
         if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
+        if (tag_value != NULL) {
+            if (json_encode_str(self, tag_value) < 0) goto cleanup;
+            if (ms_write(self, ",", 1) < 0) goto cleanup;
+        }
         for (i = 0; i < len; i++) {
             val = Struct_get_index(obj, i);
             if (val == NULL) goto cleanup;
@@ -5263,9 +5282,15 @@ json_encode_struct(EncoderState *self, PyObject *obj)
         *(self->output_buffer_raw + self->output_len - 1) = ']';
     }
     else {
-        if (len == 0) return ms_write(self, "{}", 2);
+        if ((len + tagged) == 0) return ms_write(self, "{}", 2);
         if (ms_write(self, "{", 1) < 0) return -1;
         if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
+        if (tag_value != NULL) {
+            if (json_encode_str(self, tag_field) < 0) goto cleanup;
+            if (ms_write(self, ":", 1) < 0) goto cleanup;
+            if (json_encode_str(self, tag_value) < 0) goto cleanup;
+            if (ms_write(self, ",", 1) < 0) goto cleanup;
+        }
         for (i = 0; i < len; i++) {
             key = PyTuple_GET_ITEM(fields, i);
             val = Struct_get_index(obj, i);
