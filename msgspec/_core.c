@@ -985,17 +985,20 @@ static PyTypeObject StrLookup_Type = {
 #define MS_TYPE_DATETIME            (1u << 8)
 #define MS_TYPE_EXT                 (1u << 9)
 #define MS_TYPE_STRUCT              (1u << 10)
-#define MS_TYPE_ENUM                (1u << 11)
-#define MS_TYPE_INTENUM             (1u << 12)
-#define MS_TYPE_CUSTOM              (1u << 13)
-#define MS_TYPE_CUSTOM_GENERIC      (1u << 14)
-#define MS_TYPE_DICT                (1u << 15)
-#define MS_TYPE_LIST                (1u << 16)
-#define MS_TYPE_SET                 (1u << 17)
-#define MS_TYPE_VARTUPLE            (1u << 18)
-#define MS_TYPE_FIXTUPLE            (1u << 19)
-#define MS_TYPE_INTLITERAL          (1u << 20)
-#define MS_TYPE_STRLITERAL          (1u << 21)
+#define MS_TYPE_STRUCT_ARRAY        (1u << 11)
+#define MS_TYPE_STRUCT_UNION        (1u << 12)
+#define MS_TYPE_STRUCT_ARRAY_UNION  (1u << 13)
+#define MS_TYPE_ENUM                (1u << 14)
+#define MS_TYPE_INTENUM             (1u << 15)
+#define MS_TYPE_CUSTOM              (1u << 16)
+#define MS_TYPE_CUSTOM_GENERIC      (1u << 17)
+#define MS_TYPE_DICT                (1u << 18)
+#define MS_TYPE_LIST                (1u << 19)
+#define MS_TYPE_SET                 (1u << 20)
+#define MS_TYPE_VARTUPLE            (1u << 21)
+#define MS_TYPE_FIXTUPLE            (1u << 22)
+#define MS_TYPE_INTLITERAL          (1u << 23)
+#define MS_TYPE_STRLITERAL          (1u << 24)
 
 typedef struct TypeNode {
     uint32_t types;
@@ -1047,9 +1050,9 @@ TypeNode_get_size(TypeNode *type, Py_ssize_t *n_typenode) {
     else if (!(type->types & MS_TYPE_ANY)) {
         n_obj = ms_popcount(
             type->types & (
-                MS_TYPE_STRUCT | MS_TYPE_INTENUM |
-                MS_TYPE_INTLITERAL | MS_TYPE_ENUM |
-                MS_TYPE_STRLITERAL
+                MS_TYPE_STRUCT | MS_TYPE_STRUCT_ARRAY |
+                MS_TYPE_INTENUM | MS_TYPE_INTLITERAL |
+                MS_TYPE_ENUM | MS_TYPE_STRLITERAL
             )
         );
         if (type->types & MS_TYPE_DICT) n_type += 2;
@@ -1075,14 +1078,17 @@ TypeNode_get_custom(TypeNode *type) {
 
 static MS_INLINE IntLookupObject *
 TypeNode_get_int_enum_or_literal(TypeNode *type) {
-    Py_ssize_t i = (type->types & MS_TYPE_STRUCT) != 0;
+    Py_ssize_t i = (type->types & (MS_TYPE_STRUCT | MS_TYPE_STRUCT_ARRAY)) != 0;
     return ((TypeNodeExtra *)type)->extra[i];
 }
 
 static MS_INLINE StrLookupObject *
 TypeNode_get_str_enum_or_literal(TypeNode *type) {
     Py_ssize_t i = ms_popcount(
-        type->types & (MS_TYPE_STRUCT | MS_TYPE_INTENUM | MS_TYPE_INTLITERAL)
+        type->types & (
+            MS_TYPE_STRUCT | MS_TYPE_STRUCT_ARRAY |
+            MS_TYPE_INTENUM | MS_TYPE_INTLITERAL
+        )
     );
     return ((TypeNodeExtra *)type)->extra[i];
 }
@@ -1091,9 +1097,9 @@ static MS_INLINE void
 TypeNode_get_dict(TypeNode *type, TypeNode **key, TypeNode **val) {
     Py_ssize_t i = ms_popcount(
         type->types & (
-            MS_TYPE_STRUCT | MS_TYPE_INTENUM |
-            MS_TYPE_INTLITERAL | MS_TYPE_ENUM |
-            MS_TYPE_STRLITERAL
+            MS_TYPE_STRUCT | MS_TYPE_STRUCT_ARRAY |
+            MS_TYPE_INTENUM | MS_TYPE_INTLITERAL |
+            MS_TYPE_ENUM | MS_TYPE_STRLITERAL
         )
     );
     *key = ((TypeNodeExtra *)type)->extra[i];
@@ -1104,9 +1110,9 @@ static MS_INLINE Py_ssize_t
 TypeNode_get_array_offset(TypeNode *type) {
     Py_ssize_t i = ms_popcount(
         type->types & (
-            MS_TYPE_STRUCT | MS_TYPE_INTENUM |
-            MS_TYPE_INTLITERAL | MS_TYPE_ENUM |
-            MS_TYPE_STRLITERAL
+            MS_TYPE_STRUCT | MS_TYPE_STRUCT_ARRAY |
+            MS_TYPE_INTENUM | MS_TYPE_INTLITERAL |
+            MS_TYPE_ENUM | MS_TYPE_STRLITERAL
         )
     );
     if (type->types & MS_TYPE_DICT) i += 2;
@@ -1162,7 +1168,6 @@ typenode_simple_repr(TypeNode *self) {
     if (self->types & (MS_TYPE_ANY | MS_TYPE_CUSTOM | MS_TYPE_CUSTOM_GENERIC)) {
         return PyUnicode_FromString("any");
     }
-
     if (self->types & MS_TYPE_BOOL) {
         if (!strbuilder_extend(&builder, "bool", 4)) return NULL;
     }
@@ -1184,18 +1189,10 @@ typenode_simple_repr(TypeNode *self) {
     if (self->types & MS_TYPE_EXT) {
         if (!strbuilder_extend(&builder, "ext", 3)) return NULL;
     }
-    if (self->types & MS_TYPE_STRUCT) {
-        if (TypeNode_get_struct(self)->asarray == OPT_TRUE) {
-            if (!strbuilder_extend(&builder, "array", 5)) return NULL;
-        }
-        else {
-            if (!strbuilder_extend(&builder, "object", 6)) return NULL;
-        }
-    }
-    if (self->types & MS_TYPE_DICT) {
+    if (self->types & (MS_TYPE_STRUCT | MS_TYPE_STRUCT_UNION | MS_TYPE_DICT)) {
         if (!strbuilder_extend(&builder, "object", 6)) return NULL;
     }
-    if (self->types & (MS_TYPE_LIST | MS_TYPE_SET | MS_TYPE_VARTUPLE | MS_TYPE_FIXTUPLE)) {
+    if (self->types & (MS_TYPE_STRUCT_ARRAY | MS_TYPE_STRUCT_ARRAY_UNION | MS_TYPE_LIST | MS_TYPE_SET | MS_TYPE_VARTUPLE | MS_TYPE_FIXTUPLE)) {
         if (!strbuilder_extend(&builder, "array", 5)) return NULL;
     }
     if (self->types & MS_TYPE_NONE) {
@@ -1209,6 +1206,9 @@ typedef struct {
     PyObject *context;
     uint32_t types;
     PyObject *struct_obj;
+    PyObject *structs_list;
+    PyObject *structs_lookup;
+    PyObject *structs_tag_field;
     PyObject *intenum_obj;
     PyObject *enum_obj;
     PyObject *custom_obj;
@@ -1230,6 +1230,7 @@ typenode_from_collect_state(TypeNodeCollectState *state, bool err_not_json, bool
     bool has_fixtuple = false;
 
     if (state->struct_obj != NULL) n_extra++;
+    if (state->structs_lookup != NULL) n_extra += 2;
     if (state->intenum_obj != NULL) n_extra++;
     if (state->int_literal_lookup != NULL) n_extra++;
     if (state->enum_obj != NULL) n_extra++;
@@ -1272,11 +1273,14 @@ typenode_from_collect_state(TypeNodeCollectState *state, bool err_not_json, bool
     /* Populate `extra` fields in order */
     e_ind = 0;
     if (state->struct_obj != NULL) {
-        if (StructMeta_prep_types(state->struct_obj, err_not_json, json_compatible) < 0) {
-            goto error;
-        }
         Py_INCREF(state->struct_obj);
         out->extra[e_ind++] = state->struct_obj;
+    }
+    if (state->structs_lookup != NULL) {
+        Py_INCREF(state->structs_lookup);
+        out->extra[e_ind++] = state->structs_lookup;
+        Py_INCREF(state->structs_tag_field);
+        out->extra[e_ind++] = state->structs_tag_field;
     }
     if (state->intenum_obj != NULL) {
         MsgspecState *st = msgspec_get_global_state();
@@ -1431,27 +1435,25 @@ typenode_collect_check_invariants(
         return -1;
     }
 
-    /* Ensure structs don't conflict with dict/array types */
-    if (state->struct_obj) {
-        bool asarray = (((StructMetaObject *)(state->struct_obj))->asarray == OPT_TRUE);
-        if (asarray && state->array_el_obj) {
-            PyErr_Format(
-                PyExc_TypeError,
-                "Type unions containing a Struct type with `asarray=True` may "
-                "not contain other array-like types - type `%R` is not supported",
-                state->context
-            );
-            return -1;
-        }
-        else if (!asarray && state->dict_key_obj) {
-            PyErr_Format(
-                PyExc_TypeError,
-                "Type unions may not contain both a Struct type and a dict type "
-                "- type `%R` is not supported",
-                state->context
-            );
-            return -1;
-        }
+    /* Ensure structs with asarray=True don't conflict with array types */
+    if (state->array_el_obj && (state->types & (MS_TYPE_STRUCT_ARRAY | MS_TYPE_STRUCT_ARRAY_UNION))) {
+        PyErr_Format(
+            PyExc_TypeError,
+            "Type unions containing a Struct type with `asarray=True` may "
+            "not contain other array-like types - type `%R` is not supported",
+            state->context
+        );
+        return -1;
+    }
+    /* Ensure structs with asarray=False don't conflict with dict types */
+    if (state->dict_key_obj && (state->types & (MS_TYPE_STRUCT| MS_TYPE_STRUCT_UNION))) {
+        PyErr_Format(
+            PyExc_TypeError,
+            "Type unions may not contain both a Struct type and a dict type "
+            "- type `%R` is not supported",
+            state->context
+        );
+        return -1;
     }
 
     /* If int & int literals are both present, drop literals */
@@ -1724,10 +1726,142 @@ typenode_collect_convert_literals(TypeNodeCollectState *state) {
     }
 }
 
+static int
+typenode_collect_convert_structs(
+    TypeNodeCollectState *state, bool err_not_json, bool *json_compatible
+) {
+    if (state->struct_obj == NULL && state->structs_list == NULL) {
+        return 0;
+    }
+    else if (state->struct_obj != NULL) {
+        /* Single struct */
+        if (StructMeta_prep_types(state->struct_obj, err_not_json, json_compatible) < 0) {
+            return -1;
+        }
+        if (((StructMetaObject *)state->struct_obj)->asarray == OPT_TRUE) {
+            state->types |= MS_TYPE_STRUCT_ARRAY;
+        }
+        else {
+            state->types |= MS_TYPE_STRUCT;
+        }
+        return 0;
+    }
+
+    /* Multiple structs.
+     *
+     * Here we check a number of restrictions before building a lookup table
+     * from struct tags to their matching classes.
+     *
+     * Validation checks:
+     * - All structs in the set are tagged.
+     * - All structs in the set have the same `asarray` status
+     * - All structs in the set have the same `tag_field`
+     * - All structs in the set have a unique `tag_value`
+     *
+     * If any of these checks fails, an appropriate error is returned.
+     */
+    PyObject *tag_mapping = NULL, *tag_field = NULL;
+    bool asarray = false;
+    int status = -1;
+
+    tag_mapping = PyDict_New();
+    if (tag_mapping == NULL) goto cleanup;
+
+    for (Py_ssize_t i = 0; i < PyList_GET_SIZE(state->structs_list); i++) {
+        StructMetaObject *struct_type = (StructMetaObject *)(PyList_GET_ITEM(state->structs_list, i));
+        PyObject *item_tag_field = struct_type->struct_tag_field;
+        PyObject *item_tag_value = struct_type->struct_tag_value;
+        bool item_asarray = struct_type->asarray == OPT_TRUE;
+        bool item_json_compatible = true;
+
+        if (StructMeta_prep_types((PyObject *)struct_type, err_not_json, &item_json_compatible) < 0) {
+            goto cleanup;
+        }
+        if (!item_json_compatible && json_compatible != NULL) {
+            *json_compatible = false;
+        }
+
+        if (item_tag_value == NULL) {
+            PyErr_Format(
+                PyExc_TypeError,
+                "If a type union contains multiple Struct types, all Struct "
+                "types must be tagged (via `tag` or `tag_field` kwarg) - type "
+                "`%R` is not supported",
+                state->context
+            );
+            goto cleanup;
+        }
+
+        if (i == 0) {
+            asarray = struct_type->asarray == OPT_TRUE;
+            tag_field = struct_type->struct_tag_field;
+        }
+        else {
+            if (asarray != item_asarray) {
+                PyErr_Format(
+                    PyExc_TypeError,
+                    "Type unions may not contain Struct types with `asarray=True` "
+                    "and `asarray=False` - type `%R` is not supported",
+                    state->context
+                );
+                goto cleanup;
+            }
+
+            int compare = PyUnicode_Compare(item_tag_field, tag_field);
+            if (compare == -1 && PyErr_Occurred()) goto cleanup;
+            if (compare != 0) {
+                PyErr_Format(
+                    PyExc_TypeError,
+                    "If a type union contains multiple Struct types, all Struct types "
+                    "must have the same `tag_field` - type `%R` is not supported",
+                    state->context
+                );
+                goto cleanup;
+            }
+        }
+        if (PyDict_GetItem(tag_mapping, item_tag_value) != NULL) {
+            PyErr_Format(
+                PyExc_TypeError,
+                "If a type union contains multiple Struct types, all Struct types "
+                "must have unique `tag` values - type `%R` is not supported",
+                state->context
+            );
+            goto cleanup;
+        }
+        if (PyDict_SetItem(tag_mapping, item_tag_value, (PyObject *)struct_type) < 0) {
+            goto cleanup;
+        }
+    }
+
+    /* Build a lookup from tag_value -> struct_type */
+    state->structs_lookup = (PyObject *)StrLookup_New(tag_mapping);
+    if (state->structs_lookup == NULL) goto cleanup;
+
+    /* Stash the tag field */
+    Py_INCREF(tag_field);
+    state->structs_tag_field = tag_field;
+
+    /* Update the `types` */
+    if (asarray) {
+        state->types |= MS_TYPE_STRUCT_ARRAY_UNION;
+    }
+    else {
+        state->types |= MS_TYPE_STRUCT_UNION;
+    }
+
+    status = 0;
+
+cleanup:
+    Py_XDECREF(tag_mapping);
+    return status;
+}
+
 static void
 typenode_collect_clear_state(TypeNodeCollectState *state) {
     Py_CLEAR(state->struct_obj);
-    Py_CLEAR(state->struct_obj);
+    Py_CLEAR(state->structs_list);
+    Py_CLEAR(state->structs_lookup);
+    Py_CLEAR(state->structs_tag_field);
     Py_CLEAR(state->intenum_obj);
     Py_CLEAR(state->enum_obj);
     Py_CLEAR(state->custom_obj);
@@ -1796,13 +1930,21 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
 
     /* Struct types */
     if (Py_TYPE(obj) == &StructMetaType) {
-        /* May only have one Struct type in a union */
-        if (state->struct_obj != NULL) {
-            return typenode_collect_err_unique(state, "Struct");
+        if (state->struct_obj == NULL && state->structs_list == NULL) {
+            /* First struct found, store it directly */
+            Py_INCREF(obj);
+            state->struct_obj = obj;
         }
-        state->types |= MS_TYPE_STRUCT;
-        Py_INCREF(obj);
-        state->struct_obj = obj;
+        else {
+            if (state->structs_list == NULL) {
+                /* Second struct found, create a list and move the existing struct there */
+                state->structs_list = PyList_New(0);
+                if (state->structs_list == NULL) return -1;
+                if (PyList_Append(state->structs_list, state->struct_obj) < 0) return -1;
+                Py_CLEAR(state->struct_obj);
+            }
+            if (PyList_Append(state->structs_list, obj) < 0) return -1;
+        }
         return 0;
     }
 
@@ -1945,6 +2087,8 @@ TypeNode_Convert(PyObject *obj, bool err_not_json, bool *json_compatible) {
 
     /* Traverse `obj` to collect all type annotations at this level */
     if (typenode_collect_type(&state, obj) < 0) goto done;
+    /* Handle structs in a second pass */
+    if (typenode_collect_convert_structs(&state, err_not_json, json_compatible) < 0) goto done;
     /* Handle literals in a second pass */
     if (typenode_collect_convert_literals(&state) < 0) goto done;
     /* Check type invariants to ensure Union types are valid */
@@ -2455,7 +2599,7 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
          * makes cleanup on error easier, since we only want to cleanup new
          * references.
          */
-        
+
         /* First xincref and stash the `tag` arg, which will later be set on
          * the class. */
         Py_XINCREF(tag_temp);
@@ -6128,11 +6272,9 @@ mpack_decode_array(
     else if (type->types & MS_TYPE_FIXTUPLE) {
         return mpack_decode_fixtuple(self, size, type, path, is_key);
     }
-    else if (type->types & MS_TYPE_STRUCT) {
+    else if (type->types & MS_TYPE_STRUCT_ARRAY) {
         StructMetaObject *struct_type = TypeNode_get_struct(type);
-        if (struct_type->asarray == OPT_TRUE) {
-            return mpack_decode_struct_array(self, size, struct_type, type, path, is_key);
-        }
+        return mpack_decode_struct_array(self, size, struct_type, type, path, is_key);
     }
     return ms_validation_error("array", type, path);
 }
@@ -6340,9 +6482,7 @@ mpack_decode_map(
     }
     else if (type->types & MS_TYPE_STRUCT) {
         StructMetaObject *struct_type = TypeNode_get_struct(type);
-        if (struct_type->asarray != OPT_TRUE) {
-            return mpack_decode_struct_map(self, size, struct_type, type, path, is_key);
-        }
+        return mpack_decode_struct_map(self, size, struct_type, type, path, is_key);
     }
     return ms_validation_error("object", type, path);
 }
@@ -7335,11 +7475,9 @@ json_decode_array(
     else if (type->types & MS_TYPE_FIXTUPLE) {
         return json_decode_fixtuple(self, type, path);
     }
-    else if (type->types & MS_TYPE_STRUCT) {
+    else if (type->types & MS_TYPE_STRUCT_ARRAY) {
         StructMetaObject *struct_type = TypeNode_get_struct(type);
-        if (struct_type->asarray == OPT_TRUE) {
-            return json_decode_struct_array(self, struct_type, type, path);
-        }
+        return json_decode_struct_array(self, struct_type, type, path);
     }
     return ms_validation_error("array", type, path);
 }
@@ -7953,9 +8091,7 @@ json_decode_object(
     }
     else if (type->types & MS_TYPE_STRUCT) {
         StructMetaObject *struct_type = TypeNode_get_struct(type);
-        if (struct_type->asarray != OPT_TRUE) {
-            return json_decode_struct_map(self, struct_type, type, path);
-        }
+        return json_decode_struct_map(self, struct_type, type, path);
     }
     return ms_validation_error("object", type, path);
 }
