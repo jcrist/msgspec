@@ -557,96 +557,11 @@ class TestDecoderMisc:
         dec = msgspec.msgpack.Decoder()
         assert repr(dec) == f"msgspec.msgpack.Decoder({Any!r})"
 
-    def test_decoder_unsupported_type(self):
-        with pytest.raises(TypeError):
-            msgspec.msgpack.Decoder(1)
-
-    def test_decoder_validates_struct_definition_unsupported_types(self):
-        """Struct definitions aren't validated until first use"""
-
-        class Test(msgspec.Struct):
-            a: 1
-
-        with pytest.raises(TypeError):
-            msgspec.msgpack.Decoder(Test)
-
-    @pytest.mark.parametrize("typ", [Union[int, Deque], Union[Deque, int]])
-    def test_err_union_with_custom_type(self, typ):
-        with pytest.raises(TypeError) as rec:
-            msgspec.msgpack.Decoder(typ)
-        assert "custom type" in str(rec.value)
-        assert repr(typ) in str(rec.value)
-
-    @pytest.mark.parametrize("typ", [Union[dict, Person], Union[Person, dict]])
-    def test_err_union_with_struct_and_dict(self, typ):
-        with pytest.raises(TypeError) as rec:
-            msgspec.msgpack.Decoder(typ)
-        assert "both a Struct type and a dict type" in str(rec.value)
-        assert repr(typ) in str(rec.value)
-
-    @pytest.mark.parametrize("typ", [Union[PersonAA, list], Union[tuple, PersonAA]])
-    def test_err_union_with_struct_asarray_and_array(self, typ):
-        with pytest.raises(TypeError) as rec:
-            msgspec.msgpack.Decoder(typ)
-        assert "asarray=True" in str(rec.value)
-        assert "Type unions containing" in str(rec.value)
-        assert repr(typ) in str(rec.value)
-
-    @pytest.mark.parametrize("types", [(FruitInt, int), (FruitInt, Literal[1, 2])])
-    def test_err_union_with_multiple_int_like_types(self, types):
-        typ = Union[types]
-        with pytest.raises(TypeError) as rec:
-            msgspec.msgpack.Decoder(typ)
-        assert "int-like" in str(rec.value)
-        assert repr(typ) in str(rec.value)
-
-    @pytest.mark.parametrize(
-        "types", [(FruitStr, str), (FruitStr, Literal["one", "two"])]
-    )
-    def test_err_union_with_multiple_str_like_types(self, types):
-        typ = Union[types]
-        with pytest.raises(TypeError) as rec:
-            msgspec.msgpack.Decoder(typ)
-        assert "str-like" in str(rec.value)
-        assert repr(typ) in str(rec.value)
-
-    @pytest.mark.parametrize(
-        "typ,kind",
-        [
-            (Union[Person, PersonAA], "Struct"),
-            (Union[Person, Node], "Struct"),
-            (Union[FruitInt, VeggieInt], "IntEnum"),
-            (Union[FruitStr, VeggieStr], "Enum"),
-            (Union[Dict[int, float], dict], "dict"),
-            (Union[List[int], List[float]], "array-like"),
-            (Union[List[int], tuple], "array-like"),
-            (Union[set, tuple], "array-like"),
-            (Union[Tuple[int, ...], list], "array-like"),
-            (Union[Tuple[int, float, str], set], "array-like"),
-            (Union[Deque, int, Point], "custom"),
-        ],
-    )
-    def test_err_union_conflicts(self, typ, kind):
-        with pytest.raises(TypeError) as rec:
-            msgspec.msgpack.Decoder(typ)
-        assert f"more than one {kind}" in str(rec.value)
-        assert repr(typ) in str(rec.value)
-
     def test_decode_with_trailing_characters_errors(self):
         dec = msgspec.msgpack.Decoder()
 
         msg = msgspec.msgpack.encode([1, 2, 3]) + b"trailing"
 
-        with pytest.raises(msgspec.DecodeError):
-            dec.decode(msg)
-
-    @pytest.mark.skipif(sys.version_info[:2] < (3, 10), reason="3.10 only")
-    def test_310_union_types(self):
-        dec = msgspec.msgpack.Decoder(int | str | None)
-        assert dec.decode(msgspec.msgpack.encode(1)) == 1
-        assert dec.decode(msgspec.msgpack.encode("abc")) == "abc"
-        assert dec.decode(msgspec.msgpack.encode(None)) is None
-        msg = msgspec.msgpack.encode(1.5)
         with pytest.raises(msgspec.DecodeError):
             dec.decode(msg)
 
