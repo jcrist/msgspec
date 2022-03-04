@@ -1681,7 +1681,7 @@ class TestStruct:
 
         s = msgspec.json.encode(Test())
         if tag:
-            assert s == b'{"$type":"Test"}'
+            assert s == b'{"type":"Test"}'
         else:
             assert s == b"{}"
 
@@ -1692,7 +1692,7 @@ class TestStruct:
 
         s = msgspec.json.encode(Test(a=1))
         if tag:
-            assert s == b'{"$type":"Test","a":1}'
+            assert s == b'{"type":"Test","a":1}'
         else:
             assert s == b'{"a":1}'
 
@@ -1704,7 +1704,7 @@ class TestStruct:
 
         s = msgspec.json.encode(Test(a=1, b="two"))
         if tag:
-            assert s == b'{"$type":"Test","a":1,"b":"two"}'
+            assert s == b'{"type":"Test","a":1,"b":"two"}'
         else:
             assert s == b'{"a":1,"b":"two"}'
 
