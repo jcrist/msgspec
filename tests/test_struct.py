@@ -767,19 +767,19 @@ class TestTagAndTagField:
             ({}, None, None),
             ({"tag": None, "tag_field": None}, None, None),
             # tag=True
-            ({"tag": True}, "$type", "Test"),
+            ({"tag": True}, "type", "Test"),
             ({"tag": True, "tag_field": "test"}, "test", "Test"),
             # tag=False
             ({"tag": False}, None, None),
-            ({"tag": False, "tag_field": "type"}, None, None),
+            ({"tag": False, "tag_field": "kind"}, None, None),
             # tag str
-            ({"tag": "test"}, "$type", "test"),
-            (dict(tag="test", tag_field="type"), "type", "test"),
+            ({"tag": "test"}, "type", "test"),
+            (dict(tag="test", tag_field="kind"), "kind", "test"),
             # tag callable
-            (dict(tag=lambda n: n.lower()), "$type", "test"),
-            (dict(tag=lambda n: n.lower(), tag_field="type"), "type", "test"),
+            (dict(tag=lambda n: n.lower()), "type", "test"),
+            (dict(tag=lambda n: n.lower(), tag_field="kind"), "kind", "test"),
             # tag_field alone
-            (dict(tag_field="type"), "type", "Test"),
+            (dict(tag_field="kind"), "kind", "Test"),
         ]
     )
     def test_config(self, opts, tag_field, tag):
@@ -794,19 +794,19 @@ class TestTagAndTagField:
         "opts1, opts2, tag_field, tag",
         [
             # tag=True
-            ({"tag": True}, {}, "$type", "S2"),
-            ({"tag": True}, {"tag": None}, "$type", "S2"),
+            ({"tag": True}, {}, "type", "S2"),
+            ({"tag": True}, {"tag": None}, "type", "S2"),
             ({"tag": True}, {"tag": False}, None, None),
             ({"tag": True}, {"tag_field": "foo"}, "foo", "S2"),
             # tag str
-            ({"tag": "test"}, {}, "$type", "test"),
-            ({"tag": "test"}, {"tag": "test2"}, "$type", "test2"),
-            ({"tag": "test"}, {"tag": None}, "$type", "test"),
+            ({"tag": "test"}, {}, "type", "test"),
+            ({"tag": "test"}, {"tag": "test2"}, "type", "test2"),
+            ({"tag": "test"}, {"tag": None}, "type", "test"),
             ({"tag": "test"}, {"tag_field": "foo"}, "foo", "test"),
             # tag callable
-            ({"tag": lambda n: n.lower()}, {}, "$type", "s2"),
+            ({"tag": lambda n: n.lower()}, {}, "type", "s2"),
             ({"tag": lambda n: n.lower()}, {"tag": False}, None, None),
-            ({"tag": lambda n: n.lower()}, {"tag": None}, "$type", "s2"),
+            ({"tag": lambda n: n.lower()}, {"tag": None}, "type", "s2"),
             ({"tag": lambda n: n.lower()}, {"tag_field": "foo"}, "foo", "s2"),
         ]
     )

@@ -1348,7 +1348,7 @@ class TestStruct:
             pass
 
         if tag:
-            msg = {"$type": "Test"}
+            msg = {"type": "Test"}
         else:
             msg = {}
         s = msgspec.msgpack.encode(Test())
@@ -1361,7 +1361,7 @@ class TestStruct:
             a: int
 
         if tag:
-            msg = {"$type": "Test", "a": 1}
+            msg = {"type": "Test", "a": 1}
         else:
             msg = {"a": 1}
         s = msgspec.msgpack.encode(Test(a=1))
@@ -1375,7 +1375,7 @@ class TestStruct:
             b: str
 
         if tag:
-            msg = {"$type": "Test", "a": 1, "b": "two"}
+            msg = {"type": "Test", "a": 1, "b": "two"}
         else:
             msg = {"a": 1, "b": "two"}
         s = msgspec.msgpack.encode(Test(a=1, b="two"))
@@ -1574,11 +1574,11 @@ class TestStructArray:
 
         # Missing fields
         bad = msgspec.msgpack.encode(("harry", "potter"))
-        with pytest.raises(msgspec.DecodeError, match="missing required field `age`"):
+        with pytest.raises(msgspec.DecodeError, match="Expected `array` of at least length 3, got 2"):
             dec.decode(bad)
 
         bad = msgspec.msgpack.encode(())
-        with pytest.raises(msgspec.DecodeError, match="missing required field `first`"):
+        with pytest.raises(msgspec.DecodeError, match="Expected `array` of at least length 3, got 0"):
             dec.decode(bad)
 
         # Extra fields ignored

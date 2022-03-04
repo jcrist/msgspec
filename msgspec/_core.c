@@ -328,7 +328,6 @@ typedef struct {
     PyObject *str_utcoffset;
     PyObject *str___origin__;
     PyObject *str___args__;
-    PyObject *str_dollartype;
     PyObject *typing_list;
     PyObject *typing_set;
     PyObject *typing_tuple;
@@ -748,9 +747,6 @@ IntLookup_GetInt64(IntLookupObject *self, int64_t key) {
         if (entry == NULL) return NULL;
         out = *entry;
     }
-    if (out != NULL) {
-        Py_INCREF(out);
-    }
     return out;
 }
 
@@ -764,9 +760,6 @@ IntLookup_GetUInt64(IntLookupObject *self, uint64_t key) {
         PyObject **entry = _IntLookup_lookup_uint64(self, key);
         if (entry == NULL) return NULL;
         out = *entry;
-    }
-    if (out != NULL) {
-        Py_INCREF(out);
     }
     return out;
 }
@@ -791,6 +784,7 @@ typedef struct StrLookupEntry {
 
 typedef struct StrLookupObject {
     PyObject_VAR_HEAD
+    PyObject *tag_field;  /* used for struct lookup table only */
     StrLookupEntry table[];
 } StrLookupObject;
 
@@ -844,8 +838,7 @@ StrLookup_Set(StrLookupObject *self, PyObject *key, PyObject *value) {
 }
 
 static StrLookupObject *
-StrLookup_New(PyObject *arg)
-{
+StrLookup_NewWithTagField(PyObject *arg, PyObject *tag_field) {
     Py_ssize_t nitems;
     PyObject *item, *items = NULL;
     StrLookupObject *self = NULL;
@@ -881,6 +874,10 @@ StrLookup_New(PyObject *arg)
         self->table[i].key = NULL;
         self->table[i].value = NULL;
     }
+
+    /* Store the tag field (struct lookup only) */
+    Py_XINCREF(tag_field);
+    self->tag_field = tag_field;
 
     if (PyDict_CheckExact(arg)) {
         PyObject *key, *val;
@@ -921,6 +918,12 @@ cleanup:
     return self;
 }
 
+static StrLookupObject *
+StrLookup_New(PyObject *arg) {
+    return StrLookup_NewWithTagField(arg, NULL);
+}
+
+
 static int
 StrLookup_traverse(StrLookupObject *self, visitproc visit, void *arg)
 {
@@ -938,6 +941,7 @@ StrLookup_clear(StrLookupObject *self)
         Py_CLEAR(self->table[i].key);
         Py_CLEAR(self->table[i].value);
     }
+    Py_CLEAR(self->tag_field);
     return 0;
 }
 
@@ -952,9 +956,6 @@ StrLookup_dealloc(StrLookupObject *self)
 static PyObject *
 StrLookup_Get(StrLookupObject *self, const char *key, Py_ssize_t size) {
     StrLookupEntry *entry = _StrLookup_lookup(self, key, size);
-    if (entry->value != NULL) {
-        Py_INCREF(entry->value);
-    }
     return entry->value;
 }
 
@@ -1030,10 +1031,10 @@ static PyTypeObject StructMetaType;
 static PyTypeObject Ext_Type;
 static int StructMeta_prep_types(PyObject *self, bool err_not_json, bool *json_compatible);
 
-#define StructMeta_GET_FIELDS(s) (((StructMetaObject *)(s))->struct_fields);
-#define StructMeta_GET_NFIELDS(s) (PyTuple_GET_SIZE((((StructMetaObject *)(s))->struct_fields)));
-#define StructMeta_GET_DEFAULTS(s) (((StructMetaObject *)(s))->struct_defaults);
-#define StructMeta_GET_OFFSETS(s) (((StructMetaObject *)(s))->struct_offsets);
+#define StructMeta_GET_FIELDS(s) (((StructMetaObject *)(s))->struct_fields)
+#define StructMeta_GET_NFIELDS(s) (PyTuple_GET_SIZE((((StructMetaObject *)(s))->struct_fields)))
+#define StructMeta_GET_DEFAULTS(s) (((StructMetaObject *)(s))->struct_defaults)
+#define StructMeta_GET_OFFSETS(s) (((StructMetaObject *)(s))->struct_offsets)
 
 #define OPT_UNSET -1
 #define OPT_FALSE 0
@@ -1050,7 +1051,8 @@ TypeNode_get_size(TypeNode *type, Py_ssize_t *n_typenode) {
     else if (!(type->types & MS_TYPE_ANY)) {
         n_obj = ms_popcount(
             type->types & (
-                MS_TYPE_STRUCT | MS_TYPE_STRUCT_ARRAY |
+                MS_TYPE_STRUCT | MS_TYPE_STRUCT_UNION |
+                MS_TYPE_STRUCT_ARRAY | MS_TYPE_STRUCT_ARRAY_UNION |
                 MS_TYPE_INTENUM | MS_TYPE_INTLITERAL |
                 MS_TYPE_ENUM | MS_TYPE_STRLITERAL
             )
@@ -1070,6 +1072,12 @@ TypeNode_get_struct(TypeNode *type) {
     return ((TypeNodeExtra *)type)->extra[0];
 }
 
+static MS_INLINE StrLookupObject *
+TypeNode_get_struct_union(TypeNode *type) {
+    /* Struct union types are always first */
+    return ((TypeNodeExtra *)type)->extra[0];
+}
+
 static MS_INLINE PyObject *
 TypeNode_get_custom(TypeNode *type) {
     /* Custom types can't be mixed with anything */
@@ -1078,7 +1086,12 @@ TypeNode_get_custom(TypeNode *type) {
 
 static MS_INLINE IntLookupObject *
 TypeNode_get_int_enum_or_literal(TypeNode *type) {
-    Py_ssize_t i = (type->types & (MS_TYPE_STRUCT | MS_TYPE_STRUCT_ARRAY)) != 0;
+    Py_ssize_t i = ms_popcount(
+        type->types & (
+            MS_TYPE_STRUCT | MS_TYPE_STRUCT_UNION |
+            MS_TYPE_STRUCT_ARRAY | MS_TYPE_STRUCT_ARRAY_UNION
+        )
+    );
     return ((TypeNodeExtra *)type)->extra[i];
 }
 
@@ -1086,7 +1099,8 @@ static MS_INLINE StrLookupObject *
 TypeNode_get_str_enum_or_literal(TypeNode *type) {
     Py_ssize_t i = ms_popcount(
         type->types & (
-            MS_TYPE_STRUCT | MS_TYPE_STRUCT_ARRAY |
+            MS_TYPE_STRUCT | MS_TYPE_STRUCT_UNION |
+            MS_TYPE_STRUCT_ARRAY | MS_TYPE_STRUCT_ARRAY_UNION |
             MS_TYPE_INTENUM | MS_TYPE_INTLITERAL
         )
     );
@@ -1097,7 +1111,8 @@ static MS_INLINE void
 TypeNode_get_dict(TypeNode *type, TypeNode **key, TypeNode **val) {
     Py_ssize_t i = ms_popcount(
         type->types & (
-            MS_TYPE_STRUCT | MS_TYPE_STRUCT_ARRAY |
+            MS_TYPE_STRUCT | MS_TYPE_STRUCT_UNION |
+            MS_TYPE_STRUCT_ARRAY | MS_TYPE_STRUCT_ARRAY_UNION |
             MS_TYPE_INTENUM | MS_TYPE_INTLITERAL |
             MS_TYPE_ENUM | MS_TYPE_STRLITERAL
         )
@@ -1110,7 +1125,8 @@ static MS_INLINE Py_ssize_t
 TypeNode_get_array_offset(TypeNode *type) {
     Py_ssize_t i = ms_popcount(
         type->types & (
-            MS_TYPE_STRUCT | MS_TYPE_STRUCT_ARRAY |
+            MS_TYPE_STRUCT | MS_TYPE_STRUCT_UNION |
+            MS_TYPE_STRUCT_ARRAY | MS_TYPE_STRUCT_ARRAY_UNION |
             MS_TYPE_INTENUM | MS_TYPE_INTLITERAL |
             MS_TYPE_ENUM | MS_TYPE_STRLITERAL
         )
@@ -1208,7 +1224,6 @@ typedef struct {
     PyObject *struct_obj;
     PyObject *structs_list;
     PyObject *structs_lookup;
-    PyObject *structs_tag_field;
     PyObject *intenum_obj;
     PyObject *enum_obj;
     PyObject *custom_obj;
@@ -1230,7 +1245,7 @@ typenode_from_collect_state(TypeNodeCollectState *state, bool err_not_json, bool
     bool has_fixtuple = false;
 
     if (state->struct_obj != NULL) n_extra++;
-    if (state->structs_lookup != NULL) n_extra += 2;
+    if (state->structs_lookup != NULL) n_extra++;
     if (state->intenum_obj != NULL) n_extra++;
     if (state->int_literal_lookup != NULL) n_extra++;
     if (state->enum_obj != NULL) n_extra++;
@@ -1279,8 +1294,6 @@ typenode_from_collect_state(TypeNodeCollectState *state, bool err_not_json, bool
     if (state->structs_lookup != NULL) {
         Py_INCREF(state->structs_lookup);
         out->extra[e_ind++] = state->structs_lookup;
-        Py_INCREF(state->structs_tag_field);
-        out->extra[e_ind++] = state->structs_tag_field;
     }
     if (state->intenum_obj != NULL) {
         MsgspecState *st = msgspec_get_global_state();
@@ -1834,12 +1847,10 @@ typenode_collect_convert_structs(
     }
 
     /* Build a lookup from tag_value -> struct_type */
-    state->structs_lookup = (PyObject *)StrLookup_New(tag_mapping);
+    state->structs_lookup = (PyObject *)StrLookup_NewWithTagField(
+        tag_mapping, tag_field
+    );
     if (state->structs_lookup == NULL) goto cleanup;
-
-    /* Stash the tag field */
-    Py_INCREF(tag_field);
-    state->structs_tag_field = tag_field;
 
     /* Update the `types` */
     if (asarray) {
@@ -1861,7 +1872,6 @@ typenode_collect_clear_state(TypeNodeCollectState *state) {
     Py_CLEAR(state->struct_obj);
     Py_CLEAR(state->structs_list);
     Py_CLEAR(state->structs_lookup);
-    Py_CLEAR(state->structs_tag_field);
     Py_CLEAR(state->intenum_obj);
     Py_CLEAR(state->enum_obj);
     Py_CLEAR(state->custom_obj);
@@ -2101,12 +2111,13 @@ done:
 }
 
 #define PATH_ELLIPSIS -1
-#define PATH_KEY -2
+#define PATH_TAG -2
+#define PATH_KEY -3
 
 typedef struct PathNode {
     struct PathNode *parent;
     Py_ssize_t index;
-    StructMetaObject *struct_type;
+    PyObject *object;
 } PathNode;
 
 /* reverse the parent pointers in the path linked list */
@@ -2142,10 +2153,16 @@ PathNode_ErrSuffix(PathNode *path) {
     if (!strbuilder_extend(&parts, "`$", 2)) goto cleanup;
 
     while (path != NULL) {
-        if (path->struct_type != NULL) {
-            PyObject *name = PyTuple_GET_ITEM(
-                path->struct_type->struct_fields, path->index
-            );
+        if (path->object != NULL) {
+            PyObject *name;
+            if (path->index == PATH_TAG) {
+                name = path->object;
+            }
+            else {
+                name = PyTuple_GET_ITEM(
+                    StructMeta_GET_FIELDS(path->object), path->index
+                );
+            }
             if (!strbuilder_extend(&parts, ".", 1)) goto cleanup;
             if (!strbuilder_extend_unicode(&parts, name)) goto cleanup;
         }
@@ -2230,6 +2247,27 @@ ms_validation_error(char *got, TypeNode *type, PathNode *path) {
     if (type_repr != NULL) {
         ms_raise_validation_error(path, "Expected `%U`, got `%s`%U", type_repr, got);
         Py_DECREF(type_repr);
+    }
+    return NULL;
+}
+
+static PyObject *
+ms_invalid_cstr_value(const char *cstr, Py_ssize_t size, PathNode *path) {
+    PyObject *str = PyUnicode_DecodeUTF8(cstr, size, NULL);
+    if (str == NULL) return NULL;
+    ms_raise_validation_error(path, "Invalid value '%U'%U", str);
+    Py_DECREF(str);
+    return NULL;
+}
+
+/* Same as ms_raise_validation_error, except doesn't require any format arguments. */
+static PyObject *
+ms_error_with_path(const char *msg, PathNode *path) {
+    MsgspecState *st = msgspec_get_global_state();
+    PyObject *suffix = PathNode_ErrSuffix(path);
+    if (suffix != NULL) {
+        PyErr_Format(st->DecodeError, msg, suffix);
+        Py_DECREF(suffix);
     }
     return NULL;
 }
@@ -2376,6 +2414,15 @@ StructMeta_get_field_index(
         if (key_size == field_size && memcmp(key, field, key_size) == 0) {
             *pos = (ind + 1) % nfields;
             return ind;
+        }
+    }
+    /* Not a field, check if it matches the tag field (if present) */
+    if (self->struct_tag_field != NULL) {
+        Py_ssize_t tag_field_size;
+        const char *tag_field;
+        tag_field = unicode_str_and_size(self->struct_tag_field, &tag_field_size);
+        if (key_size == tag_field_size && memcmp(key, tag_field, key_size) == 0) {
+            return -2;
         }
     }
     return -1;
@@ -2630,7 +2677,7 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
          * Note: `None` was already normalized to NULL */
         if (tag_field_temp == NULL) {
             MsgspecState *st = msgspec_get_global_state();
-            tag_field = st->str_dollartype;
+            tag_field = st->str_type;
             Py_INCREF(tag_field);
         }
         else if (PyUnicode_CheckExact(tag_field_temp)) {
@@ -4029,30 +4076,35 @@ ms_decode_str_enum_or_literal(const char *name, Py_ssize_t size, TypeNode *type,
         if (val == NULL) return NULL;
         ms_raise_validation_error(path, "Invalid enum value '%U'%U", val);
         Py_DECREF(val);
+        return NULL;
     }
+    Py_INCREF(out);
     return out;
 }
 
-static PyObject *
+static MS_NOINLINE PyObject *
 ms_decode_int_enum_or_literal_int64(int64_t val, TypeNode *type, PathNode *path) {
     IntLookupObject *lookup = TypeNode_get_int_enum_or_literal(type);
     PyObject *out = IntLookup_GetInt64(lookup, val);
     if (out == NULL) {
         ms_raise_validation_error(path, "Invalid enum value `%lld`%U", val);
+        return NULL;
     }
+    Py_INCREF(out);
     return out;
 }
 
-static PyObject *
+static MS_NOINLINE PyObject *
 ms_decode_int_enum_or_literal_uint64(uint64_t val, TypeNode *type, PathNode *path) {
     IntLookupObject *lookup = TypeNode_get_int_enum_or_literal(type);
     PyObject *out = IntLookup_GetUInt64(lookup, val);
     if (out == NULL) {
         ms_raise_validation_error(path, "Invalid enum value `%llu`%U", val);
+        return NULL;
     }
+    Py_INCREF(out);
     return out;
 }
-
 
 static PyObject *
 ms_decode_custom(PyObject *obj, PyObject *dec_hook, bool generic, TypeNode* type, PathNode *path) {
@@ -5799,14 +5851,115 @@ mpack_decode_size4(DecoderState *self) {
 }
 
 static PyObject *
+mpack_error_expected(char op, char *expected, PathNode *path) {
+    char *got;
+    if (-32 <= op && op <= 127) {
+        got = "int";
+    }
+    else if ('\xa0' <= op && op <= '\xbf') {
+        got = "str";
+    }
+    else if ('\x90' <= op && op <= '\x9f') {
+        got = "array";
+    }
+    else if ('\x80' <= op && op <= '\x8f') {
+        got = "object";
+    }
+    else {
+        switch ((enum mpack_code)op) {
+            case MP_NIL:
+                got = "null";
+                break;
+            case MP_TRUE:
+            case MP_FALSE:
+                got = "bool";
+                break;
+            case MP_UINT8:
+            case MP_UINT16:
+            case MP_UINT32:
+            case MP_UINT64:
+            case MP_INT8:
+            case MP_INT16:
+            case MP_INT32:
+            case MP_INT64:
+                got = "int";
+                break;
+            case MP_FLOAT32:
+            case MP_FLOAT64:
+                got = "float";
+                break;
+            case MP_STR8:
+            case MP_STR16:
+            case MP_STR32:
+                got = "str";
+                break;
+            case MP_BIN8:
+            case MP_BIN16:
+            case MP_BIN32:
+                got = "bytes";
+                break;
+            case MP_ARRAY16:
+            case MP_ARRAY32:
+                got = "array";
+                break;
+            case MP_MAP16:
+            case MP_MAP32:
+                got = "object";
+                break;
+            case MP_FIXEXT1:
+            case MP_FIXEXT2:
+            case MP_FIXEXT4:
+            case MP_FIXEXT8:
+            case MP_FIXEXT16:
+            case MP_EXT8:
+            case MP_EXT16:
+            case MP_EXT32:
+                got = "ext";
+                break;
+            default:
+                got = "unknown";
+                break;
+        }
+    }
+    ms_raise_validation_error(path, "Expected `str`, got `%s`%U", got);
+    return NULL;
+}
+
+static MS_INLINE Py_ssize_t
+mpack_decode_cstr(DecoderState *self, char ** out, PathNode *path) {
+    char op = 0;
+    Py_ssize_t size;
+    if (mpack_read1(self, &op) < 0) return -1;
+
+    if ('\xa0' <= op && op <= '\xbf') {
+        size = op & 0x1f;
+    }
+    else if (op == MP_STR8) {
+        size = mpack_decode_size1(self);
+    }
+    else if (op == MP_STR16) {
+        size = mpack_decode_size2(self);
+    }
+    else if (op == MP_STR32) {
+        size = mpack_decode_size4(self);
+    }
+    else {
+        mpack_error_expected(op, "str", path);
+        return -1;
+    }
+
+    if (mpack_read(self, out, size) < 0) return -1;
+    return size;
+}
+
+
+static PyObject *
 mpack_decode_datetime(
     DecoderState *self, const char *data_buf, Py_ssize_t size, PathNode *path
 ) {
     uint64_t data64;
     uint32_t nanoseconds;
     int64_t seconds;
-    MsgspecState *st;
-    PyObject *suffix;
     char *err_msg;
 
     switch (size) {
@@ -5841,13 +5994,7 @@ mpack_decode_datetime(
     return datetime_from_epoch(seconds, nanoseconds);
 
 invalid:
-    st = msgspec_get_global_state();
-    suffix = PathNode_ErrSuffix(path);
-    if (suffix != NULL) {
-        PyErr_Format(st->DecodeError, err_msg, suffix);
-        Py_DECREF(suffix);
-    }
-    return NULL;
+    return ms_error_with_path(err_msg, path);
 }
 
 static int mpack_skip(DecoderState *self);
@@ -6182,41 +6329,66 @@ mpack_decode_fixtuple(
 }
 
 static PyObject *
-mpack_decode_struct_array(
-    DecoderState *self, Py_ssize_t size, StructMetaObject *st_type,
-    TypeNode *type, PathNode *path, bool is_key
+mpack_decode_struct_array_inner(
+    DecoderState *self, Py_ssize_t size, bool tag_already_read,
+    StructMetaObject *st_type, PathNode *path, bool is_key
 ) {
     Py_ssize_t i, nfields, ndefaults, npos;
     PyObject *res, *val = NULL;
     bool should_untrack;
     bool nogc = st_type->nogc == OPT_TRUE;
-
-    res = Struct_alloc((PyTypeObject *)(st_type));
-    if (res == NULL) return NULL;
+    bool tagged = st_type->struct_tag_value != NULL;
+    PathNode item_path = {path, 0};
 
     nfields = PyTuple_GET_SIZE(st_type->struct_fields);
     ndefaults = PyTuple_GET_SIZE(st_type->struct_defaults);
     npos = nfields - ndefaults;
-    should_untrack = PyObject_IS_GC(res);
 
-    if (Py_EnterRecursiveCall(" while deserializing an object")) {
-        Py_DECREF(res);
+    if (size < npos + tagged) {
+        ms_raise_validation_error(
+            path,
+            "Expected `array` of at least length %zd, got %zd%U",
+            npos + tagged,
+            size
+        );
         return NULL;
     }
+
+    if (tagged) {
+        if (!tag_already_read) {
+            /* Decode tag */
+            char *tag = NULL;
+            Py_ssize_t tag_size;
+            tag_size = mpack_decode_cstr(self, &tag, &item_path);
+            if (tag_size < 0) return NULL;
+
+            /* Check that tag matches expected tag value */
+            Py_ssize_t expected_size;
+            const char *expected = unicode_str_and_size(
+                st_type->struct_tag_value, &expected_size
+            );
+            if (tag_size != expected_size || memcmp(tag, expected, expected_size) != 0) {
+                /* Tag doesn't match the expected value, error nicely */
+                return ms_invalid_cstr_value(tag, tag_size, &item_path);
+            }
+        }
+        size--;
+        item_path.index++;
+    }
+
+    if (Py_EnterRecursiveCall(" while deserializing an object")) return NULL;
+
+    res = Struct_alloc((PyTypeObject *)(st_type));
+    if (res == NULL) goto error;
+
+    should_untrack = PyObject_IS_GC(res);
+
     for (i = 0; i < nfields; i++) {
         if (size > 0) {
-            PathNode el_path = {path, i};
-            val = mpack_decode(self, st_type->struct_types[i], &el_path, is_key);
+            val = mpack_decode(self, st_type->struct_types[i], &item_path, is_key);
             if (MS_UNLIKELY(val == NULL)) goto error;
             size--;
-        }
-        else if (i < npos) {
-            ms_raise_validation_error(
-                path,
-                "Object missing required field `%U`%U",
-                PyTuple_GET_ITEM(st_type->struct_fields, i)
-            );
-            goto error;
+            item_path.index++;
         }
         else {
             val = maybe_deepcopy_default(
@@ -6242,10 +6414,45 @@ mpack_decode_struct_array(
     return res;
 error:
     Py_LeaveRecursiveCall();
-    Py_DECREF(res);
+    Py_XDECREF(res);
     return NULL;
 }
 
+static PyObject *
+mpack_decode_struct_array(
+    DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *path, bool is_key
+) {
+    StructMetaObject *st_type = TypeNode_get_struct(type);
+    return mpack_decode_struct_array_inner(self, size, false, st_type, path, is_key);
+}
+
+static PyObject *
+mpack_decode_struct_array_union(
+    DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *path, bool is_key
+) {
+    StrLookupObject *lookup = TypeNode_get_struct_union(type);
+    if (size == 0) {
+        return ms_error_with_path(
+            "Expected `array` of at least length 1, got 0%U", path
+        );
+    }
+
+    /* Decode tag */
+    PathNode tag_path = {path, 0};
+    char *tag = NULL;
+    Py_ssize_t tag_size;
+    tag_size = mpack_decode_cstr(self, &tag, &tag_path);
+    if (MS_UNLIKELY(tag_size < 0)) return NULL;
+
+    /* Lookup Struct type from tag */
+    StructMetaObject *struct_type = (StructMetaObject *)StrLookup_Get(lookup, tag, tag_size);
+    if (struct_type == NULL) {
+        return ms_invalid_cstr_value(tag, tag_size, &tag_path);
+    }
+
+    /* Finish decoding the rest of the struct */
+    return mpack_decode_struct_array_inner(self, size, true, struct_type, path, is_key);
+}
 
 static PyObject *
 mpack_decode_array(
@@ -6273,8 +6480,10 @@ mpack_decode_array(
         return mpack_decode_fixtuple(self, size, type, path, is_key);
     }
     else if (type->types & MS_TYPE_STRUCT_ARRAY) {
-        StructMetaObject *struct_type = TypeNode_get_struct(type);
-        return mpack_decode_struct_array(self, size, struct_type, type, path, is_key);
+        return mpack_decode_struct_array(self, size, type, path, is_key);
+    }
+    else if (type->types & MS_TYPE_STRUCT_ARRAY_UNION) {
+        return mpack_decode_struct_array_union(self, size, type, path, is_key);
     }
     return ms_validation_error("array", type, path);
 }
@@ -6320,123 +6529,19 @@ error:
 }
 
 static PyObject *
-mpack_error_expected(char op, char *expected, PathNode *path) {
-    char *got;
-    if (-32 <= op && op <= 127) {
-        got = "int";
-    }
-    else if ('\xa0' <= op && op <= '\xbf') {
-        got = "str";
-    }
-    else if ('\x90' <= op && op <= '\x9f') {
-        got = "array";
-    }
-    else if ('\x80' <= op && op <= '\x8f') {
-        got = "object";
-    }
-    else {
-        switch ((enum mpack_code)op) {
-            case MP_NIL:
-                got = "null";
-                break;
-            case MP_TRUE:
-            case MP_FALSE:
-                got = "bool";
-                break;
-            case MP_UINT8:
-            case MP_UINT16:
-            case MP_UINT32:
-            case MP_UINT64:
-            case MP_INT8:
-            case MP_INT16:
-            case MP_INT32:
-            case MP_INT64:
-                got = "int";
-                break;
-            case MP_FLOAT32:
-            case MP_FLOAT64:
-                got = "float";
-                break;
-            case MP_STR8:
-            case MP_STR16:
-            case MP_STR32:
-                got = "str";
-                break;
-            case MP_BIN8:
-            case MP_BIN16:
-            case MP_BIN32:
-                got = "bytes";
-                break;
-            case MP_ARRAY16:
-            case MP_ARRAY32:
-                got = "array";
-                break;
-            case MP_MAP16:
-            case MP_MAP32:
-                got = "object";
-                break;
-            case MP_FIXEXT1:
-            case MP_FIXEXT2:
-            case MP_FIXEXT4:
-            case MP_FIXEXT8:
-            case MP_FIXEXT16:
-            case MP_EXT8:
-            case MP_EXT16:
-            case MP_EXT32:
-                got = "ext";
-                break;
-            default:
-                got = "unknown";
-                break;
-        }
-    }
-    ms_raise_validation_error(path, "Expected `str`, got `%s`%U", got);
-    return NULL;
-}
-
-static MS_INLINE Py_ssize_t
-mpack_decode_cstr(DecoderState *self, char ** out, PathNode *path) {
-    char op = 0;
-    Py_ssize_t size;
-    if (mpack_read1(self, &op) < 0) return -1;
-
-    if ('\xa0' <= op && op <= '\xbf') {
-        size = op & 0x1f;
-    }
-    else if (op == MP_STR8) {
-        size = mpack_decode_size1(self);
-    }
-    else if (op == MP_STR16) {
-        size = mpack_decode_size2(self);
-    }
-    else if (op == MP_STR32) {
-        size = mpack_decode_size4(self);
-    }
-    else {
-        mpack_error_expected(op, "str", path);
-        return -1;
-    }
-
-    if (mpack_read(self, out, size) < 0) return -1;
-    return size;
-}
-
-static PyObject *
 mpack_decode_struct_map(
-    DecoderState *self, Py_ssize_t size, StructMetaObject *st_type,
-    TypeNode *type, PathNode *path, bool is_key
+    DecoderState *self, Py_ssize_t size,
+    StructMetaObject *st_type, PathNode *path, bool is_key
 ) {
     Py_ssize_t i, key_size, field_index, pos = 0;
     char *key = NULL;
     PyObject *res, *val = NULL;
 
+    if (Py_EnterRecursiveCall(" while deserializing an object")) return NULL;
+
     res = Struct_alloc((PyTypeObject *)(st_type));
     if (res == NULL) return NULL;
 
-    if (Py_EnterRecursiveCall(" while deserializing an object")) {
-        Py_DECREF(res);
-        return NULL;
-    }
     for (i = 0; i < size; i++) {
         PathNode key_path = {path, PATH_KEY, NULL};
         key_size = mpack_decode_cstr(self, &key, &key_path);
@@ -6444,11 +6549,32 @@ mpack_decode_struct_map(
 
         field_index = StructMeta_get_field_index(st_type, key, key_size, &pos);
         if (field_index < 0) {
-            /* Skip unknown fields */
-            if (mpack_skip(self) < 0) goto error;
+            if (MS_UNLIKELY(field_index == -2)) {
+                /* Matches the tag field */
+                Py_ssize_t tag_size, expected_size;
+                char *tag = NULL;
+                PathNode tag_path = {path, PATH_TAG, st_type->struct_tag_field};
+
+                /* Decode the tag value */
+                tag_size = mpack_decode_cstr(self, &tag, &tag_path);
+                if (tag_size < 0) goto error;
+
+                /* Check that the tag value matches the expected value */
+                const char *expected = unicode_str_and_size(
+                    st_type->struct_tag_value, &expected_size
+                );
+                if (tag_size != expected_size || memcmp(tag, expected, expected_size) != 0) {
+                    /* Tag doesn't match the expected value, error nicely */
+                    return ms_invalid_cstr_value(tag, tag_size, &tag_path);
+                }
+            }
+            else {
+                /* Unknown field, skip */
+                if (mpack_skip(self) < 0) goto error;
+            }
         }
         else {
-            PathNode field_path = {path, field_index, st_type};
+            PathNode field_path = {path, field_index, (PyObject *)st_type};
             val = mpack_decode(
                 self, st_type->struct_types[field_index], &field_path, is_key
             );
@@ -6462,7 +6588,63 @@ mpack_decode_struct_map(
     return res;
 error:
     Py_LeaveRecursiveCall();
-    Py_DECREF(res);
+    Py_XDECREF(res);
+    return NULL;
+}
+
+static PyObject *
+mpack_decode_struct_union(
+    DecoderState *self, Py_ssize_t size, TypeNode *type,
+    PathNode *path, bool is_key
+) {
+    StrLookupObject *lookup = TypeNode_get_struct_union(type);
+    PathNode key_path = {path, PATH_KEY, NULL};
+    Py_ssize_t tag_field_size;
+    const char *tag_field = unicode_str_and_size(lookup->tag_field, &tag_field_size);
+
+    /* Cache the current input position in case we need to reset it once the
+     * tag is found */
+    char *orig_input_pos = self->input_pos;
+
+    for (Py_ssize_t i = 0; i < size; i++) {
+        Py_ssize_t key_size;
+        char *key = NULL;
+
+        key_size = mpack_decode_cstr(self, &key, &key_path);
+        if (key_size < 0) return NULL;
+
+        if (key_size == tag_field_size && memcmp(key, tag_field, key_size) == 0) {
+            Py_ssize_t tag_size;
+            char *tag = NULL;
+            PathNode tag_path = {path, PATH_TAG, lookup->tag_field};
+            tag_size = mpack_decode_cstr(self, &tag, &tag_path);
+            if (tag_size < 0) return NULL;
+
+            StructMetaObject *struct_type = (StructMetaObject *)StrLookup_Get(lookup, tag, tag_size);
+            if (struct_type == NULL) {
+                return ms_invalid_cstr_value(tag, tag_size, &tag_path);
+            }
+            if (i == 0) {
+                /* Common case, tag is first field. No need to reset, just mark
+                 * that the first field has been read. */
+                size--;
+            }
+            else {
+                self->input_pos = orig_input_pos;
+            }
+            return mpack_decode_struct_map(self, size, struct_type, path, is_key);
+        }
+        else {
+            /* Not the tag field, skip the value and try again */
+            if (mpack_skip(self) < 0) return NULL;
+        }
+    }
+
+    ms_raise_validation_error(
+        path,
+        "Object missing required field `%U`%U",
+        lookup->tag_field
+    );
     return NULL;
 }
 
@@ -6482,7 +6664,10 @@ mpack_decode_map(
     }
     else if (type->types & MS_TYPE_STRUCT) {
         StructMetaObject *struct_type = TypeNode_get_struct(type);
-        return mpack_decode_struct_map(self, size, struct_type, type, path, is_key);
+        return mpack_decode_struct_map(self, size, struct_type, path, is_key);
+    }
+    else if (type->types & MS_TYPE_STRUCT_UNION) {
+        return mpack_decode_struct_union(self, size, type, path, is_key);
     }
     return ms_validation_error("object", type, path);
 }
@@ -7147,341 +7332,6 @@ json_decode_false(JSONDecoderState *self, TypeNode *type, PathNode *path) {
     return ms_validation_error("bool", type, path);
 }
 
-static PyObject *
-json_decode_list(JSONDecoderState *self, TypeNode *el_type, PathNode *path) {
-    PyObject *out, *item = NULL;
-    unsigned char c;
-    bool first = true;
-    PathNode el_path = {path, 0, NULL};
-
-    self->input_pos++; /* Skip '[' */
-
-    out = PyList_New(0);
-    if (out == NULL) return NULL;
-    if (Py_EnterRecursiveCall(" while deserializing an object")) {
-        Py_DECREF(out);
-        return NULL;
-    }
-    while (true) {
-        if (MS_UNLIKELY(!json_peek_skip_ws(self, &c))) goto error;
-        /* Parse ']' or ',', then peek the next character */
-        if (c == ']') {
-            self->input_pos++;
-            break;
-        }
-        else if (c == ',' && !first) {
-            self->input_pos++;
-            if (MS_UNLIKELY(!json_peek_skip_ws(self, &c))) goto error;
-        }
-        else if (first) {
-            /* Only the first item doesn't need a comma delimiter */
-            first = false;
-        }
-        else {
-            json_err_invalid(self, "expected ',' or ']'");
-            goto error;
-        }
-
-        if (MS_UNLIKELY(c == ']')) {
-            json_err_invalid(self, "trailing comma in array");
-            goto error;
-        }
-
-        /* Parse item */
-        item = json_decode(self, el_type, &el_path);
-        if (item == NULL) goto error;
-        el_path.index++;
-
-        /* Append item to list */
-        if (PyList_Append(out, item) < 0) goto error;
-        Py_CLEAR(item);
-    }
-    Py_LeaveRecursiveCall();
-    return out;
-error:
-    Py_LeaveRecursiveCall();
-    Py_DECREF(out);
-    Py_XDECREF(item);
-    return NULL;
-}
-
-static PyObject *
-json_decode_set(JSONDecoderState *self, TypeNode *el_type, PathNode *path) {
-    PyObject *out, *item = NULL;
-    unsigned char c;
-    bool first = true;
-    PathNode el_path = {path, 0, NULL};
-
-    self->input_pos++; /* Skip '[' */
-
-    out = PySet_New(NULL);
-    if (out == NULL) return NULL;
-    if (Py_EnterRecursiveCall(" while deserializing an object")) {
-        Py_DECREF(out);
-        return NULL;
-    }
-    while (true) {
-        if (MS_UNLIKELY(!json_peek_skip_ws(self, &c))) goto error;
-        /* Parse ']' or ',', then peek the next character */
-        if (c == ']') {
-            self->input_pos++;
-            break;
-        }
-        else if (c == ',' && !first) {
-            self->input_pos++;
-            if (MS_UNLIKELY(!json_peek_skip_ws(self, &c))) goto error;
-        }
-        else if (first) {
-            /* Only the first item doesn't need a comma delimiter */
-            first = false;
-        }
-        else {
-            json_err_invalid(self, "expected ',' or ']'");
-            goto error;
-        }
-
-        if (MS_UNLIKELY(c == ']')) {
-            json_err_invalid(self, "trailing comma in array");
-            goto error;
-        }
-
-        /* Parse item */
-        item = json_decode(self, el_type, &el_path);
-        if (item == NULL) goto error;
-        el_path.index++;
-
-        /* Append item to set */
-        if (PySet_Add(out, item) < 0) goto error;
-        Py_CLEAR(item);
-    }
-    Py_LeaveRecursiveCall();
-    return out;
-error:
-    Py_LeaveRecursiveCall();
-    Py_DECREF(out);
-    Py_XDECREF(item);
-    return NULL;
-}
-
-static PyObject *
-json_decode_vartuple(JSONDecoderState *self, TypeNode *el_type, PathNode *path) {
-    PyObject *list, *item, *out = NULL;
-    Py_ssize_t size, i;
-
-    list = json_decode_list(self, el_type, path);
-    if (list == NULL) return NULL;
-
-    size = PyList_GET_SIZE(list);
-    out = PyTuple_New(size);
-    if (out != NULL) {
-        for (i = 0; i < size; i++) {
-            item = PyList_GET_ITEM(list, i);
-            PyTuple_SET_ITEM(out, i, item);
-            PyList_SET_ITEM(list, i, NULL);  /* Drop reference in old list */
-        }
-    }
-    Py_DECREF(list);
-    return out;
-}
-
-static PyObject *
-json_decode_fixtuple(JSONDecoderState *self, TypeNode *type, PathNode *path) {
-    PyObject *out, *item;
-    Py_ssize_t i = 0, offset;
-    unsigned char c;
-    bool first = true;
-    TypeNodeExtra *tex = (TypeNodeExtra *)type;
-    PathNode el_path = {path, 0, NULL};
-
-    offset = TypeNode_get_array_offset(type);
-
-    self->input_pos++; /* Skip '[' */
-
-    out = PyTuple_New(tex->fixtuple_size);
-    if (out == NULL) return NULL;
-
-    if (Py_EnterRecursiveCall(" while deserializing an object")) {
-        Py_DECREF(out);
-        return NULL;
-    }
-
-    while (true) {
-        if (MS_UNLIKELY(!json_peek_skip_ws(self, &c))) goto error;
-        /* Parse ']' or ',', then peek the next character */
-        if (c == ']') {
-            self->input_pos++;
-            if (MS_UNLIKELY(i < tex->fixtuple_size)) goto size_error;
-            break;
-        }
-        else if (c == ',' && !first) {
-            self->input_pos++;
-            if (MS_UNLIKELY(!json_peek_skip_ws(self, &c))) goto error;
-        }
-        else if (first) {
-            /* Only the first item doesn't need a comma delimiter */
-            first = false;
-        }
-        else {
-            json_err_invalid(self, "expected ',' or ']'");
-            goto error;
-        }
-
-        if (MS_UNLIKELY(c == ']')) {
-            json_err_invalid(self, "trailing comma in array");
-            goto error;
-        }
-
-        /* Check we don't have too many elements */
-        if (MS_UNLIKELY(i >= tex->fixtuple_size)) goto size_error;
-
-        /* Parse item */
-        item = json_decode(self, tex->extra[offset + i], &el_path);
-        if (item == NULL) goto error;
-        el_path.index++;
-
-        /* Add item to tuple */
-        PyTuple_SET_ITEM(out, i, item);
-        i++;
-    }
-    Py_LeaveRecursiveCall();
-    return out;
-
-size_error:
-    ms_raise_validation_error(
-        path,
-        "Expected `array` of length %zd",
-        tex->fixtuple_size
-    );
-error:
-    Py_LeaveRecursiveCall();
-    Py_DECREF(out);
-    return NULL;
-}
-
-static PyObject *
-json_decode_struct_array(
-    JSONDecoderState *self, StructMetaObject *st_type, TypeNode *type,
-    PathNode *path
-) {
-    Py_ssize_t nfields, ndefaults, npos, i = 0;
-    PyObject *out, *item = NULL;
-    unsigned char c;
-    bool should_untrack, first = true;
-    bool nogc = st_type->nogc == OPT_TRUE;
-
-    self->input_pos++; /* Skip '[' */
-
-    out = Struct_alloc((PyTypeObject *)(st_type));
-    if (out == NULL) return NULL;
-
-    nfields = PyTuple_GET_SIZE(st_type->struct_fields);
-    ndefaults = PyTuple_GET_SIZE(st_type->struct_defaults);
-    npos = nfields - ndefaults;
-    should_untrack = PyObject_IS_GC(out);
-
-    if (Py_EnterRecursiveCall(" while deserializing an object")) {
-        Py_DECREF(out);
-        return NULL;
-    }
-    while (true) {
-        if (MS_UNLIKELY(!json_peek_skip_ws(self, &c))) goto error;
-        /* Parse ']' or ',', then peek the next character */
-        if (c == ']') {
-            self->input_pos++;
-            break;
-        }
-        else if (c == ',' && !first) {
-            self->input_pos++;
-            if (MS_UNLIKELY(!json_peek_skip_ws(self, &c))) goto error;
-        }
-        else if (first) {
-            /* Only the first item doesn't need a comma delimiter */
-            first = false;
-        }
-        else {
-            json_err_invalid(self, "expected ',' or ']'");
-            goto error;
-        }
-
-        if (MS_UNLIKELY(c == ']')) {
-            json_err_invalid(self, "trailing comma in array");
-            goto error;
-        }
-
-        if (MS_LIKELY(i < nfields)) {
-            /* Parse item */
-            PathNode el_path = {path, i};
-            item = json_decode(self, st_type->struct_types[i], &el_path);
-            if (MS_UNLIKELY(item == NULL)) goto error;
-            Struct_set_index(out, i, item);
-            if (should_untrack) {
-                should_untrack = !OBJ_IS_GC(item);
-            }
-            i++;
-        }
-        else {
-            /* Skip trailing fields */
-            if (json_skip(self) < 0) goto error;
-        }
-    }
-
-    /* Check for missing required fields */
-    if (i < npos) {
-        ms_raise_validation_error(
-            path,
-            "Object missing required field `%U`%U",
-            PyTuple_GET_ITEM(st_type->struct_fields, i)
-        );
-        goto error;
-    }
-    /* Fill in missing fields with defaults */
-    for (; i < nfields; i++) {
-        item = maybe_deepcopy_default(
-            PyTuple_GET_ITEM(st_type->struct_defaults, i - npos)
-        );
-        if (item == NULL) goto error;
-        Struct_set_index(out, i, item);
-        if (should_untrack) {
-            should_untrack = !OBJ_IS_GC(item);
-        }
-    }
-    Py_LeaveRecursiveCall();
-    if (should_untrack || nogc)
-        PyObject_GC_UnTrack(out);
-    return out;
-error:
-    Py_LeaveRecursiveCall();
-    Py_DECREF(out);
-    return NULL;
-}
-
-static PyObject *
-json_decode_array(
-    JSONDecoderState *self, TypeNode *type, PathNode *path
-) {
-    if (type->types & MS_TYPE_ANY) {
-        TypeNode type_any = {MS_TYPE_ANY};
-        return json_decode_list(self, &type_any, path);
-    }
-    else if (type->types & MS_TYPE_LIST) {
-        return json_decode_list(self, TypeNode_get_array(type), path);
-    }
-    else if (type->types & MS_TYPE_SET) {
-        return json_decode_set(self, TypeNode_get_array(type), path);
-    }
-    else if (type->types & MS_TYPE_VARTUPLE) {
-        return json_decode_vartuple(self, TypeNode_get_array(type), path);
-    }
-    else if (type->types & MS_TYPE_FIXTUPLE) {
-        return json_decode_fixtuple(self, type, path);
-    }
-    else if (type->types & MS_TYPE_STRUCT_ARRAY) {
-        StructMetaObject *struct_type = TypeNode_get_struct(type);
-        return json_decode_struct_array(self, struct_type, type, path);
-    }
-    return ms_validation_error("array", type, path);
-}
-
 #define JS_SCRATCH_MAX_SIZE 1024
 
 static int
@@ -7748,13 +7598,7 @@ json_decode_binary(
 
 invalid:
     Py_XDECREF(out);
-    MsgspecState *st = msgspec_get_global_state();
-    PyObject *suffix = PathNode_ErrSuffix(path);
-    if (suffix != NULL) {
-        PyErr_Format(st->DecodeError, "Invalid base64 encoded string%U", suffix);
-        Py_DECREF(suffix);
-    }
-    return NULL;
+    return ms_error_with_path("Invalid base64 encoded string%U", path);
 }
 
 static inline const char *
@@ -7776,8 +7620,6 @@ json_decode_datetime(
     int year, month, day, hour, minute, second, microsecond = 0, offset = 0;
     const char *buf_end = buf + size;
     char c;
-    MsgspecState *st;
-    PyObject *suffix;
 
     /* A valid datetime is at least 20 characters in length */
     if (size < 20) goto invalid;
@@ -7870,13 +7712,7 @@ json_decode_datetime(
     );
 
 invalid:
-    st = msgspec_get_global_state();
-    suffix = PathNode_ErrSuffix(path);
-    if (suffix != NULL) {
-        PyErr_Format(st->DecodeError, "Invalid RFC3339 encoded datetime%U", suffix);
-        Py_DECREF(suffix);
-    }
-    return NULL;
+    return ms_error_with_path("Invalid RFC3339 encoded datetime%U", path);
 }
 
 static PyObject *
@@ -7904,6 +7740,429 @@ json_decode_string(JSONDecoderState *self, TypeNode *type, PathNode *path) {
         return PyUnicode_DecodeUTF8(view, size, NULL);
     }
     return ms_validation_error("str", type, path);
+}
+
+static PyObject *
+json_decode_list(JSONDecoderState *self, TypeNode *el_type, PathNode *path) {
+    PyObject *out, *item = NULL;
+    unsigned char c;
+    bool first = true;
+    PathNode el_path = {path, 0, NULL};
+
+    self->input_pos++; /* Skip '[' */
+
+    out = PyList_New(0);
+    if (out == NULL) return NULL;
+    if (Py_EnterRecursiveCall(" while deserializing an object")) {
+        Py_DECREF(out);
+        return NULL;
+    }
+    while (true) {
+        if (MS_UNLIKELY(!json_peek_skip_ws(self, &c))) goto error;
+        /* Parse ']' or ',', then peek the next character */
+        if (c == ']') {
+            self->input_pos++;
+            break;
+        }
+        else if (c == ',' && !first) {
+            self->input_pos++;
+            if (MS_UNLIKELY(!json_peek_skip_ws(self, &c))) goto error;
+        }
+        else if (first) {
+            /* Only the first item doesn't need a comma delimiter */
+            first = false;
+        }
+        else {
+            json_err_invalid(self, "expected ',' or ']'");
+            goto error;
+        }
+
+        if (MS_UNLIKELY(c == ']')) {
+            json_err_invalid(self, "trailing comma in array");
+            goto error;
+        }
+
+        /* Parse item */
+        item = json_decode(self, el_type, &el_path);
+        if (item == NULL) goto error;
+        el_path.index++;
+
+        /* Append item to list */
+        if (PyList_Append(out, item) < 0) goto error;
+        Py_CLEAR(item);
+    }
+    Py_LeaveRecursiveCall();
+    return out;
+error:
+    Py_LeaveRecursiveCall();
+    Py_DECREF(out);
+    Py_XDECREF(item);
+    return NULL;
+}
+
+static PyObject *
+json_decode_set(JSONDecoderState *self, TypeNode *el_type, PathNode *path) {
+    PyObject *out, *item = NULL;
+    unsigned char c;
+    bool first = true;
+    PathNode el_path = {path, 0, NULL};
+
+    self->input_pos++; /* Skip '[' */
+
+    out = PySet_New(NULL);
+    if (out == NULL) return NULL;
+    if (Py_EnterRecursiveCall(" while deserializing an object")) {
+        Py_DECREF(out);
+        return NULL;
+    }
+    while (true) {
+        if (MS_UNLIKELY(!json_peek_skip_ws(self, &c))) goto error;
+        /* Parse ']' or ',', then peek the next character */
+        if (c == ']') {
+            self->input_pos++;
+            break;
+        }
+        else if (c == ',' && !first) {
+            self->input_pos++;
+            if (MS_UNLIKELY(!json_peek_skip_ws(self, &c))) goto error;
+        }
+        else if (first) {
+            /* Only the first item doesn't need a comma delimiter */
+            first = false;
+        }
+        else {
+            json_err_invalid(self, "expected ',' or ']'");
+            goto error;
+        }
+
+        if (MS_UNLIKELY(c == ']')) {
+            json_err_invalid(self, "trailing comma in array");
+            goto error;
+        }
+
+        /* Parse item */
+        item = json_decode(self, el_type, &el_path);
+        if (item == NULL) goto error;
+        el_path.index++;
+
+        /* Append item to set */
+        if (PySet_Add(out, item) < 0) goto error;
+        Py_CLEAR(item);
+    }
+    Py_LeaveRecursiveCall();
+    return out;
+error:
+    Py_LeaveRecursiveCall();
+    Py_DECREF(out);
+    Py_XDECREF(item);
+    return NULL;
+}
+
+static PyObject *
+json_decode_vartuple(JSONDecoderState *self, TypeNode *el_type, PathNode *path) {
+    PyObject *list, *item, *out = NULL;
+    Py_ssize_t size, i;
+
+    list = json_decode_list(self, el_type, path);
+    if (list == NULL) return NULL;
+
+    size = PyList_GET_SIZE(list);
+    out = PyTuple_New(size);
+    if (out != NULL) {
+        for (i = 0; i < size; i++) {
+            item = PyList_GET_ITEM(list, i);
+            PyTuple_SET_ITEM(out, i, item);
+            PyList_SET_ITEM(list, i, NULL);  /* Drop reference in old list */
+        }
+    }
+    Py_DECREF(list);
+    return out;
+}
+
+static PyObject *
+json_decode_fixtuple(JSONDecoderState *self, TypeNode *type, PathNode *path) {
+    PyObject *out, *item;
+    Py_ssize_t i = 0, offset;
+    unsigned char c;
+    bool first = true;
+    TypeNodeExtra *tex = (TypeNodeExtra *)type;
+    PathNode el_path = {path, 0, NULL};
+
+    offset = TypeNode_get_array_offset(type);
+
+    self->input_pos++; /* Skip '[' */
+
+    out = PyTuple_New(tex->fixtuple_size);
+    if (out == NULL) return NULL;
+
+    if (Py_EnterRecursiveCall(" while deserializing an object")) {
+        Py_DECREF(out);
+        return NULL;
+    }
+
+    while (true) {
+        if (MS_UNLIKELY(!json_peek_skip_ws(self, &c))) goto error;
+        /* Parse ']' or ',', then peek the next character */
+        if (c == ']') {
+            self->input_pos++;
+            if (MS_UNLIKELY(i < tex->fixtuple_size)) goto size_error;
+            break;
+        }
+        else if (c == ',' && !first) {
+            self->input_pos++;
+            if (MS_UNLIKELY(!json_peek_skip_ws(self, &c))) goto error;
+        }
+        else if (first) {
+            /* Only the first item doesn't need a comma delimiter */
+            first = false;
+        }
+        else {
+            json_err_invalid(self, "expected ',' or ']'");
+            goto error;
+        }
+
+        if (MS_UNLIKELY(c == ']')) {
+            json_err_invalid(self, "trailing comma in array");
+            goto error;
+        }
+
+        /* Check we don't have too many elements */
+        if (MS_UNLIKELY(i >= tex->fixtuple_size)) goto size_error;
+
+        /* Parse item */
+        item = json_decode(self, tex->extra[offset + i], &el_path);
+        if (item == NULL) goto error;
+        el_path.index++;
+
+        /* Add item to tuple */
+        PyTuple_SET_ITEM(out, i, item);
+        i++;
+    }
+    Py_LeaveRecursiveCall();
+    return out;
+
+size_error:
+    ms_raise_validation_error(
+        path,
+        "Expected `array` of length %zd",
+        tex->fixtuple_size
+    );
+error:
+    Py_LeaveRecursiveCall();
+    Py_DECREF(out);
+    return NULL;
+}
+
+static PyObject *
+json_decode_struct_array_inner(
+    JSONDecoderState *self, StructMetaObject *st_type, PathNode *path,
+    Py_ssize_t starting_index
+) {
+    Py_ssize_t nfields, ndefaults, npos, i = 0;
+    PyObject *out, *item = NULL;
+    unsigned char c;
+    bool should_untrack;
+    bool first = starting_index == 0;
+    bool nogc = st_type->nogc == OPT_TRUE;
+    PathNode item_path = {path, starting_index};
+
+    out = Struct_alloc((PyTypeObject *)(st_type));
+    if (out == NULL) return NULL;
+
+    nfields = PyTuple_GET_SIZE(st_type->struct_fields);
+    ndefaults = PyTuple_GET_SIZE(st_type->struct_defaults);
+    npos = nfields - ndefaults;
+    should_untrack = PyObject_IS_GC(out);
+
+    if (Py_EnterRecursiveCall(" while deserializing an object")) {
+        Py_DECREF(out);
+        return NULL;
+    }
+    while (true) {
+        if (MS_UNLIKELY(!json_peek_skip_ws(self, &c))) goto error;
+        /* Parse ']' or ',', then peek the next character */
+        if (c == ']') {
+            self->input_pos++;
+            break;
+        }
+        else if (c == ',' && !first) {
+            self->input_pos++;
+            if (MS_UNLIKELY(!json_peek_skip_ws(self, &c))) goto error;
+        }
+        else if (first) {
+            /* Only the first item doesn't need a comma delimiter */
+            first = false;
+        }
+        else {
+            json_err_invalid(self, "expected ',' or ']'");
+            goto error;
+        }
+
+        if (MS_UNLIKELY(c == ']')) {
+            json_err_invalid(self, "trailing comma in array");
+            goto error;
+        }
+
+        if (MS_LIKELY(i < nfields)) {
+            /* Parse item */
+            item = json_decode(self, st_type->struct_types[i], &item_path);
+            if (MS_UNLIKELY(item == NULL)) goto error;
+            Struct_set_index(out, i, item);
+            if (should_untrack) {
+                should_untrack = !OBJ_IS_GC(item);
+            }
+            i++;
+            item_path.index++;
+        }
+        else {
+            /* Skip trailing fields */
+            if (json_skip(self) < 0) goto error;
+        }
+    }
+
+    /* Check for missing required fields */
+    if (i < npos) {
+        ms_raise_validation_error(
+            path,
+            "Object missing required field `%U`%U",
+            PyTuple_GET_ITEM(st_type->struct_fields, i)
+        );
+        goto error;
+    }
+    /* Fill in missing fields with defaults */
+    for (; i < nfields; i++) {
+        item = maybe_deepcopy_default(
+            PyTuple_GET_ITEM(st_type->struct_defaults, i - npos)
+        );
+        if (item == NULL) goto error;
+        Struct_set_index(out, i, item);
+        if (should_untrack) {
+            should_untrack = !OBJ_IS_GC(item);
+        }
+    }
+    Py_LeaveRecursiveCall();
+    if (should_untrack || nogc)
+        PyObject_GC_UnTrack(out);
+    return out;
+error:
+    Py_LeaveRecursiveCall();
+    Py_DECREF(out);
+    return NULL;
+}
+
+static Py_ssize_t
+json_decode_cstr(JSONDecoderState *self, char **out, PathNode *path) {
+    unsigned char c;
+    if (MS_UNLIKELY(!json_peek_skip_ws(self, &c))) return -1;
+    if (c != '"') {
+        /* Use skip to catch malformed JSON */
+        if (json_skip(self) < 0) return -1;
+        /* JSON is valid but the wrong type */
+        ms_error_with_path("Expected `str`%U", path);
+        return -1;
+    }
+    return json_decode_string_view(self, out);
+}
+
+static Py_ssize_t
+json_decode_struct_array_tag(
+    JSONDecoderState *self, char **tag, PathNode *path
+) {
+    PathNode tag_path = {path, 0};
+    unsigned char c;
+    /* Check for an early end to the array */
+    if (MS_UNLIKELY(!json_peek_skip_ws(self, &c))) return -1;
+    if (c == ']') {
+        ms_error_with_path(
+            "Expected `array` of at least length 1, got 0%U", path
+        );
+        return -1;
+    }
+    return json_decode_cstr(self, tag, &tag_path);
+}
+
+static PyObject *
+json_decode_struct_array(
+    JSONDecoderState *self, TypeNode *type, PathNode *path
+) {
+    Py_ssize_t starting_index = 0;
+    StructMetaObject *st_type = TypeNode_get_struct(type);
+
+    self->input_pos++; /* Skip '[' */
+
+    /* If this is a tagged struct, first read and validate the tag */
+    if (st_type->struct_tag_value != NULL) {
+        Py_ssize_t tag_size, expected_size;
+        char *tag = NULL;
+        const char *expected = unicode_str_and_size(
+            st_type->struct_tag_value, &expected_size
+        );
+        tag_size = json_decode_struct_array_tag(self, &tag, path);
+        if (tag_size < 0) return NULL;
+        if (tag_size != expected_size || memcmp(tag, expected, expected_size) != 0) {
+            /* Tag doesn't match the expected value, error nicely */
+            PathNode tag_path = {path, 0};
+            return ms_invalid_cstr_value(tag, tag_size, &tag_path);
+        }
+        starting_index = 1;
+    }
+
+    /* Decode the rest of the struct */
+    return json_decode_struct_array_inner(self, st_type, path, starting_index);
+}
+
+static PyObject *
+json_decode_struct_array_union(
+    JSONDecoderState *self, TypeNode *type, PathNode *path
+) {
+    char *tag = NULL;
+    Py_ssize_t tag_size;
+    StrLookupObject *lookup = TypeNode_get_struct_union(type);
+
+    self->input_pos++; /* Skip '[' */
+
+    /* Decode the tag */
+    tag_size = json_decode_struct_array_tag(self, &tag, path);
+    if (tag_size < 0) return NULL;
+
+    /* Lookup Struct type from tag */
+    StructMetaObject *struct_type = (StructMetaObject *)StrLookup_Get(lookup, tag, tag_size);
+    if (struct_type == NULL) {
+        PathNode tag_path = {path, 0};
+        return ms_invalid_cstr_value(tag, tag_size, &tag_path);
+    }
+
+    /* Finish decoding the rest of the struct */
+    return json_decode_struct_array_inner(self, struct_type, path, 1);
+}
+
+static PyObject *
+json_decode_array(
+    JSONDecoderState *self, TypeNode *type, PathNode *path
+) {
+    if (type->types & MS_TYPE_ANY) {
+        TypeNode type_any = {MS_TYPE_ANY};
+        return json_decode_list(self, &type_any, path);
+    }
+    else if (type->types & MS_TYPE_LIST) {
+        return json_decode_list(self, TypeNode_get_array(type), path);
+    }
+    else if (type->types & MS_TYPE_SET) {
+        return json_decode_set(self, TypeNode_get_array(type), path);
+    }
+    else if (type->types & MS_TYPE_VARTUPLE) {
+        return json_decode_vartuple(self, TypeNode_get_array(type), path);
+    }
+    else if (type->types & MS_TYPE_FIXTUPLE) {
+        return json_decode_fixtuple(self, type, path);
+    }
+    else if (type->types & MS_TYPE_STRUCT_ARRAY) {
+        return json_decode_struct_array(self, type, path);
+    }
+    else if (type->types & MS_TYPE_STRUCT_ARRAY_UNION) {
+        return json_decode_struct_array_union(self, type, path);
+    }
+    return ms_validation_error("array", type, path);
 }
 
 static PyObject *
@@ -7989,18 +8248,16 @@ error:
 }
 
 static PyObject *
-json_decode_struct_map(
-    JSONDecoderState *self, StructMetaObject *st_type, TypeNode *type,
-    PathNode *path
+json_decode_struct_map_inner(
+    JSONDecoderState *self, StructMetaObject *st_type, PathNode *path,
+    Py_ssize_t starting_index
 ) {
     PyObject *out, *val = NULL;
     Py_ssize_t key_size, field_index, pos = 0;
     unsigned char c;
     char *key = NULL;
-    bool first = true;
-    PathNode field_path = {path, 0, st_type};
-
-    self->input_pos++; /* Skip '{' */
+    bool first = starting_index == 0;
+    PathNode field_path = {path, 0, (PyObject *)st_type};
 
     out = Struct_alloc((PyTypeObject *)(st_type));
     if (out == NULL) return NULL;
@@ -8054,8 +8311,29 @@ json_decode_struct_map(
         /* Parse value */
         field_index = StructMeta_get_field_index(st_type, key, key_size, &pos);
         if (field_index < 0) {
-            /* Skip unknown fields */
-            if (json_skip(self) < 0) goto error;
+            if (MS_UNLIKELY(field_index == -2)) {
+                /* Matches the tag field */
+                Py_ssize_t tag_size, expected_size;
+                char *tag = NULL;
+                PathNode tag_path = {path, PATH_TAG, st_type->struct_tag_field};
+
+                /* Decode the tag value */
+                tag_size = json_decode_cstr(self, &tag, &tag_path);
+                if (tag_size < 0) goto error;
+
+                /* Check that the tag value matches the expected value */
+                const char *expected = unicode_str_and_size(
+                    st_type->struct_tag_value, &expected_size
+                );
+                if (tag_size != expected_size || memcmp(tag, expected, expected_size) != 0) {
+                    /* Tag doesn't match the expected value, error nicely */
+                    return ms_invalid_cstr_value(tag, tag_size, &tag_path);
+                }
+            }
+            else {
+                /* Skip unknown fields */
+                if (json_skip(self) < 0) goto error;
+            }
         }
         else {
             field_path.index = field_index;
@@ -8077,6 +8355,105 @@ error:
 }
 
 static PyObject *
+json_decode_struct_map(
+    JSONDecoderState *self, TypeNode *type, PathNode *path
+) {
+    StructMetaObject *st_type = TypeNode_get_struct(type);
+
+    self->input_pos++; /* Skip '{' */
+
+    return json_decode_struct_map_inner(self, st_type, path, 0);
+}
+
+static PyObject *
+json_decode_struct_union(
+    JSONDecoderState *self, TypeNode *type, PathNode *path
+) {
+    StrLookupObject *lookup = TypeNode_get_struct_union(type);
+    PathNode tag_path = {path, PATH_TAG, lookup->tag_field};
+    Py_ssize_t tag_field_size;
+    const char *tag_field = unicode_str_and_size(lookup->tag_field, &tag_field_size);
+
+    self->input_pos++; /* Skip '{' */
+
+    /* Cache the current input position in case we need to reset it once the
+     * tag is found */
+    unsigned char *orig_input_pos = self->input_pos;
+
+    for (Py_ssize_t i = 0; ; i++) {
+        unsigned char c;
+
+        /* Parse '}' or ',', then peek the next character */
+        if (MS_UNLIKELY(!json_peek_skip_ws(self, &c))) return NULL;
+        if (c == '}') {
+            self->input_pos++;
+            break;
+        }
+        else if (c == ',' && (i != 0)) {
+            self->input_pos++;
+            if (MS_UNLIKELY(!json_peek_skip_ws(self, &c))) return NULL;
+        }
+        else if (i != 0) {
+            return json_err_invalid(self, "expected ',' or '}'");
+        }
+
+        /* Parse a string key */
+        Py_ssize_t key_size;
+        char *key = NULL;
+        if (c == '"') {
+            key_size = json_decode_string_view(self, &key);
+            if (key_size < 0) return NULL;
+        }
+        else if (c == '}') {
+            return json_err_invalid(self, "trailing comma in object");
+        }
+        else {
+            return json_err_invalid(self, "object keys must be strings");
+        }
+
+        /* Check if key matches tag_field */
+        bool tag_found = false;
+        if (key_size == tag_field_size && memcmp(key, tag_field, key_size) == 0) {
+            tag_found = true;
+        }
+
+        /* Parse colon */
+        if (MS_UNLIKELY(!json_peek_skip_ws(self, &c))) return NULL;
+        if (c != ':') {
+            return json_err_invalid(self, "expected ':'");
+        }
+        self->input_pos++;
+
+        /* Parse value */
+        if (tag_found) {
+            /* Parse tag string */
+            char *tag = NULL;
+            Py_ssize_t tag_size = json_decode_cstr(self, &tag, &tag_path);
+            if (tag_size < 0) return NULL;
+            StructMetaObject *st_type = (StructMetaObject *)StrLookup_Get(lookup, tag, tag_size);
+            if (st_type == NULL) {
+                return ms_invalid_cstr_value(tag, tag_size, &tag_path);
+            }
+            if (i != 0) {
+                /* tag wasn't first field, reset decoder position */
+                self->input_pos = orig_input_pos;
+            }
+            return json_decode_struct_map_inner(self, st_type, path, i == 0 ? 1 : 0);
+        }
+        else {
+            if (json_skip(self) < 0) return NULL;
+        }
+    }
+
+    ms_raise_validation_error(
+        path,
+        "Object missing required field `%U`%U",
+        lookup->tag_field
+    );
+    return NULL;
+}
+
+static PyObject *
 json_decode_object(
     JSONDecoderState *self, TypeNode *type, PathNode *path
 ) {
@@ -8090,8 +8467,10 @@ json_decode_object(
         return json_decode_dict(self, key, val, path);
     }
     else if (type->types & MS_TYPE_STRUCT) {
-        StructMetaObject *struct_type = TypeNode_get_struct(type);
-        return json_decode_struct_map(self, struct_type, type, path);
+        return json_decode_struct_map(self, type, path);
+    }
+    else if (type->types & MS_TYPE_STRUCT_UNION) {
+        return json_decode_struct_union(self, type, path);
     }
     return ms_validation_error("object", type, path);
 }
@@ -8913,7 +9292,6 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->str_utcoffset);
     Py_CLEAR(st->str___origin__);
     Py_CLEAR(st->str___args__);
-    Py_CLEAR(st->str_dollartype);
     Py_CLEAR(st->typing_dict);
     Py_CLEAR(st->typing_list);
     Py_CLEAR(st->typing_set);
@@ -9151,7 +9529,6 @@ PyInit__core(void)
     CACHED_STRING(str_utcoffset, "utcoffset");
     CACHED_STRING(str___origin__, "__origin__");
     CACHED_STRING(str___args__, "__args__");
-    CACHED_STRING(str_dollartype, "$type");
 
     return m;
 }
