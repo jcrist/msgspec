@@ -77,27 +77,27 @@ class Point(NamedTuple):
 
 
 INTS = [
-    -(2 ** 63),
-    -(2 ** 31 + 1),
-    -(2 ** 31),
-    -(2 ** 15 + 1),
-    -(2 ** 15),
-    -(2 ** 7 + 1),
-    -(2 ** 7),
-    -(2 ** 5 + 1),
-    -(2 ** 5),
+    -(2**63),
+    -(2**31 + 1),
+    -(2**31),
+    -(2**15 + 1),
+    -(2**15),
+    -(2**7 + 1),
+    -(2**7),
+    -(2**5 + 1),
+    -(2**5),
     -1,
     0,
     1,
-    2 ** 7 - 1,
-    2 ** 7,
-    2 ** 8 - 1,
-    2 ** 8,
-    2 ** 16 - 1,
-    2 ** 16,
-    2 ** 32 - 1,
-    2 ** 32,
-    2 ** 64 - 1,
+    2**7 - 1,
+    2**7,
+    2**8 - 1,
+    2**8,
+    2**16 - 1,
+    2**16,
+    2**32 - 1,
+    2**32,
+    2**64 - 1,
 ]
 
 FLOATS = [
@@ -113,7 +113,7 @@ FLOATS = [
     -sys.float_info.min,
 ]
 
-SIZES = [0, 1, 31, 32, 2 ** 8 - 1, 2 ** 8, 2 ** 16 - 1, 2 ** 16]
+SIZES = [0, 1, 31, 32, 2**8 - 1, 2**8, 2**16 - 1, 2**16]
 
 
 def assert_eq(x, y):
@@ -246,7 +246,7 @@ class TestDecodeFunction:
 
 
 class TestEncoderMisc:
-    @pytest.mark.parametrize("x", [-(2 ** 63) - 1, 2 ** 64])
+    @pytest.mark.parametrize("x", [-(2**63) - 1, 2**64])
     def test_encode_integer_limits(self, x):
         enc = msgspec.msgpack.Encoder()
         with pytest.raises(OverflowError):
@@ -1086,7 +1086,7 @@ class TestExt:
         assert x != x4
         assert not (x == x4)
 
-    @pytest.mark.parametrize("code", [-129, 128, 2 ** 65])
+    @pytest.mark.parametrize("code", [-129, 128, 2**65])
     def test_code_out_of_range(self, code):
         with pytest.raises(ValueError):
             msgspec.msgpack.Ext(code, b"bad")
@@ -1215,7 +1215,7 @@ class TestTimestampExt:
         self.check(dt, msg)
 
     def test_timestamp32_upper(self):
-        dt = datetime.datetime.fromtimestamp(2 ** 32 - 1, UTC)
+        dt = datetime.datetime.fromtimestamp(2**32 - 1, UTC)
         msg = b"\xd6\xff\xff\xff\xff\xff"
         self.check(dt, msg)
 
@@ -1225,7 +1225,7 @@ class TestTimestampExt:
         self.check(dt, msg)
 
     def test_timestamp64_upper(self):
-        dt = datetime.datetime.fromtimestamp(2 ** 34, UTC) - datetime.timedelta(
+        dt = datetime.datetime.fromtimestamp(2**34, UTC) - datetime.timedelta(
             microseconds=1
         )
         msg = b"\xd7\xff\xeek\x18c\xff\xff\xff\xff"
@@ -1237,7 +1237,7 @@ class TestTimestampExt:
         self.check(dt, msg)
 
     def test_timestamp96_upper(self):
-        dt = datetime.datetime.fromtimestamp(2 ** 34, UTC)
+        dt = datetime.datetime.fromtimestamp(2**34, UTC)
         msg = b"\xc7\x0c\xff\x00\x00\x00\x00\x00\x00\x00\x04\x00\x00\x00\x00"
         self.check(dt, msg)
 
@@ -1574,11 +1574,15 @@ class TestStructArray:
 
         # Missing fields
         bad = msgspec.msgpack.encode(("harry", "potter"))
-        with pytest.raises(msgspec.DecodeError, match="Expected `array` of at least length 3, got 2"):
+        with pytest.raises(
+            msgspec.DecodeError, match="Expected `array` of at least length 3, got 2"
+        ):
             dec.decode(bad)
 
         bad = msgspec.msgpack.encode(())
-        with pytest.raises(msgspec.DecodeError, match="Expected `array` of at least length 3, got 0"):
+        with pytest.raises(
+            msgspec.DecodeError, match="Expected `array` of at least length 3, got 0"
+        ):
             dec.decode(bad)
 
         # Extra fields ignored
