@@ -279,7 +279,7 @@ class TestEncodeFunction:
 
 
 class TestEncoderMisc:
-    @pytest.mark.parametrize("x", [-(2 ** 63) - 1, 2 ** 64])
+    @pytest.mark.parametrize("x", [-(2**63) - 1, 2**64])
     def test_encode_integer_limits(self, x):
         enc = msgspec.json.Encoder()
         with pytest.raises(OverflowError):
@@ -987,7 +987,7 @@ class TestIntegers:
         if 0 < ndigits < 20:
             assert msgspec.json.encode(-x) == b"-" + s
 
-    @pytest.mark.parametrize("x", [-(2 ** 63), 2 ** 64 - 1])
+    @pytest.mark.parametrize("x", [-(2**63), 2**64 - 1])
     def test_encode_int_boundaries(self, x):
         assert msgspec.json.encode(x) == str(x).encode()
         with pytest.raises(OverflowError):
@@ -1010,21 +1010,21 @@ class TestIntegers:
         if 0 < ndigits < 20:
             assert msgspec.json.decode(b"-" + s) == -x
 
-    @pytest.mark.parametrize("x", [-(2 ** 63), 2 ** 64 - 1])
+    @pytest.mark.parametrize("x", [-(2**63), 2**64 - 1])
     def test_decode_int_boundaries(self, x):
         s = str(x).encode()
         x2 = msgspec.json.decode(s)
         assert isinstance(x2, int)
         assert x2 == x
 
-    @pytest.mark.parametrize("x", [-(2 ** 63) - 1, 2 ** 64])
+    @pytest.mark.parametrize("x", [-(2**63) - 1, 2**64])
     def test_decode_int_out_of_range_convert_to_float(self, x):
         s = str(x).encode()
         x2 = msgspec.json.decode(s)
         assert isinstance(x2, float)
         assert x2 == float(x)
 
-    @pytest.mark.parametrize("x", [-(2 ** 63) - 1, 2 ** 64])
+    @pytest.mark.parametrize("x", [-(2**63) - 1, 2**64])
     def test_decode_int_out_of_range_errors_if_int_requested(self, x):
         s = str(x).encode()
         with pytest.raises(msgspec.DecodeError, match="Expected `int`, got `float`"):
@@ -1126,10 +1126,10 @@ class TestFloat:
             sys.float_info.min,
             sys.float_info.max,
             1.0 / 3,
-            2.0 ** -24,
-            2.0 ** -14,
-            2.0 ** -149,
-            2.0 ** -126,
+            2.0**-24,
+            2.0**-14,
+            2.0**-149,
+            2.0**-126,
             sys.float_info.min / 2,
             sys.float_info.min / 10,
             sys.float_info.min / 1000,
@@ -1182,14 +1182,14 @@ class TestFloat:
 
     @pytest.mark.parametrize("n", range(-15, 15))
     def test_roundtrip_float_powers_10(self, n):
-        x = 10.0 ** n
+        x = 10.0**n
         s = msgspec.json.encode(x)
         x2 = msgspec.json.decode(s)
         assert x == x2
 
     @pytest.mark.parametrize("n", range(-15, 14))
     def test_roundtrip_float_lots_of_middle_zeros(self, n):
-        x = 1e15 + 10.0 ** n
+        x = 1e15 + 10.0**n
         s = msgspec.json.encode(x)
         x2 = msgspec.json.decode(s)
         assert x == x2
@@ -1204,7 +1204,7 @@ class TestFloat:
     @pytest.mark.parametrize("scale", [0.0001, 1, 1000])
     @pytest.mark.parametrize("n", range(54))
     def test_roundtrip_float_powers_of_2(self, n, scale):
-        x = (2.0 ** n) * scale
+        x = (2.0**n) * scale
         s = msgspec.json.encode(x)
         x2 = msgspec.json.decode(s)
         assert x == x2
@@ -1229,10 +1229,10 @@ class TestFloat:
     @pytest.mark.parametrize(
         "s",
         [
-            str(2 ** 64 - 1).encode(),  # 20 digits, no overflow
-            str(2 ** 64).encode(),  # 20 digits, overflow
-            str(2 ** 64 + 1).encode(),  # 20 digits, overflow
-            str(2 ** 68).encode(),  # 21 digits
+            str(2**64 - 1).encode(),  # 20 digits, no overflow
+            str(2**64).encode(),  # 20 digits, overflow
+            str(2**64 + 1).encode(),  # 20 digits, overflow
+            str(2**68).encode(),  # 21 digits
         ],
     )
     @pytest.mark.parametrize("i", [-5, 0, 5])
@@ -1872,7 +1872,7 @@ class TestStructArray:
         if tag:
             assert s == b'["Test",1]'
         else:
-            assert s == b'[1]'
+            assert s == b"[1]"
 
     @pytest.mark.parametrize("tag", [False, True])
     def test_encode_two_field_struct(self, tag):

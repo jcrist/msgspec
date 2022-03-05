@@ -14,11 +14,11 @@ import msgspec
 
 
 @pytest.fixture(params=["json", "msgpack"])
-def decoder_cls(request):
+def proto(request):
     if request.param == "json":
-        return msgspec.json.Decoder
+        return msgspec.json
     elif request.param == "msgpack":
-        return msgspec.msgpack.Decoder
+        return msgspec.msgpack
 
 
 class FruitInt(enum.IntEnum):
@@ -65,7 +65,7 @@ class Rand:
     displayed on failing tests"""
 
     def __init__(self, seed=0):
-        self.seed = seed or random.randint(0, 2 ** 32 - 1)
+        self.seed = seed or random.randint(0, 2**32 - 1)
         self.rand = random.Random(self.seed)
 
     def __repr__(self):
@@ -129,9 +129,9 @@ class TestIntEnum:
     @pytest.mark.parametrize(
         "values",
         [
-            [0, 1, 2, 2 ** 64],
-            [0, 1, 2, -(2 ** 63) - 1],
-            [0, 1, 2, 2 ** 63 + 1, -(2 ** 64)],
+            [0, 1, 2, 2**64],
+            [0, 1, 2, -(2**63) - 1],
+            [0, 1, 2, 2**63 + 1, -(2**64)],
         ],
     )
     def test_int_lookup_values_out_of_range(self, values):
@@ -160,8 +160,8 @@ class TestIntEnum:
             [-4, -3, -2, -1, 0, 1, 2, 3, 4],
             [-4, -3, -1, -2, -7],
             [-4, -3, 1, 0, -2, -1],
-            [2 ** 63 - 1, 2 ** 63 - 2, 2 ** 63 - 3],
-            [-(2 ** 63) + 1, -(2 ** 63) + 2, -(2 ** 63) + 3],
+            [2**63 - 1, 2**63 - 2, 2**63 - 3],
+            [-(2**63) + 1, -(2**63) + 2, -(2**63) + 3],
         ],
     )
     def test_compact(self, values):
@@ -182,10 +182,10 @@ class TestIntEnum:
     @pytest.mark.parametrize(
         "values",
         [
-            [-(2 ** 63), 2 ** 63 - 1, 0],
-            [-(2 ** 63), 2 ** 64 - 1, 0],
-            [2 ** 64 - 2, 2 ** 64 - 3, 2 ** 64 - 1],
-            [2 ** 64 - 2, 2 ** 64 - 3, 2 ** 64 - 1, 0, 2, 3, 4, 5, 6],
+            [-(2**63), 2**63 - 1, 0],
+            [-(2**63), 2**64 - 1, 0],
+            [2**64 - 2, 2**64 - 3, 2**64 - 1],
+            [2**64 - 2, 2**64 - 3, 2**64 - 1, 0, 2, 3, 4, 5, 6],
         ],
     )
     def test_hashtable(self, values):
@@ -219,7 +219,7 @@ class TestIntEnum:
             val2 = dec.decode(msg)
             assert val == val2
 
-        for bad in [0, 7, 9, 56, -min(values), -max(values), 2 ** 64 - 1, -(2 ** 63)]:
+        for bad in [0, 7, 9, 56, -min(values), -max(values), 2**64 - 1, -(2**63)]:
             with pytest.raises(msgspec.DecodeError):
                 dec.decode(msgspec.msgpack.encode(bad))
 
@@ -346,9 +346,9 @@ class TestLiterals:
     @pytest.mark.parametrize(
         "values",
         [
-            [0, 1, 2, 2 ** 64],
-            [0, 1, 2, -(2 ** 63) - 1],
-            [0, 1, 2, 2 ** 63 + 1, -(2 ** 64)],
+            [0, 1, 2, 2**64],
+            [0, 1, 2, -(2**63) - 1],
+            [0, 1, 2, 2**63 + 1, -(2**64)],
         ],
     )
     def test_int_literal_values_out_of_range(self, values):
@@ -465,56 +465,56 @@ class TestLiterals:
 
 
 class TestUnionTypeErrors:
-    def test_decoder_unsupported_type(self, decoder_cls):
+    def test_decoder_unsupported_type(self, proto):
         with pytest.raises(TypeError):
-            decoder_cls(1)
+            proto.Decoder(1)
 
-    def test_decoder_validates_struct_definition_unsupported_types(self, decoder_cls):
+    def test_decoder_validates_struct_definition_unsupported_types(self, proto):
         """Struct definitions aren't validated until first use"""
 
         class Test(msgspec.Struct):
             a: 1
 
         with pytest.raises(TypeError):
-            decoder_cls(Test)
+            proto.Decoder(Test)
 
     @pytest.mark.parametrize("typ", [Union[int, Deque], Union[Deque, int]])
-    def test_err_union_with_custom_type(self, typ, decoder_cls):
+    def test_err_union_with_custom_type(self, typ, proto):
         with pytest.raises(TypeError) as rec:
-            decoder_cls(typ)
+            proto.Decoder(typ)
         assert "custom type" in str(rec.value)
         assert repr(typ) in str(rec.value)
 
     @pytest.mark.parametrize("typ", [Union[dict, Person], Union[Person, dict]])
-    def test_err_union_with_struct_and_dict(self, typ, decoder_cls):
+    def test_err_union_with_struct_and_dict(self, typ, proto):
         with pytest.raises(TypeError) as rec:
-            decoder_cls(typ)
+            proto.Decoder(typ)
         assert "both a Struct type and a dict type" in str(rec.value)
         assert repr(typ) in str(rec.value)
 
     @pytest.mark.parametrize("typ", [Union[PersonAA, list], Union[tuple, PersonAA]])
-    def test_err_union_with_struct_asarray_and_array(self, typ, decoder_cls):
+    def test_err_union_with_struct_asarray_and_array(self, typ, proto):
         with pytest.raises(TypeError) as rec:
-            decoder_cls(typ)
+            proto.Decoder(typ)
         assert "asarray=True" in str(rec.value)
         assert "Type unions containing" in str(rec.value)
         assert repr(typ) in str(rec.value)
 
     @pytest.mark.parametrize("types", [(FruitInt, int), (FruitInt, Literal[1, 2])])
-    def test_err_union_with_multiple_int_like_types(self, types, decoder_cls):
+    def test_err_union_with_multiple_int_like_types(self, types, proto):
         typ = Union[types]
         with pytest.raises(TypeError) as rec:
-            decoder_cls(typ)
+            proto.Decoder(typ)
         assert "int-like" in str(rec.value)
         assert repr(typ) in str(rec.value)
 
     @pytest.mark.parametrize(
         "types", [(FruitStr, str), (FruitStr, Literal["one", "two"])]
     )
-    def test_err_union_with_multiple_str_like_types(self, types, decoder_cls):
+    def test_err_union_with_multiple_str_like_types(self, types, proto):
         typ = Union[types]
         with pytest.raises(TypeError) as rec:
-            decoder_cls(typ)
+            proto.Decoder(typ)
         assert "str-like" in str(rec.value)
         assert repr(typ) in str(rec.value)
 
@@ -532,24 +532,23 @@ class TestUnionTypeErrors:
             (Union[Deque, int, Point], "custom"),
         ],
     )
-    def test_err_union_conflicts(self, typ, kind, decoder_cls):
+    def test_err_union_conflicts(self, typ, kind, proto):
         with pytest.raises(TypeError) as rec:
-            decoder_cls(typ)
+            proto.Decoder(typ)
         assert f"more than one {kind}" in str(rec.value)
         assert repr(typ) in str(rec.value)
 
     @pytest.mark.skipif(sys.version_info[:2] < (3, 10), reason="3.10 only")
-    def test_310_union_types(self, decoder_cls):
-        dec = decoder_cls(int | str | None)
-        assert dec.decode(b"1") == 1
-        assert dec.decode(b'"abc"') == "abc"
-        assert dec.decode(b"null") is None
+    def test_310_union_types(self, proto):
+        dec = proto.Decoder(int | str | None)
+        for msg in [1, "abc", None]:
+            assert dec.decode(proto.encode(msg)) == msg
         with pytest.raises(msgspec.DecodeError):
-            dec.decode(b"1.5")
+            assert dec.decode(proto.encode(1.5))
 
 
 class TestStructUnion:
-    def test_err_union_struct_mix_asarray(self, decoder_cls):
+    def test_err_union_struct_mix_asarray(self, proto):
         class Test1(msgspec.Struct, tag=True, asarray=True):
             x: int
 
@@ -559,7 +558,7 @@ class TestStructUnion:
         typ = Union[Test1, Test2]
 
         with pytest.raises(TypeError) as rec:
-            decoder_cls(typ)
+            proto.Decoder(typ)
 
         assert "not supported" in str(rec.value)
         assert "asarray" in str(rec.value)
@@ -567,7 +566,7 @@ class TestStructUnion:
 
     @pytest.mark.parametrize("asarray", [False, True])
     @pytest.mark.parametrize("tag1", [False, True])
-    def test_err_union_struct_not_tagged(self, asarray, tag1, decoder_cls):
+    def test_err_union_struct_not_tagged(self, asarray, tag1, proto):
         class Test1(msgspec.Struct, tag=tag1, asarray=asarray):
             x: int
 
@@ -577,14 +576,14 @@ class TestStructUnion:
         typ = Union[Test1, Test2]
 
         with pytest.raises(TypeError) as rec:
-            decoder_cls(typ)
+            proto.Decoder(typ)
 
         assert "not supported" in str(rec.value)
         assert "must be tagged" in str(rec.value)
         assert repr(typ) in str(rec.value)
 
     @pytest.mark.parametrize("asarray", [False, True])
-    def test_err_union_struct_different_fields(self, decoder_cls, asarray):
+    def test_err_union_struct_different_fields(self, proto, asarray):
         class Test1(msgspec.Struct, tag_field="foo", asarray=asarray):
             x: int
 
@@ -594,7 +593,7 @@ class TestStructUnion:
         typ = Union[Test1, Test2]
 
         with pytest.raises(TypeError) as rec:
-            decoder_cls(typ)
+            proto.Decoder(typ)
 
         assert "not supported" in str(rec.value)
         assert "the same `tag_field`" in str(rec.value)
@@ -604,7 +603,7 @@ class TestStructUnion:
     @pytest.mark.parametrize(
         "tags", [("a", "b", "b"), ("a", "a", "b"), ("a", "b", "a")]
     )
-    def test_err_union_struct_non_unique_tag_values(self, decoder_cls, asarray, tags):
+    def test_err_union_struct_non_unique_tag_values(self, proto, asarray, tags):
         class Test1(msgspec.Struct, tag=tags[0], asarray=asarray):
             x: int
 
@@ -617,7 +616,7 @@ class TestStructUnion:
         typ = Union[Test1, Test2, Test3]
 
         with pytest.raises(TypeError) as rec:
-            decoder_cls(typ)
+            proto.Decoder(typ)
 
         assert "not supported" in str(rec.value)
         assert "unique `tag`" in str(rec.value)

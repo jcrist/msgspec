@@ -780,7 +780,7 @@ class TestTagAndTagField:
             (dict(tag=lambda n: n.lower(), tag_field="kind"), "kind", "test"),
             # tag_field alone
             (dict(tag_field="kind"), "kind", "Test"),
-        ]
+        ],
     )
     def test_config(self, opts, tag_field, tag):
         class Test(Struct, **opts):
@@ -808,7 +808,7 @@ class TestTagAndTagField:
             ({"tag": lambda n: n.lower()}, {"tag": False}, None, None),
             ({"tag": lambda n: n.lower()}, {"tag": None}, "type", "s2"),
             ({"tag": lambda n: n.lower()}, {"tag_field": "foo"}, "foo", "s2"),
-        ]
+        ],
     )
     def test_inheritance(self, opts1, opts2, tag_field, tag):
         class S1(Struct, **opts1):
@@ -823,16 +823,19 @@ class TestTagAndTagField:
     @pytest.mark.parametrize("tag", [b"bad", lambda n: b"bad"])
     def test_tag_wrong_type(self, tag):
         with pytest.raises(TypeError, match="`tag` must be a `str`"):
+
             class Test(Struct, tag=tag):
                 pass
 
     def test_tag_field_wrong_type(self):
         with pytest.raises(TypeError, match="`tag_field` must be a `str`"):
+
             class Test(Struct, tag_field=b"bad"):
                 pass
 
     def test_tag_field_collision(self):
         with pytest.raises(ValueError, match="tag_field='y'"):
+
             class Test(Struct, tag_field="y"):
                 x: int
                 y: int
@@ -843,6 +846,7 @@ class TestTagAndTagField:
             pass
 
         with pytest.raises(ValueError, match="tag_field='y'"):
+
             class Test(Base):
                 x: int
                 y: int
@@ -853,5 +857,6 @@ class TestTagAndTagField:
             y: int
 
         with pytest.raises(ValueError, match="tag_field='y'"):
+
             class Test(Base, tag_field="y"):  # noqa
                 pass
