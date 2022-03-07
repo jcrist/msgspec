@@ -583,6 +583,28 @@ class TestStructUnion:
         assert repr(typ) in str(rec.value)
 
     @pytest.mark.parametrize("asarray", [False, True])
+    def test_err_union_conflict_with_basic_type(self, asarray, proto):
+        class Test1(msgspec.Struct, tag=True, asarray=asarray):
+            x: int
+
+        class Test2(msgspec.Struct, tag=True, asarray=asarray):
+            x: int
+
+        other = list if asarray else dict
+
+        typ = Union[Test1, Test2, other]
+
+        with pytest.raises(TypeError) as rec:
+            proto.Decoder(typ)
+
+        assert "not supported" in str(rec.value)
+        if asarray:
+            assert "other array-like types" in str(rec.value)
+        else:
+            assert "Struct type and a dict type" in str(rec.value)
+        assert repr(typ) in str(rec.value)
+
+    @pytest.mark.parametrize("asarray", [False, True])
     def test_err_union_struct_different_fields(self, proto, asarray):
         class Test1(msgspec.Struct, tag_field="foo", asarray=asarray):
             x: int
@@ -621,3 +643,124 @@ class TestStructUnion:
         assert "not supported" in str(rec.value)
         assert "unique `tag`" in str(rec.value)
         assert repr(typ) in str(rec.value)
+
+    def test_decode_struct_union(self, proto):
+        class Test1(msgspec.Struct, tag=True):
+            a: int
+            b: int
+            c: int = 0
+
+        class Test2(msgspec.Struct, tag=True):
+            x: int
+            y: int
+
+        dec = proto.Decoder(Union[Test1, Test2])
+        enc = proto.Encoder()
+
+        # Tag can be in any position
+        assert dec.decode(enc.encode({"type": "Test1", "a": 1, "b": 2})) == Test1(1, 2)
+        assert dec.decode(enc.encode({"a": 1, "type": "Test1", "b": 2})) == Test1(1, 2)
+        assert dec.decode(enc.encode({"x": 1, "y": 2, "type": "Test2"})) == Test2(1, 2)
+
+        # Optional fields still work
+        assert dec.decode(
+            enc.encode({"type": "Test1", "a": 1, "b": 2, "c": 3})
+        ) == Test1(1, 2, 3)
+        assert dec.decode(
+            enc.encode({"a": 1, "b": 2, "c": 3, "type": "Test1"})
+        ) == Test1(1, 2, 3)
+
+        # Extra fields still ignored
+        assert dec.decode(
+            enc.encode({"a": 1, "b": 2, "d": 4, "type": "Test1"})
+        ) == Test1(1, 2)
+
+        # Tag missing
+        with pytest.raises(msgspec.DecodeError) as rec:
+            dec.decode(enc.encode({"a": 1, "b": 2}))
+        assert "missing required field `type`" in str(rec.value)
+
+        # Tag wrong type
+        with pytest.raises(msgspec.DecodeError) as rec:
+            dec.decode(enc.encode({"type": 1, "a": 1, "b": 2}))
+        assert "Expected `str`" in str(rec.value)
+        assert "`$.type`" in str(rec.value)
+
+        # Tag unknown
+        with pytest.raises(msgspec.DecodeError) as rec:
+            dec.decode(enc.encode({"type": "bad", "a": 1, "b": 2}))
+        assert "Invalid value 'bad' - at `$.type`" == str(rec.value)
+
+    def test_decode_struct_array_union(self, proto):
+        class Test1(msgspec.Struct, tag=True, asarray=True):
+            a: int
+            b: int
+            c: int = 0
+
+        class Test2(msgspec.Struct, tag=True, asarray=True):
+            x: int
+            y: int
+
+        class Test3(msgspec.Struct, tag=True, asarray=True):
+            pass
+
+        dec = proto.Decoder(Union[Test1, Test2, Test3])
+        enc = proto.Encoder()
+
+        # Decoding works
+        assert dec.decode(enc.encode(["Test1", 1, 2])) == Test1(1, 2)
+        assert dec.decode(enc.encode(["Test2", 3, 4])) == Test2(3, 4)
+        assert dec.decode(enc.encode(["Test3"])) == Test3()
+
+        # Optional & Extra fields still respected
+        assert dec.decode(enc.encode(["Test1", 1, 2, 3])) == Test1(1, 2, 3)
+        assert dec.decode(enc.encode(["Test1", 1, 2, 3, 4])) == Test1(1, 2, 3)
+
+        # Missing required field
+        with pytest.raises(msgspec.DecodeError) as rec:
+            dec.decode(enc.encode(["Test1", 1]))
+        assert "Expected `array` of at least length 3, got 2" in str(rec.value)
+
+        # Type error has correct field index
+        with pytest.raises(msgspec.DecodeError) as rec:
+            dec.decode(enc.encode(["Test1", 1, "bad", 2]))
+        assert "Expected `int`, got `str` - at `$[2]`" == str(rec.value)
+
+        # Tag missing
+        with pytest.raises(msgspec.DecodeError) as rec:
+            dec.decode(enc.encode([]))
+        assert "Expected `array` of at least length 1, got 0" == str(rec.value)
+
+        # Tag wrong type
+        with pytest.raises(msgspec.DecodeError) as rec:
+            dec.decode(enc.encode([1, 2, 3, 4]))
+        assert "Expected `str`" in str(rec.value)
+        assert "`$[0]`" in str(rec.value)
+
+        # Tag unknown
+        with pytest.raises(msgspec.DecodeError) as rec:
+            dec.decode(enc.encode(["bad", 1, 2, 3]))
+        assert "Invalid value 'bad' - at `$[0]`" == str(rec.value)
+
+    @pytest.mark.parametrize("asarray", [False, True])
+    def test_decode_struct_union_with_non_struct_types(self, asarray, proto):
+        class Test1(msgspec.Struct, tag=True, asarray=asarray):
+            a: int
+            b: int
+
+        class Test2(msgspec.Struct, tag=True, asarray=asarray):
+            x: int
+            y: int
+
+        dec = proto.Decoder(Union[Test1, Test2, None, int, str])
+        enc = proto.Encoder()
+
+        for msg in [Test1(1, 2), Test2(3, 4), None, 5, 6]:
+            assert dec.decode(enc.encode(msg)) == msg
+
+        with pytest.raises(msgspec.DecodeError) as rec:
+            dec.decode(enc.encode(True))
+
+        typ = "array" if asarray else "object"
+
+        assert f"Expected `int | str | {typ} | null`, got `bool`" == str(rec.value)

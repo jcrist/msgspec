@@ -8024,8 +8024,9 @@ json_decode_struct_array_inner(
     if (i < npos) {
         ms_raise_validation_error(
             path,
-            "Object missing required field `%U`%U",
-            PyTuple_GET_ITEM(st_type->struct_fields, i)
+            "Expected `array` of at least length %zd, got %zd%U",
+            npos + starting_index,
+            i + starting_index
         );
         goto error;
     }
@@ -8066,15 +8067,29 @@ json_decode_cstr(JSONDecoderState *self, char **out, PathNode *path) {
 
 static Py_ssize_t
 json_decode_struct_array_tag(
-    JSONDecoderState *self, char **tag, PathNode *path
+    JSONDecoderState *self, StructMetaObject *st_type, char **tag, PathNode *path
 ) {
     PathNode tag_path = {path, 0};
     unsigned char c;
     /* Check for an early end to the array */
     if (MS_UNLIKELY(!json_peek_skip_ws(self, &c))) return -1;
     if (c == ']') {
-        ms_error_with_path(
-            "Expected `array` of at least length 1, got 0%U", path
+        Py_ssize_t expected_size;
+        if (st_type == NULL) {
+            /* If we don't know the type, the most we know is that the minimum
+             * size is 1 */
+            expected_size = 1;
+        }
+        else {
+            /* n_fields - n_optional_fields + 1 tag */
+            expected_size = PyTuple_GET_SIZE(st_type->struct_fields)
+                            - PyTuple_GET_SIZE(st_type->struct_defaults)
+                            + 1;
+        }
+        ms_raise_validation_error(
+            path,
+            "Expected `array` of at least length %zd, got 0%U",
+            expected_size
         );
         return -1;
     }
@@ -8097,7 +8112,7 @@ json_decode_struct_array(
         const char *expected = unicode_str_and_size(
             st_type->struct_tag_value, &expected_size
         );
-        tag_size = json_decode_struct_array_tag(self, &tag, path);
+        tag_size = json_decode_struct_array_tag(self, st_type, &tag, path);
         if (tag_size < 0) return NULL;
         if (tag_size != expected_size || memcmp(tag, expected, expected_size) != 0) {
             /* Tag doesn't match the expected value, error nicely */
@@ -8122,7 +8137,7 @@ json_decode_struct_array_union(
     self->input_pos++; /* Skip '[' */
 
     /* Decode the tag */
-    tag_size = json_decode_struct_array_tag(self, &tag, path);
+    tag_size = json_decode_struct_array_tag(self, NULL, &tag, path);
     if (tag_size < 0) return NULL;
 
     /* Lookup Struct type from tag */

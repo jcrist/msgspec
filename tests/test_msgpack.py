@@ -1512,6 +1512,48 @@ class TestStruct:
         res = dec.decode(s)
         assert res == x
 
+    def test_decode_tagged_struct(self):
+        class Test(msgspec.Struct, tag=True):
+            a: int
+            b: int
+
+        dec = msgspec.msgpack.Decoder(Test)
+
+        # Test decode with and without tag
+        for msg in [
+            {"a": 1, "b": 2},
+            {"type": "Test", "a": 1, "b": 2},
+            {"a": 1, "type": "Test", "b": 2},
+        ]:
+            res = dec.decode(msgspec.msgpack.encode(msg))
+            assert res == Test(1, 2)
+
+        # Tag incorrect type
+        with pytest.raises(msgspec.DecodeError) as rec:
+            dec.decode(msgspec.msgpack.encode({"type": 1}))
+        assert "Expected `str`" in str(rec.value)
+        assert "`$.type`" in str(rec.value)
+
+        # Tag incorrect value
+        with pytest.raises(msgspec.DecodeError) as rec:
+            dec.decode(msgspec.msgpack.encode({"type": "bad"}))
+        assert "Invalid value 'bad'" in str(rec.value)
+        assert "`$.type`" in str(rec.value)
+
+    def test_decode_tagged_empty_struct(self):
+        class Test(msgspec.Struct, tag=True):
+            pass
+
+        dec = msgspec.msgpack.Decoder(Test)
+
+        # Tag missing
+        res = dec.decode(msgspec.msgpack.encode({}))
+        assert res == Test()
+
+        # Tag present
+        res = dec.decode(msgspec.msgpack.encode({"type": "Test"}))
+        assert res == Test()
+
 
 class TestStructArray:
     @pytest.mark.parametrize("tag", [False, True])
@@ -1618,3 +1660,64 @@ class TestStructArray:
             dec.decode(array_msg)
         with pytest.raises(msgspec.DecodeError, match="Expected `array`, got `object`"):
             array_dec.decode(map_msg)
+
+    def test_decode_tagged_struct(self):
+        class Test(msgspec.Struct, tag=True, asarray=True):
+            a: int
+            b: int
+            c: int = 0
+
+        dec = msgspec.msgpack.Decoder(Test)
+
+        # Decode with tag
+        res = dec.decode(msgspec.msgpack.encode(["Test", 1, 2]))
+        assert res == Test(1, 2)
+        res = dec.decode(msgspec.msgpack.encode(["Test", 1, 2, 3]))
+        assert res == Test(1, 2, 3)
+
+        # Trailing fields ignored
+        res = dec.decode(msgspec.msgpack.encode(["Test", 1, 2, 3, 4]))
+        assert res == Test(1, 2, 3)
+
+        # Missing required field errors
+        with pytest.raises(msgspec.DecodeError) as rec:
+            dec.decode(msgspec.msgpack.encode(["Test", 1]))
+        assert "Expected `array` of at least length 3, got 2" in str(rec.value)
+
+        # Tag missing
+        with pytest.raises(msgspec.DecodeError) as rec:
+            dec.decode(msgspec.msgpack.encode([]))
+        assert "Expected `array` of at least length 3, got 0" in str(rec.value)
+
+        # Tag incorrect type
+        with pytest.raises(msgspec.DecodeError) as rec:
+            dec.decode(msgspec.msgpack.encode([1, 2, 3]))
+        assert "Expected `str`" in str(rec.value)
+        assert "`$[0]`" in str(rec.value)
+
+        # Tag incorrect value
+        with pytest.raises(msgspec.DecodeError) as rec:
+            dec.decode(msgspec.msgpack.encode(["bad", 1, 2]))
+        assert "Invalid value 'bad'" in str(rec.value)
+        assert "`$[0]`" in str(rec.value)
+
+        # Field incorrect type correct index
+        with pytest.raises(msgspec.DecodeError) as rec:
+            dec.decode(msgspec.msgpack.encode(["Test", "a", 2]))
+        assert "Expected `int`, got `str`" in str(rec.value)
+        assert "`$[1]`" in str(rec.value)
+
+    def test_decode_tagged_empty_struct(self):
+        class Test(msgspec.Struct, tag=True, asarray=True):
+            pass
+
+        dec = msgspec.msgpack.Decoder(Test)
+
+        # Decode with tag
+        res = dec.decode(msgspec.msgpack.encode(["Test", 1, 2]))
+        assert res == Test()
+
+        # Tag missing
+        with pytest.raises(msgspec.DecodeError) as rec:
+            dec.decode(msgspec.msgpack.encode([]))
+        assert "Expected `array` of at least length 1, got 0" in str(rec.value)
