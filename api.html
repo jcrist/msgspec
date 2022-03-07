@@ -5,10 +5,10 @@
     <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
 <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="prev" title="Benchmarks" href="benchmarks.html" />
 
-    <meta name="generator" content="sphinx-4.4.0, furo 2022.02.23"/>
+    <meta name="generator" content="sphinx-4.4.0, furo 2022.03.04"/>
         <title>API Docs</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
-    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=3c656993158f05539f962c5cea52a5e6c184bb8c" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=935aa2abcc5c1da4283d1dc201fb1f0add16d23a" />
     <link rel="stylesheet" type="text/css" href="_static/copybutton.css" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?digest=25ceb02ed1c46dc30f2321ff83e92799f69dfdb9" />
     
@@ -21,16 +21,18 @@
   --color-code-foreground: black;
   
   }
-  body[data-theme="dark"] {
-    --color-code-background: #202020;
-  --color-code-foreground: #d0d0d0;
-  
-  }
-  @media (prefers-color-scheme: dark) {
-    body:not([data-theme="light"]) {
+  @media not print {
+    body[data-theme="dark"] {
       --color-code-background: #202020;
   --color-code-foreground: #d0d0d0;
   
+    }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) {
+        --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+      }
     }
   }
 </style></head>
@@ -210,6 +212,18 @@ definition (see example below). The following options exist:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">frozen</span></code>: whether instances of the class are pseudo-immutable. If true,
 attribute assignment is disabled and a corresponding <code class="docutils literal notranslate"><span class="pre">__hash__</span></code> is defined.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">tag</span></code> and <code class="docutils literal notranslate"><span class="pre">tag_field</span></code>: used for configuring tagged union support. Both
+default to <code class="docutils literal notranslate"><span class="pre">None</span></code> (for standard untagged behavior). If either are non-None
+then the struct is considered “tagged”. In this case, an extra field (the
+<code class="docutils literal notranslate"><span class="pre">tag_field</span></code>) and value (the <code class="docutils literal notranslate"><span class="pre">tag</span></code>) is added to the encoded message, which
+can be used to determine the message type when decoding into a Union of
+different struct types. Set <code class="docutils literal notranslate"><span class="pre">tag=True</span></code> to use the default tagged struct
+configuration (<code class="docutils literal notranslate"><span class="pre">tag_field</span></code> is <code class="docutils literal notranslate"><span class="pre">"type"</span></code>, <code class="docutils literal notranslate"><span class="pre">tag</span></code> is the class name).
+If desired, this configuration can be overridden by providing string values
+directly via <code class="docutils literal notranslate"><span class="pre">tag_field</span></code> or <code class="docutils literal notranslate"><span class="pre">tag</span></code>. <code class="docutils literal notranslate"><span class="pre">tag</span></code> can also be passed a callable
+that takes a string (the class name) and returns a new string to use for the
+tag value (for example, to automatically lowercase class names). See the docs
+for more information.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">asarray</span></code>: whether instances of the class should be serialized as
 arrays rather than dicts (the default).</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">nogc</span></code>: whether garbage collection is disabled for this class. Enabling,

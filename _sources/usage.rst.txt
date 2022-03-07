@@ -585,7 +585,8 @@ Union restrictions are as follows:
 - Unions may contain at most one of `str` / `enum.Enum`. `msgspec.json.Decoder`
   extends this requirement to also include `datetime` / `bytes` / `bytearray`.
 
-- Unions may contain at most one `Struct` type
+- Unions may contain at most one *untagged* `Struct` type. Unions containing
+  multiple struct types are only supported through :ref:`struct-tagged-unions`.
 
 - Unions may contain at most one of `dict` / `Struct` (with ``asarray=False``)
 

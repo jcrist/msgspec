@@ -89,6 +89,79 @@ for converting a struct to a dict.
     >>> p.to_dict()
     {"x": 1.0, "y": 2.0}
 
+
+Type Validation
+---------------
+
+Unlike some other libraries (e.g. pydantic_), the type annotations on a
+`msgspec.Struct` class are not checked at runtime during normal use. Types are
+only checked when *decoding* a serialized message when using a `typed decoder
+<typed-deserialization>`.
+
+.. code-block:: python
+
+    >>> import msgspec
+
+    >>> class Point(msgspec.Struct):
+    ...     x: float
+    ...     y: float
+
+    >>> # Improper types in *your* code aren't checked at runtime
+    ... Point(x=1, y="oops")
+    Point(x=1, y='oops')
+
+    >>> # Improper types when decoding *are* checked at runtime
+    ... msgspec.json.decode(b'{"x": 1.0, "y": "oops"}', type=Point)
+    Traceback (most recent call last):
+      File "<stdin>", line 1, in <module>
+    msgspec.DecodeError: Expected `float`, got `str` - at `$.y`
+
+This is intentional. Static type checkers like mypy_/pyright_ work well with
+``msgspec``, and can be used to catch bugs without ever running your code. When
+possible, static tools or unit tests should be preferred over adding expensive
+runtime checks which slow down every ``__init__`` call.
+
+The input(s) to your programs however cannot be checked statically, as they
+aren't known until runtime. As such, ``msgspec`` does perform type validation
+when decoding messages (provided an expected decode type is provided). This
+validation is fast enough that it is *negligible in cost* - there is no added
+performance benefit when not using it. In fact, in most cases it's faster to
+decode a message into a type validated `msgspec.Struct` than into an untyped
+`dict`.
+
+
+Pattern Matching
+----------------
+
+If using Python 3.10+, `msgspec.Struct` types can be used in `pattern matching`_
+blocks. Replicating an example from `PEP 636`_:
+
+.. code-block:: python
+
+    # NOTE: this example requires Python 3.10+
+    >>> import msgspec
+
+    >>> class Point(msgspec.Struct):
+    ...     x: float
+    ...     y: float
+
+    >>> def where_is(point):
+    ...     match point:
+    ...         case Point(0, 0):
+    ...             print("Origin")
+    ...         case Point(0, y):
+    ...             print(f"Y={y}")
+    ...         case Point(x, 0):
+    ...             print(f"X={x}")
+    ...         case Point():
+    ...             print("Somewhere else")
+    ...         case _:
+    ...             print("Not a point")
+
+    >>> where_is(Point(0, 6))
+    "Y=6"
+
+
 Frozen Instances
 ----------------
 
@@ -113,6 +186,155 @@ and adds a ``__hash__`` method to the class definition.
     Traceback (most recent call last):
         ...
     AttributeError: immutable type: 'Point'
+
+
+.. _struct-tagged-unions:
+
+Tagged Unions
+-------------
+
+By default a serialized struct only contains information on the *values*
+present in the struct instance - no information is serialized noting which
+struct type corresponds to the message. Instead, the user is expected to
+know the type the message corresponds to, and pass that information
+appropriately to the decoder.
+
+.. code-block:: python
+
+    >>> import msgspec
+
+    >>> class Get(msgspec.Struct):
+    ...     key: str
+
+    >>> msg = msgspec.json.encode(Get("my key"))
+
+    >>> msg  # No type information present in the message
+    b'{"key":"my key"}'
+
+    >>> msgspec.json.decode(msg, type=Get)
+    Get(key='my key')
+
+In most cases this works well - schemas are often simple and each value may
+only correspond to at most one Struct type. However, sometimes you may have a
+message (or a field in a message) that may contain one of a number of different
+structured types. In this case we need some way to determine the type of the
+message from the message itself!
+
+``msgspec`` handles this through the use of `Tagged Unions`_. A new field (the
+"tag field") is added to the serialized representation of all struct types in
+the union. Each struct type associates a different value (the "tag") with this
+field. When the decoder encounters a tagged union it decodes the tag first and
+uses it to determine the type to use when decoding the rest of the object. This
+process is efficient and makes determining the type of a serialized message
+unambiguous.
+
+The quickest way to enable tagged unions is to set ``tag=True`` when defining
+every struct type in the union. In this case ``tag_field`` defaults to
+``"type"``, and ``tag`` defaults to the struct class name (e.g. ``"Get"``).
+
+.. code-block:: python
+
+    >>> import msgspec
+
+    >>> from typing import Union
+
+    >>> # Pass in ``tag=True`` to tag the structs using the default configuration
+    ... class Get(msgspec.Struct, tag=True):
+    ...     key: str
+
+    >>> class Put(msgspec.Struct, tag=True):
+    ...     key: str
+    ...     val: str
+
+    >>> msg = msgspec.json.encode(Get("my key"))
+
+    >>> msg  # "type" is the tag field, "Get" is the tag
+    b'{"type":"Get","key":"my key"}'
+
+    >>> # Create a decoder for decoding either Get or Put
+    ... dec = msgspec.Decoder(Union[Get, Put])
+
+    >>> # The tag value is used to determine the message type
+    ... dec.decode(b'{"type": "Put", "key": "my key", "val": "my val"}')
+    Put(key='my key', val='my val')
+
+    >>> dec.decode(b'{"type": "Get", "key": "my key"}')
+    Get(key='my key')
+
+    >>> # A tagged union can also contain non-struct types.
+    ... msgspec.json.decode(
+    ...     b'123',
+    ...     type=Union[Get, Put, int]
+    ... )
+    123
+
+If you want to change this behavior to use a different tag field and/or value,
+you can further configure things through the ``tag_field`` and ``tag`` kwargs.
+A struct's tagging configuration is determined as follows.
+
+- If ``tag`` and ``tag_field`` are ``None`` (the default), or ``tag=False``,
+  then the struct is considered "untagged". The struct is serialized with only
+  its standard fields, and cannot participate in ``Union`` types with other
+  structs.
+
+- If either ``tag`` or ``tag_field`` are non-None, then the struct is
+  considered "tagged". The struct is serialized with an additional field (the
+  ``tag_field``) mapping to its corresponding ``tag`` value. It can participate
+  in ``Union`` types with other structs, provided they all share the same
+  ``tag_field`` and have unique ``tag`` values.
+
+- If a struct is tagged, ``tag_field`` defaults to ``"type"`` if not provided
+  or inherited. This can be overridden by passing a tag field explicitly (e.g.
+  ``tag_field="kind"``). Note that ``tag_field`` must not conflict with any
+  other field names in the struct, and must be the same for all struct types in
+  a union.
+
+- If a struct is tagged, ``tag`` defaults to the class name (e.g. ``"Get"``) if
+  not provided or inherited. This can be overridden by passing a tag value
+  explicitly (e.g. ``tag="get"``). or a callable from class name to ``str``
+  (e.g.  ``tag=lambda name: name.lower()`` to lowercase the class name
+  automatically). Note that the tag value must be unique for all struct types
+  in a union.
+
+If you like subclassing, both ``tag_field`` and ``tag`` are inheritable by
+subclasses, allowing configuration to be set once on a base class and reused
+for all struct types you wish to tag.
+
+.. code-block:: python
+
+    >>> import msgspec
+
+    >>> from typing import Union
+
+    >>> # Create a base class for tagged structs, where:
+    ... # - the tag field is "op"
+    ... # - the tag is the class name lowercased
+    ... class TaggedBase(tag_field="op", tag=lambda name: name.lowercase()):
+    ...     pass
+
+    >>> # Use the base class to pass on the configuration
+    ... class Get(TaggedBase):
+    ...     key: str
+
+    >>> class Put(TaggedBase):
+    ...     key: str
+    ...     val: str
+
+    >>> msg = msgspec.json.encode(Get("my key"))
+
+    >>> msg  # "op" is the tag field, "get" is the tag
+    b'{"op":"get","key":"my key"}'
+
+    >>> # Create a decoder for decoding either Get or Put
+    ... dec = msgspec.Decoder(Union[Get, Put])
+
+    >>> # The tag value is used to determine the message type
+    ... dec.decode(b'{"op": "put", "key": "my key", "val": "my val"}')
+    Put(key='my key', val='my val')
+
+    >>> dec.decode(b'{"op": "get", "key": "my key"}')
+    Get(key='my key')
+
 
 Encoding/Decoding as Arrays
 ---------------------------
@@ -148,6 +370,33 @@ for decoding (and ~1.5x speedup for encoding).
 
     >>> msgspec.json.decode(b'[3,4]', type=Point2)
     Point2(x=3, y=4)
+
+Note that :ref:`struct-tagged-unions` also work with structs with
+``asarray=True``. In this case the tag is encoded as the first item in the
+array, and is used to determine which type in the union to use when decoding.
+
+.. code-block:: python
+
+    >>> import msgspec
+
+    >>> from typing import Union
+
+    >>> class Get(msgspec.Struct, tag=True, asarray=True):
+    ...     key: str
+
+    >>> class Put(msgspec.Struct, tag=True, asarray=True):
+    ...     key: str
+    ...     val: str
+
+    >>> msgspec.json.encode(Get("my key"))
+    b'["Get","my key"]'
+
+    >>> msgspec.json.decode(
+    ...     b'["Put", "my key", "my val"]',
+    ...     type=Union[Get, Put]
+    ... )
+    Put(key='my key', val='my val')
+
 
 Disabling Garbage Collection (Advanced)
 ---------------------------------------
@@ -214,76 +463,6 @@ container types. It is your responsibility to ensure cycles with these objects
 don't occur, as a cycle containing only ``nogc=True`` structs will *never* be
 collected (leading to a memory leak).
 
-Type Validation
----------------
-
-Unlike some other libraries (e.g. pydantic_), the type annotations on a
-`msgspec.Struct` class are not checked at runtime during normal use. Types are
-only checked when *decoding* a serialized message when using a `typed decoder
-<typed-deserialization>`.
-
-.. code-block:: python
-
-    >>> import msgspec
-
-    >>> class Point(msgspec.Struct):
-    ...     x: float
-    ...     y: float
-
-    >>> # Improper types in *your* code aren't checked at runtime
-    ... Point(x=1, y="oops")
-    Point(x=1, y='oops')
-
-    >>> # Improper types when decoding *are* checked at runtime
-    ... msgspec.json.decode(b'{"x": 1.0, "y": "oops"}', type=Point)
-    Traceback (most recent call last):
-      File "<stdin>", line 1, in <module>
-    msgspec.DecodeError: Expected `float`, got `str` - at `$.y`
-
-This is intentional. Static type checkers like mypy_/pyright_ work well with
-``msgspec``, and can be used to catch bugs without ever running your code. When
-possible, static tools or unit tests should be preferred over adding expensive
-runtime checks which slow down every ``__init__`` call.
-
-The input(s) to your programs however cannot be checked statically, as they
-aren't known until runtime. As such, ``msgspec`` does perform type validation
-when decoding messages (provided an expected decode type is provided). This
-validation is fast enough that it is *negligible in cost* - there is no added
-performance benefit when not using it. In fact, in most cases it's faster to
-decode a message into a type validated `msgspec.Struct` than into an untyped
-`dict`.
-
-Pattern Matching
-----------------
-
-If using Python 3.10+, `msgspec.Struct` types can be used in `pattern matching`_
-blocks. Replicating an example from `PEP 636`_:
-
-.. code-block:: python
-
-    # NOTE: this example requires Python 3.10+
-    >>> import msgspec
-
-    >>> class Point(msgspec.Struct):
-    ...     x: float
-    ...     y: float
-
-    >>> def where_is(point):
-    ...     match point:
-    ...         case Point(0, 0):
-    ...             print("Origin")
-    ...         case Point(0, y):
-    ...             print(f"Y={y}")
-    ...         case Point(x, 0):
-    ...             print(f"X={x}")
-    ...         case Point():
-    ...             print("Somewhere else")
-    ...         case _:
-    ...             print("Not a point")
-
-    >>> where_is(Point(0, 6))
-    "Y=6"
-
 .. _type annotations: https://docs.python.org/3/library/typing.html
 .. _pattern matching: https://docs.python.org/3/reference/compound_stmts.html#the-match-statement
 .. _PEP 636: https://www.python.org/dev/peps/pep-0636/
@@ -294,3 +473,4 @@ blocks. Replicating an example from `PEP 636`_:
 .. _pyright: https://github.com/microsoft/pyright
 .. _reference counting: https://en.wikipedia.org/wiki/Reference_counting
 .. _cyclic garbage collector: https://devguide.python.org/garbage_collector/
+.. _tagged unions: https://en.wikipedia.org/wiki/Tagged_union
