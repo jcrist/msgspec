@@ -361,12 +361,12 @@ def format_time(n):
 
 
 def format_bytes(n):
-    if n >= 2 ** 30:
-        return "%.1f GiB" % (n / (2 ** 30))
-    elif n >= 2 ** 20:
-        return "%.1f MiB" % (n / (2 ** 20))
-    elif n >= 2 ** 10:
-        return "%.1f KiB" % (n / (2 ** 10))
+    if n >= 2**30:
+        return "%.1f GiB" % (n / (2**30))
+    elif n >= 2**20:
+        return "%.1f MiB" % (n / (2**20))
+    elif n >= 2**10:
+        return "%.1f KiB" % (n / (2**10))
     return "%s B" % n
 
 

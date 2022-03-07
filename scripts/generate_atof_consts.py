@@ -15,7 +15,7 @@ def gen_hpd_tables():
         num_new_digits = int(log2log10 * float(i)) + 1
         assert num_new_digits <= 31
         code = (num_new_digits << 11) | offset
-        p = str(5 ** i)
+        p = str(5**i)
         powers.extend(p)
         shifts.append("0x%04X" % code)
 
@@ -35,7 +35,7 @@ def gen_hpd_tables():
 def gen_row(e):
     z = 1 << 2048
     if e >= 0:
-        exp = 10 ** e
+        exp = 10**e
         z = z * exp
     else:
         exp = 10 ** (-e)
