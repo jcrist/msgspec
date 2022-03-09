@@ -340,6 +340,7 @@ typedef struct {
     PyObject *types_uniontype;
 #endif
     PyObject *astimezone;
+    PyObject *deepcopy;
 } MsgspecState;
 
 /* Forward declaration of the msgspec module definition. */
@@ -1219,6 +1220,7 @@ typenode_simple_repr(TypeNode *self) {
 }
 
 typedef struct {
+    MsgspecState *mod;
     PyObject *context;
     uint32_t types;
     PyObject *struct_obj;
@@ -1296,14 +1298,13 @@ typenode_from_collect_state(TypeNodeCollectState *state, bool err_not_json, bool
         out->extra[e_ind++] = state->structs_lookup;
     }
     if (state->intenum_obj != NULL) {
-        MsgspecState *st = msgspec_get_global_state();
-        PyObject *lookup = PyObject_GetAttr(state->intenum_obj, st->str___msgspec_lookup__);
+        PyObject *lookup = PyObject_GetAttr(state->intenum_obj, state->mod->str___msgspec_lookup__);
         if (lookup == NULL) {
             /* IntLookup isn't created yet, create and store on enum class */
             PyErr_Clear();
             lookup = (PyObject *)IntLookup_New(state->intenum_obj);
             if (lookup == NULL) goto error;
-            if (PyObject_SetAttr(state->intenum_obj, st->str___msgspec_lookup__, lookup) < 0) {
+            if (PyObject_SetAttr(state->intenum_obj, state->mod->str___msgspec_lookup__, lookup) < 0) {
                 Py_DECREF(lookup);
                 goto error;
             }
@@ -1325,17 +1326,16 @@ typenode_from_collect_state(TypeNodeCollectState *state, bool err_not_json, bool
         out->extra[e_ind++] = state->int_literal_lookup;
     }
     if (state->enum_obj != NULL) {
-        MsgspecState *st = msgspec_get_global_state();
-        PyObject *lookup = PyObject_GetAttr(state->enum_obj, st->str___msgspec_lookup__);
+        PyObject *lookup = PyObject_GetAttr(state->enum_obj, state->mod->str___msgspec_lookup__);
         if (lookup == NULL) {
             /* StrLookup isn't created yet, create and store on enum class */
             PyErr_Clear();
-            PyObject *member_map = PyObject_GetAttr(state->enum_obj, st->str__member_map_);
+            PyObject *member_map = PyObject_GetAttr(state->enum_obj, state->mod->str__member_map_);
             if (member_map == NULL) goto error;
             lookup = (PyObject *)StrLookup_New(member_map);
             Py_DECREF(member_map);
             if (lookup == NULL) goto error;
-            if (PyObject_SetAttr(state->enum_obj, st->str___msgspec_lookup__, lookup) < 0) {
+            if (PyObject_SetAttr(state->enum_obj, state->mod->str___msgspec_lookup__, lookup) < 0) {
                 Py_DECREF(lookup);
                 goto error;
             }
@@ -1567,9 +1567,7 @@ typenode_collect_custom(TypeNodeCollectState *state, uint32_t type, PyObject *ob
 
 static int
 typenode_collect_literal(TypeNodeCollectState *state, PyObject *literal) {
-    MsgspecState *st = msgspec_get_global_state();
-
-    PyObject *args = PyObject_GetAttr(literal, st->str___args__);
+    PyObject *args = PyObject_GetAttr(literal, state->mod->str___args__);
     /* This should never happen, since we know this is a `Literal` object */
     if (args == NULL) return -1;
 
@@ -1610,12 +1608,12 @@ typenode_collect_literal(TypeNodeCollectState *state, PyObject *literal) {
         }
         else {
             /* Check for nested Literal */
-            PyObject *origin = PyObject_GetAttr(obj, st->str___origin__);
+            PyObject *origin = PyObject_GetAttr(obj, state->mod->str___origin__);
             if (origin == NULL) {
                 PyErr_Clear();
                 goto invalid;
             }
-            else if (origin != st->typing_literal) {
+            else if (origin != state->mod->typing_literal) {
                 Py_DECREF(origin);
                 goto invalid;
             }
@@ -1649,11 +1647,10 @@ typenode_collect_convert_literals(TypeNodeCollectState *state) {
     Py_ssize_t n = PyList_GET_SIZE(state->literals);
 
     if (n == 1) {
-        MsgspecState *st = msgspec_get_global_state();
         PyObject *literal = PyList_GET_ITEM(state->literals, 0);
 
         /* Check if cached, otherwise create and cache */
-        PyObject *cached = PyObject_GetAttr(literal, st->str___msgspec_lookup__);
+        PyObject *cached = PyObject_GetAttr(literal, state->mod->str___msgspec_lookup__);
         if (cached != NULL) {
             /* Extract and store the lookups */
             if (PyTuple_CheckExact(cached) && PyTuple_GET_SIZE(cached) == 2) {
@@ -1713,7 +1710,7 @@ typenode_collect_convert_literals(TypeNodeCollectState *state) {
                 state->str_literal_lookup == NULL ? Py_None : state->str_literal_lookup
             );
             if (cached == NULL) return -1;
-            int out = PyObject_SetAttr(literal, st->str___msgspec_lookup__, cached);
+            int out = PyObject_SetAttr(literal, state->mod->str___msgspec_lookup__, cached);
             Py_DECREF(cached);
             return out;
         }
@@ -1889,11 +1886,10 @@ static int
 typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
     int out = -1;
     PyObject *origin = NULL, *args = NULL;
-    MsgspecState *st = msgspec_get_global_state();
 
     /* If `Any` type already encountered, nothing to do */
     if (state->types & MS_TYPE_ANY) return 0;
-    if (obj == st->typing_any) {
+    if (obj == state->mod->typing_any) {
         /* Any takes precedence, drop all existing and update type flags */
         typenode_collect_clear_state(state);
         state->types = MS_TYPE_ANY;
@@ -1959,7 +1955,7 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
     }
 
     /* Enum types */
-    if (PyType_Check(obj) && PyType_IsSubtype((PyTypeObject *)obj, st->EnumType)) {
+    if (PyType_Check(obj) && PyType_IsSubtype((PyTypeObject *)obj, state->mod->EnumType)) {
         if (PyType_IsSubtype((PyTypeObject *)obj, &PyLong_Type)) {
             /* IntEnum */
             if (state->intenum_obj != NULL) {
@@ -1984,25 +1980,25 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
 
     /* Generic collections can be spelled a few different ways, so the below
      * logic is a bit split up as we discover what type of thing `obj` is. */
-    if (obj == (PyObject*)(&PyDict_Type) || obj == st->typing_dict) {
-        return typenode_collect_dict(state, obj, st->typing_any, st->typing_any);
+    if (obj == (PyObject*)(&PyDict_Type) || obj == state->mod->typing_dict) {
+        return typenode_collect_dict(state, obj, state->mod->typing_any, state->mod->typing_any);
     }
-    else if (obj == (PyObject*)(&PyList_Type) || obj == st->typing_list) {
-        return typenode_collect_array(state, MS_TYPE_LIST, st->typing_any);
+    else if (obj == (PyObject*)(&PyList_Type) || obj == state->mod->typing_list) {
+        return typenode_collect_array(state, MS_TYPE_LIST, state->mod->typing_any);
     }
-    else if (obj == (PyObject*)(&PySet_Type) || obj == st->typing_set) {
-        return typenode_collect_array(state, MS_TYPE_SET, st->typing_any);
+    else if (obj == (PyObject*)(&PySet_Type) || obj == state->mod->typing_set) {
+        return typenode_collect_array(state, MS_TYPE_SET, state->mod->typing_any);
     }
-    else if (obj == (PyObject*)(&PyTuple_Type) || obj == st->typing_tuple) {
-        return typenode_collect_array(state, MS_TYPE_VARTUPLE, st->typing_any);
+    else if (obj == (PyObject*)(&PyTuple_Type) || obj == state->mod->typing_tuple) {
+        return typenode_collect_array(state, MS_TYPE_VARTUPLE, state->mod->typing_any);
     }
 
     /* Python 3.10+ types.UnionType (e.g. int | None). It's annoying that this
      * defines `__args__` but not `__origin__`, so isn't backwards compatible
      * with logic for typing.Union. */
     #if PY_VERSION_HEX >= 0x030a00f0
-    if (Py_TYPE(obj) == (PyTypeObject *)(st->types_uniontype)) {
-        args = PyObject_GetAttr(obj, st->str___args__);
+    if (Py_TYPE(obj) == (PyTypeObject *)(state->mod->types_uniontype)) {
+        args = PyObject_GetAttr(obj, state->mod->str___args__);
         if (args == NULL) goto done;
         for (Py_ssize_t i = 0; i < PyTuple_Size(args); i++) {
             out = typenode_collect_type(state, PyTuple_GET_ITEM(args, i));
@@ -2013,8 +2009,8 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
     #endif
 
     /* Attempt to extract __origin__/__args__ from the obj as a typing object */
-    if ((origin = PyObject_GetAttr(obj, st->str___origin__)) == NULL ||
-            (args = PyObject_GetAttr(obj, st->str___args__)) == NULL) {
+    if ((origin = PyObject_GetAttr(obj, state->mod->str___origin__)) == NULL ||
+            (args = PyObject_GetAttr(obj, state->mod->str___args__)) == NULL) {
         /* Not a parametrized generic, must be a custom type */
         PyErr_Clear();
         if (!PyType_Check(origin != NULL ? origin : obj)) goto invalid;
@@ -2058,14 +2054,14 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
         }
         goto done;
     }
-    else if (origin == st->typing_union) {
+    else if (origin == state->mod->typing_union) {
         for (Py_ssize_t i = 0; i < PyTuple_Size(args); i++) {
             out = typenode_collect_type(state, PyTuple_GET_ITEM(args, i));
             if (out < 0) break;
         }
         goto done;
     }
-    else if (origin == st->typing_literal) {
+    else if (origin == state->mod->typing_literal) {
         if (state->literals == NULL) {
             state->literals = PyList_New(0);
             if (state->literals == NULL) goto done;
@@ -2093,6 +2089,7 @@ static TypeNode *
 TypeNode_Convert(PyObject *obj, bool err_not_json, bool *json_compatible) {
     TypeNode *out = NULL;
     TypeNodeCollectState state = {0};
+    state.mod = msgspec_get_global_state();
     state.context = obj;
 
     /* Traverse `obj` to collect all type annotations at this level */
@@ -3031,8 +3028,6 @@ static PyTypeObject StructMetaType = {
 
 static PyObject *
 maybe_deepcopy_default(PyObject *obj) {
-    MsgspecState *st;
-    PyObject *copy = NULL, *deepcopy = NULL, *res = NULL;
     PyTypeObject *type = Py_TYPE(obj);
 
     /* Known non-collection or recursively immutable types */
@@ -3057,12 +3052,6 @@ maybe_deepcopy_default(PyObject *obj) {
         return obj;
     }
 
-    st = msgspec_get_global_state();
-    if (PyType_IsSubtype(type, st->EnumType)) {
-        Py_INCREF(obj);
-        return obj;
-    }
-
     /* Fast paths for known empty collections */
     if (type == &PyDict_Type && PyDict_Size(obj) == 0) {
         return PyDict_New();
@@ -3073,18 +3062,15 @@ maybe_deepcopy_default(PyObject *obj) {
     else if (type == &PySet_Type && PySet_GET_SIZE(obj) == 0) {
         return PySet_New(NULL);
     }
+
+    MsgspecState *mod = msgspec_get_global_state();
+    if (PyType_IsSubtype(type, mod->EnumType)) {
+        Py_INCREF(obj);
+        return obj;
+    }
+
     /* More complicated, invoke full deepcopy */
-    copy = PyImport_ImportModule("copy");
-    if (copy == NULL)
-        goto cleanup;
-    deepcopy = PyObject_GetAttrString(copy, "deepcopy");
-    if (deepcopy == NULL)
-        goto cleanup;
-    res = CALL_ONE_ARG(deepcopy, obj);
-cleanup:
-    Py_XDECREF(copy);
-    Py_XDECREF(deepcopy);
-    return res;
+    return CALL_ONE_ARG(mod->deepcopy, obj);
 }
 
 
@@ -3737,6 +3723,8 @@ typedef struct EncoderState {
     Py_ssize_t output_len;      /* Length of output_buffer */
     Py_ssize_t max_output_len;  /* Allocation size of output_buffer */
     char* (*resize_buffer)(PyObject**, Py_ssize_t);  /* callback for resizing buffer */
+
+    MsgspecState *mod;   /* module reference */
 } EncoderState;
 
 typedef struct Encoder {
@@ -3813,6 +3801,9 @@ Encoder_init(Encoder *self, PyObject *args, PyObject *kwds)
         }
         Py_INCREF(enc_hook);
     }
+
+    self->state.mod = msgspec_get_global_state();
+
     self->state.enc_hook = enc_hook;
     self->state.write_buffer_size = Py_MAX(write_buffer_size, 32);
     self->state.max_output_len = self->state.write_buffer_size;
@@ -4020,12 +4011,13 @@ encode_common(
     PyObject *enc_hook = NULL, *res = NULL;
     EncoderState state;
 
+    state.mod = msgspec_get_global_state();
+
     /* Parse arguments */
     if (!check_positional_nargs(nargs, 1, 1)) return NULL;
     if (kwnames != NULL) {
         Py_ssize_t nkwargs = PyTuple_GET_SIZE(kwnames);
-        MsgspecState *st = msgspec_get_global_state();
-        if ((enc_hook = find_keyword(kwnames, args + nargs, st->str_enc_hook)) != NULL) nkwargs--;
+        if ((enc_hook = find_keyword(kwnames, args + nargs, state.mod->str_enc_hook)) != NULL) nkwargs--;
         if (nkwargs > 0) {
             PyErr_SetString(
                 PyExc_TypeError,
@@ -4362,7 +4354,7 @@ mpack_encode_str(EncoderState *self, PyObject *obj)
             return -1;
     } else {
         PyErr_SetString(
-            msgspec_get_global_state()->EncodeError,
+            self->mod->EncodeError,
             "Can't encode strings longer than 2**32 - 1"
         );
         return -1;
@@ -4393,7 +4385,7 @@ mpack_encode_bin(EncoderState *self, const char* buf, Py_ssize_t len) {
             return -1;
     } else {
         PyErr_SetString(
-            msgspec_get_global_state()->EncodeError,
+            self->mod->EncodeError,
             "Can't encode bytes-like objects longer than 2**32 - 1"
         );
         return -1;
@@ -4449,7 +4441,7 @@ mpack_encode_array_header(EncoderState *self, Py_ssize_t len, const char* typnam
             return -1;
     } else {
         PyErr_Format(
-            msgspec_get_global_state()->EncodeError,
+            self->mod->EncodeError,
             "Can't encode %s longer than 2**32 - 1",
             typname
         );
@@ -4550,7 +4542,7 @@ mpack_encode_map_header(EncoderState *self, Py_ssize_t len, const char* typname)
             return -1;
     } else {
         PyErr_Format(
-            msgspec_get_global_state()->EncodeError,
+            self->mod->EncodeError,
             "Can't encode %s longer than 2**32 - 1",
             typname
         );
@@ -4704,7 +4696,7 @@ mpack_encode_ext(EncoderState *self, PyObject *obj)
     }
     else {
         PyErr_SetString(
-            msgspec_get_global_state()->EncodeError,
+            self->mod->EncodeError,
             "Can't encode Ext objects with data longer than 2**32 - 1"
         );
         goto done;
@@ -4726,13 +4718,12 @@ mpack_encode_enum(EncoderState *self, PyObject *obj)
 
     int status;
     PyObject *name = NULL;
-    MsgspecState *st = msgspec_get_global_state();
     /* Try the private variable first for speed, fall back to the public
      * interface if not available */
-    name = PyObject_GetAttr(obj, st->str__name_);
+    name = PyObject_GetAttr(obj, self->mod->str__name_);
     if (name == NULL) {
         PyErr_Clear();
-        name = PyObject_GetAttr(obj, st->str_name);
+        name = PyObject_GetAttr(obj, self->mod->str_name);
         if (name == NULL)
             return -1;
     }
@@ -4740,7 +4731,7 @@ mpack_encode_enum(EncoderState *self, PyObject *obj)
         status = mpack_encode_str(self, name);
     } else {
         PyErr_SetString(
-            msgspec_get_global_state()->EncodeError,
+            self->mod->EncodeError,
             "Enum's with non-str names aren't supported"
         );
         status = -1;
@@ -4758,7 +4749,7 @@ mpack_encode_datetime(EncoderState *self, PyObject *obj)
 
     if (!MS_HAS_TZINFO(obj)) {
         PyErr_SetString(
-            msgspec_get_global_state()->EncodeError,
+            self->mod->EncodeError,
             "Can't encode naive datetime objects"
         );
         return -1;
@@ -4770,7 +4761,7 @@ mpack_encode_datetime(EncoderState *self, PyObject *obj)
     }
     else {
         PyObject *temp = PyObject_CallFunctionObjArgs(
-            msgspec_get_global_state()->astimezone,
+            self->mod->astimezone,
             obj, PyDateTime_TimeZone_UTC, NULL
         );
         if (temp == NULL) return -1;
@@ -4813,7 +4804,6 @@ static int
 mpack_encode(EncoderState *self, PyObject *obj)
 {
     PyTypeObject *type;
-    MsgspecState *st;
 
     type = Py_TYPE(obj);
 
@@ -4862,8 +4852,7 @@ mpack_encode(EncoderState *self, PyObject *obj)
     else if (type == &Ext_Type) {
         return mpack_encode_ext(self, obj);
     }
-    st = msgspec_get_global_state();
-    if (PyType_IsSubtype(type, st->EnumType)) {
+    else if (PyType_IsSubtype(type, self->mod->EnumType)) {
         return mpack_encode_enum(self, obj);
     }
     if (self->enc_hook != NULL) {
@@ -5147,7 +5136,7 @@ json_encode_bin(EncoderState *self, const char* buf, Py_ssize_t len) {
 
     if (len >= (1LL << 32)) {
         PyErr_SetString(
-            msgspec_get_global_state()->EncodeError,
+            self->mod->EncodeError,
             "Can't encode bytes-like objects longer than 2**32 - 1"
         );
         return -1;
@@ -5220,13 +5209,12 @@ json_encode_enum(EncoderState *self, PyObject *obj)
 
     int status;
     PyObject *name = NULL;
-    MsgspecState *st = msgspec_get_global_state();
     /* Try the private variable first for speed, fall back to the public
      * interface if not available */
-    name = PyObject_GetAttr(obj, st->str__name_);
+    name = PyObject_GetAttr(obj, self->mod->str__name_);
     if (name == NULL) {
         PyErr_Clear();
-        name = PyObject_GetAttr(obj, st->str_name);
+        name = PyObject_GetAttr(obj, self->mod->str_name);
         if (name == NULL)
             return -1;
     }
@@ -5234,7 +5222,7 @@ json_encode_enum(EncoderState *self, PyObject *obj)
         status = json_encode_str(self, name);
     } else {
         PyErr_SetString(
-            msgspec_get_global_state()->EncodeError,
+            self->mod->EncodeError,
             "Enum's with non-str names aren't supported"
         );
         status = -1;
@@ -5269,7 +5257,7 @@ json_encode_datetime(EncoderState *self, PyObject *obj)
 
     if (!MS_HAS_TZINFO(obj)) {
         PyErr_SetString(
-            msgspec_get_global_state()->EncodeError,
+            self->mod->EncodeError,
             "Can't encode naive datetime objects"
         );
         return -1;
@@ -5277,8 +5265,7 @@ json_encode_datetime(EncoderState *self, PyObject *obj)
 
     tzinfo = MS_GET_TZINFO(obj);
     if (tzinfo != PyDateTime_TimeZone_UTC) {
-        MsgspecState *st = msgspec_get_global_state();
-        PyObject *offset = CALL_METHOD_ONE_ARG(tzinfo, st->str_utcoffset, obj);
+        PyObject *offset = CALL_METHOD_ONE_ARG(tzinfo, self->mod->str_utcoffset, obj);
         if (offset == NULL) return -1;
         if (PyDelta_Check(offset)) {
             offset_days = PyDateTime_DELTA_GET_DAYS(offset);
@@ -5520,7 +5507,6 @@ cleanup:
 static int
 json_encode(EncoderState *self, PyObject *obj)
 {
-    MsgspecState *st;
     PyTypeObject *type = Py_TYPE(obj);
 
     if (obj == Py_None) {
@@ -5568,8 +5554,7 @@ json_encode(EncoderState *self, PyObject *obj)
     else if (type == &PyMemoryView_Type) {
         return json_encode_memoryview(self, obj);
     }
-    st = msgspec_get_global_state();
-    if (PyType_IsSubtype(type, st->EnumType)) {
+    else if (PyType_IsSubtype(type, self->mod->EnumType)) {
         return json_encode_enum(self, obj);
     }
 
@@ -9331,6 +9316,7 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->types_uniontype);
 #endif
     Py_CLEAR(st->astimezone);
+    Py_CLEAR(st->deepcopy);
     return 0;
 }
 
@@ -9374,6 +9360,7 @@ msgspec_traverse(PyObject *m, visitproc visit, void *arg)
     Py_VISIT(st->types_uniontype);
 #endif
     Py_VISIT(st->astimezone);
+    Py_VISIT(st->deepcopy);
     return 0;
 }
 
@@ -9540,6 +9527,15 @@ PyInit__core(void)
     st->astimezone = PyObject_GetAttrString(temp_obj, "astimezone");
     Py_DECREF(temp_obj);
     if (st->astimezone == NULL)
+        return NULL;
+
+    /* Get the copy.deepcopy function */
+    temp_module = PyImport_ImportModule("copy");
+    if (temp_module == NULL)
+        return NULL;
+    st->deepcopy = PyObject_GetAttrString(temp_module, "deepcopy");
+    Py_DECREF(temp_module);
+    if (st->deepcopy == NULL)
         return NULL;
 
     /* Initialize cached constant strings */
