@@ -29,7 +29,7 @@ class Struct(metaclass=__StructMeta):
         tag: Union[None, bool, str, Callable[[str], str]] = None,
         tag_field: Union[None, str] = None,
         frozen: bool = False,
-        asarray: bool = False,
+        array_like: bool = False,
         nogc: bool = False,
     ) -> None: ...
 

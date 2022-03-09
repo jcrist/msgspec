@@ -30,13 +30,13 @@ class Person(msgspec.Struct, nogc=NOGC):
     email: Optional[str] = None
 
 
-class Address2(msgspec.Struct, asarray=True, nogc=NOGC):
+class Address2(msgspec.Struct, array_like=True, nogc=NOGC):
     street: str
     state: str
     zip: int
 
 
-class Person2(msgspec.Struct, asarray=True, nogc=NOGC):
+class Person2(msgspec.Struct, array_like=True, nogc=NOGC):
     first: str
     last: str
     age: int
@@ -200,7 +200,7 @@ def bench_msgspec_msgpack(n, no_gc, validate=False):
     return bench(enc.encode, dec.decode, n, convert, no_gc=no_gc)
 
 
-def bench_msgspec_msgpack_asarray(n, no_gc, validate=False):
+def bench_msgspec_msgpack_array_like(n, no_gc, validate=False):
     enc = msgspec.msgpack.Encoder()
     dec = msgspec.msgpack.Decoder(Person2 if n == 1 else List[Person2])
 
@@ -236,7 +236,7 @@ def bench_msgspec_json(n, no_gc, validate=False):
     return bench(enc.encode, dec.decode, n, convert, no_gc=no_gc)
 
 
-def bench_msgspec_json_asarray(n, no_gc, validate=False):
+def bench_msgspec_json_array_like(n, no_gc, validate=False):
     enc = msgspec.json.Encoder()
     dec = msgspec.json.Decoder(Person2 if n == 1 else List[Person2])
 
@@ -346,9 +346,9 @@ BENCHMARKS = [
     ("msgpack", bench_msgpack),
     ("pyrobuf", bench_pyrobuf),
     ("msgspec msgpack", bench_msgspec_msgpack),
-    ("msgspec msgpack asarray", bench_msgspec_msgpack_asarray),
+    ("msgspec msgpack array-like", bench_msgspec_msgpack_array_like),
     ("msgspec json", bench_msgspec_json),
-    ("msgspec json asarray", bench_msgspec_json_asarray),
+    ("msgspec json array-like", bench_msgspec_json_array_like),
 ]
 
 

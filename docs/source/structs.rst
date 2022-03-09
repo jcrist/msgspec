@@ -354,14 +354,14 @@ present in the message.
     b'{"x":1,"y":2}'
 
 If you need higher performance (at the cost of more inscrutable message
-encoding), you can set ``asarray=True`` on a struct definition. Structs with
+encoding), you can set ``array_like=True`` on a struct definition. Structs with
 this option enabled are encoded/decoded as array-like types, removing the field
 names from the encoded message. This can provide on average another ~2x speedup
 for decoding (and ~1.5x speedup for encoding).
 
 .. code-block:: python
 
-    >>> class Point2(msgspec.Struct, asarray=True):
+    >>> class Point2(msgspec.Struct, array_like=True):
     ...     x: int
     ...     y: int
 
@@ -372,7 +372,7 @@ for decoding (and ~1.5x speedup for encoding).
     Point2(x=3, y=4)
 
 Note that :ref:`struct-tagged-unions` also work with structs with
-``asarray=True``. In this case the tag is encoded as the first item in the
+``array_like=True``. In this case the tag is encoded as the first item in the
 array, and is used to determine which type in the union to use when decoding.
 
 .. code-block:: python
@@ -381,10 +381,10 @@ array, and is used to determine which type in the union to use when decoding.
 
     >>> from typing import Union
 
-    >>> class Get(msgspec.Struct, tag=True, asarray=True):
+    >>> class Get(msgspec.Struct, tag=True, array_like=True):
     ...     key: str
 
-    >>> class Put(msgspec.Struct, tag=True, asarray=True):
+    >>> class Put(msgspec.Struct, tag=True, array_like=True):
     ...     key: str
     ...     val: str
 

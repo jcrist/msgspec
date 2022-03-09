@@ -1024,7 +1024,7 @@ typedef struct {
     bool json_compatible;
     bool traversing;
     char frozen;
-    char asarray;
+    char array_like;
     char nogc;
 } StructMetaObject;
 
@@ -1448,17 +1448,17 @@ typenode_collect_check_invariants(
         return -1;
     }
 
-    /* Ensure structs with asarray=True don't conflict with array types */
+    /* Ensure structs with array_like=True don't conflict with array types */
     if (state->array_el_obj && (state->types & (MS_TYPE_STRUCT_ARRAY | MS_TYPE_STRUCT_ARRAY_UNION))) {
         PyErr_Format(
             PyExc_TypeError,
-            "Type unions containing a Struct type with `asarray=True` may "
+            "Type unions containing a Struct type with `array_like=True` may "
             "not contain other array-like types - type `%R` is not supported",
             state->context
         );
         return -1;
     }
-    /* Ensure structs with asarray=False don't conflict with dict types */
+    /* Ensure structs with array_like=False don't conflict with dict types */
     if (state->dict_key_obj && (state->types & (MS_TYPE_STRUCT| MS_TYPE_STRUCT_UNION))) {
         PyErr_Format(
             PyExc_TypeError,
@@ -1748,7 +1748,7 @@ typenode_collect_convert_structs(
         if (StructMeta_prep_types(state->struct_obj, err_not_json, json_compatible) < 0) {
             return -1;
         }
-        if (((StructMetaObject *)state->struct_obj)->asarray == OPT_TRUE) {
+        if (((StructMetaObject *)state->struct_obj)->array_like == OPT_TRUE) {
             state->types |= MS_TYPE_STRUCT_ARRAY;
         }
         else {
@@ -1764,14 +1764,14 @@ typenode_collect_convert_structs(
      *
      * Validation checks:
      * - All structs in the set are tagged.
-     * - All structs in the set have the same `asarray` status
+     * - All structs in the set have the same `array_like` status
      * - All structs in the set have the same `tag_field`
      * - All structs in the set have a unique `tag_value`
      *
      * If any of these checks fails, an appropriate error is returned.
      */
     PyObject *tag_mapping = NULL, *tag_field = NULL;
-    bool asarray = false;
+    bool array_like = false;
     int status = -1;
 
     tag_mapping = PyDict_New();
@@ -1781,7 +1781,7 @@ typenode_collect_convert_structs(
         StructMetaObject *struct_type = (StructMetaObject *)(PyList_GET_ITEM(state->structs_list, i));
         PyObject *item_tag_field = struct_type->struct_tag_field;
         PyObject *item_tag_value = struct_type->struct_tag_value;
-        bool item_asarray = struct_type->asarray == OPT_TRUE;
+        bool item_array_like = struct_type->array_like == OPT_TRUE;
         bool item_json_compatible = true;
 
         if (StructMeta_prep_types((PyObject *)struct_type, err_not_json, &item_json_compatible) < 0) {
@@ -1803,15 +1803,15 @@ typenode_collect_convert_structs(
         }
 
         if (i == 0) {
-            asarray = struct_type->asarray == OPT_TRUE;
+            array_like = struct_type->array_like == OPT_TRUE;
             tag_field = struct_type->struct_tag_field;
         }
         else {
-            if (asarray != item_asarray) {
+            if (array_like != item_array_like) {
                 PyErr_Format(
                     PyExc_TypeError,
-                    "Type unions may not contain Struct types with `asarray=True` "
-                    "and `asarray=False` - type `%R` is not supported",
+                    "Type unions may not contain Struct types with `array_like=True` "
+                    "and `array_like=False` - type `%R` is not supported",
                     state->context
                 );
                 goto cleanup;
@@ -1850,7 +1850,7 @@ typenode_collect_convert_structs(
     if (state->structs_lookup == NULL) goto cleanup;
 
     /* Update the `types` */
-    if (asarray) {
+    if (array_like) {
         state->types |= MS_TYPE_STRUCT_ARRAY_UNION;
     }
     else {
@@ -2450,18 +2450,18 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
     PyObject *tag_field_temp = NULL, *tag_temp = NULL, *arg_tag_field = NULL, *arg_tag = NULL;
     PyObject *tag = NULL, *tag_field = NULL,  *tag_value = NULL;
     int arg_frozen = -1, frozen = -1;
-    int arg_asarray = -1, asarray = -1;
+    int arg_array_like = -1, array_like = -1;
     int arg_nogc = -1, nogc = -1;
 
     static char *kwlist[] = {
-        "name", "bases", "dict", "tag_field", "tag", "frozen", "asarray", "nogc", NULL
+        "name", "bases", "dict", "tag_field", "tag", "frozen", "array_like", "nogc", NULL
     };
 
     /* Parse arguments: (name, bases, dict) */
     if (!PyArg_ParseTupleAndKeywords(
             args, kwargs, "UO!O!|$OOppp:StructMeta.__new__", kwlist,
             &name, &PyTuple_Type, &bases, &PyDict_Type, &orig_dict,
-            &arg_tag_field, &arg_tag, &arg_frozen, &arg_asarray, &arg_nogc)
+            &arg_tag_field, &arg_tag, &arg_frozen, &arg_array_like, &arg_nogc)
     )
         return NULL;
 
@@ -2511,7 +2511,7 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
             tag_temp = base_tag;
         }
         frozen = STRUCT_MERGE_OPTIONS(frozen, ((StructMetaObject *)base)->frozen);
-        asarray = STRUCT_MERGE_OPTIONS(asarray, ((StructMetaObject *)base)->asarray);
+        array_like = STRUCT_MERGE_OPTIONS(array_like, ((StructMetaObject *)base)->array_like);
         nogc = STRUCT_MERGE_OPTIONS(nogc, ((StructMetaObject *)base)->nogc);
         base_fields = StructMeta_GET_FIELDS(base);
         base_defaults = StructMeta_GET_DEFAULTS(base);
@@ -2544,7 +2544,7 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
     if (arg_tag != NULL && arg_tag != Py_None) { tag_temp = arg_tag; }
     if (arg_tag_field != NULL && arg_tag_field != Py_None) { tag_field_temp = arg_tag_field; }
     frozen = STRUCT_MERGE_OPTIONS(frozen, arg_frozen);
-    asarray = STRUCT_MERGE_OPTIONS(asarray, arg_asarray);
+    array_like = STRUCT_MERGE_OPTIONS(array_like, arg_array_like);
     nogc = STRUCT_MERGE_OPTIONS(nogc, arg_nogc);
 
     new_dict = PyDict_Copy(orig_dict);
@@ -2739,7 +2739,7 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
     cls->struct_tag_field = tag_field;
     cls->struct_tag_value = tag_value;
     cls->frozen = frozen;
-    cls->asarray = asarray;
+    cls->array_like = array_like;
     cls->nogc = nogc;
     return (PyObject *) cls;
 error:
@@ -2888,9 +2888,9 @@ StructMeta_frozen(StructMetaObject *self, void *closure)
 }
 
 static PyObject*
-StructMeta_asarray(StructMetaObject *self, void *closure)
+StructMeta_array_like(StructMetaObject *self, void *closure)
 {
-    if (self->asarray == OPT_TRUE) { Py_RETURN_TRUE; }
+    if (self->array_like == OPT_TRUE) { Py_RETURN_TRUE; }
     else { Py_RETURN_FALSE; }
 }
 
@@ -3004,7 +3004,7 @@ static PyMemberDef StructMeta_members[] = {
 static PyGetSetDef StructMeta_getset[] = {
     {"__signature__", (getter) StructMeta_signature, NULL, NULL, NULL},
     {"frozen", (getter) StructMeta_frozen, NULL, NULL, NULL},
-    {"asarray", (getter) StructMeta_asarray, NULL, NULL, NULL},
+    {"array_like", (getter) StructMeta_array_like, NULL, NULL, NULL},
     {"nogc", (getter) StructMeta_nogc, NULL, NULL, NULL},
     {NULL},
 };
@@ -3509,8 +3509,8 @@ PyDoc_STRVAR(Struct__doc__,
 "  that takes a string (the class name) and returns a new string to use for the\n"
 "  tag value (for example, to automatically lowercase class names). See the docs\n"
 "  for more information.\n"
-"- ``asarray``: whether instances of the class should be serialized as\n"
-"  arrays rather than dicts (the default).\n"
+"- ``array_like``: whether this type should be treated as an array-like type\n"
+"  (rather than a dict-like type, the default) when encoding/decoding.\n"
 "- ``nogc``: whether garbage collection is disabled for this class. Enabling,\n"
 "  this *may* help reduce GC pressure, but will result in reference cycles\n"
 "  composed of only nogc structs going uncollected. It is the user's\n"
@@ -4582,7 +4582,7 @@ mpack_encode_struct(EncoderState *self, PyObject *obj)
     Py_ssize_t i, nfields, len;
     int tagged, status = -1;
     StructMetaObject *struct_type = (StructMetaObject *)Py_TYPE(obj);
-    bool asarray = struct_type->asarray == OPT_TRUE;
+    bool array_like = struct_type->array_like == OPT_TRUE;
 
     tag_field = struct_type->struct_tag_field;
     tag_value = struct_type->struct_tag_value;
@@ -4591,7 +4591,7 @@ mpack_encode_struct(EncoderState *self, PyObject *obj)
     nfields = PyTuple_GET_SIZE(fields);
     len = nfields + tagged;
 
-    if (asarray) {
+    if (array_like) {
         if (mpack_encode_array_header(self, len, "structs") < 0) return -1;
     }
     else {
@@ -4600,7 +4600,7 @@ mpack_encode_struct(EncoderState *self, PyObject *obj)
     if (len == 0) return 0;
     if (Py_EnterRecursiveCall(" while serializing an object"))
         return -1;
-    if (asarray) {
+    if (array_like) {
         if (tagged) {
             if (mpack_encode_str(self, tag_value) < 0) goto cleanup;
         }
@@ -5459,7 +5459,7 @@ json_encode_struct(EncoderState *self, PyObject *obj)
     fields = struct_type->struct_fields;
     len = PyTuple_GET_SIZE(fields);
 
-    if (struct_type->asarray == OPT_TRUE) {
+    if (struct_type->array_like == OPT_TRUE) {
         if ((len + tagged) == 0) return ms_write(self, "[]", 2);
         if (ms_write(self, "[", 1) < 0) return -1;
         if (Py_EnterRecursiveCall(" while serializing an object")) return -1;

@@ -500,18 +500,18 @@ doesn't match or if any required fields are missing.
       File "<stdin>", line 1, in <module>
     msgspec.DecodeError: Expected `str`, got `int` - at `$.groups[1]`
 
-If you pass ``asarray=True`` when defining the struct type, they're instead
+If you pass ``array_like=True`` when defining the struct type, they're instead
 treated as ``array`` types during encoding/decoding (with fields serialized in
 their definition order). This can further improve performance at the cost of
-less human readable messaging. Like ``asarray=False`` structs, extra (trailing)
-fields are ignored during decoding, and any missing optional fields have their
-defaults applied. Type checking also still applies.
+less human readable messaging. Like ``array_like=False`` (the default) structs,
+extra (trailing) fields are ignored during decoding, and any missing optional
+fields have their defaults applied. Type checking also still applies.
 
 .. code-block:: python
 
     >>> from typing import Set, Optional
 
-    >>> class User(msgspec.Struct, asarray=True):
+    >>> class User(msgspec.Struct, array_like=True):
     ...     name: str
     ...     groups: Set[str] = set()
     ...     email: Optional[str] = None
@@ -588,10 +588,10 @@ Union restrictions are as follows:
 - Unions may contain at most one *untagged* `Struct` type. Unions containing
   multiple struct types are only supported through :ref:`struct-tagged-unions`.
 
-- Unions may contain at most one of `dict` / `Struct` (with ``asarray=False``)
+- Unions may contain at most one of `dict` / `Struct` (with ``array_like=False``)
 
 - Unions may contain at most one of `list` / `tuple` / `set` / `Struct` (with
-  ``asarray=True``).
+  ``array_like=True``).
 
 - Unions with custom types are unsupported beyond optionality (i.e.
   ``Optional[CustomType]``)
@@ -675,7 +675,7 @@ mismatched versions.
 For schema evolution to work smoothly, you need to follow a few guidelines:
 
 1. Any new fields on a `msgspec.Struct` must specify default values.
-2. Structs with ``asarray=True`` must not reorder fields, and any new fields
+2. Structs with ``array_like=True`` must not reorder fields, and any new fields
    must be appended to the end (and have defaults).
 3. Don't change the type annotations for existing messages or fields.
 4. Don't change the type codes or implementations for any defined
