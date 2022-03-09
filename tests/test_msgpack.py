@@ -204,8 +204,9 @@ class TestDecodeFunction:
     def test_decode_type_any(self):
         assert msgspec.msgpack.decode(self.buf, type=Any) == [1, 2, 3]
 
-    def test_decode_type_struct(self):
-        class Point(msgspec.Struct):
+    @pytest.mark.parametrize("array_like", [False, True])
+    def test_decode_type_struct(self, array_like):
+        class Point(msgspec.Struct, array_like=array_like):
             x: int
             y: int
 
@@ -226,7 +227,7 @@ class TestDecodeFunction:
             x: 1
 
         with pytest.raises(TypeError):
-            msgspec.msgpack.decode(b'{}', type=Test)
+            msgspec.msgpack.decode(b"{}", type=Test)
 
     def test_decode_invalid_type(self):
         with pytest.raises(TypeError, match="Type '1' is not supported"):
