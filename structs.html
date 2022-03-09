@@ -512,11 +512,11 @@ present in the message.</p>
 </pre></div>
 </div>
 <p>If you need higher performance (at the cost of more inscrutable message
-encoding), you can set <code class="docutils literal notranslate"><span class="pre">asarray=True</span></code> on a struct definition. Structs with
+encoding), you can set <code class="docutils literal notranslate"><span class="pre">array_like=True</span></code> on a struct definition. Structs with
 this option enabled are encoded/decoded as array-like types, removing the field
 names from the encoded message. This can provide on average another ~2x speedup
 for decoding (and ~1.5x speedup for encoding).</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">Point2</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">asarray</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">Point2</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">array_like</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
 <span class="gp">... </span>    <span class="n">x</span><span class="p">:</span> <span class="nb">int</span>
 <span class="gp">... </span>    <span class="n">y</span><span class="p">:</span> <span class="nb">int</span>
 
@@ -528,16 +528,16 @@ for decoding (and ~1.5x speedup for encoding).</p>
 </pre></div>
 </div>
 <p>Note that <a class="reference internal" href="#struct-tagged-unions"><span class="std std-ref">Tagged Unions</span></a> also work with structs with
-<code class="docutils literal notranslate"><span class="pre">asarray=True</span></code>. In this case the tag is encoded as the first item in the
+<code class="docutils literal notranslate"><span class="pre">array_like=True</span></code>. In this case the tag is encoded as the first item in the
 array, and is used to determine which type in the union to use when decoding.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">msgspec</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Union</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">Get</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">tag</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">asarray</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">Get</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">tag</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">array_like</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
 <span class="gp">... </span>    <span class="n">key</span><span class="p">:</span> <span class="nb">str</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">Put</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">tag</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">asarray</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">Put</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">tag</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">array_like</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
 <span class="gp">... </span>    <span class="n">key</span><span class="p">:</span> <span class="nb">str</span>
 <span class="gp">... </span>    <span class="n">val</span><span class="p">:</span> <span class="nb">str</span>
 

@@ -240,11 +240,11 @@ types):</p>
 <li><p><code class="docutils literal notranslate"><span class="pre">pyrobuf</span></code> - <a class="reference external" href="https://github.com/appnexus/pyrobuf">pyrobuf</a> with protobuf message types</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">msgspec</span> <span class="pre">msgpack</span></code> - <a class="reference external" href="https://jcristharif.com/msgspec/">msgspec</a>’s MessagePack encoding, with <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a>
 message types</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">msgspec</span> <span class="pre">msgpack</span> <span class="pre">asarray</span></code> - <a class="reference external" href="https://jcristharif.com/msgspec/">msgspec</a>’s MessagePack encoding, with
-<a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> message types configured with <code class="docutils literal notranslate"><span class="pre">asarray=True</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">msgspec</span> <span class="pre">msgpack</span> <span class="pre">array-like</span></code> - <a class="reference external" href="https://jcristharif.com/msgspec/">msgspec</a>’s MessagePack encoding, with
+<a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> message types configured with <code class="docutils literal notranslate"><span class="pre">array_like=True</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">msgspec</span> <span class="pre">json</span></code> - <a class="reference external" href="https://jcristharif.com/msgspec/">msgspec</a>’s JSON encoding, with <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> message types</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">msgspec</span> <span class="pre">json</span> <span class="pre">asarray</span></code> - <a class="reference external" href="https://jcristharif.com/msgspec/">msgspec</a>’s JSON encoding, with <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a>
-message types configured with <code class="docutils literal notranslate"><span class="pre">asarray=True</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">msgspec</span> <span class="pre">json</span> <span class="pre">array-like</span></code> - <a class="reference external" href="https://jcristharif.com/msgspec/">msgspec</a>’s JSON encoding, with <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a>
+message types configured with <code class="docutils literal notranslate"><span class="pre">array_like=True</span></code></p></li>
 </ul>
 <p>Each benchmark creates one or more instances of a <code class="docutils literal notranslate"><span class="pre">Person</span></code> message, and
 serializes it/deserializes it in a loop. The <a class="reference external" href="https://github.com/jcrist/msgspec/tree/master/benchmarks">full benchmark source can be
@@ -260,12 +260,12 @@ etc…).</p>
 time, total roundtrip time, or serialized message size. Hovering over a bar
 will also display its corresponding value.</p>
 </div>
-<p>From the chart above, you can see that <code class="docutils literal notranslate"><span class="pre">msgspec</span> <span class="pre">msgpack</span> <span class="pre">asarray</span></code> is the
+<p>From the chart above, you can see that <code class="docutils literal notranslate"><span class="pre">msgspec</span> <span class="pre">msgpack</span> <span class="pre">array-like</span></code> is the
 fastest method for both serialization and deserialization. It also results in
 the smallest serialized message size, just edging out <code class="docutils literal notranslate"><span class="pre">pyrobuf</span></code>. This makes
-sense; with <code class="docutils literal notranslate"><span class="pre">asarray=True</span></code> <code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code> types don’t serialize the field names in
-each message (things like <code class="docutils literal notranslate"><span class="pre">"first"</span></code>, <code class="docutils literal notranslate"><span class="pre">"last"</span></code>, …), only the values, leading
-to smaller messages and higher performance.</p>
+sense; with <code class="docutils literal notranslate"><span class="pre">array_like=True</span></code> <code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code> types don’t serialize the field names
+in each message (things like <code class="docutils literal notranslate"><span class="pre">"first"</span></code>, <code class="docutils literal notranslate"><span class="pre">"last"</span></code>, …), only the values,
+leading to smaller messages and higher performance.</p>
 <p>The <code class="docutils literal notranslate"><span class="pre">msgspec</span> <span class="pre">msgpack</span></code> and <code class="docutils literal notranslate"><span class="pre">msgspec</span> <span class="pre">json</span></code> benchmarks also performed quite
 well, encoding/decoding faster than all other options, even those implementing
 the same serialization protocol. This is partly due to the use of <code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code>

@@ -224,8 +224,8 @@ directly via <code class="docutils literal notranslate"><span class="pre">tag_fi
 that takes a string (the class name) and returns a new string to use for the
 tag value (for example, to automatically lowercase class names). See the docs
 for more information.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">asarray</span></code>: whether instances of the class should be serialized as
-arrays rather than dicts (the default).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">array_like</span></code>: whether this type should be treated as an array-like type
+(rather than a dict-like type, the default) when encoding/decoding.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">nogc</span></code>: whether garbage collection is disabled for this class. Enabling,
 this <em>may</em> help reduce GC pressure, but will result in reference cycles
 composed of only nogc structs going uncollected. It is the user’s

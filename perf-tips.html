@@ -388,32 +388,29 @@ benefit from using it instead of JSON. And since <code class="docutils literal n
 protocols with a consistent interface, switching from <code class="docutils literal notranslate"><span class="pre">msgspec.json</span></code> to
 <code class="docutils literal notranslate"><span class="pre">msgspec.msgpack</span></code> should be fairly painless.</p>
 </section>
-<section id="use-asarray-true">
-<h2>Use <code class="docutils literal notranslate"><span class="pre">asarray=True</span></code><a class="headerlink" href="#use-asarray-true" title="Permalink to this headline">#</a></h2>
+<section id="use-array-like-true">
+<h2>Use <code class="docutils literal notranslate"><span class="pre">array_like=True</span></code><a class="headerlink" href="#use-array-like-true" title="Permalink to this headline">#</a></h2>
 <p>One touted benefit of <a class="reference external" href="https://json.org">JSON</a> and <a class="reference external" href="https://msgpack.org">MessagePack</a> is that they’re “self-describing”
 protocols. JSON objects serialize their field names along with their values. If
 both ends of a connection already know the field names though, serializing them
 may be an unnecessary cost. If you need higher performance (at the cost of more
-inscrutable message encoding), you can set <code class="docutils literal notranslate"><span class="pre">asarray=True</span></code> on a struct
+inscrutable message encoding), you can set <code class="docutils literal notranslate"><span class="pre">array_like=True</span></code> on a struct
 definition. Structs with this option enabled are encoded/decoded like array
 types, removing the field names from the encoded message. This can provide on
 average another ~2x speedup for decoding (and ~1.5x speedup for encoding).</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">AsArrayStruct</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">asarray</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
-<span class="gp">... </span>    <span class="sd">"""This struct is serialized like an array (instead of like</span>
-<span class="gp">... </span><span class="sd">    a dict). This means no field names are sent as part of the</span>
-<span class="gp">... </span><span class="sd">    message, speeding up encoding/decoding."""</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">Example</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">array_like</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
 <span class="gp">... </span>    <span class="n">my_first_field</span><span class="p">:</span> <span class="nb">str</span>
 <span class="gp">... </span>    <span class="n">my_second_field</span><span class="p">:</span> <span class="nb">int</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">x</span> <span class="o">=</span> <span class="n">AsArrayStruct</span><span class="p">(</span><span class="s2">"some string"</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x</span> <span class="o">=</span> <span class="n">Example</span><span class="p">(</span><span class="s2">"some string"</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span>
 <span class="go">b'["some string",2]'</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">AsArrayStruct</span><span class="p">)</span>
-<span class="go">AsArrayStruct(my_first_field="some string", my_second_field=2)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Example</span><span class="p">)</span>
+<span class="go">Example(my_first_field="some string", my_second_field=2)</span>
 </pre></div>
 </div>
 </section>
@@ -487,7 +484,7 @@ average another ~2x speedup for decoding (and ~1.5x speedup for encoding).</p>
 </ul>
 </li>
 <li><a class="reference internal" href="#use-messagepack">Use MessagePack</a></li>
-<li><a class="reference internal" href="#use-asarray-true">Use <code class="docutils literal notranslate"><span class="pre">asarray=True</span></code></a></li>
+<li><a class="reference internal" href="#use-array-like-true">Use <code class="docutils literal notranslate"><span class="pre">array_like=True</span></code></a></li>
 </ul>
 </li>
 </ul>

@@ -640,15 +640,15 @@ doesn’t match or if any required fields are missing.</p>
 <span class="gr">msgspec.DecodeError</span>: <span class="n">Expected `str`, got `int` - at `$.groups[1]`</span>
 </pre></div>
 </div>
-<p>If you pass <code class="docutils literal notranslate"><span class="pre">asarray=True</span></code> when defining the struct type, they’re instead
+<p>If you pass <code class="docutils literal notranslate"><span class="pre">array_like=True</span></code> when defining the struct type, they’re instead
 treated as <code class="docutils literal notranslate"><span class="pre">array</span></code> types during encoding/decoding (with fields serialized in
 their definition order). This can further improve performance at the cost of
-less human readable messaging. Like <code class="docutils literal notranslate"><span class="pre">asarray=False</span></code> structs, extra (trailing)
-fields are ignored during decoding, and any missing optional fields have their
-defaults applied. Type checking also still applies.</p>
+less human readable messaging. Like <code class="docutils literal notranslate"><span class="pre">array_like=False</span></code> (the default) structs,
+extra (trailing) fields are ignored during decoding, and any missing optional
+fields have their defaults applied. Type checking also still applies.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Set</span><span class="p">,</span> <span class="n">Optional</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">User</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">asarray</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">User</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">array_like</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
 <span class="gp">... </span>    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
 <span class="gp">... </span>    <span class="n">groups</span><span class="p">:</span> <span class="n">Set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
 <span class="gp">... </span>    <span class="n">email</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
@@ -719,9 +719,9 @@ value.</p>
 extends this requirement to also include <a class="reference external" href="https://docs.python.org/3/library/datetime.html#module-datetime" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime</span></code></a> / <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytes</span></code></a> / <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytearray" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytearray</span></code></a>.</p></li>
 <li><p>Unions may contain at most one <em>untagged</em> <code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code> type. Unions containing
 multiple struct types are only supported through <a class="reference internal" href="structs.html#struct-tagged-unions"><span class="std std-ref">Tagged Unions</span></a>.</p></li>
-<li><p>Unions may contain at most one of <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a> / <code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code> (with <code class="docutils literal notranslate"><span class="pre">asarray=False</span></code>)</p></li>
+<li><p>Unions may contain at most one of <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a> / <code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code> (with <code class="docutils literal notranslate"><span class="pre">array_like=False</span></code>)</p></li>
 <li><p>Unions may contain at most one of <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">list</span></code></a> / <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tuple</span></code></a> / <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#set" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set</span></code></a> / <code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code> (with
-<code class="docutils literal notranslate"><span class="pre">asarray=True</span></code>).</p></li>
+<code class="docutils literal notranslate"><span class="pre">array_like=True</span></code>).</p></li>
 <li><p>Unions with custom types are unsupported beyond optionality (i.e.
 <code class="docutils literal notranslate"><span class="pre">Optional[CustomType]</span></code>)</p></li>
 </ul>
@@ -804,7 +804,7 @@ mismatched versions.</p>
 <p>For schema evolution to work smoothly, you need to follow a few guidelines:</p>
 <ol class="arabic simple">
 <li><p>Any new fields on a <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> must specify default values.</p></li>
-<li><p>Structs with <code class="docutils literal notranslate"><span class="pre">asarray=True</span></code> must not reorder fields, and any new fields
+<li><p>Structs with <code class="docutils literal notranslate"><span class="pre">array_like=True</span></code> must not reorder fields, and any new fields
 must be appended to the end (and have defaults).</p></li>
 <li><p>Don’t change the type annotations for existing messages or fields.</p></li>
 <li><p>Don’t change the type codes or implementations for any defined
