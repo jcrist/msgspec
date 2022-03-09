@@ -7068,11 +7068,12 @@ msgspec_msgpack_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, 
             res = mpack_decode(&state, &type_any, NULL, false);
         }
         else {
+            bool array_like = ((StructMetaObject *)type)->array_like == OPT_TRUE;
             struct {
                 uint32_t types;
                 Py_ssize_t fixtuple_size;
                 void* extra[1];
-            } type_obj = {MS_TYPE_STRUCT, 0, {type}};
+            } type_obj = {array_like ? MS_TYPE_STRUCT_ARRAY : MS_TYPE_STRUCT, 0, {type}};
             res = mpack_decode(&state, (TypeNode*)(&type_obj), NULL, false);
         }
         PyBuffer_Release(&buffer);
@@ -9265,11 +9266,12 @@ msgspec_json_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyO
             res = json_decode(&state, &type_any, NULL);
         }
         else {
+            bool array_like = ((StructMetaObject *)type)->array_like == OPT_TRUE;
             struct {
                 uint32_t types;
                 Py_ssize_t fixtuple_size;
                 void* extra[1];
-            } type_obj = {MS_TYPE_STRUCT, 0, {type}};
+            } type_obj = {array_like ? MS_TYPE_STRUCT_ARRAY : MS_TYPE_STRUCT, 0, {type}};
             res = json_decode(&state, (TypeNode*)(&type_obj), NULL);
         }
 
