@@ -55,7 +55,7 @@ class Person(msgspec.Struct):
     prefect: bool = False
 
 
-class PersonAA(msgspec.Struct, asarray=True):
+class PersonArray(msgspec.Struct, array_like=True):
     first: str
     last: str
     age: int
@@ -63,7 +63,7 @@ class PersonAA(msgspec.Struct, asarray=True):
 
 
 PERSON = Person("harry", "potter", 13)
-PERSON_AA = PersonAA("harry", "potter", 13)
+PERSON_AA = PersonArray("harry", "potter", 13)
 
 
 class Node(msgspec.Struct):
@@ -998,7 +998,7 @@ class TestTypedDecoder:
         "types, vals",
         [
             (
-                [PersonAA, FruitInt, FruitStr, Dict[int, str]],
+                [PersonArray, FruitInt, FruitStr, Dict[int, str]],
                 [PERSON_AA, FruitInt.APPLE, FruitStr.BANANA, {1: "two"}],
             ),
             (
@@ -1463,9 +1463,9 @@ class TestStruct:
         assert res == Person("harry", "potter", 13)
         assert res.prefect is False
 
-    @pytest.mark.parametrize("asarray", [False, True])
-    def test_struct_gc_maybe_untracked_on_decode(self, asarray):
-        class Test(msgspec.Struct, asarray=asarray):
+    @pytest.mark.parametrize("array_like", [False, True])
+    def test_struct_gc_maybe_untracked_on_decode(self, array_like):
+        class Test(msgspec.Struct, array_like=array_like):
             x: Any
             y: Any
             z: Tuple = ()
@@ -1487,9 +1487,9 @@ class TestStruct:
         assert gc.is_tracked(d)
         assert not gc.is_tracked(e)
 
-    @pytest.mark.parametrize("asarray", [False, True])
-    def test_struct_nogc_always_untracked_on_decode(self, asarray):
-        class Test(msgspec.Struct, asarray=asarray, nogc=True):
+    @pytest.mark.parametrize("array_like", [False, True])
+    def test_struct_nogc_always_untracked_on_decode(self, array_like):
+        class Test(msgspec.Struct, array_like=array_like, nogc=True):
             x: Any
             y: Any
 
@@ -1558,7 +1558,7 @@ class TestStruct:
 class TestStructArray:
     @pytest.mark.parametrize("tag", [False, True])
     def test_encode_empty_struct(self, tag):
-        class Test(msgspec.Struct, asarray=True, tag=tag):
+        class Test(msgspec.Struct, array_like=True, tag=tag):
             pass
 
         s = msgspec.msgpack.encode(Test())
@@ -1571,7 +1571,7 @@ class TestStructArray:
 
     @pytest.mark.parametrize("tag", [False, True])
     def test_encode_one_field_struct(self, tag):
-        class Test(msgspec.Struct, asarray=True, tag=tag):
+        class Test(msgspec.Struct, array_like=True, tag=tag):
             a: int
 
         s = msgspec.msgpack.encode(Test(a=1))
@@ -1584,7 +1584,7 @@ class TestStructArray:
 
     @pytest.mark.parametrize("tag", [False, True])
     def test_encode_two_field_struct(self, tag):
-        class Test(msgspec.Struct, asarray=True, tag=tag):
+        class Test(msgspec.Struct, array_like=True, tag=tag):
             a: int
             b: str
 
@@ -1596,10 +1596,10 @@ class TestStructArray:
         s2 = msgspec.msgpack.encode(msg)
         assert s == s2
 
-    def test_struct_asarray(self):
-        dec = msgspec.msgpack.Decoder(PersonAA)
+    def test_struct_array_like(self):
+        dec = msgspec.msgpack.Decoder(PersonArray)
 
-        x = PersonAA(first="harry", last="potter", age=13)
+        x = PersonArray(first="harry", last="potter", age=13)
         a = msgspec.msgpack.encode(x)
         assert msgspec.msgpack.encode(("harry", "potter", 13, False)) == a
         assert dec.decode(a) == x
@@ -1628,7 +1628,7 @@ class TestStructArray:
             dec.decode(bad)
 
         # Extra fields ignored
-        dec2 = msgspec.msgpack.Decoder(List[PersonAA])
+        dec2 = msgspec.msgpack.Decoder(List[PersonArray])
         msg = msgspec.msgpack.encode(
             [
                 ("harry", "potter", 13, False, 1, 2, 3, 4),
@@ -1636,23 +1636,26 @@ class TestStructArray:
             ]
         )
         res = dec2.decode(msg)
-        assert res == [PersonAA("harry", "potter", 13), PersonAA("ron", "weasley", 13)]
+        assert res == [
+            PersonArray("harry", "potter", 13),
+            PersonArray("ron", "weasley", 13),
+        ]
 
         # Defaults applied
         res = dec.decode(msgspec.msgpack.encode(("harry", "potter", 13)))
-        assert res == PersonAA("harry", "potter", 13)
+        assert res == PersonArray("harry", "potter", 13)
         assert res.prefect is False
 
-    def test_struct_map_and_asarray_messages_cant_mix(self):
+    def test_struct_map_and_array_like_messages_cant_mix(self):
         array_msg = msgspec.msgpack.encode(("harry", "potter", 13))
         map_msg = msgspec.msgpack.encode(
             {"first": "harry", "last": "potter", "age": 13}
         )
         sol = Person("harry", "potter", 13)
-        array_sol = PersonAA("harry", "potter", 13)
+        array_sol = PersonArray("harry", "potter", 13)
 
         dec = msgspec.msgpack.Decoder(Person)
-        array_dec = msgspec.msgpack.Decoder(PersonAA)
+        array_dec = msgspec.msgpack.Decoder(PersonArray)
 
         assert array_dec.decode(array_msg) == array_sol
         assert dec.decode(map_msg) == sol
@@ -1662,7 +1665,7 @@ class TestStructArray:
             array_dec.decode(map_msg)
 
     def test_decode_tagged_struct(self):
-        class Test(msgspec.Struct, tag=True, asarray=True):
+        class Test(msgspec.Struct, tag=True, array_like=True):
             a: int
             b: int
             c: int = 0
@@ -1708,7 +1711,7 @@ class TestStructArray:
         assert "`$[1]`" in str(rec.value)
 
     def test_decode_tagged_empty_struct(self):
-        class Test(msgspec.Struct, tag=True, asarray=True):
+        class Test(msgspec.Struct, tag=True, array_like=True):
             pass
 
         dec = msgspec.msgpack.Decoder(Test)

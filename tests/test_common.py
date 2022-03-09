@@ -48,7 +48,7 @@ class Person(msgspec.Struct):
     prefect: bool = False
 
 
-class PersonAA(msgspec.Struct, asarray=True):
+class PersonArray(msgspec.Struct, array_like=True):
     first: str
     last: str
     age: int
@@ -492,11 +492,13 @@ class TestUnionTypeErrors:
         assert "both a Struct type and a dict type" in str(rec.value)
         assert repr(typ) in str(rec.value)
 
-    @pytest.mark.parametrize("typ", [Union[PersonAA, list], Union[tuple, PersonAA]])
-    def test_err_union_with_struct_asarray_and_array(self, typ, proto):
+    @pytest.mark.parametrize(
+        "typ", [Union[PersonArray, list], Union[tuple, PersonArray]]
+    )
+    def test_err_union_with_struct_array_like_and_array(self, typ, proto):
         with pytest.raises(TypeError) as rec:
             proto.Decoder(typ)
-        assert "asarray=True" in str(rec.value)
+        assert "array_like=True" in str(rec.value)
         assert "Type unions containing" in str(rec.value)
         assert repr(typ) in str(rec.value)
 
@@ -548,11 +550,11 @@ class TestUnionTypeErrors:
 
 
 class TestStructUnion:
-    def test_err_union_struct_mix_asarray(self, proto):
-        class Test1(msgspec.Struct, tag=True, asarray=True):
+    def test_err_union_struct_mix_array_like(self, proto):
+        class Test1(msgspec.Struct, tag=True, array_like=True):
             x: int
 
-        class Test2(msgspec.Struct, tag=True, asarray=False):
+        class Test2(msgspec.Struct, tag=True, array_like=False):
             x: int
 
         typ = Union[Test1, Test2]
@@ -561,16 +563,16 @@ class TestStructUnion:
             proto.Decoder(typ)
 
         assert "not supported" in str(rec.value)
-        assert "asarray" in str(rec.value)
+        assert "array_like" in str(rec.value)
         assert repr(typ) in str(rec.value)
 
-    @pytest.mark.parametrize("asarray", [False, True])
+    @pytest.mark.parametrize("array_like", [False, True])
     @pytest.mark.parametrize("tag1", [False, True])
-    def test_err_union_struct_not_tagged(self, asarray, tag1, proto):
-        class Test1(msgspec.Struct, tag=tag1, asarray=asarray):
+    def test_err_union_struct_not_tagged(self, array_like, tag1, proto):
+        class Test1(msgspec.Struct, tag=tag1, array_like=array_like):
             x: int
 
-        class Test2(msgspec.Struct, asarray=asarray):
+        class Test2(msgspec.Struct, array_like=array_like):
             x: int
 
         typ = Union[Test1, Test2]
@@ -582,15 +584,15 @@ class TestStructUnion:
         assert "must be tagged" in str(rec.value)
         assert repr(typ) in str(rec.value)
 
-    @pytest.mark.parametrize("asarray", [False, True])
-    def test_err_union_conflict_with_basic_type(self, asarray, proto):
-        class Test1(msgspec.Struct, tag=True, asarray=asarray):
+    @pytest.mark.parametrize("array_like", [False, True])
+    def test_err_union_conflict_with_basic_type(self, array_like, proto):
+        class Test1(msgspec.Struct, tag=True, array_like=array_like):
             x: int
 
-        class Test2(msgspec.Struct, tag=True, asarray=asarray):
+        class Test2(msgspec.Struct, tag=True, array_like=array_like):
             x: int
 
-        other = list if asarray else dict
+        other = list if array_like else dict
 
         typ = Union[Test1, Test2, other]
 
@@ -598,18 +600,18 @@ class TestStructUnion:
             proto.Decoder(typ)
 
         assert "not supported" in str(rec.value)
-        if asarray:
+        if array_like:
             assert "other array-like types" in str(rec.value)
         else:
             assert "Struct type and a dict type" in str(rec.value)
         assert repr(typ) in str(rec.value)
 
-    @pytest.mark.parametrize("asarray", [False, True])
-    def test_err_union_struct_different_fields(self, proto, asarray):
-        class Test1(msgspec.Struct, tag_field="foo", asarray=asarray):
+    @pytest.mark.parametrize("array_like", [False, True])
+    def test_err_union_struct_different_fields(self, proto, array_like):
+        class Test1(msgspec.Struct, tag_field="foo", array_like=array_like):
             x: int
 
-        class Test2(msgspec.Struct, tag_field="bar", asarray=asarray):
+        class Test2(msgspec.Struct, tag_field="bar", array_like=array_like):
             x: int
 
         typ = Union[Test1, Test2]
@@ -621,18 +623,18 @@ class TestStructUnion:
         assert "the same `tag_field`" in str(rec.value)
         assert repr(typ) in str(rec.value)
 
-    @pytest.mark.parametrize("asarray", [False, True])
+    @pytest.mark.parametrize("array_like", [False, True])
     @pytest.mark.parametrize(
         "tags", [("a", "b", "b"), ("a", "a", "b"), ("a", "b", "a")]
     )
-    def test_err_union_struct_non_unique_tag_values(self, proto, asarray, tags):
-        class Test1(msgspec.Struct, tag=tags[0], asarray=asarray):
+    def test_err_union_struct_non_unique_tag_values(self, proto, array_like, tags):
+        class Test1(msgspec.Struct, tag=tags[0], array_like=array_like):
             x: int
 
-        class Test2(msgspec.Struct, tag=tags[1], asarray=asarray):
+        class Test2(msgspec.Struct, tag=tags[1], array_like=array_like):
             x: int
 
-        class Test3(msgspec.Struct, tag=tags[2], asarray=asarray):
+        class Test3(msgspec.Struct, tag=tags[2], array_like=array_like):
             x: int
 
         typ = Union[Test1, Test2, Test3]
@@ -692,16 +694,16 @@ class TestStructUnion:
         assert "Invalid value 'bad' - at `$.type`" == str(rec.value)
 
     def test_decode_struct_array_union(self, proto):
-        class Test1(msgspec.Struct, tag=True, asarray=True):
+        class Test1(msgspec.Struct, tag=True, array_like=True):
             a: int
             b: int
             c: int = 0
 
-        class Test2(msgspec.Struct, tag=True, asarray=True):
+        class Test2(msgspec.Struct, tag=True, array_like=True):
             x: int
             y: int
 
-        class Test3(msgspec.Struct, tag=True, asarray=True):
+        class Test3(msgspec.Struct, tag=True, array_like=True):
             pass
 
         dec = proto.Decoder(Union[Test1, Test2, Test3])
@@ -742,13 +744,13 @@ class TestStructUnion:
             dec.decode(enc.encode(["bad", 1, 2, 3]))
         assert "Invalid value 'bad' - at `$[0]`" == str(rec.value)
 
-    @pytest.mark.parametrize("asarray", [False, True])
-    def test_decode_struct_union_with_non_struct_types(self, asarray, proto):
-        class Test1(msgspec.Struct, tag=True, asarray=asarray):
+    @pytest.mark.parametrize("array_like", [False, True])
+    def test_decode_struct_union_with_non_struct_types(self, array_like, proto):
+        class Test1(msgspec.Struct, tag=True, array_like=array_like):
             a: int
             b: int
 
-        class Test2(msgspec.Struct, tag=True, asarray=asarray):
+        class Test2(msgspec.Struct, tag=True, array_like=array_like):
             x: int
             y: int
 
@@ -761,6 +763,6 @@ class TestStructUnion:
         with pytest.raises(msgspec.DecodeError) as rec:
             dec.decode(enc.encode(True))
 
-        typ = "array" if asarray else "object"
+        typ = "array" if array_like else "object"
 
         assert f"Expected `int | str | {typ} | null`, got `bool`" == str(rec.value)

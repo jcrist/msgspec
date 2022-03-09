@@ -226,36 +226,33 @@ benefit from using it instead of JSON. And since ``msgspec`` supports both
 protocols with a consistent interface, switching from ``msgspec.json`` to
 ``msgspec.msgpack`` should be fairly painless.
 
-Use ``asarray=True``
---------------------
+Use ``array_like=True``
+-----------------------
 
 One touted benefit of JSON_ and MessagePack_ is that they're "self-describing"
 protocols. JSON objects serialize their field names along with their values. If
 both ends of a connection already know the field names though, serializing them
 may be an unnecessary cost. If you need higher performance (at the cost of more
-inscrutable message encoding), you can set ``asarray=True`` on a struct
+inscrutable message encoding), you can set ``array_like=True`` on a struct
 definition. Structs with this option enabled are encoded/decoded like array
 types, removing the field names from the encoded message. This can provide on
 average another ~2x speedup for decoding (and ~1.5x speedup for encoding).
 
 .. code-block:: python
 
-    >>> class AsArrayStruct(msgspec.Struct, asarray=True):
-    ...     """This struct is serialized like an array (instead of like
-    ...     a dict). This means no field names are sent as part of the
-    ...     message, speeding up encoding/decoding."""
+    >>> class Example(msgspec.Struct, array_like=True):
     ...     my_first_field: str
     ...     my_second_field: int
 
-    >>> x = AsArrayStruct("some string", 2)
+    >>> x = Example("some string", 2)
 
     >>> msg = msgspec.json.encode(x)
 
     >>> msg
     b'["some string",2]'
 
-    >>> msgspec.json.decode(msg, type=AsArrayStruct)
-    AsArrayStruct(my_first_field="some string", my_second_field=2)
+    >>> msgspec.json.decode(msg, type=Example)
+    Example(my_first_field="some string", my_second_field=2)
 
 
 .. _JSON: https://json.org

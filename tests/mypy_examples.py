@@ -29,8 +29,8 @@ def check_struct() -> None:
     reveal_type(t.y)  # assert "str" in typ
 
 
-def check_struct_asarray() -> None:
-    class Test(msgspec.Struct, asarray=True):
+def check_struct_array_like() -> None:
+    class Test(msgspec.Struct, array_like=True):
         x: int
         y: str
 

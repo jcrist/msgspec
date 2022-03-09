@@ -53,11 +53,11 @@ The libraries we're benchmarking are the following:
 - ``pyrobuf`` - pyrobuf_ with protobuf message types
 - ``msgspec msgpack`` - msgspec_'s MessagePack encoding, with `msgspec.Struct`
   message types
-- ``msgspec msgpack asarray`` - msgspec_'s MessagePack encoding, with
-  `msgspec.Struct` message types configured with ``asarray=True``
+- ``msgspec msgpack array-like`` - msgspec_'s MessagePack encoding, with
+  `msgspec.Struct` message types configured with ``array_like=True``
 - ``msgspec json`` - msgspec_'s JSON encoding, with `msgspec.Struct` message types
-- ``msgspec json asarray`` - msgspec_'s JSON encoding, with `msgspec.Struct`
-  message types configured with ``asarray=True``
+- ``msgspec json array-like`` - msgspec_'s JSON encoding, with `msgspec.Struct`
+  message types configured with ``array_like=True``
 
 Each benchmark creates one or more instances of a ``Person`` message, and
 serializes it/deserializes it in a loop. The `full benchmark source can be
@@ -80,12 +80,12 @@ etc...).
     time, total roundtrip time, or serialized message size. Hovering over a bar
     will also display its corresponding value.
 
-From the chart above, you can see that ``msgspec msgpack asarray`` is the
+From the chart above, you can see that ``msgspec msgpack array-like`` is the
 fastest method for both serialization and deserialization. It also results in
 the smallest serialized message size, just edging out ``pyrobuf``. This makes
-sense; with ``asarray=True`` `Struct` types don’t serialize the field names in
-each message (things like ``"first"``, ``"last"``, …), only the values, leading
-to smaller messages and higher performance.
+sense; with ``array_like=True`` `Struct` types don’t serialize the field names
+in each message (things like ``"first"``, ``"last"``, …), only the values,
+leading to smaller messages and higher performance.
 
 The ``msgspec msgpack`` and ``msgspec json`` benchmarks also performed quite
 well, encoding/decoding faster than all other options, even those implementing
