@@ -1,5 +1,6 @@
 from ._core import (
     Struct,
+    Raw,
     MsgspecError,
     EncodeError,
     DecodeError,

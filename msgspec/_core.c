@@ -3,6 +3,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <limits.h>
+
+#define PY_SSIZE_T_CLEAN
 #include "Python.h"
 #include "datetime.h"
 #include "structmember.h"
@@ -973,6 +975,210 @@ static PyTypeObject StrLookup_Type = {
     .tp_traverse = (traverseproc) StrLookup_traverse,
 };
 
+/*************************************************************************
+ * Raw                                                                   *
+ *************************************************************************/
+
+static PyTypeObject Raw_Type;
+
+typedef struct Raw {
+    PyObject_HEAD
+    PyObject *base;
+    char *buf;
+    Py_ssize_t len;
+    bool wraps_bytes;
+} Raw;
+
+static PyObject *
+Raw_New(PyObject *msg) {
+    Raw *out = (Raw *)Raw_Type.tp_alloc(&Raw_Type, 0);
+    if (out == NULL) return NULL;
+    if (PyBytes_CheckExact(msg)) {
+        Py_INCREF(msg);
+        out->base = msg;
+        out->buf = PyBytes_AS_STRING(msg);
+        out->len = PyBytes_GET_SIZE(msg);
+        out->wraps_bytes = true;
+    }
+    else {
+        Py_buffer buffer;
+        if (PyObject_GetBuffer(msg, &buffer, PyBUF_CONTIG_RO) < 0) {
+            Py_DECREF(out);
+            return NULL;
+        }
+        out->base = buffer.obj;
+        out->buf = buffer.buf;
+        out->len = buffer.len;
+        out->wraps_bytes = false;
+    }
+    return (PyObject *)out;
+}
+
+PyDoc_STRVAR(Raw__doc__,
+"Raw(msg=None, /)\n"
+"--\n"
+"\n"
+"A buffer containing an encoded message.\n"
+"\n"
+"Raw objects have two common uses:\n"
+"- During decoding. Fields annotated with the ``Raw`` type won't be decoded\n"
+"immediately, but will instead return a ``Raw`` object with a view into the\n"
+"original message where that field is encoded. This is useful for decoding\n"
+"fields whose type may only be inferred after decoding other fields.\n"
+"- During encoding. Raw objects wrap pre-encoded messages. These can be added\n"
+"as components of larger messages without having to pay the cost of decoding\n"
+"and re-encoding them.\n"
+"\n"
+"Parameters\n"
+"----------\n"
+"msg : bytes, bytearray, or memoryview, optional\n"
+"    A byte buffer containing an encoded message. One of bytes, bytearray,\n"
+"    memoryview, or any object that implements the buffer protocol. If not\n"
+"    present, defaults to a zero-length bytes object (``b""``)."
+);
+static PyObject *
+Raw_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
+    PyObject *msg;
+    Py_ssize_t nargs, nkwargs;
+
+    nargs = PyTuple_GET_SIZE(args);
+    nkwargs = (kwargs == NULL) ? 0 : PyDict_GET_SIZE(kwargs);
+
+    if (nkwargs != 0) {
+        PyErr_SetString(
+            PyExc_TypeError,
+            "Raw takes no keyword arguments"
+        );
+        return NULL;
+    }
+    else if (nargs == 0) {
+        msg = PyBytes_FromStringAndSize(NULL, 0);
+        if (msg == NULL) return NULL;
+        /* This looks weird, but is safe since the empty bytes object is an
+         * immortal singleton */
+        Py_DECREF(msg);
+    }
+    else if (nargs == 1) {
+        msg = PyTuple_GET_ITEM(args, 0);
+    }
+    else {
+        PyErr_Format(
+            PyExc_TypeError,
+            "Raw expected at most 1 arguments, got %zd",
+            nargs
+        );
+        return NULL;
+    }
+    return Raw_New(msg);
+}
+
+static void
+Raw_dealloc(Raw *self)
+{
+    if (self->base != NULL) {
+        if (self->wraps_bytes) {
+            Py_DECREF(self->base);
+        }
+        else {
+            Py_buffer buffer;
+            buffer.obj = self->base;
+            buffer.len = self->len;
+            buffer.buf = self->buf;
+            PyBuffer_Release(&buffer);
+        }
+    }
+    Py_TYPE(self)->tp_free((PyObject *)self);
+}
+
+static PyObject *
+Raw_FromView(PyObject *buffer_obj, char *data, Py_ssize_t len) {
+    Raw *out = (Raw *)Raw_Type.tp_alloc(&Raw_Type, 0);
+    if (out == NULL) return NULL;
+
+    Py_buffer buffer;
+    if (PyObject_GetBuffer(buffer_obj, &buffer, PyBUF_CONTIG_RO) < 0) {
+        Py_DECREF(out);
+        return NULL;
+    }
+    out->base = buffer.obj;
+    out->buf = data;
+    out->len = len;
+    out->wraps_bytes = false;
+    return (PyObject *)out;
+}
+
+static int
+Raw_buffer_getbuffer(Raw *self, Py_buffer *view, int flags)
+{
+    return PyBuffer_FillInfo(view, (PyObject *)self, self->buf, self->len, 1, flags);
+}
+
+static PyBufferProcs Raw_as_buffer = {
+    .bf_getbuffer = (getbufferproc)Raw_buffer_getbuffer
+};
+
+static Py_ssize_t
+Raw_length(Raw *self) {
+    return self->len;
+}
+
+static PySequenceMethods Raw_as_sequence = {
+    .sq_length = (lenfunc)Raw_length
+};
+
+static PyObject *
+Raw_reduce(Raw *self, PyObject *unused)
+{
+    if (self->wraps_bytes) {
+        return Py_BuildValue("O(O)", &Raw_Type, self->base);
+    }
+    return Py_BuildValue("O(y#)", &Raw_Type, self->buf, self->len);
+}
+
+PyDoc_STRVAR(Raw_copy__doc__,
+"copy(self)\n"
+"--\n"
+"\n"
+"Copy a Raw object.\n"
+"\n"
+"If the raw message is backed by a memoryview into a larger buffer (as happens\n"
+"during decoding), the message is copied and the reference to the larger buffer\n"
+"released. This may be useful to reduce memory usage if a Raw object created\n"
+"during decoding will be kept in memory for a while rather than immediately\n"
+"decoded and dropped."
+);
+static PyObject *
+Raw_copy(Raw *self, PyObject *unused)
+{
+    if (self->wraps_bytes) {
+        Py_INCREF(self);
+        return (PyObject *)self;
+    }
+    PyObject *buf = PyBytes_FromStringAndSize(self->buf, self->len);
+    if (buf == NULL) return NULL;
+    return Raw_New(buf);
+}
+
+static PyMethodDef Raw_methods[] = {
+    {"__reduce__", (PyCFunction)Raw_reduce, METH_NOARGS},
+    {"copy", (PyCFunction)Raw_copy, METH_NOARGS, Raw_copy__doc__},
+    {NULL, NULL},
+};
+
+static PyTypeObject Raw_Type = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "msgspec.Raw",
+    .tp_doc = Raw__doc__,
+    .tp_basicsize = sizeof(Raw),
+    .tp_itemsize = sizeof(char),
+    .tp_flags = Py_TPFLAGS_DEFAULT | _Py_TPFLAGS_HAVE_VECTORCALL,
+    .tp_new = Raw_new,
+    .tp_dealloc = (destructor) Raw_dealloc,
+    .tp_as_buffer = &Raw_as_buffer,
+    .tp_as_sequence = &Raw_as_sequence,
+    .tp_methods = Raw_methods,
+    .tp_call = PyVectorcall_Call
+};
 
 /*************************************************************************
  * Struct, PathNode, and TypeNode Types                                  *
@@ -1003,6 +1209,7 @@ static PyTypeObject StrLookup_Type = {
 #define MS_TYPE_FIXTUPLE            (1u << 22)
 #define MS_TYPE_INTLITERAL          (1u << 23)
 #define MS_TYPE_STRLITERAL          (1u << 24)
+#define MS_TYPE_RAW                 (1u << 25)
 
 typedef struct TypeNode {
     uint32_t types;
@@ -1184,7 +1391,7 @@ static PyObject *
 typenode_simple_repr(TypeNode *self) {
     strbuilder builder = {" | ", 3};
 
-    if (self->types & (MS_TYPE_ANY | MS_TYPE_CUSTOM | MS_TYPE_CUSTOM_GENERIC)) {
+    if (self->types & (MS_TYPE_ANY | MS_TYPE_RAW | MS_TYPE_CUSTOM | MS_TYPE_CUSTOM_GENERIC)) {
         return PyUnicode_FromString("any");
     }
     if (self->types & MS_TYPE_BOOL) {
@@ -1434,6 +1641,13 @@ typenode_collect_check_invariants(
     /* Ensure at least one type is set */
     if (state->types == 0) {
         PyErr_Format(PyExc_RuntimeError, "No types found, this is likely a bug!");
+    }
+
+    /* Only a solo `Raw` decodes as a raw value, otherwise the annotation
+     * exists only to support encoding. Clear Raw from the typenode if other
+     * types are present. */
+    if (state->types & MS_TYPE_RAW && state->types != MS_TYPE_RAW) {
+        state->types &= ~MS_TYPE_RAW;
     }
 
     /* If a custom type is used, this node may only contain that type and `None */
@@ -1970,6 +2184,10 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
     }
     else if (obj == (PyObject *)(&Ext_Type)) {
         state->types |= MS_TYPE_EXT;
+        return 0;
+    }
+    else if (obj == (PyObject *)(&Raw_Type)) {
+        state->types |= MS_TYPE_RAW;
         return 0;
     }
 
@@ -3073,7 +3291,8 @@ maybe_deepcopy_default(PyObject *obj) {
     if (obj == Py_None || obj == Py_False || obj == Py_True ||
         type == &PyLong_Type || type == &PyFloat_Type ||
         type == &PyBytes_Type || type == &PyUnicode_Type ||
-        type == &PyByteArray_Type || type == &PyFrozenSet_Type
+        type == &PyByteArray_Type || type == &PyFrozenSet_Type ||
+        type == &Raw_Type || type == &Ext_Type
     ) {
         Py_INCREF(obj);
         return obj;
@@ -3586,7 +3805,7 @@ PyDoc_STRVAR(Struct__doc__,
 );
 
 /*************************************************************************
- * Ext                                                               *
+ * Ext                                                                   *
  *************************************************************************/
 
 typedef struct Ext {
@@ -4460,6 +4679,16 @@ mpack_encode_memoryview(EncoderState *self, PyObject *obj)
 }
 
 static int
+mpack_encode_raw(EncoderState *self, PyObject *obj)
+{
+    Raw *raw = (Raw *)obj;
+    if (ms_ensure_space(self, raw->len) < 0) return -1;
+    memcpy(self->output_buffer_raw + self->output_len, raw->buf, raw->len);
+    self->output_len += raw->len;
+    return 0;
+}
+
+static int
 mpack_encode_array_header(EncoderState *self, Py_ssize_t len, const char* typname)
 {
     if (len < 16) {
@@ -4870,6 +5099,9 @@ mpack_encode(EncoderState *self, PyObject *obj)
     else if (type == &PyMemoryView_Type) {
         return mpack_encode_memoryview(self, obj);
     }
+    else if (type == &Raw_Type) {
+        return mpack_encode_raw(self, obj);
+    }
     else if (type == &PyList_Type) {
         return mpack_encode_list(self, obj);
     }
@@ -5241,6 +5473,16 @@ json_encode_memoryview(EncoderState *self, PyObject *obj)
 }
 
 static int
+json_encode_raw(EncoderState *self, PyObject *obj)
+{
+    Raw *raw = (Raw *)obj;
+    if (ms_ensure_space(self, raw->len) < 0) return -1;
+    memcpy(self->output_buffer_raw + self->output_len, raw->buf, raw->len);
+    self->output_len += raw->len;
+    return 0;
+}
+
+static int
 json_encode_enum(EncoderState *self, PyObject *obj)
 {
     if (PyLong_Check(obj))
@@ -5592,6 +5834,9 @@ json_encode(EncoderState *self, PyObject *obj)
     }
     else if (type == &PyMemoryView_Type) {
         return json_encode_memoryview(self, obj);
+    }
+    else if (type == &Raw_Type) {
+        return json_encode_raw(self, obj);
     }
     else if (PyType_IsSubtype(type, self->mod->EnumType)) {
         return json_encode_enum(self, obj);
@@ -6763,6 +7008,14 @@ done:
 }
 
 static PyObject *
+mpack_decode_raw(DecoderState *self) {
+    char *start = self->input_pos;
+    if (mpack_skip(self) < 0) return NULL;
+    Py_ssize_t size = self->input_pos - start;
+    return Raw_FromView(self->buffer_obj, start, size);
+}
+
+static PyObject *
 mpack_decode_nocustom(
     DecoderState *self, TypeNode *type, PathNode *path, bool is_key
 ) {
@@ -6904,6 +7157,9 @@ static PyObject *
 mpack_decode(
     DecoderState *self, TypeNode *type, PathNode *path, bool is_key
 ) {
+    if (MS_UNLIKELY(type->types == MS_TYPE_RAW)) {
+        return mpack_decode_raw(self);
+    }
     PyObject *obj = mpack_decode_nocustom(self, type, path, is_key);
     if (MS_UNLIKELY(type->types & (MS_TYPE_CUSTOM | MS_TYPE_CUSTOM_GENERIC))) {
         return ms_decode_custom(
@@ -8827,6 +9083,14 @@ fallback_extended:
 }
 
 static PyObject *
+json_decode_raw(JSONDecoderState *self) {
+    const unsigned char *start = self->input_pos;
+    if (json_skip(self) < 0) return NULL;
+    Py_ssize_t size = self->input_pos - start;
+    return Raw_FromView(self->buffer_obj, (char *)start, size);
+}
+
+static PyObject *
 json_decode_nocustom(
     JSONDecoderState *self, TypeNode *type, PathNode *path
 ) {
@@ -8849,6 +9113,9 @@ static PyObject *
 json_decode(
     JSONDecoderState *self, TypeNode *type, PathNode *path
 ) {
+    if (MS_UNLIKELY(type->types == MS_TYPE_RAW)) {
+        return json_decode_raw(self);
+    }
     PyObject *obj = json_decode_nocustom(self, type, path);
     if (MS_UNLIKELY(type->types & (MS_TYPE_CUSTOM | MS_TYPE_CUSTOM_GENERIC))) {
         return ms_decode_custom(
@@ -9476,6 +9743,8 @@ PyInit__core(void)
         return NULL;
     if (PyType_Ready(&Ext_Type) < 0)
         return NULL;
+    if (PyType_Ready(&Raw_Type) < 0)
+        return NULL;
     if (PyType_Ready(&JSONEncoder_Type) < 0)
         return NULL;
     if (PyType_Ready(&JSONDecoder_Type) < 0)
@@ -9495,6 +9764,9 @@ PyInit__core(void)
         return NULL;
     Py_INCREF(&Ext_Type);
     if (PyModule_AddObject(m, "Ext", (PyObject *)&Ext_Type) < 0)
+        return NULL;
+    Py_INCREF(&Raw_Type);
+    if (PyModule_AddObject(m, "Raw", (PyObject *)&Raw_Type) < 0)
         return NULL;
     Py_INCREF(&JSONEncoder_Type);
     if (PyModule_AddObject(m, "JSONEncoder", (PyObject *)&JSONEncoder_Type) < 0)
