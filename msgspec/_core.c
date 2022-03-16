@@ -317,6 +317,7 @@ typedef struct {
     PyObject *DecodeError;
     PyObject *StructType;
     PyTypeObject *EnumType;
+    PyObject *struct_lookup_cache;
     PyObject *str__name_;
     PyObject *str__member_map_;
     PyObject *str___msgspec_lookup__;
@@ -786,6 +787,7 @@ typedef struct StrLookupEntry {
 typedef struct StrLookupObject {
     PyObject_VAR_HEAD
     PyObject *tag_field;  /* used for struct lookup table only */
+    bool array_like;
     StrLookupEntry table[];
 } StrLookupObject;
 
@@ -838,8 +840,8 @@ StrLookup_Set(StrLookupObject *self, PyObject *key, PyObject *value) {
     return 0;
 }
 
-static StrLookupObject *
-StrLookup_NewWithTagField(PyObject *arg, PyObject *tag_field) {
+static PyObject *
+StrLookup_NewFullArgs(PyObject *arg, PyObject *tag_field, bool array_like) {
     Py_ssize_t nitems;
     PyObject *item, *items = NULL;
     StrLookupObject *self = NULL;
@@ -876,9 +878,10 @@ StrLookup_NewWithTagField(PyObject *arg, PyObject *tag_field) {
         self->table[i].value = NULL;
     }
 
-    /* Store the tag field (struct lookup only) */
+    /* Store the tag field & array_like status (struct lookup only) */
     Py_XINCREF(tag_field);
     self->tag_field = tag_field;
+    self->array_like = array_like;
 
     if (PyDict_CheckExact(arg)) {
         PyObject *key, *val;
@@ -916,14 +919,13 @@ cleanup:
     if (self != NULL) {
         PyObject_GC_Track(self);
     }
-    return self;
+    return (PyObject *)self;
 }
 
-static StrLookupObject *
+static PyObject *
 StrLookup_New(PyObject *arg) {
-    return StrLookup_NewWithTagField(arg, NULL);
+    return StrLookup_NewFullArgs(arg, NULL, false);
 }
-
 
 static int
 StrLookup_traverse(StrLookupObject *self, visitproc visit, void *arg)
@@ -1224,7 +1226,7 @@ typedef struct {
     PyObject *context;
     uint32_t types;
     PyObject *struct_obj;
-    PyObject *structs_list;
+    PyObject *structs_set;
     PyObject *structs_lookup;
     PyObject *intenum_obj;
     PyObject *enum_obj;
@@ -1332,7 +1334,7 @@ typenode_from_collect_state(TypeNodeCollectState *state, bool err_not_json, bool
             PyErr_Clear();
             PyObject *member_map = PyObject_GetAttr(state->enum_obj, state->mod->str__member_map_);
             if (member_map == NULL) goto error;
-            lookup = (PyObject *)StrLookup_New(member_map);
+            lookup = StrLookup_New(member_map);
             Py_DECREF(member_map);
             if (lookup == NULL) goto error;
             if (PyObject_SetAttr(state->enum_obj, state->mod->str___msgspec_lookup__, lookup) < 0) {
@@ -1699,7 +1701,7 @@ typenode_collect_convert_literals(TypeNodeCollectState *state) {
             }
             if (state->str_literal_values != NULL) {
                 state->types |= MS_TYPE_STRLITERAL;
-                state->str_literal_lookup = (PyObject *)StrLookup_New(state->str_literal_values);
+                state->str_literal_lookup = StrLookup_New(state->str_literal_values);
                 if (state->str_literal_lookup == NULL) return -1;
             }
 
@@ -1729,7 +1731,7 @@ typenode_collect_convert_literals(TypeNodeCollectState *state) {
         }
         if (state->str_literal_values != NULL) {
             state->types |= MS_TYPE_STRLITERAL;
-            state->str_literal_lookup = (PyObject *)StrLookup_New(state->str_literal_values);
+            state->str_literal_lookup = StrLookup_New(state->str_literal_values);
             if (state->str_literal_lookup == NULL) return -1;
         }
         return 0;
@@ -1740,7 +1742,7 @@ static int
 typenode_collect_convert_structs(
     TypeNodeCollectState *state, bool err_not_json, bool *json_compatible
 ) {
-    if (state->struct_obj == NULL && state->structs_list == NULL) {
+    if (state->struct_obj == NULL && state->structs_set == NULL) {
         return 0;
     }
     else if (state->struct_obj != NULL) {
@@ -1759,7 +1761,27 @@ typenode_collect_convert_structs(
 
     /* Multiple structs.
      *
-     * Here we check a number of restrictions before building a lookup table
+     * Try looking the structs_set up in the cache first, to avoid building a
+     * new one below.
+     */
+    PyObject *lookup = PyDict_GetItem(
+        state->mod->struct_lookup_cache, state->structs_set
+    );
+    if (lookup != NULL) {
+        /* Lookup was in the cache, update the state and return */
+        Py_INCREF(lookup);
+        state->structs_lookup = lookup;
+
+        if (((StrLookupObject *)lookup)->array_like) {
+            state->types |= MS_TYPE_STRUCT_ARRAY_UNION;
+        }
+        else {
+            state->types |= MS_TYPE_STRUCT_UNION;
+        }
+        return 0;
+    }
+
+    /* Here we check a number of restrictions before building a lookup table
      * from struct tags to their matching classes.
      *
      * Validation checks:
@@ -1770,15 +1792,17 @@ typenode_collect_convert_structs(
      *
      * If any of these checks fails, an appropriate error is returned.
      */
-    PyObject *tag_mapping = NULL, *tag_field = NULL;
+    PyObject *tag_mapping = NULL, *tag_field = NULL, *set_item = NULL;
+    Py_ssize_t set_pos = 0;
+    Py_hash_t set_hash;
     bool array_like = false;
     int status = -1;
 
     tag_mapping = PyDict_New();
     if (tag_mapping == NULL) goto cleanup;
 
-    for (Py_ssize_t i = 0; i < PyList_GET_SIZE(state->structs_list); i++) {
-        StructMetaObject *struct_type = (StructMetaObject *)(PyList_GET_ITEM(state->structs_list, i));
+    while (_PySet_NextEntry(state->structs_set, &set_pos, &set_item, &set_hash)) {
+        StructMetaObject *struct_type = (StructMetaObject *)set_item;
         PyObject *item_tag_field = struct_type->struct_tag_field;
         PyObject *item_tag_value = struct_type->struct_tag_value;
         bool item_array_like = struct_type->array_like == OPT_TRUE;
@@ -1802,7 +1826,7 @@ typenode_collect_convert_structs(
             goto cleanup;
         }
 
-        if (i == 0) {
+        if (tag_field == NULL) {
             array_like = struct_type->array_like == OPT_TRUE;
             tag_field = struct_type->struct_tag_field;
         }
@@ -1842,12 +1866,27 @@ typenode_collect_convert_structs(
             goto cleanup;
         }
     }
-
     /* Build a lookup from tag_value -> struct_type */
-    state->structs_lookup = (PyObject *)StrLookup_NewWithTagField(
-        tag_mapping, tag_field
-    );
-    if (state->structs_lookup == NULL) goto cleanup;
+    lookup = StrLookup_NewFullArgs(tag_mapping, tag_field, array_like);
+    if (lookup == NULL) goto cleanup;
+
+    state->structs_lookup = lookup;
+
+    /* Check if the cache is full, if so clear the oldest item */
+    if (PyDict_GET_SIZE(state->mod->struct_lookup_cache) == 64) {
+        PyObject *key;
+        Py_ssize_t pos = 0;
+        if (PyDict_Next(state->mod->struct_lookup_cache, &pos, &key, NULL)) {
+            if (PyDict_DelItem(state->mod->struct_lookup_cache, key) < 0) {
+                goto cleanup;
+            }
+        }
+    }
+
+    /* Add the new lookup to the cache */
+    if (PyDict_SetItem(state->mod->struct_lookup_cache, state->structs_set, lookup) < 0) {
+        goto cleanup;
+    }
 
     /* Update the `types` */
     if (array_like) {
@@ -1867,7 +1906,7 @@ cleanup:
 static void
 typenode_collect_clear_state(TypeNodeCollectState *state) {
     Py_CLEAR(state->struct_obj);
-    Py_CLEAR(state->structs_list);
+    Py_CLEAR(state->structs_set);
     Py_CLEAR(state->structs_lookup);
     Py_CLEAR(state->intenum_obj);
     Py_CLEAR(state->enum_obj);
@@ -1936,20 +1975,20 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
 
     /* Struct types */
     if (Py_TYPE(obj) == &StructMetaType) {
-        if (state->struct_obj == NULL && state->structs_list == NULL) {
+        if (state->struct_obj == NULL && state->structs_set == NULL) {
             /* First struct found, store it directly */
             Py_INCREF(obj);
             state->struct_obj = obj;
         }
         else {
-            if (state->structs_list == NULL) {
-                /* Second struct found, create a list and move the existing struct there */
-                state->structs_list = PyList_New(0);
-                if (state->structs_list == NULL) return -1;
-                if (PyList_Append(state->structs_list, state->struct_obj) < 0) return -1;
+            if (state->structs_set == NULL) {
+                /* Second struct found, create a set and move the existing struct there */
+                state->structs_set = PyFrozenSet_New(NULL);
+                if (state->structs_set == NULL) return -1;
+                if (PySet_Add(state->structs_set, state->struct_obj) < 0) return -1;
                 Py_CLEAR(state->struct_obj);
             }
-            if (PyList_Append(state->structs_list, obj) < 0) return -1;
+            if (PySet_Add(state->structs_set, obj) < 0) return -1;
         }
         return 0;
     }
@@ -9325,6 +9364,7 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->DecodeError);
     Py_CLEAR(st->StructType);
     Py_CLEAR(st->EnumType);
+    Py_CLEAR(st->struct_lookup_cache);
     Py_CLEAR(st->str__name_);
     Py_CLEAR(st->str__member_map_);
     Py_CLEAR(st->str___msgspec_lookup__);
@@ -9380,6 +9420,7 @@ msgspec_traverse(PyObject *m, visitproc visit, void *arg)
     Py_VISIT(st->DecodeError);
     Py_VISIT(st->StructType);
     Py_VISIT(st->EnumType);
+    Py_VISIT(st->struct_lookup_cache);
     Py_VISIT(st->typing_dict);
     Py_VISIT(st->typing_list);
     Py_VISIT(st->typing_set);
@@ -9505,6 +9546,13 @@ PyInit__core(void)
         return NULL;
     Py_INCREF(st->DecodeError);
     if (PyModule_AddObject(m, "DecodeError", st->DecodeError) < 0)
+        return NULL;
+
+    /* Initialize the struct_lookup_cache */
+    st->struct_lookup_cache = PyDict_New();
+    if (st->struct_lookup_cache == NULL) return NULL;
+    Py_INCREF(st->struct_lookup_cache);
+    if (PyModule_AddObject(m, "_struct_lookup_cache", st->struct_lookup_cache) < 0)
         return NULL;
 
 #define SET_REF(attr, name) \
