@@ -766,3 +766,67 @@ class TestStructUnion:
         typ = "array" if array_like else "object"
 
         assert f"Expected `int | str | {typ} | null`, got `bool`" == str(rec.value)
+
+    @pytest.mark.parametrize("array_like", [False, True])
+    def test_struct_union_cached(self, array_like, proto):
+        from msgspec._core import _struct_lookup_cache as cache
+
+        cache.clear()
+
+        class Test1(msgspec.Struct, tag=True, array_like=array_like):
+            a: int
+            b: int
+
+        class Test2(msgspec.Struct, tag=True, array_like=array_like):
+            x: int
+            y: int
+
+        typ1 = Union[Test2, Test1]
+        typ2 = Union[Test1, Test2]
+        typ3 = Union[Test1, Test2, int, None]
+
+        for typ in [typ1, typ2, typ3]:
+            for msg in [Test1(1, 2), Test2(3, 4)]:
+                assert proto.decode(proto.encode(msg), type=typ) == msg
+
+        assert len(cache) == 1
+        assert frozenset((Test1, Test2)) in cache
+
+    def test_struct_union_cache_evicted(self, proto):
+        from msgspec._core import _struct_lookup_cache as cache
+
+        MAX_CACHE_SIZE = 64  # XXX: update if hardcoded value in `_core.c` changes
+
+        cache.clear()
+
+        def call_with_new_types():
+            class Test1(msgspec.Struct, tag=True):
+                a: int
+
+            class Test2(msgspec.Struct, tag=True):
+                x: int
+
+            typ = (Test1, Test2)
+
+            proto.decode(proto.encode(Test1(1)), type=Union[typ])
+
+            return frozenset(typ)
+
+        first = call_with_new_types()
+        assert first in cache
+
+        # Fill up the cache
+        for _ in range(MAX_CACHE_SIZE - 1):
+            call_with_new_types()
+
+        # Check that first item is still in cache and is first in order
+        assert len(cache) == MAX_CACHE_SIZE
+        assert first in cache
+        assert first == list(cache.keys())[0]
+
+        # Add a new item, causing an item to be popped from the cache
+        new = call_with_new_types()
+
+        assert len(cache) == MAX_CACHE_SIZE
+        assert first not in cache
+        assert frozenset(new) in cache
