@@ -10,6 +10,15 @@ Struct
     :members:
 
 
+Raw
+---
+
+.. currentmodule:: msgspec
+
+.. autoclass:: Raw
+    :members:
+
+
 JSON
 ----
 

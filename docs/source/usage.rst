@@ -115,6 +115,7 @@ Most combinations of the following types are supported (see
 - `typing.Union`
 - `typing.Literal`
 - `msgspec.msgpack.Ext`
+- `msgspec.Raw`
 - `enum.Enum` derived types
 - `enum.IntEnum` derived types
 - `msgspec.Struct` derived types
@@ -616,6 +617,98 @@ Union restrictions are as follows:
     Traceback (most recent call last):
       File "<stdin>", line 1, in <module>
     msgspec.DecodeError: Expected `int | str | array`, got `bool`
+
+``Raw``
+~~~~~~~
+
+`msgspec.Raw` is a buffer-like type containing an already encoded messages.
+They have two common uses:
+
+**1. Avoiding unnecessary encoding cost**
+
+Wrapping an already encoded buffer in `msgspec.Raw` lets the encoder avoid
+re-encoding the message, instead it will simply be copied to the output buffer.
+This can be useful when part of a message already exists in an encoded format
+(e.g. reading JSON bytes from a database and returning them as part of a larger
+message).
+
+.. code-block:: python
+
+    >>> import msgspec
+
+    >>> # Create a new `Raw` object wrapping a pre-encoded message
+    ... fragment = msgspec.Raw(b'{"x": 1, "y": 2}')
+
+    >>> # Compose a larger message containing the pre-encoded fragment
+    ... msg = {"a": 1, "b": fragment}
+
+    >>> # During encoding, the raw message is efficiently copied into 
+    ... # the output buffer, avoiding any extra encoding cost
+    ... msgspec.json.encode(msg)
+    b'{"a":1,"b":{"x": 1, "y": 2}}'
+
+
+**2. Delaying decoding of part of a message**
+
+Sometimes the type of a serialized value depends on the value of other fields
+in a message. ``msgspec`` provides an optimized version of one common pattern
+(:ref:`struct-tagged-unions`), but if you need to do something more complicated
+you may find using `msgspec.Raw` useful here.
+
+For example, here we demonstrate how to decode a message where the type of one
+field (``point``) depends on the value of another (``dimensions``).
+
+.. code-block:: python
+
+    >>> import msgspec
+
+    >>> from typing import Union
+
+    >>> class Point1D(msgspec.Struct):
+    ...     x: int
+
+    >>> class Point2D(msgspec.Struct):
+    ...     x: int
+    ...     y: int
+
+    >>> class Point3D(msgspec.Struct):
+    ...     x: int
+    ...     y: int
+    ...     z: int
+
+    >>> class Model(msgspec.Struct):
+    ...     dimensions: int
+    ...     point: msgspec.Raw  # use msgspec.Raw to delay decoding the point field
+
+    >>> def decode_point(msg: bytes) -> Union[Point1D, Point2D, Point3D]:
+    ...     """A function for efficiently decoding the `point` field"""
+    ...     # First decode the outer `Model` struct. Decoding of the `point`
+    ...     # field is delayed, with the composite bytes stored as a `Raw` object
+    ...     # on `point`.
+    ...     model = msgspec.json.decode(msg, type=Model)
+    ...
+    ...     # Based on the value of `dimensions`, determine which type to use
+    ...     # when decoding the `point` field
+    ...     if model.dimensions == 1:
+    ...         point_type = Point1D
+    ...     elif model.dimensions == 2:
+    ...         point_type = Point2D
+    ...     elif model.dimensions == 3:
+    ...         point_type = Point3D
+    ...     else:
+    ...         raise ValueError("Too many dimensions!")
+    ...
+    ...     # Now that we know the type of `point`, we can finish decoding it.
+    ...     # Note that `Raw` objects are buffer-like, and can be passed
+    ...     # directly to the `decode` method.
+    ...     return msgspec.json.decode(model.point, type=point_type)
+
+    >>> decode_point(b'{"dimensions": 2, "point": {"x": 1, "y": 2}}')
+    Point2D(x=1, y=2)
+
+    >>> decode_point(b'{"dimensions": 3, "point": {"x": 1, "y": 2, "z": 3}}')
+    Point3D(x=1, y=2, z=3)
+
 
 ``Any``
 ~~~~~~~
