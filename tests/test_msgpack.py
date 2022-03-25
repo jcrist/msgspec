@@ -1749,3 +1749,75 @@ class TestStructArray:
         with pytest.raises(msgspec.DecodeError) as rec:
             dec.decode(msgspec.msgpack.encode([]))
         assert "Expected `array` of at least length 1, got 0" in str(rec.value)
+
+
+class TestRaw:
+    def test_encode_raw(self):
+        b = msgspec.msgpack.encode({"x": 1})
+        r = msgspec.Raw(b)
+        assert msgspec.msgpack.encode(r) == b
+        assert msgspec.msgpack.encode({"y": r}) == msgspec.msgpack.encode(
+            {"y": {"x": 1}}
+        )
+
+    def test_decode_raw_field(self):
+        class Test(msgspec.Struct):
+            x: int
+            y: msgspec.Raw
+
+        s = msgspec.msgpack.encode({"x": 1, "y": [1, 2, 3]})
+        res = msgspec.msgpack.decode(s, type=Test)
+        assert res.x == 1
+        assert bytes(res.y) == msgspec.msgpack.encode([1, 2, 3])
+
+    def test_decode_raw_optional_field(self):
+        default = msgspec.Raw()
+
+        class Test(msgspec.Struct):
+            x: int
+            y: msgspec.Raw = default
+
+        s = msgspec.msgpack.encode({"x": 1, "y": [1, 2, 3]})
+        res = msgspec.msgpack.decode(s, type=Test)
+        assert res.x == 1
+        assert bytes(res.y) == msgspec.msgpack.encode([1, 2, 3])
+
+        s = msgspec.msgpack.encode({"x": 1})
+        res = msgspec.msgpack.decode(s, type=Test)
+        assert res.x == 1
+        assert res.y is default
+
+    def test_decode_raw_malformed_data(self):
+        class Test(msgspec.Struct):
+            x: int
+            y: msgspec.Raw
+
+        s = msgspec.msgpack.encode({"x": 1, "y": [1, 2]})[:3]
+        with pytest.raises(msgspec.DecodeError):
+            msgspec.msgpack.decode(s, type=Test)
+
+    def test_decode_raw_is_view(self):
+        s = msgspec.msgpack.encode({"x": 1})
+        r = msgspec.msgpack.decode(s, type=msgspec.Raw)
+        assert bytes(r) == s
+        assert r.copy() is not r  # actual copy indicates a view
+
+    def test_raw_in_union_works_but_doesnt_change_anything(self):
+        class Test(msgspec.Struct):
+            x: Union[int, str, msgspec.Raw]
+
+        s = msgspec.msgpack.encode({"x": 1})
+        r = msgspec.msgpack.decode(s, type=Test)
+        assert r == Test(1)
+
+    def test_raw_can_be_mixed_with_custom_type(self):
+        class Test(msgspec.Struct):
+            x: Union[Point, msgspec.Raw]
+
+        def dec_hook(typ, obj):
+            assert typ is Point
+            return typ(*obj)
+
+        s = msgspec.msgpack.encode({"x": [1, 2]})
+        res = msgspec.msgpack.decode(s, type=Test, dec_hook=dec_hook)
+        assert res == Test(Point(1, 2))

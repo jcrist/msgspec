@@ -1107,6 +1107,29 @@ Raw_FromView(PyObject *buffer_obj, char *data, Py_ssize_t len) {
     return (PyObject *)out;
 }
 
+static PyObject *
+Raw_richcompare(Raw *self, PyObject *other, int op) {
+    if (Py_TYPE(other) != &Raw_Type) {
+        Py_RETURN_NOTIMPLEMENTED;
+    }
+    if (op != Py_EQ && op != Py_NE) {
+        Py_RETURN_NOTIMPLEMENTED;
+    }
+
+    Raw *raw_other = (Raw *)other;
+    bool equal = (
+        self == raw_other || (
+            (self->len == raw_other->len) &&
+            (memcmp(self->buf, raw_other->buf, self->len) == 0)
+        )
+    );
+    bool result = (op == Py_EQ) ? equal : !equal;
+    if (result) {
+        Py_RETURN_TRUE;
+    }
+    Py_RETURN_FALSE;
+}
+
 static int
 Raw_buffer_getbuffer(Raw *self, Py_buffer *view, int flags)
 {
@@ -1177,6 +1200,7 @@ static PyTypeObject Raw_Type = {
     .tp_as_buffer = &Raw_as_buffer,
     .tp_as_sequence = &Raw_as_sequence,
     .tp_methods = Raw_methods,
+    .tp_richcompare = (richcmpfunc) Raw_richcompare,
     .tp_call = PyVectorcall_Call
 };
 
