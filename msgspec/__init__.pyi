@@ -1,5 +1,5 @@
 from typing import Type
-from typing import Callable, Tuple, Any, Union, TypeVar, ClassVar
+from typing import Callable, Tuple, Any, Union, TypeVar, ClassVar, overload
 
 # Use `__dataclass_transform__` to catch more errors under pyright. Since we don't expose
 # the underlying metaclass, hide it under an underscore name. See
@@ -32,6 +32,15 @@ class Struct(metaclass=__StructMeta):
         array_like: bool = False,
         nogc: bool = False,
     ) -> None: ...
+
+# Lie and say `Raw` is a subclass of `bytes`, so mypy will accept it in most
+# places where an object that implements the buffer protocol is valid
+class Raw(bytes):
+    @overload
+    def __init__(self) -> None: ...
+    @overload
+    def __init__(self, msg: bytes) -> None: ...
+    def copy(self) -> "Raw": ...
 
 class MsgspecError(Exception): ...
 class DecodeError(MsgspecError): ...
