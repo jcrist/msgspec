@@ -4,10 +4,6 @@ import pickle
 from typing import List, Any, Type
 import msgspec
 
-##########################################################
-# Structs                                                #
-##########################################################
-
 def check___version__() -> None:
     reveal_type(msgspec.__version__)  # assert "str" in typ
 
@@ -17,6 +13,9 @@ def check_exceptions() -> None:
     reveal_type(msgspec.EncodeError)  # assert "Any" not in typ
     reveal_type(msgspec.MsgspecError)  # assert "Any" not in typ
 
+##########################################################
+# Structs                                                #
+##########################################################
 
 def check_struct() -> None:
     class Test(msgspec.Struct):
@@ -111,6 +110,37 @@ def check_struct_attributes() -> None:
 
     for field in p.__struct_fields__:
         reveal_type(field)  # assert "str" in typ
+
+##########################################################
+# Raw                                                    #
+##########################################################
+
+def check_raw_constructor() -> None:
+    r = msgspec.Raw()
+    r2 = msgspec.Raw(b"test")
+    r3 = msgspec.Raw(bytearray(b"test"))
+    r4 = msgspec.Raw(memoryview(b"test"))
+
+
+def check_raw_copy() -> None:
+    r = msgspec.Raw()
+    r2 = r.copy()
+    reveal_type(r2)  # assert "Raw" in typ
+
+
+def check_raw_methods() -> None:
+    r1 = msgspec.Raw(b"a")
+    r2 = msgspec.Raw(b"b")
+    if r1 == r2:
+        print(r1)
+
+    m = memoryview(r1)  # buffer protocol
+
+
+def check_raw_pass_to_decode() -> None:
+    r = msgspec.Raw()
+    res = msgspec.json.decode(r)
+    res2 = msgspec.msgpack.decode(r)
 
 
 ##########################################################
