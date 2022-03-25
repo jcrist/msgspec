@@ -2224,3 +2224,71 @@ class TestStructArrayUnion:
 
         res = msgspec.json.decode(s, type=Union[Test1, Test2])
         assert res == Test1(1, 2)
+
+
+class TestRaw:
+    def test_encode_raw(self):
+        b = b'{"x":1}'
+        r = msgspec.Raw(b)
+        assert msgspec.json.encode(r) == b
+        assert msgspec.json.encode({"y": r}) == b'{"y":{"x":1}}'
+
+    def test_decode_raw_field(self):
+        class Test(msgspec.Struct):
+            x: int
+            y: msgspec.Raw
+
+        s = b'{"x": 1, "y": [1, 2, 3]  }'
+        res = msgspec.json.decode(s, type=Test)
+        assert res.x == 1
+        assert bytes(res.y) == b"[1, 2, 3]"
+
+    def test_decode_raw_optional_field(self):
+        default = msgspec.Raw()
+
+        class Test(msgspec.Struct):
+            x: int
+            y: msgspec.Raw = default
+
+        s = b'{"x": 1, "y": [1, 2, 3]  }'
+        res = msgspec.json.decode(s, type=Test)
+        assert res.x == 1
+        assert bytes(res.y) == b"[1, 2, 3]"
+
+        s = b'{"x": 1}'
+        res = msgspec.json.decode(s, type=Test)
+        assert res.x == 1
+        assert res.y is default
+
+    def test_decode_raw_malformed_data(self):
+        class Test(msgspec.Struct):
+            x: int
+            y: msgspec.Raw
+
+        s = b'{"x": 1, "y": [1, 2,]}'
+        with pytest.raises(msgspec.DecodeError, match="malformed"):
+            msgspec.json.decode(s, type=Test)
+
+    def test_decode_raw_is_view(self):
+        s = b'   {"x": 1}   '
+        r = msgspec.json.decode(s, type=msgspec.Raw)
+        assert bytes(r) == b'{"x": 1}'
+        assert r.copy() is not r  # actual copy indicates a view
+
+    def test_raw_in_union_works_but_doesnt_change_anything(self):
+        class Test(msgspec.Struct):
+            x: Union[int, str, msgspec.Raw]
+
+        r = msgspec.json.decode(b'{"x": 1}', type=Test)
+        assert r == Test(1)
+
+    def test_raw_can_be_mixed_with_custom_type(self):
+        class Test(msgspec.Struct):
+            x: Union[Point, msgspec.Raw]
+
+        def dec_hook(typ, obj):
+            assert typ is Point
+            return typ(*obj)
+
+        res = msgspec.json.decode(b'{"x": [1, 2]}', type=Test, dec_hook=dec_hook)
+        assert res == Test(Point(1, 2))
