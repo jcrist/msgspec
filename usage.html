@@ -297,6 +297,7 @@ Most combinations of the following types are supported (see
 <li><p><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Union" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.Union</span></code></a></p></li>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.Literal</span></code></a></p></li>
 <li><p><a class="reference internal" href="api.html#msgspec.msgpack.Ext" title="msgspec.msgpack.Ext"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.msgpack.Ext</span></code></a></p></li>
+<li><p><a class="reference internal" href="api.html#msgspec.Raw" title="msgspec.Raw"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Raw</span></code></a></p></li>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.Enum" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enum.Enum</span></code></a> derived types</p></li>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.IntEnum" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enum.IntEnum</span></code></a> derived types</p></li>
 <li><p><a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> derived types</p></li>
@@ -746,6 +747,88 @@ multiple struct types are only supported through <a class="reference internal" h
 </pre></div>
 </div>
 </section>
+<section id="raw">
+<h3><code class="docutils literal notranslate"><span class="pre">Raw</span></code><a class="headerlink" href="#raw" title="Permalink to this headline">#</a></h3>
+<p><a class="reference internal" href="api.html#msgspec.Raw" title="msgspec.Raw"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Raw</span></code></a> is a buffer-like type containing an already encoded messages.
+They have two common uses:</p>
+<p><strong>1. Avoiding unnecessary encoding cost</strong></p>
+<p>Wrapping an already encoded buffer in <a class="reference internal" href="api.html#msgspec.Raw" title="msgspec.Raw"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Raw</span></code></a> lets the encoder avoid
+re-encoding the message, instead it will simply be copied to the output buffer.
+This can be useful when part of a message already exists in an encoded format
+(e.g. reading JSON bytes from a database and returning them as part of a larger
+message).</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">msgspec</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># Create a new `Raw` object wrapping a pre-encoded message</span>
+<span class="gp">... </span><span class="n">fragment</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">Raw</span><span class="p">(</span><span class="sa">b</span><span class="s1">'{"x": 1, "y": 2}'</span><span class="p">)</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># Compose a larger message containing the pre-encoded fragment</span>
+<span class="gp">... </span><span class="n">msg</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"a"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">:</span> <span class="n">fragment</span><span class="p">}</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># During encoding, the raw message is efficiently copied into</span>
+<span class="gp">... </span><span class="c1"># the output buffer, avoiding any extra encoding cost</span>
+<span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+<span class="go">b'{"a":1,"b":{"x": 1, "y": 2}}'</span>
+</pre></div>
+</div>
+<p><strong>2. Delaying decoding of part of a message</strong></p>
+<p>Sometimes the type of a serialized value depends on the value of other fields
+in a message. <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> provides an optimized version of one common pattern
+(<a class="reference internal" href="structs.html#struct-tagged-unions"><span class="std std-ref">Tagged Unions</span></a>), but if you need to do something more complicated
+you may find using <a class="reference internal" href="api.html#msgspec.Raw" title="msgspec.Raw"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Raw</span></code></a> useful here.</p>
+<p>For example, here we demonstrate how to decode a message where the type of one
+field (<code class="docutils literal notranslate"><span class="pre">point</span></code>) depends on the value of another (<code class="docutils literal notranslate"><span class="pre">dimensions</span></code>).</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">msgspec</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Union</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">Point1D</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="n">x</span><span class="p">:</span> <span class="nb">int</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">Point2D</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="n">x</span><span class="p">:</span> <span class="nb">int</span>
+<span class="gp">... </span>    <span class="n">y</span><span class="p">:</span> <span class="nb">int</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">Point3D</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="n">x</span><span class="p">:</span> <span class="nb">int</span>
+<span class="gp">... </span>    <span class="n">y</span><span class="p">:</span> <span class="nb">int</span>
+<span class="gp">... </span>    <span class="n">z</span><span class="p">:</span> <span class="nb">int</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">Model</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="n">dimensions</span><span class="p">:</span> <span class="nb">int</span>
+<span class="gp">... </span>    <span class="n">point</span><span class="p">:</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">Raw</span>  <span class="c1"># use msgspec.Raw to delay decoding the point field</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="k">def</span> <span class="nf">decode_point</span><span class="p">(</span><span class="n">msg</span><span class="p">:</span> <span class="nb">bytes</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Union</span><span class="p">[</span><span class="n">Point1D</span><span class="p">,</span> <span class="n">Point2D</span><span class="p">,</span> <span class="n">Point3D</span><span class="p">]:</span>
+<span class="gp">... </span>    <span class="sd">"""A function for efficiently decoding the `point` field"""</span>
+<span class="gp">... </span>    <span class="c1"># First decode the outer `Model` struct. Decoding of the `point`</span>
+<span class="gp">... </span>    <span class="c1"># field is delayed, with the composite bytes stored as a `Raw` object</span>
+<span class="gp">... </span>    <span class="c1"># on `point`.</span>
+<span class="gp">... </span>    <span class="n">model</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Model</span><span class="p">)</span>
+<span class="gp">...</span>
+<span class="gp">... </span>    <span class="c1"># Based on the value of `dimensions`, determine which type to use</span>
+<span class="gp">... </span>    <span class="c1"># when decoding the `point` field</span>
+<span class="gp">... </span>    <span class="k">if</span> <span class="n">model</span><span class="o">.</span><span class="n">dimensions</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+<span class="gp">... </span>        <span class="n">point_type</span> <span class="o">=</span> <span class="n">Point1D</span>
+<span class="gp">... </span>    <span class="k">elif</span> <span class="n">model</span><span class="o">.</span><span class="n">dimensions</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+<span class="gp">... </span>        <span class="n">point_type</span> <span class="o">=</span> <span class="n">Point2D</span>
+<span class="gp">... </span>    <span class="k">elif</span> <span class="n">model</span><span class="o">.</span><span class="n">dimensions</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
+<span class="gp">... </span>        <span class="n">point_type</span> <span class="o">=</span> <span class="n">Point3D</span>
+<span class="gp">... </span>    <span class="k">else</span><span class="p">:</span>
+<span class="gp">... </span>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Too many dimensions!"</span><span class="p">)</span>
+<span class="gp">...</span>
+<span class="gp">... </span>    <span class="c1"># Now that we know the type of `point`, we can finish decoding it.</span>
+<span class="gp">... </span>    <span class="c1"># Note that `Raw` objects are buffer-like, and can be passed</span>
+<span class="gp">... </span>    <span class="c1"># directly to the `decode` method.</span>
+<span class="gp">... </span>    <span class="k">return</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">point</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">point_type</span><span class="p">)</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">decode_point</span><span class="p">(</span><span class="sa">b</span><span class="s1">'{"dimensions": 2, "point": {"x": 1, "y": 2}}'</span><span class="p">)</span>
+<span class="go">Point2D(x=1, y=2)</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">decode_point</span><span class="p">(</span><span class="sa">b</span><span class="s1">'{"dimensions": 3, "point": {"x": 1, "y": 2, "z": 3}}'</span><span class="p">)</span>
+<span class="go">Point3D(x=1, y=2, z=3)</span>
+</pre></div>
+</div>
+</section>
 <section id="any">
 <h3><code class="docutils literal notranslate"><span class="pre">Any</span></code><a class="headerlink" href="#any" title="Permalink to this headline">#</a></h3>
 <p>When decoding a message with <code class="xref py py-obj docutils literal notranslate"><span class="pre">Any</span></code> type (or no type specified), encoded types
@@ -937,6 +1020,7 @@ efficiently skipped without decoding.</p>
 <li><a class="reference internal" href="#struct"><code class="docutils literal notranslate"><span class="pre">Struct</span></code></a></li>
 <li><a class="reference internal" href="#literal"><code class="docutils literal notranslate"><span class="pre">Literal</span></code></a></li>
 <li><a class="reference internal" href="#union-optional"><code class="docutils literal notranslate"><span class="pre">Union</span></code> /  <code class="docutils literal notranslate"><span class="pre">Optional</span></code></a></li>
+<li><a class="reference internal" href="#raw"><code class="docutils literal notranslate"><span class="pre">Raw</span></code></a></li>
 <li><a class="reference internal" href="#any"><code class="docutils literal notranslate"><span class="pre">Any</span></code></a></li>
 </ul>
 </li>
