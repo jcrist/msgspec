@@ -1207,7 +1207,6 @@ static PyTypeObject Raw_Type = {
 #define MS_TYPE_FIXTUPLE            (1u << 22)
 #define MS_TYPE_INTLITERAL          (1u << 23)
 #define MS_TYPE_STRLITERAL          (1u << 24)
-#define MS_TYPE_RAW                 (1u << 25)
 
 typedef struct TypeNode {
     uint32_t types;
@@ -1389,7 +1388,7 @@ static PyObject *
 typenode_simple_repr(TypeNode *self) {
     strbuilder builder = {" | ", 3};
 
-    if (self->types & (MS_TYPE_ANY | MS_TYPE_RAW | MS_TYPE_CUSTOM | MS_TYPE_CUSTOM_GENERIC)) {
+    if (self->types & (MS_TYPE_ANY | MS_TYPE_CUSTOM | MS_TYPE_CUSTOM_GENERIC) || self->types == 0) {
         return PyUnicode_FromString("any");
     }
     if (self->types & MS_TYPE_BOOL) {
@@ -1636,18 +1635,6 @@ static int
 typenode_collect_check_invariants(
     TypeNodeCollectState *state, bool err_not_json, bool *json_compatible
 ) {
-    /* Ensure at least one type is set */
-    if (state->types == 0) {
-        PyErr_Format(PyExc_RuntimeError, "No types found, this is likely a bug!");
-    }
-
-    /* Only a solo `Raw` decodes as a raw value, otherwise the annotation
-     * exists only to support encoding. Clear Raw from the typenode if other
-     * types are present. */
-    if (state->types & MS_TYPE_RAW && state->types != MS_TYPE_RAW) {
-        state->types &= ~MS_TYPE_RAW;
-    }
-
     /* If a custom type is used, this node may only contain that type and `None */
     if (
         state->custom_obj != NULL &&
@@ -2148,7 +2135,7 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
         return 0;
     }
     else if (obj == (PyObject *)(&Raw_Type)) {
-        state->types |= MS_TYPE_RAW;
+        /* Raw is marked with a typecode of 0, nothing to do */
         return 0;
     }
 
@@ -4329,7 +4316,7 @@ ms_decode_int_enum_or_literal_uint64(uint64_t val, TypeNode *type, PathNode *pat
     return out;
 }
 
-static PyObject *
+static MS_NOINLINE PyObject *
 ms_decode_custom(PyObject *obj, PyObject *dec_hook, bool generic, TypeNode* type, PathNode *path) {
     PyObject *custom_cls = NULL, *custom_obj, *out = NULL;
     int status;
@@ -6968,7 +6955,7 @@ done:
     return out;
 }
 
-static PyObject *
+static MS_NOINLINE PyObject *
 mpack_decode_raw(DecoderState *self) {
     char *start = self->input_pos;
     if (mpack_skip(self) < 0) return NULL;
@@ -6976,7 +6963,7 @@ mpack_decode_raw(DecoderState *self) {
     return Raw_FromView(self->buffer_obj, start, size);
 }
 
-static PyObject *
+static MS_INLINE PyObject *
 mpack_decode_nocustom(
     DecoderState *self, TypeNode *type, PathNode *path, bool is_key
 ) {
@@ -7118,7 +7105,7 @@ static PyObject *
 mpack_decode(
     DecoderState *self, TypeNode *type, PathNode *path, bool is_key
 ) {
-    if (MS_UNLIKELY(type->types == MS_TYPE_RAW)) {
+    if (MS_UNLIKELY(type->types == 0)) {
         return mpack_decode_raw(self);
     }
     PyObject *obj = mpack_decode_nocustom(self, type, path, is_key);
@@ -9043,15 +9030,17 @@ fallback_extended:
     return json_decode_extended_float(self);
 }
 
-static PyObject *
+static MS_NOINLINE PyObject *
 json_decode_raw(JSONDecoderState *self) {
+    unsigned char c;
+    if (MS_UNLIKELY(!json_peek_skip_ws(self, &c))) return NULL;
     const unsigned char *start = self->input_pos;
     if (json_skip(self) < 0) return NULL;
     Py_ssize_t size = self->input_pos - start;
     return Raw_FromView(self->buffer_obj, (char *)start, size);
 }
 
-static PyObject *
+static MS_INLINE PyObject *
 json_decode_nocustom(
     JSONDecoderState *self, TypeNode *type, PathNode *path
 ) {
@@ -9074,7 +9063,7 @@ static PyObject *
 json_decode(
     JSONDecoderState *self, TypeNode *type, PathNode *path
 ) {
-    if (MS_UNLIKELY(type->types == MS_TYPE_RAW)) {
+    if (MS_UNLIKELY(type->types == 0)) {
         return json_decode_raw(self);
     }
     PyObject *obj = json_decode_nocustom(self, type, path);
