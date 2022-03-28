@@ -42,12 +42,15 @@ ms_popcount(uint32_t i) {
 /* Easy access to NoneType object */
 #define NONE_TYPE ((PyObject *)(Py_TYPE(Py_None)))
 
+#define MS_TYPE_IS_GC(t) (((PyTypeObject *)(t))->tp_flags & Py_TPFLAGS_HAVE_GC)
+#define MS_OBJECT_IS_GC(obj) MS_TYPE_IS_GC(Py_TYPE(obj))
+
 /* Is this object something that is/could be GC tracked? True if
  * - the value supports GC
  * - the value isn't a tuple or the object is tracked (skip tracked checks for non-tuples)
  */
 #define OBJ_IS_GC(x) \
-    (PyType_IS_GC(Py_TYPE(x)) && \
+    (MS_TYPE_IS_GC(Py_TYPE(x)) && \
      (!PyTuple_CheckExact(x) || IS_TRACKED(x)))
 
 /* Fast shrink of bytes & bytearray objects. This doesn't do any memory
@@ -2555,14 +2558,23 @@ static PyTypeObject StructMixinType;
 #endif
 
 #if STRUCT_FREELIST_MAX_SIZE > 0
-static PyObject *struct_freelist[STRUCT_FREELIST_MAX_SIZE];
-static int struct_freelist_len[STRUCT_FREELIST_MAX_SIZE];
+static PyObject *struct_freelist[STRUCT_FREELIST_MAX_SIZE * 2];
+static int struct_freelist_len[STRUCT_FREELIST_MAX_SIZE * 2];
 
 static void
 Struct_freelist_clear(void) {
     Py_ssize_t i;
     PyObject *obj;
+    /* Non-gc freelist */
     for (i = 0; i < STRUCT_FREELIST_MAX_SIZE; i++) {
+        while ((obj = struct_freelist[i]) != NULL) {
+            struct_freelist[i] = (PyObject *)obj->ob_type;
+            PyObject_Del(obj);
+        }
+        struct_freelist_len[i] = 0;
+    }
+    /* GC freelist */
+    for (i = STRUCT_FREELIST_MAX_SIZE; i < STRUCT_FREELIST_MAX_SIZE * 2; i++) {
         while ((obj = struct_freelist[i]) != NULL) {
             struct_freelist[i] = (PyObject *)obj->ob_type;
             PyObject_GC_Del(obj);
@@ -2570,32 +2582,50 @@ Struct_freelist_clear(void) {
         struct_freelist_len[i] = 0;
     }
 }
+#endif
 
+/* Note this always allocates an UNTRACKED object */
 static PyObject *
 Struct_alloc(PyTypeObject *type) {
-    Py_ssize_t size;
     PyObject *obj;
+    bool is_gc = MS_TYPE_IS_GC(type);
 
-    size = (type->tp_basicsize - sizeof(PyObject)) / sizeof(void *);
+#if STRUCT_FREELIST_MAX_SIZE > 0
+    Py_ssize_t size = (type->tp_basicsize - sizeof(PyObject)) / sizeof(void *);
+    Py_ssize_t free_ind = (is_gc * STRUCT_FREELIST_MAX_SIZE) + size - 1;
 
     if (size > 0 &&
         size <= STRUCT_FREELIST_MAX_SIZE &&
-        struct_freelist[size - 1] != NULL)
+        struct_freelist[free_ind] != NULL)
     {
         /* Pop object off freelist */
-        obj = struct_freelist[size - 1];
-        struct_freelist[size - 1] = (PyObject *)obj->ob_type;
-        struct_freelist_len[size - 1]--;
-        /* Initialize the object. This is mirrored from within `PyObject_Init`,
-         * as well as PyType_GenericAlloc */
-        obj->ob_type = type;
-        Py_INCREF(type);
-        _Py_NewReference(obj);
-        PyObject_GC_Track(obj);
+        obj = struct_freelist[free_ind];
+        struct_freelist[free_ind] = (PyObject *)obj->ob_type;
+        struct_freelist_len[free_ind]--;
     }
+#else
+    if (false) {
+    }
+#endif
     else {
-        obj = PyType_GenericAlloc(type, 0);
+        if (is_gc) {
+            obj = _PyObject_GC_Malloc(type->tp_basicsize);
+        }
+        else {
+            obj = (PyObject *)PyObject_Malloc(type->tp_basicsize);
+        }
+
+        if (obj == NULL) {
+            return PyErr_NoMemory();
+        }
+
+        memset(obj, '\0', type->tp_basicsize);
     }
+    /* Initialize the object. This is mirrored from within `PyObject_Init`,
+     * as well as PyType_GenericAlloc */
+    obj->ob_type = type;
+    Py_INCREF(type);
+    _Py_NewReference(obj);
     return obj;
 }
 
@@ -2622,14 +2652,22 @@ clear_slots(PyTypeObject *type, PyObject *self)
 
 static void
 Struct_dealloc(PyObject *self) {
-    Py_ssize_t size;
     PyTypeObject *type, *base;
+    bool is_gc;
 
     type = Py_TYPE(self);
 
-    PyObject_GC_UnTrack(self);
+    is_gc = MS_TYPE_IS_GC(type);
 
-    size = (type->tp_basicsize - sizeof(PyObject)) / sizeof(void *);
+    if (is_gc) {
+        PyObject_GC_UnTrack(self);
+    }
+
+    /* Maybe call a finalizer */
+    if (type->tp_finalize) {
+        /* If resurrected, return early */
+        if (PyObject_CallFinalizerFromDealloc(self) < 0) return;
+    }
 
     Py_TRASHCAN_BEGIN(self, Struct_dealloc)
     base = type;
@@ -2640,29 +2678,26 @@ Struct_dealloc(PyObject *self) {
     }
     Py_TRASHCAN_END
 
+#if STRUCT_FREELIST_MAX_SIZE > 0
+    Py_ssize_t size = (type->tp_basicsize - sizeof(PyObject)) / sizeof(void *);
+    Py_ssize_t free_ind = (is_gc * STRUCT_FREELIST_MAX_SIZE) + size - 1;
     if (size > 0 &&
         size <= STRUCT_FREELIST_MAX_SIZE &&
-        struct_freelist_len[size - 1] < STRUCT_FREELIST_MAX_PER_SIZE)
+        struct_freelist_len[free_ind] < STRUCT_FREELIST_MAX_PER_SIZE)
     {
         /* Push object onto freelist */
-        self->ob_type = (PyTypeObject *)(struct_freelist[size - 1]);
-        struct_freelist_len[size - 1]++;
-        struct_freelist[size - 1] = self;
+        self->ob_type = (PyTypeObject *)(struct_freelist[free_ind]);
+        struct_freelist_len[free_ind]++;
+        struct_freelist[free_ind] = self;
     }
     else {
         type->tp_free(self);
     }
+#else
+    type->tp_free(self);
+#endif
     Py_DECREF(type);
 }
-
-#else
-
-static inline PyObject *
-Struct_alloc(PyTypeObject *type) {
-    return type->tp_alloc(type, 0);
-}
-
-#endif /* Struct freelist */
 
 static Py_ssize_t
 StructMeta_get_field_index(
@@ -2704,6 +2739,25 @@ dict_discard(PyObject *dict, PyObject *key) {
 
 static PyObject *
 Struct_vectorcall(PyTypeObject *cls, PyObject *const *args, size_t nargsf, PyObject *kwnames);
+
+/* setattr for frozen=True types */
+static int
+Struct_setattro_frozen(PyObject *self, PyObject *key, PyObject *value) {
+    PyErr_Format(
+        PyExc_AttributeError, "immutable type: '%s'", Py_TYPE(self)->tp_name
+    );
+    return -1;
+}
+
+/* setattr for frozen=False, nogc=False types */
+static int
+Struct_setattro_default(PyObject *self, PyObject *key, PyObject *value) {
+    if (PyObject_GenericSetAttr(self, key, value) < 0)
+        return -1;
+    if (value != NULL && OBJ_IS_GC(value) && !IS_TRACKED(self))
+        PyObject_GC_Track(self);
+    return 0;
+}
 
 static PyObject *
 StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
@@ -2974,9 +3028,25 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
     if (cls == NULL)
         goto error;
     ((PyTypeObject *)cls)->tp_vectorcall = (vectorcallfunc)Struct_vectorcall;
-#if STRUCT_FREELIST_MAX_SIZE > 0
     ((PyTypeObject *)cls)->tp_dealloc = Struct_dealloc;
-#endif
+    if (nogc == OPT_TRUE) {
+        ((PyTypeObject *)cls)->tp_flags &= ~Py_TPFLAGS_HAVE_GC;
+        ((PyTypeObject *)cls)->tp_free = &PyObject_Free;
+    }
+    else {
+        ((PyTypeObject *)cls)->tp_flags |= Py_TPFLAGS_HAVE_GC;
+        ((PyTypeObject *)cls)->tp_free = &PyObject_GC_Del;
+    }
+    if (frozen == OPT_TRUE) {
+        ((PyTypeObject *)cls)->tp_setattro = &Struct_setattro_frozen;
+    }
+    else if (nogc == OPT_TRUE) {
+        ((PyTypeObject *)cls)->tp_setattro = &PyObject_GenericSetAttr;
+    }
+    else {
+        ((PyTypeObject *)cls)->tp_setattro = &Struct_setattro_default;
+    }
+
     Py_CLEAR(new_args);
 
     PyMemberDef *mp = PyHeapType_GET_MEMBERS(cls);
@@ -3379,15 +3449,16 @@ Struct_get_index(PyObject *obj, Py_ssize_t index) {
     return val;
 }
 
+/* ASSUMPTION - obj is untracked and allocated via Struct_alloc */
 static int
 Struct_fill_in_defaults(StructMetaObject *st_type, PyObject *obj, PathNode *path) {
     Py_ssize_t nfields, ndefaults, i;
-    bool should_untrack;
-    bool nogc = st_type->nogc == OPT_TRUE;
+    bool is_gc, should_untrack;
 
     nfields = PyTuple_GET_SIZE(st_type->struct_fields);
     ndefaults = PyTuple_GET_SIZE(st_type->struct_defaults);
-    should_untrack = PyObject_IS_GC(obj);
+    is_gc = MS_TYPE_IS_GC(st_type);
+    should_untrack = is_gc;
 
     for (i = 0; i < nfields; i++) {
         PyObject *val = Struct_get_index_noerror(obj, i);
@@ -3413,8 +3484,8 @@ Struct_fill_in_defaults(StructMetaObject *st_type, PyObject *obj, PathNode *path
             should_untrack = !OBJ_IS_GC(val);
         }
     }
-    if (should_untrack || nogc)
-        PyObject_GC_UnTrack(obj);
+    if (is_gc && !should_untrack)
+        PyObject_GC_Track(obj);
     return 0;
 }
 
@@ -3422,8 +3493,7 @@ static PyObject *
 Struct_vectorcall(PyTypeObject *cls, PyObject *const *args, size_t nargsf, PyObject *kwnames) {
     PyObject *self, *fields, *defaults, *field, *val;
     Py_ssize_t nargs, nkwargs, nfields, ndefaults, npos, i;
-    bool should_untrack;
-    bool nogc = ((StructMetaObject *)cls)->nogc == OPT_TRUE;
+    bool is_gc, should_untrack;
 
     self = Struct_alloc(cls);
     if (self == NULL)
@@ -3446,7 +3516,8 @@ Struct_vectorcall(PyTypeObject *cls, PyObject *const *args, size_t nargsf, PyObj
         goto error;
     }
 
-    should_untrack = PyObject_IS_GC(self);
+    is_gc = MS_TYPE_IS_GC(cls);
+    should_untrack = is_gc;
 
     for (i = 0; i < nfields; i++) {
         field = PyTuple_GET_ITEM(fields, i);
@@ -3492,32 +3563,13 @@ Struct_vectorcall(PyTypeObject *cls, PyObject *const *args, size_t nargsf, PyObj
         );
         goto error;
     }
-    if (should_untrack || nogc)
-        PyObject_GC_UnTrack(self);
+    if (is_gc && !should_untrack)
+        PyObject_GC_Track(self);
     return self;
 
 error:
     Py_DECREF(self);
     return NULL;
-}
-
-static int
-Struct_setattro(PyObject *self, PyObject *key, PyObject *value) {
-    bool frozen = ((StructMetaObject *)Py_TYPE(self))->frozen == OPT_TRUE;
-    bool nogc = ((StructMetaObject *)Py_TYPE(self))->nogc == OPT_TRUE;
-    if (frozen) {
-        PyErr_Format(
-            PyExc_AttributeError,
-            "immutable type: '%s'",
-            Py_TYPE(self)->tp_name
-        );
-        return -1;
-    }
-    if (PyObject_GenericSetAttr(self, key, value) < 0)
-        return -1;
-    if (value != NULL && !nogc && OBJ_IS_GC(value) && !IS_TRACKED(self))
-        PyObject_GC_Track(self);
-    return 0;
 }
 
 static PyObject *
@@ -3680,9 +3732,9 @@ Struct_copy(PyObject *self, PyObject *args)
         Py_INCREF(val);
         Struct_set_index(res, i, val);
     }
-    /* If self is untracked, then copy is untracked */
-    if (PyObject_IS_GC(self) && !IS_TRACKED(self))
-        PyObject_GC_UnTrack(res);
+    /* If self is tracked, then copy is tracked */
+    if (MS_OBJECT_IS_GC(self) && IS_TRACKED(self))
+        PyObject_GC_Track(res);
     return res;
 error:
     Py_DECREF(res);
@@ -3746,7 +3798,7 @@ static PyTypeObject StructMixinType = {
     .tp_basicsize = 0,
     .tp_itemsize = 0,
     .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
-    .tp_setattro = Struct_setattro,
+    .tp_setattro = Struct_setattro_default,
     .tp_repr = Struct_repr,
     .tp_richcompare = Struct_richcompare,
     .tp_hash = Struct_hash,
@@ -6628,8 +6680,7 @@ mpack_decode_struct_array_inner(
 ) {
     Py_ssize_t i, nfields, ndefaults, npos;
     PyObject *res, *val = NULL;
-    bool should_untrack;
-    bool nogc = st_type->nogc == OPT_TRUE;
+    bool is_gc, should_untrack;
     bool tagged = st_type->struct_tag_value != NULL;
     PathNode item_path = {path, 0};
 
@@ -6674,7 +6725,8 @@ mpack_decode_struct_array_inner(
     res = Struct_alloc((PyTypeObject *)(st_type));
     if (res == NULL) goto error;
 
-    should_untrack = PyObject_IS_GC(res);
+    is_gc = MS_TYPE_IS_GC(st_type);
+    should_untrack = is_gc;
 
     for (i = 0; i < nfields; i++) {
         if (size > 0) {
@@ -6702,8 +6754,8 @@ mpack_decode_struct_array_inner(
         size--;
     }
     Py_LeaveRecursiveCall();
-    if (should_untrack || nogc)
-        PyObject_GC_UnTrack(res);
+    if (is_gc && !should_untrack)
+        PyObject_GC_Track(res);
     return res;
 error:
     Py_LeaveRecursiveCall();
@@ -8281,9 +8333,8 @@ json_decode_struct_array_inner(
     Py_ssize_t nfields, ndefaults, npos, i = 0;
     PyObject *out, *item = NULL;
     unsigned char c;
-    bool should_untrack;
+    bool is_gc, should_untrack;
     bool first = starting_index == 0;
-    bool nogc = st_type->nogc == OPT_TRUE;
     PathNode item_path = {path, starting_index};
 
     out = Struct_alloc((PyTypeObject *)(st_type));
@@ -8292,7 +8343,8 @@ json_decode_struct_array_inner(
     nfields = PyTuple_GET_SIZE(st_type->struct_fields);
     ndefaults = PyTuple_GET_SIZE(st_type->struct_defaults);
     npos = nfields - ndefaults;
-    should_untrack = PyObject_IS_GC(out);
+    is_gc = MS_TYPE_IS_GC(st_type);
+    should_untrack = is_gc;
 
     if (Py_EnterRecursiveCall(" while deserializing an object")) {
         Py_DECREF(out);
@@ -8362,8 +8414,8 @@ json_decode_struct_array_inner(
         }
     }
     Py_LeaveRecursiveCall();
-    if (should_untrack || nogc)
-        PyObject_GC_UnTrack(out);
+    if (is_gc && !should_untrack)
+        PyObject_GC_Track(out);
     return out;
 error:
     Py_LeaveRecursiveCall();
