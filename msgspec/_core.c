@@ -1262,7 +1262,7 @@ typedef struct {
     char frozen;
     char array_like;
     char nogc;
-    char skip_encode_defaults;
+    char omit_defaults;
 } StructMetaObject;
 
 static PyTypeObject StructMetaType;
@@ -2776,10 +2776,10 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
     int arg_frozen = -1, frozen = -1;
     int arg_array_like = -1, array_like = -1;
     int arg_nogc = -1, nogc = -1;
-    int arg_skip_encode_defaults = -1, skip_encode_defaults = -1;
+    int arg_omit_defaults = -1, omit_defaults = -1;
 
     static char *kwlist[] = {
-        "name", "bases", "dict", "tag_field", "tag", "frozen", "array_like", "nogc", "skip_encode_defaults", NULL
+        "name", "bases", "dict", "tag_field", "tag", "frozen", "array_like", "nogc", "omit_defaults", NULL
     };
 
     /* Parse arguments: (name, bases, dict) */
@@ -2787,7 +2787,7 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
             args, kwargs, "UO!O!|$OOpppp:StructMeta.__new__", kwlist,
             &name, &PyTuple_Type, &bases, &PyDict_Type, &orig_dict,
             &arg_tag_field, &arg_tag, &arg_frozen, &arg_array_like,
-            &arg_nogc, &arg_skip_encode_defaults)
+            &arg_nogc, &arg_omit_defaults)
     )
         return NULL;
 
@@ -2839,8 +2839,8 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
         frozen = STRUCT_MERGE_OPTIONS(frozen, ((StructMetaObject *)base)->frozen);
         array_like = STRUCT_MERGE_OPTIONS(array_like, ((StructMetaObject *)base)->array_like);
         nogc = STRUCT_MERGE_OPTIONS(nogc, ((StructMetaObject *)base)->nogc);
-        skip_encode_defaults = STRUCT_MERGE_OPTIONS(
-            skip_encode_defaults, ((StructMetaObject *)base)->skip_encode_defaults
+        omit_defaults = STRUCT_MERGE_OPTIONS(
+            omit_defaults, ((StructMetaObject *)base)->omit_defaults
         );
         base_fields = StructMeta_GET_FIELDS(base);
         base_defaults = StructMeta_GET_DEFAULTS(base);
@@ -2875,7 +2875,7 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
     frozen = STRUCT_MERGE_OPTIONS(frozen, arg_frozen);
     array_like = STRUCT_MERGE_OPTIONS(array_like, arg_array_like);
     nogc = STRUCT_MERGE_OPTIONS(nogc, arg_nogc);
-    skip_encode_defaults = STRUCT_MERGE_OPTIONS(skip_encode_defaults, arg_skip_encode_defaults);
+    omit_defaults = STRUCT_MERGE_OPTIONS(omit_defaults, arg_omit_defaults);
 
     new_dict = PyDict_Copy(orig_dict);
     if (new_dict == NULL)
@@ -3087,7 +3087,7 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
     cls->frozen = frozen;
     cls->array_like = array_like;
     cls->nogc = nogc;
-    cls->skip_encode_defaults = skip_encode_defaults;
+    cls->omit_defaults = omit_defaults;
     return (PyObject *) cls;
 error:
     Py_XDECREF(arg_fields);
@@ -4968,7 +4968,7 @@ mpack_encode_struct(EncoderState *self, PyObject *obj)
             }
         }
     }
-    else if (struct_type->skip_encode_defaults == OPT_TRUE) {
+    else if (struct_type->omit_defaults == OPT_TRUE) {
         Py_ssize_t nunchecked = nfields - PyTuple_GET_SIZE(struct_type->struct_defaults);
         Py_ssize_t actual_len = len;
         Py_ssize_t header_offset = self->output_len;
@@ -5904,7 +5904,7 @@ json_encode_struct(EncoderState *self, PyObject *obj)
         }
 
         Py_ssize_t nunchecked = nfields;
-        if (struct_type->skip_encode_defaults == OPT_TRUE) {
+        if (struct_type->omit_defaults == OPT_TRUE) {
             nunchecked = nfields - PyTuple_GET_SIZE(struct_type->struct_defaults);
         }
 
