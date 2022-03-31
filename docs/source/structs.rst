@@ -398,6 +398,8 @@ array, and is used to determine which type in the union to use when decoding.
     Put(key='my key', val='my val')
 
 
+.. _struct-nogc:
+
 Disabling Garbage Collection (Advanced)
 ---------------------------------------
 
@@ -443,12 +445,12 @@ structs referencing containers (lists, dicts, structs, ...) will.
     True
 
 If you *are certain* that your struct types can *never* participate in a
-reference cycle, you *may* find a performance boost from setting ``nogc=True``
-on a struct definition. This boost is tricky to measure in isolation, since it
-should only result in the garbage collector not running as frequently - an
-integration benchmark is recommended to determine if this is worthwhile for
-your workload. A workload is likely to benefit from this optimization in the
-following situations:
+reference cycle, you *may* find a :ref:`performance boost
+<struct-gc-benchmark>` from setting ``nogc=True`` on a struct definition. This
+boost is tricky to measure in isolation, since it should only result in the
+garbage collector not running as frequently - an integration benchmark is
+recommended to determine if this is worthwhile for your workload. A workload is
+likely to benefit from this optimization in the following situations:
 
 - You're allocating a lot of struct objects at once (for example, decoding a
   large object). Setting ``nogc=True`` on these types will reduce the

@@ -226,6 +226,20 @@ benefit from using it instead of JSON. And since ``msgspec`` supports both
 protocols with a consistent interface, switching from ``msgspec.json`` to
 ``msgspec.msgpack`` should be fairly painless.
 
+Use ``nogc=True``
+-----------------
+
+Python processes with a large number of long-lived objects, or operations that
+allocate a large number of objects at once may suffer reduced performance due
+to Python's garbage collector (GC). By default, `msgspec.Struct` types
+implement a few optimizations to reduce the load on the GC (and thus reduce the
+frequency and duration of a GC pause). If you find that GC is still a problem,
+and **are certain** that your Struct types may never participate in a reference
+cycle, then you **may** benefit from setting ``nogc=True`` on your Struct
+types.  Depending on workload, this can result in a measurable decrease in
+pause time and frequency due to GC passes. See :ref:`struct-nogc` for more
+details.
+
 Use ``array_like=True``
 -----------------------
 
