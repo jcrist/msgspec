@@ -48,6 +48,20 @@ defining a `msgspec.Struct` type (or types) for your schema and preferring that
 over other types like `dict`/`dataclasses`/...
 
 
+Avoid Encoding Default Values
+-----------------------------
+
+By default, ``msgspec`` encodes all fields in a Struct type, including optional
+fields (those configured with a default value). If the default values are known
+on the decoding end (making serializing them redundant), it may be beneficial
+to omit default values from the encoded message. This can be done by
+configuring ``omit_defaults=True`` as part of the Struct definition Omitting
+defaults reduces the size of the encoded message, and often also improves
+encoding and decoding performance (since there's less work to do).
+
+For more information, see :ref:`omit_defaults`.
+
+
 Avoid Decoding Unused Fields
 ----------------------------
 
