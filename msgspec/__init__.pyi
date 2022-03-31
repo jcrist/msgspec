@@ -28,6 +28,7 @@ class Struct(metaclass=__StructMeta):
         cls,
         tag: Union[None, bool, str, Callable[[str], str]] = None,
         tag_field: Union[None, str] = None,
+        omit_defaults: bool = False,
         frozen: bool = False,
         array_like: bool = False,
         nogc: bool = False,

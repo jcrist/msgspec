@@ -746,7 +746,7 @@ def test_struct_handles_missing_attributes():
         pickle.dumps(t)
 
 
-@pytest.mark.parametrize("option", ["frozen", "array_like", "nogc"])
+@pytest.mark.parametrize("option", ["frozen", "array_like", "nogc", "omit_defaults"])
 def test_struct_option_precedence(option):
     def get(cls):
         return getattr(cls, option)
