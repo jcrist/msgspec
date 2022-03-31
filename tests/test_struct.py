@@ -607,34 +607,105 @@ def test_struct_gc_not_added_if_not_needed():
     assert not gc.is_tracked(t)
 
 
-def test_struct_nogc():
+class TestNoGC:
     """nogc structs are never tracked, even if they reference a container type"""
 
-    class Test(Struct, nogc=True):
-        x: object
-        y: object
+    def test_memory_layout(self):
+        sizes = {}
+        for nogc in [False, True]:
 
-    assert not gc.is_tracked(Test(1, 2))
-    assert not gc.is_tracked(Test([1, 2, 3], 1))
-    assert not gc.is_tracked(Test(1, [1, 2, 3]))
+            class Test(Struct, nogc=nogc):
+                x: object
+                y: object
 
-    # Tracked status doesn't change on mutation
-    t = Test(1, 2)
-    assert not gc.is_tracked(t)
-    t.x = []
-    assert not gc.is_tracked(t)
+            sizes[nogc] = sys.getsizeof(Test(1, 2))
+
+        # Currently nogc structs are 16 bytes smaller than gc structs, but
+        # that's a cpython implementation detail. This test is mainly to check
+        # that the smaller layout is being actually used.
+        assert sizes[True] < sizes[False]
+
+    def test_init(self):
+        class Test(Struct, nogc=True):
+            x: object
+            y: object
+
+        assert not gc.is_tracked(Test(1, 2))
+        assert not gc.is_tracked(Test([1, 2, 3], 1))
+        assert not gc.is_tracked(Test(1, [1, 2, 3]))
+
+    def test_setattr(self):
+        class Test(Struct, nogc=True):
+            x: object
+            y: object
+
+        # Tracked status doesn't change on mutation
+        t = Test(1, 2)
+        assert not gc.is_tracked(t)
+        t.x = []
+        assert not gc.is_tracked(t)
+
+    def test_nogc_inherit_from_gc(self):
+        class HasGC(Struct):
+            x: object
+
+        class NoGC(HasGC, nogc=True):
+            y: object
+
+        assert gc.is_tracked(HasGC([]))
+        assert not gc.is_tracked(NoGC(1, 2))
+        assert not gc.is_tracked(NoGC(1, []))
+        x = NoGC([], 2)
+        assert not gc.is_tracked(x)
+        x.y = []
+        assert not gc.is_tracked(x)
+
+    def test_gc_inherit_from_nogc(self):
+        class NoGC(Struct, nogc=True):
+            y: object
+
+        class HasGC(NoGC, nogc=False):
+            x: object
+
+        assert gc.is_tracked(HasGC(1, []))
+        assert gc.is_tracked(HasGC([], 1))
+        x = HasGC(1, 2)
+        assert not gc.is_tracked(x)
+        x.x = []
+        assert gc.is_tracked(x)
 
 
-def test_struct_gc_set_on_copy():
+@pytest.mark.parametrize("nogc", [False, True])
+def test_struct_gc_set_on_copy(nogc):
     """Copying doesn't go through the struct constructor"""
 
-    class Test(Struct):
+    class Test(Struct, nogc=nogc):
         x: object
         y: object
 
     assert not gc.is_tracked(copy.copy(Test(1, 2)))
     assert not gc.is_tracked(copy.copy(Test(1, ())))
-    assert gc.is_tracked(copy.copy(Test(1, [])))
+    assert gc.is_tracked(copy.copy(Test(1, []))) == (not nogc)
+
+
+@pytest.mark.parametrize("nogc", [False, True])
+def test_struct_finalizer_called(nogc):
+    """Check that structs dealloc properly calls __del__"""
+
+    called = False
+
+    class Test(Struct, nogc=nogc):
+        x: int
+        y: int
+
+        def __del__(self):
+            nonlocal called
+            called = True
+
+    t = Test(1, 2)
+    del t
+
+    assert called
 
 
 class MyStruct(Struct):
