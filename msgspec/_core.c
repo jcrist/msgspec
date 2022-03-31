@@ -3249,6 +3249,13 @@ StructMeta_nogc(StructMetaObject *self, void *closure)
 }
 
 static PyObject*
+StructMeta_omit_defaults(StructMetaObject *self, void *closure)
+{
+    if (self->omit_defaults == OPT_TRUE) { Py_RETURN_TRUE; }
+    else { Py_RETURN_FALSE; }
+}
+
+static PyObject*
 StructMeta_signature(StructMetaObject *self, void *closure)
 {
     Py_ssize_t nfields, ndefaults, npos, i;
@@ -3353,6 +3360,7 @@ static PyGetSetDef StructMeta_getset[] = {
     {"frozen", (getter) StructMeta_frozen, NULL, NULL, NULL},
     {"array_like", (getter) StructMeta_array_like, NULL, NULL, NULL},
     {"nogc", (getter) StructMeta_nogc, NULL, NULL, NULL},
+    {"omit_defaults", (getter) StructMeta_omit_defaults, NULL, NULL, NULL},
     {NULL},
 };
 

@@ -28,6 +28,17 @@ def check_struct() -> None:
     reveal_type(t.y)  # assert "str" in typ
 
 
+def check_struct_omit_defaults() -> None:
+    class Test(msgspec.Struct, omit_defaults=True):
+        x: int
+        y: str
+
+    t = Test(1, "foo")
+    reveal_type(t)  # assert "Test" in typ
+    reveal_type(t.x)  # assert "int" in typ
+    reveal_type(t.y)  # assert "str" in typ
+
+
 def check_struct_array_like() -> None:
     class Test(msgspec.Struct, array_like=True):
         x: int

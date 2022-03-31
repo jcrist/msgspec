@@ -6,7 +6,7 @@ import sys
 import random
 import string
 import weakref
-from typing import Literal, List, Union, Deque, NamedTuple, Dict, Tuple
+from typing import Literal, List, Union, Deque, NamedTuple, Dict, Tuple, Optional
 
 import pytest
 
@@ -830,3 +830,76 @@ class TestStructUnion:
         assert len(cache) == MAX_CACHE_SIZE
         assert first not in cache
         assert frozenset(new) in cache
+
+
+class TestStructOmitDefaults:
+    def test_omit_defaults(self, proto):
+        class Test(msgspec.Struct, omit_defaults=True):
+            a: int = 0
+            b: bool = False
+            c: Optional[str] = None
+            d: list = []
+            e: Union[list, set] = set()
+            f: dict = {}
+
+        cases = [
+            (Test(), {}),
+            (Test(1), {"a": 1}),
+            (Test(1, False), {"a": 1}),
+            (Test(1, True), {"a": 1, "b": True}),
+            (Test(1, c=None), {"a": 1}),
+            (Test(1, c="test"), {"a": 1, "c": "test"}),
+            (Test(1, d=[1]), {"a": 1, "d": [1]}),
+            (Test(1, e={1}), {"a": 1, "e": [1]}),
+            (Test(1, e=[]), {"a": 1, "e": []}),
+            (Test(1, f={"a": 1}), {"a": 1, "f": {"a": 1}}),
+        ]
+
+        for obj, sol in cases:
+            res = proto.decode(proto.encode(obj))
+            assert res == sol
+
+    def test_omit_defaults_positional(self, proto):
+        class Test(msgspec.Struct, omit_defaults=True):
+            a: int
+            b: bool = False
+
+        cases = [
+            (Test(1), {"a": 1}),
+            (Test(1, False), {"a": 1}),
+            (Test(1, True), {"a": 1, "b": True}),
+        ]
+
+        for obj, sol in cases:
+            res = proto.decode(proto.encode(obj))
+            assert res == sol
+
+    def test_omit_defaults_tagged(self, proto):
+        class Test(msgspec.Struct, omit_defaults=True, tag=True):
+            a: int
+            b: bool = False
+
+        cases = [
+            (Test(1), {"type": "Test", "a": 1}),
+            (Test(1, False), {"type": "Test", "a": 1}),
+            (Test(1, True), {"type": "Test", "a": 1, "b": True}),
+        ]
+
+        for obj, sol in cases:
+            res = proto.decode(proto.encode(obj))
+            assert res == sol
+
+    def test_omit_defaults_ignored_for_array_like(self, proto):
+        class Test(msgspec.Struct, omit_defaults=True, array_like=True):
+            a: int
+            b: bool = False
+
+        cases = [
+            (Test(1), [1, False]),
+            (Test(1, False), [1, False]),
+            (Test(1, True), [1, True]),
+        ]
+
+        for obj, sol in cases:
+            res = proto.decode(proto.encode(obj))
+            assert res == sol
