@@ -197,6 +197,58 @@ The `full benchmark source can be found here
 - Same goes for comparison, with structs measuring roughly 6x faster than
   standard python classes.
 
+
+.. _struct-gc-benchmark:
+
+Benchmark - Garbage Collection
+------------------------------
+
+`msgspec.Struct` instances implement several optimizations for reducing garbage
+collection (GC) pressure and decreasing memory usage. Here we benchmark structs
+(with and without :ref:`nogc=True <struct-nogc>`) against standard Python
+classes (with and without `__slots__
+<https://docs.python.org/3/reference/datamodel.html#slots>`__).
+
+For each option we create a large dictionary containing many simple instances
+of the benchmarked type, then measure:
+
+- The amount of time it takes to do a full garbage collection (gc) pass
+- The total amount of memory used by this data structure
+
+The `full benchmark source can be found here
+<https://github.com/jcrist/msgspec/tree/master/benchmarks/bench_gc.py>`__.
+
+**Results:**
+
++-----------------------------------+--------------+-------------------+
+|                                   | GC time (ms) | Memory Used (MiB) |
++===================================+==============+===================+
+| **standard class**                | 80.46        | 211.66            |
++-----------------------------------+--------------+-------------------+
+| **standard class with __slots__** | 80.06        | 120.11            |
++-----------------------------------+--------------+-------------------+
+| **msgspec struct**                | 13.96        | 120.11            |
++-----------------------------------+--------------+-------------------+
+| **msgspec struct with nogc=True** | 1.07         | 104.85            |
++-----------------------------------+--------------+-------------------+
+
+- Standard Python classes are the most memory hungry (since all data is stored
+  in an instance dict). They also result in the largest GC pause, as the GC has
+  to traverse the entire outer dict, each class instance, and each instance
+  dict. All that pointer chasing has a cost.
+
+- Standard classes with ``__slots__`` are less memory hungry, but still results
+  in an equivalent GC pauses.
+
+- `msgspec.Struct` instances have the same memory layout as a class with
+  ``__slots__`` (and thus have the same memory usage), but due to deferred GC
+  tracking a full GC pass completes in a fraction of the time.
+
+- `msgspec.Struct` instances with ``nogc=True`` have the lowest memory usage
+  (lack of GC reduces memory by 16 bytes per instance). They also have the
+  lowest GC pause (75x faster than standard classes!) since the entire
+  composing dict can be skipped during GC traversal.
+
 .. raw:: html
 
     <script type="text/javascript" src="https://cdn.bokeh.org/bokeh/release/bokeh-2.3.2.min.js" integrity="XypntL49z55iwGVUW4qsEu83zKL3XEcz0MjuGOQ9SlaaQ68X/g+k1FcioZi7oQAc" crossorigin="anonymous"></script>
