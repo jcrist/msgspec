@@ -5,7 +5,7 @@
     <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
 <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Extending" href="extending.html" /><link rel="prev" title="Usage" href="usage.html" />
 
-    <meta name="generator" content="sphinx-4.4.0, furo 2022.03.04"/>
+    <meta name="generator" content="sphinx-4.5.0, furo 2022.03.04"/>
         <title>Structs</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=935aa2abcc5c1da4283d1dc201fb1f0add16d23a" />
@@ -553,7 +553,7 @@ array, and is used to determine which type in the union to use when decoding.</p
 </div>
 </section>
 <section id="disabling-garbage-collection-advanced">
-<h2>Disabling Garbage Collection (Advanced)<a class="headerlink" href="#disabling-garbage-collection-advanced" title="Permalink to this headline">#</a></h2>
+<span id="struct-nogc"></span><h2>Disabling Garbage Collection (Advanced)<a class="headerlink" href="#disabling-garbage-collection-advanced" title="Permalink to this headline">#</a></h2>
 <div class="admonition warning">
 <p class="admonition-title">Warning</p>
 <p>This is an advanced optimization, and only recommended for users who fully
@@ -593,12 +593,11 @@ structs referencing containers (lists, dicts, structs, …) will.</p>
 </pre></div>
 </div>
 <p>If you <em>are certain</em> that your struct types can <em>never</em> participate in a
-reference cycle, you <em>may</em> find a performance boost from setting <code class="docutils literal notranslate"><span class="pre">nogc=True</span></code>
-on a struct definition. This boost is tricky to measure in isolation, since it
-should only result in the garbage collector not running as frequently - an
-integration benchmark is recommended to determine if this is worthwhile for
-your workload. A workload is likely to benefit from this optimization in the
-following situations:</p>
+reference cycle, you <em>may</em> find a <a class="reference internal" href="benchmarks.html#struct-gc-benchmark"><span class="std std-ref">performance boost</span></a> from setting <code class="docutils literal notranslate"><span class="pre">nogc=True</span></code> on a struct definition. This
+boost is tricky to measure in isolation, since it should only result in the
+garbage collector not running as frequently - an integration benchmark is
+recommended to determine if this is worthwhile for your workload. A workload is
+likely to benefit from this optimization in the following situations:</p>
 <ul class="simple">
 <li><p>You’re allocating a lot of struct objects at once (for example, decoding a
 large object). Setting <code class="docutils literal notranslate"><span class="pre">nogc=True</span></code> on these types will reduce the
