@@ -4945,7 +4945,6 @@ mpack_encode_struct(EncoderState *self, PyObject *obj)
     Py_ssize_t i, nfields, len;
     int tagged, status = -1;
     StructMetaObject *struct_type = (StructMetaObject *)Py_TYPE(obj);
-    bool array_like = struct_type->array_like == OPT_TRUE;
 
     tag_field = struct_type->struct_tag_field;
     tag_value = struct_type->struct_tag_value;
@@ -4956,7 +4955,7 @@ mpack_encode_struct(EncoderState *self, PyObject *obj)
 
     if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
 
-    if (array_like) {
+    if (struct_type->array_like == OPT_TRUE) {
         if (mpack_encode_array_header(self, len, "structs") < 0) return -1;
         if (tagged) {
             if (mpack_encode_str(self, tag_value) < 0) goto cleanup;
@@ -4968,62 +4967,62 @@ mpack_encode_struct(EncoderState *self, PyObject *obj)
             }
         }
     }
-    else if (struct_type->omit_defaults == OPT_TRUE) {
-        Py_ssize_t nunchecked = nfields - PyTuple_GET_SIZE(struct_type->struct_defaults);
-        Py_ssize_t actual_len = len;
-        Py_ssize_t header_offset = self->output_len;
-
-        if (mpack_encode_map_header(self, len, "structs") < 0) return -1;
-        if (tagged) {
-            if (mpack_encode_str(self, tag_field) < 0) goto cleanup;
-            if (mpack_encode_str(self, tag_value) < 0) goto cleanup;
-        }
-
-        for (i = 0; i < nunchecked; i++) {
-            key = PyTuple_GET_ITEM(fields, i);
-            val = Struct_get_index(obj, i);
-            if (val == NULL || mpack_encode_str(self, key) < 0 || mpack_encode(self, val) < 0) {
-                goto cleanup;
-            }
-        }
-        for (i = nunchecked; i < nfields; i++) {
-            key = PyTuple_GET_ITEM(fields, i);
-            val = Struct_get_index(obj, i);
-            if (val == NULL) goto cleanup;
-            PyObject *default_val = PyTuple_GET_ITEM(
-                struct_type->struct_defaults, i - nunchecked
-            );
-            if (!is_default(val, default_val)) {
-                if (mpack_encode_str(self, key) < 0 || mpack_encode(self, val) < 0) goto cleanup;
-            }
-            else {
-                actual_len--;
-            }
-        }
-        if (actual_len != len) {
-            char *header_loc = self->output_buffer_raw + header_offset;
-            if (len < 16) {
-                *header_loc = MP_FIXMAP | actual_len;
-            } else if (len < (1 << 16)) {
-                *header_loc++ = MP_MAP16;
-                _msgspec_store16(header_loc, (uint16_t)actual_len);
-            } else {
-                *header_loc++ = MP_MAP32;
-                _msgspec_store32(header_loc, (uint32_t)actual_len);
-            }
-        }
-    }
     else {
+        Py_ssize_t header_offset = self->output_len;
         if (mpack_encode_map_header(self, len, "structs") < 0) return -1;
+
         if (tagged) {
             if (mpack_encode_str(self, tag_field) < 0) goto cleanup;
             if (mpack_encode_str(self, tag_value) < 0) goto cleanup;
         }
-        for (i = 0; i < nfields; i++) {
-            key = PyTuple_GET_ITEM(fields, i);
-            val = Struct_get_index(obj, i);
-            if (val == NULL || mpack_encode_str(self, key) < 0 || mpack_encode(self, val) < 0) {
-                goto cleanup;
+
+        if (struct_type->omit_defaults == OPT_TRUE) {
+            Py_ssize_t nunchecked = nfields - PyTuple_GET_SIZE(struct_type->struct_defaults);
+            Py_ssize_t actual_len = len;
+
+            for (i = 0; i < nunchecked; i++) {
+                key = PyTuple_GET_ITEM(fields, i);
+                val = Struct_get_index(obj, i);
+                if (val == NULL || mpack_encode_str(self, key) < 0 || mpack_encode(self, val) < 0) {
+                    goto cleanup;
+                }
+            }
+            for (i = nunchecked; i < nfields; i++) {
+                key = PyTuple_GET_ITEM(fields, i);
+                val = Struct_get_index(obj, i);
+                if (val == NULL) goto cleanup;
+                PyObject *default_val = PyTuple_GET_ITEM(
+                    struct_type->struct_defaults, i - nunchecked
+                );
+                if (!is_default(val, default_val)) {
+                    if (mpack_encode_str(self, key) < 0 || mpack_encode(self, val) < 0) goto cleanup;
+                }
+                else {
+                    actual_len--;
+                }
+            }
+            if (actual_len != len) {
+                /* Fixup the header length after we know how many fields were
+                 * actually written */
+                char *header_loc = self->output_buffer_raw + header_offset;
+                if (len < 16) {
+                    *header_loc = MP_FIXMAP | actual_len;
+                } else if (len < (1 << 16)) {
+                    *header_loc++ = MP_MAP16;
+                    _msgspec_store16(header_loc, (uint16_t)actual_len);
+                } else {
+                    *header_loc++ = MP_MAP32;
+                    _msgspec_store32(header_loc, (uint32_t)actual_len);
+                }
+            }
+        }
+        else {
+            for (i = 0; i < nfields; i++) {
+                key = PyTuple_GET_ITEM(fields, i);
+                val = Struct_get_index(obj, i);
+                if (val == NULL || mpack_encode_str(self, key) < 0 || mpack_encode(self, val) < 0) {
+                    goto cleanup;
+                }
             }
         }
     }
@@ -5862,87 +5861,146 @@ cleanup:
 }
 
 static int
-json_encode_struct(EncoderState *self, PyObject *obj)
-{
+json_encode_struct_default(
+    EncoderState *self, StructMetaObject *struct_type, PyObject *obj
+) {
     PyObject *key, *val, *fields, *tag_field, *tag_value;
     Py_ssize_t i, nfields;
-    int tagged, status = -1;
-    StructMetaObject *struct_type = (StructMetaObject *)Py_TYPE(obj);
-
+    int status = -1;
     tag_field = struct_type->struct_tag_field;
     tag_value = struct_type->struct_tag_value;
-    tagged = tag_value != NULL;
     fields = struct_type->struct_fields;
     nfields = PyTuple_GET_SIZE(fields);
 
-    if (struct_type->array_like == OPT_TRUE) {
-        if ((nfields + tagged) == 0) return ms_write(self, "[]", 2);
-        if (ms_write(self, "[", 1) < 0) return -1;
-        if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
-        if (tag_value != NULL) {
-            if (json_encode_str(self, tag_value) < 0) goto cleanup;
-            if (ms_write(self, ",", 1) < 0) goto cleanup;
-        }
-        for (i = 0; i < nfields; i++) {
-            val = Struct_get_index(obj, i);
-            if (val == NULL) goto cleanup;
-            if (json_encode(self, val) < 0) goto cleanup;
-            if (ms_write(self, ",", 1) < 0) goto cleanup;
-        }
-        /* Overwrite trailing comma with ] */
-        *(self->output_buffer_raw + self->output_len - 1) = ']';
+    if (nfields == 0 && tag_value == NULL) return ms_write(self, "{}", 2);
+    if (ms_write(self, "{", 1) < 0) return -1;
+    if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
+    if (tag_value != NULL) {
+        if (json_encode_str(self, tag_field) < 0) goto cleanup;
+        if (ms_write(self, ":", 1) < 0) goto cleanup;
+        if (json_encode_str(self, tag_value) < 0) goto cleanup;
+        if (ms_write(self, ",", 1) < 0) goto cleanup;
     }
-    else {
-        if (ms_write(self, "{", 1) < 0) return -1;
-        Py_ssize_t start_len = self->output_len;
-        if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
-        if (tag_value != NULL) {
-            if (json_encode_str(self, tag_field) < 0) goto cleanup;
-            if (ms_write(self, ":", 1) < 0) goto cleanup;
-            if (json_encode_str(self, tag_value) < 0) goto cleanup;
-            if (ms_write(self, ",", 1) < 0) goto cleanup;
-        }
+    for (i = 0; i < nfields; i++) {
+        key = PyTuple_GET_ITEM(fields, i);
+        val = Struct_get_index(obj, i);
+        if (val == NULL) goto cleanup;
+        if (json_encode_str_nocheck(self, key) < 0) goto cleanup;
+        if (ms_write(self, ":", 1) < 0) goto cleanup;
+        if (json_encode(self, val) < 0) goto cleanup;
+        if (ms_write(self, ",", 1) < 0) goto cleanup;
+    }
+    /* Overwrite trailing comma with } */
+    *(self->output_buffer_raw + self->output_len - 1) = '}';
+    status = 0;
+cleanup:
+    Py_LeaveRecursiveCall();
+    return status;
+}
 
-        Py_ssize_t nunchecked = nfields;
-        if (struct_type->omit_defaults == OPT_TRUE) {
-            nunchecked = nfields - PyTuple_GET_SIZE(struct_type->struct_defaults);
-        }
+static int
+json_encode_struct_omit_defaults(
+    EncoderState *self, StructMetaObject *struct_type, PyObject *obj
+) {
+    PyObject *key, *val, *fields, *defaults, *tag_field, *tag_value;
+    Py_ssize_t i, nfields, nunchecked;
+    int status = -1;
+    tag_field = struct_type->struct_tag_field;
+    tag_value = struct_type->struct_tag_value;
+    fields = struct_type->struct_fields;
+    defaults = struct_type->struct_defaults;
+    nfields = PyTuple_GET_SIZE(fields);
+    nunchecked = nfields - PyTuple_GET_SIZE(defaults);
 
-        for (i = 0; i < nunchecked; i++) {
-            key = PyTuple_GET_ITEM(fields, i);
-            val = Struct_get_index(obj, i);
-            if (val == NULL) goto cleanup;
+    if (ms_write(self, "{", 1) < 0) return -1;
+    Py_ssize_t start_len = self->output_len;
+    if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
+    if (tag_value != NULL) {
+        if (json_encode_str(self, tag_field) < 0) goto cleanup;
+        if (ms_write(self, ":", 1) < 0) goto cleanup;
+        if (json_encode_str(self, tag_value) < 0) goto cleanup;
+        if (ms_write(self, ",", 1) < 0) goto cleanup;
+    }
+
+    for (i = 0; i < nunchecked; i++) {
+        key = PyTuple_GET_ITEM(fields, i);
+        val = Struct_get_index(obj, i);
+        if (val == NULL) goto cleanup;
+        if (json_encode_str_nocheck(self, key) < 0) goto cleanup;
+        if (ms_write(self, ":", 1) < 0) goto cleanup;
+        if (json_encode(self, val) < 0) goto cleanup;
+        if (ms_write(self, ",", 1) < 0) goto cleanup;
+    }
+    for (i = nunchecked; i < nfields; i++) {
+        key = PyTuple_GET_ITEM(fields, i);
+        val = Struct_get_index(obj, i);
+        if (val == NULL) goto cleanup;
+        PyObject *default_val = PyTuple_GET_ITEM(defaults, i - nunchecked);
+        if (!is_default(val, default_val)) {
             if (json_encode_str_nocheck(self, key) < 0) goto cleanup;
             if (ms_write(self, ":", 1) < 0) goto cleanup;
             if (json_encode(self, val) < 0) goto cleanup;
             if (ms_write(self, ",", 1) < 0) goto cleanup;
         }
-        for (i = nunchecked; i < nfields; i++) {
-            key = PyTuple_GET_ITEM(fields, i);
-            val = Struct_get_index(obj, i);
-            if (val == NULL) goto cleanup;
-            PyObject *default_val = PyTuple_GET_ITEM(
-                struct_type->struct_defaults, i - nunchecked
-            );
-            if (!is_default(val, default_val)) {
-                if (json_encode_str_nocheck(self, key) < 0) goto cleanup;
-                if (ms_write(self, ":", 1) < 0) goto cleanup;
-                if (json_encode(self, val) < 0) goto cleanup;
-                if (ms_write(self, ",", 1) < 0) goto cleanup;
-            }
-        }
+    }
+    if (MS_UNLIKELY(start_len == self->output_len)) {
+        /* Empty struct, append "}" */
+        if (ms_write(self, "}", 1) < 0) goto cleanup;
+    }
+    else {
         /* Overwrite trailing comma with } */
-        if (MS_UNLIKELY(start_len == self->output_len)) {
-            if (ms_write(self, "}", 1) < 0) goto cleanup;
-        }
-        else {
-            *(self->output_buffer_raw + self->output_len - 1) = '}';
-        }
+        *(self->output_buffer_raw + self->output_len - 1) = '}';
     }
     status = 0;
 cleanup:
     Py_LeaveRecursiveCall();
     return status;
+}
+
+static int
+json_encode_struct_array_like(
+    EncoderState *self, StructMetaObject *struct_type, PyObject *obj
+) {
+    int status = -1;
+    PyObject *tag_value = struct_type->struct_tag_value;
+    PyObject *fields = struct_type->struct_fields;
+    Py_ssize_t nfields = PyTuple_GET_SIZE(fields);
+
+    if (nfields == 0 && tag_value == NULL) return ms_write(self, "[]", 2);
+    if (ms_write(self, "[", 1) < 0) return -1;
+    if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
+    if (tag_value != NULL) {
+        if (json_encode_str(self, tag_value) < 0) goto cleanup;
+        if (ms_write(self, ",", 1) < 0) goto cleanup;
+    }
+    for (Py_ssize_t i = 0; i < nfields; i++) {
+        PyObject *val = Struct_get_index(obj, i);
+        if (val == NULL) goto cleanup;
+        if (json_encode(self, val) < 0) goto cleanup;
+        if (ms_write(self, ",", 1) < 0) goto cleanup;
+    }
+    /* Overwrite trailing comma with ] */
+    *(self->output_buffer_raw + self->output_len - 1) = ']';
+    status = 0;
+cleanup:
+    Py_LeaveRecursiveCall();
+    return status;
+}
+
+static int
+json_encode_struct(EncoderState *self, PyObject *obj)
+{
+    StructMetaObject *struct_type = (StructMetaObject *)Py_TYPE(obj);
+
+    if (struct_type->array_like == OPT_TRUE) {
+        return json_encode_struct_array_like(self, struct_type, obj);
+    }
+    else if (struct_type->omit_defaults == OPT_TRUE) {
+        return json_encode_struct_omit_defaults(self, struct_type, obj);
+    }
+    else {
+        return json_encode_struct_default(self, struct_type, obj);
+    }
 }
 
 static int
