@@ -497,6 +497,65 @@ for all struct types you wish to tag.</p>
 </pre></div>
 </div>
 </section>
+<section id="omitting-default-values">
+<span id="omit-defaults"></span><h2>Omitting Default Values<a class="headerlink" href="#omitting-default-values" title="Permalink to this headline">#</a></h2>
+<p>By default, <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> encodes all fields in a Struct type, including optional
+fields (those configured with a default value).</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">msgspec</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">User</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="n">name</span> <span class="p">:</span> <span class="nb">str</span>
+<span class="gp">... </span>    <span class="n">email</span> <span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="gp">... </span>    <span class="n">groups</span> <span class="p">:</span> <span class="n">Set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">alice</span> <span class="o">=</span> <span class="n">User</span><span class="p">(</span><span class="s2">"alice"</span><span class="p">)</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">alice</span>  <span class="c1"># email &amp; groups are using the default values</span>
+<span class="go">User(name='alice', email=None, groups=set())</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">alice</span><span class="p">)</span>  <span class="c1"># default values are present in encoded message</span>
+<span class="go">b'{"name":"alice","email":null,"groups":[]}'</span>
+</pre></div>
+</div>
+<p>If the default values are known on the decoding end (making serializing them
+redundant), it may be beneficial and desired to omit default values from the
+encoded message. This can be done by configuring <code class="docutils literal notranslate"><span class="pre">omit_defaults=True</span></code> as part
+of the Struct definition:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">msgspec</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">User</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">omit_defaults</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="n">name</span> <span class="p">:</span> <span class="nb">str</span>
+<span class="gp">... </span>    <span class="n">email</span> <span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="gp">... </span>    <span class="n">groups</span> <span class="p">:</span> <span class="n">Set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">alice</span> <span class="o">=</span> <span class="n">User</span><span class="p">(</span><span class="s2">"alice"</span><span class="p">)</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">alice</span><span class="p">)</span>  <span class="c1"># default values are omitted</span>
+<span class="go">b'{"name":"alice"}'</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">bob</span> <span class="o">=</span> <span class="n">User</span><span class="p">(</span><span class="s2">"bob"</span><span class="p">,</span> <span class="n">email</span><span class="o">=</span><span class="s2">"bob@company.com"</span><span class="p">)</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">bob</span><span class="p">)</span>
+<span class="go">b'{"name":"bob","email":"bob@company.com"}'</span>
+</pre></div>
+</div>
+<p>Omitting defaults reduces the size of the encoded message, and often also
+improves encoding and decoding performance (since there’s less work to do).</p>
+<p>Note that detection of default values is optimized for performance; in certain
+situations a default value may still be encoded. For the curious, the current
+detection logic is as follows:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">def</span> <span class="nf">matches_default</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">default</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="gp">... </span>    <span class="sd">"""Whether a value matches the default for a field"""</span>
+<span class="gp">... </span>    <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="n">default</span><span class="p">:</span>
+<span class="gp">... </span>        <span class="k">return</span> <span class="kc">True</span>
+<span class="gp">... </span>    <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">type</span><span class="p">(</span><span class="n">default</span><span class="p">):</span>
+<span class="gp">... </span>        <span class="k">return</span> <span class="kc">False</span>
+<span class="gp">... </span>    <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="ow">in</span> <span class="p">(</span><span class="nb">list</span><span class="p">,</span> <span class="nb">set</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">default</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">):</span>
+<span class="gp">... </span>        <span class="k">return</span> <span class="kc">True</span>
+<span class="gp">... </span>    <span class="k">return</span> <span class="kc">False</span>
+</pre></div>
+</div>
+</section>
 <section id="encoding-decoding-as-arrays">
 <h2>Encoding/Decoding as Arrays<a class="headerlink" href="#encoding-decoding-as-arrays" title="Permalink to this headline">#</a></h2>
 <p>By default Struct objects encode the same dicts, with both the keys and values
@@ -676,6 +735,7 @@ collected (leading to a memory leak).</p>
 <li><a class="reference internal" href="#pattern-matching">Pattern Matching</a></li>
 <li><a class="reference internal" href="#frozen-instances">Frozen Instances</a></li>
 <li><a class="reference internal" href="#tagged-unions">Tagged Unions</a></li>
+<li><a class="reference internal" href="#omitting-default-values">Omitting Default Values</a></li>
 <li><a class="reference internal" href="#encoding-decoding-as-arrays">Encoding/Decoding as Arrays</a></li>
 <li><a class="reference internal" href="#disabling-garbage-collection-advanced">Disabling Garbage Collection (Advanced)</a></li>
 </ul>

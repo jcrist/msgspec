@@ -336,6 +336,75 @@ for all struct types you wish to tag.
     Get(key='my key')
 
 
+.. _omit_defaults:
+
+Omitting Default Values
+-----------------------
+
+By default, ``msgspec`` encodes all fields in a Struct type, including optional
+fields (those configured with a default value).
+
+.. code-block:: python
+
+    >>> import msgspec
+
+    >>> class User(msgspec.Struct):
+    ...     name : str
+    ...     email : Optional[str] = None
+    ...     groups : Set[str] = set()
+
+    >>> alice = User("alice")
+
+    >>> alice  # email & groups are using the default values
+    User(name='alice', email=None, groups=set())
+
+    >>> msgspec.json.encode(alice)  # default values are present in encoded message
+    b'{"name":"alice","email":null,"groups":[]}'
+
+If the default values are known on the decoding end (making serializing them
+redundant), it may be beneficial and desired to omit default values from the
+encoded message. This can be done by configuring ``omit_defaults=True`` as part
+of the Struct definition:
+
+.. code-block:: python
+
+    >>> import msgspec
+
+    >>> class User(msgspec.Struct, omit_defaults=True):
+    ...     name : str
+    ...     email : Optional[str] = None
+    ...     groups : Set[str] = set()
+
+    >>> alice = User("alice")
+
+    >>> msgspec.json.encode(alice)  # default values are omitted
+    b'{"name":"alice"}'
+
+    >>> bob = User("bob", email="bob@company.com")
+
+    >>> msgspec.json.encode(bob)
+    b'{"name":"bob","email":"bob@company.com"}'
+
+Omitting defaults reduces the size of the encoded message, and often also
+improves encoding and decoding performance (since there's less work to do).
+
+Note that detection of default values is optimized for performance; in certain
+situations a default value may still be encoded. For the curious, the current
+detection logic is as follows:
+
+.. code-block:: python
+
+    >>> def matches_default(value: Any, default: Any) -> bool:
+    ...     """Whether a value matches the default for a field"""
+    ...     if value is default:
+    ...         return True
+    ...     if type(value) != type(default):
+    ...         return False
+    ...     if type(value) in (list, set, dict) and (len(value) == len(default) == 0):
+    ...         return True
+    ...     return False
+
+
 Encoding/Decoding as Arrays
 ---------------------------
 

@@ -235,6 +235,17 @@ They’re <a class="reference internal" href="benchmarks.html#encoding-benchmark
 defining a <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> type (or types) for your schema and preferring that
 over other types like <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a>/<a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#module-dataclasses" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses</span></code></a>/…</p>
 </section>
+<section id="avoid-encoding-default-values">
+<h2>Avoid Encoding Default Values<a class="headerlink" href="#avoid-encoding-default-values" title="Permalink to this headline">#</a></h2>
+<p>By default, <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> encodes all fields in a Struct type, including optional
+fields (those configured with a default value). If the default values are known
+on the decoding end (making serializing them redundant), it may be beneficial
+to omit default values from the encoded message. This can be done by
+configuring <code class="docutils literal notranslate"><span class="pre">omit_defaults=True</span></code> as part of the Struct definition Omitting
+defaults reduces the size of the encoded message, and often also improves
+encoding and decoding performance (since there’s less work to do).</p>
+<p>For more information, see <a class="reference internal" href="structs.html#omit-defaults"><span class="std std-ref">Omitting Default Values</span></a>.</p>
+</section>
 <section id="avoid-decoding-unused-fields">
 <h2>Avoid Decoding Unused Fields<a class="headerlink" href="#avoid-decoding-unused-fields" title="Permalink to this headline">#</a></h2>
 <p>When decoding large inputs, sometimes you’re only interested in a few specific
@@ -489,6 +500,7 @@ average another ~2x speedup for decoding (and ~1.5x speedup for encoding).</p>
 <li><a class="reference internal" href="#">Performance Tips</a><ul>
 <li><a class="reference internal" href="#reuse-encoders-decoders">Reuse Encoders/Decoders</a></li>
 <li><a class="reference internal" href="#use-structs">Use Structs</a></li>
+<li><a class="reference internal" href="#avoid-encoding-default-values">Avoid Encoding Default Values</a></li>
 <li><a class="reference internal" href="#avoid-decoding-unused-fields">Avoid Decoding Unused Fields</a></li>
 <li><a class="reference internal" href="#reduce-allocations">Reduce Allocations</a><ul>
 <li><a class="reference internal" href="#reusing-an-output-buffer">Reusing an output buffer</a></li>

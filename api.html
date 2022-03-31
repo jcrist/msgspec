@@ -224,6 +224,9 @@ directly via <code class="docutils literal notranslate"><span class="pre">tag_fi
 that takes a string (the class name) and returns a new string to use for the
 tag value (for example, to automatically lowercase class names). See the docs
 for more information.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">omit_defaults</span></code>: whether fields should be omitted from encoding if the field
+contains the default value for that field. Enabling this may reduce message
+size, and often also improve encoding &amp; decoding performance.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">array_like</span></code>: whether this type should be treated as an array-like type
 (rather than a dict-like type, the default) when encoding/decoding.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">nogc</span></code>: whether garbage collection is disabled for this class. Enabling,
