@@ -5,7 +5,7 @@ import pytest
 
 api = pytest.importorskip("mypy.api")
 
-PATH = os.path.join(os.path.dirname(__file__), "mypy_examples.py")
+PATH = os.path.join(os.path.dirname(__file__), "basic_typing_examples.py")
 
 
 def get_lineno_type(line):
@@ -25,7 +25,7 @@ def test_mypy():
     lines = stdout.splitlines()
     if any("revealed type" not in l.lower() for l in lines):
         assert False, f"Unexpected mypy error:\n{stdout}"
-    for line in stdout.splitlines():
+    for line in lines:
         lineno, typ = get_lineno_type(line)
         check = ex_lines[lineno - 1].split("#")[1].strip()
         try:

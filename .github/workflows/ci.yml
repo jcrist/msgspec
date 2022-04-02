@@ -27,7 +27,7 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          pip install pytest mypy
+          pip install pytest mypy pyright
 
       - name: Build Msgspec
         run: |
@@ -38,6 +38,9 @@ jobs:
 
       - name: mypy
         run: py.test tests/test_mypy.py
+
+      - name: pyright
+        run: py.test tests/test_pyright.py
 
   build_wheels:
     name: Build wheels on ${{ matrix.os }}
