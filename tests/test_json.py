@@ -18,6 +18,7 @@ from typing import (
     Any,
     List,
     Set,
+    FrozenSet,
     Tuple,
     Union,
     Dict,
@@ -1551,7 +1552,7 @@ class TestFloat:
 
 class TestSequences:
     @pytest.mark.parametrize("x", [[], [1], [1, "two", False]])
-    @pytest.mark.parametrize("type", [list, set, tuple])
+    @pytest.mark.parametrize("type", [list, set, frozenset, tuple])
     def test_roundtrip_sequence(self, x, type):
         x = type(x)
         s = msgspec.json.encode(x)
@@ -1568,7 +1569,7 @@ class TestSequences:
             (b" \t [\n 1 ,  2 \t ]\r  ", [1, 2]),
         ],
     )
-    @pytest.mark.parametrize("type", [list, set, tuple])
+    @pytest.mark.parametrize("type", [list, set, frozenset, tuple])
     def test_decode_sequence_ignores_whitespace(self, s, x, type):
         x2 = msgspec.json.decode(s, type=type)
         assert isinstance(x2, type)
@@ -1585,6 +1586,12 @@ class TestSequences:
         assert dec.decode(b"[]") == set()
         assert dec.decode(b"[1]") == {1}
         assert dec.decode(b"[1,2]") == {1, 2}
+
+    def test_decode_typed_frozenset(self):
+        dec = msgspec.json.Decoder(FrozenSet[int])
+        assert dec.decode(b"[]") == frozenset()
+        assert dec.decode(b"[1]") == frozenset({1})
+        assert dec.decode(b"[1,2]") == frozenset({1, 2})
 
     def test_decode_typed_vartuple(self):
         dec = msgspec.json.Decoder(Tuple[int, ...])
