@@ -3437,6 +3437,12 @@ maybe_deepcopy_default(PyObject *obj) {
         return PySet_New(NULL);
     }
 
+    /* Frozen structs are immutable and can be used without copying */
+    if ((Py_TYPE(type) == &StructMetaType) && ((StructMetaObject *)type)->frozen == OPT_TRUE) {
+        Py_INCREF(obj);
+        return obj;
+    }
+
     MsgspecState *mod = msgspec_get_global_state();
     if (PyType_IsSubtype(type, mod->EnumType)) {
         Py_INCREF(obj);
