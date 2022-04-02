@@ -478,6 +478,11 @@ def test_struct_compare_errors():
         t2 != t
 
 
+class FrozenPoint(Struct, frozen=True):
+    x: int
+    y: int
+
+
 @pytest.mark.parametrize(
     "default",
     [
@@ -498,6 +503,7 @@ def test_struct_compare_errors():
         datetime.date.today(),
         datetime.timedelta(seconds=2),
         datetime.datetime.now(),
+        FrozenPoint(1, 2),
     ],
 )
 def test_struct_immutable_defaults_use_instance(default):
