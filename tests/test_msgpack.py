@@ -11,6 +11,7 @@ import sys
 from typing import (
     Dict,
     Set,
+    FrozenSet,
     List,
     Tuple,
     Optional,
@@ -732,29 +733,37 @@ class TestTypedDecoder:
             dec.decode(enc.encode([1, 2, "three"]))
 
     @pytest.mark.parametrize("size", SIZES)
-    def test_set_lengths(self, size):
+    @pytest.mark.parametrize("typ", [set, frozenset])
+    def test_set_lengths(self, size, typ):
         enc = msgspec.msgpack.Encoder()
-        dec = msgspec.msgpack.Decoder(set)
-        x = set(range(size))
+        dec = msgspec.msgpack.Decoder(typ)
+        x = typ(range(size))
         res = dec.decode(enc.encode(x))
         assert res == x
+        assert isinstance(res, typ)
 
-    @pytest.mark.parametrize("typ", [set, Set, Set[Any]])
+    @pytest.mark.parametrize(
+        "typ", [set, Set, Set[Any], frozenset, FrozenSet, FrozenSet[Any]]
+    )
     def test_set_any(self, typ):
         enc = msgspec.msgpack.Encoder()
         dec = msgspec.msgpack.Decoder(typ)
+        real_type = getattr(typ, "__origin__", typ)
         x = {1, "two", b"three"}
         res = dec.decode(enc.encode(x))
         assert res == x
+        assert type(res) is real_type
         with pytest.raises(msgspec.DecodeError, match="Expected `array`"):
             dec.decode(enc.encode(1))
 
-    def test_set_typed(self):
+    @pytest.mark.parametrize("typ", [Set, FrozenSet])
+    def test_set_typed(self, typ):
         enc = msgspec.msgpack.Encoder()
-        dec = msgspec.msgpack.Decoder(Set[int])
+        dec = msgspec.msgpack.Decoder(typ[int])
         x = {1, 2, 3}
         res = dec.decode(enc.encode(x))
         assert res == x
+        assert type(res) is typ.__origin__
         with pytest.raises(
             msgspec.DecodeError,
             match=r"Expected `int`, got `str` - at `\$\[2\]`",
@@ -986,6 +995,7 @@ class TestTypedDecoder:
             (List[Optional[int]], [1, None]),
             (Tuple[Optional[int], int], (None, 1)),
             (Set[Optional[int]], {1, None}),
+            (FrozenSet[Optional[int]], frozenset({1, None})),
             (Dict[str, Optional[int]], {"a": 1, "b": None}),
             (Dict[Optional[str], int], {"a": 1, None: 2}),
         ],

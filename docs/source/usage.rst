@@ -109,6 +109,7 @@ Most combinations of the following types are supported (see
 - `list` / `typing.List`
 - `dict` / `typing.Dict`
 - `set` / `typing.Set`
+- `frozenset` / `typing.FrozenSet`
 - `datetime.datetime`
 - `typing.Any`
 - `typing.Optional`
@@ -395,12 +396,12 @@ to UTC.
       File "<stdin>", line 1, in <module>
     msgspec.DecodeError: Invalid RFC3339 encoded datetime
 
-``list`` / ``tuple`` / ``set``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``list`` / ``tuple`` / ``set`` / ``frozenset``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-`list`, `tuple`, and `set` objects map to arrays in both JSON and MessagePack.
-An error is raised if the elements don't match the specified element type (if
-provided).
+`list`, `tuple`, `set`, and `frozenset` objects map to arrays in both JSON and
+MessagePack.  An error is raised if the elements don't match the specified
+element type (if provided).
 
 .. code-block:: python
 
@@ -591,8 +592,8 @@ Union restrictions are as follows:
 
 - Unions may contain at most one of `dict` / `Struct` (with ``array_like=False``)
 
-- Unions may contain at most one of `list` / `tuple` / `set` / `Struct` (with
-  ``array_like=True``).
+- Unions may contain at most one of `list` / `tuple` / `set` / `frozenset` /
+  `Struct` (with ``array_like=True``).
 
 - Unions with custom types are unsupported beyond optionality (i.e.
   ``Optional[CustomType]``)

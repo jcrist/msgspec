@@ -336,6 +336,7 @@ typedef struct {
     PyObject *str___args__;
     PyObject *typing_list;
     PyObject *typing_set;
+    PyObject *typing_frozenset;
     PyObject *typing_tuple;
     PyObject *typing_dict;
     PyObject *typing_union;
@@ -1233,10 +1234,11 @@ static PyTypeObject Raw_Type = {
 #define MS_TYPE_DICT                (1u << 18)
 #define MS_TYPE_LIST                (1u << 19)
 #define MS_TYPE_SET                 (1u << 20)
-#define MS_TYPE_VARTUPLE            (1u << 21)
-#define MS_TYPE_FIXTUPLE            (1u << 22)
-#define MS_TYPE_INTLITERAL          (1u << 23)
-#define MS_TYPE_STRLITERAL          (1u << 24)
+#define MS_TYPE_FROZENSET           (1u << 21)
+#define MS_TYPE_VARTUPLE            (1u << 22)
+#define MS_TYPE_FIXTUPLE            (1u << 23)
+#define MS_TYPE_INTLITERAL          (1u << 24)
+#define MS_TYPE_STRLITERAL          (1u << 25)
 
 typedef struct TypeNode {
     uint32_t types;
@@ -1297,7 +1299,7 @@ TypeNode_get_size(TypeNode *type, Py_ssize_t *n_typenode) {
         );
         if (type->types & MS_TYPE_DICT) n_type += 2;
         /* Only one array generic is allowed in a union */
-        if (type->types & (MS_TYPE_LIST | MS_TYPE_SET | MS_TYPE_VARTUPLE)) n_type++;
+        if (type->types & (MS_TYPE_LIST | MS_TYPE_SET | MS_TYPE_FROZENSET | MS_TYPE_VARTUPLE)) n_type++;
         if (type->types & MS_TYPE_FIXTUPLE) n_type += ((TypeNodeExtra *)type)->fixtuple_size;
     }
     *n_typenode = n_type;
@@ -1446,7 +1448,13 @@ typenode_simple_repr(TypeNode *self) {
     if (self->types & (MS_TYPE_STRUCT | MS_TYPE_STRUCT_UNION | MS_TYPE_DICT)) {
         if (!strbuilder_extend(&builder, "object", 6)) return NULL;
     }
-    if (self->types & (MS_TYPE_STRUCT_ARRAY | MS_TYPE_STRUCT_ARRAY_UNION | MS_TYPE_LIST | MS_TYPE_SET | MS_TYPE_VARTUPLE | MS_TYPE_FIXTUPLE)) {
+    if (
+        self->types & (
+            MS_TYPE_STRUCT_ARRAY | MS_TYPE_STRUCT_ARRAY_UNION |
+            MS_TYPE_LIST | MS_TYPE_SET | MS_TYPE_FROZENSET |
+            MS_TYPE_VARTUPLE | MS_TYPE_FIXTUPLE
+        )
+    ) {
         if (!strbuilder_extend(&builder, "array", 5)) return NULL;
     }
     if (self->types & MS_TYPE_NONE) {
@@ -2262,6 +2270,9 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
     else if (obj == (PyObject*)(&PySet_Type) || obj == state->mod->typing_set) {
         return typenode_collect_array(state, MS_TYPE_SET, state->mod->typing_any);
     }
+    else if (obj == (PyObject*)(&PyFrozenSet_Type) || obj == state->mod->typing_frozenset) {
+        return typenode_collect_array(state, MS_TYPE_FROZENSET, state->mod->typing_any);
+    }
     else if (obj == (PyObject*)(&PyTuple_Type) || obj == state->mod->typing_tuple) {
         return typenode_collect_array(state, MS_TYPE_VARTUPLE, state->mod->typing_any);
     }
@@ -2313,6 +2324,13 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
         if (PyTuple_Size(args) != 1) goto invalid;
         out = typenode_collect_array(
             state, MS_TYPE_SET, PyTuple_GET_ITEM(args, 0)
+        );
+        goto done;
+    }
+    else if (origin == (PyObject*)(&PyFrozenSet_Type)) {
+        if (PyTuple_Size(args) != 1) goto invalid;
+        out = typenode_collect_array(
+            state, MS_TYPE_FROZENSET, PyTuple_GET_ITEM(args, 0)
         );
         goto done;
     }
@@ -5250,7 +5268,7 @@ mpack_encode(EncoderState *self, PyObject *obj)
     else if (type == &PyList_Type) {
         return mpack_encode_list(self, obj);
     }
-    else if (type == &PySet_Type) {
+    else if (type == &PySet_Type || type == &PyFrozenSet_Type) {
         return mpack_encode_set(self, obj);
     }
     else if (type == &PyTuple_Type) {
@@ -6043,7 +6061,7 @@ json_encode(EncoderState *self, PyObject *obj)
     else if (type == &PyTuple_Type) {
         return json_encode_tuple(self, obj);
     }
-    else if (type == &PySet_Type) {
+    else if (type == &PySet_Type || type == &PyFrozenSet_Type) {
         return json_encode_set(self, obj);
     }
     else if (type == &PyDict_Type) {
@@ -6742,12 +6760,12 @@ mpack_decode_list(
 
 static PyObject *
 mpack_decode_set(
-    DecoderState *self, Py_ssize_t size, TypeNode *el_type, PathNode *path
+    DecoderState *self, bool mutable, Py_ssize_t size, TypeNode *el_type, PathNode *path
 ) {
     Py_ssize_t i;
     PyObject *res, *item;
 
-    res = PySet_New(NULL);
+    res = mutable ? PySet_New(NULL) : PyFrozenSet_New(NULL);
     if (res == NULL) return NULL;
     if (size == 0) return res;
 
@@ -6980,8 +6998,10 @@ mpack_decode_array(
     else if (type->types & MS_TYPE_LIST) {
         return mpack_decode_list(self, size, TypeNode_get_array(type), path);
     }
-    else if (type->types & MS_TYPE_SET) {
-        return mpack_decode_set(self, size, TypeNode_get_array(type), path);
+    else if (type->types & (MS_TYPE_SET | MS_TYPE_FROZENSET)) {
+        return mpack_decode_set(
+            self, type->types & MS_TYPE_SET, size, TypeNode_get_array(type), path
+        );
     }
     else if (type->types & MS_TYPE_VARTUPLE) {
         return mpack_decode_vartuple(self, size, TypeNode_get_array(type), path, is_key);
@@ -8338,7 +8358,9 @@ error:
 }
 
 static PyObject *
-json_decode_set(JSONDecoderState *self, TypeNode *el_type, PathNode *path) {
+json_decode_set(
+    JSONDecoderState *self, bool mutable, TypeNode *el_type, PathNode *path
+) {
     PyObject *out, *item = NULL;
     unsigned char c;
     bool first = true;
@@ -8346,7 +8368,7 @@ json_decode_set(JSONDecoderState *self, TypeNode *el_type, PathNode *path) {
 
     self->input_pos++; /* Skip '[' */
 
-    out = PySet_New(NULL);
+    out = mutable ? PySet_New(NULL) : PyFrozenSet_New(NULL);
     if (out == NULL) return NULL;
     if (Py_EnterRecursiveCall(" while deserializing an object")) {
         Py_DECREF(out);
@@ -8699,8 +8721,10 @@ json_decode_array(
     else if (type->types & MS_TYPE_LIST) {
         return json_decode_list(self, TypeNode_get_array(type), path);
     }
-    else if (type->types & MS_TYPE_SET) {
-        return json_decode_set(self, TypeNode_get_array(type), path);
+    else if (type->types & (MS_TYPE_SET | MS_TYPE_FROZENSET)) {
+        return json_decode_set(
+            self, type->types & MS_TYPE_SET, TypeNode_get_array(type), path
+        );
     }
     else if (type->types & MS_TYPE_VARTUPLE) {
         return json_decode_vartuple(self, TypeNode_get_array(type), path);
@@ -9877,6 +9901,7 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->typing_dict);
     Py_CLEAR(st->typing_list);
     Py_CLEAR(st->typing_set);
+    Py_CLEAR(st->typing_frozenset);
     Py_CLEAR(st->typing_tuple);
     Py_CLEAR(st->typing_union);
     Py_CLEAR(st->typing_any);
@@ -9922,6 +9947,7 @@ msgspec_traverse(PyObject *m, visitproc visit, void *arg)
     Py_VISIT(st->typing_dict);
     Py_VISIT(st->typing_list);
     Py_VISIT(st->typing_set);
+    Py_VISIT(st->typing_frozenset);
     Py_VISIT(st->typing_tuple);
     Py_VISIT(st->typing_union);
     Py_VISIT(st->typing_any);
@@ -10069,6 +10095,7 @@ PyInit__core(void)
     if (temp_module == NULL) return NULL;
     SET_REF(typing_list, "List");
     SET_REF(typing_set, "Set");
+    SET_REF(typing_frozenset, "FrozenSet");
     SET_REF(typing_tuple, "Tuple");
     SET_REF(typing_dict, "Dict");
     SET_REF(typing_union, "Union");
