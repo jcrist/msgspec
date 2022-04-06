@@ -472,7 +472,7 @@ generating `Struct` types to match an existing API.
         ...
     }
 
-    # Use pass `.get` method to `rename` to explicitly rename all fields
+    # Pass `.get` method to `rename` to explicitly rename all fields
     class V1PodSpec(msgspec.Struct, rename=v1podspec_names.get):
         ...
         service_account_name: str = ""
