@@ -3060,7 +3060,7 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
     }
     if (arg_tag != NULL && arg_tag != Py_None) { tag_temp = arg_tag; }
     if (arg_tag_field != NULL && arg_tag_field != Py_None) { tag_field_temp = arg_tag_field; }
-    if (arg_rename != NULL && arg_rename != Py_None) { rename = arg_rename; }
+    if (arg_rename != NULL ) { rename = arg_rename == Py_None ? NULL : arg_rename; }
     frozen = STRUCT_MERGE_OPTIONS(frozen, arg_frozen);
     array_like = STRUCT_MERGE_OPTIONS(array_like, arg_array_like);
     nogc = STRUCT_MERGE_OPTIONS(nogc, arg_nogc);
