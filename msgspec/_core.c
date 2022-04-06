@@ -2840,6 +2840,8 @@ rename_pascal(PyObject *field) {
     return rename_camel_inner(field, true);
 }
 
+static int json_str_requires_escaping(PyObject *);
+
 static PyObject *
 StructMeta_rename_fields(PyObject *fields, PyObject *rename)
 {
@@ -2849,7 +2851,7 @@ StructMeta_rename_fields(PyObject *fields, PyObject *rename)
         return fields;
     }
 
-    PyObject *out = NULL;
+    PyObject *out = NULL, *out_set = NULL;
 
     if (PyUnicode_CheckExact(rename)) {
         PyObject* (*method)(PyObject *);
@@ -2873,10 +2875,7 @@ StructMeta_rename_fields(PyObject *fields, PyObject *rename)
         if (out == NULL) return NULL;
         for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(fields); i++) {
             PyObject *temp = method(PyTuple_GET_ITEM(fields, i));
-            if (temp == NULL) {
-                Py_DECREF(out);
-                return NULL;
-            }
+            if (temp == NULL) goto error;
             PyTuple_SET_ITEM(out, i, temp);
         }
     }
@@ -2885,19 +2884,15 @@ StructMeta_rename_fields(PyObject *fields, PyObject *rename)
         if (out == NULL) return NULL;
         for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(fields); i++) {
             PyObject *temp = CALL_ONE_ARG(rename, PyTuple_GET_ITEM(fields, i));
-            if (temp == NULL) {
-                Py_DECREF(out);
-                return NULL;
-            }
-            else if (!PyUnicode_CheckExact(temp)) {
+            if (temp == NULL) goto error;
+            if (!PyUnicode_CheckExact(temp)) {
                 PyErr_Format(
                     PyExc_TypeError,
                     "Expected calling `rename` to return a `str`, got `%.200s`",
                     Py_TYPE(temp)->tp_name
                 );
                 Py_DECREF(temp);
-                Py_DECREF(out);
-                return NULL;
+                goto error;
             }
             PyTuple_SET_ITEM(out, i, temp);
         }
@@ -2908,24 +2903,41 @@ StructMeta_rename_fields(PyObject *fields, PyObject *rename)
     }
 
     /* Ensure that renamed fields don't collide */
-    PyObject *out_set = PySet_New(out);
-    if (out_set == NULL) {
-        Py_DECREF(out);
-        return NULL;
-    }
+    out_set = PySet_New(out);
+    if (out_set == NULL) goto error;
     if (PySet_GET_SIZE(out_set) != PyTuple_GET_SIZE(out)) {
         PyErr_SetString(
             PyExc_ValueError,
             "Multiple fields rename to the same name, field names "
             "must be unique"
         );
-        Py_DECREF(out);
-        Py_DECREF(out_set);
-        return NULL;
+        goto error;
     }
     Py_DECREF(out_set);
 
+    /* Ensure all renamed fields contain characters that don't require quoting
+     * in JSON. This isn't strictly required, but usage of such characters is
+     * extremely unlikely, and forbidding this allows us to optimize encoding */
+    for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(out); i++) {
+        PyObject *field = PyTuple_GET_ITEM(out, i);
+        Py_ssize_t status = json_str_requires_escaping(field);
+        if (status == -1) goto error;
+        if (status == 1) {
+            PyErr_Format(
+                PyExc_ValueError,
+                "Renamed field names must not contain '\\', '\"', or control characters "
+                "('\\u0000' to '\\u001F') - '%U' is invalid",
+                field
+            );
+            goto error;
+        }
+    }
+
     return out;
+error:
+    Py_XDECREF(out);
+    Py_XDECREF(out_set);
+    return NULL;
 }
 
 static PyObject *
@@ -5721,6 +5733,20 @@ json_write_str_fragment(
         if (MS_UNLIKELY(ms_write(self, escaped, 2) < 0)) return -1;
     }
     return i + 1;
+}
+
+static int
+json_str_requires_escaping(PyObject *obj) {
+    Py_ssize_t i, len;
+    const char* buf = unicode_str_and_size(obj, &len);
+    if (buf == NULL) return -1;
+    for (i = 0; i < len; i++) {
+        char escape = escape_table[(uint8_t)buf[i]];
+        if (escape != 0) {
+            return 1;
+        }
+    }
+    return 0;
 }
 
 static int

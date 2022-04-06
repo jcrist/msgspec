@@ -1018,6 +1018,16 @@ class TestRename:
                 aa2: int
                 ab1: int
 
+    @pytest.mark.parametrize("field", ["foo\\bar", 'foo"bar', "foo\tbar"])
+    def test_rename_field_invalid_characters(self, field):
+        with pytest.raises(ValueError) as rec:
+
+            class Test(Struct, rename=lambda x: field):
+                x: int
+
+        assert field in str(rec.value)
+        assert "must not contain" in str(rec.value)
+
     def test_rename_fields_only_used_for_encode_and_decode(self):
         """Check that the renamed fields don't show up elsewhere"""
 
