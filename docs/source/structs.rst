@@ -405,6 +405,81 @@ detection logic is as follows:
     ...     return False
 
 
+Renaming Field Names
+--------------------
+
+Sometimes you want the field name used in the encoded message to differ from
+the name used your Python code. Perhaps you want a ``camelCase`` naming
+convention in your JSON messages, but to use ``snake_case`` field names in
+Python.
+
+To handle this, ``msgspec`` supports a ``rename`` configuration option in
+`Struct` definitions. This can take a few different values:
+
+- ``None``: the default, no field renaming (``example_field``)
+- ``"lower"``: lowercase all fields (``example_field``)
+- ``"upper"``: uppercase all fields (``EXAMPLE_FIELD``)
+- ``"camel"``: camelCase all fields (``exampleField``)
+- ``"pascal"``: PascalCase all fields (``ExampleField``)
+- A callable (signature ``rename(name: str) -> str``) to use to rename all
+  field names
+
+The renamed field names are used for encoding and decoding only, any python
+code will still refer to them using their original names.
+
+.. code-block:: python
+
+    >>> import msgspec
+
+    >>> class Example(msgspec.Struct, rename="camel"):
+    ...     """A struct with fields renamed using camelCase"""
+    ...     field_one: int
+    ...     field_two: str
+
+    >>> # Python code uses the original field names
+    ... ex = Example(1, field_two="two")
+
+    >>> # Encoded messages use the renamed field names
+    ... msgspec.json.encode(ex)
+    b'{"fieldOne":1,"fieldTwo":"two"}'
+
+    >>> # Decoding uses the renamed field names
+    ... msgspec.json.decode(b'{"fieldOne": 3, "fieldTwo": "four"}', type=Example)
+    Example(field_one=3, field_two='four')
+
+    >>> # Decoding errors also use the renamed field names
+    ... msgspec.json.decode(b'{"fieldOne": 5}', type=Example)
+    Traceback (most recent call last):
+      File "<stdin>", line 1, in <module>
+    msgspec.DecodeError: Object missing required field `fieldTwo`
+
+
+Note that if renaming to camelCase, you may run into issues if your field names
+contain acronyms (e.g. ``FQDN`` in ``setHostnameAsFQDN``). Some JSON style
+guides prefer to fully-uppercase these components (``FQDN``), but ``msgspec``
+has no way to know if a component is an acroynm or not (and so will result in
+``Fqdn``). As such, we recommend using an explicit dict mapping for renaming if
+generating `Struct` types to match an existing API.
+
+.. code-block:: python
+
+    # https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.19/#podspec-v1-core
+    # An explicit mapping from python name -> JSON field name
+    v1podspec_names = {
+        ...
+        "service_account_name": "serviceAccountName",
+        "set_hostname_as_fqdn": "setHostnameAsFQDN",
+        ...
+    }
+
+    # Use pass `.get` method to `rename` to explicitly rename all fields
+    class V1PodSpec(msgspec.Struct, rename=v1podspec_names.get):
+        ...
+        service_account_name: str = ""
+        set_hostname_as_fqdn: bool = False
+        ...
+
+
 Encoding/Decoding as Arrays
 ---------------------------
 
