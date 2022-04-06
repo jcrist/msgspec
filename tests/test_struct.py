@@ -1028,6 +1028,25 @@ class TestRename:
         assert field in str(rec.value)
         assert "must not contain" in str(rec.value)
 
+    def test_rename_inherit(self):
+        class Base(Struct, rename="upper"):
+            pass
+
+        class Test1(Base):
+            x: int
+
+        assert Test1.__struct_encode_fields__ == ("X",)
+
+        class Test2(Base, rename="camel"):
+            my_field: int
+
+        assert Test2.__struct_encode_fields__ == ("myField",)
+
+        class Test3(Base, rename=None):
+            my_field: int
+
+        assert Test3.__struct_encode_fields__ == ("my_field",)
+
     def test_rename_fields_only_used_for_encode_and_decode(self):
         """Check that the renamed fields don't show up elsewhere"""
 
