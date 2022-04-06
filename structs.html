@@ -615,7 +615,7 @@ generating <code class="xref py py-obj docutils literal notranslate"><span class
     <span class="o">...</span>
 <span class="p">}</span>
 
-<span class="c1"># Use pass `.get` method to `rename` to explicitly rename all fields</span>
+<span class="c1"># Pass `.get` method to `rename` to explicitly rename all fields</span>
 <span class="k">class</span> <span class="nc">V1PodSpec</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">rename</span><span class="o">=</span><span class="n">v1podspec_names</span><span class="o">.</span><span class="n">get</span><span class="p">):</span>
     <span class="o">...</span>
     <span class="n">service_account_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span>
