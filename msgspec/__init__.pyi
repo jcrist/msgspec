@@ -1,5 +1,5 @@
 from typing import Type
-from typing import Callable, Tuple, Any, Union, TypeVar, ClassVar, overload
+from typing import Callable, Tuple, Any, Union, TypeVar, ClassVar, Literal, overload
 
 # Use `__dataclass_transform__` to catch more errors under pyright. Since we don't expose
 # the underlying metaclass, hide it under an underscore name. See
@@ -29,6 +29,9 @@ class Struct(metaclass=__StructMeta):
         tag: Union[None, bool, str, Callable[[str], str]] = None,
         tag_field: Union[None, str] = None,
         omit_defaults: bool = False,
+        rename: Union[
+            None, Literal["lower", "upper", "camel", "pascal"], Callable[[str], str]
+        ] = None,
         frozen: bool = False,
         array_like: bool = False,
         nogc: bool = False,

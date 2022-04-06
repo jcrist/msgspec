@@ -903,3 +903,32 @@ class TestStructOmitDefaults:
         for obj, sol in cases:
             res = proto.decode(proto.encode(obj))
             assert res == sol
+
+
+class PointUpper(msgspec.Struct, rename="upper"):
+    x: int
+    y: int
+
+
+class TestStructRename:
+    def test_rename_encode_struct(self, proto):
+        res = proto.encode(PointUpper(1, 2))
+        exp = proto.encode({"X": 1, "Y": 2})
+        assert res == exp
+
+    def test_rename_decode_struct(self, proto):
+        msg = proto.encode({"X": 1, "Y": 2})
+        res = proto.decode(msg, type=PointUpper)
+        assert res == PointUpper(1, 2)
+
+    def test_rename_decode_struct_wrong_type(self, proto):
+        msg = proto.encode({"X": 1, "Y": "bad"})
+        with pytest.raises(msgspec.DecodeError) as rec:
+            proto.decode(msg, type=PointUpper)
+        assert "Expected `int`, got `str` - at `$.Y`" == str(rec.value)
+
+    def test_rename_decode_struct_missing_field(self, proto):
+        msg = proto.encode({"X": 1})
+        with pytest.raises(msgspec.DecodeError) as rec:
+            proto.decode(msg, type=PointUpper)
+        assert "Object missing required field `Y`" == str(rec.value)
