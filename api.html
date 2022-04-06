@@ -227,6 +227,11 @@ for more information.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">omit_defaults</span></code>: whether fields should be omitted from encoding if the field
 contains the default value for that field. Enabling this may reduce message
 size, and often also improve encoding &amp; decoding performance.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">rename</span></code>: controls renaming the field names used when encoding/decoding the
+struct. May be one of <code class="docutils literal notranslate"><span class="pre">"lower"</span></code>, <code class="docutils literal notranslate"><span class="pre">"upper"</span></code>, <code class="docutils literal notranslate"><span class="pre">"camel"</span></code>, or
+<code class="docutils literal notranslate"><span class="pre">"pascal"</span></code> to rename in lowercase, UPPERCASE, camelCase, or PascalCase
+respectively. May also be a callable that takes a string (the field name) and
+returns a new string. Default is <code class="docutils literal notranslate"><span class="pre">None</span></code> for no field renaming.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">array_like</span></code>: whether this type should be treated as an array-like type
 (rather than a dict-like type, the default) when encoding/decoding.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">nogc</span></code>: whether garbage collection is disabled for this class. Enabling,
