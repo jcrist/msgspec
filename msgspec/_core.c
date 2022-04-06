@@ -1255,10 +1255,12 @@ typedef struct {
     PyObject *struct_fields;
     PyObject *struct_defaults;
     Py_ssize_t *struct_offsets;
+    PyObject *struct_encode_fields;
     TypeNode **struct_types;
     PyObject *struct_tag_field;  /* str or NULL */
     PyObject *struct_tag_value;  /* str or NULL */
     PyObject *struct_tag;        /* True, str, or NULL */
+    PyObject *rename;
     bool json_compatible;
     bool traversing;
     char frozen;
@@ -2448,7 +2450,8 @@ PathNode_ErrSuffix(PathNode *path) {
             }
             else {
                 name = PyTuple_GET_ITEM(
-                    StructMeta_GET_FIELDS(path->object), path->index
+                    ((StructMetaObject *)(path->object))->struct_encode_fields,
+                    path->index
                 );
             }
             if (!strbuilder_extend(&parts, ".", 1)) goto cleanup;
@@ -2724,11 +2727,11 @@ StructMeta_get_field_index(
 ) {
     const char *field;
     Py_ssize_t nfields, field_size, i, ind, offset = *pos;
-    nfields = PyTuple_GET_SIZE(self->struct_fields);
+    nfields = PyTuple_GET_SIZE(self->struct_encode_fields);
     for (i = 0; i < nfields; i++) {
         ind = (i + offset) % nfields;
         field = unicode_str_and_size(
-            PyTuple_GET_ITEM(self->struct_fields, ind), &field_size
+            PyTuple_GET_ITEM(self->struct_encode_fields, ind), &field_size
         );
         if (field == NULL) return -1;
         if (key_size == field_size && memcmp(key, field, key_size) == 0) {
@@ -2778,6 +2781,153 @@ Struct_setattro_default(PyObject *self, PyObject *key, PyObject *value) {
     return 0;
 }
 
+static PyObject*
+rename_lower(PyObject *field) {
+    return PyObject_CallMethod(field, "lower", NULL);
+}
+
+static PyObject*
+rename_upper(PyObject *field) {
+    return PyObject_CallMethod(field, "upper", NULL);
+}
+
+static PyObject*
+rename_camel_inner(PyObject *field, bool cap_first) {
+    PyObject *parts = NULL, *out = NULL, *empty = NULL;
+    PyObject *underscore = PyUnicode_FromStringAndSize("_", 1);
+    if (underscore == NULL) return NULL;
+
+    parts = PyUnicode_Split(field, underscore, -1);
+    if (parts == NULL) goto cleanup;
+
+    if (PyList_GET_SIZE(parts) == 1) {
+        Py_INCREF(field);
+        out = field;
+        goto cleanup;
+    }
+
+    bool first = true;
+    for (Py_ssize_t i = 0; i < PyList_GET_SIZE(parts); i++) {
+        PyObject *part = PyList_GET_ITEM(parts, i);
+        if (PyUnicode_GET_LENGTH(part) == 0) continue;
+        if (!first || cap_first) {
+            /* convert part to title case, inplace in the list */
+            PyObject *part_title = PyObject_CallMethod(part, "title", NULL);
+            if (part_title == NULL) goto cleanup;
+            PyList_SET_ITEM(parts, i, part_title);
+            Py_DECREF(part);
+        }
+        first = false;
+    }
+    empty = PyUnicode_FromString("");
+    if (empty == NULL) goto cleanup;
+    out = PyUnicode_Join(empty, parts);
+
+cleanup:
+    Py_XDECREF(empty);
+    Py_XDECREF(underscore);
+    Py_XDECREF(parts);
+    return out;
+}
+
+static PyObject*
+rename_camel(PyObject *field) {
+    return rename_camel_inner(field, false);
+}
+
+static PyObject*
+rename_pascal(PyObject *field) {
+    return rename_camel_inner(field, true);
+}
+
+static PyObject *
+StructMeta_rename_fields(PyObject *fields, PyObject *rename)
+{
+    if (rename == NULL) {
+        /* Nothing to do, use original field tuple */
+        Py_INCREF(fields);
+        return fields;
+    }
+
+    PyObject *out = NULL;
+
+    if (PyUnicode_CheckExact(rename)) {
+        PyObject* (*method)(PyObject *);
+        if (PyUnicode_CompareWithASCIIString(rename, "lower") == 0) {
+            method = &rename_lower;
+        }
+        else if (PyUnicode_CompareWithASCIIString(rename, "upper") == 0) {
+            method = &rename_upper;
+        }
+        else if (PyUnicode_CompareWithASCIIString(rename, "camel") == 0) {
+            method = &rename_camel;
+        }
+        else if (PyUnicode_CompareWithASCIIString(rename, "pascal") == 0) {
+            method = &rename_pascal;
+        }
+        else {
+            PyErr_Format(PyExc_ValueError, "rename='%U' is unsupported", rename);
+            return NULL;
+        }
+        out = PyTuple_New(PyTuple_GET_SIZE(fields));
+        if (out == NULL) return NULL;
+        for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(fields); i++) {
+            PyObject *temp = method(PyTuple_GET_ITEM(fields, i));
+            if (temp == NULL) {
+                Py_DECREF(out);
+                return NULL;
+            }
+            PyTuple_SET_ITEM(out, i, temp);
+        }
+    }
+    else if (PyCallable_Check(rename)) {
+        out = PyTuple_New(PyTuple_GET_SIZE(fields));
+        if (out == NULL) return NULL;
+        for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(fields); i++) {
+            PyObject *temp = CALL_ONE_ARG(rename, PyTuple_GET_ITEM(fields, i));
+            if (temp == NULL) {
+                Py_DECREF(out);
+                return NULL;
+            }
+            else if (!PyUnicode_CheckExact(temp)) {
+                PyErr_Format(
+                    PyExc_TypeError,
+                    "Expected calling `rename` to return a `str`, got `%.200s`",
+                    Py_TYPE(temp)->tp_name
+                );
+                Py_DECREF(temp);
+                Py_DECREF(out);
+                return NULL;
+            }
+            PyTuple_SET_ITEM(out, i, temp);
+        }
+    }
+    else {
+        PyErr_SetString(PyExc_TypeError, "`rename` must be a str or a callable");
+        return NULL;
+    }
+
+    /* Ensure that renamed fields don't collide */
+    PyObject *out_set = PySet_New(out);
+    if (out_set == NULL) {
+        Py_DECREF(out);
+        return NULL;
+    }
+    if (PySet_GET_SIZE(out_set) != PyTuple_GET_SIZE(out)) {
+        PyErr_SetString(
+            PyExc_ValueError,
+            "Multiple fields rename to the same name, field names "
+            "must be unique"
+        );
+        Py_DECREF(out);
+        Py_DECREF(out_set);
+        return NULL;
+    }
+    Py_DECREF(out_set);
+
+    return out;
+}
+
 static PyObject *
 StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
 {
@@ -2789,23 +2939,27 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
     PyObject *default_val, *field;
     Py_ssize_t nfields, ndefaults, i, j, k;
     Py_ssize_t *offsets = NULL, *base_offsets;
+    PyObject *encode_fields = NULL;
     PyObject *tag_field_temp = NULL, *tag_temp = NULL, *arg_tag_field = NULL, *arg_tag = NULL;
     PyObject *tag = NULL, *tag_field = NULL,  *tag_value = NULL;
     int arg_frozen = -1, frozen = -1;
     int arg_array_like = -1, array_like = -1;
     int arg_nogc = -1, nogc = -1;
     int arg_omit_defaults = -1, omit_defaults = -1;
+    PyObject *arg_rename = NULL, *rename = NULL;
 
     static char *kwlist[] = {
-        "name", "bases", "dict", "tag_field", "tag", "frozen", "array_like", "nogc", "omit_defaults", NULL
+        "name", "bases", "dict",
+        "tag_field", "tag", "frozen", "array_like",
+        "nogc", "omit_defaults", "rename", NULL
     };
 
     /* Parse arguments: (name, bases, dict) */
     if (!PyArg_ParseTupleAndKeywords(
-            args, kwargs, "UO!O!|$OOpppp:StructMeta.__new__", kwlist,
+            args, kwargs, "UO!O!|$OOppppO:StructMeta.__new__", kwlist,
             &name, &PyTuple_Type, &bases, &PyDict_Type, &orig_dict,
             &arg_tag_field, &arg_tag, &arg_frozen, &arg_array_like,
-            &arg_nogc, &arg_omit_defaults)
+            &arg_nogc, &arg_omit_defaults, &arg_rename)
     )
         return NULL;
 
@@ -2854,6 +3008,10 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
         if (base_tag != NULL) {
             tag_temp = base_tag;
         }
+        PyObject *base_rename = ((StructMetaObject *)base)->rename;
+        if (base_rename != NULL) {
+            rename = base_rename;
+        }
         frozen = STRUCT_MERGE_OPTIONS(frozen, ((StructMetaObject *)base)->frozen);
         array_like = STRUCT_MERGE_OPTIONS(array_like, ((StructMetaObject *)base)->array_like);
         nogc = STRUCT_MERGE_OPTIONS(nogc, ((StructMetaObject *)base)->nogc);
@@ -2890,6 +3048,7 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
     }
     if (arg_tag != NULL && arg_tag != Py_None) { tag_temp = arg_tag; }
     if (arg_tag_field != NULL && arg_tag_field != Py_None) { tag_field_temp = arg_tag_field; }
+    if (arg_rename != NULL && arg_rename != Py_None) { rename = arg_rename; }
     frozen = STRUCT_MERGE_OPTIONS(frozen, arg_frozen);
     array_like = STRUCT_MERGE_OPTIONS(array_like, arg_array_like);
     nogc = STRUCT_MERGE_OPTIONS(nogc, arg_nogc);
@@ -2982,6 +3141,10 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
         goto error;
     Py_CLEAR(slots);
 
+    /* Handle renaming fields for encoding/decoding. */
+    encode_fields = StructMeta_rename_fields(fields, rename);
+    if (encode_fields == NULL) goto error;
+
     /* If tag is False, then tagging is explicitly disabled */
     if (tag_temp != Py_False && (tag_temp != NULL || tag_field_temp != NULL)) {
         /* This block populates `tag` / `tag_field` / `tag_value`
@@ -3033,7 +3196,7 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
             PyErr_SetString(PyExc_TypeError, "`tag_field` must be a `str`");
             goto error;
         }
-        int contains = PySequence_Contains(fields, tag_field);
+        int contains = PySequence_Contains(encode_fields, tag_field);
         if (contains < 0) goto error;
         if (contains) {
             PyErr_Format(
@@ -3099,9 +3262,12 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
     cls->struct_fields = fields;
     cls->struct_defaults = defaults;
     cls->struct_offsets = offsets;
+    cls->struct_encode_fields = encode_fields;
     cls->struct_tag = tag;
     cls->struct_tag_field = tag_field;
     cls->struct_tag_value = tag_value;
+    Py_XINCREF(rename);
+    cls->rename = rename;
     cls->frozen = frozen;
     cls->array_like = array_like;
     cls->nogc = nogc;
@@ -3117,6 +3283,7 @@ error:
     Py_XDECREF(new_args);
     Py_XDECREF(offsets_lk);
     Py_XDECREF(offset);
+    Py_XDECREF(encode_fields);
     Py_XDECREF(tag);
     Py_XDECREF(tag_field);
     Py_XDECREF(tag_value);
@@ -3206,6 +3373,9 @@ StructMeta_traverse(StructMetaObject *self, visitproc visit, void *arg)
     Py_ssize_t i, nfields;
     Py_VISIT(self->struct_fields);
     Py_VISIT(self->struct_defaults);
+    Py_VISIT(self->struct_encode_fields);
+    Py_VISIT(self->struct_tag);  /* May be a function */
+    Py_VISIT(self->rename);  /* May be a function */
     if (self->struct_types != NULL) {
         nfields = PyTuple_GET_SIZE(self->struct_fields);
         for (i = 0; i < nfields; i++) {
@@ -3226,9 +3396,11 @@ StructMeta_clear(StructMetaObject *self)
     nfields = PyTuple_GET_SIZE(self->struct_fields);
     Py_CLEAR(self->struct_fields);
     Py_CLEAR(self->struct_defaults);
+    Py_CLEAR(self->struct_encode_fields);
     Py_CLEAR(self->struct_tag_field);
     Py_CLEAR(self->struct_tag_value);
     Py_CLEAR(self->struct_tag);
+    Py_CLEAR(self->rename);
     PyMem_Free(self->struct_offsets);
     if (self->struct_types != NULL) {
         for (i = 0; i < nfields; i++) {
@@ -3367,6 +3539,7 @@ cleanup:
 static PyMemberDef StructMeta_members[] = {
     {"__struct_fields__", T_OBJECT_EX, offsetof(StructMetaObject, struct_fields), READONLY, "Struct fields"},
     {"__struct_defaults__", T_OBJECT_EX, offsetof(StructMetaObject, struct_defaults), READONLY, "Struct defaults"},
+    {"__struct_encode_fields__", T_OBJECT_EX, offsetof(StructMetaObject, struct_encode_fields), READONLY, "Struct encoded field names"},
     {"__struct_tag_field__", T_OBJECT, offsetof(StructMetaObject, struct_tag_field), READONLY, "Struct tag field"},
     {"__struct_tag__", T_OBJECT, offsetof(StructMetaObject, struct_tag_value), READONLY, "Struct tag value"},
     {"__match_args__", T_OBJECT_EX, offsetof(StructMetaObject, struct_fields), READONLY, "Positional match args"},
@@ -3518,7 +3691,7 @@ Struct_fill_in_defaults(StructMetaObject *st_type, PyObject *obj, PathNode *path
     Py_ssize_t nfields, ndefaults, i;
     bool is_gc, should_untrack;
 
-    nfields = PyTuple_GET_SIZE(st_type->struct_fields);
+    nfields = PyTuple_GET_SIZE(st_type->struct_encode_fields);
     ndefaults = PyTuple_GET_SIZE(st_type->struct_defaults);
     is_gc = MS_TYPE_IS_GC(st_type);
     should_untrack = is_gc;
@@ -3530,7 +3703,7 @@ Struct_fill_in_defaults(StructMetaObject *st_type, PyObject *obj, PathNode *path
                 ms_raise_validation_error(
                     path,
                     "Object missing required field `%U`%U",
-                    PyTuple_GET_ITEM(st_type->struct_fields, i)
+                    PyTuple_GET_ITEM(st_type->struct_encode_fields, i)
                 );
                 return -1;
             }
@@ -3829,16 +4002,21 @@ error:
 
 static PyObject *
 StructMixin_fields(PyObject *self, void *closure) {
-    PyObject *out;
-    out = StructMeta_GET_FIELDS(Py_TYPE(self));
+    PyObject *out = ((StructMetaObject *)Py_TYPE(self))->struct_fields;
+    Py_INCREF(out);
+    return out;
+}
+
+static PyObject *
+StructMixin_encode_fields(PyObject *self, void *closure) {
+    PyObject *out = ((StructMetaObject *)Py_TYPE(self))->struct_encode_fields;
     Py_INCREF(out);
     return out;
 }
 
 static PyObject *
 StructMixin_defaults(PyObject *self, void *closure) {
-    PyObject *out;
-    out = StructMeta_GET_DEFAULTS(Py_TYPE(self));
+    PyObject *out = ((StructMetaObject *)Py_TYPE(self))->struct_defaults;
     Py_INCREF(out);
     return out;
 }
@@ -3851,6 +4029,7 @@ static PyMethodDef Struct_methods[] = {
 
 static PyGetSetDef StructMixin_getset[] = {
     {"__struct_fields__", (getter) StructMixin_fields, NULL, "Struct fields", NULL},
+    {"__struct_encode_fields__", (getter) StructMixin_encode_fields, NULL, "Struct encoded field names", NULL},
     {"__struct_defaults__", (getter) StructMixin_defaults, NULL, "Struct defaults", NULL},
     {NULL},
 };
@@ -3897,6 +4076,11 @@ PyDoc_STRVAR(Struct__doc__,
 "- ``omit_defaults``: whether fields should be omitted from encoding if the field\n"
 "  contains the default value for that field. Enabling this may reduce message\n"
 "  size, and often also improve encoding & decoding performance.\n"
+"- ``rename``: controls renaming the field names used when encoding/decoding the\n"
+"  struct. May be one of ``\"lower\"``, ``\"upper\"``, ``\"camel\"``, or\n"
+"  ``\"pascal\"`` to rename in lowercase, UPPERCASE, camelCase, or PascalCase\n"
+"  respectively. May also be a callable that takes a string (the field name) and\n"
+"  returns a new string. Default is ``None`` for no field renaming.\n"
 "- ``array_like``: whether this type should be treated as an array-like type\n"
 "  (rather than a dict-like type, the default) when encoding/decoding.\n"
 "- ``nogc``: whether garbage collection is disabled for this class. Enabling,\n"
@@ -4984,7 +5168,7 @@ mpack_encode_struct(EncoderState *self, PyObject *obj)
     tag_field = struct_type->struct_tag_field;
     tag_value = struct_type->struct_tag_value;
     tagged = tag_value != NULL;
-    fields = struct_type->struct_fields;
+    fields = struct_type->struct_encode_fields;
     nfields = PyTuple_GET_SIZE(fields);
     len = nfields + tagged;
 
@@ -5904,7 +6088,7 @@ json_encode_struct_default(
     int status = -1;
     tag_field = struct_type->struct_tag_field;
     tag_value = struct_type->struct_tag_value;
-    fields = struct_type->struct_fields;
+    fields = struct_type->struct_encode_fields;
     nfields = PyTuple_GET_SIZE(fields);
 
     if (nfields == 0 && tag_value == NULL) return ms_write(self, "{}", 2);
@@ -5942,7 +6126,7 @@ json_encode_struct_omit_defaults(
     int status = -1;
     tag_field = struct_type->struct_tag_field;
     tag_value = struct_type->struct_tag_value;
-    fields = struct_type->struct_fields;
+    fields = struct_type->struct_encode_fields;
     defaults = struct_type->struct_defaults;
     nfields = PyTuple_GET_SIZE(fields);
     nunchecked = nfields - PyTuple_GET_SIZE(defaults);
@@ -5998,7 +6182,7 @@ json_encode_struct_array_like(
 ) {
     int status = -1;
     PyObject *tag_value = struct_type->struct_tag_value;
-    PyObject *fields = struct_type->struct_fields;
+    PyObject *fields = struct_type->struct_encode_fields;
     Py_ssize_t nfields = PyTuple_GET_SIZE(fields);
 
     if (nfields == 0 && tag_value == NULL) return ms_write(self, "[]", 2);
@@ -6873,7 +7057,7 @@ mpack_decode_struct_array_inner(
     bool tagged = st_type->struct_tag_value != NULL;
     PathNode item_path = {path, 0};
 
-    nfields = PyTuple_GET_SIZE(st_type->struct_fields);
+    nfields = PyTuple_GET_SIZE(st_type->struct_encode_fields);
     ndefaults = PyTuple_GET_SIZE(st_type->struct_defaults);
     npos = nfields - ndefaults;
 
@@ -8533,7 +8717,7 @@ json_decode_struct_array_inner(
     out = Struct_alloc((PyTypeObject *)(st_type));
     if (out == NULL) return NULL;
 
-    nfields = PyTuple_GET_SIZE(st_type->struct_fields);
+    nfields = PyTuple_GET_SIZE(st_type->struct_encode_fields);
     ndefaults = PyTuple_GET_SIZE(st_type->struct_defaults);
     npos = nfields - ndefaults;
     is_gc = MS_TYPE_IS_GC(st_type);
@@ -8647,7 +8831,7 @@ json_decode_struct_array_tag(
         }
         else {
             /* n_fields - n_optional_fields + 1 tag */
-            expected_size = PyTuple_GET_SIZE(st_type->struct_fields)
+            expected_size = PyTuple_GET_SIZE(st_type->struct_encode_fields)
                             - PyTuple_GET_SIZE(st_type->struct_defaults)
                             + 1;
         }

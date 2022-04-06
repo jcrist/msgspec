@@ -39,6 +39,39 @@ def check_struct_omit_defaults() -> None:
     reveal_type(t.y)  # assert "str" in typ
 
 
+def check_struct_rename() -> None:
+    class TestLower(msgspec.Struct, rename="lower"):
+        x: int
+
+    class TestUpper(msgspec.Struct, rename="upper"):
+        x: int
+
+    class TestCamel(msgspec.Struct, rename="camel"):
+        x: int
+
+    class TestPascal(msgspec.Struct, rename="pascal"):
+        x: int
+
+    class TestCallable(msgspec.Struct, rename=lambda x: x.title()):
+        x: int
+
+    class TestNone(msgspec.Struct, rename=None):
+        x: int
+
+    o = sum(
+        [
+            TestLower(1).x,
+            TestUpper(2).x,
+            TestCamel(3).x,
+            TestPascal(4).x,
+            TestCallable(5).x,
+            TestNone(6).x,
+        ]
+    )
+
+    reveal_type(o)  # assert "int" in typ
+
+
 def check_struct_array_like() -> None:
     class Test(msgspec.Struct, array_like=True):
         x: int

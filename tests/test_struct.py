@@ -22,6 +22,7 @@ def as_tuple(x):
 
 def test_struct_class_attributes():
     assert Struct.__struct_fields__ == ()
+    assert Struct.__struct_encode_fields__ == ()
     assert Struct.__struct_defaults__ == ()
     assert Struct.__match_args__ == ()
     assert Struct.__slots__ == ()
@@ -37,6 +38,8 @@ def test_struct_instance_attributes():
     x = Test(1, 2.0, a="goodbye")
 
     assert x.__struct_fields__ == ("c", "b", "a")
+    assert x.__struct_encode_fields__ == ("c", "b", "a")
+    assert x.__struct_fields__ is x.__struct_encode_fields__
     assert x.__struct_defaults__ == ("hello",)
     assert x.__slots__ == ("a", "b", "c")
 
@@ -937,3 +940,94 @@ class TestTagAndTagField:
 
             class Test(Base, tag_field="y"):  # noqa
                 pass
+
+
+class TestRename:
+    def test_rename_explicit_none(self):
+        class Test(Struct, rename=None):
+            field_one: int
+            field_two: str
+
+        assert Test.__struct_encode_fields__ == ("field_one", "field_two")
+        assert Test.__struct_fields__ is Test.__struct_encode_fields__
+
+    def test_rename_lower(self):
+        class Test(Struct, rename="lower"):
+            field_One: int
+            field_Two: str
+
+        assert Test.__struct_encode_fields__ == ("field_one", "field_two")
+
+    def test_rename_upper(self):
+        class Test(Struct, rename="upper"):
+            field_one: int
+            field_two: str
+
+        assert Test.__struct_encode_fields__ == ("FIELD_ONE", "FIELD_TWO")
+
+    def test_rename_camel(self):
+        class Test(Struct, rename="camel"):
+            field_one: int
+            field_two: str
+            __field__three__: bool
+
+        assert Test.__struct_encode_fields__ == ("fieldOne", "fieldTwo", "fieldThree")
+
+    def test_rename_pascal(self):
+        class Test(Struct, rename="pascal"):
+            field_one: int
+            field_two: str
+            __field__three__: bool
+
+        assert Test.__struct_encode_fields__ == ("FieldOne", "FieldTwo", "FieldThree")
+
+    def test_rename_callable(self):
+        class Test(Struct, rename=str.title):
+            field_one: int
+            field_two: str
+
+        assert Test.__struct_encode_fields__ == ("Field_One", "Field_Two")
+
+    def test_rename_callable_returns_non_string(self):
+        with pytest.raises(
+            TypeError, match="Expected calling `rename` to return a `str`, got `int`"
+        ):
+
+            class Test(Struct, rename=lambda x: 1):
+                aa1: int
+                aa2: int
+                ab1: int
+
+    def test_rename_bad_value(self):
+        with pytest.raises(ValueError, match="rename='invalid' is unsupported"):
+
+            class Test(Struct, rename="invalid"):
+                x: int
+
+    def test_rename_bad_type(self):
+        with pytest.raises(TypeError, match="str or a callable"):
+
+            class Test(Struct, rename=1):
+                x: int
+
+    def test_rename_fields_collide(self):
+        with pytest.raises(ValueError, match="Multiple fields rename to the same name"):
+
+            class Test(Struct, rename=lambda x: x[:2]):
+                aa1: int
+                aa2: int
+                ab1: int
+
+    def test_rename_fields_only_used_for_encode_and_decode(self):
+        """Check that the renamed fields don't show up elsewhere"""
+
+        class Test(Struct, rename="upper"):
+            one: int
+            two: str
+
+        t = Test(one=1, two="test")
+        assert t.one == 1
+        assert t.two == "test"
+        assert repr(t) == "Test(one=1, two='test')"
+        with pytest.raises(TypeError, match="Missing required argument 'two'"):
+            Test(one=1)
