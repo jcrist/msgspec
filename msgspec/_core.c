@@ -8118,12 +8118,17 @@ json_scratch_resize(JSONDecoderState *state, Py_ssize_t size) {
     return 0;
 }
 
+static MS_NOINLINE int
+json_scratch_expand(JSONDecoderState *state, Py_ssize_t required) {
+    size_t new_size = Py_MAX(8, 1.5 * required);
+    return json_scratch_resize(state, new_size);
+}
+
 static int
 json_scratch_ensure_space(JSONDecoderState *state, Py_ssize_t size) {
     Py_ssize_t required = state->scratch_len + size;
-    if (required >= state->scratch_capacity) {
-        size_t new_size = Py_MAX(8, 1.5 * required);
-        if (json_scratch_resize(state, new_size) < 0) return -1;
+    if (MS_UNLIKELY(required >= state->scratch_capacity)) {
+        return json_scratch_expand(state, required);
     }
     return 0;
 }
@@ -8139,7 +8144,10 @@ json_scratch_reset(JSONDecoderState *state) {
 
 static int
 json_scratch_extend(JSONDecoderState *state, const void *buf, Py_ssize_t size) {
-    if (json_scratch_ensure_space(state, size) < 0) return -1;
+    Py_ssize_t required = state->scratch_len + size;
+    if (MS_UNLIKELY(required >= state->scratch_capacity)) {
+        if (MS_UNLIKELY(json_scratch_expand(state, required) < 0)) return -1;
+    }
     memcpy(state->scratch + state->scratch_len, buf, size);
     state->scratch_len += size;
     return 0;
@@ -8248,43 +8256,39 @@ json_parse_escape(JSONDecoderState *self) {
 
 static Py_ssize_t
 json_decode_string_view(JSONDecoderState *self, char **out) {
-    Py_ssize_t size;
     self->scratch_len = 0;
     self->input_pos++; /* Skip '"' */
     unsigned char *start = self->input_pos;
     while (true) {
-        while (self->input_pos < self->input_end && !escape_table[*(self->input_pos)]) {
-            self->input_pos += 1;
+        if (MS_UNLIKELY(self->input_pos == self->input_end)) return ms_err_truncated();
+        if (MS_LIKELY(!escape_table[*(self->input_pos)])) {
+            self->input_pos++;
+            continue;
         }
-        if (MS_UNLIKELY(self->input_pos == self->input_end)) {
-            return ms_err_truncated();
-        }
-        switch (*(self->input_pos)) {
-            case '"': {
-                if (self->scratch_len == 0) {
-                    *out = (char *)start;
-                    size = self->input_pos - start;
-                }
-                else {
-                    if (json_scratch_extend(self, start, self->input_pos - start) < 0) return -1;
-                    *out = (char *)(self->scratch);
-                    size = self->scratch_len;
-                }
-                self->input_pos += 1;
+
+        unsigned char c = *self->input_pos;
+        Py_ssize_t size = self->input_pos - start;
+        self->input_pos++;
+
+        if (MS_LIKELY(c == '"')) {
+            if (MS_LIKELY(self->scratch_len == 0)) {
+                *out = (char *)start;
                 return size;
             }
-            case '\\': {
-                if (json_scratch_extend(self, start, self->input_pos - start) < 0) return -1;
-                self->input_pos += 1;
-                if (json_parse_escape(self) < 0) return -1;
-                start = self->input_pos;
-                break;
+            else {
+                if (json_scratch_extend(self, start, size) < 0) return -1;
+                *out = (char *)(self->scratch);
+                return self->scratch_len;
             }
-            default: {
-                self->input_pos += 1;
-                json_err_invalid(self, "invalid character");
-                return -1;
-            }
+        }
+        else if (c == '\\') {
+            if (json_scratch_extend(self, start, size) < 0) return -1;
+            if (json_parse_escape(self) < 0) return -1;
+            start = self->input_pos;
+        }
+        else {
+            json_err_invalid(self, "invalid character");
+            return -1;
         }
     }
 }
@@ -9445,6 +9449,7 @@ json_maybe_decode_number(JSONDecoderState *self, TypeNode *type, PathNode *path)
                     goto fallback_extended;
                 }
                 mantissa = mantissa2;
+                c = json_peek_or_null(self);
             }
         }
 
@@ -9453,7 +9458,6 @@ end_integer:
         if (MS_UNLIKELY(n_safe == n_safe_orig)) return json_err_invalid(self, "invalid character");
     }
 
-    c = json_peek_or_null(self);
     if (c == '.') {
         self->input_pos++;
         is_float = true;
