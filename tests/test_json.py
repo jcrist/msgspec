@@ -1036,6 +1036,13 @@ class TestIntegers:
         if 0 < ndigits < 20:
             assert msgspec.json.decode(b"-" + s) == -x
 
+    @pytest.mark.parametrize("x", [2**63 - 1, 2**63, 2**63 + 1])
+    def test_decode_int_19_digit_overflow_boundary(self, x):
+        s = str(x).encode("utf-8")
+        # Add extra trailing 0 to ensure no out-of-bounds reads
+        buffer = memoryview(s + b"0")[:-1]
+        assert msgspec.json.decode(buffer) == x
+
     @pytest.mark.parametrize("x", [-(2**63), 2**64 - 1])
     def test_decode_int_boundaries(self, x):
         s = str(x).encode()
