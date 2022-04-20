@@ -9428,8 +9428,8 @@ json_maybe_decode_number(JSONDecoderState *self, TypeNode *type, PathNode *path)
          * We can read the first 19 digits safely into a uint64 without
          * checking for overflow. Removing overflow checks from the loop gives
          * a measurable performance boost. */
-        size_t n_safe = Py_MIN(19, self->input_end - self->input_pos);
-        size_t n_safe_orig = n_safe;
+        size_t remaining = self->input_end - self->input_pos;
+        size_t n_safe = Py_MIN(19, remaining);
         while (n_safe) {
             c = *self->input_pos;
             if (!is_digit(c)) goto end_integer;
@@ -9437,11 +9437,11 @@ json_maybe_decode_number(JSONDecoderState *self, TypeNode *type, PathNode *path)
             n_safe--;
             mantissa = mantissa * 10 + (uint64_t)(c - '0');
         }
-        if (n_safe_orig == 19) {
+        if (MS_UNLIKELY(remaining > 19)) {
             /* Reading a 20th digit may or may not cause overflow. Any
              * additional digits definitely will. Read the 20th digit (and
              * check for a 21st), taking the slow path upon overflow. */
-            c = json_peek_or_null(self);
+            c = *self->input_pos;
             if (MS_UNLIKELY(is_digit(c))) {
                 self->input_pos++;
                 uint64_t mantissa2 = mantissa * 10 + (uint64_t)(c - '0');
@@ -9456,7 +9456,7 @@ json_maybe_decode_number(JSONDecoderState *self, TypeNode *type, PathNode *path)
 
 end_integer:
         /* There must be at least one digit */
-        if (MS_UNLIKELY(n_safe == n_safe_orig)) return json_err_invalid(self, "invalid character");
+        if (MS_UNLIKELY(mantissa == 0)) return json_err_invalid(self, "invalid character");
     }
 
     if (c == '.') {
@@ -9521,23 +9521,23 @@ end_integer:
         is_float = true;
     }
 
-    if (!is_float && (type->types & (MS_TYPE_ANY | MS_TYPE_INT | MS_TYPE_INTENUM | MS_TYPE_INTLITERAL))) {
-        if (MS_UNLIKELY(type->types & (MS_TYPE_INTENUM | MS_TYPE_INTLITERAL))) {
+    if (!is_float) {
+        if (MS_LIKELY(type->types & (MS_TYPE_ANY | MS_TYPE_INT))) {
+            if (is_negative) {
+                return PyLong_FromLongLong(-1 * (int64_t)mantissa);
+            }
+            return PyLong_FromUnsignedLongLong(mantissa);
+        }
+        else if (MS_UNLIKELY(type->types & (MS_TYPE_INTENUM | MS_TYPE_INTLITERAL))) {
             if (is_negative) {
                 return ms_decode_int_enum_or_literal_int64(-1 * (int64_t)mantissa, type, path);
             }
             return ms_decode_int_enum_or_literal_uint64(mantissa, type, path);
         }
-        else if (MS_UNLIKELY(is_negative)) {
-            return PyLong_FromLongLong(-1 * (int64_t)mantissa);
-        }
-        else {
-            return PyLong_FromUnsignedLongLong(mantissa);
-        }
     }
-    else if (type->types & (MS_TYPE_ANY | MS_TYPE_FLOAT)) {
+    if (type->types & (MS_TYPE_ANY | MS_TYPE_FLOAT)) {
         double val;
-        if (!reconstruct_double(mantissa, exponent, is_negative, &val)) {
+        if (MS_UNLIKELY(!reconstruct_double(mantissa, exponent, is_negative, &val))) {
             goto fallback_extended;
         }
         return PyFloat_FromDouble(val);
