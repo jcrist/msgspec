@@ -321,7 +321,7 @@ typedef struct {
     PyObject *EncodeError;
     PyObject *DecodeError;
     PyObject *StructType;
-    PyTypeObject *EnumType;
+    PyTypeObject *EnumMetaType;
     PyObject *struct_lookup_cache;
     PyObject *str__name_;
     PyObject *str__member_map_;
@@ -2238,7 +2238,7 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
     }
 
     /* Enum types */
-    if (PyType_Check(obj) && PyType_IsSubtype((PyTypeObject *)obj, state->mod->EnumType)) {
+    if (Py_TYPE(obj) == state->mod->EnumMetaType) {
         if (PyType_IsSubtype((PyTypeObject *)obj, &PyLong_Type)) {
             /* IntEnum */
             if (state->intenum_obj != NULL) {
@@ -3629,7 +3629,7 @@ maybe_deepcopy_default(PyObject *obj) {
     }
 
     MsgspecState *mod = msgspec_get_global_state();
-    if (PyType_IsSubtype(type, mod->EnumType)) {
+    if (Py_TYPE(type) == mod->EnumMetaType) {
         Py_INCREF(obj);
         return obj;
     }
@@ -5487,7 +5487,7 @@ mpack_encode(EncoderState *self, PyObject *obj)
     else if (type == &Raw_Type) {
         return mpack_encode_raw(self, obj);
     }
-    else if (PyType_IsSubtype(type, self->mod->EnumType)) {
+    else if (Py_TYPE(type) == self->mod->EnumMetaType) {
         return mpack_encode_enum(self, obj);
     }
     if (self->enc_hook != NULL) {
@@ -6300,7 +6300,7 @@ json_encode(EncoderState *self, PyObject *obj)
     else if (type == &Raw_Type) {
         return json_encode_raw(self, obj);
     }
-    else if (PyType_IsSubtype(type, self->mod->EnumType)) {
+    else if (Py_TYPE(type) == self->mod->EnumMetaType) {
         return json_encode_enum(self, obj);
     }
 
@@ -10104,7 +10104,7 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->EncodeError);
     Py_CLEAR(st->DecodeError);
     Py_CLEAR(st->StructType);
-    Py_CLEAR(st->EnumType);
+    Py_CLEAR(st->EnumMetaType);
     Py_CLEAR(st->struct_lookup_cache);
     Py_CLEAR(st->str__name_);
     Py_CLEAR(st->str__member_map_);
@@ -10161,7 +10161,7 @@ msgspec_traverse(PyObject *m, visitproc visit, void *arg)
     Py_VISIT(st->EncodeError);
     Py_VISIT(st->DecodeError);
     Py_VISIT(st->StructType);
-    Py_VISIT(st->EnumType);
+    Py_VISIT(st->EnumMetaType);
     Py_VISIT(st->struct_lookup_cache);
     Py_VISIT(st->typing_dict);
     Py_VISIT(st->typing_list);
@@ -10330,20 +10330,20 @@ PyInit__core(void)
     Py_DECREF(temp_module);
 #endif
 
-    /* Get the EnumType */
+    /* Get the EnumMeta type */
     temp_module = PyImport_ImportModule("enum");
     if (temp_module == NULL)
         return NULL;
-    temp_obj = PyObject_GetAttrString(temp_module, "Enum");
+    temp_obj = PyObject_GetAttrString(temp_module, "EnumMeta");
     Py_DECREF(temp_module);
     if (temp_obj == NULL)
         return NULL;
     if (!PyType_Check(temp_obj)) {
         Py_DECREF(temp_obj);
-        PyErr_SetString(PyExc_TypeError, "enum.Enum should be a type");
+        PyErr_SetString(PyExc_TypeError, "enum.EnumMeta should be a type");
         return NULL;
     }
-    st->EnumType = (PyTypeObject *)temp_obj;
+    st->EnumMetaType = (PyTypeObject *)temp_obj;
 
     /* Get the datetime.datetime.astimezone method */
     temp_module = PyImport_ImportModule("datetime");
