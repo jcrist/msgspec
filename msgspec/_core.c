@@ -3589,7 +3589,7 @@ maybe_deepcopy_default(PyObject *obj) {
     PyTypeObject *type = Py_TYPE(obj);
 
     /* Known non-collection or recursively immutable types */
-    if (obj == Py_None || obj == Py_False || obj == Py_True ||
+    if (obj == Py_None || type == &PyBool_Type ||
         type == &PyLong_Type || type == &PyFloat_Type ||
         type == &PyBytes_Type || type == &PyUnicode_Type ||
         type == &PyByteArray_Type || type == &PyFrozenSet_Type ||
@@ -5436,24 +5436,32 @@ mpack_encode_datetime(EncoderState *self, PyObject *obj)
 static int
 mpack_encode(EncoderState *self, PyObject *obj)
 {
-    PyTypeObject *type;
-
-    type = Py_TYPE(obj);
-
     if (obj == Py_None) {
         return mpack_encode_none(self);
     }
-    else if (obj == Py_False || obj == Py_True) {
-        return mpack_encode_bool(self, obj);
+
+    PyTypeObject *type = Py_TYPE(obj);
+
+    if (type == &PyUnicode_Type) {
+        return mpack_encode_str(self, obj);
     }
     else if (type == &PyLong_Type) {
         return mpack_encode_long(self, obj);
     }
+    else if (type == &PyBool_Type) {
+        return mpack_encode_bool(self, obj);
+    }
     else if (type == &PyFloat_Type) {
         return mpack_encode_float(self, obj);
     }
-    else if (type == &PyUnicode_Type) {
-        return mpack_encode_str(self, obj);
+    else if (Py_TYPE(type) == &StructMetaType) {
+        return mpack_encode_struct(self, obj);
+    }
+    else if (type == &PyList_Type) {
+        return mpack_encode_list(self, obj);
+    }
+    else if (type == &PyDict_Type) {
+        return mpack_encode_dict(self, obj);
     }
     else if (type == &PyBytes_Type) {
         return mpack_encode_bytes(self, obj);
@@ -5464,29 +5472,20 @@ mpack_encode(EncoderState *self, PyObject *obj)
     else if (type == &PyMemoryView_Type) {
         return mpack_encode_memoryview(self, obj);
     }
-    else if (type == &Raw_Type) {
-        return mpack_encode_raw(self, obj);
-    }
-    else if (type == &PyList_Type) {
-        return mpack_encode_list(self, obj);
-    }
     else if (type == &PySet_Type || type == &PyFrozenSet_Type) {
         return mpack_encode_set(self, obj);
     }
     else if (type == &PyTuple_Type) {
         return mpack_encode_tuple(self, obj);
     }
-    else if (type == &PyDict_Type) {
-        return mpack_encode_dict(self, obj);
-    }
-    else if (Py_TYPE(type) == &StructMetaType) {
-        return mpack_encode_struct(self, obj);
-    }
     else if (type == PyDateTimeAPI->DateTimeType) {
         return mpack_encode_datetime(self, obj);
     }
     else if (type == &Ext_Type) {
         return mpack_encode_ext(self, obj);
+    }
+    else if (type == &Raw_Type) {
+        return mpack_encode_raw(self, obj);
     }
     else if (PyType_IsSubtype(type, self->mod->EnumType)) {
         return mpack_encode_enum(self, obj);
