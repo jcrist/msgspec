@@ -52,13 +52,22 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
+      - name: Set up QEMU
+        if: runner.os == 'Linux'
+        uses: docker/setup-qemu-action@v1
+        with:
+            platforms: all
+
       - name: Build & Test Wheels
-        uses: pypa/cibuildwheel@v2.3.1
+        uses: pypa/cibuildwheel@v2.4.0
         env:
           CIBW_TEST_REQUIRES: "pytest msgpack"
           CIBW_TEST_COMMAND: "pytest {project}/tests"
           CIBW_BUILD: "cp38-* cp39-* cp310-*"
           CIBW_SKIP: "*-win32 *_i686 *_s390x *_ppc64le"
+          CIBW_ARCHS_MACOS: x86_64 arm64
+          CIBW_ARCHS_LINUX: x86_64 aarch64
+          CIBW_TEST_SKIP: "*_arm64"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v2
