@@ -542,6 +542,26 @@ array, and is used to determine which type in the union to use when decoding.
     Put(key='my key', val='my val')
 
 
+Runtime Definition
+------------------
+
+In some cases it can be useful to dynamically generate `msgspec.Struct` classes
+at runtime. This can be handled through the use of `msgspec.defstruct`, which
+has a signature similar to `dataclasses.make_dataclass`. See
+`msgspec.defstruct` for more information.
+
+.. code-block:: python
+
+    >>> import msgspec
+
+    >>> Point = msgspec.defstruct("Point", [("x", float), ("y": float)])
+
+    >>> p = Point(1.0, 2.0)
+
+    >>> p
+    Point(x=1.0, y=2.0)
+
+
 .. _struct-nogc:
 
 Disabling Garbage Collection (Advanced)

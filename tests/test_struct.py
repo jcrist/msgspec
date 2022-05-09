@@ -5,10 +5,11 @@ import gc
 import inspect
 import pickle
 import sys
+from typing import Any
 
 import pytest
 
-from msgspec import Struct
+from msgspec import Struct, defstruct
 
 
 class Fruit(enum.IntEnum):
@@ -1060,3 +1061,79 @@ class TestRename:
         assert repr(t) == "Test(one=1, two='test')"
         with pytest.raises(TypeError, match="Missing required argument 'two'"):
             Test(one=1)
+
+
+class TestDefStruct:
+    def test_defstruct_simple(self):
+        Point = defstruct("Point", ["x", "y"])
+        assert issubclass(Point, Struct)
+        assert as_tuple(Point(1, 2)) == (1, 2)
+        assert Point.__module__ == "test_struct"
+
+    def test_defstruct_empty(self):
+        Empty = defstruct("Empty", [])
+        assert as_tuple(Empty()) == ()
+
+    def test_defstruct_fields(self):
+        Test = defstruct("Point", ["x", ("y", int), ("z", int, 0)])
+        assert Test.__struct_fields__ == ("x", "y", "z")
+        assert Test.__struct_defaults__ == (0,)
+        assert Test.__annotations__ == {"x": Any, "y": int, "z": int}
+        assert as_tuple(Test(1, 2)) == (1, 2, 0)
+        assert as_tuple(Test(1, 2, 3)) == (1, 2, 3)
+
+    def test_defstruct_fields_iterable(self):
+        Test = defstruct("Point", ((n, int) for n in "xyz"))
+        assert Test.__struct_fields__ == ("x", "y", "z")
+        assert Test.__annotations__ == {"x": int, "y": int, "z": int}
+
+    def test_defstruct_errors(self):
+        with pytest.raises(TypeError, match="must be str, not int"):
+            defstruct(1)
+
+        with pytest.raises(TypeError, match="`fields` must be an iterable"):
+            defstruct("Test", 1)
+
+        with pytest.raises(TypeError, match="items in `fields` must be one of"):
+            defstruct("Test", ["x", 1])
+
+        with pytest.raises(TypeError, match="items in `fields` must be one of"):
+            defstruct("Test", ["x", (1, 2)])
+
+    def test_defstruct_bases(self):
+        class Base(Struct):
+            z: int = 0
+
+        Point = defstruct("Point", ["x", "y"], bases=(Base,))
+        assert issubclass(Point, Base)
+        assert issubclass(Point, Struct)
+        assert as_tuple(Point(1, 2)) == (1, 2, 0)
+        assert as_tuple(Point(1, 2, 3)) == (1, 2, 3)
+
+    def test_defstruct_module(self):
+        Test = defstruct("Test", [], module="testmod")
+        assert Test.__module__ == "testmod"
+
+    def test_defstruct_namespace(self):
+        Test = defstruct(
+            "Test", ["x", "y"], namespace={"add": lambda self: self.x + self.y}
+        )
+        t = Test(1, 2)
+        assert t.add() == 3
+
+    @pytest.mark.parametrize(
+        "option", ["omit_defaults", "frozen", "array_like", "nogc"]
+    )
+    def test_defstruct_bool_options(self, option):
+        Test = defstruct("Test", [], **{option: True})
+        assert getattr(Test, option) is True
+
+    def test_defstruct_tag_and_tag_field(self):
+        Test = defstruct("Test", [], tag="mytag", tag_field="mytagfield")
+        assert Test.__struct_tag__ == "mytag"
+        assert Test.__struct_tag_field__ == "mytagfield"
+
+    def test_defstruct_rename(self):
+        Test = defstruct("Test", ["my_field"], rename="camel")
+        assert Test.__struct_fields__ == ("my_field",)
+        assert Test.__struct_encode_fields__ == ("myField",)

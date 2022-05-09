@@ -1,5 +1,6 @@
 from ._core import (
     Struct,
+    defstruct,
     Raw,
     MsgspecError,
     EncodeError,
