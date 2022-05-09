@@ -155,6 +155,54 @@ def check_struct_attributes() -> None:
     for field in p.__struct_fields__:
         reveal_type(field)  # assert "str" in typ
 
+
+##########################################################
+# defstruct                                              #
+##########################################################
+
+
+def check_defstruct() -> None:
+    Test = msgspec.defstruct("Test", ["x", "y"])
+    for field in Test.__struct_fields__:
+        reveal_type(field)  # assert "str" in typ
+    Test(1, y=2)
+
+
+def check_defstruct_field_types() -> None:
+    Test = msgspec.defstruct(
+        "Test",
+        ("x", ("y", int), ("z", str, "default"))
+    )
+
+
+def check_defstruct_bases() -> None:
+    class Base(msgspec.Struct):
+        pass
+
+    Test = msgspec.defstruct("Test", ["x", "y"], bases=(Base,))
+
+
+def check_defstruct_namespace() -> None:
+    msgspec.defstruct("Test", ["x", "y"], namespace={"classval": 1})
+
+
+def check_defstruct_module() -> None:
+    msgspec.defstruct("Test", ["x", "y"], module="mymod")
+
+
+def check_defstruct_config_options() -> None:
+    Test = msgspec.defstruct(
+        "Test",
+        ("x", "y"),
+        omit_defaults=True,
+        frozen=True,
+        array_like=True,
+        nogc=True,
+        tag="mytag",
+        tag_field="mytagfield",
+        rename="lower"
+    )
+
 ##########################################################
 # Raw                                                    #
 ##########################################################
