@@ -9,6 +9,8 @@ Struct
 .. autoclass:: Struct
     :members:
 
+.. autofunction:: defstruct
+
 
 Raw
 ---

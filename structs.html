@@ -681,6 +681,23 @@ array, and is used to determine which type in the union to use when decoding.</p
 </pre></div>
 </div>
 </section>
+<section id="runtime-definition">
+<h2>Runtime Definition<a class="headerlink" href="#runtime-definition" title="Permalink to this headline">#</a></h2>
+<p>In some cases it can be useful to dynamically generate <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> classes
+at runtime. This can be handled through the use of <a class="reference internal" href="api.html#msgspec.defstruct" title="msgspec.defstruct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.defstruct</span></code></a>, which
+has a signature similar to <a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#dataclasses.make_dataclass" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses.make_dataclass</span></code></a>. See
+<a class="reference internal" href="api.html#msgspec.defstruct" title="msgspec.defstruct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.defstruct</span></code></a> for more information.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">msgspec</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">Point</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">defstruct</span><span class="p">(</span><span class="s2">"Point"</span><span class="p">,</span> <span class="p">[(</span><span class="s2">"x"</span><span class="p">,</span> <span class="nb">float</span><span class="p">),</span> <span class="p">(</span><span class="s2">"y"</span><span class="p">:</span> <span class="nb">float</span><span class="p">)])</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">p</span> <span class="o">=</span> <span class="n">Point</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">)</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">p</span>
+<span class="go">Point(x=1.0, y=2.0)</span>
+</pre></div>
+</div>
+</section>
 <section id="disabling-garbage-collection-advanced">
 <span id="struct-nogc"></span><h2>Disabling Garbage Collection (Advanced)<a class="headerlink" href="#disabling-garbage-collection-advanced" title="Permalink to this headline">#</a></h2>
 <div class="admonition warning">
@@ -808,6 +825,7 @@ collected (leading to a memory leak).</p>
 <li><a class="reference internal" href="#omitting-default-values">Omitting Default Values</a></li>
 <li><a class="reference internal" href="#renaming-field-names">Renaming Field Names</a></li>
 <li><a class="reference internal" href="#encoding-decoding-as-arrays">Encoding/Decoding as Arrays</a></li>
+<li><a class="reference internal" href="#runtime-definition">Runtime Definition</a></li>
 <li><a class="reference internal" href="#disabling-garbage-collection-advanced">Disabling Garbage Collection (Advanced)</a></li>
 </ul>
 </li>

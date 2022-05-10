@@ -269,6 +269,32 @@ we define a new <a class="reference internal" href="#msgspec.Struct" title="msgs
 </pre></div>
 </div>
 </dd></dl>
+<dl class="py function">
+<dt class="sig sig-object py" id="msgspec.defstruct">
+<span class="sig-prename descclassname"><span class="pre">msgspec.</span></span><span class="sig-name descname"><span class="pre">defstruct</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fields</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bases</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">()</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">module</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">namespace</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tag_field</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tag</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rename</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">omit_defaults</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">frozen</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">array_like</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nogc</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.defstruct" title="Permalink to this definition">#</a></dt>
+<dd><p>Dynamically define a new Struct class.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>name</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.10)"><em>str</em></a>) – The name of the new Struct class.</p></li>
+<li><p><strong>fields</strong> (<em>iterable</em>) – An iterable of fields in the new class. Elements may be either <code class="docutils literal notranslate"><span class="pre">name</span></code>,
+tuples of <code class="docutils literal notranslate"><span class="pre">(name,</span> <span class="pre">type)</span></code>, or <code class="docutils literal notranslate"><span class="pre">(name,</span> <span class="pre">type,</span> <span class="pre">default)</span></code>. Fields without
+a specified type will default to <code class="docutils literal notranslate"><span class="pre">typing.Any</span></code>.</p></li>
+<li><p><strong>bases</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.10)"><em>tuple</em></a><em>, </em><em>optional</em>) – A tuple of any Struct base classes to use when defining the new class.</p></li>
+<li><p><strong>module</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.10)"><em>str</em></a><em>, </em><em>optional</em>) – The module name to use for the new class. If not provided, will be inferred
+from the caller’s stack frame.</p></li>
+<li><p><strong>namespace</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.10)"><em>dict</em></a><em>, </em><em>optional</em>) – If provided, will be used as the base namespace for the new class. This may
+be used to add additional methods to the class definition.</p></li>
+<li><p><strong>**kwargs</strong> – Additional Struct configuration options. See the <code class="docutils literal notranslate"><span class="pre">Struct</span></code> docs for more
+information.</p></li>
+</ul>
+</dd>
+</dl>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<p><a class="reference internal" href="#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code></a></p>
+</div>
+</dd></dl>
 </section>
 <section id="raw">
 <h2>Raw<a class="headerlink" href="#raw" title="Permalink to this headline">#</a></h2>
