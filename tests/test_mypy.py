@@ -23,14 +23,16 @@ def test_mypy():
 
     stdout, stderr, code = api.run([PATH])
     lines = stdout.splitlines()
-    if any("revealed type" not in l.lower() for l in lines):
-        assert False, f"Unexpected mypy error:\n{stdout}"
     for line in lines:
-        lineno, typ = get_lineno_type(line)
-        check = ex_lines[lineno - 1].split("#")[1].strip()
-        try:
-            exec(check, {"typ": typ})
-        except Exception:
-            assert (
-                False
-            ), f"Failed check at {PATH}:{lineno}: {check!r}, where 'typ' is {typ!r}"
+        if "revealed type" in line.lower():
+            lineno, typ = get_lineno_type(line)
+            check = ex_lines[lineno - 1].split("#")[1].strip()
+            try:
+                exec(check, {"typ": typ})
+            except Exception:
+                breakpoint()
+                assert (
+                    False
+                ), f"Failed check at {PATH}:{lineno}: {check!r}, where 'typ' is {typ!r}"
+        elif "success" not in line.lower():
+            assert False, line
