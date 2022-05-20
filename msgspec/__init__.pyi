@@ -1,5 +1,17 @@
-from typing import Type
-from typing import Callable, Tuple, Any, Union, TypeVar, ClassVar, Literal, overload
+from typing import (
+    Type,
+    Callable,
+    Dict,
+    Tuple,
+    Iterable,
+    Optional,
+    Any,
+    Union,
+    TypeVar,
+    ClassVar,
+    Literal,
+    overload,
+)
 
 # Use `__dataclass_transform__` to catch more errors under pyright. Since we don't expose
 # the underlying metaclass, hide it under an underscore name. See
@@ -36,6 +48,24 @@ class Struct(metaclass=__StructMeta):
         array_like: bool = False,
         nogc: bool = False,
     ) -> None: ...
+
+def defstruct(
+    name: str,
+    fields: Iterable[Union[str, Tuple[str, Type], Tuple[str, Type, Any]]],
+    *,
+    bases: Tuple[Type[Struct], ...] = (),
+    module: Optional[str] = None,
+    namespace: Optional[Dict[str, Any]] = None,
+    tag: Union[None, bool, str, Callable[[str], str]] = None,
+    tag_field: Union[None, str] = None,
+    omit_defaults: bool = False,
+    rename: Union[
+        None, Literal["lower", "upper", "camel", "pascal"], Callable[[str], str]
+    ] = None,
+    frozen: bool = False,
+    array_like: bool = False,
+    nogc: bool = False,
+) -> Type[Struct]: ...
 
 # Lie and say `Raw` is a subclass of `bytes`, so mypy will accept it in most
 # places where an object that implements the buffer protocol is valid

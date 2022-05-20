@@ -2941,49 +2941,33 @@ error:
 }
 
 static PyObject *
-StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
-{
+StructMeta_new_inner(
+    PyTypeObject *type, PyObject *name, PyObject *bases, PyObject *namespace,
+    PyObject *arg_tag_field, PyObject *arg_tag,
+    int arg_frozen, int arg_array_like, int arg_nogc, int arg_omit_defaults,
+    PyObject *arg_rename
+) {
     StructMetaObject *cls = NULL;
-    PyObject *name = NULL, *bases = NULL, *orig_dict = NULL;
     PyObject *arg_fields = NULL, *kwarg_fields = NULL, *new_dict = NULL, *new_args = NULL;
     PyObject *fields = NULL, *defaults = NULL, *offsets_lk = NULL, *offset = NULL, *slots = NULL, *slots_list = NULL;
     PyObject *base, *base_fields, *base_defaults, *annotations;
     PyObject *default_val, *field;
     Py_ssize_t nfields, ndefaults, i, j, k;
     Py_ssize_t *offsets = NULL, *base_offsets;
-    PyObject *encode_fields = NULL;
-    PyObject *tag_field_temp = NULL, *tag_temp = NULL, *arg_tag_field = NULL, *arg_tag = NULL;
+    PyObject *rename = NULL, *encode_fields = NULL;
+    PyObject *tag_field_temp = NULL, *tag_temp = NULL;
     PyObject *tag = NULL, *tag_field = NULL,  *tag_value = NULL;
-    int arg_frozen = -1, frozen = -1;
-    int arg_array_like = -1, array_like = -1;
-    int arg_nogc = -1, nogc = -1;
-    int arg_omit_defaults = -1, omit_defaults = -1;
-    PyObject *arg_rename = NULL, *rename = NULL;
+    int frozen = -1, array_like = -1, nogc = -1, omit_defaults = -1;
 
-    static char *kwlist[] = {
-        "name", "bases", "dict",
-        "tag_field", "tag", "frozen", "array_like",
-        "nogc", "omit_defaults", "rename", NULL
-    };
-
-    /* Parse arguments: (name, bases, dict) */
-    if (!PyArg_ParseTupleAndKeywords(
-            args, kwargs, "UO!O!|$OOppppO:StructMeta.__new__", kwlist,
-            &name, &PyTuple_Type, &bases, &PyDict_Type, &orig_dict,
-            &arg_tag_field, &arg_tag, &arg_frozen, &arg_array_like,
-            &arg_nogc, &arg_omit_defaults, &arg_rename)
-    )
-        return NULL;
-
-    if (PyDict_GetItemString(orig_dict, "__init__") != NULL) {
+    if (PyDict_GetItemString(namespace, "__init__") != NULL) {
         PyErr_SetString(PyExc_TypeError, "Struct types cannot define __init__");
         return NULL;
     }
-    if (PyDict_GetItemString(orig_dict, "__new__") != NULL) {
+    if (PyDict_GetItemString(namespace, "__new__") != NULL) {
         PyErr_SetString(PyExc_TypeError, "Struct types cannot define __new__");
         return NULL;
     }
-    if (PyDict_GetItemString(orig_dict, "__slots__") != NULL) {
+    if (PyDict_GetItemString(namespace, "__slots__") != NULL) {
         PyErr_SetString(PyExc_TypeError, "Struct types cannot define __slots__");
         return NULL;
     }
@@ -3066,14 +3050,14 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
     nogc = STRUCT_MERGE_OPTIONS(nogc, arg_nogc);
     omit_defaults = STRUCT_MERGE_OPTIONS(omit_defaults, arg_omit_defaults);
 
-    new_dict = PyDict_Copy(orig_dict);
+    new_dict = PyDict_Copy(namespace);
     if (new_dict == NULL)
         goto error;
     slots_list = PyList_New(0);
     if (slots_list == NULL)
         goto error;
 
-    annotations = PyDict_GetItemString(orig_dict, "__annotations__");
+    annotations = PyDict_GetItemString(namespace, "__annotations__");
     if (annotations != NULL) {
         if (!PyDict_Check(annotations)) {
             PyErr_SetString(PyExc_TypeError, "__annotations__ must be a dict");
@@ -3303,6 +3287,165 @@ error:
         PyMem_Free(offsets);
     return NULL;
 }
+
+
+static PyObject *
+StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
+{
+    PyObject *name = NULL, *bases = NULL, *namespace = NULL;
+    PyObject *arg_tag_field = NULL, *arg_tag = NULL, *arg_rename = NULL;
+    int arg_frozen = -1, arg_array_like = -1, arg_nogc = -1, arg_omit_defaults = -1;
+
+    static char *kwlist[] = {
+        "name", "bases", "dict",
+        "tag_field", "tag", "frozen", "array_like",
+        "nogc", "omit_defaults", "rename", NULL
+    };
+
+    /* Parse arguments: (name, bases, dict) */
+    if (!PyArg_ParseTupleAndKeywords(
+            args, kwargs, "UO!O!|$OOppppO:StructMeta.__new__", kwlist,
+            &name, &PyTuple_Type, &bases, &PyDict_Type, &namespace,
+            &arg_tag_field, &arg_tag, &arg_frozen, &arg_array_like,
+            &arg_nogc, &arg_omit_defaults, &arg_rename)
+    )
+        return NULL;
+
+    return StructMeta_new_inner(
+        type, name, bases, namespace,
+        arg_tag_field, arg_tag, arg_frozen, arg_array_like,
+        arg_nogc, arg_omit_defaults, arg_rename
+    );
+}
+
+
+PyDoc_STRVAR(msgspec_defstruct__doc__,
+"defstruct(name, fields, *, bases=(), module=None, namespace=None, "
+"tag_field=None, tag=None, rename=None, omit_defaults=False, "
+"frozen=False, array_like=False, nogc=False)\n"
+"--\n"
+"\n"
+"Dynamically define a new Struct class.\n"
+"\n"
+"Parameters\n"
+"----------\n"
+"name : str\n"
+"    The name of the new Struct class.\n"
+"fields : iterable\n"
+"    An iterable of fields in the new class. Elements may be either ``name``,\n"
+"    tuples of ``(name, type)``, or ``(name, type, default)``. Fields without\n"
+"    a specified type will default to ``typing.Any``.\n"
+"bases : tuple, optional\n"
+"    A tuple of any Struct base classes to use when defining the new class.\n"
+"module : str, optional\n"
+"    The module name to use for the new class. If not provided, will be inferred\n"
+"    from the caller's stack frame.\n"
+"namespace : dict, optional\n"
+"    If provided, will be used as the base namespace for the new class. This may\n"
+"    be used to add additional methods to the class definition.\n"
+"**kwargs :\n"
+"    Additional Struct configuration options. See the ``Struct`` docs for more\n"
+"    information.\n"
+"\n"
+"See Also\n"
+"--------\n"
+"Struct"
+);
+static PyObject *
+msgspec_defstruct(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+    PyObject *name = NULL, *fields = NULL, *bases = NULL, *module = NULL, *namespace = NULL;
+    PyObject *arg_tag_field = NULL, *arg_tag = NULL, *arg_rename = NULL;
+    PyObject *new_bases = NULL, *annotations = NULL, *fields_fast = NULL, *out = NULL;
+    int arg_frozen = -1, arg_array_like = -1, arg_nogc = -1, arg_omit_defaults = -1;
+
+    static char *kwlist[] = {
+        "name", "fields", "bases", "module", "namespace",
+        "tag_field", "tag", "rename", "omit_defaults",
+        "frozen", "array_like", "nogc", NULL
+    };
+
+    /* Parse arguments: (name, bases, dict) */
+    if (!PyArg_ParseTupleAndKeywords(
+            args, kwargs, "UO|$O!UO!OOOpppp:defstruct", kwlist,
+            &name, &fields, &PyTuple_Type, &bases, &module, &PyDict_Type, &namespace,
+            &arg_tag_field, &arg_tag, &arg_rename, &arg_omit_defaults,
+            &arg_frozen, &arg_array_like, &arg_nogc)
+    )
+        return NULL;
+
+    MsgspecState *mod = msgspec_get_global_state();
+
+    namespace = (namespace == NULL) ? PyDict_New() : PyDict_Copy(namespace);
+    if (namespace == NULL) return NULL;
+
+    if (module != NULL) {
+        if (PyDict_SetItemString(namespace, "__module__", module) < 0) goto cleanup;
+    }
+
+    if (bases == NULL) {
+        new_bases = PyTuple_New(1);
+        if (new_bases == NULL) goto cleanup;
+        Py_INCREF(mod->StructType);
+        PyTuple_SET_ITEM(new_bases, 0, mod->StructType);
+        bases = new_bases;
+    }
+
+    annotations = PyDict_New();
+    if (annotations == NULL) goto cleanup;
+
+    fields_fast = PySequence_Fast(fields, "`fields` must be an iterable");
+    if (fields_fast == NULL) goto cleanup;
+    Py_ssize_t nfields = PySequence_Fast_GET_SIZE(fields_fast);
+
+    for (Py_ssize_t i = 0; i < nfields; i++) {
+        PyObject *name = NULL, *type = NULL, *default_val = NULL;
+        PyObject *field = PySequence_Fast_GET_ITEM(fields_fast, i);
+        if (PyUnicode_Check(field)) {
+            name = field;
+            type = mod->typing_any;
+        }
+        else if (PyTuple_Check(field)) {
+            Py_ssize_t len = PyTuple_GET_SIZE(field);
+            if (len == 2) {
+                name = PyTuple_GET_ITEM(field, 0);
+                type = PyTuple_GET_ITEM(field, 1);
+            }
+            else if (len == 3) {
+                name = PyTuple_GET_ITEM(field, 0);
+                type = PyTuple_GET_ITEM(field, 1);
+                default_val = PyTuple_GET_ITEM(field, 2);
+            }
+        }
+
+        if (name == NULL || !PyUnicode_Check(name)) {
+            PyErr_SetString(
+                PyExc_TypeError,
+                "items in `fields` must be one of `str`, `tuple[str, type]`, or `tuple[str, type, Any]`"
+            );
+            goto cleanup;
+        }
+        if (PyDict_SetItem(annotations, name, type) < 0) goto cleanup;
+        if (default_val != NULL) {
+            if (PyDict_SetItem(namespace, name, default_val) < 0) goto cleanup;
+        }
+    }
+    if (PyDict_SetItemString(namespace, "__annotations__", annotations) < 0) goto cleanup;
+
+    out = StructMeta_new_inner(
+        &StructMetaType, name, bases, namespace,
+        arg_tag_field, arg_tag, arg_frozen, arg_array_like,
+        arg_nogc, arg_omit_defaults, arg_rename
+    );
+
+cleanup:
+    Py_XDECREF(namespace);
+    Py_XDECREF(new_bases);
+    Py_XDECREF(annotations);
+    Py_XDECREF(fields_fast);
+    return out;
+}
+
 
 static int
 StructMeta_prep_types(PyObject *py_self, bool err_not_json, bool *json_compatible) {
@@ -10077,6 +10220,10 @@ msgspec_json_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyO
  *************************************************************************/
 
 static struct PyMethodDef msgspec_methods[] = {
+    {
+        "defstruct", (PyCFunction) msgspec_defstruct, METH_VARARGS | METH_KEYWORDS,
+        msgspec_defstruct__doc__,
+    },
     {
         "msgpack_encode", (PyCFunction) msgspec_msgpack_encode, METH_FASTCALL | METH_KEYWORDS,
         msgspec_msgpack_encode__doc__,
