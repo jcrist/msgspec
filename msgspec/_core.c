@@ -1263,10 +1263,10 @@ typedef struct {
     PyObject *rename;
     bool json_compatible;
     bool traversing;
-    char frozen;
-    char array_like;
-    char nogc;
-    char omit_defaults;
+    int8_t frozen;
+    int8_t array_like;
+    int8_t nogc;
+    int8_t omit_defaults;
 } StructMetaObject;
 
 static PyTypeObject StructMetaType;
@@ -4279,12 +4279,12 @@ PyDoc_STRVAR(Struct__doc__,
 
 typedef struct Ext {
     PyObject_HEAD
-    char code;
+    long code;
     PyObject *data;
 } Ext;
 
 static PyObject *
-Ext_New(char code, PyObject *data) {
+Ext_New(long code, PyObject *data) {
     Ext *out = (Ext *)Ext_Type.tp_alloc(&Ext_Type, 0);
     if (out == NULL)
         return NULL;
@@ -4312,7 +4312,7 @@ PyDoc_STRVAR(Ext__doc__,
 static PyObject *
 Ext_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
     PyObject *pycode, *data;
-    char code;
+    long code;
     Py_ssize_t nargs, nkwargs;
 
     nargs = PyTuple_GET_SIZE(args);
@@ -4338,16 +4338,13 @@ Ext_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
     data = PyTuple_GET_ITEM(args, 1);
 
     if (PyLong_CheckExact(pycode)) {
-        long val = PyLong_AsLong(pycode);
-        if ((val == -1 && PyErr_Occurred()) || val > 127 || val < -128) {
+        code = PyLong_AsLong(pycode);
+        if ((code == -1 && PyErr_Occurred()) || code > 127 || code < -128) {
             PyErr_SetString(
                 PyExc_ValueError,
                 "code must be an int between -128 and 127"
             );
             return NULL;
-        }
-        else {
-            code = val;
         }
     }
     else {
@@ -4377,7 +4374,7 @@ Ext_dealloc(Ext *self)
 }
 
 static PyMemberDef Ext_members[] = {
-    {"code", T_BYTE, offsetof(Ext, code), READONLY, "The extension type code"},
+    {"code", T_INT, offsetof(Ext, code), READONLY, "The extension type code"},
     {"data", T_OBJECT_EX, offsetof(Ext, data), READONLY, "The extension data payload"},
     {NULL},
 };
@@ -6739,7 +6736,7 @@ mpack_decode_size4(DecoderState *self) {
 static PyObject *
 mpack_error_expected(char op, char *expected, PathNode *path) {
     char *got;
-    if (-32 <= op && op <= 127) {
+    if (('\x00' <= op && op <= '\x7f') || ('\xe0' <= op && op <= '\xff')) {
         got = "int";
     }
     else if ('\xa0' <= op && op <= '\xbf') {
@@ -6921,7 +6918,7 @@ mpack_skip(DecoderState *self) {
 
     if (mpack_read1(self, &op) < 0) return -1;
 
-    if (-32 <= op && op <= 127) {
+    if (('\x00' <= op && op <= '\x7f') || ('\xe0' <= op && op <= '\xff')) {
         return 0;
     }
     else if ('\xa0' <= op && op <= '\xbf') {
@@ -7565,11 +7562,13 @@ mpack_decode_ext(
     DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *path
 ) {
     Py_buffer *buffer;
-    char code = 0, *data_buf = NULL;
+    char c_code = 0, *data_buf = NULL;
+    long code;
     PyObject *data, *pycode = NULL, *view = NULL, *out = NULL;
 
     if (size < 0) return NULL;
-    if (mpack_read1(self, &code) < 0) return NULL;
+    if (mpack_read1(self, &c_code) < 0) return NULL;
+    code = *((int8_t *)(&c_code));
     if (mpack_read(self, &data_buf, size) < 0) return NULL;
 
     if (type->types & MS_TYPE_DATETIME && code == -1) {
@@ -7633,8 +7632,8 @@ mpack_decode_nocustom(
         return NULL;
     }
 
-    if (-32 <= op && op <= 127) {
-        return mpack_decode_int(self, op, type, path);
+    if (('\x00' <= op && op <= '\x7f') || ('\xe0' <= op && op <= '\xff')) {
+        return mpack_decode_int(self, *((int8_t *)(&op)), type, path);
     }
     else if ('\xa0' <= op && op <= '\xbf') {
         return mpack_decode_str(self, op & 0x1f, type, path);
