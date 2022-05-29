@@ -1121,6 +1121,13 @@ class TestExt:
         assert x != x4
         assert not (x == x4)
 
+    @pytest.mark.parametrize("code", [-128, -2, 0, 2, 127])
+    def test_code_roundtrip(self, code):
+        ext = msgspec.msgpack.Ext(code, b"")
+        assert ext.code == code
+        ext2 = msgspec.msgpack.decode(msgspec.msgpack.encode(ext))
+        assert ext2.code == code
+
     @pytest.mark.parametrize("code", [-129, 128, 2**65])
     def test_code_out_of_range(self, code):
         with pytest.raises(ValueError):
