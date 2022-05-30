@@ -4,18 +4,23 @@ import versioneer
 from setuptools import setup
 from setuptools.extension import Extension
 
-DEBUG = os.environ.get("MSGSPEC_DEBUG", False)
+SANITIZE = os.environ.get("MSGSPEC_SANITIZE", False)
+DEBUG = os.environ.get("MSGSPEC_DEBUG", SANITIZE)
 
+extra_compile_args = []
+extra_link_args = []
 if DEBUG:
-    extra_compile_args = ["-O0", "-g"]
-else:
-    extra_compile_args = []
+    extra_compile_args.extend(["-O0", "-g", "-UNDEBUG"])
+if SANITIZE:
+    extra_compile_args.extend(["-fsanitize=address", "-fsanitize=undefined"])
+    extra_link_args.extend(["-lasan", "-lubsan"])
 
 ext_modules = [
     Extension(
         "msgspec._core",
         [os.path.join("msgspec", "_core.c")],
         extra_compile_args=extra_compile_args,
+        extra_link_args=extra_link_args,
     )
 ]
 
