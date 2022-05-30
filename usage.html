@@ -463,10 +463,10 @@ type in MessagePack.</p>
 <span class="go">b'"85+Eng=="'</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">bytes</span><span class="p">)</span>
-<span class="go">b'"85+Eng=="'</span>
+<span class="go">b'\xf0\x9d\x84\x9e'</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">bytearray</span><span class="p">)</span>
-<span class="go">bytearray(b'"85+Eng=="')</span>
+<span class="go">bytearray(b'\xf0\x9d\x84\x9e')</span>
 </pre></div>
 </div>
 </section>
