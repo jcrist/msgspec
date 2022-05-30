@@ -27,7 +27,7 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          pip install pytest mypy pyright
+          pip install pytest mypy pyright msgpack
 
       - name: Build Msgspec
         run: |
@@ -54,9 +54,7 @@ jobs:
           PYTHONMALLOC: "malloc"
           ASAN_OPTIONS: "detect_leaks=0"
         run: |
-          set -xe
           export LD_PRELOAD=`gcc -print-file-name=libasan.so`
-          echo $LD_PRELOAD
           py.test -s -m "not mypy and not pyright"
 
   build_wheels:
