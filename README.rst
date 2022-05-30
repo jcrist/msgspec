@@ -52,7 +52,7 @@ of the nicities of validation libraries like pydantic_. For supported types,
 encoding/decoding a message with ``msgspec`` can be *~2-40x faster* than
 alternative libraries.
 
-.. image:: https://github.com/jcrist/msgspec/raw/master/docs/source/_static/bench-1.png
+.. image:: https://github.com/jcrist/msgspec/raw/main/docs/source/_static/bench-1.png
     :target: https://jcristharif.com/msgspec/benchmarks.html
 
 See `the documentation <https://jcristharif.com/msgspec/>`__ for more
@@ -62,7 +62,7 @@ LICENSE
 -------
 
 New BSD. See the
-`License File <https://github.com/jcrist/msgspec/blob/master/LICENSE>`_.
+`License File <https://github.com/jcrist/msgspec/blob/main/LICENSE>`_.
 
 .. _type annotations: https://docs.python.org/3/library/typing.html
 .. _JSON: https://json.org
