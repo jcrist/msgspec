@@ -307,10 +307,10 @@ type in MessagePack.
     b'"85+Eng=="'
 
     >>> msgspec.json.decode(msg, type=bytes)
-    b'"85+Eng=="'
+    b'\xf0\x9d\x84\x9e'
 
     >>> msgspec.json.decode(msg, type=bytearray)
-    bytearray(b'"85+Eng=="')
+    bytearray(b'\xf0\x9d\x84\x9e')
 
 ``IntEnum``
 ~~~~~~~~~~~

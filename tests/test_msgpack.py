@@ -591,6 +591,24 @@ class TestDecoderMisc:
         with pytest.raises(msgspec.DecodeError):
             dec.decode(msg)
 
+    def test_decode_invalid_opcode_error(self):
+        with pytest.raises(msgspec.DecodeError, match="invalid opcode '\\\\xc1'"):
+            msgspec.msgpack.decode(b"\xc1abc")
+
+    def test_decode_skip_invalid_submessage_raises(self):
+        """Ensure errors in submessage skipping are raised"""
+
+        class Test(msgspec.Struct):
+            x: int
+
+        msg = msgspec.msgpack.encode({"x": 1, "y": ["one", "two", "three"]})
+
+        # Break the message
+        msg = msg.replace(b"three", b"tree")
+
+        with pytest.raises(msgspec.DecodeError, match="truncated"):
+            msgspec.msgpack.decode(msg, type=Test)
+
 
 class TestTypedDecoder:
     def check_unexpected_type(self, dec_type, val, msg):
