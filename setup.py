@@ -7,7 +7,7 @@ from setuptools.extension import Extension
 DEBUG = os.environ.get("MSGSPEC_DEBUG", False)
 
 if DEBUG:
-    extra_compile_args = ["-O0", "-g"]
+    extra_compile_args = ["-O0", "-g", "-UNDEBUG"]
 else:
     extra_compile_args = []
 

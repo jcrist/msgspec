@@ -3524,17 +3524,16 @@ error:
 static int
 StructMeta_traverse(StructMetaObject *self, visitproc visit, void *arg)
 {
-    int out;
-    Py_ssize_t i, nfields;
     Py_VISIT(self->struct_fields);
     Py_VISIT(self->struct_defaults);
     Py_VISIT(self->struct_encode_fields);
     Py_VISIT(self->struct_tag);  /* May be a function */
     Py_VISIT(self->rename);  /* May be a function */
     if (self->struct_types != NULL) {
-        nfields = PyTuple_GET_SIZE(self->struct_fields);
-        for (i = 0; i < nfields; i++) {
-            out = TypeNode_traverse(self->struct_types[i], visit, arg);
+        assert(self->struct_fields != NULL);
+        Py_ssize_t nfields = PyTuple_GET_SIZE(self->struct_fields);
+        for (Py_ssize_t i = 0; i < nfields; i++) {
+            int out = TypeNode_traverse(self->struct_types[i], visit, arg);
             if (out != 0) return out;
         }
     }
@@ -9438,9 +9437,10 @@ json_decode_extended_float(JSONDecoderState *self) {
     if (MS_UNLIKELY(c == '0')) {
         /* Ensure at most one leading zero */
         self->input_pos++;
+        /* This _can't_ happen, since it would have been caught in the fast routine first:
         c = json_peek_or_null(self);
-        /* This _can't_ happen, since it would have been caught in the fast routine first */
-        /*if (MS_UNLIKELY(is_digit(c))) return json_err_invalid(self, "invalid number");*/
+        if (MS_UNLIKELY(is_digit(c))) return json_err_invalid(self, "invalid number");
+        */
     }
     else {
         /* Parse the integer part of the number. */
