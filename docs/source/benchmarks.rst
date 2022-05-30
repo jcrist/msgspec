@@ -61,7 +61,7 @@ The libraries we're benchmarking are the following:
 
 Each benchmark creates one or more instances of a ``Person`` message, and
 serializes it/deserializes it in a loop. The `full benchmark source can be
-found here <https://github.com/jcrist/msgspec/tree/master/benchmarks>`__.
+found here <https://github.com/jcrist/msgspec/tree/main/benchmarks>`__.
 
 1 Object
 ^^^^^^^^
@@ -171,7 +171,7 @@ For each library, the following operations are benchmarked:
 - Time to compare two instances.
 
 The `full benchmark source can be found here
-<https://github.com/jcrist/msgspec/tree/master/benchmarks/bench_structs.py>`__.
+<https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_structs.py>`__.
 
 **Results:**
 
@@ -216,7 +216,7 @@ of the benchmarked type, then measure:
 - The total amount of memory used by this data structure
 
 The `full benchmark source can be found here
-<https://github.com/jcrist/msgspec/tree/master/benchmarks/bench_gc.py>`__.
+<https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_gc.py>`__.
 
 **Results:**
 
