@@ -4,6 +4,8 @@ import subprocess
 
 import pytest
 
+pytestmark = pytest.mark.pyright
+
 pyright = pytest.importorskip("pyright")
 
 PATH = os.path.join(os.path.dirname(__file__), "basic_typing_examples.py")

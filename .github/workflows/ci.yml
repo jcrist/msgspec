@@ -23,7 +23,7 @@ jobs:
       - name: Install Python
         uses: actions/setup-python@v2
         with:
-          python-version: 3.8
+          python-version: 3.10
 
       - name: Install Dependencies
         run: |
@@ -41,6 +41,19 @@ jobs:
 
       - name: pyright
         run: py.test tests/test_pyright.py
+
+      - name: Rebuild with sanitizers
+        env:
+          MSGSPEC_SANITIZE: "true"
+        run: |
+          python setup.py clean --all
+          pip install -e .
+
+      - name: Run tests with sanitizers
+        env:
+          PYTHONMALLOC: "malloc"
+          ASAN_OPTIONS: "detect_leaks=0"
+        run: py.test -m "not mypy and not pyright"
 
   build_wheels:
     name: Build wheels on ${{ matrix.os }}

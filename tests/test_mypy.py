@@ -3,6 +3,8 @@ import os
 
 import pytest
 
+pytestmark = pytest.mark.mypy
+
 api = pytest.importorskip("mypy.api")
 
 PATH = os.path.join(os.path.dirname(__file__), "basic_typing_examples.py")

@@ -858,7 +858,7 @@ StrLookup_NewFullArgs(PyObject *arg, PyObject *tag_field, bool array_like) {
     else {
         items = PySequence_Tuple(arg);
         if (items == NULL) return NULL;
-        nitems = PyTuple_GET_SIZE(arg);
+        nitems = PyTuple_GET_SIZE(items);
     }
 
     /* Must have at least one item */
@@ -2913,7 +2913,7 @@ StructMeta_rename_fields(PyObject *fields, PyObject *rename)
         );
         goto error;
     }
-    Py_DECREF(out_set);
+    Py_CLEAR(out_set);
 
     /* Ensure all renamed fields contain characters that don't require quoting
      * in JSON. This isn't strictly required, but usage of such characters is
@@ -8612,8 +8612,8 @@ json_decode_datetime(
 
     /* Ensure all numbers are valid */
     if (year == 0) goto invalid;
-    if (day == 0 || day > days_in_month(year, month)) goto invalid;
     if (month == 0 || month > 12) goto invalid;
+    if (day == 0 || day > days_in_month(year, month)) goto invalid;
     if (hour > 23) goto invalid;
     if (minute > 59) goto invalid;
     if (second > 59) goto invalid;
