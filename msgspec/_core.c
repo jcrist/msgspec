@@ -1504,7 +1504,7 @@ typenode_from_collect_state(TypeNodeCollectState *state, bool err_not_json, bool
     if (state->array_el_obj != NULL) {
         if (PyTuple_Check(state->array_el_obj)) {
             has_fixtuple = true;
-            fixtuple_size = PyTuple_Size(state->array_el_obj);
+            fixtuple_size = PyTuple_GET_SIZE(state->array_el_obj);
             n_extra += fixtuple_size;
         }
         else {
@@ -1813,7 +1813,7 @@ typenode_collect_literal(TypeNodeCollectState *state, PyObject *literal) {
     /* This should never happen, since we know this is a `Literal` object */
     if (args == NULL) return -1;
 
-    Py_ssize_t size = PyTuple_Size(args);
+    Py_ssize_t size = PyTuple_GET_SIZE(args);
     if (size < 0) return -1;
 
     if (size == 0) {
@@ -2286,7 +2286,7 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
     if (Py_TYPE(obj) == (PyTypeObject *)(state->mod->types_uniontype)) {
         args = PyObject_GetAttr(obj, state->mod->str___args__);
         if (args == NULL) goto done;
-        for (Py_ssize_t i = 0; i < PyTuple_Size(args); i++) {
+        for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(args); i++) {
             out = typenode_collect_type(state, PyTuple_GET_ITEM(args, i));
             if (out < 0) break;
         }
@@ -2308,36 +2308,42 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
         goto done;
     }
 
+    /* __args__ must be a tuple */
+    if (!PyTuple_Check(args)) {
+        PyErr_SetString(PyExc_TypeError, "__args__ must be a tuple");
+        goto done;
+    }
+
     if (origin == (PyObject*)(&PyDict_Type)) {
-        if (PyTuple_Size(args) != 2) goto invalid;
+        if (PyTuple_GET_SIZE(args) != 2) goto invalid;
         out = typenode_collect_dict(
             state, obj, PyTuple_GET_ITEM(args, 0), PyTuple_GET_ITEM(args, 1)
         );
         goto done;
     }
     else if (origin == (PyObject*)(&PyList_Type)) {
-        if (PyTuple_Size(args) != 1) goto invalid;
+        if (PyTuple_GET_SIZE(args) != 1) goto invalid;
         out = typenode_collect_array(
             state, MS_TYPE_LIST, PyTuple_GET_ITEM(args, 0)
         );
         goto done;
     }
     else if (origin == (PyObject*)(&PySet_Type)) {
-        if (PyTuple_Size(args) != 1) goto invalid;
+        if (PyTuple_GET_SIZE(args) != 1) goto invalid;
         out = typenode_collect_array(
             state, MS_TYPE_SET, PyTuple_GET_ITEM(args, 0)
         );
         goto done;
     }
     else if (origin == (PyObject*)(&PyFrozenSet_Type)) {
-        if (PyTuple_Size(args) != 1) goto invalid;
+        if (PyTuple_GET_SIZE(args) != 1) goto invalid;
         out = typenode_collect_array(
             state, MS_TYPE_FROZENSET, PyTuple_GET_ITEM(args, 0)
         );
         goto done;
     }
     else if (origin == (PyObject*)(&PyTuple_Type)) {
-        if (PyTuple_Size(args) == 2 && PyTuple_GET_ITEM(args, 1) == Py_Ellipsis) {
+        if (PyTuple_GET_SIZE(args) == 2 && PyTuple_GET_ITEM(args, 1) == Py_Ellipsis) {
             out = typenode_collect_array(
                 state, MS_TYPE_VARTUPLE, PyTuple_GET_ITEM(args, 0)
             );
@@ -2348,7 +2354,7 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
         goto done;
     }
     else if (origin == state->mod->typing_union) {
-        for (Py_ssize_t i = 0; i < PyTuple_Size(args); i++) {
+        for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(args); i++) {
             out = typenode_collect_type(state, PyTuple_GET_ITEM(args, i));
             if (out < 0) break;
         }
@@ -6890,9 +6896,10 @@ mpack_skip_array(DecoderState *self, Py_ssize_t size) {
 
     if (Py_EnterRecursiveCall(" while deserializing an object")) return -1;
     for (i = 0; i < size; i++) {
-        if (mpack_skip(self) < 0) break;
+        if (mpack_skip(self) < 0) goto done;
     }
     status = 0;
+done:
     Py_LeaveRecursiveCall();
     return status;
 }
@@ -6988,7 +6995,7 @@ mpack_skip(DecoderState *self) {
             PyErr_Format(
                 msgspec_get_global_state()->DecodeError,
                 "MessagePack data is malformed: invalid opcode '\\x%02x' (byte %zd)",
-                op,
+                (unsigned char)op,
                 (Py_ssize_t)(self->input_pos - self->input_start - 1)
             );
             return -1;
@@ -7131,6 +7138,7 @@ mpack_decode_set(
         PathNode el_path = {path, i};
         item = mpack_decode(self, el_type, &el_path, true);
         if (MS_UNLIKELY(item == NULL || PySet_Add(res, item) < 0)) {
+            Py_XDECREF(item);
             Py_CLEAR(res);
             break;
         }
@@ -7751,7 +7759,7 @@ mpack_decode_nocustom(
             PyErr_Format(
                 msgspec_get_global_state()->DecodeError,
                 "MessagePack data is malformed: invalid opcode '\\x%02x' (byte %zd)",
-                op,
+                (unsigned char)op,
                 (Py_ssize_t)(self->input_pos - self->input_start - 1)
             );
             return NULL;
@@ -7810,7 +7818,7 @@ Decoder_decode(Decoder *self, PyObject *const *args, Py_ssize_t nargs)
         res = mpack_decode(&(self->state), self->state.type, NULL, false);
 
         if (res != NULL && mpack_has_trailing_characters(&self->state)) {
-            res = NULL;
+            Py_CLEAR(res);
         }
 
         PyBuffer_Release(&buffer);
@@ -7978,7 +7986,7 @@ msgspec_msgpack_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, 
         }
         PyBuffer_Release(&buffer);
         if (res != NULL && mpack_has_trailing_characters(&state)) {
-            res = NULL;
+            Py_CLEAR(res);
         }
     }
 
@@ -10045,7 +10053,7 @@ JSONDecoder_decode(JSONDecoder *self, PyObject *const *args, Py_ssize_t nargs)
         res = json_decode(&(self->state), self->state.type, NULL);
 
         if (res != NULL && json_has_trailing_characters(&self->state)) {
-            res = NULL;
+            Py_CLEAR(res);
         }
 
         PyBuffer_Release(&buffer);
@@ -10198,7 +10206,7 @@ msgspec_json_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyO
         }
 
         if (res != NULL && json_has_trailing_characters(&state)) {
-            res = NULL;
+            Py_CLEAR(res);
         }
 
         PyBuffer_Release(&buffer);
