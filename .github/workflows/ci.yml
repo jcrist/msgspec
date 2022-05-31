@@ -72,6 +72,7 @@ jobs:
       CIBW_ARCHS_MACOS: "x86_64 arm64"
       CIBW_ARCHS_LINUX: "x86_64 aarch64"
       CIBW_TEST_SKIP: "*_arm64 *-musllinux_*"
+      CIBW_ENVIRONMENT: "CFLAGS=-g0"
 
     steps:
       - uses: actions/checkout@v2
