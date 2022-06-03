@@ -471,7 +471,7 @@ for all struct types you wish to tag.</p>
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Create a base class for tagged structs, where:</span>
 <span class="gp">... </span><span class="c1"># - the tag field is "op"</span>
 <span class="gp">... </span><span class="c1"># - the tag is the class name lowercased</span>
-<span class="gp">... </span><span class="k">class</span> <span class="nc">TaggedBase</span><span class="p">(</span><span class="n">tag_field</span><span class="o">=</span><span class="s2">"op"</span><span class="p">,</span> <span class="n">tag</span><span class="o">=</span><span class="k">lambda</span> <span class="n">name</span><span class="p">:</span> <span class="n">name</span><span class="o">.</span><span class="n">lowercase</span><span class="p">()):</span>
+<span class="gp">... </span><span class="k">class</span> <span class="nc">TaggedBase</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">tag_field</span><span class="o">=</span><span class="s2">"op"</span><span class="p">,</span> <span class="n">tag</span><span class="o">=</span><span class="k">lambda</span> <span class="n">name</span><span class="p">:</span> <span class="n">name</span><span class="o">.</span><span class="n">lower</span><span class="p">()):</span>
 <span class="gp">... </span>    <span class="k">pass</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Use the base class to pass on the configuration</span>
@@ -488,7 +488,7 @@ for all struct types you wish to tag.</p>
 <span class="go">b'{"op":"get","key":"my key"}'</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Create a decoder for decoding either Get or Put</span>
-<span class="gp">... </span><span class="n">dec</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">Decoder</span><span class="p">(</span><span class="n">Union</span><span class="p">[</span><span class="n">Get</span><span class="p">,</span> <span class="n">Put</span><span class="p">])</span>
+<span class="gp">... </span><span class="n">dec</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">Decoder</span><span class="p">(</span><span class="n">Union</span><span class="p">[</span><span class="n">Get</span><span class="p">,</span> <span class="n">Put</span><span class="p">])</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># The tag value is used to determine the message type</span>
 <span class="gp">... </span><span class="n">dec</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'{"op": "put", "key": "my key", "val": "my val"}'</span><span class="p">)</span>
