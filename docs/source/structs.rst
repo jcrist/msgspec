@@ -309,7 +309,7 @@ for all struct types you wish to tag.
     >>> # Create a base class for tagged structs, where:
     ... # - the tag field is "op"
     ... # - the tag is the class name lowercased
-    ... class TaggedBase(tag_field="op", tag=lambda name: name.lowercase()):
+    ... class TaggedBase(msgspec.Struct, tag_field="op", tag=lambda name: name.lower()):
     ...     pass
 
     >>> # Use the base class to pass on the configuration
@@ -326,7 +326,7 @@ for all struct types you wish to tag.
     b'{"op":"get","key":"my key"}'
 
     >>> # Create a decoder for decoding either Get or Put
-    ... dec = msgspec.Decoder(Union[Get, Put])
+    ... dec = msgspec.json.Decoder(Union[Get, Put])
 
     >>> # The tag value is used to determine the message type
     ... dec.decode(b'{"op": "put", "key": "my key", "val": "my val"}')
