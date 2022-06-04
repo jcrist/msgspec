@@ -1,14 +1,14 @@
 <!doctype html>
-<html class="no-js">
+<html class="no-js" lang="en">
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
-    <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+    <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Structs" href="structs.html" /><link rel="prev" title="msgspec" href="index.html" />
 
-    <meta name="generator" content="sphinx-4.5.0, furo 2022.04.07"/>
+    <meta name="generator" content="sphinx-5.0.1, furo 2022.06.04"/>
         <title>Usage</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
-    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=68f4518137b9aefe99b631505a2064c3c42c9852" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=40978830699223671f4072448e654b5958f38b89" />
     <link rel="stylesheet" type="text/css" href="_static/copybutton.css" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?digest=30d1aed668e5c3a91c3e3bf6a60b675221979f0e" />
     
@@ -183,7 +183,8 @@
           </svg>
           <span>Back to top</span>
         </a>
-        <div class="content-icon-container"><div class="theme-toggle-container theme-toggle-content">
+        <div class="content-icon-container">
+          <div class="theme-toggle-container theme-toggle-content">
             <button class="theme-toggle">
               <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
               <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
@@ -198,7 +199,7 @@
         </div>
         <article role="main">
           <section id="usage">
-<h1>Usage<a class="headerlink" href="#usage" title="Permalink to this headline">#</a></h1>
+<h1>Usage<a class="headerlink" href="#usage" title="Permalink to this heading">#</a></h1>
 <p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> supports multiple serialization protocols, accessed through
 separate submodules:</p>
 <ul class="simple">
@@ -208,18 +209,18 @@ separate submodules:</p>
 <p>Each supports a consistent interface, making it simple to switch between
 protocols as needed.</p>
 <section id="encoding">
-<h2>Encoding<a class="headerlink" href="#encoding" title="Permalink to this headline">#</a></h2>
+<h2>Encoding<a class="headerlink" href="#encoding" title="Permalink to this heading">#</a></h2>
 <p>Each submodule has an <code class="docutils literal notranslate"><span class="pre">encode</span></code> method for encoding Python objects using the
 respective protocol.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">msgspec</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Encode as JSON</span>
-<span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">({</span><span class="s2">"hello"</span><span class="p">:</span> <span class="s2">"world"</span><span class="p">})</span>
-<span class="go">b'{"hello":"world"}'</span>
+<span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">({</span><span class="s2">&quot;hello&quot;</span><span class="p">:</span> <span class="s2">&quot;world&quot;</span><span class="p">})</span>
+<span class="go">b&#39;{&quot;hello&quot;:&quot;world&quot;}&#39;</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Encode as msgpack</span>
-<span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">msgpack</span><span class="o">.</span><span class="n">encode</span><span class="p">({</span><span class="s2">"hello"</span><span class="p">:</span> <span class="s2">"world"</span><span class="p">})</span>
-<span class="go">b'\x81\xa5hello\xa5world'</span>
+<span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">msgpack</span><span class="o">.</span><span class="n">encode</span><span class="p">({</span><span class="s2">&quot;hello&quot;</span><span class="p">:</span> <span class="s2">&quot;world&quot;</span><span class="p">})</span>
+<span class="go">b&#39;\x81\xa5hello\xa5world&#39;</span>
 </pre></div>
 </div>
 <p>Note that if you’re making multiple calls to <code class="docutils literal notranslate"><span class="pre">encode</span></code>, it’s more efficient to
@@ -230,24 +231,24 @@ create an <code class="docutils literal notranslate"><span class="pre">Encoder</
 <span class="gp">... </span><span class="n">encoder</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">Encoder</span><span class="p">()</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Encode as JSON using the encoder</span>
-<span class="gp">... </span><span class="n">encoder</span><span class="o">.</span><span class="n">encode</span><span class="p">({</span><span class="s2">"hello"</span><span class="p">:</span> <span class="s2">"world"</span><span class="p">})</span>
-<span class="go">b'{"hello":"world"}'</span>
+<span class="gp">... </span><span class="n">encoder</span><span class="o">.</span><span class="n">encode</span><span class="p">({</span><span class="s2">&quot;hello&quot;</span><span class="p">:</span> <span class="s2">&quot;world&quot;</span><span class="p">})</span>
+<span class="go">b&#39;{&quot;hello&quot;:&quot;world&quot;}&#39;</span>
 </pre></div>
 </div>
 </section>
 <section id="decoding">
-<h2>Decoding<a class="headerlink" href="#decoding" title="Permalink to this headline">#</a></h2>
+<h2>Decoding<a class="headerlink" href="#decoding" title="Permalink to this heading">#</a></h2>
 <p>Each submodule has <code class="docutils literal notranslate"><span class="pre">decode</span></code> method for decoding messages using the respective
 protocol.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">msgspec</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Decode JSON</span>
-<span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'{"hello":"world"}'</span><span class="p">)</span>
-<span class="go">{'hello': 'world'}</span>
+<span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;{&quot;hello&quot;:&quot;world&quot;}&#39;</span><span class="p">)</span>
+<span class="go">{&#39;hello&#39;: &#39;world&#39;}</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Decode msgpack</span>
-<span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">msgpack</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'</span><span class="se">\x81\xa5</span><span class="s1">hello</span><span class="se">\xa5</span><span class="s1">world'</span><span class="p">)</span>
-<span class="go">{'hello': 'world'}</span>
+<span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">msgpack</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;</span><span class="se">\x81\xa5</span><span class="s1">hello</span><span class="se">\xa5</span><span class="s1">world&#39;</span><span class="p">)</span>
+<span class="go">{&#39;hello&#39;: &#39;world&#39;}</span>
 </pre></div>
 </div>
 <p>Note that if you’re making multiple calls to <code class="docutils literal notranslate"><span class="pre">decode</span></code>, it’s more efficient to
@@ -258,13 +259,13 @@ create a <code class="docutils literal notranslate"><span class="pre">Decoder</s
 <span class="gp">... </span><span class="n">encoder</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">Decoder</span><span class="p">()</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Decode JSON using the decoder</span>
-<span class="gp">... </span><span class="n">decoder</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'{"hello":"world"}'</span><span class="p">)</span>
-<span class="go">{'hello': 'world'}</span>
+<span class="gp">... </span><span class="n">decoder</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;{&quot;hello&quot;:&quot;world&quot;}&#39;</span><span class="p">)</span>
+<span class="go">{&#39;hello&#39;: &#39;world&#39;}</span>
 </pre></div>
 </div>
 </section>
 <section id="typed-decoding">
-<span id="typed-deserialization"></span><h2>Typed Decoding<a class="headerlink" href="#typed-decoding" title="Permalink to this headline">#</a></h2>
+<span id="typed-deserialization"></span><h2>Typed Decoding<a class="headerlink" href="#typed-decoding" title="Permalink to this heading">#</a></h2>
 <p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> optionally supports specifying the expected output types during
 decoding. This serves a few purposes:</p>
 <ul class="simple">
@@ -320,34 +321,34 @@ Most combinations of the following types are supported (see
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Decode a User from JSON</span>
 <span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span>
-<span class="gp">... </span>    <span class="sa">b</span><span class="s1">'{"name": "bob", "email": "bob@company.com"}'</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="sa">b</span><span class="s1">&#39;{&quot;name&quot;: &quot;bob&quot;, &quot;email&quot;: &quot;bob@company.com&quot;}&#39;</span><span class="p">,</span>
 <span class="gp">... </span>    <span class="nb">type</span><span class="o">=</span><span class="n">User</span>
 <span class="gp">... </span><span class="p">)</span>
-<span class="go">User(name='bob', groups=[], email="bob@company.com")</span>
+<span class="go">User(name=&#39;bob&#39;, groups=[], email=&quot;bob@company.com&quot;)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Create a decoder that expects a list of users</span>
 <span class="gp">... </span><span class="n">decoder</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">Decoder</span><span class="p">(</span><span class="n">List</span><span class="p">[</span><span class="n">User</span><span class="p">])</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Decode a list of users from JSON</span>
 <span class="go">.... decoder.decode(</span>
-<span class="gp">... </span>    <span class="sa">b</span><span class="sd">"""[</span>
-<span class="gp">... </span><span class="sd">      {"name": "bob", "email": "bob@company.com"},</span>
-<span class="gp">... </span><span class="sd">      {"name": "carol", "groups": ["admin"]}</span>
-<span class="gp">... </span><span class="sd">    ]"""</span>
+<span class="gp">... </span>    <span class="sa">b</span><span class="sd">&quot;&quot;&quot;[</span>
+<span class="gp">... </span><span class="sd">      {&quot;name&quot;: &quot;bob&quot;, &quot;email&quot;: &quot;bob@company.com&quot;},</span>
+<span class="gp">... </span><span class="sd">      {&quot;name&quot;: &quot;carol&quot;, &quot;groups&quot;: [&quot;admin&quot;]}</span>
+<span class="gp">... </span><span class="sd">    ]&quot;&quot;&quot;</span>
 <span class="gp">... </span><span class="p">)</span>
-<span class="go">[User(name='bob', groups=[], email='bob@company.com'),</span>
-<span class="go"> User(name='carol', groups=['admin'], email=None)]</span>
+<span class="go">[User(name=&#39;bob&#39;, groups=[], email=&#39;bob@company.com&#39;),</span>
+<span class="go"> User(name=&#39;carol&#39;, groups=[&#39;admin&#39;], email=None)]</span>
 </pre></div>
 </div>
 <p>If a message doesn’t match the expected type, an error is raised.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">decoder</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span>
-<span class="gp">... </span>    <span class="sa">b</span><span class="sd">"""[</span>
-<span class="gp">... </span><span class="sd">      {"name": "darla", "email": "darla@company.com"},</span>
-<span class="gp">... </span><span class="sd">      {"name": "eric", "groups": ["admin", 123]}</span>
-<span class="gp">... </span><span class="sd">    ]"""</span>
+<span class="gp">... </span>    <span class="sa">b</span><span class="sd">&quot;&quot;&quot;[</span>
+<span class="gp">... </span><span class="sd">      {&quot;name&quot;: &quot;darla&quot;, &quot;email&quot;: &quot;darla@company.com&quot;},</span>
+<span class="gp">... </span><span class="sd">      {&quot;name&quot;: &quot;eric&quot;, &quot;groups&quot;: [&quot;admin&quot;, 123]}</span>
+<span class="gp">... </span><span class="sd">    ]&quot;&quot;&quot;</span>
 <span class="gp">... </span><span class="p">)</span>
 <span class="gt">Traceback (most recent call last):</span>
-  File <span class="nb">"&lt;stdin&gt;"</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
 <span class="gr">msgspec.DecodeError</span>: <span class="n">Expected `str`, got `int` - at `$[1].groups[1]`</span>
 </pre></div>
 </div>
@@ -355,9 +356,9 @@ Most combinations of the following types are supported (see
 unsafe implicit conversion. For example, if an integer is specified and a
 string is decoded instead, an error is raised rather than attempting to cast
 the string to an int.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'[1, 2, "3"]'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">])</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;[1, 2, &quot;3&quot;]&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">])</span>
 <span class="gt">Traceback (most recent call last):</span>
-  File <span class="nb">"&lt;stdin&gt;"</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
 <span class="gr">msgspec.DecodeError</span>: <span class="n">Expected `int`, got `str` - at `$[2]`</span>
 </pre></div>
 </div>
@@ -365,54 +366,54 @@ the string to an int.</p>
 and an integer is decoded, the integer will be converted to a float. This is
 done to play nicer with JSON, which makes no distinction between integer and
 floating point numbers.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'[1.5, 2.5, 3]'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">])</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;[1.5, 2.5, 3]&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">])</span>
 <span class="go">[1.5, 2.5, 3.0]</span>
 </pre></div>
 </div>
 </section>
 <section id="supported-types">
-<span id="id1"></span><h2>Supported Types<a class="headerlink" href="#supported-types" title="Permalink to this headline">#</a></h2>
+<span id="id1"></span><h2>Supported Types<a class="headerlink" href="#supported-types" title="Permalink to this heading">#</a></h2>
 <p>Here we document how msgspec maps Python objects to/from the <a class="reference external" href="https://json.org">JSON</a>/<a class="reference external" href="https://msgpack.org">MessagePack</a>
 protocols.</p>
 <section id="none">
-<h3><code class="docutils literal notranslate"><span class="pre">None</span></code><a class="headerlink" href="#none" title="Permalink to this headline">#</a></h3>
+<h3><code class="docutils literal notranslate"><span class="pre">None</span></code><a class="headerlink" href="#none" title="Permalink to this heading">#</a></h3>
 <p><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a> maps to <code class="docutils literal notranslate"><span class="pre">null</span></code> in JSON/<code class="docutils literal notranslate"><span class="pre">nil</span></code> in MessagePack.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
-<span class="go">b'null'</span>
+<span class="go">b&#39;null&#39;</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'null'</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;null&#39;</span><span class="p">)</span>
 <span class="go">None</span>
 </pre></div>
 </div>
 </section>
 <section id="bool">
-<h3><code class="docutils literal notranslate"><span class="pre">bool</span></code><a class="headerlink" href="#bool" title="Permalink to this headline">#</a></h3>
+<h3><code class="docutils literal notranslate"><span class="pre">bool</span></code><a class="headerlink" href="#bool" title="Permalink to this heading">#</a></h3>
 <p>Booleans map to their corresponding <code class="docutils literal notranslate"><span class="pre">true</span></code>/<code class="docutils literal notranslate"><span class="pre">false</span></code> values in both JSON and
 MessagePack.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
-<span class="go">b'true'</span>
+<span class="go">b&#39;true&#39;</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'true'</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;true&#39;</span><span class="p">)</span>
 <span class="go">True</span>
 </pre></div>
 </div>
 </section>
 <section id="int">
-<h3><code class="docutils literal notranslate"><span class="pre">int</span></code><a class="headerlink" href="#int" title="Permalink to this headline">#</a></h3>
+<h3><code class="docutils literal notranslate"><span class="pre">int</span></code><a class="headerlink" href="#int" title="Permalink to this heading">#</a></h3>
 <p>Integers map to JSON numbers/MessagePack integers. Only values that fit in an
 <code class="docutils literal notranslate"><span class="pre">int64</span></code> or <code class="docutils literal notranslate"><span class="pre">uint64</span></code> (within <code class="docutils literal notranslate"><span class="pre">[-2**63,</span> <span class="pre">2**64</span> <span class="pre">-</span> <span class="pre">1]</span></code>, inclusive) are
 supported. Values outside this range will raise a <a class="reference internal" href="api.html#msgspec.DecodeError" title="msgspec.DecodeError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.DecodeError</span></code></a>
 during decoding.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="mi">123</span><span class="p">)</span>
-<span class="go">b"123"</span>
+<span class="go">b&quot;123&quot;</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s2">"123"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;123&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
 <span class="go">123</span>
 </pre></div>
 </div>
 </section>
 <section id="float">
-<h3><code class="docutils literal notranslate"><span class="pre">float</span></code><a class="headerlink" href="#float" title="Permalink to this headline">#</a></h3>
+<h3><code class="docutils literal notranslate"><span class="pre">float</span></code><a class="headerlink" href="#float" title="Permalink to this heading">#</a></h3>
 <p>Floats map to JSON numbers/MessagePack floats. Note that per <a class="reference external" href="https://datatracker.ietf.org/doc/html/rfc8259">RFC8259</a>, JSON
 doesn’t support nonfinite numbers (<code class="docutils literal notranslate"><span class="pre">nan</span></code>, <code class="docutils literal notranslate"><span class="pre">infinity</span></code>, <code class="docutils literal notranslate"><span class="pre">-infinity</span></code>);
 <code class="docutils literal notranslate"><span class="pre">msgspec.json</span></code> handles this by encoding these values as <code class="docutils literal notranslate"><span class="pre">null</span></code>.
@@ -421,57 +422,57 @@ IEEE754 64 bit floating point value.</p>
 <p>For all decoders, if a <a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">float</span></code></a> type is specified and an <a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">int</span></code></a> value is
 provided, the <a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">int</span></code></a> will be automatically converted.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="mf">123.0</span><span class="p">)</span>
-<span class="go">b"123.0"</span>
+<span class="go">b&quot;123.0&quot;</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="c1"># JSON doesn't support nonfinite values, these serialize as null</span>
-<span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="s2">"nan"</span><span class="p">))</span>
-<span class="go">b"null"</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># JSON doesn&#39;t support nonfinite values, these serialize as null</span>
+<span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="s2">&quot;nan&quot;</span><span class="p">))</span>
+<span class="go">b&quot;null&quot;</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s2">"123.0"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;123.0&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
 <span class="go">123.0</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Ints are automatically converted to floats</span>
-<span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s2">"123"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+<span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;123&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
 <span class="go">123.0</span>
 </pre></div>
 </div>
 </section>
 <section id="str">
-<h3><code class="docutils literal notranslate"><span class="pre">str</span></code><a class="headerlink" href="#str" title="Permalink to this headline">#</a></h3>
+<h3><code class="docutils literal notranslate"><span class="pre">str</span></code><a class="headerlink" href="#str" title="Permalink to this heading">#</a></h3>
 <p>Strings map to JSON or MessagePack strings.</p>
 <p>Note that for JSON, only the characters required by <a class="reference external" href="https://datatracker.ietf.org/doc/html/rfc8259">RFC8259</a> are escaped to
-ascii; unicode characters (e.g. <code class="docutils literal notranslate"><span class="pre">"𝄞"</span></code>) are _not_ escaped and are serialized
+ascii; unicode characters (e.g. <code class="docutils literal notranslate"><span class="pre">&quot;𝄞&quot;</span></code>) are _not_ escaped and are serialized
 directly as UTF-8 bytes.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s2">"Hello, world!"</span><span class="p">)</span>
-<span class="go">b'"Hello, world!"'</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s2">&quot;Hello, world!&quot;</span><span class="p">)</span>
+<span class="go">b&#39;&quot;Hello, world!&quot;&#39;</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s2">"𝄞 is not escaped"</span><span class="p">)</span>
-<span class="go">b'"\xf0\x9d\x84\x9e is not escaped"'</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s2">&quot;𝄞 is not escaped&quot;</span><span class="p">)</span>
+<span class="go">b&#39;&quot;\xf0\x9d\x84\x9e is not escaped&quot;&#39;</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'"Hello, world!"'</span><span class="p">)</span>
-<span class="go">"Hello, world!"</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;&quot;Hello, world!&quot;&#39;</span><span class="p">)</span>
+<span class="go">&quot;Hello, world!&quot;</span>
 </pre></div>
 </div>
 </section>
 <section id="bytes-bytearray-memoryview">
-<h3><code class="docutils literal notranslate"><span class="pre">bytes</span></code> / <code class="docutils literal notranslate"><span class="pre">bytearray</span></code> / <code class="docutils literal notranslate"><span class="pre">memoryview</span></code><a class="headerlink" href="#bytes-bytearray-memoryview" title="Permalink to this headline">#</a></h3>
+<h3><code class="docutils literal notranslate"><span class="pre">bytes</span></code> / <code class="docutils literal notranslate"><span class="pre">bytearray</span></code> / <code class="docutils literal notranslate"><span class="pre">memoryview</span></code><a class="headerlink" href="#bytes-bytearray-memoryview" title="Permalink to this heading">#</a></h3>
 <p>Bytes-like objects map to base64-encoded strings in JSON, and the <code class="docutils literal notranslate"><span class="pre">bin</span></code>
 type in MessagePack.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="sa">b</span><span class="s2">"</span><span class="se">\xf0\x9d\x84\x9e</span><span class="s2">"</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;</span><span class="se">\xf0\x9d\x84\x9e</span><span class="s2">&quot;</span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span>
-<span class="go">b'"85+Eng=="'</span>
+<span class="go">b&#39;&quot;85+Eng==&quot;&#39;</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">bytes</span><span class="p">)</span>
-<span class="go">b'\xf0\x9d\x84\x9e'</span>
+<span class="go">b&#39;\xf0\x9d\x84\x9e&#39;</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">bytearray</span><span class="p">)</span>
-<span class="go">bytearray(b'\xf0\x9d\x84\x9e')</span>
+<span class="go">bytearray(b&#39;\xf0\x9d\x84\x9e&#39;)</span>
 </pre></div>
 </div>
 </section>
 <section id="intenum">
-<h3><code class="docutils literal notranslate"><span class="pre">IntEnum</span></code><a class="headerlink" href="#intenum" title="Permalink to this headline">#</a></h3>
+<h3><code class="docutils literal notranslate"><span class="pre">IntEnum</span></code><a class="headerlink" href="#intenum" title="Permalink to this heading">#</a></h3>
 <p><a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.IntEnum" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enum.IntEnum</span></code></a> types encode as their integer <em>values</em> in both JSON and
 MessagePack. An error is raised during decoding if the value isn’t an integer,
 or doesn’t match any valid <a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.IntEnum" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enum.IntEnum</span></code></a> member.</p>
@@ -484,44 +485,44 @@ or doesn’t match any valid <a class="reference external" href="https://docs.py
 <span class="gp">... </span>    <span class="n">FAILED</span> <span class="o">=</span> <span class="mi">3</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">JobState</span><span class="o">.</span><span class="n">RUNNING</span><span class="p">)</span>
-<span class="go">b'1'</span>
+<span class="go">b&#39;1&#39;</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'2'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">JobState</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;2&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">JobState</span><span class="p">)</span>
 <span class="go">&lt;JobState.SUCCEEDED: 2&gt;</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'4'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">JobState</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;4&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">JobState</span><span class="p">)</span>
 <span class="gt">Traceback (most recent call last):</span>
-  File <span class="nb">"&lt;stdin&gt;"</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
 <span class="gr">msgspec.DecodeError</span>: <span class="n">Invalid enum value `4`</span>
 </pre></div>
 </div>
 </section>
 <section id="enum">
-<h3><code class="docutils literal notranslate"><span class="pre">Enum</span></code><a class="headerlink" href="#enum" title="Permalink to this headline">#</a></h3>
+<h3><code class="docutils literal notranslate"><span class="pre">Enum</span></code><a class="headerlink" href="#enum" title="Permalink to this heading">#</a></h3>
 <p><a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.Enum" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enum.Enum</span></code></a> types encode as strings of the member <em>names</em> (not their values) in
 both JSON and MessagePack. An error is raised during decoding if the value
 isn’t a string or doesn’t match any valid <a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.Enum" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enum.Enum</span></code></a> member.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">enum</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">Fruit</span><span class="p">(</span><span class="n">enum</span><span class="o">.</span><span class="n">Enum</span><span class="p">):</span>
-<span class="gp">... </span>    <span class="n">APPLE</span> <span class="o">=</span> <span class="s2">"apple value"</span>
-<span class="gp">... </span>    <span class="n">BANANA</span> <span class="o">=</span> <span class="s2">"banana value"</span>
+<span class="gp">... </span>    <span class="n">APPLE</span> <span class="o">=</span> <span class="s2">&quot;apple value&quot;</span>
+<span class="gp">... </span>    <span class="n">BANANA</span> <span class="o">=</span> <span class="s2">&quot;banana value&quot;</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">Fruit</span><span class="o">.</span><span class="n">APPLE</span><span class="p">)</span>
-<span class="go">b'"APPLE"'</span>
+<span class="go">b&#39;&quot;APPLE&quot;&#39;</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'"APPLE"'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Fruit</span><span class="p">)</span>
-<span class="go">&lt;Fruit.APPLE: 'apple value'&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;&quot;APPLE&quot;&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Fruit</span><span class="p">)</span>
+<span class="go">&lt;Fruit.APPLE: &#39;apple value&#39;&gt;</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'"GRAPE"'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Fruit</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;&quot;GRAPE&quot;&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Fruit</span><span class="p">)</span>
 <span class="gt">Traceback (most recent call last):</span>
-  File <span class="nb">"&lt;stdin&gt;"</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
-<span class="gr">msgspec.DecodeError</span>: <span class="n">Invalid enum value 'GRAPE'</span>
+  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+<span class="gr">msgspec.DecodeError</span>: <span class="n">Invalid enum value &#39;GRAPE&#39;</span>
 </pre></div>
 </div>
 </section>
 <section id="datetime">
-<h3><code class="docutils literal notranslate"><span class="pre">datetime</span></code><a class="headerlink" href="#datetime" title="Permalink to this headline">#</a></h3>
+<h3><code class="docutils literal notranslate"><span class="pre">datetime</span></code><a class="headerlink" href="#datetime" title="Permalink to this heading">#</a></h3>
 <p><a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.datetime" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.datetime</span></code></a> values are serialized as <a class="reference external" href="https://datatracker.ietf.org/doc/html/rfc3339">RFC3339</a> encoded strings in JSON,
 and the <a class="reference external" href="https://github.com/msgpack/msgpack/blob/master/spec.md#timestamp-extension-type">timestamp extension</a> in MessagePack. Only <a class="reference external" href="https://docs.python.org/3/library/datetime.html#aware-and-naive-objects">timezone aware</a>
 datetime objects are supported. During decoding, all timezones are normalized
@@ -535,71 +536,71 @@ to UTC.</p>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">dt</span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span>
-<span class="go">b'"2021-04-02T18:18:10.000123-06:00"'</span>
+<span class="go">b&#39;&quot;2021-04-02T18:18:10.000123-06:00&quot;&#39;</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="p">)</span>
 <span class="go">datetime.datetime(2021, 4, 3, 0, 18, 10, 123, tzinfo=datetime.timezone.utc)</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'"oops not a date"'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;&quot;oops not a date&quot;&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="p">)</span>
 <span class="gt">Traceback (most recent call last):</span>
-  File <span class="nb">"&lt;stdin&gt;"</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
 <span class="gr">msgspec.DecodeError</span>: <span class="n">Invalid RFC3339 encoded datetime</span>
 </pre></div>
 </div>
 </section>
 <section id="list-tuple-set-frozenset">
-<h3><code class="docutils literal notranslate"><span class="pre">list</span></code> / <code class="docutils literal notranslate"><span class="pre">tuple</span></code> / <code class="docutils literal notranslate"><span class="pre">set</span></code> / <code class="docutils literal notranslate"><span class="pre">frozenset</span></code><a class="headerlink" href="#list-tuple-set-frozenset" title="Permalink to this headline">#</a></h3>
+<h3><code class="docutils literal notranslate"><span class="pre">list</span></code> / <code class="docutils literal notranslate"><span class="pre">tuple</span></code> / <code class="docutils literal notranslate"><span class="pre">set</span></code> / <code class="docutils literal notranslate"><span class="pre">frozenset</span></code><a class="headerlink" href="#list-tuple-set-frozenset" title="Permalink to this heading">#</a></h3>
 <p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">list</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tuple</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#set" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set</span></code></a>, and <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#frozenset" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">frozenset</span></code></a> objects map to arrays in both JSON and
 MessagePack.  An error is raised if the elements don’t match the specified
 element type (if provided).</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">])</span>
-<span class="go">b'[1,2,3]'</span>
+<span class="go">b&#39;[1,2,3]&#39;</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">({</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">})</span>
-<span class="go">b'[1,2,3]'</span>
+<span class="go">b&#39;[1,2,3]&#39;</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'[1,2,3]'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">set</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;[1,2,3]&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">set</span><span class="p">)</span>
 <span class="go">{1, 2, 3}</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Set</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Decode as a set of ints</span>
-<span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'[1, 2, 3]'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Set</span><span class="p">[</span><span class="nb">int</span><span class="p">])</span>
+<span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;[1, 2, 3]&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Set</span><span class="p">[</span><span class="nb">int</span><span class="p">])</span>
 <span class="go">{1, 2, 3}</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Oops, all elements should be ints</span>
-<span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'[1, 2, "oops"]'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Set</span><span class="p">[</span><span class="nb">int</span><span class="p">])</span>
+<span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;[1, 2, &quot;oops&quot;]&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Set</span><span class="p">[</span><span class="nb">int</span><span class="p">])</span>
 <span class="gt">Traceback (most recent call last):</span>
-  File <span class="nb">"&lt;stdin&gt;"</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
 <span class="gr">msgspec.DecodeError</span>: <span class="n">Expected `int`, got `str` - at `$[2]`</span>
 </pre></div>
 </div>
 </section>
 <section id="dict">
-<h3><code class="docutils literal notranslate"><span class="pre">dict</span></code><a class="headerlink" href="#dict" title="Permalink to this headline">#</a></h3>
+<h3><code class="docutils literal notranslate"><span class="pre">dict</span></code><a class="headerlink" href="#dict" title="Permalink to this heading">#</a></h3>
 <p>Dicts encode/decode as JSON objects/MessagePack maps.</p>
 <p>Note that JSON only supports string keys, while MessagePack supports any
 hashable for the key type. An error is raised during decoding if the keys or
 values don’t match their respective types (if specified).</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">({</span><span class="s2">"x"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">"y"</span><span class="p">:</span> <span class="mi">2</span><span class="p">})</span>
-<span class="go">b'{"x":1,"y":2}'</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">({</span><span class="s2">&quot;x&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;y&quot;</span><span class="p">:</span> <span class="mi">2</span><span class="p">})</span>
+<span class="go">b&#39;{&quot;x&quot;:1,&quot;y&quot;:2}&#39;</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Dict</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Decode as a Dict of str -&gt; int</span>
-<span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'{"x":1,"y":2}'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">])</span>
-<span class="go">{"x": 1, "y": 2}</span>
+<span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;{&quot;x&quot;:1,&quot;y&quot;:2}&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">])</span>
+<span class="go">{&quot;x&quot;: 1, &quot;y&quot;: 2}</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="c1"># Oops, there's a mistyped value</span>
-<span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'{"x":1,"y":"oops"}'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># Oops, there&#39;s a mistyped value</span>
+<span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;{&quot;x&quot;:1,&quot;y&quot;:&quot;oops&quot;}&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">])</span>
 <span class="gt">Traceback (most recent call last):</span>
-  File <span class="nb">"&lt;stdin&gt;"</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
 <span class="gr">msgspec.DecodeError</span>: <span class="n">Expected `int`, got `str` - at `$[...]`</span>
 </pre></div>
 </div>
 </section>
 <section id="struct">
-<h3><code class="docutils literal notranslate"><span class="pre">Struct</span></code><a class="headerlink" href="#struct" title="Permalink to this headline">#</a></h3>
+<h3><code class="docutils literal notranslate"><span class="pre">Struct</span></code><a class="headerlink" href="#struct" title="Permalink to this heading">#</a></h3>
 <p>Structs are the preferred way of defining structured data types in <code class="docutils literal notranslate"><span class="pre">msgspec</span></code>.
 You can think of them as similar to <a class="reference external" href="https://docs.python.org/3/library/dataclasses.html">dataclasses</a>/<a class="reference external" href="https://www.attrs.org/en/stable/index.html">attrs</a>/<a class="reference external" href="https://pydantic-docs.helpmanual.io/">pydantic</a>, but much
 faster to create/compare/encode/decode. For more information, see the
@@ -615,32 +616,32 @@ doesn’t match or if any required fields are missing.</p>
 <span class="gp">... </span>    <span class="n">groups</span><span class="p">:</span> <span class="n">Set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
 <span class="gp">... </span>    <span class="n">email</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">alice</span> <span class="o">=</span> <span class="n">User</span><span class="p">(</span><span class="s2">"alice"</span><span class="p">,</span> <span class="n">groups</span><span class="o">=</span><span class="p">{</span><span class="s2">"admin"</span><span class="p">,</span> <span class="s2">"engineering"</span><span class="p">})</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">alice</span> <span class="o">=</span> <span class="n">User</span><span class="p">(</span><span class="s2">&quot;alice&quot;</span><span class="p">,</span> <span class="n">groups</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;admin&quot;</span><span class="p">,</span> <span class="s2">&quot;engineering&quot;</span><span class="p">})</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">alice</span><span class="p">)</span>
-<span class="go">b'{"name":"alice","groups":["admin","engineering"],"email":null}'</span>
+<span class="go">b&#39;{&quot;name&quot;:&quot;alice&quot;,&quot;groups&quot;:[&quot;admin&quot;,&quot;engineering&quot;],&quot;email&quot;:null}&#39;</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span> <span class="o">=</span> <span class="sa">b</span><span class="s2">"""</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span> <span class="o">=</span> <span class="sa">b</span><span class="s2">&quot;&quot;&quot;</span>
 <span class="gp">... </span><span class="s2">{</span>
-<span class="gp">... </span><span class="s2">    "name": "bob",</span>
-<span class="gp">... </span><span class="s2">    "email": "bob@company.com",</span>
-<span class="gp">... </span><span class="s2">    "unknown_field": [1, 2, 3]</span>
+<span class="gp">... </span><span class="s2">    &quot;name&quot;: &quot;bob&quot;,</span>
+<span class="gp">... </span><span class="s2">    &quot;email&quot;: &quot;bob@company.com&quot;,</span>
+<span class="gp">... </span><span class="s2">    &quot;unknown_field&quot;: [1, 2, 3]</span>
 <span class="gp">... </span><span class="s2">}</span>
-<span class="gp">... </span><span class="s2">"""</span>
+<span class="gp">... </span><span class="s2">&quot;&quot;&quot;</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">User</span><span class="p">)</span>
-<span class="go">User(name='bob', groups=[], email="bob@company.com")</span>
+<span class="go">User(name=&#39;bob&#39;, groups=[], email=&quot;bob@company.com&quot;)</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">wrong_type</span> <span class="o">=</span> <span class="sa">b</span><span class="s2">"""</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">wrong_type</span> <span class="o">=</span> <span class="sa">b</span><span class="s2">&quot;&quot;&quot;</span>
 <span class="gp">... </span><span class="s2">{</span>
-<span class="gp">... </span><span class="s2">    "name": "bob",</span>
-<span class="gp">... </span><span class="s2">    "groups": ["engineering", 123]</span>
+<span class="gp">... </span><span class="s2">    &quot;name&quot;: &quot;bob&quot;,</span>
+<span class="gp">... </span><span class="s2">    &quot;groups&quot;: [&quot;engineering&quot;, 123]</span>
 <span class="gp">... </span><span class="s2">}</span>
-<span class="gp">... </span><span class="s2">"""</span>
+<span class="gp">... </span><span class="s2">&quot;&quot;&quot;</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">wrong_type</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">User</span><span class="p">)</span>
 <span class="gt">Traceback (most recent call last):</span>
-  File <span class="nb">"&lt;stdin&gt;"</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
 <span class="gr">msgspec.DecodeError</span>: <span class="n">Expected `str`, got `int` - at `$.groups[1]`</span>
 </pre></div>
 </div>
@@ -657,26 +658,26 @@ fields have their defaults applied. Type checking also still applies.</p>
 <span class="gp">... </span>    <span class="n">groups</span><span class="p">:</span> <span class="n">Set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
 <span class="gp">... </span>    <span class="n">email</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">alice</span> <span class="o">=</span> <span class="n">User</span><span class="p">(</span><span class="s2">"alice"</span><span class="p">,</span> <span class="n">groups</span><span class="o">=</span><span class="p">{</span><span class="s2">"admin"</span><span class="p">,</span> <span class="s2">"engineering"</span><span class="p">})</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">alice</span> <span class="o">=</span> <span class="n">User</span><span class="p">(</span><span class="s2">&quot;alice&quot;</span><span class="p">,</span> <span class="n">groups</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;admin&quot;</span><span class="p">,</span> <span class="s2">&quot;engineering&quot;</span><span class="p">})</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">alice</span><span class="p">)</span>
-<span class="go">b'["alice",["admin","engineering"],null]'</span>
+<span class="go">b&#39;[&quot;alice&quot;,[&quot;admin&quot;,&quot;engineering&quot;],null]&#39;</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'["bob"]'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">User</span><span class="p">)</span>
-<span class="go">User(name="bob", groups=[], email=None)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;[&quot;bob&quot;]&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">User</span><span class="p">)</span>
+<span class="go">User(name=&quot;bob&quot;, groups=[], email=None)</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'["carol", ["admin"], null, ["extra", "field"]]'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">User</span><span class="p">)</span>
-<span class="go">User(name="carol", groups=["admin"], email=None)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;[&quot;carol&quot;, [&quot;admin&quot;], null, [&quot;extra&quot;, &quot;field&quot;]]&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">User</span><span class="p">)</span>
+<span class="go">User(name=&quot;carol&quot;, groups=[&quot;admin&quot;], email=None)</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'["david", ["finance", 123]]'</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;[&quot;david&quot;, [&quot;finance&quot;, 123]]&#39;</span><span class="p">)</span>
 <span class="gt">Traceback (most recent call last):</span>
-  File <span class="nb">"&lt;stdin&gt;"</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
 <span class="gr">msgspec.DecodeError</span>: <span class="n">Expected `str`, got `int` - at `$[1][1]`</span>
 </pre></div>
 </div>
 </section>
 <section id="literal">
-<h3><code class="docutils literal notranslate"><span class="pre">Literal</span></code><a class="headerlink" href="#literal" title="Permalink to this headline">#</a></h3>
+<h3><code class="docutils literal notranslate"><span class="pre">Literal</span></code><a class="headerlink" href="#literal" title="Permalink to this heading">#</a></h3>
 <p><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.Literal</span></code></a> types can be used to ensure that a decoded object is within a
 set of valid values. An <a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.Enum" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enum.Enum</span></code></a> or <a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.IntEnum" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enum.IntEnum</span></code></a> can be used for the same
 purpose, but with a <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.Literal</span></code></a> the decoded values are literal <a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">int</span></code></a> or
@@ -692,26 +693,26 @@ purpose, but with a <a class="reference external" href="https://docs.python.org/
 values, or doesn’t match any of their component types.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Literal</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'1'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Literal</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;1&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Literal</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">])</span>
 <span class="go">1</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'"one"'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Literal</span><span class="p">[</span><span class="s2">"one"</span><span class="p">,</span> <span class="s2">"two"</span><span class="p">,</span> <span class="s2">"three"</span><span class="p">])</span>
-<span class="go">'one'</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;&quot;one&quot;&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;one&quot;</span><span class="p">,</span> <span class="s2">&quot;two&quot;</span><span class="p">,</span> <span class="s2">&quot;three&quot;</span><span class="p">])</span>
+<span class="go">&#39;one&#39;</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'4'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Literal</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;4&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Literal</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">])</span>
 <span class="gt">Traceback (most recent call last):</span>
-  File <span class="nb">"&lt;stdin&gt;"</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
 <span class="gr">msgspec.DecodeError</span>: <span class="n">Invalid enum value `4`</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'"bad"'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Literal</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;&quot;bad&quot;&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Literal</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">])</span>
 <span class="gt">Traceback (most recent call last):</span>
-  File <span class="nb">"&lt;stdin&gt;"</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
 <span class="gr">msgspec.DecodeError</span>: <span class="n">Expected `int`, got `str`</span>
 </pre></div>
 </div>
 </section>
 <section id="union-optional">
-<h3><code class="docutils literal notranslate"><span class="pre">Union</span></code> /  <code class="docutils literal notranslate"><span class="pre">Optional</span></code><a class="headerlink" href="#union-optional" title="Permalink to this headline">#</a></h3>
+<h3><code class="docutils literal notranslate"><span class="pre">Union</span></code> /  <code class="docutils literal notranslate"><span class="pre">Optional</span></code><a class="headerlink" href="#union-optional" title="Permalink to this heading">#</a></h3>
 <p>Type unions are supported, with a few restrictions. These restrictions are in
 place to remove any ambiguity during decoding - given an encoded value there
 must always be a single type in a given <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Union" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.Union</span></code></a> that can decode that
@@ -734,24 +735,24 @@ multiple struct types are only supported through <a class="reference internal" h
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># A decoder expecting either an int, a str, or a list of strings</span>
 <span class="gp">... </span><span class="n">decoder</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">Decoder</span><span class="p">(</span><span class="n">Union</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">str</span><span class="p">,</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]])</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">decoder</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'1'</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">decoder</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;1&#39;</span><span class="p">)</span>
 <span class="go">1</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">decoder</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'"two"'</span><span class="p">)</span>
-<span class="go">"two"</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">decoder</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;&quot;two&quot;&#39;</span><span class="p">)</span>
+<span class="go">&quot;two&quot;</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">decoder</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'["three", "four"]'</span><span class="p">)</span>
-<span class="go">["three", "four"]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">decoder</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;[&quot;three&quot;, &quot;four&quot;]&#39;</span><span class="p">)</span>
+<span class="go">[&quot;three&quot;, &quot;four&quot;]</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">decoder</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'false'</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">decoder</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;false&#39;</span><span class="p">)</span>
 <span class="gt">Traceback (most recent call last):</span>
-  File <span class="nb">"&lt;stdin&gt;"</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
 <span class="gr">msgspec.DecodeError</span>: <span class="n">Expected `int | str | array`, got `bool`</span>
 </pre></div>
 </div>
 </section>
 <section id="raw">
-<h3><code class="docutils literal notranslate"><span class="pre">Raw</span></code><a class="headerlink" href="#raw" title="Permalink to this headline">#</a></h3>
+<h3><code class="docutils literal notranslate"><span class="pre">Raw</span></code><a class="headerlink" href="#raw" title="Permalink to this heading">#</a></h3>
 <p><a class="reference internal" href="api.html#msgspec.Raw" title="msgspec.Raw"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Raw</span></code></a> is a buffer-like type containing an already encoded messages.
 They have two common uses:</p>
 <p><strong>1. Avoiding unnecessary encoding cost</strong></p>
@@ -763,15 +764,15 @@ message).</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">msgspec</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Create a new `Raw` object wrapping a pre-encoded message</span>
-<span class="gp">... </span><span class="n">fragment</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">Raw</span><span class="p">(</span><span class="sa">b</span><span class="s1">'{"x": 1, "y": 2}'</span><span class="p">)</span>
+<span class="gp">... </span><span class="n">fragment</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">Raw</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;{&quot;x&quot;: 1, &quot;y&quot;: 2}&#39;</span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Compose a larger message containing the pre-encoded fragment</span>
-<span class="gp">... </span><span class="n">msg</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"a"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">:</span> <span class="n">fragment</span><span class="p">}</span>
+<span class="gp">... </span><span class="n">msg</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;a&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;b&quot;</span><span class="p">:</span> <span class="n">fragment</span><span class="p">}</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># During encoding, the raw message is efficiently copied into</span>
 <span class="gp">... </span><span class="c1"># the output buffer, avoiding any extra encoding cost</span>
 <span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
-<span class="go">b'{"a":1,"b":{"x": 1, "y": 2}}'</span>
+<span class="go">b&#39;{&quot;a&quot;:1,&quot;b&quot;:{&quot;x&quot;: 1, &quot;y&quot;: 2}}&#39;</span>
 </pre></div>
 </div>
 <p><strong>2. Delaying decoding of part of a message</strong></p>
@@ -802,7 +803,7 @@ field (<code class="docutils literal notranslate"><span class="pre">point</span>
 <span class="gp">... </span>    <span class="n">point</span><span class="p">:</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">Raw</span>  <span class="c1"># use msgspec.Raw to delay decoding the point field</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="k">def</span> <span class="nf">decode_point</span><span class="p">(</span><span class="n">msg</span><span class="p">:</span> <span class="nb">bytes</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Union</span><span class="p">[</span><span class="n">Point1D</span><span class="p">,</span> <span class="n">Point2D</span><span class="p">,</span> <span class="n">Point3D</span><span class="p">]:</span>
-<span class="gp">... </span>    <span class="sd">"""A function for efficiently decoding the `point` field"""</span>
+<span class="gp">... </span>    <span class="sd">&quot;&quot;&quot;A function for efficiently decoding the `point` field&quot;&quot;&quot;</span>
 <span class="gp">... </span>    <span class="c1"># First decode the outer `Model` struct. Decoding of the `point`</span>
 <span class="gp">... </span>    <span class="c1"># field is delayed, with the composite bytes stored as a `Raw` object</span>
 <span class="gp">... </span>    <span class="c1"># on `point`.</span>
@@ -817,23 +818,23 @@ field (<code class="docutils literal notranslate"><span class="pre">point</span>
 <span class="gp">... </span>    <span class="k">elif</span> <span class="n">model</span><span class="o">.</span><span class="n">dimensions</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
 <span class="gp">... </span>        <span class="n">point_type</span> <span class="o">=</span> <span class="n">Point3D</span>
 <span class="gp">... </span>    <span class="k">else</span><span class="p">:</span>
-<span class="gp">... </span>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Too many dimensions!"</span><span class="p">)</span>
+<span class="gp">... </span>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Too many dimensions!&quot;</span><span class="p">)</span>
 <span class="gp">...</span>
 <span class="gp">... </span>    <span class="c1"># Now that we know the type of `point`, we can finish decoding it.</span>
 <span class="gp">... </span>    <span class="c1"># Note that `Raw` objects are buffer-like, and can be passed</span>
 <span class="gp">... </span>    <span class="c1"># directly to the `decode` method.</span>
 <span class="gp">... </span>    <span class="k">return</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">point</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">point_type</span><span class="p">)</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">decode_point</span><span class="p">(</span><span class="sa">b</span><span class="s1">'{"dimensions": 2, "point": {"x": 1, "y": 2}}'</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">decode_point</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;{&quot;dimensions&quot;: 2, &quot;point&quot;: {&quot;x&quot;: 1, &quot;y&quot;: 2}}&#39;</span><span class="p">)</span>
 <span class="go">Point2D(x=1, y=2)</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">decode_point</span><span class="p">(</span><span class="sa">b</span><span class="s1">'{"dimensions": 3, "point": {"x": 1, "y": 2, "z": 3}}'</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">decode_point</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;{&quot;dimensions&quot;: 3, &quot;point&quot;: {&quot;x&quot;: 1, &quot;y&quot;: 2, &quot;z&quot;: 3}}&#39;</span><span class="p">)</span>
 <span class="go">Point3D(x=1, y=2, z=3)</span>
 </pre></div>
 </div>
 </section>
 <section id="any">
-<h3><code class="docutils literal notranslate"><span class="pre">Any</span></code><a class="headerlink" href="#any" title="Permalink to this headline">#</a></h3>
+<h3><code class="docutils literal notranslate"><span class="pre">Any</span></code><a class="headerlink" href="#any" title="Permalink to this heading">#</a></h3>
 <p>When decoding a message with <code class="xref py py-obj docutils literal notranslate"><span class="pre">Any</span></code> type (or no type specified), encoded types
 map to Python types in a protocol specific manner.</p>
 <p><strong>JSON</strong></p>
@@ -842,18 +843,17 @@ map to Python types in a protocol specific manner.</p>
 <li><p><code class="docutils literal notranslate"><span class="pre">null</span></code>: <a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">bool</span></code>: <a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bool</span></code></a></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">string</span></code>: <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">str</span></code></a></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">number</span></code>: <a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">int</span></code></a> or <a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">float</span></code></a> <a class="footnote-reference brackets" href="#number-json" id="id2">1</a></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">number</span></code>: <a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">int</span></code></a> or <a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">float</span></code></a> <a class="footnote-reference brackets" href="#number-json" id="id2" role="doc-noteref"><span class="fn-bracket">[</span>1<span class="fn-bracket">]</span></a></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">array</span></code>: <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">list</span></code></a></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">object</span></code>: <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a></p></li>
 </ul>
-<dl class="footnote brackets">
-<dt class="label" id="number-json"><span class="brackets"><a class="fn-backref" href="#id2">1</a></span></dt>
-<dd><p>Numbers are decoded as integers if they contain no decimal or
+<aside class="footnote brackets" id="number-json" role="note">
+<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id2">1</a><span class="fn-bracket">]</span></span>
+<p>Numbers are decoded as integers if they contain no decimal or
 exponent components (e.g. <code class="docutils literal notranslate"><span class="pre">1</span></code> but not <code class="docutils literal notranslate"><span class="pre">1.0</span></code> or <code class="docutils literal notranslate"><span class="pre">1e10</span></code>), and fit in either
 an <code class="docutils literal notranslate"><span class="pre">int64</span></code> or <code class="docutils literal notranslate"><span class="pre">uint64</span></code> (within <code class="docutils literal notranslate"><span class="pre">[-2**63,</span> <span class="pre">2**64</span> <span class="pre">-</span> <span class="pre">1]</span></code>, inclusive). All
 other numbers decode as floats.</p>
-</dd>
-</dl>
+</aside>
 <p><strong>MessagePack</strong></p>
 <p>MessagePack types are decoded to Python types as follows:</p>
 <ul class="simple">
@@ -863,21 +863,20 @@ other numbers decode as floats.</p>
 <li><p><code class="docutils literal notranslate"><span class="pre">float</span></code>: <a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">float</span></code></a></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">str</span></code>: <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">str</span></code></a></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">bin</span></code>: <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytes</span></code></a></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">array</span></code>: <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">list</span></code></a> or <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tuple</span></code></a> <a class="footnote-reference brackets" href="#tuple" id="id3">2</a></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">array</span></code>: <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">list</span></code></a> or <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tuple</span></code></a> <a class="footnote-reference brackets" href="#tuple" id="id3" role="doc-noteref"><span class="fn-bracket">[</span>2<span class="fn-bracket">]</span></a></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">map</span></code>: <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">ext</span></code>: <a class="reference internal" href="api.html#msgspec.msgpack.Ext" title="msgspec.msgpack.Ext"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.msgpack.Ext</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.datetime" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.datetime</span></code></a>, or a custom type</p></li>
 </ul>
-<dl class="footnote brackets">
-<dt class="label" id="tuple"><span class="brackets"><a class="fn-backref" href="#id3">2</a></span></dt>
-<dd><p>Tuples are only used when the array type must be hashable (e.g.
+<aside class="footnote brackets" id="tuple" role="note">
+<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id3">2</a><span class="fn-bracket">]</span></span>
+<p>Tuples are only used when the array type must be hashable (e.g.
 keys in a <code class="docutils literal notranslate"><span class="pre">dict</span></code> or <code class="docutils literal notranslate"><span class="pre">set</span></code>). All other array types are deserialized as lists
 by default.</p>
-</dd>
-</dl>
+</aside>
 </section>
 </section>
 <section id="schema-evolution">
-<span id="id4"></span><h2>Schema Evolution<a class="headerlink" href="#schema-evolution" title="Permalink to this headline">#</a></h2>
+<span id="id4"></span><h2>Schema Evolution<a class="headerlink" href="#schema-evolution" title="Permalink to this heading">#</a></h2>
 <p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> includes support for “schema evolution”, meaning that:</p>
 <ul class="simple">
 <li><p>Messages serialized with an older version of a schema will be deserializable
@@ -902,7 +901,7 @@ must be appended to the end (and have defaults).</p></li>
 <span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Set</span><span class="p">,</span> <span class="n">Optional</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">User</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
-<span class="gp">... </span>    <span class="sd">"""A struct representing a user"""</span>
+<span class="gp">... </span>    <span class="sd">&quot;&quot;&quot;A struct representing a user&quot;&quot;&quot;</span>
 <span class="gp">... </span>    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
 <span class="gp">... </span>    <span class="n">groups</span><span class="p">:</span> <span class="n">Set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
 <span class="gp">... </span>    <span class="n">email</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
@@ -913,7 +912,7 @@ that wouldn’t break clients/servers still using the prior definition. To
 accomplish this, we add <code class="docutils literal notranslate"><span class="pre">phone</span></code> as an _optional_ field (defaulting to
 <code class="docutils literal notranslate"><span class="pre">None</span></code>), at the end of the struct.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">User2</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
-<span class="gp">... </span>    <span class="sd">"""An updated version of the User struct, now with a phone number"""</span>
+<span class="gp">... </span>    <span class="sd">&quot;&quot;&quot;An updated version of the User struct, now with a phone number&quot;&quot;&quot;</span>
 <span class="gp">... </span>    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
 <span class="gp">... </span>    <span class="n">groups</span><span class="p">:</span> <span class="n">Set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
 <span class="gp">... </span>    <span class="n">email</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
@@ -930,18 +929,18 @@ efficiently skipped without decoding.</p>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">new_dec</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">Decoder</span><span class="p">(</span><span class="n">User2</span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">new_msg</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span>
-<span class="gp">... </span>    <span class="n">User2</span><span class="p">(</span><span class="s2">"bob"</span><span class="p">,</span> <span class="n">groups</span><span class="o">=</span><span class="p">{</span><span class="s2">"finance"</span><span class="p">},</span> <span class="n">phone</span><span class="o">=</span><span class="s2">"512-867-5309"</span><span class="p">)</span>
+<span class="gp">... </span>    <span class="n">User2</span><span class="p">(</span><span class="s2">&quot;bob&quot;</span><span class="p">,</span> <span class="n">groups</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;finance&quot;</span><span class="p">},</span> <span class="n">phone</span><span class="o">=</span><span class="s2">&quot;512-867-5309&quot;</span><span class="p">)</span>
 <span class="gp">... </span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">old_dec</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">new_msg</span><span class="p">)</span>  <span class="c1"># deserializing a new msg with an older decoder</span>
-<span class="go">User(name='bob', groups={'finance'}, email=None)</span>
+<span class="go">User(name=&#39;bob&#39;, groups={&#39;finance&#39;}, email=None)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">old_msg</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span>
-<span class="gp">... </span>    <span class="n">User</span><span class="p">(</span><span class="s2">"alice"</span><span class="p">,</span> <span class="n">groups</span><span class="o">=</span><span class="p">{</span><span class="s2">"admin"</span><span class="p">,</span> <span class="s2">"engineering"</span><span class="p">})</span>
+<span class="gp">... </span>    <span class="n">User</span><span class="p">(</span><span class="s2">&quot;alice&quot;</span><span class="p">,</span> <span class="n">groups</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;admin&quot;</span><span class="p">,</span> <span class="s2">&quot;engineering&quot;</span><span class="p">})</span>
 <span class="gp">... </span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">new_dec</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">old_msg</span><span class="p">)</span> <span class="c1"># deserializing an old msg with a new decoder</span>
-<span class="go">User2(name="alice", groups={"admin", "engineering"}, email=None, phone=None)</span>
+<span class="go">User2(name=&quot;alice&quot;, groups={&quot;admin&quot;, &quot;engineering&quot;}, email=None, phone=None)</span>
 </pre></div>
 </div>
 </section>
@@ -1045,6 +1044,7 @@ efficiently skipped without decoding.</p>
 </div><script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
     <script src="_static/jquery.js"></script>
     <script src="_static/underscore.js"></script>
+    <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
     <script src="_static/doctools.js"></script>
     <script src="_static/scripts/furo.js"></script>
     <script src="_static/clipboard.min.js"></script>

@@ -1,14 +1,14 @@
 <!doctype html>
-<html class="no-js">
+<html class="no-js" lang="en">
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
-    <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+    <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Benchmarks" href="benchmarks.html" /><link rel="prev" title="Extending" href="extending.html" />
 
-    <meta name="generator" content="sphinx-4.5.0, furo 2022.04.07"/>
+    <meta name="generator" content="sphinx-5.0.1, furo 2022.06.04"/>
         <title>Performance Tips</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
-    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=68f4518137b9aefe99b631505a2064c3c42c9852" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=40978830699223671f4072448e654b5958f38b89" />
     <link rel="stylesheet" type="text/css" href="_static/copybutton.css" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?digest=30d1aed668e5c3a91c3e3bf6a60b675221979f0e" />
     
@@ -183,7 +183,8 @@
           </svg>
           <span>Back to top</span>
         </a>
-        <div class="content-icon-container"><div class="theme-toggle-container theme-toggle-content">
+        <div class="content-icon-container">
+          <div class="theme-toggle-container theme-toggle-content">
             <button class="theme-toggle">
               <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
               <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
@@ -198,12 +199,12 @@
         </div>
         <article role="main">
           <section id="performance-tips">
-<h1>Performance Tips<a class="headerlink" href="#performance-tips" title="Permalink to this headline">#</a></h1>
+<h1>Performance Tips<a class="headerlink" href="#performance-tips" title="Permalink to this heading">#</a></h1>
 <p>Here we present a few tips and tricks for squeezing maximum performance out of
 <code class="docutils literal notranslate"><span class="pre">msgspec</span></code>. They’re presented in order from “sane, definitely a good idea” to
 “fast, but you may not want to do this”.</p>
 <section id="reuse-encoders-decoders">
-<h2>Reuse Encoders/Decoders<a class="headerlink" href="#reuse-encoders-decoders" title="Permalink to this headline">#</a></h2>
+<h2>Reuse Encoders/Decoders<a class="headerlink" href="#reuse-encoders-decoders" title="Permalink to this heading">#</a></h2>
 <p>Every call to a top-level <code class="docutils literal notranslate"><span class="pre">encode</span></code> function like <a class="reference internal" href="api.html#msgspec.json.encode" title="msgspec.json.encode"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.json.encode</span></code></a>
 allocates some temporary internal state used for encoding. While fine for
 normal use, for maximum performance you’ll want to create an <code class="docutils literal notranslate"><span class="pre">Encoder</span></code> (e.g.
@@ -231,14 +232,14 @@ typed, you may need to create multiple decoders, one for each type.</p>
 </div>
 </section>
 <section id="use-structs">
-<h2>Use Structs<a class="headerlink" href="#use-structs" title="Permalink to this headline">#</a></h2>
+<h2>Use Structs<a class="headerlink" href="#use-structs" title="Permalink to this heading">#</a></h2>
 <p><a class="reference internal" href="structs.html"><span class="doc">Structs</span></a> are msgspec’s native way of expressing user-defined types.
 They’re <a class="reference internal" href="benchmarks.html#encoding-benchmark"><span class="std std-ref">fast to encode/decode</span></a> and <a class="reference internal" href="benchmarks.html#struct-benchmark"><span class="std std-ref">fast to use</span></a>. If you have data with a known schema, we recommend
 defining a <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> type (or types) for your schema and preferring that
 over other types like <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a>/<a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#module-dataclasses" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses</span></code></a>/…</p>
 </section>
 <section id="avoid-encoding-default-values">
-<h2>Avoid Encoding Default Values<a class="headerlink" href="#avoid-encoding-default-values" title="Permalink to this headline">#</a></h2>
+<h2>Avoid Encoding Default Values<a class="headerlink" href="#avoid-encoding-default-values" title="Permalink to this heading">#</a></h2>
 <p>By default, <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> encodes all fields in a Struct type, including optional
 fields (those configured with a default value). If the default values are known
 on the decoding end (making serializing them redundant), it may be beneficial
@@ -249,7 +250,7 @@ encoding and decoding performance (since there’s less work to do).</p>
 <p>For more information, see <a class="reference internal" href="structs.html#omit-defaults"><span class="std std-ref">Omitting Default Values</span></a>.</p>
 </section>
 <section id="avoid-decoding-unused-fields">
-<h2>Avoid Decoding Unused Fields<a class="headerlink" href="#avoid-decoding-unused-fields" title="Permalink to this headline">#</a></h2>
+<h2>Avoid Decoding Unused Fields<a class="headerlink" href="#avoid-decoding-unused-fields" title="Permalink to this heading">#</a></h2>
 <p>When decoding large inputs, sometimes you’re only interested in a few specific
 fields. Since decoding large objects is inherently allocation heavy, it may be
 beneficial to define a smaller <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> type that only has the fields
@@ -274,7 +275,7 @@ decoding fields that are never used.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">tweet</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">example_json</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Tweet</span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">tweet</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">name</span>
-<span class="go">'Twitter Dev'</span>
+<span class="go">&#39;Twitter Dev&#39;</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">tweet</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">favorite_count</span>
 <span class="go">70</span>
@@ -285,14 +286,14 @@ performance is a bottleneck in your workflow, you may benefit from this
 technique.</p>
 </section>
 <section id="reduce-allocations">
-<h2>Reduce Allocations<a class="headerlink" href="#reduce-allocations" title="Permalink to this headline">#</a></h2>
+<h2>Reduce Allocations<a class="headerlink" href="#reduce-allocations" title="Permalink to this heading">#</a></h2>
 <p>Every call to <code class="docutils literal notranslate"><span class="pre">encode</span></code>/<code class="docutils literal notranslate"><span class="pre">Encoder.encode</span></code> allocates a new <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytes</span></code></a> object for
 the output. <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> exposes an alternative <code class="docutils literal notranslate"><span class="pre">Encoder.encode_into</span></code> (e.g.
 <a class="reference internal" href="api.html#msgspec.json.Encoder.encode_into" title="msgspec.json.Encoder.encode_into"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.json.Encoder.encode_into</span></code></a>) that writes into a pre-allocated
 <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytearray" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytearray</span></code></a> instead (possibly reallocating to increase capacity).</p>
 <p>This has a few uses:</p>
 <section id="reusing-an-output-buffer">
-<h3>Reusing an output buffer<a class="headerlink" href="#reusing-an-output-buffer" title="Permalink to this headline">#</a></h3>
+<h3>Reusing an output buffer<a class="headerlink" href="#reusing-an-output-buffer" title="Permalink to this heading">#</a></h3>
 <p>If you’re encoding and writing messages to a socket/file in a hot loop, you
 <em>may</em> benefit from allocating a single <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytearray" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytearray</span></code></a> buffer once and reusing it
 for every message.</p>
@@ -327,16 +328,16 @@ method can benefit your workload.</p></li>
 </ul>
 </section>
 <section id="line-delimited-json">
-<h3>Line-Delimited JSON<a class="headerlink" href="#line-delimited-json" title="Permalink to this headline">#</a></h3>
+<h3>Line-Delimited JSON<a class="headerlink" href="#line-delimited-json" title="Permalink to this heading">#</a></h3>
 <p>Some protocols require appending a suffix to an encoded message. One place
 where this comes up is when encoding <a class="reference external" href="https://en.wikipedia.org/wiki/JSON_streaming#Line-delimited_JSON">line-delimited JSON</a>, where every
-payload contains a JSON message followed by <code class="docutils literal notranslate"><span class="pre">b"\n"</span></code>.</p>
+payload contains a JSON message followed by <code class="docutils literal notranslate"><span class="pre">b&quot;\n&quot;</span></code>.</p>
 <p>This <em>could</em> be handled in python as:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">msgspec</span>
 
-<span class="n">json_msg</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">([</span><span class="s2">"my"</span><span class="p">,</span> <span class="s2">"message"</span><span class="p">])</span>
+<span class="n">json_msg</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">([</span><span class="s2">&quot;my&quot;</span><span class="p">,</span> <span class="s2">&quot;message&quot;</span><span class="p">])</span>
 
-<span class="n">full_payload</span> <span class="o">=</span> <span class="n">json_msg</span> <span class="o">+</span> <span class="sa">b</span><span class="s1">'</span><span class="se">\n</span><span class="s1">'</span>
+<span class="n">full_payload</span> <span class="o">=</span> <span class="n">json_msg</span> <span class="o">+</span> <span class="sa">b</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span>
 </pre></div>
 </div>
 <p>However, this results in an unnecessary copy of <code class="docutils literal notranslate"><span class="pre">json_msg</span></code>, which can be
@@ -351,10 +352,10 @@ avoided by using <a class="reference internal" href="api.html#msgspec.json.Encod
 <span class="n">buffer</span> <span class="o">=</span> <span class="nb">bytearray</span><span class="p">(</span><span class="mi">64</span><span class="p">)</span>
 
 <span class="c1"># Encode into the existing buffer.</span>
-<span class="n">encoder</span><span class="o">.</span><span class="n">encode_into</span><span class="p">([</span><span class="s2">"my"</span><span class="p">,</span> <span class="s2">"message"</span><span class="p">],</span> <span class="n">buffer</span><span class="p">)</span>
+<span class="n">encoder</span><span class="o">.</span><span class="n">encode_into</span><span class="p">([</span><span class="s2">&quot;my&quot;</span><span class="p">,</span> <span class="s2">&quot;message&quot;</span><span class="p">],</span> <span class="n">buffer</span><span class="p">)</span>
 
 <span class="c1"># Append a newline character without copying</span>
-<span class="n">buffer</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="sa">b</span><span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="p">)</span>
+<span class="n">buffer</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
 
 <span class="c1"># Write the full buffer to a socket/file/etc...</span>
 <span class="n">socket</span><span class="o">.</span><span class="n">sendall</span><span class="p">(</span><span class="n">buffer</span><span class="p">)</span>
@@ -362,7 +363,7 @@ avoided by using <a class="reference internal" href="api.html#msgspec.json.Encod
 </div>
 </section>
 <section id="length-prefix-framing">
-<h3>Length-Prefix Framing<a class="headerlink" href="#length-prefix-framing" title="Permalink to this headline">#</a></h3>
+<h3>Length-Prefix Framing<a class="headerlink" href="#length-prefix-framing" title="Permalink to this heading">#</a></h3>
 <p>Some protocols require prepending a prefix to an encoded message. This comes up
 in <a class="reference external" href="https://eli.thegreenplace.net/2011/08/02/length-prefix-framing-for-protocol-buffers">Length-prefix framing</a>
 , where every message is prefixed by its length stored as a fixed-width integer
@@ -384,7 +385,7 @@ efficient to do using <code class="docutils literal notranslate"><span class="pr
 <span class="c1"># Encode the message length as a 4 byte big-endian integer, and</span>
 <span class="c1"># prefix the message with it (without copying).</span>
 <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span> <span class="o">-</span> <span class="mi">4</span>
-<span class="n">buffer</span><span class="p">[:</span><span class="mi">4</span><span class="p">]</span> <span class="o">=</span> <span class="n">n</span><span class="o">.</span><span class="n">to_bytes</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="s2">"big"</span><span class="p">)</span>
+<span class="n">buffer</span><span class="p">[:</span><span class="mi">4</span><span class="p">]</span> <span class="o">=</span> <span class="n">n</span><span class="o">.</span><span class="n">to_bytes</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="s2">&quot;big&quot;</span><span class="p">)</span>
 
 <span class="c1"># Write the buffer to a socket/file/etc...</span>
 <span class="n">socket</span><span class="o">.</span><span class="n">sendall</span><span class="p">(</span><span class="n">buffer</span><span class="p">)</span>
@@ -393,7 +394,7 @@ efficient to do using <code class="docutils literal notranslate"><span class="pr
 </section>
 </section>
 <section id="use-messagepack">
-<h2>Use MessagePack<a class="headerlink" href="#use-messagepack" title="Permalink to this headline">#</a></h2>
+<h2>Use MessagePack<a class="headerlink" href="#use-messagepack" title="Permalink to this heading">#</a></h2>
 <p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> supports both <a class="reference external" href="https://json.org">JSON</a> and <a class="reference external" href="https://msgpack.org">MessagePack</a> protocols. The latter is less
 commonly used, but <a class="reference internal" href="benchmarks.html#encoding-benchmark"><span class="std std-ref">can be more performant</span></a>. If
 performance is an issue (and MessagePack is an acceptable solution), you may
@@ -402,7 +403,7 @@ protocols with a consistent interface, switching from <code class="docutils lite
 <code class="docutils literal notranslate"><span class="pre">msgspec.msgpack</span></code> should be fairly painless.</p>
 </section>
 <section id="use-nogc-true">
-<h2>Use <code class="docutils literal notranslate"><span class="pre">nogc=True</span></code><a class="headerlink" href="#use-nogc-true" title="Permalink to this headline">#</a></h2>
+<h2>Use <code class="docutils literal notranslate"><span class="pre">nogc=True</span></code><a class="headerlink" href="#use-nogc-true" title="Permalink to this heading">#</a></h2>
 <p>Python processes with a large number of long-lived objects, or operations that
 allocate a large number of objects at once may suffer reduced performance due
 to Python’s garbage collector (GC). By default, <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> types
@@ -415,7 +416,7 @@ pause time and frequency due to GC passes. See <a class="reference internal" hre
 details.</p>
 </section>
 <section id="use-array-like-true">
-<h2>Use <code class="docutils literal notranslate"><span class="pre">array_like=True</span></code><a class="headerlink" href="#use-array-like-true" title="Permalink to this headline">#</a></h2>
+<h2>Use <code class="docutils literal notranslate"><span class="pre">array_like=True</span></code><a class="headerlink" href="#use-array-like-true" title="Permalink to this heading">#</a></h2>
 <p>One touted benefit of <a class="reference external" href="https://json.org">JSON</a> and <a class="reference external" href="https://msgpack.org">MessagePack</a> is that they’re “self-describing”
 protocols. JSON objects serialize their field names along with their values. If
 both ends of a connection already know the field names though, serializing them
@@ -428,15 +429,15 @@ average another ~2x speedup for decoding (and ~1.5x speedup for encoding).</p>
 <span class="gp">... </span>    <span class="n">my_first_field</span><span class="p">:</span> <span class="nb">str</span>
 <span class="gp">... </span>    <span class="n">my_second_field</span><span class="p">:</span> <span class="nb">int</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">x</span> <span class="o">=</span> <span class="n">Example</span><span class="p">(</span><span class="s2">"some string"</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x</span> <span class="o">=</span> <span class="n">Example</span><span class="p">(</span><span class="s2">&quot;some string&quot;</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span>
-<span class="go">b'["some string",2]'</span>
+<span class="go">b&#39;[&quot;some string&quot;,2]&#39;</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Example</span><span class="p">)</span>
-<span class="go">Example(my_first_field="some string", my_second_field=2)</span>
+<span class="go">Example(my_first_field=&quot;some string&quot;, my_second_field=2)</span>
 </pre></div>
 </div>
 </section>
@@ -530,6 +531,7 @@ average another ~2x speedup for decoding (and ~1.5x speedup for encoding).</p>
 </div><script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
     <script src="_static/jquery.js"></script>
     <script src="_static/underscore.js"></script>
+    <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
     <script src="_static/doctools.js"></script>
     <script src="_static/scripts/furo.js"></script>
     <script src="_static/clipboard.min.js"></script>

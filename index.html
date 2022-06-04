@@ -1,14 +1,14 @@
 <!doctype html>
-<html class="no-js">
+<html class="no-js" lang="en">
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
-    <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+    <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Usage" href="usage.html" />
 
-    <meta name="generator" content="sphinx-4.5.0, furo 2022.04.07"/>
+    <meta name="generator" content="sphinx-5.0.1, furo 2022.06.04"/>
         <title>msgspec</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
-    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=68f4518137b9aefe99b631505a2064c3c42c9852" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=40978830699223671f4072448e654b5958f38b89" />
     <link rel="stylesheet" type="text/css" href="_static/copybutton.css" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?digest=30d1aed668e5c3a91c3e3bf6a60b675221979f0e" />
     
@@ -183,7 +183,8 @@
           </svg>
           <span>Back to top</span>
         </a>
-        <div class="content-icon-container"><div class="theme-toggle-container theme-toggle-content">
+        <div class="content-icon-container">
+          <div class="theme-toggle-container theme-toggle-content">
             <button class="theme-toggle">
               <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
               <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
@@ -198,7 +199,7 @@
         </div>
         <article role="main">
           <section id="msgspec">
-<h1>msgspec<a class="headerlink" href="#msgspec" title="Permalink to this headline">#</a></h1>
+<h1>msgspec<a class="headerlink" href="#msgspec" title="Permalink to this heading">#</a></h1>
 <p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> is a <em>fast</em> and <em>friendly</em> serialization library for Python,
 supporting both <a class="reference external" href="https://json.org">JSON</a> and <a class="reference external" href="https://msgpack.org">MessagePack</a>. It integrates well with Python’s <a class="reference external" href="https://docs.python.org/3/library/typing.html">type
 annotations</a> , providing ergonomic (and performant!) schema validation.</p>
@@ -208,31 +209,31 @@ annotations</a> , providing ergonomic (and performant!) schema validation.</p>
 <span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">msgspec</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">User</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
-<span class="gp">... </span>    <span class="sd">"""A new type describing a User"""</span>
+<span class="gp">... </span>    <span class="sd">&quot;&quot;&quot;A new type describing a User&quot;&quot;&quot;</span>
 <span class="gp">... </span>    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
 <span class="gp">... </span>    <span class="n">groups</span><span class="p">:</span> <span class="n">Set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
 <span class="gp">... </span>    <span class="n">email</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
 </pre></div>
 </div>
 <p><strong>Encode</strong> messages as <a class="reference external" href="https://json.org">JSON</a> or <a class="reference external" href="https://msgpack.org">MessagePack</a>.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">alice</span> <span class="o">=</span> <span class="n">User</span><span class="p">(</span><span class="s2">"alice"</span><span class="p">,</span> <span class="n">groups</span><span class="o">=</span><span class="p">{</span><span class="s2">"admin"</span><span class="p">,</span> <span class="s2">"engineering"</span><span class="p">})</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">alice</span> <span class="o">=</span> <span class="n">User</span><span class="p">(</span><span class="s2">&quot;alice&quot;</span><span class="p">,</span> <span class="n">groups</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;admin&quot;</span><span class="p">,</span> <span class="s2">&quot;engineering&quot;</span><span class="p">})</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">alice</span>
-<span class="go">User(name='alice', groups={"admin", "engineering"}, email=None)</span>
+<span class="go">User(name=&#39;alice&#39;, groups={&quot;admin&quot;, &quot;engineering&quot;}, email=None)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">alice</span><span class="p">)</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span>
-<span class="go">b'{"name":"alice","groups":["admin","engineering"],"email":null}'</span>
+<span class="go">b&#39;{&quot;name&quot;:&quot;alice&quot;,&quot;groups&quot;:[&quot;admin&quot;,&quot;engineering&quot;],&quot;email&quot;:null}&#39;</span>
 </pre></div>
 </div>
 <p><strong>Decode</strong> messages back into Python types (with optional schema validation).</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">User</span><span class="p">)</span>
-<span class="go">User(name='alice', groups={"admin", "engineering"}, email=None)</span>
+<span class="go">User(name=&#39;alice&#39;, groups={&quot;admin&quot;, &quot;engineering&quot;}, email=None)</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">'{"name":"bob","groups":[123]}'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">User</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;{&quot;name&quot;:&quot;bob&quot;,&quot;groups&quot;:[123]}&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">User</span><span class="p">)</span>
 <span class="gt">Traceback (most recent call last):</span>
-  File <span class="nb">"&lt;stdin&gt;"</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
 <span class="gr">msgspec.DecodeError</span>: <span class="n">Expected `str`, got `int` - at `$.groups[0]`</span>
 </pre></div>
 </div>
@@ -241,7 +242,7 @@ of the nicities of validation libraries like <a class="reference external" href=
 encoding/decoding a message with <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> can be <em>~2-40x faster</em> than
 alternative libraries.</p>
 <section id="highlights">
-<h2>Highlights<a class="headerlink" href="#highlights" title="Permalink to this headline">#</a></h2>
+<h2>Highlights<a class="headerlink" href="#highlights" title="Permalink to this heading">#</a></h2>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> is <strong>fast</strong>. <a class="reference internal" href="benchmarks.html"><span class="doc">Benchmarks</span></a> show it’s among the fastest
 serialization methods for Python, outperforming all other JSON/MessagePack
@@ -259,7 +260,7 @@ guarantees of compatibility with other systems.</p></li>
 </ul>
 </section>
 <section id="why-msgspec">
-<h2>Why msgspec?<a class="headerlink" href="#why-msgspec" title="Permalink to this headline">#</a></h2>
+<h2>Why msgspec?<a class="headerlink" href="#why-msgspec" title="Permalink to this heading">#</a></h2>
 <p>If you’re writing a networked application, you’ll need some agreed upon
 protocol that your clients and servers can use to communicate. JSON is a decent
 choice here (though there are many other options). It’s ubiquitous, and Python
@@ -300,7 +301,7 @@ hope that it’s quick to learn and friendly to use, letting you focus less on
 serialization and more on your application code.</p>
 </section>
 <section id="installation">
-<h2>Installation<a class="headerlink" href="#installation" title="Permalink to this headline">#</a></h2>
+<h2>Installation<a class="headerlink" href="#installation" title="Permalink to this heading">#</a></h2>
 <p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> can be installed via <code class="docutils literal notranslate"><span class="pre">pip</span></code> or <code class="docutils literal notranslate"><span class="pre">conda</span></code>. Note that Python &gt;= 3.8
 is required.</p>
 <p><strong>pip</strong></p>
@@ -384,6 +385,7 @@ is required.</p>
 </div><script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
     <script src="_static/jquery.js"></script>
     <script src="_static/underscore.js"></script>
+    <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
     <script src="_static/doctools.js"></script>
     <script src="_static/scripts/furo.js"></script>
     <script src="_static/clipboard.min.js"></script>
