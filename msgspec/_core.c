@@ -4141,7 +4141,7 @@ static PyObject *
 Struct_reduce(PyObject *self, PyObject *args)
 {
     Py_ssize_t i, nfields;
-    PyObject *values, *val;
+    PyObject *values, *val, *out = NULL;
 
     nfields = StructMeta_GET_NFIELDS(Py_TYPE(self));
     values = PyTuple_New(nfields);
@@ -4154,10 +4154,10 @@ Struct_reduce(PyObject *self, PyObject *args)
         Py_INCREF(val);
         PyTuple_SET_ITEM(values, i, val);
     }
-    return PyTuple_Pack(2, Py_TYPE(self), values);
+    out = PyTuple_Pack(2, Py_TYPE(self), values);
 error:
-    Py_XDECREF(values);
-    return NULL;
+    Py_DECREF(values);
+    return out;
 }
 
 static PyObject *
