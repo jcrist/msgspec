@@ -45,6 +45,7 @@ class Struct(metaclass=__StructMeta):
             None, Literal["lower", "upper", "camel", "pascal"], Callable[[str], str]
         ] = None,
         frozen: bool = False,
+        eq: bool = True,
         order: bool = False,
         array_like: bool = False,
         nogc: bool = False,
@@ -64,6 +65,7 @@ def defstruct(
         None, Literal["lower", "upper", "camel", "pascal"], Callable[[str], str]
     ] = None,
     frozen: bool = False,
+    eq: bool = True,
     order: bool = False,
     array_like: bool = False,
     nogc: bool = False,

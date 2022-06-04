@@ -427,61 +427,6 @@ def test_struct_copy():
     assert x.a == 2
 
 
-def test_struct_compare():
-    def assert_eq(a, b):
-        assert a == b
-        assert not a != b
-
-    def assert_neq(a, b):
-        assert a != b
-        assert not a == b
-
-    class Test(Struct):
-        a: int
-        b: int
-
-    class Test2(Test):
-        pass
-
-    x = Struct()
-
-    assert_eq(x, Struct())
-    assert_neq(x, None)
-
-    x = Test(1, 2)
-    assert_eq(x, Test(1, 2))
-    assert_neq(x, None)
-    assert_neq(x, Test(1, 3))
-    assert_neq(x, Test(2, 2))
-    assert_neq(x, Test2(1, 2))
-
-
-def test_struct_compare_errors():
-    msg = "Oh no!"
-
-    class Bad:
-        def __eq__(self, other):
-            raise ValueError(msg)
-
-        __ne__ = __eq__
-
-    class Test(Struct):
-        a: object
-        b: object
-
-    t = Test(1, Bad())
-    t2 = Test(1, 2)
-
-    with pytest.raises(ValueError, match=msg):
-        t == t2
-    with pytest.raises(ValueError, match=msg):
-        t != t2
-    with pytest.raises(ValueError, match=msg):
-        t2 == t
-    with pytest.raises(ValueError, match=msg):
-        t2 != t
-
-
 class FrozenPoint(Struct, frozen=True):
     x: int
     y: int
@@ -756,50 +701,60 @@ def test_struct_handles_missing_attributes():
         pickle.dumps(t)
 
 
-@pytest.mark.parametrize("option", ["frozen", "array_like", "nogc", "omit_defaults"])
-def test_struct_option_precedence(option):
+@pytest.mark.parametrize(
+    "option, default",
+    [
+        ("frozen", False),
+        ("order", False),
+        ("eq", True),
+        ("array_like", False),
+        ("nogc", False),
+        ("omit_defaults", False),
+    ],
+)
+def test_struct_option_precedence(option, default):
     def get(cls):
         return getattr(cls, option)
 
     class Default(Struct):
         pass
 
-    assert not get(Default)
+    assert get(Default) is default
 
     class Enabled(Struct, **{option: True}):
         pass
 
-    assert get(Enabled)
+    assert get(Enabled) is True
 
     class Disabled(Struct, **{option: False}):
         pass
 
-    assert not get(Disabled)
+    assert get(Disabled) is False
 
     class T(Enabled):
         pass
 
-    assert get(T)
+    assert get(T) is True
 
     class T(Enabled, **{option: False}):
         pass
 
-    assert not get(T)
+    assert get(T) is False
 
     class T(Enabled, Default):
         pass
 
-    assert get(T)
+    assert get(T) is True
 
     class T(Default, Enabled):
         pass
 
-    assert get(T)
+    assert get(T) is True
 
     class T(Default, Disabled, Enabled):
         pass
 
-    assert not get(T)
+    assert get(T) is False
 
 
 def test_invalid_option_raises():
@@ -838,6 +793,87 @@ class TestFrozen:
         p = Point(1, 2)
         with pytest.raises(TypeError, match="unhashable type"):
             hash(p)
+
+
+class OrderPoint(Struct, order=True):
+    x: int
+    y: int
+
+
+class TestOrderAndEq:
+    def test_order_no_eq_errors(self):
+        with pytest.raises(ValueError, match="eq must be true if order is true"):
+
+            class Test(Struct, order=True, eq=False):
+                pass
+
+    def test_eq_false(self):
+        class Point(Struct, eq=False):
+            x: int
+            y: int
+
+        p = Point(1, 2)
+        # identity based equality
+        assert p == p
+        assert not p != p
+        assert p != Point(1, 2)
+        assert not p == Point(1, 2)
+        # identity based hash
+        assert hash(p) == hash(p)
+        assert hash(p) != hash(Point(1, 2))
+
+    def test_struct_eq(self):
+        def assert_eq(a, b):
+            assert a == b
+            assert not a != b
+
+        def assert_neq(a, b):
+            assert a != b
+            assert not a == b
+
+        class Test(Struct):
+            a: int
+            b: int
+
+        class Test2(Test):
+            pass
+
+        x = Struct()
+
+        assert_eq(x, Struct())
+        assert_neq(x, None)
+
+        x = Test(1, 2)
+        assert_eq(x, Test(1, 2))
+        assert_neq(x, None)
+        assert_neq(x, Test(1, 3))
+        assert_neq(x, Test(2, 2))
+        assert_neq(x, Test2(1, 2))
+
+    def test_struct_eq_errors(self):
+        msg = "Oh no!"
+
+        class Bad:
+            def __eq__(self, other):
+                raise ValueError(msg)
+
+            __ne__ = __eq__
+
+        class Test(Struct):
+            a: object
+            b: object
+
+        t = Test(1, Bad())
+        t2 = Test(1, 2)
+
+        with pytest.raises(ValueError, match=msg):
+            t == t2
+        with pytest.raises(ValueError, match=msg):
+            t != t2
+        with pytest.raises(ValueError, match=msg):
+            t2 == t
+        with pytest.raises(ValueError, match=msg):
+            t2 != t
 
 
 class TestTagAndTagField:
@@ -1122,11 +1158,25 @@ class TestDefStruct:
         assert t.add() == 3
 
     @pytest.mark.parametrize(
-        "option", ["omit_defaults", "frozen", "array_like", "nogc"]
+        "option, default",
+        [
+            ("omit_defaults", False),
+            ("frozen", False),
+            ("order", False),
+            ("eq", True),
+            ("array_like", False),
+            ("nogc", False),
+        ],
     )
-    def test_defstruct_bool_options(self, option):
+    def test_defstruct_bool_options(self, option, default):
         Test = defstruct("Test", [], **{option: True})
         assert getattr(Test, option) is True
+
+        Test = defstruct("Test", [], **{option: False})
+        assert getattr(Test, option) is False
+
+        Test = defstruct("Test", [])
+        assert getattr(Test, option) is default
 
     def test_defstruct_tag_and_tag_field(self):
         Test = defstruct("Test", [], tag="mytag", tag_field="mytagfield")

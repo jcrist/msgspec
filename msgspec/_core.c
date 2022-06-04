@@ -1335,6 +1335,7 @@ typedef struct {
     bool traversing;
     int8_t frozen;
     int8_t order;
+    int8_t eq;
     int8_t array_like;
     int8_t nogc;
     int8_t omit_defaults;
@@ -3028,7 +3029,8 @@ static PyObject *
 StructMeta_new_inner(
     PyTypeObject *type, PyObject *name, PyObject *bases, PyObject *namespace,
     PyObject *arg_tag_field, PyObject *arg_tag,
-    int arg_frozen, int arg_order, int arg_array_like, int arg_nogc, int arg_omit_defaults,
+    int arg_frozen, int arg_eq, int arg_order,
+    int arg_array_like, int arg_nogc, int arg_omit_defaults,
     PyObject *arg_rename
 ) {
     StructMetaObject *cls = NULL;
@@ -3041,7 +3043,7 @@ StructMeta_new_inner(
     PyObject *rename = NULL, *encode_fields = NULL;
     PyObject *tag_field_temp = NULL, *tag_temp = NULL;
     PyObject *tag = NULL, *tag_field = NULL,  *tag_value = NULL;
-    int frozen = -1, order = -1, array_like = -1, nogc = -1, omit_defaults = -1;
+    int frozen = -1, eq = -1, order = -1, array_like = -1, nogc = -1, omit_defaults = -1;
 
     if (PyDict_GetItemString(namespace, "__init__") != NULL) {
         PyErr_SetString(PyExc_TypeError, "Struct types cannot define __init__");
@@ -3093,6 +3095,7 @@ StructMeta_new_inner(
             rename = base_rename;
         }
         frozen = STRUCT_MERGE_OPTIONS(frozen, ((StructMetaObject *)base)->frozen);
+        eq = STRUCT_MERGE_OPTIONS(eq, ((StructMetaObject *)base)->eq);
         order = STRUCT_MERGE_OPTIONS(order, ((StructMetaObject *)base)->order);
         array_like = STRUCT_MERGE_OPTIONS(array_like, ((StructMetaObject *)base)->array_like);
         nogc = STRUCT_MERGE_OPTIONS(nogc, ((StructMetaObject *)base)->nogc);
@@ -3131,10 +3134,16 @@ StructMeta_new_inner(
     if (arg_tag_field != NULL && arg_tag_field != Py_None) { tag_field_temp = arg_tag_field; }
     if (arg_rename != NULL ) { rename = arg_rename == Py_None ? NULL : arg_rename; }
     frozen = STRUCT_MERGE_OPTIONS(frozen, arg_frozen);
+    eq = STRUCT_MERGE_OPTIONS(eq, arg_eq);
     order = STRUCT_MERGE_OPTIONS(order, arg_order);
     array_like = STRUCT_MERGE_OPTIONS(array_like, arg_array_like);
     nogc = STRUCT_MERGE_OPTIONS(nogc, arg_nogc);
     omit_defaults = STRUCT_MERGE_OPTIONS(omit_defaults, arg_omit_defaults);
+
+    if (eq == OPT_FALSE && order == OPT_TRUE) {
+        PyErr_SetString(PyExc_ValueError, "eq must be true if order is true");
+        goto error;
+    }
 
     new_dict = PyDict_Copy(namespace);
     if (new_dict == NULL)
@@ -3351,6 +3360,7 @@ StructMeta_new_inner(
     Py_XINCREF(rename);
     cls->rename = rename;
     cls->frozen = frozen;
+    cls->eq = eq;
     cls->order = order;
     cls->array_like = array_like;
     cls->nogc = nogc;
@@ -3381,26 +3391,26 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
 {
     PyObject *name = NULL, *bases = NULL, *namespace = NULL;
     PyObject *arg_tag_field = NULL, *arg_tag = NULL, *arg_rename = NULL;
-    int arg_frozen = -1, arg_order = -1, arg_array_like = -1, arg_nogc = -1, arg_omit_defaults = -1;
+    int arg_frozen = -1, arg_eq = -1, arg_order = -1, arg_array_like = -1, arg_nogc = -1, arg_omit_defaults = -1;
 
     static char *kwlist[] = {
         "name", "bases", "dict",
-        "tag_field", "tag", "frozen", "order", "array_like",
-        "nogc", "omit_defaults", "rename", NULL
+        "tag_field", "tag", "frozen", "eq", "order",
+        "array_like", "nogc", "omit_defaults", "rename", NULL
     };
 
     /* Parse arguments: (name, bases, dict) */
     if (!PyArg_ParseTupleAndKeywords(
-            args, kwargs, "UO!O!|$OOpppppO:StructMeta.__new__", kwlist,
+            args, kwargs, "UO!O!|$OOppppppO:StructMeta.__new__", kwlist,
             &name, &PyTuple_Type, &bases, &PyDict_Type, &namespace,
-            &arg_tag_field, &arg_tag, &arg_frozen, &arg_order,
+            &arg_tag_field, &arg_tag, &arg_frozen, &arg_eq, &arg_order,
             &arg_array_like, &arg_nogc, &arg_omit_defaults, &arg_rename)
     )
         return NULL;
 
     return StructMeta_new_inner(
         type, name, bases, namespace,
-        arg_tag_field, arg_tag, arg_frozen, arg_order,
+        arg_tag_field, arg_tag, arg_frozen, arg_eq, arg_order,
         arg_array_like, arg_nogc, arg_omit_defaults, arg_rename
     );
 }
@@ -3409,7 +3419,7 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
 PyDoc_STRVAR(msgspec_defstruct__doc__,
 "defstruct(name, fields, *, bases=(), module=None, namespace=None, "
 "tag_field=None, tag=None, rename=None, omit_defaults=False, "
-"frozen=False, order=False, array_like=False, nogc=False)\n"
+"frozen=False, eq=True, order=False, array_like=False, nogc=False)\n"
 "--\n"
 "\n"
 "Dynamically define a new Struct class.\n"
@@ -3444,20 +3454,20 @@ msgspec_defstruct(PyObject *self, PyObject *args, PyObject *kwargs)
     PyObject *name = NULL, *fields = NULL, *bases = NULL, *module = NULL, *namespace = NULL;
     PyObject *arg_tag_field = NULL, *arg_tag = NULL, *arg_rename = NULL;
     PyObject *new_bases = NULL, *annotations = NULL, *fields_fast = NULL, *out = NULL;
-    int arg_frozen = -1, arg_order = -1, arg_array_like = -1, arg_nogc = -1, arg_omit_defaults = -1;
+    int arg_frozen = -1, arg_eq = -1, arg_order = -1, arg_array_like = -1, arg_nogc = -1, arg_omit_defaults = -1;
 
     static char *kwlist[] = {
         "name", "fields", "bases", "module", "namespace",
         "tag_field", "tag", "rename", "omit_defaults",
-        "frozen", "order", "array_like", "nogc", NULL
+        "frozen", "eq", "order", "array_like", "nogc", NULL
     };
 
     /* Parse arguments: (name, bases, dict) */
     if (!PyArg_ParseTupleAndKeywords(
-            args, kwargs, "UO|$O!UO!OOOppppp:defstruct", kwlist,
+            args, kwargs, "UO|$O!UO!OOOpppppp:defstruct", kwlist,
             &name, &fields, &PyTuple_Type, &bases, &module, &PyDict_Type, &namespace,
             &arg_tag_field, &arg_tag, &arg_rename, &arg_omit_defaults,
-            &arg_frozen, &arg_order, &arg_array_like, &arg_nogc)
+            &arg_frozen, &arg_eq, &arg_order, &arg_array_like, &arg_nogc)
     )
         return NULL;
 
@@ -3521,7 +3531,7 @@ msgspec_defstruct(PyObject *self, PyObject *args, PyObject *kwargs)
 
     out = StructMeta_new_inner(
         &StructMetaType, name, bases, namespace,
-        arg_tag_field, arg_tag, arg_frozen, arg_order,
+        arg_tag_field, arg_tag, arg_frozen, arg_eq, arg_order,
         arg_array_like, arg_nogc, arg_omit_defaults, arg_rename
     );
 
@@ -3666,6 +3676,13 @@ StructMeta_frozen(StructMetaObject *self, void *closure)
 }
 
 static PyObject*
+StructMeta_eq(StructMetaObject *self, void *closure)
+{
+    if (self->eq != OPT_FALSE) { Py_RETURN_TRUE; }
+    else { Py_RETURN_FALSE; }
+}
+
+static PyObject*
 StructMeta_order(StructMetaObject *self, void *closure)
 {
     if (self->order == OPT_TRUE) { Py_RETURN_TRUE; }
@@ -3797,6 +3814,7 @@ static PyMemberDef StructMeta_members[] = {
 static PyGetSetDef StructMeta_getset[] = {
     {"__signature__", (getter) StructMeta_signature, NULL, NULL, NULL},
     {"frozen", (getter) StructMeta_frozen, NULL, NULL, NULL},
+    {"eq", (getter) StructMeta_eq, NULL, NULL, NULL},
     {"order", (getter) StructMeta_order, NULL, NULL, NULL},
     {"array_like", (getter) StructMeta_array_like, NULL, NULL, NULL},
     {"nogc", (getter) StructMeta_nogc, NULL, NULL, NULL},
@@ -4134,9 +4152,17 @@ Struct_hash(PyObject *self) {
     Py_ssize_t i, nfields;
     Py_uhash_t acc = MS_HASH_XXPRIME_5;
 
-    if (((StructMetaObject *)Py_TYPE(self))->frozen != OPT_TRUE) {
-        PyErr_Format(PyExc_TypeError, "unhashable type: '%s'", Py_TYPE(self)->tp_name);
-        return -1;
+    StructMetaObject *st_type = (StructMetaObject *)Py_TYPE(self);
+
+    if (MS_UNLIKELY(st_type->eq == OPT_FALSE)) {
+        /* If `__eq__` isn't implemented, then the default pointer-based
+         * `__hash__` should be used */
+        return PyBaseObject_Type.tp_hash(self);
+    }
+
+    if (MS_UNLIKELY(st_type->frozen != OPT_TRUE)) {
+        /* If `__eq__` is implemented, only frozen types can be hashed */
+        return PyObject_HashNotImplemented(self);
     }
 
     nfields = StructMeta_GET_NFIELDS(Py_TYPE(self));
@@ -4163,7 +4189,12 @@ Struct_richcompare(PyObject *self, PyObject *other, int op) {
 
     StructMetaObject *st_type = (StructMetaObject *)(Py_TYPE(self));
 
-    if (op != Py_EQ && op != Py_NE && st_type->order != OPT_TRUE) {
+    if (op == Py_EQ || op == Py_NE) {
+        if (MS_UNLIKELY(st_type->eq == OPT_FALSE)) {
+            Py_RETURN_NOTIMPLEMENTED;
+        }
+    }
+    else if (st_type->order != OPT_TRUE) {
         Py_RETURN_NOTIMPLEMENTED;
     }
 

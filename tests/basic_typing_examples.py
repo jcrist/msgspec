@@ -94,15 +94,26 @@ def check_struct_frozen() -> None:
     reveal_type(t.y)  # assert "str" in typ
 
 
+def check_struct_eq() -> None:
+    class Test(msgspec.Struct, eq=False):
+        x: int
+        y: str
+
+    t = Test(1, "foo")
+    t2 = Test(1, "foo")
+    if t == t2:
+        print("Here")
+    reveal_type(t)  # assert "Test" in typ
+    reveal_type(t.x)  # assert "int" in typ
+    reveal_type(t.y)  # assert "str" in typ
+
+
 def check_struct_order() -> None:
     class Test(msgspec.Struct, order=True):
         x: int
         y: str
 
     t = Test(1, "foo")
-    t2 = Test(2, "bar")
-    print(t < t2)
-    print(t > t2)
     reveal_type(t)  # assert "Test" in typ
     reveal_type(t.x)  # assert "int" in typ
     reveal_type(t.y)  # assert "str" in typ
@@ -211,6 +222,7 @@ def check_defstruct_config_options() -> None:
         omit_defaults=True,
         frozen=True,
         order=True,
+        eq=True,
         array_like=True,
         nogc=True,
         tag="mytag",
