@@ -13,6 +13,15 @@
 #include "ryu.h"
 #include "atof.h"
 
+/* Hint to the compiler not to store `x` in a register since it is likely to
+ * change. Results in much higher performance on GCC, with smaller benefits on
+ * clang */
+#if defined(__GNUC__)
+    #define OPT_FORCE_RELOAD(x) __asm volatile("":"=m"(x)::);
+#else
+    #define OPT_FORCE_RELOAD(x)
+#endif
+
 #ifdef __GNUC__
 #define ms_popcount(i) __builtin_popcount(i)
 #else
@@ -8147,7 +8156,7 @@ json_peek_skip_ws(JSONDecoderState *self, unsigned char *s)
             return false;
         }
         unsigned char c = *self->input_pos;
-        if (!(c == ' ' || c == '\n' || c == '\t' || c == '\r')) {
+        if (MS_LIKELY(c != ' ' && c != '\n' && c != '\r' && c != '\t')) {
             *s = c;
             return true;
         }
@@ -8274,15 +8283,6 @@ json_scratch_expand(JSONDecoderState *state, Py_ssize_t required) {
 }
 
 static int
-json_scratch_ensure_space(JSONDecoderState *state, Py_ssize_t size) {
-    Py_ssize_t required = state->scratch_len + size;
-    if (MS_UNLIKELY(required >= state->scratch_capacity)) {
-        return json_scratch_expand(state, required);
-    }
-    return 0;
-}
-
-static int
 json_scratch_reset(JSONDecoderState *state) {
     state->scratch_len = 0;
     if (state->scratch_capacity > JS_SCRATCH_MAX_SIZE) {
@@ -8302,9 +8302,52 @@ json_scratch_extend(JSONDecoderState *state, const void *buf, Py_ssize_t size) {
     return 0;
 }
 
-static int
-json_scratch_push(JSONDecoderState *state, unsigned char c) {
-    return json_scratch_extend(state, &c, 1);
+/* -1: '\', '"', and forbidden characters
+ * 0: ascii
+ * 1: non-ascii */
+static const int8_t char_types[256] = {
+    -1, -1, -1, -1, -1, -1, -1, -1,
+    -1, -1, -1, -1, -1, -1, -1, -1,
+    -1, -1, -1, -1, -1, -1, -1, -1,
+    -1, -1, -1, -1, -1, -1, -1, -1,
+    0, 0, -1, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, -1, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1,
+};
+
+/* Is char `"`, `\`, or nonascii? */
+static MS_INLINE bool char_is_special_or_nonascii(unsigned char c) {
+    return char_types[c] != 0;
+}
+
+/* Is char `"` or `\`? */
+static MS_INLINE bool char_is_special(unsigned char c) {
+    return char_types[c] < 0;
 }
 
 static int
@@ -8333,114 +8376,261 @@ json_read_codepoint(JSONDecoderState *self, unsigned int *out) {
     return 0;
 }
 
-static int
-json_parse_escape(JSONDecoderState *self) {
-    unsigned char c;
-    if (!json_read1(self, &c)) return -1;
+static MS_NOINLINE int
+json_handle_unicode_escape(JSONDecoderState *self) {
+    unsigned int cp;
+    if (json_read_codepoint(self, &cp) < 0) return -1;
 
-    switch (c) {
-        case '"': return json_scratch_push(self, '"');
-        case '\\': return json_scratch_push(self, '\\');
-        case '/': return json_scratch_push(self, '/');
-        case 'b': return json_scratch_push(self, '\b');
-        case 'f': return json_scratch_push(self, '\f');
-        case 'n': return json_scratch_push(self, '\n');
-        case 'r': return json_scratch_push(self, '\r');
-        case 't': return json_scratch_push(self, '\t');
-        case 'u': {
-            unsigned int cp;
-            if (json_read_codepoint(self, &cp) < 0) return -1;
-
-            if (0xDC00 <= cp && cp <= 0xDFFF) {
-                json_err_invalid(self, "invalid utf-16 surrogate pair");
-                return -1;
-            }
-            else if (0xD800 <= cp && cp <= 0xDBFF) {
-                /* utf-16 pair, parse 2nd pair */
-                unsigned int cp2;
-                if (!json_remaining(self, 6)) return ms_err_truncated();
-                if (self->input_pos[0] != '\\' || self->input_pos[1] != 'u') {
-                    json_err_invalid(self, "unexpected end of escaped utf-16 surrogate pair");
-                    return -1;
-                }
-                self->input_pos += 2;
-                if (json_read_codepoint(self, &cp2) < 0) return -1;
-                if (cp2 < 0xDC00 || cp2 > 0xDFFF) {
-                    json_err_invalid(self, "invalid utf-16 surrogate pair");
-                    return -1;
-                }
-                cp = 0x10000 + (((cp - 0xD800) << 10) | (cp2 - 0xDC00));
-            }
-
-            /* Encode the codepoint as utf-8 */
-            if (json_scratch_ensure_space(self, 4) < 0) return -1;
-            unsigned char *p = self->scratch + self->scratch_len;
-            if (cp < 0x80) {
-                *p++ = cp;
-                self->scratch_len += 1;
-            } else if (cp < 0x800) {
-                *p++ = 0xC0 | (cp >> 6);
-                *p++ = 0x80 | (cp & 0x3F);
-                self->scratch_len += 2;
-            } else if (cp < 0x10000) {
-                *p++ = 0xE0 | (cp >> 12);
-                *p++ = 0x80 | ((cp >> 6) & 0x3F);
-                *p++ = 0x80 | (cp & 0x3F);
-                self->scratch_len += 3;
-            } else {
-                *p++ = 0xF0 | (cp >> 18);
-                *p++ = 0x80 | ((cp >> 12) & 0x3F);
-                *p++ = 0x80 | ((cp >> 6) & 0x3F);
-                *p++ = 0x80 | (cp & 0x3F);
-                self->scratch_len += 4;
-            }
-            return 0;
-        }
-        default:
-            json_err_invalid(self, "invalid escape character in string");
+    if (0xDC00 <= cp && cp <= 0xDFFF) {
+        json_err_invalid(self, "invalid utf-16 surrogate pair");
+        return -1;
+    }
+    else if (0xD800 <= cp && cp <= 0xDBFF) {
+        /* utf-16 pair, parse 2nd pair */
+        unsigned int cp2;
+        if (!json_remaining(self, 6)) return ms_err_truncated();
+        if (self->input_pos[0] != '\\' || self->input_pos[1] != 'u') {
+            json_err_invalid(self, "unexpected end of escaped utf-16 surrogate pair");
             return -1;
+        }
+        self->input_pos += 2;
+        if (json_read_codepoint(self, &cp2) < 0) return -1;
+        if (cp2 < 0xDC00 || cp2 > 0xDFFF) {
+            json_err_invalid(self, "invalid utf-16 surrogate pair");
+            return -1;
+        }
+        cp = 0x10000 + (((cp - 0xD800) << 10) | (cp2 - 0xDC00));
+    }
+
+    /* Encode the codepoint as utf-8 */
+    unsigned char *p = self->scratch + self->scratch_len;
+    if (cp < 0x80) {
+        *p++ = cp;
+        self->scratch_len += 1;
+    } else if (cp < 0x800) {
+        *p++ = 0xC0 | (cp >> 6);
+        *p++ = 0x80 | (cp & 0x3F);
+        self->scratch_len += 2;
+    } else if (cp < 0x10000) {
+        *p++ = 0xE0 | (cp >> 12);
+        *p++ = 0x80 | ((cp >> 6) & 0x3F);
+        *p++ = 0x80 | (cp & 0x3F);
+        self->scratch_len += 3;
+    } else {
+        *p++ = 0xF0 | (cp >> 18);
+        *p++ = 0x80 | ((cp >> 12) & 0x3F);
+        *p++ = 0x80 | ((cp >> 6) & 0x3F);
+        *p++ = 0x80 | (cp & 0x3F);
+        self->scratch_len += 4;
     }
     return 0;
 }
 
-static Py_ssize_t
-json_decode_string_view(JSONDecoderState *self, char **out) {
+/* These macros are used to manually unroll some ascii scanning loops below */
+#define repeat8(x)  { x(0) x(1) x(2) x(3) x(4) x(5) x(6) x(7) }
+
+#define parse_ascii_pre(i) \
+    if (MS_UNLIKELY(char_is_special_or_nonascii(self->input_pos[i]))) goto parse_ascii_##i;
+
+#define parse_ascii_post(i) \
+    parse_ascii_##i: \
+    self->input_pos += i; \
+    goto parse_ascii_end;
+
+#define parse_unicode_pre(i) \
+    if (MS_UNLIKELY(char_is_special(self->input_pos[i]))) goto parse_unicode_##i;
+
+#define parse_unicode_post(i) \
+    parse_unicode_##i: \
+    self->input_pos += i; \
+    goto parse_unicode_end;
+
+static MS_NOINLINE Py_ssize_t
+json_decode_string_view_copy(
+    JSONDecoderState *self, char **out, bool *is_ascii, unsigned char *start
+) {
+    unsigned char c;
     self->scratch_len = 0;
-    self->input_pos++; /* Skip '"' */
-    unsigned char *start = self->input_pos;
+
+top:
+    OPT_FORCE_RELOAD(*self->input_pos);
+
+    c = *self->input_pos;
+    if (c == '\\') {
+        /* Write the current block to scratch */
+        Py_ssize_t block_size = self->input_pos - start;
+        /* An escape string requires at most 4 bytes to decode */
+        Py_ssize_t required = self->scratch_len + block_size + 4;
+        if (MS_UNLIKELY(required >= self->scratch_capacity)) {
+            if (MS_UNLIKELY(json_scratch_expand(self, required) < 0)) return -1;
+        }
+        memcpy(self->scratch + self->scratch_len, start, block_size);
+        self->scratch_len += block_size;
+
+        self->input_pos++;
+        if (!json_read1(self, &c)) return -1;
+
+        switch (c) {
+            case 'n': {
+                *(self->scratch + self->scratch_len) = '\n';
+                self->scratch_len++;
+                break;
+            }
+            case '"': {
+                *(self->scratch + self->scratch_len) = '"';
+                self->scratch_len++;
+                break;
+            }
+            case 't': {
+                *(self->scratch + self->scratch_len) = '\t';
+                self->scratch_len++;
+                break;
+            }
+            case 'r': {
+                *(self->scratch + self->scratch_len) = '\r';
+                self->scratch_len++;
+                break;
+            }
+            case '\\': {
+                *(self->scratch + self->scratch_len) = '\\';
+                self->scratch_len++;
+                break;
+            }
+            case '/': {
+                *(self->scratch + self->scratch_len) = '/';
+                self->scratch_len++;
+                break;
+            }
+            case 'b': {
+                *(self->scratch + self->scratch_len) = '\b';
+                self->scratch_len++;
+                break;
+            }
+            case 'f': {
+                *(self->scratch + self->scratch_len) = '\f';
+                self->scratch_len++;
+                break;
+            }
+            case 'u': {
+                *is_ascii = false;
+                if (json_handle_unicode_escape(self) < 0) return -1;
+                break;
+            }
+            default:
+                json_err_invalid(self, "invalid escape character in string");
+                return -1;
+        }
+
+        start = self->input_pos;
+    }
+    else if (c == '"') {
+        if (json_scratch_extend(self, start, self->input_pos - start) < 0) return -1;
+        self->input_pos++;
+        *out = (char *)(self->scratch);
+        return self->scratch_len;
+    }
+    else {
+        json_err_invalid(self, "invalid character");
+        return -1;
+    }
+
+    /* Loop until `"`, `\`, or a non-ascii character */
+    while (self->input_end - self->input_pos >= 8) {
+        repeat8(parse_ascii_pre);
+        self->input_pos += 8;
+        continue;
+        repeat8(parse_ascii_post);
+    }
     while (true) {
         if (MS_UNLIKELY(self->input_pos == self->input_end)) return ms_err_truncated();
-        if (MS_LIKELY(!escape_table[*(self->input_pos)])) {
-            self->input_pos++;
-            continue;
-        }
-
-        unsigned char c = *self->input_pos;
-        Py_ssize_t size = self->input_pos - start;
+        if (MS_UNLIKELY(char_is_special_or_nonascii(*self->input_pos))) break;
         self->input_pos++;
+    }
 
-        if (MS_LIKELY(c == '"')) {
-            if (MS_LIKELY(self->scratch_len == 0)) {
-                *out = (char *)start;
-                return size;
-            }
-            else {
-                if (json_scratch_extend(self, start, size) < 0) return -1;
-                *out = (char *)(self->scratch);
-                return self->scratch_len;
-            }
+parse_ascii_end:
+    OPT_FORCE_RELOAD(*self->input_pos);
+
+    if (MS_UNLIKELY(*self->input_pos & 0x80)) {
+        *is_ascii = false;
+        /* Loop until `"` or `\` */
+        while (self->input_end - self->input_pos >= 8) {
+            repeat8(parse_unicode_pre);
+            self->input_pos += 8;
+            continue;
+            repeat8(parse_unicode_post);
         }
-        else if (c == '\\') {
-            if (json_scratch_extend(self, start, size) < 0) return -1;
-            if (json_parse_escape(self) < 0) return -1;
-            start = self->input_pos;
-        }
-        else {
-            json_err_invalid(self, "invalid character");
-            return -1;
+        while (true) {
+            if (MS_UNLIKELY(self->input_pos == self->input_end)) return ms_err_truncated();
+            if (MS_UNLIKELY(char_is_special(*self->input_pos))) break;
+            self->input_pos++;
         }
     }
+parse_unicode_end:
+    goto top;
 }
+
+static Py_ssize_t
+json_decode_string_view(JSONDecoderState *self, char **out, bool *is_ascii) {
+    self->input_pos++; /* Skip '"' */
+    unsigned char *start = self->input_pos;
+
+    /* Loop until `"`, `\`, or a non-ascii character */
+    while (self->input_end - self->input_pos >= 8) {
+        repeat8(parse_ascii_pre);
+        self->input_pos += 8;
+        continue;
+        repeat8(parse_ascii_post);
+    }
+    while (true) {
+        if (MS_UNLIKELY(self->input_pos == self->input_end)) return ms_err_truncated();
+        if (MS_UNLIKELY(char_is_special_or_nonascii(*self->input_pos))) break;
+        self->input_pos++;
+    }
+
+parse_ascii_end:
+    OPT_FORCE_RELOAD(*self->input_pos);
+
+    if (MS_LIKELY(*self->input_pos == '"')) {
+        Py_ssize_t size = self->input_pos - start;
+        self->input_pos++;
+        *out = (char *)start;
+        return size;
+    }
+
+    if (MS_UNLIKELY(*self->input_pos & 0x80)) {
+        *is_ascii = false;
+        /* Loop until `"` or `\` */
+        while (self->input_end - self->input_pos >= 8) {
+            repeat8(parse_unicode_pre);
+            self->input_pos += 8;
+            continue;
+            repeat8(parse_unicode_post);
+        }
+        while (true) {
+            if (MS_UNLIKELY(self->input_pos == self->input_end)) return ms_err_truncated();
+            if (MS_UNLIKELY(char_is_special(*self->input_pos))) break;
+            self->input_pos++;
+        }
+    }
+
+parse_unicode_end:
+    OPT_FORCE_RELOAD(*self->input_pos);
+
+    if (MS_LIKELY(*self->input_pos == '"')) {
+        Py_ssize_t size = self->input_pos - start;
+        self->input_pos++;
+        *out = (char *)start;
+        return size;
+    }
+
+    return json_decode_string_view_copy(self, out, is_ascii, start);
+}
+
+#undef repeat8
+#undef parse_ascii_pre
+#undef parse_ascii_post
+#undef parse_unicode_pre
+#undef parse_unicode_post
 
 /* A table of the corresponding base64 value for each character, or -1 if an
  * invalid character in the base64 alphabet (note the padding char '=' is
@@ -8651,18 +8841,28 @@ json_decode_string(JSONDecoderState *self, TypeNode *type, PathNode *path) {
         )
     ) {
         char *view = NULL;
-        Py_ssize_t size = json_decode_string_view(self, &view);
+        bool is_ascii = true;
+        Py_ssize_t size = json_decode_string_view(self, &view, &is_ascii);
         if (size < 0) return NULL;
-        if (MS_UNLIKELY(type->types & (MS_TYPE_BYTES | MS_TYPE_BYTEARRAY))) {
-            return json_decode_binary(self, view, size, type, path);
+        if (MS_LIKELY(type->types & (MS_TYPE_STR | MS_TYPE_ANY))) {
+            if (MS_LIKELY(is_ascii)) {
+                PyObject *out = PyUnicode_New(size, 127);
+                memcpy(((PyASCIIObject *)out) + 1, view, size);
+                return out;
+            }
+            else {
+                return PyUnicode_DecodeUTF8(view, size, NULL);
+            }
         }
         else if (MS_UNLIKELY(type->types & MS_TYPE_DATETIME)) {
             return json_decode_datetime(self, view, size, path);
         }
-        else if (MS_UNLIKELY(type->types & (MS_TYPE_ENUM | MS_TYPE_STRLITERAL))) {
+        else if (MS_UNLIKELY(type->types & (MS_TYPE_BYTES | MS_TYPE_BYTEARRAY))) {
+            return json_decode_binary(self, view, size, type, path);
+        }
+        else {
             return ms_decode_str_enum_or_literal(view, size, type, path);
         }
-        return PyUnicode_DecodeUTF8(view, size, NULL);
     }
     return ms_validation_error("str", type, path);
 }
@@ -8989,7 +9189,8 @@ json_decode_cstr(JSONDecoderState *self, char **out, PathNode *path) {
         ms_error_with_path("Expected `str`%U", path);
         return -1;
     }
-    return json_decode_string_view(self, out);
+    bool is_ascii = true;
+    return json_decode_string_view(self, out, &is_ascii);
 }
 
 static Py_ssize_t
@@ -9232,7 +9433,8 @@ json_decode_struct_map_inner(
 
         /* Parse a string key */
         if (c == '"') {
-            key_size = json_decode_string_view(self, &key);
+            bool is_ascii = true;
+            key_size = json_decode_string_view(self, &key, &is_ascii);
             if (key_size < 0) goto error;
         }
         else if (c == '}') {
@@ -9345,7 +9547,8 @@ json_decode_struct_union(
         Py_ssize_t key_size;
         char *key = NULL;
         if (c == '"') {
-            key_size = json_decode_string_view(self, &key);
+            bool is_ascii = true;
+            key_size = json_decode_string_view(self, &key, &is_ascii);
             if (key_size < 0) return NULL;
         }
         else if (c == '}') {

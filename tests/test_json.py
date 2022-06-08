@@ -1,18 +1,19 @@
 from __future__ import annotations
 
-import enum
 import base64
 import datetime
-import itertools
+import enum
 import gc
+import itertools
 import json
 import math
 import random
+import string
 import struct
 import sys
-import uuid
-import types
 import textwrap
+import types
+import uuid
 from contextlib import contextmanager
 from typing import (
     Any,
@@ -762,6 +763,28 @@ class TestStrings:
     def test_decode_str_missing_closing_quote(self):
         with pytest.raises(msgspec.DecodeError, match="truncated"):
             msgspec.json.decode(b'"test')
+
+    @pytest.mark.parametrize("length", range(10))
+    @pytest.mark.parametrize("in_list", [False, True])
+    @pytest.mark.parametrize("unicode", [False, True])
+    @pytest.mark.parametrize("escape", [False, True])
+    def test_decode_str_lengths(self, length, in_list, unicode, escape):
+        """A test designed to get full coverage of the unrolled loops in the
+        string parsing routine"""
+        if unicode:
+            prefix = "𝄞\nÁ\t\n𝄞Á" if escape else "𝄞Á"
+        else:
+            prefix = "a\nb\t\ncd" if escape else ""
+        s = prefix + string.ascii_letters[:length]
+        sol = [s, 1] if in_list else s
+        buf = msgspec.json.encode(sol)
+        res = msgspec.json.decode(buf)
+        assert res == sol
+
+        left, _, right = buf.rpartition(b'"')
+        buf2 = left + b'\x01"' + right
+        with pytest.raises(msgspec.DecodeError, match="invalid character"):
+            msgspec.json.decode(buf2)
 
 
 class TestBinary:
