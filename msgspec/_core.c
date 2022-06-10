@@ -81,7 +81,7 @@ ms_popcount(uint32_t i) {
 /* XXX: Optimized `PyUnicode_AsUTF8AndSize`, fastpath for ascii strings. */
 static inline const char *
 unicode_str_and_size(PyObject *str, Py_ssize_t *size) {
-    if (PyUnicode_IS_COMPACT_ASCII(str)) {
+    if (MS_LIKELY(PyUnicode_IS_COMPACT_ASCII(str))) {
         *size = ((PyASCIIObject *)str)->length;
         return (char *)(((PyASCIIObject *)str) + 1);
     }
@@ -2736,26 +2736,33 @@ Struct_dealloc(PyObject *self) {
     Py_DECREF(type);
 }
 
-static Py_ssize_t
+static MS_INLINE Py_ssize_t
 StructMeta_get_field_index(
     StructMetaObject *self, const char * key, Py_ssize_t key_size, Py_ssize_t *pos
 ) {
     const char *field;
-    Py_ssize_t nfields, field_size, i, ind, offset = *pos;
+    Py_ssize_t nfields, field_size, i, offset = *pos;
     nfields = PyTuple_GET_SIZE(self->struct_encode_fields);
-    for (i = 0; i < nfields; i++) {
-        ind = (i + offset) % nfields;
+    for (i = offset; i < nfields; i++) {
         field = unicode_str_and_size(
-            PyTuple_GET_ITEM(self->struct_encode_fields, ind), &field_size
+            PyTuple_GET_ITEM(self->struct_encode_fields, i), &field_size
         );
-        if (field == NULL) return -1;
         if (key_size == field_size && memcmp(key, field, key_size) == 0) {
-            *pos = (ind + 1) % nfields;
-            return ind;
+            *pos = i < (nfields - 1) ? (i + 1) : 0;
+            return i;
+        }
+    }
+    for (i = 0; i < offset; i++) {
+        field = unicode_str_and_size(
+            PyTuple_GET_ITEM(self->struct_encode_fields, i), &field_size
+        );
+        if (key_size == field_size && memcmp(key, field, key_size) == 0) {
+            *pos = i + 1;
+            return i;
         }
     }
     /* Not a field, check if it matches the tag field (if present) */
-    if (self->struct_tag_field != NULL) {
+    if (MS_UNLIKELY(self->struct_tag_field != NULL)) {
         Py_ssize_t tag_field_size;
         const char *tag_field;
         tag_field = unicode_str_and_size(self->struct_tag_field, &tag_field_size);
@@ -9537,38 +9544,35 @@ json_decode_struct_map_inner(
 
         /* Parse value */
         field_index = StructMeta_get_field_index(st_type, key, key_size, &pos);
-        if (field_index < 0) {
-            if (MS_UNLIKELY(field_index == -2)) {
-                /* Matches the tag field */
-                Py_ssize_t tag_size, expected_size;
-                char *tag = NULL;
-                PathNode tag_path = {path, PATH_TAG, st_type->struct_tag_field};
+        if (MS_LIKELY(field_index >= 0)) {
+            field_path.index = field_index;
+            TypeNode *type = st_type->struct_types[field_index];
+            val = json_decode(self, type, &field_path);
+            if (val == NULL) goto error;
+            Struct_set_index(out, field_index, val);
+        }
+        else if (MS_UNLIKELY(field_index == -2)) {
+            /* Matches the tag field */
+            Py_ssize_t tag_size, expected_size;
+            char *tag = NULL;
+            PathNode tag_path = {path, PATH_TAG, st_type->struct_tag_field};
 
-                /* Decode the tag value */
-                tag_size = json_decode_cstr(self, &tag, &tag_path);
-                if (tag_size < 0) goto error;
+            /* Decode the tag value */
+            tag_size = json_decode_cstr(self, &tag, &tag_path);
+            if (tag_size < 0) goto error;
 
-                /* Check that the tag value matches the expected value */
-                const char *expected = unicode_str_and_size(
-                    st_type->struct_tag_value, &expected_size
-                );
-                if (tag_size != expected_size || memcmp(tag, expected, expected_size) != 0) {
-                    /* Tag doesn't match the expected value, error nicely */
-                    return ms_invalid_cstr_value(tag, tag_size, &tag_path);
-                }
-            }
-            else {
-                /* Skip unknown fields */
-                if (json_skip(self) < 0) goto error;
+            /* Check that the tag value matches the expected value */
+            const char *expected = unicode_str_and_size(
+                st_type->struct_tag_value, &expected_size
+            );
+            if (tag_size != expected_size || memcmp(tag, expected, expected_size) != 0) {
+                /* Tag doesn't match the expected value, error nicely */
+                return ms_invalid_cstr_value(tag, tag_size, &tag_path);
             }
         }
         else {
-            field_path.index = field_index;
-            val = json_decode(
-                self, st_type->struct_types[field_index], &field_path
-            );
-            if (val == NULL) goto error;
-            Struct_set_index(out, field_index, val);
+            /* Skip unknown fields */
+            if (json_skip(self) < 0) goto error;
         }
     }
     if (Struct_fill_in_defaults(st_type, out, path) < 0) goto error;
