@@ -343,12 +343,12 @@ def bench_pyrobuf(n, no_gc, validate=False):
 BENCHMARKS = [
     ("ujson", bench_ujson),
     ("orjson", bench_orjson),
-    # ("msgpack", bench_msgpack),
-    # ("pyrobuf", bench_pyrobuf),
-    # ("msgspec msgpack", bench_msgspec_msgpack),
-    # ("msgspec msgpack array-like", bench_msgspec_msgpack_array_like),
+    ("msgpack", bench_msgpack),
+    ("pyrobuf", bench_pyrobuf),
+    ("msgspec msgpack", bench_msgspec_msgpack),
+    ("msgspec msgpack array-like", bench_msgspec_msgpack_array_like),
     ("msgspec json", bench_msgspec_json),
-    # ("msgspec json array-like", bench_msgspec_json_array_like),
+    ("msgspec json array-like", bench_msgspec_json_array_like),
 ]
 
 
