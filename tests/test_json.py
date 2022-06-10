@@ -1815,6 +1815,24 @@ class TestStruct:
         ):
             msgspec.json.decode(bad, type=List[Person])
 
+    def test_decode_struct_fields_mixed_order(self):
+        class Test(msgspec.Struct):
+            a: int
+            b: int
+            c: int
+            d: int
+
+        sol = Test(0, 1, 2, 3)
+
+        dec = msgspec.json.Decoder(Test)
+
+        pairs = list(zip("abcdef", range(6)))
+
+        for data in itertools.permutations(pairs):
+            msg = msgspec.json.encode(dict(data))
+            res = dec.decode(msg)
+            assert res == sol
+
     @pytest.mark.parametrize(
         "extra",
         [
