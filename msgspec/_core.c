@@ -8626,6 +8626,87 @@ parse_unicode_end:
     return json_decode_string_view_copy(self, out, is_ascii, start);
 }
 
+static int
+json_skip_string(JSONDecoderState *self) {
+    self->input_pos++; /* Skip '"' */
+
+parse_unicode:
+    /* Loop until `"` or `\` */
+    while (self->input_end - self->input_pos >= 8) {
+        repeat8(parse_unicode_pre);
+        self->input_pos += 8;
+        continue;
+        repeat8(parse_unicode_post);
+    }
+    while (true) {
+        if (MS_UNLIKELY(self->input_pos == self->input_end)) return ms_err_truncated();
+        if (MS_UNLIKELY(char_is_special(*self->input_pos))) break;
+        self->input_pos++;
+    }
+
+parse_unicode_end:
+    OPT_FORCE_RELOAD(*self->input_pos);
+
+    if (MS_LIKELY(*self->input_pos == '"')) {
+        self->input_pos++;
+        return 0;
+    }
+    else if (*self->input_pos == '\\') {
+        self->input_pos++;
+        if (MS_UNLIKELY(self->input_pos == self->input_end)) return ms_err_truncated();
+
+        switch (*self->input_pos) {
+            case '"':
+            case '\\':
+            case '/':
+            case 'b':
+            case 'f':
+            case 'n':
+            case 'r':
+            case 't':
+                self->input_pos++;
+                break;
+            case 'u': {
+                self->input_pos++;
+                unsigned int cp;
+                if (json_read_codepoint(self, &cp) < 0) return -1;
+
+                if (0xDC00 <= cp && cp <= 0xDFFF) {
+                    json_err_invalid(self, "invalid utf-16 surrogate pair");
+                    return -1;
+                }
+                else if (0xD800 <= cp && cp <= 0xDBFF) {
+                    /* utf-16 pair, parse 2nd pair */
+                    unsigned int cp2;
+                    if (!json_remaining(self, 6)) return ms_err_truncated();
+                    if (self->input_pos[0] != '\\' || self->input_pos[1] != 'u') {
+                        json_err_invalid(self, "unexpected end of hex escape");
+                        return -1;
+                    }
+                    self->input_pos += 2;
+                    if (json_read_codepoint(self, &cp2) < 0) return -1;
+                    if (cp2 < 0xDC00 || cp2 > 0xDFFF) {
+                        json_err_invalid(self, "invalid utf-16 surrogate pair");
+                        return -1;
+                    }
+                    cp = 0x10000 + (((cp - 0xD800) << 10) | (cp2 - 0xDC00));
+                }
+                break;
+            }
+            default: {
+                json_err_invalid(self, "invalid escaped character");
+                return -1;
+            }
+        }
+        goto parse_unicode;
+    }
+    else {
+        json_err_invalid(self, "invalid character");
+        return -1;
+    }
+}
+
+
 #undef repeat8
 #undef parse_ascii_pre
 #undef parse_ascii_post
@@ -9962,75 +10043,6 @@ json_skip_ident(JSONDecoderState *self, const char *ident, size_t len) {
     }
     self->input_pos += len;
     return 0;
-}
-
-static int
-json_skip_string_escape(JSONDecoderState *self) {
-    unsigned char c;
-    if (!json_read1(self, &c)) return -1;
-
-    switch (c) {
-        case '"':
-        case '\\':
-        case '/':
-        case 'b':
-        case 'f':
-        case 'n':
-        case 'r':
-        case 't':
-            return 0;
-        case 'u': {
-            unsigned int cp;
-            if (json_read_codepoint(self, &cp) < 0) return -1;
-
-            if (0xDC00 <= cp && cp <= 0xDFFF) {
-                json_err_invalid(self, "invalid utf-16 surrogate pair");
-                return -1;
-            }
-            else if (0xD800 <= cp && cp <= 0xDBFF) {
-                /* utf-16 pair, parse 2nd pair */
-                unsigned int cp2;
-                if (!json_remaining(self, 6)) return ms_err_truncated();
-                if (self->input_pos[0] != '\\' || self->input_pos[1] != 'u') {
-                    json_err_invalid(self, "unexpected end of hex escape");
-                    return -1;
-                }
-                self->input_pos += 2;
-                if (json_read_codepoint(self, &cp2) < 0) return -1;
-                if (cp2 < 0xDC00 || cp2 > 0xDFFF) {
-                    json_err_invalid(self, "invalid utf-16 surrogate pair");
-                    return -1;
-                }
-                cp = 0x10000 + (((cp - 0xD800) << 10) | (cp2 - 0xDC00));
-            }
-            return 0;
-        }
-        default: {
-            json_err_invalid(self, "invalid escaped character");
-            return -1;
-        }
-    }
-}
-
-static int
-json_skip_string(JSONDecoderState *self) {
-    unsigned char c;
-    self->input_pos++; /* Skip '"' */
-    while (true) {
-        if (!json_read1(self, &c)) return -1;
-        if (MS_UNLIKELY(escape_table[c])) {
-            if (c == '"') {
-                return 0;
-            }
-            else if (c == '\\') {
-                if (json_skip_string_escape(self) < 0) return -1;
-            }
-            else {
-                json_err_invalid(self, "invalid character");
-                return -1;
-            }
-        }
-    }
 }
 
 static int

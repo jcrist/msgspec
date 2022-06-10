@@ -786,6 +786,13 @@ class TestStrings:
         with pytest.raises(msgspec.DecodeError, match="invalid character"):
             msgspec.json.decode(buf2)
 
+        # Test str skipping
+        class Test(msgspec.Struct):
+            x: int
+
+        buf3 = msgspec.json.encode({"y": sol, "x": 1})
+        msgspec.json.decode(buf3, type=Test)
+
 
 class TestBinary:
     @pytest.mark.parametrize(
