@@ -1723,6 +1723,18 @@ class TestDict:
         with pytest.raises(msgspec.DecodeError, match="Invalid enum value 'c'"):
             dec.decode(b'{"a": 1, "c": 2}')
 
+    @pytest.mark.parametrize("length", [3, 32, 33])
+    def test_decode_dict_string_cache(self, length):
+        key = "x" * length
+        msg = [{key: 1}, {key: 2}, {key: 3}]
+        res = msgspec.json.decode(msgspec.json.encode(msg))
+        assert msg == res
+        ids = {id(k) for d in res for k in d.keys()}
+        if length > 32:
+            assert len(ids) == 3
+        else:
+            assert len(ids) == 1
+
     @pytest.mark.parametrize(
         "s, error",
         [
