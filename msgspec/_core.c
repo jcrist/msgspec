@@ -89,6 +89,50 @@ unicode_str_and_size(PyObject *str, Py_ssize_t *size) {
 }
 
 /*************************************************************************
+ * Murmurhash2                                                           *
+ *************************************************************************/
+
+static inline uint32_t
+unaligned_load(const unsigned char *p) {
+    uint32_t out;
+    memcpy(&out, p, sizeof(out));
+    return out;
+}
+
+static inline uint32_t
+murmur2(const char *p, Py_ssize_t len) {
+    const unsigned char *buf = (unsigned char *)p;
+    const size_t m = 0x5bd1e995;
+    uint32_t hash = (uint32_t)len;
+
+    while(len >= 4) {
+        uint32_t k = unaligned_load(buf);
+        k *= m;
+        k ^= k >> 24;
+        k *= m;
+        hash *= m;
+        hash ^= k;
+        buf += 4;
+        len -= 4;
+    }
+
+    switch(len) {
+        case 3:
+            hash ^= buf[2] << 16;
+        case 2:
+            hash ^= buf[1] << 8;
+        case 1:
+            hash ^= buf[0];
+            hash *= m;
+    };
+
+    hash ^= hash >> 13;
+    hash *= m;
+    hash ^= hash >> 15;
+    return hash;
+}
+
+/*************************************************************************
  * Datetime utilities                                                    *
  *************************************************************************/
 
@@ -357,6 +401,7 @@ typedef struct {
 #endif
     PyObject *astimezone;
     PyObject *deepcopy;
+    uint8_t gc_cycle;
 } MsgspecState;
 
 /* Forward declaration of the msgspec module definition. */
@@ -806,23 +851,11 @@ typedef struct StrLookupObject {
     StrLookupEntry table[];
 } StrLookupObject;
 
-static inline uint32_t
-StrLookup_hash(const char *key, Py_ssize_t size) {
-    const unsigned char *p = (unsigned char *)key;
-    uint32_t hash = 2166136261;
-    while (--size > 0) {
-        uint32_t c = *p++;
-        hash ^= c;
-        hash *= 16777619;
-    }
-    return hash;
-}
-
 static StrLookupEntry *
 _StrLookup_lookup(StrLookupObject *self, const char *key, Py_ssize_t size)
 {
     StrLookupEntry *table = self->table;
-    size_t hash = StrLookup_hash(key, size);
+    size_t hash = murmur2(key, size);
     size_t perturb = hash;
     size_t mask = Py_SIZE(self) - 1;
     size_t i = hash & mask;
@@ -8955,6 +8988,79 @@ json_decode_string(JSONDecoderState *self, TypeNode *type, PathNode *path) {
     return ms_validation_error("str", type, path);
 }
 
+#ifndef STRING_CACHE_SIZE
+#define STRING_CACHE_SIZE 512
+#endif
+#ifndef STRING_CACHE_MAX_STRING_LENGTH
+#define STRING_CACHE_MAX_STRING_LENGTH 32
+#endif
+
+static PyObject *string_cache[STRING_CACHE_SIZE];
+
+static void
+string_cache_clear(void) {
+    /* Traverse the string cache, deleting any string with a reference count of
+     * only 1 */
+    for (Py_ssize_t i = 0; i < STRING_CACHE_SIZE; i++) {
+        PyObject *obj = string_cache[i];
+        if (obj != NULL) {
+            if (Py_REFCNT(obj) == 1) {
+                Py_DECREF(obj);
+                string_cache[i] = NULL;
+            }
+        }
+    }
+}
+
+static PyObject *
+json_decode_string_key(JSONDecoderState *self, TypeNode *type, PathNode *path) {
+    bool is_ascii = true;
+    bool is_enum = type->types & (MS_TYPE_ENUM | MS_TYPE_STRLITERAL);
+    char *view = NULL;
+    Py_ssize_t size;
+
+    size = json_decode_string_view(self, &view, &is_ascii);
+    if (size < 0) return NULL;
+
+    if (MS_UNLIKELY(is_enum)) {
+        return ms_decode_str_enum_or_literal(view, size, type, path);
+    }
+    else if (MS_UNLIKELY(!is_ascii)) {
+        return PyUnicode_DecodeUTF8(view, size, NULL);
+    }
+
+    if (MS_LIKELY(size <= STRING_CACHE_MAX_STRING_LENGTH)) {
+        uint32_t hash = murmur2(view, size);
+        uint32_t index = hash % STRING_CACHE_SIZE;
+        PyObject *existing = string_cache[index];
+
+        if (MS_LIKELY(existing != NULL)) {
+            Py_ssize_t e_size = ((PyASCIIObject *)existing)->length;
+            char *e_str = (char *)(((PyASCIIObject *)existing) + 1);
+            if (MS_LIKELY(size == e_size && memcmp(view, e_str, size) == 0)) {
+                Py_INCREF(existing);
+                return existing;
+            }
+            Py_DECREF(existing);
+        }
+
+        /* Create a new ASCII str object */
+        PyObject *new = PyUnicode_New(size, 127);
+        memcpy(((PyASCIIObject *)new) + 1, view, size);
+
+        /* Swap out the str in the cache */
+        Py_INCREF(new);
+        string_cache[index] = new;
+
+        return new;
+    }
+
+    /* Create a new ASCII str object */
+    PyObject *new = PyUnicode_New(size, 127);
+    memcpy(((PyASCIIObject *)new) + 1, view, size);
+    return new;
+}
+
 static PyObject *
 json_decode_list(JSONDecoderState *self, TypeNode *el_type, PathNode *path) {
     PyObject *out, *item = NULL;
@@ -9439,7 +9545,7 @@ json_decode_dict(
 
         /* Parse a string key */
         if (c == '"') {
-            key = json_decode_string(self, key_type, &key_path);
+            key = json_decode_string_key(self, key_type, &key_path);
             if (key == NULL) goto error;
         }
         else if (c == '}') {
@@ -10516,6 +10622,7 @@ msgspec_free(PyObject *m)
 static int
 msgspec_traverse(PyObject *m, visitproc visit, void *arg)
 {
+    MsgspecState *st = msgspec_get_state(m);
 
 #if STRUCT_FREELIST_MAX_SIZE > 0
     /* Since module objects tend to persist throughout a program's execution,
@@ -10528,8 +10635,39 @@ msgspec_traverse(PyObject *m, visitproc visit, void *arg)
      */
     Struct_freelist_clear();
 #endif
+    /* Clear the string cache every 10 major GC passes.
+     *
+     * The string cache can help improve performance in 2 different situations:
+     *
+     * - Calling untyped `json.decode` on a large message, where many keys are
+     *   repeated within the same message.
+     * - Calling untyped `json.decode` in a hot loop on many messages that
+     *   share the same structure.
+     *
+     * In both cases, the string cache helps because common keys are more
+     * likely to remain in cache. We do want to periodically clear the cache so
+     * the allocator can free up old pages and reduce fragmentation, but we
+     * want to do so as infrequently as possible. I've arbitrarily picked 10
+     * major GC passes here as a heuristic.
+     *
+     * We clear the cache less frequently than the struct freelist, since:
+     *
+     * - Allocating a struct is much cheaper than validating and allocating a
+     *   new string object.
+     * - The struct freelist may contain many more objects, and consume a
+     *   larger amount of memory.
+     *
+     * With the current configuration, the string cache may consume up to 20
+     * KiB at a time, but that's with 100% of slots filled (unlikely due to
+     * collisions). 50% filled is more likely, so 12 KiB max is a reasonable
+     * estimate.
+     */
+    st->gc_cycle++;
+    if (st->gc_cycle == 10) {
+        st->gc_cycle = 0;
+        string_cache_clear();
+    }
 
-    MsgspecState *st = msgspec_get_state(m);
     Py_VISIT(st->MsgspecError);
     Py_VISIT(st->EncodeError);
     Py_VISIT(st->DecodeError);
@@ -10624,6 +10762,9 @@ PyInit__core(void)
         return NULL;
 
     st = msgspec_get_state(m);
+
+    /* Initialize GC counter */
+    st->gc_cycle = 0;
 
     /* Initialize the Struct Type */
     st->StructType = PyObject_CallFunction(
