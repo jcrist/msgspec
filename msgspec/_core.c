@@ -10657,10 +10657,11 @@ msgspec_traverse(PyObject *m, visitproc visit, void *arg)
      * - The struct freelist may contain many more objects, and consume a
      *   larger amount of memory.
      *
-     * With the current configuration, the string cache may contain up to 32
-     * KiB at a time, but that's with 100% coverage (unlikely due to
-     * collisions). 50% coverage is more likely, so 16 KiB max is reasonable.
-     * */
+     * With the current configuration, the string cache may consume up to 20
+     * KiB at a time, but that's with 100% of slots filled (unlikely due to
+     * collisions). 50% filled is more likely, so 12 KiB max is a reasonable
+     * estimate.
+     */
     st->gc_cycle++;
     if (st->gc_cycle == 10) {
         st->gc_cycle = 0;
