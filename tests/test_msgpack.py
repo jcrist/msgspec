@@ -609,6 +609,31 @@ class TestDecoderMisc:
         with pytest.raises(msgspec.DecodeError, match="truncated"):
             msgspec.msgpack.decode(msg, type=Test)
 
+    @pytest.mark.parametrize("length", [3, 31, 33])
+    @pytest.mark.parametrize("typed", [False, True])
+    def test_decode_dict_string_cache(self, length, typed):
+        key = "x" * length
+        msg = [{key: 1}, {key: 2}, {key: 3}]
+        if typed:
+            dec = msgspec.msgpack.Decoder(List[Dict[str, int]])
+        else:
+            dec = msgspec.msgpack.Decoder()
+        res = dec.decode(msgspec.msgpack.encode(msg))
+        assert msg == res
+        ids = {id(k) for d in res for k in d.keys()}
+        if length > 32:
+            assert len(ids) == 3
+        else:
+            assert len(ids) == 1
+
+    def test_decode_dict_string_cache_ascii_only(self):
+        """Short non-ascii strings aren't cached"""
+        s = "123 á 456"
+        msg = [{s: 1}, {s: 2}, {s: 3}]
+        res = msgspec.msgpack.decode(msgspec.msgpack.encode(msg))
+        ids = {id(k) for d in res for k in d.keys()}
+        assert len(ids) == 3
+
 
 class TestTypedDecoder:
     def check_unexpected_type(self, dec_type, val, msg):
@@ -898,6 +923,17 @@ class TestTypedDecoder:
             msgspec.DecodeError, match=r"Expected `int`, got `str` - at `\$\[...\]`"
         ):
             dec.decode(enc.encode({"a": "two"}))
+
+    def test_dict_typed_non_str_key(self):
+        enc = msgspec.msgpack.Encoder()
+        dec = msgspec.msgpack.Decoder(Dict[int, int])
+        x = {0: 1, 2: 3}
+        res = dec.decode(enc.encode(x))
+        assert res == x
+        with pytest.raises(
+            msgspec.DecodeError, match=r"Expected `int`, got `str` - at `key` in `\$`"
+        ):
+            dec.decode(enc.encode({"bad": 2}))
 
     def test_enum(self):
         enc = msgspec.msgpack.Encoder()

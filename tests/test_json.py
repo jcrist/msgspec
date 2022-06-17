@@ -1735,6 +1735,14 @@ class TestDict:
         else:
             assert len(ids) == 1
 
+    def test_decode_dict_string_cache_ascii_only(self):
+        """Short non-ascii strings aren't cached"""
+        s = "123 á 456"
+        msg = [{s: 1}, {s: 2}, {s: 3}]
+        res = msgspec.json.decode(msgspec.json.encode(msg))
+        ids = {id(k) for d in res for k in d.keys()}
+        assert len(ids) == 3
+
     @pytest.mark.parametrize(
         "s, error",
         [

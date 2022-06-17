@@ -133,6 +133,34 @@ murmur2(const char *p, Py_ssize_t len) {
 }
 
 /*************************************************************************
+ * String Cache                                                          *
+ *************************************************************************/
+
+#ifndef STRING_CACHE_SIZE
+#define STRING_CACHE_SIZE 512
+#endif
+#ifndef STRING_CACHE_MAX_STRING_LENGTH
+#define STRING_CACHE_MAX_STRING_LENGTH 32
+#endif
+
+static PyObject *string_cache[STRING_CACHE_SIZE];
+
+static void
+string_cache_clear(void) {
+    /* Traverse the string cache, deleting any string with a reference count of
+     * only 1 */
+    for (Py_ssize_t i = 0; i < STRING_CACHE_SIZE; i++) {
+        PyObject *obj = string_cache[i];
+        if (obj != NULL) {
+            if (Py_REFCNT(obj) == 1) {
+                Py_DECREF(obj);
+                string_cache[i] = NULL;
+            }
+        }
+    }
+}
+
+/*************************************************************************
  * Datetime utilities                                                    *
  *************************************************************************/
 
@@ -7429,6 +7457,66 @@ mpack_decode_array(
     return ms_validation_error("array", type, path);
 }
 
+/* Specialized mpack_decode for dict keys, handling caching of short string keys */
+static PyObject *
+mpack_decode_key(DecoderState *self, TypeNode *type, PathNode *path) {
+    char op;
+
+    if (MS_UNLIKELY(self->input_pos == self->input_end)) {
+        ms_err_truncated();
+        return NULL;
+    }
+    /* Peek at the next op */
+    op = *self->input_pos;
+
+    if (MS_LIKELY(
+            '\xa0' <= op && op <= '\xbf' &&
+            type->types & (MS_TYPE_STR | MS_TYPE_ANY)
+        )
+    ) {
+        /* A short (<= 31 byte) unicode str */
+        self->input_pos++; /* consume op */
+        Py_ssize_t size = op & 0x1f;
+
+        /* Don't cache the empty string */
+        if (MS_UNLIKELY(size == 0)) return PyUnicode_New(0, 127);
+
+        /* Read in the string buffer */
+        char *str;
+        if (MS_UNLIKELY(mpack_read(self, &str, size) < 0)) return NULL;
+
+        /* Attempt a cache lookup. We don't know if it's ascii yet, but
+         * checking if it's ascii is more expensive than just doing a lookup,
+         * and most dict key strings are ascii */
+        uint32_t hash = murmur2(str, size);
+        uint32_t index = hash % STRING_CACHE_SIZE;
+        PyObject *existing = string_cache[index];
+
+        if (MS_LIKELY(existing != NULL)) {
+            Py_ssize_t e_size = ((PyASCIIObject *)existing)->length;
+            char *e_str = (char *)(((PyASCIIObject *)existing) + 1);
+            if (MS_LIKELY(size == e_size && memcmp(str, e_str, size) == 0)) {
+                Py_INCREF(existing);
+                return existing;
+            }
+        }
+
+        /* Cache miss, create a new string */
+        PyObject *new = PyUnicode_DecodeUTF8(str, size, NULL);
+        if (new == NULL) return NULL;
+
+        /* If ascii, add it to the cache */
+        if (PyUnicode_IS_COMPACT_ASCII(new)) {
+            Py_XDECREF(existing);
+            Py_INCREF(new);
+            string_cache[index] = new;
+        }
+        return new;
+    }
+    /* Fallback to standard decode */
+    return mpack_decode(self, type, path, true);
+}
+
 static PyObject *
 mpack_decode_dict(
     DecoderState *self, Py_ssize_t size, TypeNode *key_type,
@@ -7448,7 +7536,7 @@ mpack_decode_dict(
         return NULL;
     }
     for (i = 0; i < size; i++) {
-        key = mpack_decode(self, key_type, &key_path, true);
+        key = mpack_decode_key(self, key_type, &key_path);
         if (MS_UNLIKELY(key == NULL))
             goto error;
         val = mpack_decode(self, val_type, &val_path, false);
@@ -7594,18 +7682,21 @@ mpack_decode_map(
     DecoderState *self, Py_ssize_t size, TypeNode *type,
     PathNode *path, bool is_key
 ) {
-    if (type->types & MS_TYPE_ANY) {
-        TypeNode type_any = {MS_TYPE_ANY};
-        return mpack_decode_dict(self, size, &type_any, &type_any, path);
-    }
-    else if (type->types & MS_TYPE_DICT) {
-        TypeNode *key, *val;
-        TypeNode_get_dict(type, &key, &val);
-        return mpack_decode_dict(self, size, key, val, path);
-    }
-    else if (type->types & MS_TYPE_STRUCT) {
+    if (type->types & MS_TYPE_STRUCT) {
         StructMetaObject *struct_type = TypeNode_get_struct(type);
         return mpack_decode_struct_map(self, size, struct_type, path, is_key);
+    }
+    else if (type->types & (MS_TYPE_DICT | MS_TYPE_ANY)) {
+        TypeNode *key, *val;
+        TypeNode type_any = {MS_TYPE_ANY};
+        if (type->types & MS_TYPE_ANY) {
+            key = &type_any;
+            val = &type_any;
+        }
+        else {
+            TypeNode_get_dict(type, &key, &val);
+        }
+        return mpack_decode_dict(self, size, key, val, path);
     }
     else if (type->types & MS_TYPE_STRUCT_UNION) {
         return mpack_decode_struct_union(self, size, type, path, is_key);
@@ -8988,30 +9079,6 @@ json_decode_string(JSONDecoderState *self, TypeNode *type, PathNode *path) {
     return ms_validation_error("str", type, path);
 }
 
-#ifndef STRING_CACHE_SIZE
-#define STRING_CACHE_SIZE 512
-#endif
-#ifndef STRING_CACHE_MAX_STRING_LENGTH
-#define STRING_CACHE_MAX_STRING_LENGTH 32
-#endif
-
-static PyObject *string_cache[STRING_CACHE_SIZE];
-
-static void
-string_cache_clear(void) {
-    /* Traverse the string cache, deleting any string with a reference count of
-     * only 1 */
-    for (Py_ssize_t i = 0; i < STRING_CACHE_SIZE; i++) {
-        PyObject *obj = string_cache[i];
-        if (obj != NULL) {
-            if (Py_REFCNT(obj) == 1) {
-                Py_DECREF(obj);
-                string_cache[i] = NULL;
-            }
-        }
-    }
-}
-
 static PyObject *
 json_decode_string_key(JSONDecoderState *self, TypeNode *type, PathNode *path) {
     bool is_ascii = true;
@@ -9029,7 +9096,7 @@ json_decode_string_key(JSONDecoderState *self, TypeNode *type, PathNode *path) {
         return PyUnicode_DecodeUTF8(view, size, NULL);
     }
 
-    if (MS_LIKELY(size <= STRING_CACHE_MAX_STRING_LENGTH)) {
+    if (MS_LIKELY(size > 0 && size <= STRING_CACHE_MAX_STRING_LENGTH)) {
         uint32_t hash = murmur2(view, size);
         uint32_t index = hash % STRING_CACHE_SIZE;
         PyObject *existing = string_cache[index];
