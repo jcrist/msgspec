@@ -208,7 +208,7 @@ Benchmark - Garbage Collection
 
 `msgspec.Struct` instances implement several optimizations for reducing garbage
 collection (GC) pressure and decreasing memory usage. Here we benchmark structs
-(with and without :ref:`nogc=True <struct-nogc>`) against standard Python
+(with and without :ref:`gc=False <struct-gc>`) against standard Python
 classes (with and without `__slots__
 <https://docs.python.org/3/reference/datamodel.html#slots>`__).
 
@@ -232,7 +232,7 @@ The `full benchmark source can be found here
 +-----------------------------------+--------------+-------------------+
 | **msgspec struct**                | 13.96        | 120.11            |
 +-----------------------------------+--------------+-------------------+
-| **msgspec struct with nogc=True** | 1.07         | 104.85            |
+| **msgspec struct with gc=False**  | 1.07         | 104.85            |
 +-----------------------------------+--------------+-------------------+
 
 - Standard Python classes are the most memory hungry (since all data is stored
@@ -247,7 +247,7 @@ The `full benchmark source can be found here
   ``__slots__`` (and thus have the same memory usage), but due to deferred GC
   tracking a full GC pass completes in a fraction of the time.
 
-- `msgspec.Struct` instances with ``nogc=True`` have the lowest memory usage
+- `msgspec.Struct` instances with ``gc=False`` have the lowest memory usage
   (lack of GC reduces memory by 16 bytes per instance). They also have the
   lowest GC pause (75x faster than standard classes!) since the entire
   composing dict can be skipped during GC traversal.

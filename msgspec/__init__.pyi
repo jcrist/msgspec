@@ -48,7 +48,7 @@ class Struct(metaclass=__StructMeta):
         eq: bool = True,
         order: bool = False,
         array_like: bool = False,
-        nogc: bool = False,
+        gc: bool = True,
     ) -> None: ...
 
 def defstruct(
@@ -68,7 +68,7 @@ def defstruct(
     eq: bool = True,
     order: bool = False,
     array_like: bool = False,
-    nogc: bool = False,
+    gc: bool = True,
 ) -> Type[Struct]: ...
 
 # Lie and say `Raw` is a subclass of `bytes`, so mypy will accept it in most
