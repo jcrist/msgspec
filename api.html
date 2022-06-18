@@ -210,47 +210,55 @@
 default values, which result in keyword parameters to the constructor.
 Note that mutable default values are deepcopied in the constructor to
 prevent accidental sharing.</p>
-<p>Additional class options can be enabled by passing keywords to the class
-definition (see example below). The following options exist:</p>
-<ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">frozen</span></code>: whether instances of the class are pseudo-immutable. If true,
-attribute assignment is disabled and a corresponding <code class="docutils literal notranslate"><span class="pre">__hash__</span></code> is defined.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">order</span></code>: if True, <code class="docutils literal notranslate"><span class="pre">__lt__</span></code>, <code class="xref py py-obj docutils literal notranslate"><span class="pre">__le__`</span></code>, <code class="docutils literal notranslate"><span class="pre">__gt__</span></code>, and <code class="docutils literal notranslate"><span class="pre">__ge__</span></code> methods
-will be generated for this type. The default is False.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">eq</span></code>: if True (the default), an <code class="docutils literal notranslate"><span class="pre">__eq__</span></code> method will be generated for this
-type. Set to False to compare based on instance identity alone.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">tag</span></code> and <code class="docutils literal notranslate"><span class="pre">tag_field</span></code>: used for configuring tagged union support. Both
-default to <code class="docutils literal notranslate"><span class="pre">None</span></code> (for standard untagged behavior). If either are non-None
-then the struct is considered “tagged”. In this case, an extra field (the
-<code class="docutils literal notranslate"><span class="pre">tag_field</span></code>) and value (the <code class="docutils literal notranslate"><span class="pre">tag</span></code>) is added to the encoded message, which
-can be used to determine the message type when decoding into a Union of
-different struct types. Set <code class="docutils literal notranslate"><span class="pre">tag=True</span></code> to use the default tagged struct
-configuration (<code class="docutils literal notranslate"><span class="pre">tag_field</span></code> is <code class="docutils literal notranslate"><span class="pre">&quot;type&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">tag</span></code> is the class name).
-If desired, this configuration can be overridden by providing string values
-directly via <code class="docutils literal notranslate"><span class="pre">tag_field</span></code> or <code class="docutils literal notranslate"><span class="pre">tag</span></code>. <code class="docutils literal notranslate"><span class="pre">tag</span></code> can also be passed a callable
-that takes a string (the class name) and returns a new string to use for the
-tag value (for example, to automatically lowercase class names). See the docs
-for more information.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">omit_defaults</span></code>: whether fields should be omitted from encoding if the field
-contains the default value for that field. Enabling this may reduce message
-size, and often also improve encoding &amp; decoding performance.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">rename</span></code>: controls renaming the field names used when encoding/decoding the
-struct. May be one of <code class="docutils literal notranslate"><span class="pre">&quot;lower&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;upper&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;camel&quot;</span></code>, or
-<code class="docutils literal notranslate"><span class="pre">&quot;pascal&quot;</span></code> to rename in lowercase, UPPERCASE, camelCase, or PascalCase
-respectively. May also be a callable that takes a string (the field name) and
-returns a new string. Default is <code class="docutils literal notranslate"><span class="pre">None</span></code> for no field renaming.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">array_like</span></code>: whether this type should be treated as an array-like type
-(rather than a dict-like type, the default) when encoding/decoding.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">nogc</span></code>: whether garbage collection is disabled for this class. Enabling,
-this <em>may</em> help reduce GC pressure, but will result in reference cycles
-composed of only nogc structs going uncollected. It is the user’s
-responsibility to ensure that cycles don’t occur when setting <code class="docutils literal notranslate"><span class="pre">nogc=True</span></code>.</p></li>
-</ul>
 <p>Structs automatically define <code class="docutils literal notranslate"><span class="pre">__init__</span></code>, <code class="docutils literal notranslate"><span class="pre">__eq__</span></code>, <code class="docutils literal notranslate"><span class="pre">__repr__</span></code>, and
 <code class="docutils literal notranslate"><span class="pre">__copy__</span></code> methods. Additional methods can be defined on the class as
 needed. Note that <code class="docutils literal notranslate"><span class="pre">__init__</span></code>/<code class="docutils literal notranslate"><span class="pre">__new__</span></code> cannot be overridden, but other
 methods can. A tuple of the field names is available on the class via the
 <code class="docutils literal notranslate"><span class="pre">__struct_fields__</span></code> attribute if needed.</p>
+<p>Additional class options can be enabled by passing keywords to the class
+definition (see example below).</p>
+<dl class="field-list">
+<dt class="field-odd">Configuration<span class="colon">:</span></dt>
+<dd class="field-odd"><ul>
+<li><p><strong>frozen</strong> (<em>bool, default False</em>) – Whether instances of the class are pseudo-immutable. If true, attribute
+assignment is disabled and a corresponding <code class="docutils literal notranslate"><span class="pre">__hash__</span></code> is defined.</p></li>
+<li><p><strong>order</strong> (<em>bool, default False</em>) – If True, <code class="docutils literal notranslate"><span class="pre">__lt__</span></code>, <code class="xref py py-obj docutils literal notranslate"><span class="pre">__le__`</span></code>, <code class="docutils literal notranslate"><span class="pre">__gt__</span></code>, and <code class="docutils literal notranslate"><span class="pre">__ge__</span></code> methods
+will be generated for this type.</p></li>
+<li><p><strong>eq</strong> (<em>bool, default True</em>) – If True (the default), an <code class="docutils literal notranslate"><span class="pre">__eq__</span></code> method will be generated for this
+type. Set to False to compare based on instance identity alone.</p></li>
+<li><p><strong>omit_defaults</strong> (<em>bool, default False</em>) – Whether fields should be omitted from encoding if the corresponding value
+is the default for that field. Enabling this may reduce message size, and
+often also improve encoding &amp; decoding performance.</p></li>
+<li><p><strong>tag</strong> (<em>str, bool, callable, or None, default None</em>) – Used along with <code class="docutils literal notranslate"><span class="pre">tag_field</span></code> for configuring tagged union support. If
+either are non-None, then the struct is considered “tagged”. In this case,
+an extra field (the <code class="docutils literal notranslate"><span class="pre">tag_field</span></code>) and value (the <code class="docutils literal notranslate"><span class="pre">tag</span></code>) are added to the
+encoded message, which can be used to differentiate message types during
+decoding.</p>
+<p>Set <code class="docutils literal notranslate"><span class="pre">tag=True</span></code> to enable the default tagged configuration (<code class="docutils literal notranslate"><span class="pre">tag_field</span></code>
+is <code class="docutils literal notranslate"><span class="pre">&quot;type&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">tag</span></code> is the class name). Alternatively, you can provide
+a string value directly to be used as the tag (<code class="docutils literal notranslate"><span class="pre">tag=&quot;my-tag-value&quot;</span></code>).
+<code class="docutils literal notranslate"><span class="pre">tag</span></code> can also be passed a callable that takes the class name and returns
+a new string to use for the tag value (<code class="docutils literal notranslate"><span class="pre">tag=str.lower</span></code> for example) See
+the docs for more information.</p>
+</li>
+<li><p><strong>tag_field</strong> (<em>str or None, default None</em>) – The field name to use for tagged union support. If <code class="docutils literal notranslate"><span class="pre">tag</span></code> is non-None,
+then this defaults to <code class="docutils literal notranslate"><span class="pre">&quot;type&quot;</span></code>. See the <code class="docutils literal notranslate"><span class="pre">tag</span></code> docs above for more
+information.</p></li>
+<li><p><strong>rename</strong> (<em>str, callable, or None, default None</em>) – Controls renaming the field names used when encoding/decoding the struct.
+May be one of <code class="docutils literal notranslate"><span class="pre">&quot;lower&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;upper&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;camel&quot;</span></code>, or <code class="docutils literal notranslate"><span class="pre">&quot;pascal&quot;</span></code>
+to rename in lowercase, UPPERCASE, camelCase, or PascalCase respectively
+Alternatively, may be a callable that takes a string (the field name) and
+returns a new string. Default is <code class="docutils literal notranslate"><span class="pre">None</span></code> for no field renaming.</p></li>
+<li><p><strong>array_like</strong> (<em>bool, default False</em>) – If True, this struct type will be treated as an array-like type during
+encoding/decoding, rather than a dict-like type (the default). This may
+improve performance, at the cost of a more inscrutable message encoding</p></li>
+<li><p><strong>nogc</strong> (<em>bool, default False</em>) – whether garbage collection is disabled for this class. Enabling this
+<em>may</em> help reduce GC pressure, but will result in reference cycles
+composed of only nogc structs going uncollected. It is the user’s
+responsibility to ensure that cycles don’t occur when setting <code class="docutils literal notranslate"><span class="pre">nogc=True</span></code>.</p></li>
+</ul>
+</dd>
+</dl>
 <p class="rubric">Examples</p>
 <p>Here we define a new <a class="reference internal" href="#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code></a> type for describing a dog. It has three fields;
 two required and one optional.</p>
