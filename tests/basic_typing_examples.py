@@ -119,8 +119,8 @@ def check_struct_order() -> None:
     reveal_type(t.y)  # assert "str" in typ
 
 
-def check_struct_nogc() -> None:
-    class Test(msgspec.Struct, nogc=True):
+def check_struct_gc() -> None:
+    class Test(msgspec.Struct, gc=False):
         x: int
         y: str
 
@@ -224,7 +224,7 @@ def check_defstruct_config_options() -> None:
         order=True,
         eq=True,
         array_like=True,
-        nogc=True,
+        gc=False,
         tag="mytag",
         tag_field="mytagfield",
         rename="lower"

@@ -48,7 +48,7 @@ class Point(msgspec.Struct):
     z: int
 
 
-class PointNoGC(msgspec.Struct, nogc=True):
+class PointGCFalse(msgspec.Struct, gc=False):
     x: int
     y: int
     z: int
@@ -108,7 +108,7 @@ def main():
         ("standard class", PointClass),
         ("standard class with __slots__", PointClassSlots),
         ("msgspec struct", Point),
-        ("msgspec struct with nogc=True", PointNoGC),
+        ("msgspec struct with gc=False", PointGCFalse),
     ]:
         print(f"Benchmarking {name}...")
         gc_time, mibytes = bench_gc(cls)

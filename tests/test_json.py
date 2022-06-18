@@ -1932,8 +1932,8 @@ class TestStruct:
         assert not gc.is_tracked(e)
 
     @pytest.mark.parametrize("array_like", [False, True])
-    def test_struct_nogc_always_untracked_on_decode(self, array_like):
-        class Test(msgspec.Struct, array_like=array_like, nogc=True):
+    def test_struct_gc_false_always_untracked_on_decode(self, array_like):
+        class Test(msgspec.Struct, array_like=array_like, gc=False):
             x: Any
             y: Any
 

@@ -1337,7 +1337,7 @@ typedef struct {
     int8_t order;
     int8_t eq;
     int8_t array_like;
-    int8_t nogc;
+    int8_t gc;
     int8_t omit_defaults;
 } StructMetaObject;
 
@@ -2856,7 +2856,7 @@ Struct_setattro_frozen(PyObject *self, PyObject *key, PyObject *value) {
     return -1;
 }
 
-/* setattr for frozen=False, nogc=False types */
+/* setattr for frozen=False, gc=True types */
 static int
 Struct_setattro_default(PyObject *self, PyObject *key, PyObject *value) {
     if (PyObject_GenericSetAttr(self, key, value) < 0)
@@ -3030,7 +3030,7 @@ StructMeta_new_inner(
     PyTypeObject *type, PyObject *name, PyObject *bases, PyObject *namespace,
     PyObject *arg_tag_field, PyObject *arg_tag,
     int arg_frozen, int arg_eq, int arg_order,
-    int arg_array_like, int arg_nogc, int arg_omit_defaults,
+    int arg_array_like, int arg_gc, int arg_omit_defaults,
     PyObject *arg_rename
 ) {
     StructMetaObject *cls = NULL;
@@ -3043,7 +3043,7 @@ StructMeta_new_inner(
     PyObject *rename = NULL, *encode_fields = NULL;
     PyObject *tag_field_temp = NULL, *tag_temp = NULL;
     PyObject *tag = NULL, *tag_field = NULL,  *tag_value = NULL;
-    int frozen = -1, eq = -1, order = -1, array_like = -1, nogc = -1, omit_defaults = -1;
+    int frozen = -1, eq = -1, order = -1, array_like = -1, gc = -1, omit_defaults = -1;
 
     if (PyDict_GetItemString(namespace, "__init__") != NULL) {
         PyErr_SetString(PyExc_TypeError, "Struct types cannot define __init__");
@@ -3098,7 +3098,7 @@ StructMeta_new_inner(
         eq = STRUCT_MERGE_OPTIONS(eq, ((StructMetaObject *)base)->eq);
         order = STRUCT_MERGE_OPTIONS(order, ((StructMetaObject *)base)->order);
         array_like = STRUCT_MERGE_OPTIONS(array_like, ((StructMetaObject *)base)->array_like);
-        nogc = STRUCT_MERGE_OPTIONS(nogc, ((StructMetaObject *)base)->nogc);
+        gc = STRUCT_MERGE_OPTIONS(gc, ((StructMetaObject *)base)->gc);
         omit_defaults = STRUCT_MERGE_OPTIONS(
             omit_defaults, ((StructMetaObject *)base)->omit_defaults
         );
@@ -3137,7 +3137,7 @@ StructMeta_new_inner(
     eq = STRUCT_MERGE_OPTIONS(eq, arg_eq);
     order = STRUCT_MERGE_OPTIONS(order, arg_order);
     array_like = STRUCT_MERGE_OPTIONS(array_like, arg_array_like);
-    nogc = STRUCT_MERGE_OPTIONS(nogc, arg_nogc);
+    gc = STRUCT_MERGE_OPTIONS(gc, arg_gc);
     omit_defaults = STRUCT_MERGE_OPTIONS(omit_defaults, arg_omit_defaults);
 
     if (eq == OPT_FALSE && order == OPT_TRUE) {
@@ -3308,7 +3308,7 @@ StructMeta_new_inner(
         goto error;
     ((PyTypeObject *)cls)->tp_vectorcall = (vectorcallfunc)Struct_vectorcall;
     ((PyTypeObject *)cls)->tp_dealloc = Struct_dealloc;
-    if (nogc == OPT_TRUE) {
+    if (gc == OPT_FALSE) {
         ((PyTypeObject *)cls)->tp_flags &= ~Py_TPFLAGS_HAVE_GC;
         ((PyTypeObject *)cls)->tp_free = &PyObject_Free;
     }
@@ -3319,7 +3319,7 @@ StructMeta_new_inner(
     if (frozen == OPT_TRUE) {
         ((PyTypeObject *)cls)->tp_setattro = &Struct_setattro_frozen;
     }
-    else if (nogc == OPT_TRUE) {
+    else if (gc == OPT_FALSE) {
         ((PyTypeObject *)cls)->tp_setattro = &PyObject_GenericSetAttr;
     }
     else {
@@ -3363,7 +3363,7 @@ StructMeta_new_inner(
     cls->eq = eq;
     cls->order = order;
     cls->array_like = array_like;
-    cls->nogc = nogc;
+    cls->gc = gc;
     cls->omit_defaults = omit_defaults;
     return (PyObject *) cls;
 error:
@@ -3391,12 +3391,12 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
 {
     PyObject *name = NULL, *bases = NULL, *namespace = NULL;
     PyObject *arg_tag_field = NULL, *arg_tag = NULL, *arg_rename = NULL;
-    int arg_frozen = -1, arg_eq = -1, arg_order = -1, arg_array_like = -1, arg_nogc = -1, arg_omit_defaults = -1;
+    int arg_frozen = -1, arg_eq = -1, arg_order = -1, arg_array_like = -1, arg_gc = -1, arg_omit_defaults = -1;
 
     static char *kwlist[] = {
         "name", "bases", "dict",
         "tag_field", "tag", "frozen", "eq", "order",
-        "array_like", "nogc", "omit_defaults", "rename", NULL
+        "array_like", "gc", "omit_defaults", "rename", NULL
     };
 
     /* Parse arguments: (name, bases, dict) */
@@ -3404,14 +3404,14 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
             args, kwargs, "UO!O!|$OOppppppO:StructMeta.__new__", kwlist,
             &name, &PyTuple_Type, &bases, &PyDict_Type, &namespace,
             &arg_tag_field, &arg_tag, &arg_frozen, &arg_eq, &arg_order,
-            &arg_array_like, &arg_nogc, &arg_omit_defaults, &arg_rename)
+            &arg_array_like, &arg_gc, &arg_omit_defaults, &arg_rename)
     )
         return NULL;
 
     return StructMeta_new_inner(
         type, name, bases, namespace,
         arg_tag_field, arg_tag, arg_frozen, arg_eq, arg_order,
-        arg_array_like, arg_nogc, arg_omit_defaults, arg_rename
+        arg_array_like, arg_gc, arg_omit_defaults, arg_rename
     );
 }
 
@@ -3419,7 +3419,7 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
 PyDoc_STRVAR(msgspec_defstruct__doc__,
 "defstruct(name, fields, *, bases=(), module=None, namespace=None, "
 "tag_field=None, tag=None, rename=None, omit_defaults=False, "
-"frozen=False, eq=True, order=False, array_like=False, nogc=False)\n"
+"frozen=False, eq=True, order=False, array_like=False, gc=True)\n"
 "--\n"
 "\n"
 "Dynamically define a new Struct class.\n"
@@ -3454,12 +3454,12 @@ msgspec_defstruct(PyObject *self, PyObject *args, PyObject *kwargs)
     PyObject *name = NULL, *fields = NULL, *bases = NULL, *module = NULL, *namespace = NULL;
     PyObject *arg_tag_field = NULL, *arg_tag = NULL, *arg_rename = NULL;
     PyObject *new_bases = NULL, *annotations = NULL, *fields_fast = NULL, *out = NULL;
-    int arg_frozen = -1, arg_eq = -1, arg_order = -1, arg_array_like = -1, arg_nogc = -1, arg_omit_defaults = -1;
+    int arg_frozen = -1, arg_eq = -1, arg_order = -1, arg_array_like = -1, arg_gc = -1, arg_omit_defaults = -1;
 
     static char *kwlist[] = {
         "name", "fields", "bases", "module", "namespace",
         "tag_field", "tag", "rename", "omit_defaults",
-        "frozen", "eq", "order", "array_like", "nogc", NULL
+        "frozen", "eq", "order", "array_like", "gc", NULL
     };
 
     /* Parse arguments: (name, bases, dict) */
@@ -3467,7 +3467,7 @@ msgspec_defstruct(PyObject *self, PyObject *args, PyObject *kwargs)
             args, kwargs, "UO|$O!UO!OOOpppppp:defstruct", kwlist,
             &name, &fields, &PyTuple_Type, &bases, &module, &PyDict_Type, &namespace,
             &arg_tag_field, &arg_tag, &arg_rename, &arg_omit_defaults,
-            &arg_frozen, &arg_eq, &arg_order, &arg_array_like, &arg_nogc)
+            &arg_frozen, &arg_eq, &arg_order, &arg_array_like, &arg_gc)
     )
         return NULL;
 
@@ -3532,7 +3532,7 @@ msgspec_defstruct(PyObject *self, PyObject *args, PyObject *kwargs)
     out = StructMeta_new_inner(
         &StructMetaType, name, bases, namespace,
         arg_tag_field, arg_tag, arg_frozen, arg_eq, arg_order,
-        arg_array_like, arg_nogc, arg_omit_defaults, arg_rename
+        arg_array_like, arg_gc, arg_omit_defaults, arg_rename
     );
 
 cleanup:
@@ -3678,8 +3678,8 @@ StructMeta_frozen(StructMetaObject *self, void *closure)
 static PyObject*
 StructMeta_eq(StructMetaObject *self, void *closure)
 {
-    if (self->eq != OPT_FALSE) { Py_RETURN_TRUE; }
-    else { Py_RETURN_FALSE; }
+    if (self->eq == OPT_FALSE) { Py_RETURN_FALSE; }
+    else { Py_RETURN_TRUE; }
 }
 
 static PyObject*
@@ -3697,10 +3697,10 @@ StructMeta_array_like(StructMetaObject *self, void *closure)
 }
 
 static PyObject*
-StructMeta_nogc(StructMetaObject *self, void *closure)
+StructMeta_gc(StructMetaObject *self, void *closure)
 {
-    if (self->nogc == OPT_TRUE) { Py_RETURN_TRUE; }
-    else { Py_RETURN_FALSE; }
+    if (self->gc == OPT_FALSE) { Py_RETURN_FALSE; }
+    else { Py_RETURN_TRUE; }
 }
 
 static PyObject*
@@ -3817,7 +3817,7 @@ static PyGetSetDef StructMeta_getset[] = {
     {"eq", (getter) StructMeta_eq, NULL, NULL, NULL},
     {"order", (getter) StructMeta_order, NULL, NULL, NULL},
     {"array_like", (getter) StructMeta_array_like, NULL, NULL, NULL},
-    {"nogc", (getter) StructMeta_nogc, NULL, NULL, NULL},
+    {"gc", (getter) StructMeta_gc, NULL, NULL, NULL},
     {"omit_defaults", (getter) StructMeta_omit_defaults, NULL, NULL, NULL},
     {NULL},
 };
@@ -4397,11 +4397,11 @@ PyDoc_STRVAR(Struct__doc__,
 "   If True, this struct type will be treated as an array-like type during\n"
 "   encoding/decoding, rather than a dict-like type (the default). This may\n"
 "   improve performance, at the cost of a more inscrutable message encoding\n"
-"nogc: bool, default False\n"
-"   whether garbage collection is disabled for this class. Enabling this\n"
-"   *may* help reduce GC pressure, but will result in reference cycles\n"
-"   composed of only nogc structs going uncollected. It is the user's\n"
-"   responsibility to ensure that cycles don't occur when setting ``nogc=True``.\n"
+"gc: bool, default True\n"
+"   Whether garbage collection is enabled for this class. Disabling this *may*\n"
+"   help reduce GC pressure, but will prevent reference cycles composed of only\n"
+"   ``gc=False`` from being collected. It is the user's responsibility to ensure\n"
+"   that reference cycles don't occur when setting ``gc=False``.\n"
 "\n"
 "Examples\n"
 "--------\n"
