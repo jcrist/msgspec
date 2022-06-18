@@ -36,6 +36,7 @@ extensions = [
 intersphinx_mapping = {"python": ("https://docs.python.org/3", None)}
 napoleon_numpy_docstring = True
 napoleon_google_docstring = False
+napoleon_custom_sections = [("Configuration", "params_style")]
 default_role = "obj"
 extlinks = {
     "issue": ("https://github.com/jcrist/msgspec/issues/%s", "Issue #"),
