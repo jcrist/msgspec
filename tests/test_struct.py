@@ -1,8 +1,9 @@
-import enum
 import copy
 import datetime
+import enum
 import gc
 import inspect
+import operator
 import pickle
 import sys
 from typing import Any
@@ -795,42 +796,37 @@ class TestFrozen:
             hash(p)
 
 
-class OrderPoint(Struct, order=True):
-    x: int
-    y: int
-
-
 class TestOrderAndEq:
+    @staticmethod
+    def assert_eq(a, b):
+        assert a == b
+        assert not a != b
+
+    @staticmethod
+    def assert_neq(a, b):
+        assert a != b
+        assert not a == b
+
     def test_order_no_eq_errors(self):
         with pytest.raises(ValueError, match="eq must be true if order is true"):
 
             class Test(Struct, order=True, eq=False):
                 pass
 
-    def test_eq_false(self):
+    def test_struct_eq_false(self):
         class Point(Struct, eq=False):
             x: int
             y: int
 
         p = Point(1, 2)
         # identity based equality
-        assert p == p
-        assert not p != p
-        assert p != Point(1, 2)
-        assert not p == Point(1, 2)
+        self.assert_eq(p, p)
+        self.assert_neq(p, Point(1, 2))
         # identity based hash
         assert hash(p) == hash(p)
         assert hash(p) != hash(Point(1, 2))
 
     def test_struct_eq(self):
-        def assert_eq(a, b):
-            assert a == b
-            assert not a != b
-
-        def assert_neq(a, b):
-            assert a != b
-            assert not a == b
-
         class Test(Struct):
             a: int
             b: int
@@ -840,40 +836,74 @@ class TestOrderAndEq:
 
         x = Struct()
 
-        assert_eq(x, Struct())
-        assert_neq(x, None)
+        self.assert_eq(x, Struct())
+        self.assert_neq(x, None)
 
         x = Test(1, 2)
-        assert_eq(x, Test(1, 2))
-        assert_neq(x, None)
-        assert_neq(x, Test(1, 3))
-        assert_neq(x, Test(2, 2))
-        assert_neq(x, Test2(1, 2))
+        self.assert_eq(x, Test(1, 2))
+        self.assert_neq(x, None)
+        self.assert_neq(x, Test(1, 3))
+        self.assert_neq(x, Test(2, 2))
+        self.assert_neq(x, Test2(1, 2))
 
-    def test_struct_eq_errors(self):
-        msg = "Oh no!"
+    def test_struct_eq_identity_fastpath(self):
+        class Bad:
+            def __eq__(self, other):
+                raise ValueError("Oh no!")
+
+        class Test(Struct):
+            a: int
+            b: Bad
+
+        t = Test(1, Bad())
+        self.assert_eq(t, t)
+
+    @pytest.mark.parametrize("op", ["le", "lt", "ge", "gt"])
+    def test_struct_order(self, op):
+        func = getattr(operator, op)
+
+        class Point(Struct, order=True):
+            x: int
+            y: int
+
+        origin = Point(0, 0)
+        for x in [-1, 0, 1]:
+            for y in [-1, 0, 1]:
+                sol = func((0, 0), (x, y))
+                res = func(origin, Point(x, y))
+                assert res == sol
+
+    @pytest.mark.parametrize("eq, order", [(False, False), (True, False), (True, True)])
+    def test_struct_compare_returns_notimplemented(self, eq, order):
+        class Test(Struct, eq=eq, order=order):
+            x: int
+
+        t1 = Test(1)
+        t2 = Test(2)
+        assert t1.__eq__(t2) is (False if eq else NotImplemented)
+        assert t1.__lt__(t2) is (True if order else NotImplemented)
+        assert t1.__eq__(None) is NotImplemented
+        assert t1.__lt__(None) is NotImplemented
+
+    @pytest.mark.parametrize("op", ["eq", "ne", "le", "lt", "ge", "gt"])
+    def test_struct_compare_errors(self, op):
+        func = getattr(operator, op)
 
         class Bad:
             def __eq__(self, other):
-                raise ValueError(msg)
+                raise ValueError("Oh no!")
 
-            __ne__ = __eq__
-
-        class Test(Struct):
+        class Test(Struct, order=True):
             a: object
             b: object
 
         t = Test(1, Bad())
         t2 = Test(1, 2)
 
-        with pytest.raises(ValueError, match=msg):
-            t == t2
-        with pytest.raises(ValueError, match=msg):
-            t != t2
-        with pytest.raises(ValueError, match=msg):
-            t2 == t
-        with pytest.raises(ValueError, match=msg):
-            t2 != t
+        with pytest.raises(ValueError, match="Oh no!"):
+            func(t, t2)
+        with pytest.raises(ValueError, match="Oh no!"):
+            func(t2, t)
 
 
 class TestTagAndTagField:
