@@ -394,7 +394,7 @@ alternatives.</p></li>
 <span id="struct-gc-benchmark"></span><h2>Benchmark - Garbage Collection<a class="headerlink" href="#benchmark-garbage-collection" title="Permalink to this heading">#</a></h2>
 <p><a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> instances implement several optimizations for reducing garbage
 collection (GC) pressure and decreasing memory usage. Here we benchmark structs
-(with and without <a class="reference internal" href="structs.html#struct-nogc"><span class="std std-ref">nogc=True</span></a>) against standard Python
+(with and without <a class="reference internal" href="structs.html#struct-gc"><span class="std std-ref">gc=False</span></a>) against standard Python
 classes (with and without <a class="reference external" href="https://docs.python.org/3/reference/datamodel.html#slots">__slots__</a>).</p>
 <p>For each option we create a large dictionary containing many simple instances
 of the benchmarked type, then measure:</p>
@@ -425,7 +425,7 @@ of the benchmarked type, then measure:</p>
 <td><p>13.96</p></td>
 <td><p>120.11</p></td>
 </tr>
-<tr class="row-odd"><td><p><strong>msgspec struct with nogc=True</strong></p></td>
+<tr class="row-odd"><td><p><strong>msgspec struct with gc=False</strong></p></td>
 <td><p>1.07</p></td>
 <td><p>104.85</p></td>
 </tr>
@@ -442,7 +442,7 @@ in an equivalent GC pauses.</p></li>
 <li><p><a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> instances have the same memory layout as a class with
 <code class="docutils literal notranslate"><span class="pre">__slots__</span></code> (and thus have the same memory usage), but due to deferred GC
 tracking a full GC pass completes in a fraction of the time.</p></li>
-<li><p><a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> instances with <code class="docutils literal notranslate"><span class="pre">nogc=True</span></code> have the lowest memory usage
+<li><p><a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> instances with <code class="docutils literal notranslate"><span class="pre">gc=False</span></code> have the lowest memory usage
 (lack of GC reduces memory by 16 bytes per instance). They also have the
 lowest GC pause (75x faster than standard classes!) since the entire
 composing dict can be skipped during GC traversal.</p></li>

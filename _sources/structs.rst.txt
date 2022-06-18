@@ -606,7 +606,7 @@ has a signature similar to `dataclasses.make_dataclass`. See
     Point(x=1.0, y=2.0)
 
 
-.. _struct-nogc:
+.. _struct-gc:
 
 Disabling Garbage Collection (Advanced)
 ---------------------------------------
@@ -654,23 +654,23 @@ structs referencing containers (lists, dicts, structs, ...) will.
 
 If you *are certain* that your struct types can *never* participate in a
 reference cycle, you *may* find a :ref:`performance boost
-<struct-gc-benchmark>` from setting ``nogc=True`` on a struct definition. This
+<struct-gc-benchmark>` from setting ``gc=False`` on a struct definition. This
 boost is tricky to measure in isolation, since it should only result in the
 garbage collector not running as frequently - an integration benchmark is
 recommended to determine if this is worthwhile for your workload. A workload is
 likely to benefit from this optimization in the following situations:
 
 - You're allocating a lot of struct objects at once (for example, decoding a
-  large object). Setting ``nogc=True`` on these types will reduce the
+  large object). Setting ``gc=False`` on these types will reduce the
   likelihood of a GC pass occurring while decoding, improving application
   latency.
-- You have a large number of long-lived struct objects. Setting ``nogc=True``
+- You have a large number of long-lived struct objects. Setting ``gc=False``
   on these types will reduce the load on the GC during collection cycles of
   later generations.
 
-Struct types with ``nogc=True`` will never be tracked, even if they reference
+Struct types with ``gc=False`` will never be tracked, even if they reference
 container types. It is your responsibility to ensure cycles with these objects
-don't occur, as a cycle containing only ``nogc=True`` structs will *never* be
+don't occur, as a cycle containing only ``gc=False`` structs will *never* be
 collected (leading to a memory leak).
 
 .. _type annotations: https://docs.python.org/3/library/typing.html

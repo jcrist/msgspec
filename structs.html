@@ -738,7 +738,7 @@ has a signature similar to <a class="reference external" href="https://docs.pyth
 </div>
 </section>
 <section id="disabling-garbage-collection-advanced">
-<span id="struct-nogc"></span><h2>Disabling Garbage Collection (Advanced)<a class="headerlink" href="#disabling-garbage-collection-advanced" title="Permalink to this heading">#</a></h2>
+<span id="struct-gc"></span><h2>Disabling Garbage Collection (Advanced)<a class="headerlink" href="#disabling-garbage-collection-advanced" title="Permalink to this heading">#</a></h2>
 <div class="admonition warning">
 <p class="admonition-title">Warning</p>
 <p>This is an advanced optimization, and only recommended for users who fully
@@ -778,23 +778,23 @@ structs referencing containers (lists, dicts, structs, …) will.</p>
 </pre></div>
 </div>
 <p>If you <em>are certain</em> that your struct types can <em>never</em> participate in a
-reference cycle, you <em>may</em> find a <a class="reference internal" href="benchmarks.html#struct-gc-benchmark"><span class="std std-ref">performance boost</span></a> from setting <code class="docutils literal notranslate"><span class="pre">nogc=True</span></code> on a struct definition. This
+reference cycle, you <em>may</em> find a <a class="reference internal" href="benchmarks.html#struct-gc-benchmark"><span class="std std-ref">performance boost</span></a> from setting <code class="docutils literal notranslate"><span class="pre">gc=False</span></code> on a struct definition. This
 boost is tricky to measure in isolation, since it should only result in the
 garbage collector not running as frequently - an integration benchmark is
 recommended to determine if this is worthwhile for your workload. A workload is
 likely to benefit from this optimization in the following situations:</p>
 <ul class="simple">
 <li><p>You’re allocating a lot of struct objects at once (for example, decoding a
-large object). Setting <code class="docutils literal notranslate"><span class="pre">nogc=True</span></code> on these types will reduce the
+large object). Setting <code class="docutils literal notranslate"><span class="pre">gc=False</span></code> on these types will reduce the
 likelihood of a GC pass occurring while decoding, improving application
 latency.</p></li>
-<li><p>You have a large number of long-lived struct objects. Setting <code class="docutils literal notranslate"><span class="pre">nogc=True</span></code>
+<li><p>You have a large number of long-lived struct objects. Setting <code class="docutils literal notranslate"><span class="pre">gc=False</span></code>
 on these types will reduce the load on the GC during collection cycles of
 later generations.</p></li>
 </ul>
-<p>Struct types with <code class="docutils literal notranslate"><span class="pre">nogc=True</span></code> will never be tracked, even if they reference
+<p>Struct types with <code class="docutils literal notranslate"><span class="pre">gc=False</span></code> will never be tracked, even if they reference
 container types. It is your responsibility to ensure cycles with these objects
-don’t occur, as a cycle containing only <code class="docutils literal notranslate"><span class="pre">nogc=True</span></code> structs will <em>never</em> be
+don’t occur, as a cycle containing only <code class="docutils literal notranslate"><span class="pre">gc=False</span></code> structs will <em>never</em> be
 collected (leading to a memory leak).</p>
 </section>
 </section>

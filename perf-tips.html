@@ -402,17 +402,17 @@ benefit from using it instead of JSON. And since <code class="docutils literal n
 protocols with a consistent interface, switching from <code class="docutils literal notranslate"><span class="pre">msgspec.json</span></code> to
 <code class="docutils literal notranslate"><span class="pre">msgspec.msgpack</span></code> should be fairly painless.</p>
 </section>
-<section id="use-nogc-true">
-<h2>Use <code class="docutils literal notranslate"><span class="pre">nogc=True</span></code><a class="headerlink" href="#use-nogc-true" title="Permalink to this heading">#</a></h2>
+<section id="use-gc-false">
+<h2>Use <code class="docutils literal notranslate"><span class="pre">gc=False</span></code><a class="headerlink" href="#use-gc-false" title="Permalink to this heading">#</a></h2>
 <p>Python processes with a large number of long-lived objects, or operations that
 allocate a large number of objects at once may suffer reduced performance due
 to Python’s garbage collector (GC). By default, <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> types
 implement a few optimizations to reduce the load on the GC (and thus reduce the
 frequency and duration of a GC pause). If you find that GC is still a problem,
 and <strong>are certain</strong> that your Struct types may never participate in a reference
-cycle, then you <strong>may</strong> benefit from setting <code class="docutils literal notranslate"><span class="pre">nogc=True</span></code> on your Struct
+cycle, then you <strong>may</strong> benefit from setting <code class="docutils literal notranslate"><span class="pre">gc=False</span></code> on your Struct
 types.  Depending on workload, this can result in a measurable decrease in
-pause time and frequency due to GC passes. See <a class="reference internal" href="structs.html#struct-nogc"><span class="std std-ref">Disabling Garbage Collection (Advanced)</span></a> for more
+pause time and frequency due to GC passes. See <a class="reference internal" href="structs.html#struct-gc"><span class="std std-ref">Disabling Garbage Collection (Advanced)</span></a> for more
 details.</p>
 </section>
 <section id="use-array-like-true">
@@ -515,7 +515,7 @@ average another ~2x speedup for decoding (and ~1.5x speedup for encoding).</p>
 </ul>
 </li>
 <li><a class="reference internal" href="#use-messagepack">Use MessagePack</a></li>
-<li><a class="reference internal" href="#use-nogc-true">Use <code class="docutils literal notranslate"><span class="pre">nogc=True</span></code></a></li>
+<li><a class="reference internal" href="#use-gc-false">Use <code class="docutils literal notranslate"><span class="pre">gc=False</span></code></a></li>
 <li><a class="reference internal" href="#use-array-like-true">Use <code class="docutils literal notranslate"><span class="pre">array_like=True</span></code></a></li>
 </ul>
 </li>
