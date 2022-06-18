@@ -162,6 +162,50 @@ blocks. Replicating an example from `PEP 636`_:
     "Y=6"
 
 
+Equality and Order
+------------------
+
+By default struct types define an ``__eq__`` method based on the type
+definition. This enables support for equality comparisons. Additionally, you
+may configure ``order=True`` to make a struct type *orderable* through
+generation of ``__lt__``, ``__le__``, ``__gt__``, and ``__ge__`` methods. These
+methods compare and order instances of a struct type the same as if they were
+tuples of their field values (in definition order).
+
+.. code-block:: python
+
+    >>> class Point(msgspec.Struct, order=True):
+    ...     x: float
+    ...     y: float
+
+    >>> Point(1, 2) == Point(1, 2)
+    True
+
+    >>> Point(1, 2) < Point(3, 4)
+    True
+
+
+In *rare* instances you may opt to disable generation of the ``__eq__`` method
+by configuring ``eq=False``.  Equality checks will then fall back to *identity
+comparisons*, where the only value a struct instance of that type will compare
+equal to is itself.
+
+.. code-block:: python
+
+    >>> class Point(msgspec.Struct, eq=False):
+    ...     x: float
+    ...     y: float
+
+
+    >>> p = Point(1, 2)
+
+    >>> p == Point(1, 2)
+    False
+
+    >>> p == p  # identity comparison only
+    True
+
+
 Frozen Instances
 ----------------
 

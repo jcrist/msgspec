@@ -32,7 +32,6 @@ def test_mypy():
             try:
                 exec(check, {"typ": typ})
             except Exception:
-                breakpoint()
                 assert (
                     False
                 ), f"Failed check at {PATH}:{lineno}: {check!r}, where 'typ' is {typ!r}"

@@ -8,7 +8,21 @@ operations:
 
 from time import perf_counter
 
+
+order_template = """
+    def __{method}__(self, other):
+        if type(self) is not type(other):
+            return NotImplemented
+        return (
+            (self.a, self.b, self.c, self.d, self.e) {op}
+            (other.a, other.b, other.c, other.d, other.e)
+        )
+"""
+
+
 classes_template = """
+import reprlib
+
 class C{n}:
     def __init__(self, a, b, c, d, e):
         self.a = a
@@ -17,21 +31,36 @@ class C{n}:
         self.d = d
         self.e = e
 
-    def __eq__(self, other):
+    @reprlib.recursive_repr()
+    def __repr__(self):
         return (
-            type(self) is type(other) and
+            f"{{type(self).__name__}}(a={{self.a!r}}, b={{self.b!r}}, "
+            f"c={{self.c!r}}, d={{self.d!r}}, e={{self.e!r}})"
+        )
+
+    def __eq__(self, other):
+        if type(self) is not type(other):
+            return NotImplemented
+        return (
             self.a == other.a and
             self.b == other.b and
             self.c == other.c and
             self.d == other.d and
             self.e == other.e
         )
-"""
+""" + "".join(
+    [
+        order_template.format(method="lt", op="<"),
+        order_template.format(method="le", op="<="),
+        order_template.format(method="gt", op=">"),
+        order_template.format(method="ge", op=">="),
+    ]
+)
 
 attrs_template = """
 from attr import define
 
-@define
+@define(order=True)
 class C{n}:
     a: int
     b: int
@@ -43,7 +72,7 @@ class C{n}:
 dataclasses_template = """
 from dataclasses import dataclass
 
-@dataclass
+@dataclass(order=True)
 class C{n}:
     a: int
     b: int
@@ -66,7 +95,7 @@ class C{n}(BaseModel):
 msgspec_template = """
 from msgspec import Struct
 
-class C{n}(Struct):
+class C{n}(Struct, order=True):
     a: int
     b: int
     c: int
@@ -113,7 +142,7 @@ def bench(name, template):
     init_time = ((end - start) / (N * M)) * 1e6
     print(f"- init: {init_time:.2f} μs")
 
-    # Benchmark comparison
+    # Benchmark equality
     N = 1000
     M = 1000
     val = M - 1
@@ -123,25 +152,53 @@ def bench(name, template):
     for _ in range(N):
         haystack.index(needle)
     end = perf_counter()
-    compare_time = ((end - start) / (N * M)) * 1e6
-    print(f"- compare: {compare_time:.2f} μs")
+    equality_time = ((end - start) / (N * M)) * 1e6
+    print(f"- equality: {equality_time:.2f} μs")
 
-    return (name, define_time, init_time, compare_time)
+    # Benchmark order
+    try:
+        needle < needle
+    except TypeError:
+        order_time = None
+        print("- order: N/A")
+    else:
+        start = perf_counter()
+        for _ in range(N):
+            for obj in haystack:
+                if obj >= needle:
+                    break
+        end = perf_counter()
+        order_time = ((end - start) / (N * M)) * 1e6
+        print(f"- order: {order_time:.2f} μs")
+
+    # Benchmark repr
+    start = perf_counter()
+    for _ in range(N):
+        for obj in haystack:
+            repr(obj)
+    end = perf_counter()
+    repr_time = ((end - start) / (N * M)) * 1e6
+    print(f"- repr: {repr_time:.2f} μs")
+
+    return (name, define_time, init_time, equality_time, order_time, repr_time)
 
 
 def format_table(results):
-    columns = ("", "import (μs)", "create (μs)", "compare (μs)")
+    columns = (
+        "",
+        "import (μs)",
+        "create (μs)",
+        "equality (μs)",
+        "order (μs)",
+        "repr (μs)",
+    )
+
+    def f(n):
+        return "N/A" if n is None else f"{n:.2f}"
 
     rows = []
-    for name, t1, t2, t3 in results:
-        rows.append(
-            (
-                f"**{name}**",
-                f"{t1:.2f}",
-                f"{t2:.2f}",
-                f"{t3:.2f}",
-            )
-        )
+    for name, *times in results:
+        rows.append((f"**{name}**", *(f(t) for t in times)))
 
     widths = tuple(max(max(map(len, x)), len(c)) for x, c in zip(zip(*rows), columns))
     row_template = ("|" + (" %%-%ds |" * len(columns))) % widths
