@@ -156,11 +156,11 @@ Benchmark - Structs
 Here we benchmark common `msgspec.Struct` operations, comparing their
 performance against other similar libraries. The cases compared are:
 
-- Standard Python classes
-- attrs_
-- dataclasses_
-- pydantic_
 - ``msgspec``
+- Standard Python classes
+- dataclasses_
+- attrs_
+- pydantic_
 
 For each library, the following operations are benchmarked:
 
@@ -168,35 +168,38 @@ For each library, the following operations are benchmarked:
   boilerplate add overhead when defining classes, slowing import times for
   libraries that make use of these classes.
 - Time to create an instance of that class.
-- Time to compare two instances.
+- Time to compare two instances for equality (``==``/``!=``).
+- Time to compare two instances for order (``<``/``>``/``<=``/``>=``)
 
 The `full benchmark source can be found here
 <https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_structs.py>`__.
 
 **Results:**
 
-+----------------------+-------------+-------------+--------------+
-|                      | define (μs) | create (μs) | compare (μs) |
-+======================+=============+=============+==============+
-| **standard classes** | 4.21        | 0.47        | 0.12         |
-+----------------------+-------------+-------------+--------------+
-| **attrs**            | 690.21      | 0.84        | 0.30         |
-+----------------------+-------------+-------------+--------------+
-| **dataclasses**      | 300.48      | 0.63        | 0.28         |
-+----------------------+-------------+-------------+--------------+
-| **pydantic**         | 420.09      | 6.25        | 11.78        |
-+----------------------+-------------+-------------+--------------+
-| **msgspec**          | 13.61       | 0.09        | 0.02         |
-+----------------------+-------------+-------------+--------------+
++----------------------+-------------+-------------+---------------+------------+
+|                      | import (μs) | create (μs) | equality (μs) | order (μs) |
++======================+=============+=============+===============+============+
+| **msgspec**          | 9.92        | 0.09        | 0.02          | 0.03       |
++----------------------+-------------+-------------+---------------+------------+
+| **standard classes** | 6.86        | 0.45        | 0.13          | 0.29       |
++----------------------+-------------+-------------+---------------+------------+
+| **dataclasses**      | 489.07      | 0.47        | 0.27          | 0.30       |
++----------------------+-------------+-------------+---------------+------------+
+| **attrs**            | 428.38      | 0.42        | 0.29          | 2.15       |
++----------------------+-------------+-------------+---------------+------------+
+| **pydantic**         | 371.52      | 4.84        | 10.56         | N/A        |
++----------------------+-------------+-------------+---------------+------------+
 
 - Standard Python classes are the fastest to import (any library can only add
   overhead here). Still, ``msgspec`` isn't *that* much slower, especially
   compared to other options.
 - Structs are optimized to be cheap to create, and that shows for the creation
-  benchmark. They're roughly 5x faster than standard python classes here.
-- Same goes for comparison, with structs measuring roughly 6x faster than
-  standard python classes.
-
+  benchmark. They're roughly 5x faster than standard
+  classes/``attrs``/``dataclasses``, and 50x faster than ``pydantic``.
+- For equality comparison, msgspec Structs are roughly 6x to 500x faster than
+  the alternatives.
+- For order comparison, msgspec Structs are roughly 10x to 70x faster than the
+  alternatives.
 
 .. _struct-gc-benchmark:
 

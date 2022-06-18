@@ -343,6 +343,44 @@ blocks. Replicating an example from <a class="reference external" href="https://
 </pre></div>
 </div>
 </section>
+<section id="equality-and-order">
+<h2>Equality and Order<a class="headerlink" href="#equality-and-order" title="Permalink to this heading">#</a></h2>
+<p>By default struct types define an <code class="docutils literal notranslate"><span class="pre">__eq__</span></code> method based on the type
+definition. This enables support for equality comparisons. Additionally, you
+may configure <code class="docutils literal notranslate"><span class="pre">order=True</span></code> to make a struct type <em>orderable</em> through
+generation of <code class="docutils literal notranslate"><span class="pre">__lt__</span></code>, <code class="docutils literal notranslate"><span class="pre">__le__</span></code>, <code class="docutils literal notranslate"><span class="pre">__gt__</span></code>, and <code class="docutils literal notranslate"><span class="pre">__ge__</span></code> methods. These
+methods compare and order instances of a struct type the same as if they were
+tuples of their field values (in definition order).</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">Point</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="n">x</span><span class="p">:</span> <span class="nb">float</span>
+<span class="gp">... </span>    <span class="n">y</span><span class="p">:</span> <span class="nb">float</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">Point</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span> <span class="o">==</span> <span class="n">Point</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+<span class="go">True</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">Point</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">Point</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>
+<span class="go">True</span>
+</pre></div>
+</div>
+<p>In <em>rare</em> instances you may opt to disable generation of the <code class="docutils literal notranslate"><span class="pre">__eq__</span></code> method
+by configuring <code class="docutils literal notranslate"><span class="pre">eq=False</span></code>.  Equality checks will then fall back to <em>identity
+comparisons</em>, where the only value a struct instance of that type will compare
+equal to is itself.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">Point</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">eq</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="n">x</span><span class="p">:</span> <span class="nb">float</span>
+<span class="gp">... </span>    <span class="n">y</span><span class="p">:</span> <span class="nb">float</span>
+
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">p</span> <span class="o">=</span> <span class="n">Point</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">p</span> <span class="o">==</span> <span class="n">Point</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+<span class="go">False</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">p</span> <span class="o">==</span> <span class="n">p</span>  <span class="c1"># identity comparison only</span>
+<span class="go">True</span>
+</pre></div>
+</div>
+</section>
 <section id="frozen-instances">
 <h2>Frozen Instances<a class="headerlink" href="#frozen-instances" title="Permalink to this heading">#</a></h2>
 <p>A struct type can optionally be marked as “frozen” by specifying
@@ -824,6 +862,7 @@ collected (leading to a memory leak).</p>
 <li><a class="reference internal" href="#">Structs</a><ul>
 <li><a class="reference internal" href="#type-validation">Type Validation</a></li>
 <li><a class="reference internal" href="#pattern-matching">Pattern Matching</a></li>
+<li><a class="reference internal" href="#equality-and-order">Equality and Order</a></li>
 <li><a class="reference internal" href="#frozen-instances">Frozen Instances</a></li>
 <li><a class="reference internal" href="#tagged-unions">Tagged Unions</a></li>
 <li><a class="reference internal" href="#omitting-default-values">Omitting Default Values</a></li>

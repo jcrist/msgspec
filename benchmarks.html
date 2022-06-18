@@ -316,11 +316,11 @@ for additional unnecessary allocations.</p>
 <p>Here we benchmark common <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> operations, comparing their
 performance against other similar libraries. The cases compared are:</p>
 <ul class="simple">
-<li><p>Standard Python classes</p></li>
-<li><p><a class="reference external" href="https://www.attrs.org">attrs</a></p></li>
-<li><p><a class="reference external" href="https://docs.python.org/3/library/dataclasses.html">dataclasses</a></p></li>
-<li><p><a class="reference external" href="https://pydantic-docs.helpmanual.io/">pydantic</a></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code></p></li>
+<li><p>Standard Python classes</p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/dataclasses.html">dataclasses</a></p></li>
+<li><p><a class="reference external" href="https://www.attrs.org">attrs</a></p></li>
+<li><p><a class="reference external" href="https://pydantic-docs.helpmanual.io/">pydantic</a></p></li>
 </ul>
 <p>For each library, the following operations are benchmarked:</p>
 <ul class="simple">
@@ -328,7 +328,8 @@ performance against other similar libraries. The cases compared are:</p>
 boilerplate add overhead when defining classes, slowing import times for
 libraries that make use of these classes.</p></li>
 <li><p>Time to create an instance of that class.</p></li>
-<li><p>Time to compare two instances.</p></li>
+<li><p>Time to compare two instances for equality (<code class="docutils literal notranslate"><span class="pre">==</span></code>/<code class="docutils literal notranslate"><span class="pre">!=</span></code>).</p></li>
+<li><p>Time to compare two instances for order (<code class="docutils literal notranslate"><span class="pre">&lt;</span></code>/<code class="docutils literal notranslate"><span class="pre">&gt;</span></code>/<code class="docutils literal notranslate"><span class="pre">&lt;=</span></code>/<code class="docutils literal notranslate"><span class="pre">&gt;=</span></code>)</p></li>
 </ul>
 <p>The <a class="reference external" href="https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_structs.py">full benchmark source can be found here</a>.</p>
 <p><strong>Results:</strong></p>
@@ -336,36 +337,42 @@ libraries that make use of these classes.</p></li>
 <table class="docutils align-default">
 <thead>
 <tr class="row-odd"><th class="head"></th>
-<th class="head"><p>define (μs)</p></th>
+<th class="head"><p>import (μs)</p></th>
 <th class="head"><p>create (μs)</p></th>
-<th class="head"><p>compare (μs)</p></th>
+<th class="head"><p>equality (μs)</p></th>
+<th class="head"><p>order (μs)</p></th>
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><p><strong>standard classes</strong></p></td>
-<td><p>4.21</p></td>
-<td><p>0.47</p></td>
-<td><p>0.12</p></td>
-</tr>
-<tr class="row-odd"><td><p><strong>attrs</strong></p></td>
-<td><p>690.21</p></td>
-<td><p>0.84</p></td>
-<td><p>0.30</p></td>
-</tr>
-<tr class="row-even"><td><p><strong>dataclasses</strong></p></td>
-<td><p>300.48</p></td>
-<td><p>0.63</p></td>
-<td><p>0.28</p></td>
-</tr>
-<tr class="row-odd"><td><p><strong>pydantic</strong></p></td>
-<td><p>420.09</p></td>
-<td><p>6.25</p></td>
-<td><p>11.78</p></td>
-</tr>
 <tr class="row-even"><td><p><strong>msgspec</strong></p></td>
-<td><p>13.61</p></td>
+<td><p>9.92</p></td>
 <td><p>0.09</p></td>
 <td><p>0.02</p></td>
+<td><p>0.03</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>standard classes</strong></p></td>
+<td><p>6.86</p></td>
+<td><p>0.45</p></td>
+<td><p>0.13</p></td>
+<td><p>0.29</p></td>
+</tr>
+<tr class="row-even"><td><p><strong>dataclasses</strong></p></td>
+<td><p>489.07</p></td>
+<td><p>0.47</p></td>
+<td><p>0.27</p></td>
+<td><p>0.30</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>attrs</strong></p></td>
+<td><p>428.38</p></td>
+<td><p>0.42</p></td>
+<td><p>0.29</p></td>
+<td><p>2.15</p></td>
+</tr>
+<tr class="row-even"><td><p><strong>pydantic</strong></p></td>
+<td><p>371.52</p></td>
+<td><p>4.84</p></td>
+<td><p>10.56</p></td>
+<td><p>N/A</p></td>
 </tr>
 </tbody>
 </table>
@@ -375,9 +382,12 @@ libraries that make use of these classes.</p></li>
 overhead here). Still, <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> isn’t <em>that</em> much slower, especially
 compared to other options.</p></li>
 <li><p>Structs are optimized to be cheap to create, and that shows for the creation
-benchmark. They’re roughly 5x faster than standard python classes here.</p></li>
-<li><p>Same goes for comparison, with structs measuring roughly 6x faster than
-standard python classes.</p></li>
+benchmark. They’re roughly 5x faster than standard
+classes/<code class="docutils literal notranslate"><span class="pre">attrs</span></code>/<code class="docutils literal notranslate"><span class="pre">dataclasses</span></code>, and 50x faster than <code class="docutils literal notranslate"><span class="pre">pydantic</span></code>.</p></li>
+<li><p>For equality comparison, msgspec Structs are roughly 6x to 500x faster than
+the alternatives.</p></li>
+<li><p>For order comparison, msgspec Structs are roughly 10x to 70x faster than the
+alternatives.</p></li>
 </ul>
 </section>
 <section id="benchmark-garbage-collection">
