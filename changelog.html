@@ -1,0 +1,406 @@
+<!doctype html>
+<html class="no-js" lang="en">
+  <head><meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="prev" title="API Docs" href="api.html" />
+
+    <meta name="generator" content="sphinx-5.0.2, furo 2022.06.04.1"/>
+        <title>Changelog</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=40978830699223671f4072448e654b5958f38b89" />
+    <link rel="stylesheet" type="text/css" href="_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?digest=30d1aed668e5c3a91c3e3bf6a60b675221979f0e" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #f8f8f8;
+  --color-code-foreground: black;
+  
+  }
+  @media not print {
+    body[data-theme="dark"] {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+    }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) {
+        --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+      }
+    }
+  }
+</style></head>
+  <body>
+    
+    <script>
+      document.body.dataset.theme = localStorage.getItem("theme") || "auto";
+    </script>
+    
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 1024 1024">
+      <path d="M408 442h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8zm-8 204c0 4.4 3.6 8 8 8h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56zm504-486H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm0 632H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zM115.4 518.9L271.7 642c5.8 4.6 14.4.5 14.4-6.9V388.9c0-7.4-8.5-11.5-14.4-6.9L115.4 505.1a8.74 8.74 0 0 0 0 13.8z"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-half" viewBox="0 0 24 24">
+    <title>Auto light/dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-shadow">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M13 12h5" />
+      <path d="M13 15h4" />
+      <path d="M13 18h1" />
+      <path d="M13 9h4" />
+      <path d="M13 6h1" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc">
+<label class="overlay sidebar-overlay" for="__navigation">
+  <div class="visually-hidden">Hide navigation sidebar</div>
+</label>
+<label class="overlay toc-overlay" for="__toc">
+  <div class="visually-hidden">Hide table of contents sidebar</div>
+</label>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <div class="visually-hidden">Toggle site navigation sidebar</div>
+        <i class="icon"><svg><use href="#svg-menu"></use></svg></i>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="index.html"><div class="brand">msgspec</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle">
+          <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+          <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
+        <div class="visually-hidden">Toggle table of contents sidebar</div>
+        <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand" href="index.html">
+  
+  <div class="sidebar-logo-container">
+    <img class="sidebar-logo only-light" src="_static/msgspec-logo-light.svg" alt="Light Logo"/>
+    <img class="sidebar-logo only-dark" src="_static/msgspec-logo-dark.svg" alt="Dark Logo"/>
+  </div>
+  
+  
+</a><form class="sidebar-search-container" method="get" action="search.html" role="search">
+  <input class="sidebar-search" placeholder=Search name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="usage.html">Usage</a></li>
+<li class="toctree-l1"><a class="reference internal" href="structs.html">Structs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="extending.html">Extending</a></li>
+<li class="toctree-l1"><a class="reference internal" href="perf-tips.html">Performance Tips</a></li>
+<li class="toctree-l1"><a class="reference internal" href="benchmarks.html">Benchmarks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api.html">API Docs</a></li>
+<li class="toctree-l1 current current-page"><a class="current reference internal" href="#">Changelog</a></li>
+</ul>
+
+</div>
+</div>
+
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <div class="article-container">
+        <a href="#" class="back-to-top muted-link">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+          </svg>
+          <span>Back to top</span>
+        </a>
+        <div class="content-icon-container">
+          <div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle">
+              <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+              <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
+            <div class="visually-hidden">Toggle table of contents sidebar</div>
+            <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+          </label>
+        </div>
+        <article role="main">
+          <section id="changelog">
+<h1>Changelog<a class="headerlink" href="#changelog" title="Permalink to this heading">#</a></h1>
+<section id="version-0-6-0-2022-04-06">
+<h2>Version 0.6.0 (2022-04-06)<a class="headerlink" href="#version-0-6-0-2022-04-06" title="Permalink to this heading">#</a></h2>
+<ul class="simple">
+<li><p>Add a new <a class="reference external" href="https://jcristharif.com/msgspec/usage.html#raw">msgspec.Raw</a>
+type for delayed decoding of message fields / serializing already encoded
+fields.</p></li>
+<li><p>Add <code class="docutils literal notranslate"><span class="pre">omit_defaults</span></code> option to <code class="docutils literal notranslate"><span class="pre">Struct</span></code> types (<a class="reference external" href="https://jcristharif.com/msgspec/structs.html#omitting-default-values">docs</a>).
+If enabled, fields containing their respective default value will be omitted
+from serialized message. This improves both encode and decode performance.</p></li>
+<li><p>Add <code class="docutils literal notranslate"><span class="pre">rename</span></code> option to <code class="docutils literal notranslate"><span class="pre">Struct</span></code> types (<a class="reference external" href="https://jcristharif.com/msgspec/structs.html#renaming-field-names">docs</a>) for
+altering the field names used for encoding. A major use of this is supporting
+<code class="docutils literal notranslate"><span class="pre">camelCase</span></code> JSON field names, while letting Python code use the more
+standard <code class="docutils literal notranslate"><span class="pre">snake_case</span></code> field names.</p></li>
+<li><p>Improve performance of <code class="docutils literal notranslate"><span class="pre">nogc=True</span></code> structs (<a class="reference external" href="https://jcristharif.com/msgspec/structs.html#disabling-garbage-collection-advanced">docs</a>).
+GC is now avoided in more cases, and <code class="docutils literal notranslate"><span class="pre">nogc=True</span></code> structs use 16 fewer bytes
+per instance. Also added a <a class="reference external" href="https://jcristharif.com/msgspec/benchmarks.html#benchmark-garbage-collection">benchmark</a>
+for how <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> can interact with application GC usage.</p></li>
+<li><p>Cache creation of <a class="reference external" href="https://jcristharif.com/msgspec/structs.html#tagged-unions">tagged union</a> lookup
+tables, reducing memory usage for applications making heavy use of tagged
+unions.</p></li>
+<li><p>Support encoding and decoding <code class="docutils literal notranslate"><span class="pre">frozenset</span></code> instances.</p></li>
+<li><p>A smattering of other performance improvements.</p></li>
+</ul>
+</section>
+<section id="version-0-5-0-2022-03-09">
+<h2>Version 0.5.0 (2022-03-09)<a class="headerlink" href="#version-0-5-0-2022-03-09" title="Permalink to this heading">#</a></h2>
+<ul class="simple">
+<li><p>Support <a class="reference external" href="https://jcristharif.com/msgspec/structs.html#tagged-unions">tagged unions</a> for
+encoding/decoding a <code class="docutils literal notranslate"><span class="pre">Union</span></code> of <code class="docutils literal notranslate"><span class="pre">msgspec.Struct</span></code> types.</p></li>
+<li><p>Further improve encoding performance of <code class="docutils literal notranslate"><span class="pre">enum.Enum</span></code> instances by 20-30%.</p></li>
+<li><p>Reduce overhead of calling <code class="docutils literal notranslate"><span class="pre">msgspec.json.decode</span></code>/<code class="docutils literal notranslate"><span class="pre">msgspec.msgpack.decode</span></code>
+with <code class="docutils literal notranslate"><span class="pre">type=SomeStructType</span></code>. It’s still faster to create a <code class="docutils literal notranslate"><span class="pre">Decoder</span></code> once
+and call <code class="docutils literal notranslate"><span class="pre">decoder.decode</span></code> multiple times, but for struct types the overhead
+of calling the top-level function is decreased significantly.</p></li>
+<li><p>Rename the Struct option <code class="docutils literal notranslate"><span class="pre">asarray</span></code> to <code class="docutils literal notranslate"><span class="pre">array_like</span></code> (a breaking change).</p></li>
+</ul>
+</section>
+<section id="version-0-4-2-2022-02-28">
+<h2>Version 0.4.2 (2022-02-28)<a class="headerlink" href="#version-0-4-2-2022-02-28" title="Permalink to this heading">#</a></h2>
+<ul class="simple">
+<li><p>Support <code class="docutils literal notranslate"><span class="pre">typing.Literal</span></code> string types as dict keys in JSON.</p></li>
+<li><p>Support Python 3.10 style unions (for example, <code class="docutils literal notranslate"><span class="pre">int</span> <span class="pre">|</span> <span class="pre">float</span> <span class="pre">|</span> <span class="pre">None</span></code>).</p></li>
+<li><p>Publish Python 3.10 wheels.</p></li>
+</ul>
+</section>
+<section id="version-0-4-1-2022-02-23">
+<h2>Version 0.4.1 (2022-02-23)<a class="headerlink" href="#version-0-4-1-2022-02-23" title="Permalink to this heading">#</a></h2>
+<ul class="simple">
+<li><p>Optimize decoding of <code class="docutils literal notranslate"><span class="pre">Enum</span></code> types, on average ~10x faster.</p></li>
+<li><p>Optimize decoding of <code class="docutils literal notranslate"><span class="pre">IntEnum</span></code> types, on average ~12x faster.</p></li>
+<li><p>Support decoding <code class="docutils literal notranslate"><span class="pre">typing.Literal</span></code> types.</p></li>
+<li><p>Add <code class="docutils literal notranslate"><span class="pre">nogc</span></code> option for <code class="docutils literal notranslate"><span class="pre">Struct</span></code> types, disabling the cyclic garbage
+collector for their instances.</p></li>
+</ul>
+</section>
+<section id="version-0-4-0-2022-02-08">
+<h2>Version 0.4.0 (2022-02-08)<a class="headerlink" href="#version-0-4-0-2022-02-08" title="Permalink to this heading">#</a></h2>
+<ul class="simple">
+<li><p>Moved MessagePack support to the <code class="docutils literal notranslate"><span class="pre">msgspec.msgpack</span></code> submodule.</p></li>
+<li><p>New JSON support available in <code class="docutils literal notranslate"><span class="pre">msgspec.json</span></code>.</p></li>
+<li><p>Improved error message generation to provide full path to the mistyped values.</p></li>
+<li><p>Renamed the <code class="docutils literal notranslate"><span class="pre">immutable</span></code> kwarg in <code class="docutils literal notranslate"><span class="pre">msgspec.Struct</span></code> to <code class="docutils literal notranslate"><span class="pre">frozen</span></code> to better
+match python conventions.</p></li>
+<li><p>Renamed <code class="docutils literal notranslate"><span class="pre">EncodingError</span></code> to <code class="docutils literal notranslate"><span class="pre">EncodeError</span></code>/<code class="docutils literal notranslate"><span class="pre">DecodingError</span></code> to
+<code class="docutils literal notranslate"><span class="pre">DecodeError</span></code> to better match python conventions.</p></li>
+<li><p>Improved <code class="docutils literal notranslate"><span class="pre">pyright</span></code> support, allowing more errors to be statically caught by
+their type checker.</p></li>
+<li><p>Adds support for Python 3.10 pattern matching on <code class="docutils literal notranslate"><span class="pre">msgspec.Struct</span></code> types.</p></li>
+<li><p>Adds support for decoding into <code class="docutils literal notranslate"><span class="pre">typing.Union</span></code> types (with a few
+restrictions).</p></li>
+<li><p>General performance improvements across all encoders/decoders.</p></li>
+</ul>
+</section>
+<section id="version-0-3-2-2021-07-23">
+<h2>Version 0.3.2 (2021-07-23)<a class="headerlink" href="#version-0-3-2-2021-07-23" title="Permalink to this heading">#</a></h2>
+<ul class="simple">
+<li><p>Faster float encoding and decoding.</p></li>
+<li><p>General micro-optimizations for MessagePack encode/decode. This is most
+visible for large messages.</p></li>
+</ul>
+</section>
+<section id="version-0-3-1-2021-07-12">
+<h2>Version 0.3.1 (2021-07-12)<a class="headerlink" href="#version-0-3-1-2021-07-12" title="Permalink to this heading">#</a></h2>
+<ul class="simple">
+<li><p>Use a freelist for small structs to improve struct allocation time.</p></li>
+<li><p>Small performance improvements for struct serialization.</p></li>
+</ul>
+</section>
+<section id="version-0-3-0-2021-07-07">
+<h2>Version 0.3.0 (2021-07-07)<a class="headerlink" href="#version-0-3-0-2021-07-07" title="Permalink to this heading">#</a></h2>
+<ul class="simple">
+<li><p>Add <code class="docutils literal notranslate"><span class="pre">Encoder.encode_into</span></code> api, for encoding into an existing buffer without
+copying.</p></li>
+<li><p>Add support for encoding/decoding MessagePack extensions.</p></li>
+<li><p>Add support for encoding/decoding <code class="docutils literal notranslate"><span class="pre">datetime</span></code> objects.</p></li>
+<li><p>Add support for encoding/decoding custom objects without relying on
+MessagePack extensions.</p></li>
+<li><p>Add support for marking <code class="docutils literal notranslate"><span class="pre">Struct</span></code> types as hashable.</p></li>
+<li><p>Add support for serializing <code class="docutils literal notranslate"><span class="pre">Struct</span></code> types as MessagePack <code class="docutils literal notranslate"><span class="pre">array</span></code> objects
+rather than <code class="docutils literal notranslate"><span class="pre">map</span></code> objects.</p></li>
+<li><p>Several performance improvements. On average 50% faster encoding and 30%
+faster decoding.</p></li>
+</ul>
+</section>
+<section id="version-0-2-0-2021-02-25">
+<h2>Version 0.2.0 (2021-02-25)<a class="headerlink" href="#version-0-2-0-2021-02-25" title="Permalink to this heading">#</a></h2>
+<ul class="simple">
+<li><p>Add <code class="docutils literal notranslate"><span class="pre">default</span></code> callback to <code class="docutils literal notranslate"><span class="pre">encode</span></code>/<code class="docutils literal notranslate"><span class="pre">Encoder</span></code></p></li>
+<li><p>Fix bug in <code class="docutils literal notranslate"><span class="pre">Encoder</span></code> dealloc</p></li>
+</ul>
+</section>
+<section id="version-0-1-0-2021-02-23">
+<h2>Version 0.1.0 (2021-02-23)<a class="headerlink" href="#version-0-1-0-2021-02-23" title="Permalink to this heading">#</a></h2>
+<ul class="simple">
+<li><p>Initial Release</p></li>
+</ul>
+</section>
+</section>
+
+        </article>
+      </div>
+      <footer>
+        
+        <div class="related-pages">
+          
+          <a class="prev-page" href="api.html">
+              <svg><use href="#svg-arrow-right"></use></svg>
+              <div class="page-info">
+                <div class="context">
+                  <span>Previous</span>
+                </div>
+                
+                <div class="title">API Docs</div>
+                
+              </div>
+            </a>
+        </div>
+        <div class="bottom-of-page">
+          <div class="left-details">
+            <div class="copyright">
+                Copyright &#169; 2022, Jim Crist-Harif
+            </div>
+            Made with <a href="https://www.sphinx-doc.org/">Sphinx</a> and <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
+            
+            <a href="https://github.com/pradyunsg/furo">Furo</a>
+            
+          </div>
+          <div class="right-details">
+            <div class="icons">
+              <a class="muted-link " href="https://github.com/jcrist/msgspec" aria-label="GitHub"><svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 16 16">
+  <path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"></path>
+</svg></a>
+              
+            </div>
+          </div>
+        </div>
+        
+      </footer>
+    </div>
+    <aside class="toc-drawer">
+      
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            Contents
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">Changelog</a><ul>
+<li><a class="reference internal" href="#version-0-6-0-2022-04-06">Version 0.6.0 (2022-04-06)</a></li>
+<li><a class="reference internal" href="#version-0-5-0-2022-03-09">Version 0.5.0 (2022-03-09)</a></li>
+<li><a class="reference internal" href="#version-0-4-2-2022-02-28">Version 0.4.2 (2022-02-28)</a></li>
+<li><a class="reference internal" href="#version-0-4-1-2022-02-23">Version 0.4.1 (2022-02-23)</a></li>
+<li><a class="reference internal" href="#version-0-4-0-2022-02-08">Version 0.4.0 (2022-02-08)</a></li>
+<li><a class="reference internal" href="#version-0-3-2-2021-07-23">Version 0.3.2 (2021-07-23)</a></li>
+<li><a class="reference internal" href="#version-0-3-1-2021-07-12">Version 0.3.1 (2021-07-12)</a></li>
+<li><a class="reference internal" href="#version-0-3-0-2021-07-07">Version 0.3.0 (2021-07-07)</a></li>
+<li><a class="reference internal" href="#version-0-2-0-2021-02-25">Version 0.2.0 (2021-02-25)</a></li>
+<li><a class="reference internal" href="#version-0-1-0-2021-02-23">Version 0.1.0 (2021-02-23)</a></li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
+      
+      
+    </aside>
+  </div>
+</div><script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+    <script src="_static/jquery.js"></script>
+    <script src="_static/underscore.js"></script>
+    <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
+    <script src="_static/doctools.js"></script>
+    <script src="_static/scripts/furo.js"></script>
+    <script src="_static/clipboard.min.js"></script>
+    <script src="_static/copybutton.js"></script>
+    </body>
+</html>
