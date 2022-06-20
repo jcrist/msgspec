@@ -159,3 +159,4 @@ is required.
     perf-tips.rst
     benchmarks.rst
     api.rst
+    changelog.rst
