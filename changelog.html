@@ -201,27 +201,56 @@
         <article role="main">
           <section id="changelog">
 <h1>Changelog<a class="headerlink" href="#changelog" title="Permalink to this heading">#</a></h1>
+<section id="version-0-7-0-2022-06-20">
+<h2>Version 0.7.0 (2022-06-20)<a class="headerlink" href="#version-0-7-0-2022-06-20" title="Permalink to this heading">#</a></h2>
+<ul class="simple">
+<li><p>Dramatically speedup JSON string decoding, up to 2x speedup in some cases
+(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/118">PR #118</a>).</p></li>
+<li><p>Adds a cache for decoding short (&lt; 32 character) ASCII dict keys. This
+results in up to a 40% speedup when decoding many dicts with common keys
+using an untyped decoder. It’s still recommended to define <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code></a> types
+when your messages have a common structure, but in cases where no type is
+provided decoding is now much more performant (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/120">PR #120</a>, <a class="reference external" href="https://github.com/jcrist/msgspec/pull/121">PR #121</a>).</p></li>
+<li><p>Adds <code class="docutils literal notranslate"><span class="pre">order</span></code> and <code class="docutils literal notranslate"><span class="pre">eq</span></code> configuration options for <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code></a> types, mirroring
+the <code class="docutils literal notranslate"><span class="pre">dataclasses</span></code> options of the same name. Order comparisons for Struct
+types are very performant, roughly <a class="reference external" href="https://jcristharif.com/msgspec/benchmarks.html#benchmark-structs">10x to 70x faster</a> than
+alternative libraries (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/122">PR #122</a>).</p></li>
+<li><p>Speedup <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code></a> decoding for both JSON and MessagePack, on average 20%
+faster (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/119">PR #119</a>).</p></li>
+<li><p>Various additional performance improvements, mostly to the JSON
+implementation (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/100">PR #100</a>, <a class="reference external" href="https://github.com/jcrist/msgspec/pull/101">PR #101</a>, <a class="reference external" href="https://github.com/jcrist/msgspec/pull/102">PR #102</a>).</p></li>
+<li><p>Add <a class="reference internal" href="api.html#msgspec.defstruct" title="msgspec.defstruct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">defstruct</span></code></a> method for dynamically defining new <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code></a> types at
+runtime (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/105">PR #105</a>).</p></li>
+<li><p>Fix ARM support and publish ARM wheels for Linux and Mac (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/104">PR #104</a>).</p></li>
+<li><p>Reduce published wheel sizes by stripping debug symbols (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/113">PR #113</a>).</p></li>
+<li><p>Fix a memory leak in <code class="docutils literal notranslate"><span class="pre">Struct.__reduce__</span></code> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/117">PR #117</a>).</p></li>
+<li><p>Rename <code class="docutils literal notranslate"><span class="pre">nogc</span></code> struct option to <code class="docutils literal notranslate"><span class="pre">gc</span></code> (a breaking change). To disable GC on
+a Struct instance you now want to specify <code class="docutils literal notranslate"><span class="pre">gc=False</span></code> instead of
+<code class="docutils literal notranslate"><span class="pre">nogc=True</span></code> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/124">PR #124</a>).</p></li>
+</ul>
+</section>
 <section id="version-0-6-0-2022-04-06">
 <h2>Version 0.6.0 (2022-04-06)<a class="headerlink" href="#version-0-6-0-2022-04-06" title="Permalink to this heading">#</a></h2>
 <ul class="simple">
 <li><p>Add a new <a class="reference external" href="https://jcristharif.com/msgspec/usage.html#raw">msgspec.Raw</a>
 type for delayed decoding of message fields / serializing already encoded
-fields.</p></li>
+fields (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/92">PR #92</a>).</p></li>
 <li><p>Add <code class="docutils literal notranslate"><span class="pre">omit_defaults</span></code> option to <code class="docutils literal notranslate"><span class="pre">Struct</span></code> types (<a class="reference external" href="https://jcristharif.com/msgspec/structs.html#omitting-default-values">docs</a>).
 If enabled, fields containing their respective default value will be omitted
-from serialized message. This improves both encode and decode performance.</p></li>
+from serialized message. This improves both encode and decode performance
+(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/94">PR #94</a>).</p></li>
 <li><p>Add <code class="docutils literal notranslate"><span class="pre">rename</span></code> option to <code class="docutils literal notranslate"><span class="pre">Struct</span></code> types (<a class="reference external" href="https://jcristharif.com/msgspec/structs.html#renaming-field-names">docs</a>) for
 altering the field names used for encoding. A major use of this is supporting
 <code class="docutils literal notranslate"><span class="pre">camelCase</span></code> JSON field names, while letting Python code use the more
-standard <code class="docutils literal notranslate"><span class="pre">snake_case</span></code> field names.</p></li>
+standard <code class="docutils literal notranslate"><span class="pre">snake_case</span></code> field names (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/98">PR #98</a>).</p></li>
 <li><p>Improve performance of <code class="docutils literal notranslate"><span class="pre">nogc=True</span></code> structs (<a class="reference external" href="https://jcristharif.com/msgspec/structs.html#disabling-garbage-collection-advanced">docs</a>).
 GC is now avoided in more cases, and <code class="docutils literal notranslate"><span class="pre">nogc=True</span></code> structs use 16 fewer bytes
 per instance. Also added a <a class="reference external" href="https://jcristharif.com/msgspec/benchmarks.html#benchmark-garbage-collection">benchmark</a>
-for how <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> can interact with application GC usage.</p></li>
+for how <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> can interact with application GC usage (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/93">PR #93</a>).</p></li>
 <li><p>Cache creation of <a class="reference external" href="https://jcristharif.com/msgspec/structs.html#tagged-unions">tagged union</a> lookup
 tables, reducing memory usage for applications making heavy use of tagged
-unions.</p></li>
-<li><p>Support encoding and decoding <code class="docutils literal notranslate"><span class="pre">frozenset</span></code> instances.</p></li>
+unions (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/91">PR #91</a>).</p></li>
+<li><p>Support encoding and decoding <code class="docutils literal notranslate"><span class="pre">frozenset</span></code> instances (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/95">PR #95</a>).</p></li>
 <li><p>A smattering of other performance improvements.</p></li>
 </ul>
 </section>
@@ -229,78 +258,85 @@ unions.</p></li>
 <h2>Version 0.5.0 (2022-03-09)<a class="headerlink" href="#version-0-5-0-2022-03-09" title="Permalink to this heading">#</a></h2>
 <ul class="simple">
 <li><p>Support <a class="reference external" href="https://jcristharif.com/msgspec/structs.html#tagged-unions">tagged unions</a> for
-encoding/decoding a <code class="docutils literal notranslate"><span class="pre">Union</span></code> of <code class="docutils literal notranslate"><span class="pre">msgspec.Struct</span></code> types.</p></li>
-<li><p>Further improve encoding performance of <code class="docutils literal notranslate"><span class="pre">enum.Enum</span></code> instances by 20-30%.</p></li>
+encoding/decoding a <code class="docutils literal notranslate"><span class="pre">Union</span></code> of <code class="docutils literal notranslate"><span class="pre">msgspec.Struct</span></code> types (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/83">PR #83</a>).</p></li>
+<li><p>Further improve encoding performance of <code class="docutils literal notranslate"><span class="pre">enum.Enum</span></code> instances by 20-30%
+(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/84">PR #84</a>).</p></li>
 <li><p>Reduce overhead of calling <code class="docutils literal notranslate"><span class="pre">msgspec.json.decode</span></code>/<code class="docutils literal notranslate"><span class="pre">msgspec.msgpack.decode</span></code>
 with <code class="docutils literal notranslate"><span class="pre">type=SomeStructType</span></code>. It’s still faster to create a <code class="docutils literal notranslate"><span class="pre">Decoder</span></code> once
 and call <code class="docutils literal notranslate"><span class="pre">decoder.decode</span></code> multiple times, but for struct types the overhead
-of calling the top-level function is decreased significantly.</p></li>
-<li><p>Rename the Struct option <code class="docutils literal notranslate"><span class="pre">asarray</span></code> to <code class="docutils literal notranslate"><span class="pre">array_like</span></code> (a breaking change).</p></li>
+of calling the top-level function is decreased significantly (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/77">PR #77</a>,
+<a class="reference external" href="https://github.com/jcrist/msgspec/pull/88">PR #88</a>).</p></li>
+<li><p>Rename the Struct option <code class="docutils literal notranslate"><span class="pre">asarray</span></code> to <code class="docutils literal notranslate"><span class="pre">array_like</span></code> (a breaking change)
+(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/85">PR #85</a>).</p></li>
 </ul>
 </section>
 <section id="version-0-4-2-2022-02-28">
 <h2>Version 0.4.2 (2022-02-28)<a class="headerlink" href="#version-0-4-2-2022-02-28" title="Permalink to this heading">#</a></h2>
 <ul class="simple">
-<li><p>Support <code class="docutils literal notranslate"><span class="pre">typing.Literal</span></code> string types as dict keys in JSON.</p></li>
-<li><p>Support Python 3.10 style unions (for example, <code class="docutils literal notranslate"><span class="pre">int</span> <span class="pre">|</span> <span class="pre">float</span> <span class="pre">|</span> <span class="pre">None</span></code>).</p></li>
-<li><p>Publish Python 3.10 wheels.</p></li>
+<li><p>Support <code class="docutils literal notranslate"><span class="pre">typing.Literal</span></code> string types as dict keys in JSON (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/78">PR #78</a>).</p></li>
+<li><p>Support Python 3.10 style unions (for example, <code class="docutils literal notranslate"><span class="pre">int</span> <span class="pre">|</span> <span class="pre">float</span> <span class="pre">|</span> <span class="pre">None</span></code>)
+(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/75">PR #75</a>).</p></li>
+<li><p>Publish Python 3.10 wheels (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/80">PR #80</a>).</p></li>
 </ul>
 </section>
 <section id="version-0-4-1-2022-02-23">
 <h2>Version 0.4.1 (2022-02-23)<a class="headerlink" href="#version-0-4-1-2022-02-23" title="Permalink to this heading">#</a></h2>
 <ul class="simple">
-<li><p>Optimize decoding of <code class="docutils literal notranslate"><span class="pre">Enum</span></code> types, on average ~10x faster.</p></li>
-<li><p>Optimize decoding of <code class="docutils literal notranslate"><span class="pre">IntEnum</span></code> types, on average ~12x faster.</p></li>
-<li><p>Support decoding <code class="docutils literal notranslate"><span class="pre">typing.Literal</span></code> types.</p></li>
+<li><p>Optimize decoding of <code class="docutils literal notranslate"><span class="pre">Enum</span></code> types, on average ~10x faster (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/69">PR #69</a>).</p></li>
+<li><p>Optimize decoding of <code class="docutils literal notranslate"><span class="pre">IntEnum</span></code> types, on average ~12x faster (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/68">PR #68</a>).</p></li>
+<li><p>Support decoding <code class="docutils literal notranslate"><span class="pre">typing.Literal</span></code> types (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/71">PR #71</a>).</p></li>
 <li><p>Add <code class="docutils literal notranslate"><span class="pre">nogc</span></code> option for <code class="docutils literal notranslate"><span class="pre">Struct</span></code> types, disabling the cyclic garbage
-collector for their instances.</p></li>
+collector for their instances (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/72">PR #72</a>).</p></li>
 </ul>
 </section>
 <section id="version-0-4-0-2022-02-08">
 <h2>Version 0.4.0 (2022-02-08)<a class="headerlink" href="#version-0-4-0-2022-02-08" title="Permalink to this heading">#</a></h2>
 <ul class="simple">
-<li><p>Moved MessagePack support to the <code class="docutils literal notranslate"><span class="pre">msgspec.msgpack</span></code> submodule.</p></li>
-<li><p>New JSON support available in <code class="docutils literal notranslate"><span class="pre">msgspec.json</span></code>.</p></li>
-<li><p>Improved error message generation to provide full path to the mistyped values.</p></li>
+<li><p>Moved MessagePack support to the <code class="docutils literal notranslate"><span class="pre">msgspec.msgpack</span></code> submodule (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/56">PR #56</a>).</p></li>
+<li><p>New JSON support available in <code class="docutils literal notranslate"><span class="pre">msgspec.json</span></code> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/56">PR #56</a>).</p></li>
+<li><p>Improved error message generation to provide full path to the mistyped values
+(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/56">PR #56</a>).</p></li>
 <li><p>Renamed the <code class="docutils literal notranslate"><span class="pre">immutable</span></code> kwarg in <code class="docutils literal notranslate"><span class="pre">msgspec.Struct</span></code> to <code class="docutils literal notranslate"><span class="pre">frozen</span></code> to better
-match python conventions.</p></li>
+match python conventions (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/60">PR #60</a>).</p></li>
 <li><p>Renamed <code class="docutils literal notranslate"><span class="pre">EncodingError</span></code> to <code class="docutils literal notranslate"><span class="pre">EncodeError</span></code>/<code class="docutils literal notranslate"><span class="pre">DecodingError</span></code> to
-<code class="docutils literal notranslate"><span class="pre">DecodeError</span></code> to better match python conventions.</p></li>
+<code class="docutils literal notranslate"><span class="pre">DecodeError</span></code> to better match python conventions (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/61">PR #61</a>).</p></li>
 <li><p>Improved <code class="docutils literal notranslate"><span class="pre">pyright</span></code> support, allowing more errors to be statically caught by
-their type checker.</p></li>
-<li><p>Adds support for Python 3.10 pattern matching on <code class="docutils literal notranslate"><span class="pre">msgspec.Struct</span></code> types.</p></li>
+their type checker (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/60">PR #60</a>).</p></li>
+<li><p>Adds support for Python 3.10 pattern matching on <code class="docutils literal notranslate"><span class="pre">msgspec.Struct</span></code> types
+(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/53">PR #53</a>).</p></li>
 <li><p>Adds support for decoding into <code class="docutils literal notranslate"><span class="pre">typing.Union</span></code> types (with a few
-restrictions).</p></li>
+restrictions) (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/54">PR #54</a>).</p></li>
 <li><p>General performance improvements across all encoders/decoders.</p></li>
 </ul>
 </section>
 <section id="version-0-3-2-2021-07-23">
 <h2>Version 0.3.2 (2021-07-23)<a class="headerlink" href="#version-0-3-2-2021-07-23" title="Permalink to this heading">#</a></h2>
 <ul class="simple">
-<li><p>Faster float encoding and decoding.</p></li>
+<li><p>Faster float encoding and decoding (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/47">PR #47</a>).</p></li>
 <li><p>General micro-optimizations for MessagePack encode/decode. This is most
-visible for large messages.</p></li>
+visible for large messages (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/48">PR #48</a>, <a class="reference external" href="https://github.com/jcrist/msgspec/pull/50">PR #50</a>).</p></li>
 </ul>
 </section>
 <section id="version-0-3-1-2021-07-12">
 <h2>Version 0.3.1 (2021-07-12)<a class="headerlink" href="#version-0-3-1-2021-07-12" title="Permalink to this heading">#</a></h2>
 <ul class="simple">
-<li><p>Use a freelist for small structs to improve struct allocation time.</p></li>
-<li><p>Small performance improvements for struct serialization.</p></li>
+<li><p>Use a freelist for small structs to improve struct allocation time
+(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/44">PR #44</a>).</p></li>
+<li><p>Small performance improvements for struct serialization (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/45">PR #45</a>).</p></li>
 </ul>
 </section>
 <section id="version-0-3-0-2021-07-07">
 <h2>Version 0.3.0 (2021-07-07)<a class="headerlink" href="#version-0-3-0-2021-07-07" title="Permalink to this heading">#</a></h2>
 <ul class="simple">
 <li><p>Add <code class="docutils literal notranslate"><span class="pre">Encoder.encode_into</span></code> api, for encoding into an existing buffer without
-copying.</p></li>
-<li><p>Add support for encoding/decoding MessagePack extensions.</p></li>
-<li><p>Add support for encoding/decoding <code class="docutils literal notranslate"><span class="pre">datetime</span></code> objects.</p></li>
+copying (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/34">PR #34</a>).</p></li>
+<li><p>Add support for encoding/decoding MessagePack extensions (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/31">PR #31</a>).</p></li>
+<li><p>Add support for encoding/decoding <code class="docutils literal notranslate"><span class="pre">datetime</span></code> objects (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/36">PR #36</a>).</p></li>
 <li><p>Add support for encoding/decoding custom objects without relying on
-MessagePack extensions.</p></li>
-<li><p>Add support for marking <code class="docutils literal notranslate"><span class="pre">Struct</span></code> types as hashable.</p></li>
+MessagePack extensions (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/32">PR #32</a>, <a class="reference external" href="https://github.com/jcrist/msgspec/pull/33">PR #33</a>).</p></li>
+<li><p>Add support for marking <code class="docutils literal notranslate"><span class="pre">Struct</span></code> types as hashable (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/39">PR #39</a>).</p></li>
 <li><p>Add support for serializing <code class="docutils literal notranslate"><span class="pre">Struct</span></code> types as MessagePack <code class="docutils literal notranslate"><span class="pre">array</span></code> objects
-rather than <code class="docutils literal notranslate"><span class="pre">map</span></code> objects.</p></li>
+rather than <code class="docutils literal notranslate"><span class="pre">map</span></code> objects (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/39">PR #39</a>).</p></li>
 <li><p>Several performance improvements. On average 50% faster encoding and 30%
 faster decoding.</p></li>
 </ul>
@@ -308,8 +344,8 @@ faster decoding.</p></li>
 <section id="version-0-2-0-2021-02-25">
 <h2>Version 0.2.0 (2021-02-25)<a class="headerlink" href="#version-0-2-0-2021-02-25" title="Permalink to this heading">#</a></h2>
 <ul class="simple">
-<li><p>Add <code class="docutils literal notranslate"><span class="pre">default</span></code> callback to <code class="docutils literal notranslate"><span class="pre">encode</span></code>/<code class="docutils literal notranslate"><span class="pre">Encoder</span></code></p></li>
-<li><p>Fix bug in <code class="docutils literal notranslate"><span class="pre">Encoder</span></code> dealloc</p></li>
+<li><p>Add <code class="docutils literal notranslate"><span class="pre">default</span></code> callback to <code class="docutils literal notranslate"><span class="pre">encode</span></code>/<code class="docutils literal notranslate"><span class="pre">Encoder</span></code> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/21">PR #21</a>).</p></li>
+<li><p>Fix bug in <code class="docutils literal notranslate"><span class="pre">Encoder</span></code> dealloc (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/21">PR #21</a>).</p></li>
 </ul>
 </section>
 <section id="version-0-1-0-2021-02-23">
@@ -373,6 +409,7 @@ faster decoding.</p></li>
           <div class="toc-tree">
             <ul>
 <li><a class="reference internal" href="#">Changelog</a><ul>
+<li><a class="reference internal" href="#version-0-7-0-2022-06-20">Version 0.7.0 (2022-06-20)</a></li>
 <li><a class="reference internal" href="#version-0-6-0-2022-04-06">Version 0.6.0 (2022-04-06)</a></li>
 <li><a class="reference internal" href="#version-0-5-0-2022-03-09">Version 0.5.0 (2022-03-09)</a></li>
 <li><a class="reference internal" href="#version-0-4-2-2022-02-28">Version 0.4.2 (2022-02-28)</a></li>
