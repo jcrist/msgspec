@@ -171,16 +171,7 @@ def bench(name, template):
         order_time = ((end - start) / (N * M)) * 1e6
         print(f"- order: {order_time:.2f} μs")
 
-    # Benchmark repr
-    start = perf_counter()
-    for _ in range(N):
-        for obj in haystack:
-            repr(obj)
-    end = perf_counter()
-    repr_time = ((end - start) / (N * M)) * 1e6
-    print(f"- repr: {repr_time:.2f} μs")
-
-    return (name, define_time, init_time, equality_time, order_time, repr_time)
+    return (name, define_time, init_time, equality_time, order_time)
 
 
 def format_table(results):
@@ -190,7 +181,6 @@ def format_table(results):
         "create (μs)",
         "equality (μs)",
         "order (μs)",
-        "repr (μs)",
     )
 
     def f(n):
