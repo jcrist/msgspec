@@ -6,7 +6,8 @@ import inspect
 import operator
 import pickle
 import sys
-from typing import Any
+import weakref
+from typing import Any, Optional
 
 import pytest
 
@@ -72,6 +73,15 @@ def test_struct_subclass_forbids_init_new_slots():
         class Test3(Struct):
             __slots__ = ("a",)
             a: int
+
+
+def test_struct_subclass_forbids_field_named_weakref():
+    with pytest.raises(
+        TypeError, match="Cannot have a struct field named '__weakref__'"
+    ):
+
+        class Test1(Struct):
+            __weakref__: int
 
 
 def test_struct_subclass_forbids_non_struct_bases():
@@ -640,24 +650,99 @@ class TestStructGC:
         assert not gc.is_tracked(copy.copy(Test(1, ())))
         assert gc.is_tracked(copy.copy(Test(1, []))) == has_gc
 
-    @pytest.mark.parametrize("has_gc", [False, True])
-    def test_struct_finalizer_called(self, has_gc):
-        """Check that structs dealloc properly calls __del__"""
-
-        called = False
-
-        class Test(Struct, gc=has_gc):
+    def test_struct_dealloc_decrefs_type(self):
+        class Test(Struct):
             x: int
             y: int
 
-            def __del__(self):
-                nonlocal called
-                called = True
-
+        orig = sys.getrefcount(Test)
         t = Test(1, 2)
+        temp = sys.getrefcount(Test)
+        assert temp == orig + 1
+        del t
+        new = sys.getrefcount(Test)
+        assert orig == new
+
+    @pytest.mark.parametrize("has_gc", [False, True])
+    def test_struct_dealloc_calls_finalizer(self, has_gc):
+        # We loop here (and in the resurrection test) to ensure that the
+        # `is_finalized` state isn't carried over through the freelist from a
+        # previously allocated struct.
+        for _ in range(3):
+            called = False
+
+            class Test(Struct, gc=has_gc):
+                x: int
+                y: int
+
+                def __del__(self):
+                    nonlocal called
+                    called = True
+
+            t = Test(1, 2)
+            if hasattr(gc, "is_finalized"):
+                assert not gc.is_finalized(t)
+            del t
+
+            assert called
+
+    @pytest.mark.parametrize("has_gc", [False, True])
+    def test_struct_dealloc_supports_finalizer_resurrection(self, has_gc):
+        for _ in range(3):
+            called = False
+            new_ref = None
+
+            class Test(Struct, gc=has_gc):
+                x: int
+                y: int
+
+                def __del__(self):
+                    # XXX: Python will only run `__del__` once, even if it's
+                    # resurrected FOR GC TYPES ONLY. If gc=False, cpython will
+                    # happily run `__del__` every time the refcount drops to 0
+                    nonlocal called
+                    nonlocal new_ref
+                    if not called:
+                        called = True
+                        new_ref = self
+
+            t = Test(1, 2)
+
+            del t
+            assert called
+            assert new_ref is not None
+            del new_ref
+
+    def test_struct_dealloc_trashcan(self):
+        call_count = 0
+
+        class Node(Struct):
+            child: "Optional[Node]" = None
+
+            def __del__(self):
+                nonlocal call_count
+                call_count += 1
+
+        node = None
+        for _ in range(100):
+            node = Node(node)
+
+        del node
+        assert call_count == 100
+
+    def test_struct_dealloc_weakref(self):
+        class Test(Struct, weakref=True):
+            x: int
+
+        t = Test(1)
+        # smoketest dealloc weakrefable struct doesn't crash
         del t
 
-        assert called
+        t = Test(1)
+        ref = weakref.ref(t)
+        assert ref() is not None
+        del t
+        assert ref() is None
 
 
 class MyStruct(Struct):
@@ -752,6 +837,43 @@ def test_struct_option_precedence(option, default):
         pass
 
     assert get(T) is False
+
+
+def test_weakref_option():
+    class Default(Struct):
+        pass
+
+    assert Default.__weakrefoffset__ == 0
+
+    class Enabled(Struct, weakref=True):
+        pass
+
+    assert Enabled.__weakrefoffset__ != 0
+
+    class Disabled(Struct, weakref=False):
+        pass
+
+    assert Disabled.__weakrefoffset__ == 0
+
+    class T(Enabled):
+        pass
+
+    assert T.__weakrefoffset__ != 0
+
+    class T(Enabled, Default):
+        pass
+
+    assert T.__weakrefoffset__ != 0
+
+    class T(Default, Disabled, Enabled):
+        pass
+
+    assert T.__weakrefoffset__ != 0
+
+    with pytest.raises(ValueError, match="Cannot set `weakref=False`"):
+
+        class T(Enabled, weakref=False):
+            pass
 
 
 def test_invalid_option_raises():
@@ -1203,6 +1325,16 @@ class TestDefStruct:
 
         Test = defstruct("Test", [])
         assert getattr(Test, option) is default
+
+    def test_defstruct_weakref(self):
+        Test = defstruct("Test", [])
+        assert Test.__weakrefoffset__ == 0
+
+        Test = defstruct("Test", [], weakref=False)
+        assert Test.__weakrefoffset__ == 0
+
+        Test = defstruct("Test", [], weakref=True)
+        assert Test.__weakrefoffset__ != 0
 
     def test_defstruct_tag_and_tag_field(self):
         Test = defstruct("Test", [], tag="mytag", tag_field="mytagfield")

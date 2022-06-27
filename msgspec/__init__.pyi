@@ -40,15 +40,16 @@ class Struct(metaclass=__StructMeta):
         cls,
         tag: Union[None, bool, str, Callable[[str], str]] = None,
         tag_field: Union[None, str] = None,
-        omit_defaults: bool = False,
         rename: Union[
             None, Literal["lower", "upper", "camel", "pascal"], Callable[[str], str]
         ] = None,
+        omit_defaults: bool = False,
         frozen: bool = False,
         eq: bool = True,
         order: bool = False,
         array_like: bool = False,
         gc: bool = True,
+        weakref: bool = False,
     ) -> None: ...
 
 def defstruct(
@@ -60,15 +61,16 @@ def defstruct(
     namespace: Optional[Dict[str, Any]] = None,
     tag: Union[None, bool, str, Callable[[str], str]] = None,
     tag_field: Union[None, str] = None,
-    omit_defaults: bool = False,
     rename: Union[
         None, Literal["lower", "upper", "camel", "pascal"], Callable[[str], str]
     ] = None,
+    omit_defaults: bool = False,
     frozen: bool = False,
     eq: bool = True,
     order: bool = False,
     array_like: bool = False,
     gc: bool = True,
+    weakref: bool = False,
 ) -> Type[Struct]: ...
 
 # Lie and say `Raw` is a subclass of `bytes`, so mypy will accept it in most

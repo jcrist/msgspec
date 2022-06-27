@@ -35,12 +35,10 @@ ms_popcount(uint32_t i) {
 #endif
 
 #if PY_VERSION_HEX < 0x03090000
-#define IS_TRACKED(o) _PyObject_GC_IS_TRACKED(o)
 #define CALL_ONE_ARG(f, a) PyObject_CallFunctionObjArgs(f, a, NULL)
 #define CALL_METHOD_ONE_ARG(o, n, a) PyObject_CallMethodObjArgs(o, n, a, NULL)
 #define SET_SIZE(obj, size) (((PyVarObject *)obj)->ob_size = size)
 #else
-#define IS_TRACKED(o)  PyObject_GC_IsTracked(o)
 #define CALL_ONE_ARG(f, a) PyObject_CallOneArg(f, a)
 #define CALL_METHOD_ONE_ARG(o, n, a) PyObject_CallMethodOneArg(o, n, a)
 #define SET_SIZE(obj, size) Py_SET_SIZE(obj, size)
@@ -50,17 +48,6 @@ ms_popcount(uint32_t i) {
 
 /* Easy access to NoneType object */
 #define NONE_TYPE ((PyObject *)(Py_TYPE(Py_None)))
-
-#define MS_TYPE_IS_GC(t) (((PyTypeObject *)(t))->tp_flags & Py_TPFLAGS_HAVE_GC)
-#define MS_OBJECT_IS_GC(obj) MS_TYPE_IS_GC(Py_TYPE(obj))
-
-/* Is this object something that is/could be GC tracked? True if
- * - the value supports GC
- * - the value isn't a tuple or the object is tracked (skip tracked checks for non-tuples)
- */
-#define OBJ_IS_GC(x) \
-    (MS_TYPE_IS_GC(Py_TYPE(x)) && \
-     (!PyTuple_CheckExact(x) || IS_TRACKED(x)))
 
 /* Fast shrink of bytes & bytearray objects. This doesn't do any memory
  * allocations, it just shrinks the size of the view presented to Python. Since
@@ -87,6 +74,29 @@ unicode_str_and_size(PyObject *str, Py_ssize_t *size) {
     }
     return PyUnicode_AsUTF8AndSize(str, size);
 }
+
+/*************************************************************************
+ * GC Utilities                                                          *
+ *************************************************************************/
+
+/* Mirrored from pycore_gc.h in cpython */
+typedef struct {
+    uintptr_t _gc_next;
+    uintptr_t _gc_prev;
+} MS_PyGC_Head;
+
+#define MS_AS_GC(o) ((MS_PyGC_Head *)(o)-1)
+#define MS_TYPE_IS_GC(t) (((PyTypeObject *)(t))->tp_flags & Py_TPFLAGS_HAVE_GC)
+#define MS_OBJECT_IS_GC(obj) MS_TYPE_IS_GC(Py_TYPE(obj))
+#define MS_IS_TRACKED(o) (MS_AS_GC(o)->_gc_next != 0)
+
+/* Is this object something that is/could be GC tracked? True if
+ * - the value supports GC
+ * - the value isn't a tuple or the object is tracked (skip tracked checks for non-tuples)
+ */
+#define MS_OBJ_IS_GC(x) \
+    (MS_TYPE_IS_GC(Py_TYPE(x)) && \
+     (!PyTuple_CheckExact(x) || MS_IS_TRACKED(x)))
 
 /*************************************************************************
  * Murmurhash2                                                           *
@@ -404,6 +414,7 @@ typedef struct {
     PyObject *StructType;
     PyTypeObject *EnumMetaType;
     PyObject *struct_lookup_cache;
+    PyObject *str___weakref__;
     PyObject *str__name_;
     PyObject *str__member_map_;
     PyObject *str___msgspec_lookup__;
@@ -447,7 +458,8 @@ msgspec_get_state(PyObject *module)
 static MsgspecState *
 msgspec_get_global_state(void)
 {
-    return msgspec_get_state(PyState_FindModule(&msgspecmodule));
+    PyObject *module = PyState_FindModule(&msgspecmodule);
+    return module == NULL ? NULL : msgspec_get_state(module);
 }
 
 static int
@@ -2763,20 +2775,27 @@ Struct_dealloc(PyObject *self) {
         PyObject_GC_UnTrack(self);
     }
 
+    Py_TRASHCAN_BEGIN(self, Struct_dealloc)
+
     /* Maybe call a finalizer */
     if (type->tp_finalize) {
-        /* If resurrected, return early */
-        if (PyObject_CallFinalizerFromDealloc(self) < 0) return;
+        /* If resurrected, exit early */
+        if (PyObject_CallFinalizerFromDealloc(self) < 0) goto done;
     }
 
-    Py_TRASHCAN_BEGIN(self, Struct_dealloc)
+    /* Maybe clear weakrefs */
+    if (type->tp_weaklistoffset) {
+        PyObject_ClearWeakRefs(self);
+    }
+
+    /* Clear all slots */
     base = type;
     while (base != NULL) {
-        if (Py_SIZE(base))
+        if (Py_SIZE(base)) {
             clear_slots(base, self);
+        }
         base = base->tp_base;
     }
-    Py_TRASHCAN_END
 
 #if STRUCT_FREELIST_MAX_SIZE > 0
     Py_ssize_t size = (type->tp_basicsize - sizeof(PyObject)) / sizeof(void *);
@@ -2786,6 +2805,11 @@ Struct_dealloc(PyObject *self) {
         struct_freelist_len[free_ind] < STRUCT_FREELIST_MAX_PER_SIZE)
     {
         /* Push object onto freelist */
+        if (is_gc) {
+            /* Reset GC state before pushing onto freelist */
+            MS_AS_GC(self)->_gc_next = 0;
+            MS_AS_GC(self)->_gc_prev = 0;
+        }
         self->ob_type = (PyTypeObject *)(struct_freelist[free_ind]);
         struct_freelist_len[free_ind]++;
         struct_freelist[free_ind] = self;
@@ -2796,7 +2820,12 @@ Struct_dealloc(PyObject *self) {
 #else
     type->tp_free(self);
 #endif
+
+    /* Decref the object type */
     Py_DECREF(type);
+
+done:
+    Py_TRASHCAN_END
 }
 
 static MS_INLINE Py_ssize_t
@@ -2861,7 +2890,7 @@ static int
 Struct_setattro_default(PyObject *self, PyObject *key, PyObject *value) {
     if (PyObject_GenericSetAttr(self, key, value) < 0)
         return -1;
-    if (value != NULL && OBJ_IS_GC(value) && !IS_TRACKED(self))
+    if (value != NULL && MS_OBJ_IS_GC(value) && !MS_IS_TRACKED(self))
         PyObject_GC_Track(self);
     return 0;
 }
@@ -3028,10 +3057,9 @@ error:
 static PyObject *
 StructMeta_new_inner(
     PyTypeObject *type, PyObject *name, PyObject *bases, PyObject *namespace,
-    PyObject *arg_tag_field, PyObject *arg_tag,
-    int arg_frozen, int arg_eq, int arg_order,
-    int arg_array_like, int arg_gc, int arg_omit_defaults,
-    PyObject *arg_rename
+    PyObject *arg_tag_field, PyObject *arg_tag, PyObject *arg_rename,
+    int arg_omit_defaults, int arg_frozen, int arg_eq, int arg_order,
+    int arg_array_like, int arg_gc, int arg_weakref
 ) {
     StructMetaObject *cls = NULL;
     PyObject *arg_fields = NULL, *kwarg_fields = NULL, *new_dict = NULL, *new_args = NULL;
@@ -3043,7 +3071,9 @@ StructMeta_new_inner(
     PyObject *rename = NULL, *encode_fields = NULL;
     PyObject *tag_field_temp = NULL, *tag_temp = NULL;
     PyObject *tag = NULL, *tag_field = NULL,  *tag_value = NULL;
-    int frozen = -1, eq = -1, order = -1, array_like = -1, gc = -1, omit_defaults = -1;
+    int omit_defaults = -1, frozen = -1, eq = -1, order = -1, array_like = -1, gc = -1;
+    bool already_has_weakref = false;
+    MsgspecState *mod = msgspec_get_global_state();
 
     if (PyDict_GetItemString(namespace, "__init__") != NULL) {
         PyErr_SetString(PyExc_TypeError, "Struct types cannot define __init__");
@@ -3081,6 +3111,11 @@ StructMeta_new_inner(
             );
             goto error;
         }
+
+        if (((PyTypeObject *)base)->tp_weaklistoffset) {
+            already_has_weakref = true;
+        }
+
         /* Inherit config fields */
         PyObject *base_tag_field = ((StructMetaObject *)base)->struct_tag_field;
         if (base_tag_field != NULL) {
@@ -3169,6 +3204,14 @@ StructMeta_new_inner(
                 goto error;
             }
 
+            if (PyUnicode_Compare(field, mod->str___weakref__) == 0) {
+                PyErr_SetString(
+                    PyExc_TypeError,
+                    "Cannot have a struct field named '__weakref__'"
+                );
+                goto error;
+            }
+
             /* If the field is new, add it to slots */
             if (PyDict_GetItem(arg_fields, field) == NULL && PyDict_GetItem(kwarg_fields, field) == NULL) {
                 if (PyList_Append(slots_list, field) < 0)
@@ -3219,6 +3262,17 @@ StructMeta_new_inner(
     }
     Py_CLEAR(arg_fields);
     Py_CLEAR(kwarg_fields);
+
+    if (arg_weakref == OPT_TRUE && !already_has_weakref) {
+        if (PyList_Append(slots_list, mod->str___weakref__) < 0) goto error;
+    }
+    else if (arg_weakref == OPT_FALSE && already_has_weakref) {
+        PyErr_SetString(
+            PyExc_ValueError,
+            "Cannot set `weakref=False` if base class already has `weakref=True`"
+        );
+        goto error;
+    }
 
     if (PyList_Sort(slots_list) < 0)
         goto error;
@@ -3275,8 +3329,7 @@ StructMeta_new_inner(
         /* Next determine the tag_field to use.
          * Note: `None` was already normalized to NULL */
         if (tag_field_temp == NULL) {
-            MsgspecState *st = msgspec_get_global_state();
-            tag_field = st->str_type;
+            tag_field = mod->str_type;
             Py_INCREF(tag_field);
         }
         else if (PyUnicode_CheckExact(tag_field_temp)) {
@@ -3391,27 +3444,33 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
 {
     PyObject *name = NULL, *bases = NULL, *namespace = NULL;
     PyObject *arg_tag_field = NULL, *arg_tag = NULL, *arg_rename = NULL;
-    int arg_frozen = -1, arg_eq = -1, arg_order = -1, arg_array_like = -1, arg_gc = -1, arg_omit_defaults = -1;
+    int arg_omit_defaults = -1, arg_frozen = -1, arg_eq = -1, arg_order = -1;
+    int arg_array_like = -1, arg_gc = -1, arg_weakref = -1;
 
     static char *kwlist[] = {
         "name", "bases", "dict",
-        "tag_field", "tag", "frozen", "eq", "order",
-        "array_like", "gc", "omit_defaults", "rename", NULL
+        "tag_field", "tag", "rename",
+        "omit_defaults", "frozen", "eq", "order",
+        "array_like", "gc", "weakref",
+        NULL
     };
 
     /* Parse arguments: (name, bases, dict) */
     if (!PyArg_ParseTupleAndKeywords(
-            args, kwargs, "UO!O!|$OOppppppO:StructMeta.__new__", kwlist,
+            args, kwargs, "UO!O!|$OOOppppppp:StructMeta.__new__", kwlist,
             &name, &PyTuple_Type, &bases, &PyDict_Type, &namespace,
-            &arg_tag_field, &arg_tag, &arg_frozen, &arg_eq, &arg_order,
-            &arg_array_like, &arg_gc, &arg_omit_defaults, &arg_rename)
+            &arg_tag_field, &arg_tag, &arg_rename,
+            &arg_omit_defaults, &arg_frozen, &arg_eq, &arg_order,
+            &arg_array_like, &arg_gc, &arg_weakref
+        )
     )
         return NULL;
 
     return StructMeta_new_inner(
         type, name, bases, namespace,
-        arg_tag_field, arg_tag, arg_frozen, arg_eq, arg_order,
-        arg_array_like, arg_gc, arg_omit_defaults, arg_rename
+        arg_tag_field, arg_tag, arg_rename,
+        arg_omit_defaults, arg_frozen, arg_eq, arg_order,
+        arg_array_like, arg_gc, arg_weakref
     );
 }
 
@@ -3419,7 +3478,8 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
 PyDoc_STRVAR(msgspec_defstruct__doc__,
 "defstruct(name, fields, *, bases=(), module=None, namespace=None, "
 "tag_field=None, tag=None, rename=None, omit_defaults=False, "
-"frozen=False, eq=True, order=False, array_like=False, gc=True)\n"
+"frozen=False, eq=True, order=False, array_like=False, gc=True, "
+"weakref=False)\n"
 "--\n"
 "\n"
 "Dynamically define a new Struct class.\n"
@@ -3454,20 +3514,24 @@ msgspec_defstruct(PyObject *self, PyObject *args, PyObject *kwargs)
     PyObject *name = NULL, *fields = NULL, *bases = NULL, *module = NULL, *namespace = NULL;
     PyObject *arg_tag_field = NULL, *arg_tag = NULL, *arg_rename = NULL;
     PyObject *new_bases = NULL, *annotations = NULL, *fields_fast = NULL, *out = NULL;
-    int arg_frozen = -1, arg_eq = -1, arg_order = -1, arg_array_like = -1, arg_gc = -1, arg_omit_defaults = -1;
+    int arg_omit_defaults = -1, arg_frozen = -1, arg_eq = -1, arg_order = -1;
+    int arg_array_like = -1, arg_gc = -1, arg_weakref = -1;
 
     static char *kwlist[] = {
         "name", "fields", "bases", "module", "namespace",
-        "tag_field", "tag", "rename", "omit_defaults",
-        "frozen", "eq", "order", "array_like", "gc", NULL
+        "tag_field", "tag", "rename",
+        "omit_defaults", "frozen", "eq", "order",
+        "array_like", "gc", "weakref",
+        NULL
     };
 
     /* Parse arguments: (name, bases, dict) */
     if (!PyArg_ParseTupleAndKeywords(
-            args, kwargs, "UO|$O!UO!OOOpppppp:defstruct", kwlist,
+            args, kwargs, "UO|$O!UO!OOOppppppp:defstruct", kwlist,
             &name, &fields, &PyTuple_Type, &bases, &module, &PyDict_Type, &namespace,
-            &arg_tag_field, &arg_tag, &arg_rename, &arg_omit_defaults,
-            &arg_frozen, &arg_eq, &arg_order, &arg_array_like, &arg_gc)
+            &arg_tag_field, &arg_tag, &arg_rename,
+            &arg_omit_defaults, &arg_frozen, &arg_eq, &arg_order,
+            &arg_array_like, &arg_gc, &arg_weakref)
     )
         return NULL;
 
@@ -3531,8 +3595,9 @@ msgspec_defstruct(PyObject *self, PyObject *args, PyObject *kwargs)
 
     out = StructMeta_new_inner(
         &StructMetaType, name, bases, namespace,
-        arg_tag_field, arg_tag, arg_frozen, arg_eq, arg_order,
-        arg_array_like, arg_gc, arg_omit_defaults, arg_rename
+        arg_tag_field, arg_tag, arg_rename,
+        arg_omit_defaults, arg_frozen, arg_eq, arg_order,
+        arg_array_like, arg_gc, arg_weakref
     );
 
 cleanup:
@@ -3984,7 +4049,7 @@ Struct_fill_in_defaults(StructMetaObject *st_type, PyObject *obj, PathNode *path
             }
         }
         if (should_untrack) {
-            should_untrack = !OBJ_IS_GC(val);
+            should_untrack = !MS_OBJ_IS_GC(val);
         }
     }
     if (is_gc && !should_untrack)
@@ -4056,7 +4121,7 @@ Struct_vectorcall(PyTypeObject *cls, PyObject *const *args, size_t nargsf, PyObj
         }
         Struct_set_index(self, i, val);
         if (should_untrack) {
-            should_untrack = !OBJ_IS_GC(val);
+            should_untrack = !MS_OBJ_IS_GC(val);
         }
     }
     if (nkwargs > 0) {
@@ -4259,7 +4324,7 @@ Struct_copy(PyObject *self, PyObject *args)
         Struct_set_index(res, i, val);
     }
     /* If self is tracked, then copy is tracked */
-    if (MS_OBJECT_IS_GC(self) && IS_TRACKED(self))
+    if (MS_OBJECT_IS_GC(self) && MS_IS_TRACKED(self))
         PyObject_GC_Track(res);
     return res;
 error:
@@ -4358,7 +4423,7 @@ PyDoc_STRVAR(Struct__doc__,
 "Configuration\n"
 "-------------\n"
 "frozen: bool, default False\n"
-"   Whether instances of the class are pseudo-immutable. If true, attribute\n"
+"   Whether instances of this type are pseudo-immutable. If true, attribute\n"
 "   assignment is disabled and a corresponding ``__hash__`` is defined.\n"
 "order: bool, default False\n"
 "   If True, ``__lt__``, `__le__``, ``__gt__``, and ``__ge__`` methods\n"
@@ -4398,10 +4463,12 @@ PyDoc_STRVAR(Struct__doc__,
 "   encoding/decoding, rather than a dict-like type (the default). This may\n"
 "   improve performance, at the cost of a more inscrutable message encoding\n"
 "gc: bool, default True\n"
-"   Whether garbage collection is enabled for this class. Disabling this *may*\n"
+"   Whether garbage collection is enabled for this type. Disabling this *may*\n"
 "   help reduce GC pressure, but will prevent reference cycles composed of only\n"
 "   ``gc=False`` from being collected. It is the user's responsibility to ensure\n"
 "   that reference cycles don't occur when setting ``gc=False``.\n"
+"weakref: bool, default False\n"
+"   Whether instances of this type support weak references. Defaults to False.\n"
 "\n"
 "Examples\n"
 "--------\n"
@@ -7438,7 +7505,7 @@ mpack_decode_struct_array_inner(
         }
         Struct_set_index(res, i, val);
         if (should_untrack) {
-            should_untrack = !OBJ_IS_GC(val);
+            should_untrack = !MS_OBJ_IS_GC(val);
         }
     }
     /* Ignore all trailing fields */
@@ -9469,7 +9536,7 @@ json_decode_struct_array_inner(
             if (MS_UNLIKELY(item == NULL)) goto error;
             Struct_set_index(out, i, item);
             if (should_untrack) {
-                should_untrack = !OBJ_IS_GC(item);
+                should_untrack = !MS_OBJ_IS_GC(item);
             }
             i++;
             item_path.index++;
@@ -9498,7 +9565,7 @@ json_decode_struct_array_inner(
         if (item == NULL) goto error;
         Struct_set_index(out, i, item);
         if (should_untrack) {
-            should_untrack = !OBJ_IS_GC(item);
+            should_untrack = !MS_OBJ_IS_GC(item);
         }
     }
     Py_LeaveRecursiveCall();
@@ -10724,6 +10791,7 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->StructType);
     Py_CLEAR(st->EnumMetaType);
     Py_CLEAR(st->struct_lookup_cache);
+    Py_CLEAR(st->str___weakref__);
     Py_CLEAR(st->str__name_);
     Py_CLEAR(st->str__member_map_);
     Py_CLEAR(st->str___msgspec_lookup__);
@@ -11023,6 +11091,7 @@ PyInit__core(void)
     /* Initialize cached constant strings */
 #define CACHED_STRING(attr, str) \
     if ((st->attr = PyUnicode_InternFromString(str)) == NULL) return NULL
+    CACHED_STRING(str___weakref__, "__weakref__");
     CACHED_STRING(str__name_, "_name_");
     CACHED_STRING(str__member_map_, "_member_map_");
     CACHED_STRING(str___msgspec_lookup__, "__msgspec_lookup__");
