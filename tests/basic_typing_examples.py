@@ -130,6 +130,17 @@ def check_struct_gc() -> None:
     reveal_type(t.y)  # assert "str" in typ
 
 
+def check_struct_weakref() -> None:
+    class Test(msgspec.Struct, weakref=True):
+        x: int
+        y: str
+
+    t = Test(1, "foo")
+    reveal_type(t)  # assert "Test" in typ
+    reveal_type(t.x)  # assert "int" in typ
+    reveal_type(t.y)  # assert "str" in typ
+
+
 def check_struct_tag_tag_field() -> None:
     class Test1(msgspec.Struct, tag=None):
         pass
