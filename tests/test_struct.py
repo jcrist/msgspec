@@ -680,7 +680,8 @@ class TestStructGC:
                     called = True
 
             t = Test(1, 2)
-            assert not gc.is_finalized(t)
+            if hasattr(gc, "is_finalized"):
+                assert not gc.is_finalized(t)
             del t
 
             assert called
