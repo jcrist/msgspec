@@ -48,7 +48,6 @@ setup(
     license="BSD",
     packages=["msgspec"],
     package_data={"msgspec": ["py.typed", "*.pyi"]},
-    include_package_data=True,
     ext_modules=ext_modules,
     long_description=(
         open("README.rst", encoding="utf-8").read()
