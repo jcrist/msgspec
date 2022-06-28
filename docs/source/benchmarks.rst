@@ -174,7 +174,7 @@ For each library, the following operations are benchmarked:
 The `full benchmark source can be found here
 <https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_structs.py>`__.
 
-**Results:**
+**Results (smaller is better):**
 
 +----------------------+-------------+-------------+---------------+------------+
 |                      | import (μs) | create (μs) | equality (μs) | order (μs) |
@@ -221,7 +221,7 @@ of the benchmarked type, then measure:
 The `full benchmark source can be found here
 <https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_gc.py>`__.
 
-**Results:**
+**Results (smaller is better):**
 
 +-----------------------------------+--------------+-------------------+
 |                                   | GC time (ms) | Memory Used (MiB) |
@@ -251,6 +251,35 @@ The `full benchmark source can be found here
   (lack of GC reduces memory by 16 bytes per instance). They also have the
   lowest GC pause (75x faster than standard classes!) since the entire
   composing dict can be skipped during GC traversal.
+
+
+.. _benchmark-library-size:
+
+Benchmark - Library Size
+------------------------
+
+Here we compare the on-disk size of a few Python libraries.
+
+The `full benchmark source can be found here
+<https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_library_size.py>`__.
+
+**Results (smaller is better)**
+
++--------------+---------+------------+-------------+
+|              | version | size (MiB) | vs. msgspec |
++==============+=========+============+=============+
+| **msgspec**  | 0.7.1   | 0.23       | 1.00x       |
++--------------+---------+------------+-------------+
+| **orjson**   | 3.7.5   | 0.56       | 2.50x       |
++--------------+---------+------------+-------------+
+| **msgpack**  | 1.0.4   | 0.99       | 4.37x       |
++--------------+---------+------------+-------------+
+| **pydantic** | 1.9.1   | 40.82      | 180.50x     |
++--------------+---------+------------+-------------+
+
+The functionality available in ``msgspec`` is comparable to that of orjson_,
+msgpack_, and pydantic_ combined. However, the total installed binary size of
+``msgspec`` is a fraction of that of any of these libraries.
 
 .. raw:: html
 
