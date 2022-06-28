@@ -3,6 +3,15 @@ Changelog
 
 .. currentmodule:: msgspec
 
+Version 0.7.1 (2022-06-27)
+--------------------------
+
+- Further reduce the size of packaged wheels (:pr:`130`).
+- Add `weakref` support for `Struct` types through a new ``weakref``
+  configuration option (:pr:`131`).
+- Fix a couple unlikely (but possible) bugs in the deallocation routine for
+  Struct types (:pr:`131`).
+
 Version 0.7.0 (2022-06-20)
 --------------------------
 
