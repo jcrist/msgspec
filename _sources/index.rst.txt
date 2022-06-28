@@ -64,6 +64,9 @@ Highlights
   `msgpack-python`_, ``msgspec`` natively supports a wider range of Python builtin
   types. Support for additional types can also be added through :doc:`extensions
   <extending>`.
+- ``msgspec`` is **lightweight**. It has no dependencies, and the installed
+  binary size is :ref:`a fraction of that of comparable libraries
+  <benchmark-library-size>`.
 - ``msgspec`` is **correct**. The encoders/decoders implemented are strictly
   compliant with the JSON_ and MessagePack_ specifications, providing stronger
   guarantees of compatibility with other systems.
@@ -119,7 +122,6 @@ While there are other tools in this space, ``msgspec`` should (in general) be
 an :doc:`order of magnitude faster <benchmarks>` than other options. We also
 hope that it's quick to learn and friendly to use, letting you focus less on
 serialization and more on your application code.
-
 
 
 Installation

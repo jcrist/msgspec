@@ -333,7 +333,7 @@ libraries that make use of these classes.</p></li>
 <li><p>Time to compare two instances for order (<code class="docutils literal notranslate"><span class="pre">&lt;</span></code>/<code class="docutils literal notranslate"><span class="pre">&gt;</span></code>/<code class="docutils literal notranslate"><span class="pre">&lt;=</span></code>/<code class="docutils literal notranslate"><span class="pre">&gt;=</span></code>)</p></li>
 </ul>
 <p>The <a class="reference external" href="https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_structs.py">full benchmark source can be found here</a>.</p>
-<p><strong>Results:</strong></p>
+<p><strong>Results (smaller is better):</strong></p>
 <div class="table-wrapper docutils container">
 <table class="docutils align-default">
 <thead>
@@ -404,7 +404,7 @@ of the benchmarked type, then measure:</p>
 <li><p>The total amount of memory used by this data structure</p></li>
 </ul>
 <p>The <a class="reference external" href="https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_gc.py">full benchmark source can be found here</a>.</p>
-<p><strong>Results:</strong></p>
+<p><strong>Results (smaller is better):</strong></p>
 <div class="table-wrapper docutils container">
 <table class="docutils align-default">
 <thead>
@@ -448,6 +448,48 @@ tracking a full GC pass completes in a fraction of the time.</p></li>
 lowest GC pause (75x faster than standard classes!) since the entire
 composing dict can be skipped during GC traversal.</p></li>
 </ul>
+</section>
+<section id="benchmark-library-size">
+<span id="id1"></span><h2>Benchmark - Library Size<a class="headerlink" href="#benchmark-library-size" title="Permalink to this heading">#</a></h2>
+<p>Here we compare the on-disk size of a few Python libraries.</p>
+<p>The <a class="reference external" href="https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_library_size.py">full benchmark source can be found here</a>.</p>
+<p><strong>Results (smaller is better)</strong></p>
+<div class="table-wrapper docutils container">
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"></th>
+<th class="head"><p>version</p></th>
+<th class="head"><p>size (MiB)</p></th>
+<th class="head"><p>vs. msgspec</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><strong>msgspec</strong></p></td>
+<td><p>0.7.1</p></td>
+<td><p>0.23</p></td>
+<td><p>1.00x</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>orjson</strong></p></td>
+<td><p>3.7.5</p></td>
+<td><p>0.56</p></td>
+<td><p>2.50x</p></td>
+</tr>
+<tr class="row-even"><td><p><strong>msgpack</strong></p></td>
+<td><p>1.0.4</p></td>
+<td><p>0.99</p></td>
+<td><p>4.37x</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>pydantic</strong></p></td>
+<td><p>1.9.1</p></td>
+<td><p>40.82</p></td>
+<td><p>180.50x</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The functionality available in <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> is comparable to that of <a class="reference external" href="https://github.com/ijl/orjson">orjson</a>,
+<a class="reference external" href="https://github.com/msgpack/msgpack-python">msgpack</a>, and <a class="reference external" href="https://pydantic-docs.helpmanual.io/">pydantic</a> combined. However, the total installed binary size of
+<code class="docutils literal notranslate"><span class="pre">msgspec</span></code> is a fraction of that of any of these libraries.</p>
 <script type="text/javascript" src="https://cdn.bokeh.org/bokeh/release/bokeh-2.4.2.min.js" integrity="XypntL49z55iwGVUW4qsEu83zKL3XEcz0MjuGOQ9SlaaQ68X/g+k1FcioZi7oQAc" crossorigin="anonymous"></script>
 <script type="text/javascript" src="https://cdn.bokeh.org/bokeh/release/bokeh-widgets-2.4.2.min.js" integrity="TX0gSQTdXTTeScqxj6PVQxTiRW8DOoGVwinyi1D3kxv7wuxQ02XkOxv0xwiypcAH" crossorigin="anonymous"></script>
 <script>
@@ -535,6 +577,7 @@ fetch('_static/bench-1k-validate.json')
 </li>
 <li><a class="reference internal" href="#benchmark-structs">Benchmark - Structs</a></li>
 <li><a class="reference internal" href="#benchmark-garbage-collection">Benchmark - Garbage Collection</a></li>
+<li><a class="reference internal" href="#benchmark-library-size">Benchmark - Library Size</a></li>
 </ul>
 </li>
 </ul>
