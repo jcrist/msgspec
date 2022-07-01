@@ -230,17 +230,17 @@ type. Set to False to compare based on instance identity alone.</p></li>
 <li><p><strong>omit_defaults</strong> (<em>bool, default False</em>) – Whether fields should be omitted from encoding if the corresponding value
 is the default for that field. Enabling this may reduce message size, and
 often also improve encoding &amp; decoding performance.</p></li>
-<li><p><strong>tag</strong> (<em>str, bool, callable, or None, default None</em>) – Used along with <code class="docutils literal notranslate"><span class="pre">tag_field</span></code> for configuring tagged union support. If
+<li><p><strong>tag</strong> (<em>str, int, bool, callable, or None, default None</em>) – Used along with <code class="docutils literal notranslate"><span class="pre">tag_field</span></code> for configuring tagged union support. If
 either are non-None, then the struct is considered “tagged”. In this case,
 an extra field (the <code class="docutils literal notranslate"><span class="pre">tag_field</span></code>) and value (the <code class="docutils literal notranslate"><span class="pre">tag</span></code>) are added to the
 encoded message, which can be used to differentiate message types during
 decoding.</p>
 <p>Set <code class="docutils literal notranslate"><span class="pre">tag=True</span></code> to enable the default tagged configuration (<code class="docutils literal notranslate"><span class="pre">tag_field</span></code>
 is <code class="docutils literal notranslate"><span class="pre">&quot;type&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">tag</span></code> is the class name). Alternatively, you can provide
-a string value directly to be used as the tag (<code class="docutils literal notranslate"><span class="pre">tag=&quot;my-tag-value&quot;</span></code>).
-<code class="docutils literal notranslate"><span class="pre">tag</span></code> can also be passed a callable that takes the class name and returns
-a new string to use for the tag value (<code class="docutils literal notranslate"><span class="pre">tag=str.lower</span></code> for example) See
-the docs for more information.</p>
+a string (or less commonly int) value directly to be used as the tag
+(e.g. <code class="docutils literal notranslate"><span class="pre">tag=&quot;my-tag-value&quot;</span></code>).``tag`` can also be passed a callable that
+takes the class name and returns a valid tag value (e.g. <code class="docutils literal notranslate"><span class="pre">tag=str.lower</span></code>).
+See the docs for more information.</p>
 </li>
 <li><p><strong>tag_field</strong> (<em>str or None, default None</em>) – The field name to use for tagged union support. If <code class="docutils literal notranslate"><span class="pre">tag</span></code> is non-None,
 then this defaults to <code class="docutils literal notranslate"><span class="pre">&quot;type&quot;</span></code>. See the <code class="docutils literal notranslate"><span class="pre">tag</span></code> docs above for more

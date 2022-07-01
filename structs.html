@@ -495,11 +495,12 @@ or inherited. This can be overridden by passing a tag field explicitly (e.g.
 other field names in the struct, and must be the same for all struct types in
 a union.</p></li>
 <li><p>If a struct is tagged, <code class="docutils literal notranslate"><span class="pre">tag</span></code> defaults to the class name (e.g. <code class="docutils literal notranslate"><span class="pre">&quot;Get&quot;</span></code>) if
-not provided or inherited. This can be overridden by passing a tag value
-explicitly (e.g. <code class="docutils literal notranslate"><span class="pre">tag=&quot;get&quot;</span></code>). or a callable from class name to <code class="docutils literal notranslate"><span class="pre">str</span></code>
-(e.g.  <code class="docutils literal notranslate"><span class="pre">tag=lambda</span> <span class="pre">name:</span> <span class="pre">name.lower()</span></code> to lowercase the class name
-automatically). Note that the tag value must be unique for all struct types
-in a union.</p></li>
+not provided or inherited. This can be overridden by passing a string (or
+less commonly an integer) value explicitly (e.g. <code class="docutils literal notranslate"><span class="pre">tag=&quot;get&quot;</span></code>).  <code class="docutils literal notranslate"><span class="pre">tag</span></code> can
+also be passed a callable that takes the class name and returns a valid tag
+value (e.g. <code class="docutils literal notranslate"><span class="pre">tag=str.lower</span></code>). Note that tag values must be unique for all
+struct types in a union, and <code class="docutils literal notranslate"><span class="pre">str</span></code> and <code class="docutils literal notranslate"><span class="pre">int</span></code> tag types cannot both be
+used within the same union.</p></li>
 </ul>
 <p>If you like subclassing, both <code class="docutils literal notranslate"><span class="pre">tag_field</span></code> and <code class="docutils literal notranslate"><span class="pre">tag</span></code> are inheritable by
 subclasses, allowing configuration to be set once on a base class and reused
@@ -511,7 +512,7 @@ for all struct types you wish to tag.</p>
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Create a base class for tagged structs, where:</span>
 <span class="gp">... </span><span class="c1"># - the tag field is &quot;op&quot;</span>
 <span class="gp">... </span><span class="c1"># - the tag is the class name lowercased</span>
-<span class="gp">... </span><span class="k">class</span> <span class="nc">TaggedBase</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">tag_field</span><span class="o">=</span><span class="s2">&quot;op&quot;</span><span class="p">,</span> <span class="n">tag</span><span class="o">=</span><span class="k">lambda</span> <span class="n">name</span><span class="p">:</span> <span class="n">name</span><span class="o">.</span><span class="n">lower</span><span class="p">()):</span>
+<span class="gp">... </span><span class="k">class</span> <span class="nc">TaggedBase</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">tag_field</span><span class="o">=</span><span class="s2">&quot;op&quot;</span><span class="p">,</span> <span class="n">tag</span><span class="o">=</span><span class="nb">str</span><span class="o">.</span><span class="n">lower</span><span class="p">):</span>
 <span class="gp">... </span>    <span class="k">pass</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Use the base class to pass on the configuration</span>

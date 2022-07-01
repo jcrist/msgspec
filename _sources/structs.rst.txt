@@ -334,11 +334,12 @@ A struct's tagging configuration is determined as follows.
   a union.
 
 - If a struct is tagged, ``tag`` defaults to the class name (e.g. ``"Get"``) if
-  not provided or inherited. This can be overridden by passing a tag value
-  explicitly (e.g. ``tag="get"``). or a callable from class name to ``str``
-  (e.g.  ``tag=lambda name: name.lower()`` to lowercase the class name
-  automatically). Note that the tag value must be unique for all struct types
-  in a union.
+  not provided or inherited. This can be overridden by passing a string (or
+  less commonly an integer) value explicitly (e.g. ``tag="get"``).  ``tag`` can
+  also be passed a callable that takes the class name and returns a valid tag
+  value (e.g. ``tag=str.lower``). Note that tag values must be unique for all
+  struct types in a union, and ``str`` and ``int`` tag types cannot both be
+  used within the same union.
 
 If you like subclassing, both ``tag_field`` and ``tag`` are inheritable by
 subclasses, allowing configuration to be set once on a base class and reused
@@ -353,7 +354,7 @@ for all struct types you wish to tag.
     >>> # Create a base class for tagged structs, where:
     ... # - the tag field is "op"
     ... # - the tag is the class name lowercased
-    ... class TaggedBase(msgspec.Struct, tag_field="op", tag=lambda name: name.lower()):
+    ... class TaggedBase(msgspec.Struct, tag_field="op", tag=str.lower):
     ...     pass
 
     >>> # Use the base class to pass on the configuration
