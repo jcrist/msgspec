@@ -98,6 +98,7 @@ INTS = [
     2**16,
     2**32 - 1,
     2**32,
+    2**63 - 1,
     2**64 - 1,
 ]
 
@@ -968,11 +969,11 @@ class TestTypedDecoder:
         with pytest.raises(msgspec.DecodeError, match="truncated"):
             dec.decode(a[:-2])
 
-        with pytest.raises(msgspec.DecodeError, match="Invalid enum value `1000`"):
+        with pytest.raises(msgspec.DecodeError, match="Invalid enum value 1000"):
             dec.decode(enc.encode(1000))
 
         with pytest.raises(
-            msgspec.DecodeError, match=r"Invalid enum value `1000` - at `\$\[0\]`"
+            msgspec.DecodeError, match=r"Invalid enum value 1000 - at `\$\[0\]`"
         ):
             msgspec.msgpack.decode(enc.encode([1000]), type=List[FruitInt])
 
@@ -1001,11 +1002,11 @@ class TestTypedDecoder:
 
         assert dec.decode(enc.encode(1)) == 1
 
-        with pytest.raises(msgspec.DecodeError, match="Invalid enum value `1000`"):
+        with pytest.raises(msgspec.DecodeError, match="Invalid enum value 1000"):
             dec.decode(enc.encode(1000))
 
         with pytest.raises(
-            msgspec.DecodeError, match=r"Invalid enum value `1000` - at `\$\[0\]`"
+            msgspec.DecodeError, match=r"Invalid enum value 1000 - at `\$\[0\]`"
         ):
             msgspec.msgpack.decode(enc.encode([1000]), type=List[literal])
 
@@ -1438,40 +1439,40 @@ class TestCompatibility(CommonTypeTestBase):
 
 
 class TestStruct:
-    @pytest.mark.parametrize("tag", [False, True])
+    @pytest.mark.parametrize("tag", [False, "Test", 123])
     def test_encode_empty_struct(self, tag):
         class Test(msgspec.Struct, tag=tag):
             pass
 
         if tag:
-            msg = {"type": "Test"}
+            msg = {"type": tag}
         else:
             msg = {}
         s = msgspec.msgpack.encode(Test())
         s2 = msgspec.msgpack.encode(msg)
         assert s == s2
 
-    @pytest.mark.parametrize("tag", [False, True])
+    @pytest.mark.parametrize("tag", [False, "Test", 123])
     def test_encode_one_field_struct(self, tag):
         class Test(msgspec.Struct, tag=tag):
             a: int
 
         if tag:
-            msg = {"type": "Test", "a": 1}
+            msg = {"type": tag, "a": 1}
         else:
             msg = {"a": 1}
         s = msgspec.msgpack.encode(Test(a=1))
         s2 = msgspec.msgpack.encode(msg)
         assert s == s2
 
-    @pytest.mark.parametrize("tag", [False, True])
+    @pytest.mark.parametrize("tag", [False, "Test", 123])
     def test_encode_two_field_struct(self, tag):
         class Test(msgspec.Struct, tag=tag):
             a: int
             b: str
 
         if tag:
-            msg = {"type": "Test", "a": 1, "b": "two"}
+            msg = {"type": tag, "a": 1, "b": "two"}
         else:
             msg = {"a": 1, "b": "two"}
         s = msgspec.msgpack.encode(Test(a=1, b="two"))
@@ -1608,8 +1609,9 @@ class TestStruct:
         res = dec.decode(s)
         assert res == x
 
-    def test_decode_tagged_struct(self):
-        class Test(msgspec.Struct, tag=True):
+    @pytest.mark.parametrize("tag", ["Test", 123, -123])
+    def test_decode_tagged_struct(self, tag):
+        class Test(msgspec.Struct, tag=tag):
             a: int
             b: int
 
@@ -1618,26 +1620,52 @@ class TestStruct:
         # Test decode with and without tag
         for msg in [
             {"a": 1, "b": 2},
-            {"type": "Test", "a": 1, "b": 2},
-            {"a": 1, "type": "Test", "b": 2},
+            {"type": tag, "a": 1, "b": 2},
+            {"a": 1, "type": tag, "b": 2},
         ]:
             res = dec.decode(msgspec.msgpack.encode(msg))
             assert res == Test(1, 2)
 
         # Tag incorrect type
         with pytest.raises(msgspec.DecodeError) as rec:
-            dec.decode(msgspec.msgpack.encode({"type": 1}))
-        assert "Expected `str`" in str(rec.value)
+            dec.decode(msgspec.msgpack.encode({"type": 123.456}))
+        assert f"Expected `{type(tag).__name__}`" in str(rec.value)
         assert "`$.type`" in str(rec.value)
 
         # Tag incorrect value
+        bad = -3 if isinstance(tag, int) else "bad"
         with pytest.raises(msgspec.DecodeError) as rec:
-            dec.decode(msgspec.msgpack.encode({"type": "bad"}))
-        assert "Invalid value 'bad'" in str(rec.value)
+            dec.decode(msgspec.msgpack.encode({"type": bad}))
+        assert f"Invalid value {bad!r}" in str(rec.value)
         assert "`$.type`" in str(rec.value)
 
-    def test_decode_tagged_empty_struct(self):
-        class Test(msgspec.Struct, tag=True):
+    @pytest.mark.parametrize("tag", [i for i in INTS if -(2**63) <= i < 2**63])
+    def test_decode_tagged_struct_int_ranges(self, tag):
+        class Test(msgspec.Struct, tag=tag):
+            a: int
+            b: int
+
+        dec = msgspec.msgpack.Decoder(Test)
+        t = Test(1, 2)
+        assert dec.decode(msgspec.msgpack.encode(t))
+
+    def test_decode_tagged_struct_int_tag_uint64_always_invalid(self):
+        """Uint64 values aren't currently valid tag values, but we still want
+        to raise a good error message."""
+
+        class Test(msgspec.Struct, tag=123):
+            pass
+
+        with pytest.raises(msgspec.DecodeError) as rec:
+            msgspec.msgpack.decode(
+                msgspec.msgpack.encode({"type": 2**64 - 1}), type=Test
+            )
+        assert f"Invalid value {2**64 - 1}" in str(rec.value)
+        assert "`$.type`" in str(rec.value)
+
+    @pytest.mark.parametrize("tag", ["Test", 123, -123])
+    def test_decode_tagged_empty_struct(self, tag):
+        class Test(msgspec.Struct, tag=tag):
             pass
 
         dec = msgspec.msgpack.Decoder(Test)
@@ -1647,38 +1675,38 @@ class TestStruct:
         assert res == Test()
 
         # Tag present
-        res = dec.decode(msgspec.msgpack.encode({"type": "Test"}))
+        res = dec.decode(msgspec.msgpack.encode({"type": tag}))
         assert res == Test()
 
 
 class TestStructArray:
-    @pytest.mark.parametrize("tag", [False, True])
+    @pytest.mark.parametrize("tag", [False, "Test", 123])
     def test_encode_empty_struct(self, tag):
         class Test(msgspec.Struct, array_like=True, tag=tag):
             pass
 
         s = msgspec.msgpack.encode(Test())
         if tag:
-            msg = ["Test"]
+            msg = [tag]
         else:
             msg = []
         s2 = msgspec.msgpack.encode(msg)
         assert s == s2
 
-    @pytest.mark.parametrize("tag", [False, True])
+    @pytest.mark.parametrize("tag", [False, "Test", 123])
     def test_encode_one_field_struct(self, tag):
         class Test(msgspec.Struct, array_like=True, tag=tag):
             a: int
 
         s = msgspec.msgpack.encode(Test(a=1))
         if tag:
-            msg = ["Test", 1]
+            msg = [tag, 1]
         else:
             msg = [1]
         s2 = msgspec.msgpack.encode(msg)
         assert s == s2
 
-    @pytest.mark.parametrize("tag", [False, True])
+    @pytest.mark.parametrize("tag", [False, "Test", 123])
     def test_encode_two_field_struct(self, tag):
         class Test(msgspec.Struct, array_like=True, tag=tag):
             a: int
@@ -1686,7 +1714,7 @@ class TestStructArray:
 
         s = msgspec.msgpack.encode(Test(a=1, b="two"))
         if tag:
-            msg = ["Test", 1, "two"]
+            msg = [tag, 1, "two"]
         else:
             msg = [1, "two"]
         s2 = msgspec.msgpack.encode(msg)
@@ -1760,8 +1788,9 @@ class TestStructArray:
         with pytest.raises(msgspec.DecodeError, match="Expected `array`, got `object`"):
             array_dec.decode(map_msg)
 
-    def test_decode_tagged_struct(self):
-        class Test(msgspec.Struct, tag=True, array_like=True):
+    @pytest.mark.parametrize("tag", ["Test", -123, 123])
+    def test_decode_tagged_struct(self, tag):
+        class Test(msgspec.Struct, tag=tag, array_like=True):
             a: int
             b: int
             c: int = 0
@@ -1769,18 +1798,18 @@ class TestStructArray:
         dec = msgspec.msgpack.Decoder(Test)
 
         # Decode with tag
-        res = dec.decode(msgspec.msgpack.encode(["Test", 1, 2]))
+        res = dec.decode(msgspec.msgpack.encode([tag, 1, 2]))
         assert res == Test(1, 2)
-        res = dec.decode(msgspec.msgpack.encode(["Test", 1, 2, 3]))
+        res = dec.decode(msgspec.msgpack.encode([tag, 1, 2, 3]))
         assert res == Test(1, 2, 3)
 
         # Trailing fields ignored
-        res = dec.decode(msgspec.msgpack.encode(["Test", 1, 2, 3, 4]))
+        res = dec.decode(msgspec.msgpack.encode([tag, 1, 2, 3, 4]))
         assert res == Test(1, 2, 3)
 
         # Missing required field errors
         with pytest.raises(msgspec.DecodeError) as rec:
-            dec.decode(msgspec.msgpack.encode(["Test", 1]))
+            dec.decode(msgspec.msgpack.encode([tag, 1]))
         assert "Expected `array` of at least length 3, got 2" in str(rec.value)
 
         # Tag missing
@@ -1790,30 +1819,32 @@ class TestStructArray:
 
         # Tag incorrect type
         with pytest.raises(msgspec.DecodeError) as rec:
-            dec.decode(msgspec.msgpack.encode([1, 2, 3]))
-        assert "Expected `str`" in str(rec.value)
+            dec.decode(msgspec.msgpack.encode([123.456, 2, 3]))
+        assert f"Expected `{type(tag).__name__}`" in str(rec.value)
         assert "`$[0]`" in str(rec.value)
 
         # Tag incorrect value
+        bad = -3 if isinstance(tag, int) else "bad"
         with pytest.raises(msgspec.DecodeError) as rec:
-            dec.decode(msgspec.msgpack.encode(["bad", 1, 2]))
-        assert "Invalid value 'bad'" in str(rec.value)
+            dec.decode(msgspec.msgpack.encode([bad, 1, 2]))
+        assert f"Invalid value {bad!r}" in str(rec.value)
         assert "`$[0]`" in str(rec.value)
 
         # Field incorrect type correct index
         with pytest.raises(msgspec.DecodeError) as rec:
-            dec.decode(msgspec.msgpack.encode(["Test", "a", 2]))
+            dec.decode(msgspec.msgpack.encode([tag, "a", 2]))
         assert "Expected `int`, got `str`" in str(rec.value)
         assert "`$[1]`" in str(rec.value)
 
-    def test_decode_tagged_empty_struct(self):
-        class Test(msgspec.Struct, tag=True, array_like=True):
+    @pytest.mark.parametrize("tag", ["Test", 123, -123])
+    def test_decode_tagged_empty_struct(self, tag):
+        class Test(msgspec.Struct, tag=tag, array_like=True):
             pass
 
         dec = msgspec.msgpack.Decoder(Test)
 
         # Decode with tag
-        res = dec.decode(msgspec.msgpack.encode(["Test", 1, 2]))
+        res = dec.decode(msgspec.msgpack.encode([tag, 1, 2]))
         assert res == Test()
 
         # Tag missing

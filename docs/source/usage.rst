@@ -338,7 +338,7 @@ or doesn't match any valid `enum.IntEnum` member.
     >>> msgspec.json.decode(b'4', type=JobState)
     Traceback (most recent call last):
       File "<stdin>", line 1, in <module>
-    msgspec.DecodeError: Invalid enum value `4`
+    msgspec.DecodeError: Invalid enum value 4
 
 ``Enum``
 ~~~~~~~~
@@ -565,7 +565,7 @@ values, or doesn't match any of their component types.
     >>> msgspec.json.decode(b'4', type=Literal[1, 2, 3])
     Traceback (most recent call last):
       File "<stdin>", line 1, in <module>
-    msgspec.DecodeError: Invalid enum value `4`
+    msgspec.DecodeError: Invalid enum value 4
 
     >>> msgspec.json.decode(b'"bad"', type=Literal[1, 2, 3])
     Traceback (most recent call last):

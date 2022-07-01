@@ -129,15 +129,14 @@ class TestIntEnum:
     @pytest.mark.parametrize(
         "values",
         [
-            [0, 1, 2, 2**64],
             [0, 1, 2, -(2**63) - 1],
-            [0, 1, 2, 2**63 + 1, -(2**64)],
+            [0, 1, 2, 2**63],
         ],
     )
     def test_int_lookup_values_out_of_range(self, values):
         myenum = enum.IntEnum("myenum", [(f"x{i}", v) for i, v in enumerate(values)])
 
-        with pytest.raises(OverflowError):
+        with pytest.raises(NotImplementedError):
             msgspec.msgpack.Decoder(myenum)
 
     def test_msgspec_lookup_overwritten(self):
@@ -183,9 +182,8 @@ class TestIntEnum:
         "values",
         [
             [-(2**63), 2**63 - 1, 0],
-            [-(2**63), 2**64 - 1, 0],
-            [2**64 - 2, 2**64 - 3, 2**64 - 1],
-            [2**64 - 2, 2**64 - 3, 2**64 - 1, 0, 2, 3, 4, 5, 6],
+            [2**63 - 2, 2**63 - 3, 2**63 - 1],
+            [2**63 - 2, 2**63 - 3, 2**63 - 1, 0, 2, 3, 4, 5, 6],
         ],
     )
     def test_hashtable(self, values):
@@ -346,15 +344,14 @@ class TestLiterals:
     @pytest.mark.parametrize(
         "values",
         [
-            [0, 1, 2, 2**64],
+            [0, 1, 2, 2**63],
             [0, 1, 2, -(2**63) - 1],
-            [0, 1, 2, 2**63 + 1, -(2**64)],
         ],
     )
     def test_int_literal_values_out_of_range(self, values):
         literal = Literal[tuple(values)]
 
-        with pytest.raises(OverflowError):
+        with pytest.raises(NotImplementedError):
             msgspec.msgpack.Decoder(literal)
 
     @pytest.mark.parametrize(
@@ -437,7 +434,7 @@ class TestLiterals:
         for val in [-1, -2, -3, "apple", "banana"]:
             assert dec.decode(msgspec.msgpack.encode(val)) == val
 
-        with pytest.raises(msgspec.DecodeError, match="Invalid enum value `4`"):
+        with pytest.raises(msgspec.DecodeError, match="Invalid enum value 4"):
             dec.decode(msgspec.msgpack.encode(4))
 
         with pytest.raises(msgspec.DecodeError, match="Invalid enum value 'carrot'"):
@@ -457,7 +454,7 @@ class TestLiterals:
         for val in [-1, -2, -3, "apple", "banana"]:
             assert dec.decode(msgspec.msgpack.encode(val)) == val
 
-        with pytest.raises(msgspec.DecodeError, match="Invalid enum value `4`"):
+        with pytest.raises(msgspec.DecodeError, match="Invalid enum value 4"):
             dec.decode(msgspec.msgpack.encode(4))
 
         with pytest.raises(msgspec.DecodeError, match="Invalid enum value 'carrot'"):
@@ -624,8 +621,33 @@ class TestStructUnion:
         assert repr(typ) in str(rec.value)
 
     @pytest.mark.parametrize("array_like", [False, True])
+    def test_err_union_struct_mix_int_str_tags(self, proto, array_like):
+        class Test1(msgspec.Struct, tag=1, array_like=array_like):
+            x: int
+
+        class Test2(msgspec.Struct, tag="two", array_like=array_like):
+            x: int
+
+        typ = Union[Test1, Test2]
+
+        with pytest.raises(TypeError) as rec:
+            proto.Decoder(typ)
+
+        assert "not supported" in str(rec.value)
+        assert "both `int` and `str` tags" in str(rec.value)
+        assert repr(typ) in str(rec.value)
+
+    @pytest.mark.parametrize("array_like", [False, True])
     @pytest.mark.parametrize(
-        "tags", [("a", "b", "b"), ("a", "a", "b"), ("a", "b", "a")]
+        "tags",
+        [
+            ("a", "b", "b"),
+            ("a", "a", "b"),
+            ("a", "b", "a"),
+            (1, 2, 2),
+            (1, 1, 2),
+            (1, 2, 1),
+        ],
     )
     def test_err_union_struct_non_unique_tag_values(self, proto, array_like, tags):
         class Test1(msgspec.Struct, tag=tags[0], array_like=array_like):
@@ -646,13 +668,20 @@ class TestStructUnion:
         assert "unique `tag`" in str(rec.value)
         assert repr(typ) in str(rec.value)
 
-    def test_decode_struct_union(self, proto):
-        class Test1(msgspec.Struct, tag=True):
+    @pytest.mark.parametrize(
+        "tag1, tag2, unknown",
+        [
+            ("Test1", "Test2", "Test3"),
+            (123, -123, 0),
+        ],
+    )
+    def test_decode_struct_union(self, proto, tag1, tag2, unknown):
+        class Test1(msgspec.Struct, tag=tag1):
             a: int
             b: int
             c: int = 0
 
-        class Test2(msgspec.Struct, tag=True):
+        class Test2(msgspec.Struct, tag=tag2):
             x: int
             y: int
 
@@ -660,22 +689,22 @@ class TestStructUnion:
         enc = proto.Encoder()
 
         # Tag can be in any position
-        assert dec.decode(enc.encode({"type": "Test1", "a": 1, "b": 2})) == Test1(1, 2)
-        assert dec.decode(enc.encode({"a": 1, "type": "Test1", "b": 2})) == Test1(1, 2)
-        assert dec.decode(enc.encode({"x": 1, "y": 2, "type": "Test2"})) == Test2(1, 2)
+        assert dec.decode(enc.encode({"type": tag1, "a": 1, "b": 2})) == Test1(1, 2)
+        assert dec.decode(enc.encode({"a": 1, "type": tag1, "b": 2})) == Test1(1, 2)
+        assert dec.decode(enc.encode({"x": 1, "y": 2, "type": tag2})) == Test2(1, 2)
 
         # Optional fields still work
-        assert dec.decode(
-            enc.encode({"type": "Test1", "a": 1, "b": 2, "c": 3})
-        ) == Test1(1, 2, 3)
-        assert dec.decode(
-            enc.encode({"a": 1, "b": 2, "c": 3, "type": "Test1"})
-        ) == Test1(1, 2, 3)
+        assert dec.decode(enc.encode({"type": tag1, "a": 1, "b": 2, "c": 3})) == Test1(
+            1, 2, 3
+        )
+        assert dec.decode(enc.encode({"a": 1, "b": 2, "c": 3, "type": tag1})) == Test1(
+            1, 2, 3
+        )
 
         # Extra fields still ignored
-        assert dec.decode(
-            enc.encode({"a": 1, "b": 2, "d": 4, "type": "Test1"})
-        ) == Test1(1, 2)
+        assert dec.decode(enc.encode({"a": 1, "b": 2, "d": 4, "type": tag1})) == Test1(
+            1, 2
+        )
 
         # Tag missing
         with pytest.raises(msgspec.DecodeError) as rec:
@@ -684,48 +713,55 @@ class TestStructUnion:
 
         # Tag wrong type
         with pytest.raises(msgspec.DecodeError) as rec:
-            dec.decode(enc.encode({"type": 1, "a": 1, "b": 2}))
-        assert "Expected `str`" in str(rec.value)
+            dec.decode(enc.encode({"type": 123.456, "a": 1, "b": 2}))
+        assert f"Expected `{type(tag1).__name__}`" in str(rec.value)
         assert "`$.type`" in str(rec.value)
 
         # Tag unknown
         with pytest.raises(msgspec.DecodeError) as rec:
-            dec.decode(enc.encode({"type": "bad", "a": 1, "b": 2}))
-        assert "Invalid value 'bad' - at `$.type`" == str(rec.value)
+            dec.decode(enc.encode({"type": unknown, "a": 1, "b": 2}))
+        assert f"Invalid value {unknown!r} - at `$.type`" == str(rec.value)
 
-    def test_decode_struct_array_union(self, proto):
-        class Test1(msgspec.Struct, tag=True, array_like=True):
+    @pytest.mark.parametrize(
+        "tag1, tag2, tag3, unknown",
+        [
+            ("Test1", "Test2", "Test3", "Test4"),
+            (123, -123, 0, -1),
+        ],
+    )
+    def test_decode_struct_array_union(self, proto, tag1, tag2, tag3, unknown):
+        class Test1(msgspec.Struct, tag=tag1, array_like=True):
             a: int
             b: int
             c: int = 0
 
-        class Test2(msgspec.Struct, tag=True, array_like=True):
+        class Test2(msgspec.Struct, tag=tag2, array_like=True):
             x: int
             y: int
 
-        class Test3(msgspec.Struct, tag=True, array_like=True):
+        class Test3(msgspec.Struct, tag=tag3, array_like=True):
             pass
 
         dec = proto.Decoder(Union[Test1, Test2, Test3])
         enc = proto.Encoder()
 
         # Decoding works
-        assert dec.decode(enc.encode(["Test1", 1, 2])) == Test1(1, 2)
-        assert dec.decode(enc.encode(["Test2", 3, 4])) == Test2(3, 4)
-        assert dec.decode(enc.encode(["Test3"])) == Test3()
+        assert dec.decode(enc.encode([tag1, 1, 2])) == Test1(1, 2)
+        assert dec.decode(enc.encode([tag2, 3, 4])) == Test2(3, 4)
+        assert dec.decode(enc.encode([tag3])) == Test3()
 
         # Optional & Extra fields still respected
-        assert dec.decode(enc.encode(["Test1", 1, 2, 3])) == Test1(1, 2, 3)
-        assert dec.decode(enc.encode(["Test1", 1, 2, 3, 4])) == Test1(1, 2, 3)
+        assert dec.decode(enc.encode([tag1, 1, 2, 3])) == Test1(1, 2, 3)
+        assert dec.decode(enc.encode([tag1, 1, 2, 3, 4])) == Test1(1, 2, 3)
 
         # Missing required field
         with pytest.raises(msgspec.DecodeError) as rec:
-            dec.decode(enc.encode(["Test1", 1]))
+            dec.decode(enc.encode([tag1, 1]))
         assert "Expected `array` of at least length 3, got 2" in str(rec.value)
 
         # Type error has correct field index
         with pytest.raises(msgspec.DecodeError) as rec:
-            dec.decode(enc.encode(["Test1", 1, "bad", 2]))
+            dec.decode(enc.encode([tag1, 1, "bad", 2]))
         assert "Expected `int`, got `str` - at `$[2]`" == str(rec.value)
 
         # Tag missing
@@ -735,14 +771,14 @@ class TestStructUnion:
 
         # Tag wrong type
         with pytest.raises(msgspec.DecodeError) as rec:
-            dec.decode(enc.encode([1, 2, 3, 4]))
-        assert "Expected `str`" in str(rec.value)
+            dec.decode(enc.encode([123.456, 2, 3, 4]))
+        assert f"Expected `{type(tag1).__name__}`" in str(rec.value)
         assert "`$[0]`" in str(rec.value)
 
         # Tag unknown
         with pytest.raises(msgspec.DecodeError) as rec:
-            dec.decode(enc.encode(["bad", 1, 2, 3]))
-        assert "Invalid value 'bad' - at `$[0]`" == str(rec.value)
+            dec.decode(enc.encode([unknown, 1, 2, 3]))
+        assert f"Invalid value {unknown!r} - at `$[0]`" == str(rec.value)
 
     @pytest.mark.parametrize("array_like", [False, True])
     def test_decode_struct_union_with_non_struct_types(self, array_like, proto):

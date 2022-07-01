@@ -1040,6 +1040,9 @@ class TestTagAndTagField:
             # tag str
             ({"tag": "test"}, "type", "test"),
             (dict(tag="test", tag_field="kind"), "kind", "test"),
+            # tag int
+            ({"tag": 1}, "type", 1),
+            (dict(tag=1, tag_field="kind"), "kind", 1),
             # tag callable
             (dict(tag=lambda n: n.lower()), "type", "test"),
             (dict(tag=lambda n: n.lower(), tag_field="kind"), "kind", "test"),
@@ -1068,6 +1071,11 @@ class TestTagAndTagField:
             ({"tag": "test"}, {"tag": "test2"}, "type", "test2"),
             ({"tag": "test"}, {"tag": None}, "type", "test"),
             ({"tag": "test"}, {"tag_field": "foo"}, "foo", "test"),
+            # tag int
+            ({"tag": 1}, {}, "type", 1),
+            ({"tag": 1}, {"tag": "test2"}, "type", "test2"),
+            ({"tag": 1}, {"tag": None}, "type", 1),
+            ({"tag": 1}, {"tag_field": "foo"}, "foo", 1),
             # tag callable
             ({"tag": lambda n: n.lower()}, {}, "type", "s2"),
             ({"tag": lambda n: n.lower()}, {"tag": False}, None, None),
@@ -1087,7 +1095,14 @@ class TestTagAndTagField:
 
     @pytest.mark.parametrize("tag", [b"bad", lambda n: b"bad"])
     def test_tag_wrong_type(self, tag):
-        with pytest.raises(TypeError, match="`tag` must be a `str`"):
+        with pytest.raises(TypeError, match="`tag` must be a `str` or an `int`"):
+
+            class Test(Struct, tag=tag):
+                pass
+
+    @pytest.mark.parametrize("tag", [-(2**63) - 1, 2**63])
+    def test_tag_integer_out_of_range(self, tag):
+        with pytest.raises(ValueError, match="Integer `tag` values must be"):
 
             class Test(Struct, tag=tag):
                 pass

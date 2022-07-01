@@ -154,13 +154,19 @@ def check_struct_tag_tag_field() -> None:
     class Test4(msgspec.Struct, tag="mytag"):
         pass
 
-    class Test5(msgspec.Struct, tag=lambda n: n.lower()):
+    class Test5(msgspec.Struct, tag=123):
         pass
 
-    class Test6(msgspec.Struct, tag_field=None):
+    class Test6(msgspec.Struct, tag=str.lower):
         pass
 
-    class Test7(msgspec.Struct, tag_field="type"):
+    class Test7(msgspec.Struct, tag=lambda n: len(n)):
+        pass
+
+    class Test8(msgspec.Struct, tag_field=None):
+        pass
+
+    class Test9(msgspec.Struct, tag_field="type"):
         pass
 
 
