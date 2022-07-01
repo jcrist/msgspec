@@ -1125,7 +1125,7 @@ class TestIntEnum:
         assert x == FruitInt.APPLE
 
     def test_decode_intenum_invalid_value(self):
-        with pytest.raises(msgspec.DecodeError, match="Invalid enum value `3`"):
+        with pytest.raises(msgspec.DecodeError, match="Invalid enum value 3"):
             msgspec.json.decode(b"3", type=FruitInt)
 
     def test_decode_intenum_invalid_value_nested(self):
@@ -1133,7 +1133,7 @@ class TestIntEnum:
             fruit: FruitInt
 
         with pytest.raises(
-            msgspec.DecodeError, match=r"Invalid enum value `3` - at `\$.fruit`"
+            msgspec.DecodeError, match=r"Invalid enum value 3 - at `\$.fruit`"
         ):
             msgspec.json.decode(b'{"fruit": 3}', type=Test)
 
@@ -1162,7 +1162,7 @@ class TestLiteral:
     def test_int_literal_errors(self):
         dec = msgspec.json.Decoder(Literal[1, 2, 3])
 
-        with pytest.raises(msgspec.DecodeError, match="Invalid enum value `4`"):
+        with pytest.raises(msgspec.DecodeError, match="Invalid enum value 4"):
             dec.decode(b"4")
 
         with pytest.raises(msgspec.DecodeError, match="Expected `int`, got `str`"):
@@ -1763,29 +1763,31 @@ class TestDict:
 
 
 class TestStruct:
-    @pytest.mark.parametrize("tag", [False, True])
+    @pytest.mark.parametrize("tag", [False, "Test", 123])
     def test_encode_empty_struct(self, tag):
         class Test(msgspec.Struct, tag=tag):
             pass
 
         s = msgspec.json.encode(Test())
         if tag:
-            assert s == b'{"type":"Test"}'
+            expected = msgspec.json.encode({"type": tag})
+            assert s == expected
         else:
             assert s == b"{}"
 
-    @pytest.mark.parametrize("tag", [False, True])
+    @pytest.mark.parametrize("tag", [False, "Test", 123])
     def test_encode_one_field_struct(self, tag):
         class Test(msgspec.Struct, tag=tag):
             a: int
 
         s = msgspec.json.encode(Test(a=1))
         if tag:
-            assert s == b'{"type":"Test","a":1}'
+            expected = msgspec.json.encode({"type": tag, "a": 1})
+            assert s == expected
         else:
             assert s == b'{"a":1}'
 
-    @pytest.mark.parametrize("tag", [False, True])
+    @pytest.mark.parametrize("tag", [False, "Test", 123])
     def test_encode_two_field_struct(self, tag):
         class Test(msgspec.Struct, tag=tag):
             a: int
@@ -1793,7 +1795,8 @@ class TestStruct:
 
         s = msgspec.json.encode(Test(a=1, b="two"))
         if tag:
-            assert s == b'{"type":"Test","a":1,"b":"two"}'
+            expected = msgspec.json.encode({"type": tag, "a": 1, "b": "two"})
+            assert s == expected
         else:
             assert s == b'{"a":1,"b":"two"}'
 
@@ -1956,8 +1959,9 @@ class TestStruct:
         res = dec.decode(s)
         assert res == x
 
-    def test_decode_tagged_struct(self):
-        class Test(msgspec.Struct, tag=True):
+    @pytest.mark.parametrize("tag", ["Test", 0, 2**63 - 1, -(2**63)])
+    def test_decode_tagged_struct(self, tag):
+        class Test(msgspec.Struct, tag=tag):
             a: int
             b: int
 
@@ -1966,26 +1970,29 @@ class TestStruct:
         # Test decode with and without tag
         for msg in [
             {"a": 1, "b": 2},
-            {"type": "Test", "a": 1, "b": 2},
-            {"a": 1, "type": "Test", "b": 2},
+            {"type": tag, "a": 1, "b": 2},
+            {"a": 1, "type": tag, "b": 2},
         ]:
             res = dec.decode(msgspec.json.encode(msg))
             assert res == Test(1, 2)
 
         # Tag incorrect type
-        with pytest.raises(msgspec.DecodeError) as rec:
-            dec.decode(msgspec.json.encode({"type": 1}))
-        assert "Expected `str`" in str(rec.value)
-        assert "`$.type`" in str(rec.value)
+        for bad in [False, 123.456]:
+            with pytest.raises(msgspec.DecodeError) as rec:
+                dec.decode(msgspec.json.encode({"type": bad}))
+            assert f"Expected `{type(tag).__name__}`" in str(rec.value)
+            assert "`$.type`" in str(rec.value)
 
         # Tag incorrect value
+        bad = -3 if isinstance(tag, int) else "bad"
         with pytest.raises(msgspec.DecodeError) as rec:
-            dec.decode(msgspec.json.encode({"type": "bad"}))
-        assert "Invalid value 'bad'" in str(rec.value)
+            dec.decode(msgspec.json.encode({"type": bad}))
+        assert f"Invalid value {bad!r}" in str(rec.value)
         assert "`$.type`" in str(rec.value)
 
-    def test_decode_tagged_empty_struct(self):
-        class Test(msgspec.Struct, tag=True):
+    @pytest.mark.parametrize("tag", ["Test", 123, -123])
+    def test_decode_tagged_empty_struct(self, tag):
+        class Test(msgspec.Struct, tag=tag):
             pass
 
         dec = msgspec.json.Decoder(Test)
@@ -1995,7 +2002,7 @@ class TestStruct:
         assert res == Test()
 
         # Tag present
-        res = dec.decode(msgspec.json.encode({"type": "Test"}))
+        res = dec.decode(msgspec.json.encode({"type": tag}))
         assert res == Test()
 
     @pytest.mark.parametrize(
@@ -2016,8 +2023,67 @@ class TestStruct:
             (b'{"a": 1 "b"}', r"expected ',' or '}'"),
         ],
     )
-    def test_decode_tagged_struct_malformed(self, s, error):
+    def test_decode_struct_tag_malformed(self, s, error):
         class Test1(msgspec.Struct, tag=True):
+            a: int
+            b: int
+
+        with pytest.raises(msgspec.DecodeError, match=error):
+            msgspec.json.decode(s, type=Test1)
+
+    @pytest.mark.parametrize("ndigits", range(19))
+    @pytest.mark.parametrize("negative", [False, True])
+    def test_decode_tagged_struct_int_tag(self, ndigits, negative):
+        if ndigits == 0:
+            s = b"0"
+        else:
+            s = "".join(
+                itertools.islice(itertools.cycle("123456789"), ndigits)
+            ).encode()
+
+        tag = int(s)
+        if negative:
+            tag = -tag
+
+        class Test(msgspec.Struct, tag=tag):
+            x: int
+
+        t = Test(1)
+        msg = msgspec.json.encode(t)
+        assert msgspec.json.decode(msg, type=Test) == t
+
+    def test_decode_tagged_struct_int_tag_uint64_always_invalid(self):
+        """Uint64 values aren't currently valid tag values, but we still want
+        to raise a good error message."""
+
+        class Test(msgspec.Struct, tag=123):
+            pass
+
+        with pytest.raises(msgspec.DecodeError) as rec:
+            msgspec.json.decode(msgspec.json.encode({"type": 2**64 - 1}), type=Test)
+        assert f"Invalid value {2**64 - 1}" in str(rec.value)
+        assert "`$.type`" in str(rec.value)
+
+    @pytest.mark.parametrize(
+        "s, error",
+        [
+            (b'{"type": 00}', "invalid number"),
+            (b'{"type": -n123}', "invalid character"),
+            (b'{"type": 123n}', "expected ',' or '}'"),
+            (b'{"type": 123.}', "invalid number"),
+            (b'{"type": 123.n}', "invalid number"),
+            (b'{"type": 123e}', "invalid number"),
+            (b'{"type": 123en}', "invalid number"),
+            (b'{"type": 123, }', "trailing comma in object"),
+            (b'{"type": 123, "a" 1}', "expected ':'"),
+            (b'{"type": 123, "a": 1 "b"}', "expected ',' or '}'"),
+            (b'{"type": nulp}', "invalid character"),
+            (b'{"type": "bad}', "truncated"),
+            (b'{"type": bad}', "invalid character"),
+        ],
+    )
+    def test_decode_struct_int_tag_malformed(self, s, error):
+        class Test1(msgspec.Struct, tag=123):
             a: int
             b: int
 
@@ -2058,6 +2124,35 @@ class TestStructUnion:
             msgspec.json.decode(s, type=Union[Test1, Test2])
 
     @pytest.mark.parametrize(
+        "s, error",
+        [
+            (b'{"type": 00}', "invalid number"),
+            (b'{"type": -n123}', "invalid character"),
+            (b'{"type": 123n}', "expected ',' or '}'"),
+            (b'{"type": 123.}', "invalid number"),
+            (b'{"type": 123.n}', "invalid number"),
+            (b'{"type": 123e}', "invalid number"),
+            (b'{"type": 123en}', "invalid number"),
+            (b'{"type": 123, }', "trailing comma in object"),
+            (b'{"type": 123, "a" 1}', "expected ':'"),
+            (b'{"type": 123, "a": 1 "b"}', "expected ',' or '}'"),
+            (b'{"type": nulp}', "invalid character"),
+            (b'{"type": "bad}', "truncated"),
+            (b'{"type": bad}', "invalid character"),
+        ],
+    )
+    def test_decode_struct_union_int_tag_malformed(self, s, error):
+        class Test1(msgspec.Struct, tag=-123):
+            a: int
+            b: int
+
+        class Test2(msgspec.Struct, tag=123):
+            pass
+
+        with pytest.raises(msgspec.DecodeError, match=error):
+            msgspec.json.decode(s, type=Union[Test1, Test2])
+
+    @pytest.mark.parametrize(
         "s",
         [
             b'  {  "type"  :  "Test1"  ,  "a"  :  1  ,  "b"  :  2  }  ',
@@ -2071,6 +2166,25 @@ class TestStructUnion:
             b: int
 
         class Test2(msgspec.Struct, tag=True):
+            pass
+
+        res = msgspec.json.decode(s, type=Union[Test1, Test2])
+        assert res == Test1(1, 2)
+
+    @pytest.mark.parametrize(
+        "s",
+        [
+            b'  {  "type"  :  -123  ,  "a"  :  1  ,  "b"  :  2  }  ',
+            b'  {  "a"  :  1  ,  "type"  :  -123  ,  "b"  :  2  }  ',
+            b'  {  "a"  :  1  ,  "b"  :  2  ,  "type"  :  -123  }  ',
+        ],
+    )
+    def test_decode_struct_union_int_tag_ignores_whitespace(self, s):
+        class Test1(msgspec.Struct, tag=-123):
+            a: int
+            b: int
+
+        class Test2(msgspec.Struct, tag=123):
             pass
 
         res = msgspec.json.decode(s, type=Union[Test1, Test2])
@@ -2198,8 +2312,9 @@ class TestStructArray:
         with pytest.raises(msgspec.DecodeError, match=error):
             msgspec.json.decode(s, type=Point)
 
-    def test_decode_tagged_struct(self):
-        class Test(msgspec.Struct, tag=True, array_like=True):
+    @pytest.mark.parametrize("tag", ["Test", 123])
+    def test_decode_tagged_struct(self, tag):
+        class Test(msgspec.Struct, tag=tag, array_like=True):
             a: int
             b: int
             c: int = 0
@@ -2207,18 +2322,18 @@ class TestStructArray:
         dec = msgspec.json.Decoder(Test)
 
         # Decode with tag
-        res = dec.decode(msgspec.json.encode(["Test", 1, 2]))
+        res = dec.decode(msgspec.json.encode([tag, 1, 2]))
         assert res == Test(1, 2)
-        res = dec.decode(msgspec.json.encode(["Test", 1, 2, 3]))
+        res = dec.decode(msgspec.json.encode([tag, 1, 2, 3]))
         assert res == Test(1, 2, 3)
 
         # Trailing fields ignored
-        res = dec.decode(msgspec.json.encode(["Test", 1, 2, 3, 4]))
+        res = dec.decode(msgspec.json.encode([tag, 1, 2, 3, 4]))
         assert res == Test(1, 2, 3)
 
         # Missing required field errors
         with pytest.raises(msgspec.DecodeError) as rec:
-            dec.decode(msgspec.json.encode(["Test", 1]))
+            dec.decode(msgspec.json.encode([tag, 1]))
         assert "Expected `array` of at least length 3, got 2" in str(rec.value)
 
         # Tag missing
@@ -2228,30 +2343,32 @@ class TestStructArray:
 
         # Tag incorrect type
         with pytest.raises(msgspec.DecodeError) as rec:
-            dec.decode(msgspec.json.encode([1, 2, 3]))
-        assert "Expected `str`" in str(rec.value)
+            dec.decode(msgspec.json.encode([123.456, 2, 3]))
+        assert f"Expected `{type(tag).__name__}`" in str(rec.value)
         assert "`$[0]`" in str(rec.value)
 
         # Tag incorrect value
+        bad = 0 if isinstance(tag, int) else "bad"
         with pytest.raises(msgspec.DecodeError) as rec:
-            dec.decode(msgspec.json.encode(["bad", 1, 2]))
-        assert "Invalid value 'bad'" in str(rec.value)
+            dec.decode(msgspec.json.encode([bad, 1, 2]))
+        assert f"Invalid value {bad!r}" in str(rec.value)
         assert "`$[0]`" in str(rec.value)
 
         # Field incorrect type correct index
         with pytest.raises(msgspec.DecodeError) as rec:
-            dec.decode(msgspec.json.encode(["Test", "a", 2]))
+            dec.decode(msgspec.json.encode([tag, "a", 2]))
         assert "Expected `int`, got `str`" in str(rec.value)
         assert "`$[1]`" in str(rec.value)
 
-    def test_decode_tagged_empty_struct(self):
-        class Test(msgspec.Struct, tag=True, array_like=True):
+    @pytest.mark.parametrize("tag", ["Test", 123])
+    def test_decode_tagged_empty_struct(self, tag):
+        class Test(msgspec.Struct, tag=tag, array_like=True):
             pass
 
         dec = msgspec.json.Decoder(Test)
 
         # Decode with tag
-        res = dec.decode(msgspec.json.encode(["Test", 1, 2]))
+        res = dec.decode(msgspec.json.encode([tag, 1, 2]))
         assert res == Test()
 
         # Tag missing
@@ -2294,6 +2411,35 @@ class TestStructArrayUnion:
         with pytest.raises(msgspec.DecodeError, match=error):
             msgspec.json.decode(s, type=Union[Test1, Test2])
 
+    @pytest.mark.parametrize(
+        "s, error",
+        [
+            (b"[,]", "invalid character"),
+            (b"[, 1]", "invalid character"),
+            (b"[nulp]", "invalid character"),
+            (b"[123, nulp]", "invalid character"),
+            (b"[", "truncated"),
+            (b"[123.n,", "invalid number"),
+            (b"[123en,", "invalid number"),
+            (b"[123", "truncated"),
+            (b"[123,", "truncated"),
+            (b"[123, ]", "trailing comma in array"),
+            (b"[123 g", r"expected ',' or ']'"),
+            (b"[123, 1 g", r"expected ',' or ']'"),
+        ],
+    )
+    def test_decode_struct_array_like_union_int_tag_malformed(self, s, error):
+        class Test1(msgspec.Struct, tag=123, array_like=True):
+            x: int
+            y: int
+            z: int
+
+        class Test2(msgspec.Struct, tag=-123, array_like=True):
+            pass
+
+        with pytest.raises(msgspec.DecodeError, match=error):
+            msgspec.json.decode(s, type=Union[Test1, Test2])
+
     def test_decode_struct_array_union_ignores_whitespace(self):
         s = b'  [  "Test1"  ,  1  ,  2  ]  '
 
@@ -2302,6 +2448,19 @@ class TestStructArrayUnion:
             b: int
 
         class Test2(msgspec.Struct, tag=True, array_like=True):
+            pass
+
+        res = msgspec.json.decode(s, type=Union[Test1, Test2])
+        assert res == Test1(1, 2)
+
+    def test_decode_struct_array_union_int_tag_ignores_whitespace(self):
+        s = b"  [  123  ,  1  ,  2  ]  "
+
+        class Test1(msgspec.Struct, tag=123, array_like=True):
+            a: int
+            b: int
+
+        class Test2(msgspec.Struct, tag=-123, array_like=True):
             pass
 
         res = msgspec.json.decode(s, type=Union[Test1, Test2])

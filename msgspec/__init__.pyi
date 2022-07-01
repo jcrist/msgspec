@@ -38,7 +38,7 @@ class Struct(metaclass=__StructMeta):
     def __init__(self, *args: Any, **kwargs: Any) -> None: ...
     def __init_subclass__(
         cls,
-        tag: Union[None, bool, str, Callable[[str], str]] = None,
+        tag: Union[None, bool, str, int, Callable[[str], Union[str, int]]] = None,
         tag_field: Union[None, str] = None,
         rename: Union[
             None, Literal["lower", "upper", "camel", "pascal"], Callable[[str], str]
@@ -59,7 +59,7 @@ def defstruct(
     bases: Tuple[Type[Struct], ...] = (),
     module: Optional[str] = None,
     namespace: Optional[Dict[str, Any]] = None,
-    tag: Union[None, bool, str, Callable[[str], str]] = None,
+    tag: Union[None, bool, str, int, Callable[[str], Union[str, int]]] = None,
     tag_field: Union[None, str] = None,
     rename: Union[
         None, Literal["lower", "upper", "camel", "pascal"], Callable[[str], str]
