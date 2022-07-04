@@ -3686,6 +3686,22 @@ StructMeta_prep_types(PyObject *py_self, bool err_not_json, bool *json_compatibl
         }
     }
 
+    if (MS_UNLIKELY(self->struct_fields == NULL)) {
+        /* The struct isn't fully initialized! This most commonly happens if
+         * the user tries to do anything inside a `__init_subclass__` method.
+         * Error nicely rather than segfaulting. */
+        PyErr_Format(
+            PyExc_ValueError,
+            "Type `%R` isn't fully defined, and can't be used in any "
+            "`Decoder`/`decode` operations. This commonly happens when "
+            "trying to use the struct type within an `__init_subclass__` "
+            "method. If you believe what you're trying to do should work, "
+            "please raise an issue on GitHub.",
+            py_self
+        );
+        return -1;
+    }
+
     /* Prevent recursion, clear on return */
     self->traversing = true;
 
