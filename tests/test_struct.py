@@ -11,6 +11,7 @@ from typing import Any, Optional
 
 import pytest
 
+import msgspec
 from msgspec import Struct, defstruct
 
 
@@ -109,6 +110,42 @@ def test_struct_subclass_forbids_mixed_layouts():
 
         class C(A, B):
             pass
+
+
+def test_struct_errors_nicely_if_used_in_init_subclass():
+    ran = False
+
+    class Test(Struct):
+        def __init_subclass__(cls):
+            # Class attributes aren't yet defined, error nicely
+            for field in [
+                "__struct_fields__",
+                "__struct_encode_fields__",
+                "__struct_fields__",
+                "__struct_defaults__",
+            ]:
+                with pytest.raises(AttributeError):
+                    getattr(cls, field)
+
+            # Init doesn't work
+            with pytest.raises(Exception):
+                cls()
+
+            # Decoder/decode doesn't work
+            for proto in [msgspec.json, msgspec.msgpack]:
+                with pytest.raises(ValueError, match="isn't fully defined"):
+                    proto.Decoder(cls)
+
+                with pytest.raises(ValueError, match="isn't fully defined"):
+                    proto.decode(b"", type=cls)
+
+            nonlocal ran
+            ran = True
+
+    class Subclass(Test):
+        x: int
+
+    assert ran
 
 
 def test_structmeta_no_args():
