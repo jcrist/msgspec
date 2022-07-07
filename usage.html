@@ -647,9 +647,10 @@ doesn’t match or if any required fields are missing.</p>
 </pre></div>
 </div>
 <p>If you pass <code class="docutils literal notranslate"><span class="pre">array_like=True</span></code> when defining the struct type, they’re instead
-treated as <code class="docutils literal notranslate"><span class="pre">array</span></code> types during encoding/decoding (with fields serialized in
-their definition order). This can further improve performance at the cost of
-less human readable messaging. Like <code class="docutils literal notranslate"><span class="pre">array_like=False</span></code> (the default) structs,
+treated as <code class="docutils literal notranslate"><span class="pre">array</span></code> types during encoding/decoding.  In this case fields are
+serialized in their normalized order (definition order, with optional fields
+shifted to the end). This can further improve performance at the cost of less
+human readable messaging. Like <code class="docutils literal notranslate"><span class="pre">array_like=False</span></code> (the default) structs,
 extra (trailing) fields are ignored during decoding, and any missing optional
 fields have their defaults applied. Type checking also still applies.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Set</span><span class="p">,</span> <span class="n">Optional</span>

@@ -503,9 +503,10 @@ doesn't match or if any required fields are missing.
     msgspec.DecodeError: Expected `str`, got `int` - at `$.groups[1]`
 
 If you pass ``array_like=True`` when defining the struct type, they're instead
-treated as ``array`` types during encoding/decoding (with fields serialized in
-their definition order). This can further improve performance at the cost of
-less human readable messaging. Like ``array_like=False`` (the default) structs,
+treated as ``array`` types during encoding/decoding.  In this case fields are
+serialized in their normalized order (definition order, with optional fields
+shifted to the end). This can further improve performance at the cost of less
+human readable messaging. Like ``array_like=False`` (the default) structs,
 extra (trailing) fields are ignored during decoding, and any missing optional
 fields have their defaults applied. Type checking also still applies.
 
@@ -643,7 +644,7 @@ message).
     >>> # Compose a larger message containing the pre-encoded fragment
     ... msg = {"a": 1, "b": fragment}
 
-    >>> # During encoding, the raw message is efficiently copied into 
+    >>> # During encoding, the raw message is efficiently copied into
     ... # the output buffer, avoiding any extra encoding cost
     ... msgspec.json.encode(msg)
     b'{"a":1,"b":{"x": 1, "y": 2}}'
