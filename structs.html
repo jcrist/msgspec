@@ -385,8 +385,9 @@ equal to is itself.</p>
 <section id="frozen-instances">
 <h2>Frozen Instances<a class="headerlink" href="#frozen-instances" title="Permalink to this heading">#</a></h2>
 <p>A struct type can optionally be marked as “frozen” by specifying
-<code class="docutils literal notranslate"><span class="pre">frozen=True</span></code>. This disables modifying attributes after initialization,
-and adds a <code class="docutils literal notranslate"><span class="pre">__hash__</span></code> method to the class definition.</p>
+<code class="docutils literal notranslate"><span class="pre">frozen=True</span></code>. This disables modifying attributes after initialization, and
+adds a <code class="docutils literal notranslate"><span class="pre">__hash__</span></code> method to the class definition. Note that for the
+<code class="docutils literal notranslate"><span class="pre">__hash__</span></code> to work, all fields on the struct must also be hashable.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">Point</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
 <span class="gp">... </span>    <span class="sd">&quot;&quot;&quot;This struct is immutable &amp; hashable&quot;&quot;&quot;</span>
 <span class="gp">... </span>    <span class="n">x</span><span class="p">:</span> <span class="nb">float</span>
