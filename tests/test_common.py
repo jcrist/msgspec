@@ -100,15 +100,15 @@ class TestIntEnum:
             B = 2
 
         dec = msgspec.msgpack.Decoder(Test)  # noqa
-        count = sys.getrefcount(Test.__msgspec_lookup__)
+        count = sys.getrefcount(Test.__msgspec_cache__)
         dec2 = msgspec.msgpack.Decoder(Test)
-        count2 = sys.getrefcount(Test.__msgspec_lookup__)
+        count2 = sys.getrefcount(Test.__msgspec_cache__)
         assert count2 == count + 1
 
         # Reference count decreases when decoder is dropped
         del dec2
         gc.collect()
-        count3 = sys.getrefcount(Test.__msgspec_lookup__)
+        count3 = sys.getrefcount(Test.__msgspec_cache__)
         assert count == count3
 
     def test_int_lookup_gc(self):
@@ -117,7 +117,7 @@ class TestIntEnum:
             B = 2
 
         dec = msgspec.msgpack.Decoder(Test)
-        assert gc.is_tracked(Test.__msgspec_lookup__)
+        assert gc.is_tracked(Test.__msgspec_cache__)
 
         # Deleting all references and running GC cleans up cycle
         ref = weakref.ref(Test)
@@ -139,13 +139,13 @@ class TestIntEnum:
         with pytest.raises(NotImplementedError):
             msgspec.msgpack.Decoder(myenum)
 
-    def test_msgspec_lookup_overwritten(self):
+    def test_msgspec_cache_overwritten(self):
         class Test(enum.IntEnum):
             A = 1
 
-        Test.__msgspec_lookup__ = 1
+        Test.__msgspec_cache__ = 1
 
-        with pytest.raises(RuntimeError, match="__msgspec_lookup__"):
+        with pytest.raises(RuntimeError, match="__msgspec_cache__"):
             msgspec.msgpack.Decoder(Test)
 
     @pytest.mark.parametrize(
@@ -167,7 +167,7 @@ class TestIntEnum:
         myenum = enum.IntEnum("myenum", [(f"x{i}", v) for i, v in enumerate(values)])
         dec = msgspec.msgpack.Decoder(myenum)
 
-        assert hasattr(myenum, "__msgspec_lookup__")
+        assert hasattr(myenum, "__msgspec_cache__")
 
         for val in myenum:
             msg = msgspec.msgpack.encode(val)
@@ -190,7 +190,7 @@ class TestIntEnum:
         myenum = enum.IntEnum("myenum", [(f"x{i}", v) for i, v in enumerate(values)])
         dec = msgspec.msgpack.Decoder(myenum)
 
-        assert hasattr(myenum, "__msgspec_lookup__")
+        assert hasattr(myenum, "__msgspec_cache__")
 
         for val in myenum:
             msg = msgspec.msgpack.encode(val)
@@ -236,15 +236,15 @@ class TestEnum:
             B = 2
 
         dec = msgspec.msgpack.Decoder(Test)  # noqa
-        count = sys.getrefcount(Test.__msgspec_lookup__)
+        count = sys.getrefcount(Test.__msgspec_cache__)
         dec2 = msgspec.msgpack.Decoder(Test)
-        count2 = sys.getrefcount(Test.__msgspec_lookup__)
+        count2 = sys.getrefcount(Test.__msgspec_cache__)
         assert count2 == count + 1
 
         # Reference count decreases when decoder is dropped
         del dec2
         gc.collect()
-        count3 = sys.getrefcount(Test.__msgspec_lookup__)
+        count3 = sys.getrefcount(Test.__msgspec_cache__)
         assert count == count3
 
     def test_str_lookup_gc(self):
@@ -253,7 +253,7 @@ class TestEnum:
             B = 2
 
         dec = msgspec.msgpack.Decoder(Test)
-        assert gc.is_tracked(Test.__msgspec_lookup__)
+        assert gc.is_tracked(Test.__msgspec_cache__)
 
         # Deleting all references and running GC cleans up cycle
         ref = weakref.ref(Test)
@@ -262,13 +262,13 @@ class TestEnum:
         gc.collect()
         assert ref() is None
 
-    def test_msgspec_lookup_overwritten(self):
+    def test_msgspec_cache_overwritten(self):
         class Test(enum.Enum):
             A = 1
 
-        Test.__msgspec_lookup__ = 1
+        Test.__msgspec_cache__ = 1
 
-        with pytest.raises(RuntimeError, match="__msgspec_lookup__"):
+        with pytest.raises(RuntimeError, match="__msgspec_cache__"):
             msgspec.msgpack.Decoder(Test)
 
     @pytest.mark.parametrize("length", [2, 8, 16])
@@ -376,8 +376,8 @@ class TestLiterals:
         literal = Literal[1, "two", None]
 
         dec = msgspec.msgpack.Decoder(literal)
-        assert literal.__msgspec_lookup__[0] is not None
-        assert literal.__msgspec_lookup__[1] is not None
+        assert literal.__msgspec_cache__[0] is not None
+        assert literal.__msgspec_cache__[1] is not None
 
         for val in [1, "two", None]:
             assert dec.decode(msgspec.msgpack.encode(val)) == val
@@ -390,7 +390,7 @@ class TestLiterals:
 
         dec = msgspec.msgpack.Decoder(literal)  # noqa
 
-        int_lookup, str_lookup = literal.__msgspec_lookup__
+        int_lookup, str_lookup = literal.__msgspec_cache__
         assert (int_lookup is not None) == any(isinstance(i, int) for i in values)
         assert (str_lookup is not None) == any(isinstance(i, str) for i in values)
 
@@ -414,12 +414,12 @@ class TestLiterals:
             assert sys.getrefcount(str_lookup) == strcount
 
     @pytest.mark.parametrize("val", [None, (), (1,), (1, 2), (1, 2, 3)])
-    def test_msgspec_lookup_overwritten(self, val):
+    def test_msgspec_cache_overwritten(self, val):
         literal = Literal["a", "highly", "improbable", "set", "of", "strings"]
 
-        literal.__msgspec_lookup__ = val
+        literal.__msgspec_cache__ = val
 
-        with pytest.raises(RuntimeError, match="__msgspec_lookup__"):
+        with pytest.raises(RuntimeError, match="__msgspec_cache__"):
             msgspec.msgpack.Decoder(literal)
 
     def test_multiple_literals(self):
@@ -429,7 +429,7 @@ class TestLiterals:
 
         dec = msgspec.msgpack.Decoder(both)
 
-        assert not hasattr(both, "__msgspec_lookup__")
+        assert not hasattr(both, "__msgspec_cache__")
 
         for val in [-1, -2, -3, "apple", "banana"]:
             assert dec.decode(msgspec.msgpack.encode(val)) == val
@@ -449,7 +449,7 @@ class TestLiterals:
 
         dec = msgspec.msgpack.Decoder(both)
 
-        assert hasattr(both, "__msgspec_lookup__")
+        assert hasattr(both, "__msgspec_cache__")
 
         for val in [-1, -2, -3, "apple", "banana"]:
             assert dec.decode(msgspec.msgpack.encode(val)) == val

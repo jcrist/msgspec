@@ -417,7 +417,7 @@ typedef struct {
     PyObject *str___weakref__;
     PyObject *str__name_;
     PyObject *str__member_map_;
-    PyObject *str___msgspec_lookup__;
+    PyObject *str___msgspec_cache__;
     PyObject *str_name;
     PyObject *str_type;
     PyObject *str_enc_hook;
@@ -1642,13 +1642,13 @@ typenode_from_collect_state(TypeNodeCollectState *state, bool err_not_json, bool
         out->extra[e_ind++] = state->structs_lookup;
     }
     if (state->intenum_obj != NULL) {
-        PyObject *lookup = PyObject_GetAttr(state->intenum_obj, state->mod->str___msgspec_lookup__);
+        PyObject *lookup = PyObject_GetAttr(state->intenum_obj, state->mod->str___msgspec_cache__);
         if (lookup == NULL) {
             /* IntLookup isn't created yet, create and store on enum class */
             PyErr_Clear();
             lookup = IntLookup_New(state->intenum_obj, NULL, false);
             if (lookup == NULL) goto error;
-            if (PyObject_SetAttr(state->intenum_obj, state->mod->str___msgspec_lookup__, lookup) < 0) {
+            if (PyObject_SetAttr(state->intenum_obj, state->mod->str___msgspec_cache__, lookup) < 0) {
                 Py_DECREF(lookup);
                 goto error;
             }
@@ -1658,7 +1658,7 @@ typenode_from_collect_state(TypeNodeCollectState *state, bool err_not_json, bool
             Py_DECREF(lookup);
             PyErr_Format(
                 PyExc_RuntimeError,
-                "%R.__msgspec_lookup__ has been overwritten",
+                "%R.__msgspec_cache__ has been overwritten",
                 state->intenum_obj
             );
             goto error;
@@ -1670,7 +1670,7 @@ typenode_from_collect_state(TypeNodeCollectState *state, bool err_not_json, bool
         out->extra[e_ind++] = state->int_literal_lookup;
     }
     if (state->enum_obj != NULL) {
-        PyObject *lookup = PyObject_GetAttr(state->enum_obj, state->mod->str___msgspec_lookup__);
+        PyObject *lookup = PyObject_GetAttr(state->enum_obj, state->mod->str___msgspec_cache__);
         if (lookup == NULL) {
             /* StrLookup isn't created yet, create and store on enum class */
             PyErr_Clear();
@@ -1679,7 +1679,7 @@ typenode_from_collect_state(TypeNodeCollectState *state, bool err_not_json, bool
             lookup = StrLookup_New(member_map, NULL, false);
             Py_DECREF(member_map);
             if (lookup == NULL) goto error;
-            if (PyObject_SetAttr(state->enum_obj, state->mod->str___msgspec_lookup__, lookup) < 0) {
+            if (PyObject_SetAttr(state->enum_obj, state->mod->str___msgspec_cache__, lookup) < 0) {
                 Py_DECREF(lookup);
                 goto error;
             }
@@ -1689,7 +1689,7 @@ typenode_from_collect_state(TypeNodeCollectState *state, bool err_not_json, bool
             Py_DECREF(lookup);
             PyErr_Format(
                 PyExc_RuntimeError,
-                "%R.__msgspec_lookup__ has been overwritten",
+                "%R.__msgspec_cache__ has been overwritten",
                 state->enum_obj
             );
             goto error;
@@ -1989,7 +1989,7 @@ typenode_collect_convert_literals(TypeNodeCollectState *state) {
         PyObject *literal = PyList_GET_ITEM(state->literals, 0);
 
         /* Check if cached, otherwise create and cache */
-        PyObject *cached = PyObject_GetAttr(literal, state->mod->str___msgspec_lookup__);
+        PyObject *cached = PyObject_GetAttr(literal, state->mod->str___msgspec_cache__);
         if (cached != NULL) {
             /* Extract and store the lookups */
             if (PyTuple_CheckExact(cached) && PyTuple_GET_SIZE(cached) == 2) {
@@ -2018,7 +2018,7 @@ typenode_collect_convert_literals(TypeNodeCollectState *state) {
             Py_DECREF(cached);
             PyErr_Format(
                 PyExc_RuntimeError,
-                "%R.__msgspec_lookup__ has been overwritten",
+                "%R.__msgspec_cache__ has been overwritten",
                 literal
             );
             return -1;
@@ -2049,7 +2049,7 @@ typenode_collect_convert_literals(TypeNodeCollectState *state) {
                 state->str_literal_lookup == NULL ? Py_None : state->str_literal_lookup
             );
             if (cached == NULL) return -1;
-            int out = PyObject_SetAttr(literal, state->mod->str___msgspec_lookup__, cached);
+            int out = PyObject_SetAttr(literal, state->mod->str___msgspec_cache__, cached);
             Py_DECREF(cached);
             return out;
         }
@@ -11089,7 +11089,7 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->str___weakref__);
     Py_CLEAR(st->str__name_);
     Py_CLEAR(st->str__member_map_);
-    Py_CLEAR(st->str___msgspec_lookup__);
+    Py_CLEAR(st->str___msgspec_cache__);
     Py_CLEAR(st->str_name);
     Py_CLEAR(st->str_type);
     Py_CLEAR(st->str_enc_hook);
@@ -11389,7 +11389,7 @@ PyInit__core(void)
     CACHED_STRING(str___weakref__, "__weakref__");
     CACHED_STRING(str__name_, "_name_");
     CACHED_STRING(str__member_map_, "_member_map_");
-    CACHED_STRING(str___msgspec_lookup__, "__msgspec_lookup__");
+    CACHED_STRING(str___msgspec_cache__, "__msgspec_cache__");
     CACHED_STRING(str_name, "name");
     CACHED_STRING(str_type, "type");
     CACHED_STRING(str_enc_hook, "enc_hook");
