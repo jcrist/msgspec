@@ -210,8 +210,9 @@ Frozen Instances
 ----------------
 
 A struct type can optionally be marked as "frozen" by specifying
-``frozen=True``. This disables modifying attributes after initialization,
-and adds a ``__hash__`` method to the class definition.
+``frozen=True``. This disables modifying attributes after initialization, and
+adds a ``__hash__`` method to the class definition. Note that for the
+``__hash__`` to work, all fields on the struct must also be hashable.
 
 .. code-block:: python
 
