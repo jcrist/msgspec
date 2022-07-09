@@ -486,7 +486,7 @@ class TestUnionTypeErrors:
     def test_err_union_with_struct_and_dict(self, typ, proto):
         with pytest.raises(TypeError) as rec:
             proto.Decoder(typ)
-        assert "both a Struct type and a dict type" in str(rec.value)
+        assert "more than one dict-like type" in str(rec.value)
         assert repr(typ) in str(rec.value)
 
     @pytest.mark.parametrize(
@@ -600,7 +600,7 @@ class TestStructUnion:
         if array_like:
             assert "other array-like types" in str(rec.value)
         else:
-            assert "Struct type and a dict type" in str(rec.value)
+            assert "more than one dict-like type" in str(rec.value)
         assert repr(typ) in str(rec.value)
 
     @pytest.mark.parametrize("array_like", [False, True])

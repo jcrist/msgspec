@@ -426,6 +426,9 @@ typedef struct {
     PyObject *str_utcoffset;
     PyObject *str___origin__;
     PyObject *str___args__;
+    PyObject *str___total__;
+    PyObject *str___required_keys__;
+    PyObject *str___optional_keys__;
     PyObject *typing_list;
     PyObject *typing_set;
     PyObject *typing_frozenset;
@@ -1334,6 +1337,8 @@ static PyTypeObject Raw_Type = {
 #define MS_TYPE_FIXTUPLE            (1u << 23)
 #define MS_TYPE_INTLITERAL          (1u << 24)
 #define MS_TYPE_STRLITERAL          (1u << 25)
+#define MS_TYPE_TYPEDDICT           (1u << 26)
+#define MS_TYPE_REQUIRED            (1u << 27)
 
 typedef struct TypeNode {
     uint32_t types;
@@ -1344,6 +1349,18 @@ typedef struct TypeNodeExtra {
     Py_ssize_t fixtuple_size;
     void* extra[];
 } TypeNodeExtra;
+
+typedef struct TypedDictEntry {
+    PyObject *key;
+    TypeNode *type;
+} TypedDictEntry;
+
+typedef struct TypedDictInfo {
+    PyObject_VAR_HEAD
+    Py_ssize_t nrequired;
+    bool json_compatible;
+    TypedDictEntry fields[];
+} TypedDictInfo;
 
 typedef struct {
     PyHeapTypeObject base;
@@ -1366,9 +1383,12 @@ typedef struct {
     int8_t omit_defaults;
 } StructMetaObject;
 
+static PyTypeObject TypedDictInfo_Type;
 static PyTypeObject StructMetaType;
 static PyTypeObject Ext_Type;
-static int StructMeta_prep_types(PyObject *self, bool err_not_json, bool *json_compatible);
+static TypeNode* TypeNode_Convert(PyObject *type, bool, bool *);
+static int StructMeta_prep_types(PyObject*, bool, bool*);
+static PyObject* TypedDictInfo_Convert(PyObject*, bool, bool*);
 
 #define StructMeta_GET_FIELDS(s) (((StructMetaObject *)(s))->struct_fields)
 #define StructMeta_GET_NFIELDS(s) (PyTuple_GET_SIZE((((StructMetaObject *)(s))->struct_fields)))
@@ -1393,7 +1413,8 @@ TypeNode_get_size(TypeNode *type, Py_ssize_t *n_typenode) {
                 MS_TYPE_STRUCT | MS_TYPE_STRUCT_UNION |
                 MS_TYPE_STRUCT_ARRAY | MS_TYPE_STRUCT_ARRAY_UNION |
                 MS_TYPE_INTENUM | MS_TYPE_INTLITERAL |
-                MS_TYPE_ENUM | MS_TYPE_STRLITERAL
+                MS_TYPE_ENUM | MS_TYPE_STRLITERAL |
+                MS_TYPE_TYPEDDICT
             )
         );
         if (type->types & MS_TYPE_DICT) n_type += 2;
@@ -1446,6 +1467,19 @@ TypeNode_get_str_enum_or_literal(TypeNode *type) {
     return ((TypeNodeExtra *)type)->extra[i];
 }
 
+static MS_INLINE TypedDictInfo *
+TypeNode_get_typeddict_info(TypeNode *type) {
+    Py_ssize_t i = ms_popcount(
+        type->types & (
+            MS_TYPE_STRUCT | MS_TYPE_STRUCT_UNION |
+            MS_TYPE_STRUCT_ARRAY | MS_TYPE_STRUCT_ARRAY_UNION |
+            MS_TYPE_INTENUM | MS_TYPE_INTLITERAL |
+            MS_TYPE_ENUM | MS_TYPE_STRLITERAL
+        )
+    );
+    return ((TypeNodeExtra *)type)->extra[i];
+}
+
 static MS_INLINE void
 TypeNode_get_dict(TypeNode *type, TypeNode **key, TypeNode **val) {
     Py_ssize_t i = ms_popcount(
@@ -1453,7 +1487,8 @@ TypeNode_get_dict(TypeNode *type, TypeNode **key, TypeNode **val) {
             MS_TYPE_STRUCT | MS_TYPE_STRUCT_UNION |
             MS_TYPE_STRUCT_ARRAY | MS_TYPE_STRUCT_ARRAY_UNION |
             MS_TYPE_INTENUM | MS_TYPE_INTLITERAL |
-            MS_TYPE_ENUM | MS_TYPE_STRLITERAL
+            MS_TYPE_ENUM | MS_TYPE_STRLITERAL |
+            MS_TYPE_TYPEDDICT
         )
     );
     *key = ((TypeNodeExtra *)type)->extra[i];
@@ -1467,7 +1502,8 @@ TypeNode_get_array_offset(TypeNode *type) {
             MS_TYPE_STRUCT | MS_TYPE_STRUCT_UNION |
             MS_TYPE_STRUCT_ARRAY | MS_TYPE_STRUCT_ARRAY_UNION |
             MS_TYPE_INTENUM | MS_TYPE_INTLITERAL |
-            MS_TYPE_ENUM | MS_TYPE_STRLITERAL
+            MS_TYPE_ENUM | MS_TYPE_STRLITERAL |
+            MS_TYPE_TYPEDDICT
         )
     );
     if (type->types & MS_TYPE_DICT) i += 2;
@@ -1544,7 +1580,11 @@ typenode_simple_repr(TypeNode *self) {
     if (self->types & MS_TYPE_EXT) {
         if (!strbuilder_extend(&builder, "ext", 3)) return NULL;
     }
-    if (self->types & (MS_TYPE_STRUCT | MS_TYPE_STRUCT_UNION | MS_TYPE_DICT)) {
+    if (self->types & (
+            MS_TYPE_STRUCT | MS_TYPE_STRUCT_UNION |
+            MS_TYPE_TYPEDDICT | MS_TYPE_DICT
+        )
+    ) {
         if (!strbuilder_extend(&builder, "object", 6)) return NULL;
     }
     if (
@@ -1576,14 +1616,13 @@ typedef struct {
     PyObject *array_el_obj;
     PyObject *dict_key_obj;
     PyObject *dict_val_obj;
+    PyObject *typeddict_obj;
     PyObject *literals;
     PyObject *int_literal_values;
     PyObject *int_literal_lookup;
     PyObject *str_literal_values;
     PyObject *str_literal_lookup;
 } TypeNodeCollectState;
-
-static TypeNode * TypeNode_Convert(PyObject *type, bool err_not_json, bool *json_compatible);
 
 static TypeNode *
 typenode_from_collect_state(TypeNodeCollectState *state, bool err_not_json, bool *json_compatible) {
@@ -1597,6 +1636,7 @@ typenode_from_collect_state(TypeNodeCollectState *state, bool err_not_json, bool
     if (state->enum_obj != NULL) n_extra++;
     if (state->str_literal_lookup != NULL) n_extra++;
     if (state->custom_obj != NULL) n_extra++;
+    if (state->typeddict_obj != NULL) n_extra++;
     if (state->dict_key_obj != NULL) n_extra += 2;
     if (state->array_el_obj != NULL) {
         if (PyTuple_Check(state->array_el_obj)) {
@@ -1633,6 +1673,14 @@ typenode_from_collect_state(TypeNodeCollectState *state, bool err_not_json, bool
 
     /* Populate `extra` fields in order */
     e_ind = 0;
+    if (state->custom_obj != NULL) {
+        Py_INCREF(state->custom_obj);
+        /* Add `Any` to the type node, so the individual decode functions can
+         * check for `Any` alone, and only have to handle custom types in one
+         * location  (e.g. `mpack_decode`). */
+        out->type.types |= MS_TYPE_ANY;
+        out->extra[e_ind++] = state->custom_obj;
+    }
     if (state->struct_obj != NULL) {
         Py_INCREF(state->struct_obj);
         out->extra[e_ind++] = state->struct_obj;
@@ -1700,13 +1748,12 @@ typenode_from_collect_state(TypeNodeCollectState *state, bool err_not_json, bool
         Py_INCREF(state->str_literal_lookup);
         out->extra[e_ind++] = state->str_literal_lookup;
     }
-    if (state->custom_obj != NULL) {
-        Py_INCREF(state->custom_obj);
-        /* Add `Any` to the type node, so the individual decode functions can
-         * check for `Any` alone, and only have to handle custom types in one
-         * location  (e.g. `mpack_decode`). */
-        out->type.types |= MS_TYPE_ANY;
-        out->extra[e_ind++] = state->custom_obj;
+    if (state->typeddict_obj != NULL) {
+        PyObject *info = TypedDictInfo_Convert(
+            state->typeddict_obj, err_not_json, json_compatible
+        );
+        if (info == NULL) goto error;
+        out->extra[e_ind++] = info;
     }
     if (state->dict_key_obj != NULL) {
         TypeNode *temp = TypeNode_Convert(state->dict_key_obj, err_not_json, json_compatible);
@@ -1798,11 +1845,17 @@ typenode_collect_check_invariants(
         return -1;
     }
     /* Ensure structs with array_like=False don't conflict with dict types */
-    if (state->dict_key_obj && (state->types & (MS_TYPE_STRUCT| MS_TYPE_STRUCT_UNION))) {
+    if (ms_popcount(
+            state->types & (
+                MS_TYPE_STRUCT | MS_TYPE_STRUCT_UNION |
+                MS_TYPE_TYPEDDICT | MS_TYPE_DICT
+            )
+        ) > 1
+    ) {
         PyErr_Format(
             PyExc_TypeError,
-            "Type unions may not contain both a Struct type and a dict type "
-            "- type `%R` is not supported",
+            "Type unions may not contain more than one dict-like type "
+            "(`Struct`, `dict`, `TypedDict`) - type `%R` is not supported",
             state->context
         );
         return -1;
@@ -1901,6 +1954,17 @@ typenode_collect_custom(TypeNodeCollectState *state, uint32_t type, PyObject *ob
     state->types |= type;
     Py_INCREF(obj);
     state->custom_obj = obj;
+    return 0;
+}
+
+static int
+typenode_collect_typeddict(TypeNodeCollectState *state, PyObject *obj) {
+    if (state->typeddict_obj != NULL) {
+        return typenode_collect_err_unique(state, "TypedDict");
+    }
+    state->types |= MS_TYPE_TYPEDDICT;
+    Py_INCREF(obj);
+    state->typeddict_obj = obj;
     return 0;
 }
 
@@ -2266,6 +2330,7 @@ typenode_collect_clear_state(TypeNodeCollectState *state) {
     Py_CLEAR(state->array_el_obj);
     Py_CLEAR(state->dict_key_obj);
     Py_CLEAR(state->dict_val_obj);
+    Py_CLEAR(state->typeddict_obj);
     Py_CLEAR(state->literals);
     Py_CLEAR(state->int_literal_values);
     Py_CLEAR(state->int_literal_lookup);
@@ -2406,6 +2471,13 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
     }
     #endif
 
+    /* Check if obj is a TypedDict through duck-typing */
+    if (PyType_Check(obj)
+        && PyType_IsSubtype((PyTypeObject *)obj, &PyDict_Type)
+        && PyObject_HasAttr(obj, state->mod->str___total__)) {
+        return typenode_collect_typeddict(state, obj);
+    }
+
     /* Attempt to extract __origin__/__args__ from the obj as a typing object */
     if ((origin = PyObject_GetAttr(obj, state->mod->str___origin__)) == NULL ||
             (args = PyObject_GetAttr(obj, state->mod->str___args__)) == NULL) {
@@ -2519,7 +2591,7 @@ done:
 }
 
 #define PATH_ELLIPSIS -1
-#define PATH_TAG -2
+#define PATH_STR -2
 #define PATH_KEY -3
 
 typedef struct PathNode {
@@ -2563,7 +2635,7 @@ PathNode_ErrSuffix(PathNode *path) {
     while (path != NULL) {
         if (path->object != NULL) {
             PyObject *name;
-            if (path->index == PATH_TAG) {
+            if (path->index == PATH_STR) {
                 name = path->object;
             }
             else {
@@ -4559,6 +4631,247 @@ PyDoc_STRVAR(Struct__doc__,
 ">>> {Point(1.5, 2.0): 1}  # frozen structs are hashable\n"
 "{Point(1.5, 2.0): 1}"
 );
+
+static PyObject *
+TypedDictInfo_Convert(PyObject *obj, bool err_not_json, bool *json_compatible) {
+    PyObject *annotations = NULL, *required = NULL;
+    TypedDictInfo *info = NULL;
+    MsgspecState *mod = msgspec_get_global_state();
+    bool cache_set = false;
+
+    /* Check if cached */
+    PyObject *cached = PyObject_GetAttr(obj, mod->str___msgspec_cache__);
+    if (cached != NULL) {
+        if (Py_TYPE(cached) != &TypedDictInfo_Type) {
+            Py_DECREF(cached);
+            PyErr_Format(
+                PyExc_RuntimeError,
+                "%R.__msgspec_cache__ has been overwritten",
+                obj
+            );
+            return NULL;
+        }
+
+        /* -1 indicates the TypedDictInfo is still being built (due to a
+         * recursive type definition). Just return immediately. */
+        if (((TypedDictInfo *)cached)->nrequired == -1) return cached;
+
+        if (!((TypedDictInfo *)cached)->json_compatible) {
+            if (json_compatible != NULL) {
+                *json_compatible = false;
+            }
+            if (!err_not_json) return cached;
+            /* XXX: If we want to error, we need to recurse again here. This won't
+            * modify any internal state, since it will error too early. */
+            Py_DECREF(cached);
+        }
+        else {
+            return cached;
+        }
+    }
+
+    /* Clear the getattr error, if any */
+    PyErr_Clear();
+
+    /* Not cached, extract fields from TypedDict object */
+    annotations = CALL_ONE_ARG(mod->get_type_hints, obj);
+    if (annotations == NULL) return NULL;
+
+    required = PyObject_GetAttr(obj, mod->str___required_keys__);
+    /* Python 3.8 doesn't have __required_keys__. In that case we treat the
+     * dict as fully optional or fully required. */
+    if (required == NULL) {
+        PyErr_Clear();
+
+        bool is_total;
+        PyObject *total = PyObject_GetAttr(obj, mod->str___total__);
+        if (total != NULL) {
+            is_total = PyObject_IsTrue(total);
+            Py_DECREF(total);
+        }
+        else {
+            is_total = true;
+            PyErr_Clear();
+        }
+        required = PyFrozenSet_New(is_total ? annotations : NULL);
+        if (required == NULL) goto error;
+    }
+
+    if (cached != NULL) {
+        /* If cached is not NULL, this means that a TypedDictInfo already exists for
+         * this TypedDict, but it's not JSON compatible and we're recursing through
+         * again to raise a nice TypeError. In this case we:
+         * - Temporarily mark the TypedDictInfo object as being recursively traversed
+         *   to guard against recursion errors. This is done by setting nrequired = -1
+         * - Call `TypeNode_Convert` on every field type, bubbling up the error if
+         *   raised, otherwise immediately free the result.
+         * - Reset `nrequired` to its original value before raising the error.
+         */
+        Py_ssize_t nrequired_temp = ((TypedDictInfo *)cached)->nrequired;
+        ((TypedDictInfo *)cached)->nrequired = -1;
+        Py_ssize_t pos = 0;
+        PyObject *val;
+        while (PyDict_Next(annotations, &pos, NULL, &val)) {
+            bool item_is_json_compatible = true;
+            TypeNode *type = TypeNode_Convert(val, err_not_json, &item_is_json_compatible);
+            if (type == NULL) break;
+            TypeNode_Free(type);
+        }
+        ((TypedDictInfo *)cached)->nrequired = nrequired_temp;
+        goto error;
+    }
+
+    /* Allocate and zero-out a new TypedDictInfo object */
+    Py_ssize_t nfields = PyDict_GET_SIZE(annotations);
+    info = PyObject_GC_NewVar(TypedDictInfo, &TypedDictInfo_Type, nfields);
+    if (info == NULL) goto error;
+    for (Py_ssize_t i = 0; i < nfields; i++) {
+        info->fields[i].key = NULL;
+        info->fields[i].type = NULL;
+    }
+    /* Initialize nrequired to -1 as a flag in case of a recursive TypedDict
+    * definition. */
+    info->nrequired = -1;
+
+    /* If not already cached, then cache on TypedDict object _before_
+    * traversing fields. This is to ensure self-referential TypedDicts work. */
+    if (PyObject_SetAttr(obj, mod->str___msgspec_cache__, (PyObject *)info) < 0) {
+        goto error;
+    }
+    cache_set = true;
+
+    /* Traverse fields and initialize TypedDictInfo */
+    Py_ssize_t pos = 0, i = 0;
+    PyObject *key, *val;
+    bool dict_is_json_compatible = true;
+    while (PyDict_Next(annotations, &pos, &key, &val)) {
+        bool item_is_json_compatible = true;
+        TypeNode *type = TypeNode_Convert(val, err_not_json, &item_is_json_compatible);
+        if (type == NULL) goto error;
+        Py_INCREF(key);
+        info->fields[i].key = key;
+        info->fields[i].type = type;
+        dict_is_json_compatible &= item_is_json_compatible;
+        int contains = PySet_Contains(required, key);
+        if (contains == -1) goto error;
+        if (contains) { type->types |= MS_TYPE_REQUIRED; }
+        i++;
+    }
+    info->nrequired = PySet_GET_SIZE(required);
+    info->json_compatible = dict_is_json_compatible;
+    if (!dict_is_json_compatible && json_compatible != NULL) {
+        *json_compatible = false;
+    }
+    Py_XDECREF(annotations);
+    Py_XDECREF(required);
+    PyObject_GC_Track(info);
+    return (PyObject *)info;
+
+error:
+    if (cache_set) {
+        /* An error occurred after the cache was created and set on the
+         * TypedDict. We need to delete the attribute */
+        if (PyObject_DelAttr(obj, mod->str___msgspec_cache__) < 0) {
+            /* Ignore errors if deletion fails */
+            PyErr_Clear();
+        }
+    }
+    Py_XDECREF((PyObject *)info);
+    Py_XDECREF(annotations);
+    Py_XDECREF(required);
+    return NULL;
+}
+
+static MS_INLINE PyObject *
+TypedDictInfo_lookup_key(
+    TypedDictInfo *self, const char * key, Py_ssize_t key_size,
+    TypeNode **type, Py_ssize_t *pos
+) {
+    const char *field;
+    Py_ssize_t nfields, field_size, i, offset = *pos;
+    nfields = Py_SIZE(self);
+    for (i = offset; i < nfields; i++) {
+        field = unicode_str_and_size(self->fields[i].key, &field_size);
+        if (key_size == field_size && memcmp(key, field, key_size) == 0) {
+            *pos = i < (nfields - 1) ? (i + 1) : 0;
+            *type = self->fields[i].type;
+            return self->fields[i].key;
+        }
+    }
+    for (i = 0; i < offset; i++) {
+        field = unicode_str_and_size(self->fields[i].key, &field_size);
+        if (key_size == field_size && memcmp(key, field, key_size) == 0) {
+            *pos = i + 1;
+            *type = self->fields[i].type;
+            return self->fields[i].key;
+        }
+    }
+    return NULL;
+}
+
+static void
+TypedDictInfo_error_missing(TypedDictInfo *self, PyObject *dict, PathNode *path) {
+    Py_ssize_t nfields = Py_SIZE(self);
+    for (Py_ssize_t i = 0; i < nfields; i++) {
+        if (self->fields[i].type->types & MS_TYPE_REQUIRED) {
+            PyObject *field = self->fields[i].key;
+            int contains = PyDict_Contains(dict, field);
+            if (contains < 0) return;
+            if (contains == 0) {
+                ms_raise_validation_error(
+                    path,
+                    "Object missing required field `%U`%U",
+                    field
+                );
+                return;
+            }
+        }
+    }
+}
+
+static int
+TypedDictInfo_traverse(TypedDictInfo *self, visitproc visit, void *arg)
+{
+    for (Py_ssize_t i = 0; i < Py_SIZE(self); i++) {
+        TypedDictEntry *entry = &(self->fields[i]);
+        if (entry->key != NULL) {
+            int out = TypeNode_traverse(entry->type, visit, arg);
+            if (out != 0) return out;
+        }
+    }
+    return 0;
+}
+
+static int
+TypedDictInfo_clear(TypedDictInfo *self)
+{
+    for (Py_ssize_t i = 0; i < Py_SIZE(self); i++) {
+        Py_CLEAR(self->fields[i].key);
+        TypeNode_Free(self->fields[i].type);
+        self->fields[i].type = NULL;
+    }
+    return 0;
+}
+
+static void
+TypedDictInfo_dealloc(TypedDictInfo *self)
+{
+    PyObject_GC_UnTrack(self);
+    TypedDictInfo_clear(self);
+    Py_TYPE(self)->tp_free((PyObject *)self);
+}
+
+static PyTypeObject TypedDictInfo_Type = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "msgspec._core.TypedDictInfo",
+    .tp_basicsize = sizeof(TypedDictInfo),
+    .tp_itemsize = sizeof(TypedDictEntry),
+    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
+    .tp_clear = (inquiry)TypedDictInfo_clear,
+    .tp_traverse = (traverseproc)TypedDictInfo_traverse,
+    .tp_dealloc = (destructor)TypedDictInfo_dealloc,
+};
+
 
 /*************************************************************************
  * Ext                                                                   *
@@ -7877,6 +8190,61 @@ error:
 }
 
 static PyObject *
+mpack_decode_typeddict(
+    DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *path
+) {
+    if (Py_EnterRecursiveCall(" while deserializing an object")) return NULL;
+
+    PyObject *res = PyDict_New();
+    if (res == NULL) goto error;
+
+    TypedDictInfo *info = TypeNode_get_typeddict_info(type);
+    Py_ssize_t nrequired = 0, pos = 0;
+    for (Py_ssize_t i = 0; i < size; i++) {
+        char *key;
+        PathNode key_path = {path, PATH_KEY, NULL};
+        Py_ssize_t key_size = mpack_decode_cstr(self, &key, &key_path);
+        if (MS_UNLIKELY(key_size < 0)) goto error;
+
+        TypeNode *field_type;
+        PyObject *field = TypedDictInfo_lookup_key(info, key, key_size, &field_type, &pos);
+        if (field != NULL) {
+            PathNode field_path = {path, PATH_STR, field};
+            PyObject *val = mpack_decode(self, field_type, &field_path, false);
+            if (val == NULL) goto error;
+            /* We want to keep a count of required fields we've decoded. Since
+             * duplicates can occur, we stash the current dict size, then only
+             * increment if the dict size has changed _and_ the field is
+             * required. */
+            Py_ssize_t cur_size = PyDict_GET_SIZE(res);
+            int status = PyDict_SetItem(res, field, val);
+            /* Always decref value, no need to decref key since it's a borrowed
+             * reference. */
+            Py_DECREF(val);
+            if (status < 0) goto error;
+            if ((PyDict_GET_SIZE(res) != cur_size) && (field_type->types & MS_TYPE_REQUIRED)) {
+                nrequired++;
+            }
+        }
+        else {
+            /* Unknown field, skip */
+            if (mpack_skip(self) < 0) goto error;
+        }
+    }
+    if (nrequired < info->nrequired) {
+        /* A required field is missing, determine which one and raise */
+        TypedDictInfo_error_missing(info, res, path);
+        goto error;
+    }
+    Py_LeaveRecursiveCall();
+    return res;
+error:
+    Py_LeaveRecursiveCall();
+    Py_XDECREF(res);
+    return NULL;
+}
+
+static PyObject *
 mpack_decode_struct_map(
     DecoderState *self, Py_ssize_t size,
     StructMetaObject *st_type, PathNode *path, bool is_key
@@ -7898,7 +8266,7 @@ mpack_decode_struct_map(
         field_index = StructMeta_get_field_index(st_type, key, key_size, &pos);
         if (field_index < 0) {
             if (MS_UNLIKELY(field_index == -2)) {
-                PathNode tag_path = {path, PATH_TAG, st_type->struct_tag_field};
+                PathNode tag_path = {path, PATH_STR, st_type->struct_tag_field};
                 if (mpack_ensure_tag_matches(self, &tag_path, st_type->struct_tag_value) < 0) {
                     return NULL;
                 }
@@ -7952,7 +8320,7 @@ mpack_decode_struct_union(
 
         if (key_size == tag_field_size && memcmp(key, tag_field, key_size) == 0) {
             /* Decode and lookup tag */
-            PathNode tag_path = {path, PATH_TAG, Lookup_tag_field(lookup)};
+            PathNode tag_path = {path, PATH_STR, Lookup_tag_field(lookup)};
             StructMetaObject *struct_type = mpack_decode_tag_and_lookup_type(self, lookup, &tag_path);
             if (struct_type == NULL) return NULL;
             if (i == 0) {
@@ -7987,6 +8355,9 @@ mpack_decode_map(
     if (type->types & MS_TYPE_STRUCT) {
         StructMetaObject *struct_type = TypeNode_get_struct(type);
         return mpack_decode_struct_map(self, size, struct_type, path, is_key);
+    }
+    else if (type->types & MS_TYPE_TYPEDDICT) {
+        return mpack_decode_typeddict(self, size, type, path);
     }
     else if (type->types & (MS_TYPE_DICT | MS_TYPE_ANY)) {
         TypeNode *key, *val;
@@ -10103,6 +10474,107 @@ error:
 }
 
 static PyObject *
+json_decode_typeddict(
+    JSONDecoderState *self, TypeNode *type, PathNode *path
+) {
+    PyObject *out;
+    unsigned char c;
+    char *key = NULL;
+    bool first = true;
+    Py_ssize_t key_size, nrequired = 0, pos = 0;
+    TypedDictInfo *info = TypeNode_get_typeddict_info(type);
+
+    self->input_pos++; /* Skip '{' */
+
+    if (Py_EnterRecursiveCall(" while deserializing an object")) return NULL;
+
+    out = PyDict_New();
+    if (out == NULL) goto error;
+
+    while (true) {
+        /* Parse '}' or ',', then peek the next character */
+        if (MS_UNLIKELY(!json_peek_skip_ws(self, &c))) goto error;
+        if (c == '}') {
+            self->input_pos++;
+            break;
+        }
+        else if (c == ',' && !first) {
+            self->input_pos++;
+            if (MS_UNLIKELY(!json_peek_skip_ws(self, &c))) goto error;
+        }
+        else if (first) {
+            /* Only the first item doesn't need a comma delimiter */
+            first = false;
+        }
+        else {
+            json_err_invalid(self, "expected ',' or '}'");
+            goto error;
+        }
+
+        /* Parse a string key */
+        if (c == '"') {
+            bool is_ascii = true;
+            key_size = json_decode_string_view(self, &key, &is_ascii);
+            if (key_size < 0) goto error;
+        }
+        else if (c == '}') {
+            json_err_invalid(self, "trailing comma in object");
+            goto error;
+        }
+        else {
+            json_err_invalid(self, "object keys must be strings");
+            goto error;
+        }
+
+        /* Parse colon */
+        if (MS_UNLIKELY(!json_peek_skip_ws(self, &c))) goto error;
+        if (c != ':') {
+            json_err_invalid(self, "expected ':'");
+            goto error;
+        }
+        self->input_pos++;
+
+        /* Parse value */
+        TypeNode *field_type;
+        PyObject *field = TypedDictInfo_lookup_key(info, key, key_size, &field_type, &pos);
+
+        if (field != NULL) {
+            PathNode field_path = {path, PATH_STR, field};
+            PyObject *val = json_decode(self, field_type, &field_path);
+            if (val == NULL) goto error;
+            /* We want to keep a count of required fields we've decoded. Since
+             * duplicates can occur, we stash the current dict size, then only
+             * increment if the dict size has changed _and_ the field is
+             * required. */
+            Py_ssize_t cur_size = PyDict_GET_SIZE(out);
+            int status = PyDict_SetItem(out, field, val);
+            /* Always decref value, no need to decref key since it's a borrowed
+             * reference. */
+            Py_DECREF(val);
+            if (status < 0) goto error;
+            if ((PyDict_GET_SIZE(out) != cur_size) && (field_type->types & MS_TYPE_REQUIRED)) {
+                nrequired++;
+            }
+        }
+        else {
+            /* Skip unknown fields */
+            if (json_skip(self) < 0) goto error;
+        }
+    }
+    if (nrequired < info->nrequired) {
+        /* A required field is missing, determine which one and raise */
+        TypedDictInfo_error_missing(info, out, path);
+        goto error;
+    }
+    Py_LeaveRecursiveCall();
+    return out;
+error:
+    Py_LeaveRecursiveCall();
+    Py_DECREF(out);
+    return NULL;
+}
+
+static PyObject *
 json_decode_struct_map_inner(
     JSONDecoderState *self, StructMetaObject *st_type, PathNode *path,
     Py_ssize_t starting_index
@@ -10175,7 +10647,7 @@ json_decode_struct_map_inner(
         }
         else if (MS_UNLIKELY(field_index == -2)) {
             /* Decode and check that the tag value matches the expected value */
-            PathNode tag_path = {path, PATH_TAG, st_type->struct_tag_field};
+            PathNode tag_path = {path, PATH_STR, st_type->struct_tag_field};
             if (json_ensure_tag_matches(self, &tag_path, st_type->struct_tag_value) < 0) {
                 return NULL;
             }
@@ -10211,7 +10683,7 @@ json_decode_struct_union(
     JSONDecoderState *self, TypeNode *type, PathNode *path
 ) {
     Lookup *lookup = TypeNode_get_struct_union(type);
-    PathNode tag_path = {path, PATH_TAG, Lookup_tag_field(lookup)};
+    PathNode tag_path = {path, PATH_STR, Lookup_tag_field(lookup)};
     Py_ssize_t tag_field_size;
     const char *tag_field = unicode_str_and_size(
         Lookup_tag_field(lookup), &tag_field_size
@@ -10304,6 +10776,9 @@ json_decode_object(
         TypeNode *key, *val;
         TypeNode_get_dict(type, &key, &val);
         return json_decode_dict(self, key, val, path);
+    }
+    else if (type->types & MS_TYPE_TYPEDDICT) {
+        return json_decode_typeddict(self, type, path);
     }
     else if (type->types & MS_TYPE_STRUCT) {
         return json_decode_struct_map(self, type, path);
@@ -11098,6 +11573,9 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->str_utcoffset);
     Py_CLEAR(st->str___origin__);
     Py_CLEAR(st->str___args__);
+    Py_CLEAR(st->str___total__);
+    Py_CLEAR(st->str___required_keys__);
+    Py_CLEAR(st->str___optional_keys__);
     Py_CLEAR(st->typing_dict);
     Py_CLEAR(st->typing_list);
     Py_CLEAR(st->typing_set);
@@ -11222,6 +11700,8 @@ PyInit__core(void)
         return NULL;
     if (PyType_Ready(&StrLookup_Type) < 0)
         return NULL;
+    if (PyType_Ready(&TypedDictInfo_Type) < 0)
+        return NULL;
     if (PyType_Ready(&StructMetaType) < 0)
         return NULL;
     if (PyType_Ready(&StructMixinType) < 0)
@@ -11325,9 +11805,22 @@ PyInit__core(void)
     if (st->attr == NULL) return NULL; \
     } while (0)
 
+    /* Try `get_type_hints` from `typing_extensions` first */
+    temp_module = PyImport_ImportModule("typing_extensions");
+    if (temp_module == NULL) {
+        PyErr_Clear();
+    }
+    else {
+        SET_REF(get_type_hints, "get_type_hints");
+        Py_DECREF(temp_module);
+    }
+
     /* Get all imports from the typing module */
     temp_module = PyImport_ImportModule("typing");
     if (temp_module == NULL) return NULL;
+    if (st->get_type_hints == NULL) {
+        SET_REF(get_type_hints, "get_type_hints");
+    }
     SET_REF(typing_list, "List");
     SET_REF(typing_set, "Set");
     SET_REF(typing_frozenset, "FrozenSet");
@@ -11336,7 +11829,6 @@ PyInit__core(void)
     SET_REF(typing_union, "Union");
     SET_REF(typing_any, "Any");
     SET_REF(typing_literal, "Literal");
-    SET_REF(get_type_hints, "get_type_hints");
     Py_DECREF(temp_module);
 
 #if PY_VERSION_HEX >= 0x030a00f0
@@ -11398,6 +11890,9 @@ PyInit__core(void)
     CACHED_STRING(str_utcoffset, "utcoffset");
     CACHED_STRING(str___origin__, "__origin__");
     CACHED_STRING(str___args__, "__args__");
+    CACHED_STRING(str___total__, "__total__");
+    CACHED_STRING(str___required_keys__, "__required_keys__");
+    CACHED_STRING(str___optional_keys__, "__optional_keys__");
 
     return m;
 }
