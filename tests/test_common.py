@@ -6,11 +6,23 @@ import sys
 import random
 import string
 import weakref
-from typing import Literal, List, Union, Deque, NamedTuple, Dict, Tuple, Optional
+from typing import (
+    Literal,
+    List,
+    Union,
+    Deque,
+    NamedTuple,
+    Dict,
+    Tuple,
+    Optional,
+    TypedDict,
+)
 
 import pytest
 
 import msgspec
+
+from utils import temp_module
 
 
 @pytest.fixture(params=["json", "msgpack"])
@@ -968,3 +980,203 @@ class TestStructRename:
         with pytest.raises(msgspec.DecodeError) as rec:
             proto.decode(msg, type=PointUpper)
         assert "Object missing required field `Y`" == str(rec.value)
+
+
+class TestTypedDict:
+    def test_type_cached(self, proto):
+        class Ex(TypedDict):
+            a: int
+            b: str
+
+        msg = {"a": 1, "b": "two"}
+
+        dec = proto.Decoder(Ex)
+        info = Ex.__msgspec_cache__
+        assert info is not None
+        dec2 = proto.Decoder(Ex)
+        assert Ex.__msgspec_cache__ is info
+
+        assert dec.decode(proto.encode(msg)) == msg
+        assert dec2.decode(proto.encode(msg)) == msg
+
+    def test_type_error(self, proto):
+        class Ex(TypedDict):
+            a: int
+            b: Union[list, tuple]
+
+        with pytest.raises(TypeError, match="may not contain more than one array-like"):
+            proto.Decoder(Ex)
+        assert not hasattr(Ex, "__msgspec_cache__")
+
+    @pytest.mark.parametrize("msgpack_first", [False, True])
+    def test_type_errors_not_json(self, msgpack_first):
+        class Ex(TypedDict):
+            a: int
+            b: dict[int, int]
+
+        if msgpack_first:
+            dec = msgspec.msgpack.Decoder(Ex)
+            info = Ex.__msgspec_cache__
+            assert info is not None
+            msg = {"a": 1, "b": {1: 2}}
+            assert dec.decode(msgspec.msgpack.encode(msg)) == msg
+
+        with pytest.raises(TypeError, match="JSON doesn't support"):
+            msgspec.json.Decoder(Ex)
+
+        if msgpack_first:
+            assert Ex.__msgspec_cache__ is info
+        else:
+            assert not hasattr(Ex, "__msgspec_cache__")
+
+    def test_recursive_type(self, proto):
+        source = """
+        from __future__ import annotations
+        from typing import TypedDict, Union
+
+        class Ex(TypedDict):
+            a: int
+            b: Union[Ex, None]
+        """
+
+        with temp_module(source) as mod:
+            msg = {"a": 1, "b": {"a": 2, "b": None}}
+            dec = proto.Decoder(mod.Ex)
+            assert dec.decode(proto.encode(msg)) == msg
+
+            with pytest.raises(msgspec.DecodeError) as rec:
+                dec.decode(proto.encode({"a": 1, "b": {"a": "bad"}}))
+            assert "`$.b.a`" in str(rec.value)
+            assert "Expected `int`, got `str`" in str(rec.value)
+
+    @pytest.mark.parametrize("msgpack_first", [True])
+    def test_recursive_type_errors_not_json(self, msgpack_first):
+        source = """
+        from __future__ import annotations
+        from typing import TypedDict, Union
+
+        class Ex(TypedDict):
+            a: int
+            b: Union[Ex, None]
+            c: dict[int, int]
+        """
+        with temp_module(source) as mod:
+            if msgpack_first:
+                dec = msgspec.msgpack.Decoder(mod.Ex)
+                info = mod.Ex.__msgspec_cache__
+                assert info is not None
+                msg = {"a": 1, "b": None, "c": {1: 2}}
+                assert dec.decode(msgspec.msgpack.encode(msg)) == msg
+
+            with pytest.raises(TypeError, match="JSON doesn't support"):
+                msgspec.json.Decoder(mod.Ex)
+
+            if msgpack_first:
+                assert mod.Ex.__msgspec_cache__ is info
+            else:
+                assert not hasattr(mod.Ex, "__msgspec_cache__")
+
+    def test_total_true(self, proto):
+        class Ex(TypedDict):
+            a: int
+            b: str
+
+        dec = proto.Decoder(Ex)
+
+        x = {"a": 1, "b": "two"}
+        assert dec.decode(proto.encode(x)) == x
+
+        x2 = {"a": 1, "b": "two", "c": "extra"}
+        assert dec.decode(proto.encode(x2)) == x
+
+        with pytest.raises(msgspec.DecodeError) as rec:
+            dec.decode(proto.encode({"b": "two"}))
+        assert "Object missing required field `a`" == str(rec.value)
+
+        with pytest.raises(msgspec.DecodeError) as rec:
+            dec.decode(proto.encode({"a": 1, "b": 2}))
+        assert "Expected `str`, got `int` - at `$.b`" == str(rec.value)
+
+    def test_duplicate_keys(self, proto):
+        """Validating if all required keys are present is done with a count. We
+        need to ensure that duplicate required keys don't increment the count,
+        masking a missing field."""
+
+        class Ex(TypedDict):
+            a: int
+            b: str
+
+        dec = proto.Decoder(Ex)
+
+        temp = proto.encode({"a": 1, "b": "two", "x": 2})
+
+        msg = temp.replace(b"x", b"a")
+        assert dec.decode(msg) == {"a": 2, "b": "two"}
+
+        msg = temp.replace(b"x", b"a").replace(b"b", b"c")
+        with pytest.raises(msgspec.DecodeError) as rec:
+            dec.decode(msg)
+        assert "Object missing required field `b`" == str(rec.value)
+
+    def test_total_false(self, proto):
+        class Ex(TypedDict, total=False):
+            a: int
+            b: str
+
+        dec = proto.Decoder(Ex)
+
+        x = {"a": 1, "b": "two"}
+        assert dec.decode(proto.encode(x)) == x
+
+        x2 = {"a": 1, "b": "two", "c": "extra"}
+        assert dec.decode(proto.encode(x2)) == x
+
+        x3 = {"b": "two"}
+        assert dec.decode(proto.encode(x3)) == x3
+
+        x4 = {}
+        assert dec.decode(proto.encode(x4)) == x4
+
+    @pytest.mark.parametrize("use_typing_extensions", [False, True])
+    def test_total_partially_optional(self, proto, use_typing_extensions):
+        if use_typing_extensions:
+            tex = pytest.importorskip("typing_extensions")
+            cls = tex.TypedDict
+        else:
+            cls = TypedDict
+
+        class Base(cls):
+            a: int
+            b: str
+
+        class Ex(Base, total=False):
+            c: str
+
+        if not hasattr(Ex, "__required_keys__"):
+            # This should be Python 3.8, builtin typing only
+            pytest.skip(reason="partially optional TypedDict not supported")
+
+        dec = proto.Decoder(Ex)
+
+        x = {"a": 1, "b": "two", "c": "extra"}
+        assert dec.decode(proto.encode(x)) == x
+
+        x2 = {"a": 1, "b": "two"}
+        assert dec.decode(proto.encode(x2)) == x2
+
+        with pytest.raises(msgspec.DecodeError) as rec:
+            dec.decode(proto.encode({"b": "two"}))
+        assert "Object missing required field `a`" == str(rec.value)
+
+    def test_keys_are_their_interned_values(self, proto):
+        """Ensure that we're not allocating new keys here, but reusing the
+        existing keys on the TypedDict schema"""
+
+        class Ex(TypedDict):
+            key_name_1: int
+            key_name_2: int
+
+        dec = proto.Decoder(Ex)
+        msg = dec.decode(proto.encode({"key_name_1": 1, "key_name_2": 2}))
+        for k1, k2 in zip(sorted(Ex.__annotations__), sorted(msg)):
+            assert k1 is k2

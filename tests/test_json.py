@@ -11,27 +11,26 @@ import random
 import string
 import struct
 import sys
-import textwrap
-import types
-import uuid
-from contextlib import contextmanager
 from typing import (
     Any,
-    List,
-    Set,
-    FrozenSet,
-    Tuple,
-    Union,
-    Dict,
-    Optional,
-    NamedTuple,
     Deque,
+    Dict,
+    FrozenSet,
+    List,
     Literal,
+    NamedTuple,
+    Optional,
+    Set,
+    Tuple,
+    TypedDict,
+    Union,
 )
 
 import pytest
 
 import msgspec
+
+from utils import temp_module
 
 
 class FruitInt(enum.IntEnum):
@@ -76,27 +75,6 @@ class Node(msgspec.Struct):
 class Point(NamedTuple):
     x: float
     y: float
-
-
-@contextmanager
-def temp_module(code):
-    """Mutually recursive struct types defined inside functions don't work (and
-    probably never will). To avoid populating a bunch of test structs in the
-    top level of this module, we instead create a temporary module per test to
-    exec whatever is needed for that test"""
-    code = textwrap.dedent(code)
-    name = f"temp_{uuid.uuid4().hex}"
-    ns = {"__name__": name}
-    exec(code, ns)
-    mod = types.ModuleType(name)
-    for k, v in ns.items():
-        setattr(mod, k, v)
-
-    try:
-        sys.modules[name] = mod
-        yield mod
-    finally:
-        sys.modules.pop(name, None)
 
 
 class TestInvalidJSONTypes:
@@ -162,6 +140,8 @@ class TestInvalidJSONTypes:
     @pytest.mark.parametrize("preinit", [False, True])
     def test_invalid_type_nested_in_struct(self, preinit):
         source = """
+        from __future__ import annotations
+
         import msgspec
         from typing import List, Dict
 
@@ -188,6 +168,8 @@ class TestInvalidJSONTypes:
     @pytest.mark.parametrize("kind", ["A", "B", "C"])
     def test_invalid_type_recursive(self, preinit, kind):
         source = """
+        from __future__ import annotations
+
         import msgspec
         from typing import Optional, Dict
 
@@ -1760,6 +1742,48 @@ class TestDict:
     def test_decode_dict_malformed(self, s, error, type):
         with pytest.raises(msgspec.DecodeError, match=error):
             msgspec.json.decode(s, type=type)
+
+
+class TestTypedDict:
+    """Most tests are in `test_common`, this just tests some JSON peculiarities"""
+
+    @pytest.mark.parametrize(
+        "s, x",
+        [
+            (b"{\t\n\r }", {}),
+            (b'{\t\n\r "a"    :     1}', {"a": 1}),
+            (b'{ "a"\t : 1 \n, "b": \r 2  }', {"a": 1, "b": 2}),
+            (b'   { "a"\t : 1 \n, "b": \r 2  }   ', {"a": 1, "b": 2}),
+        ],
+    )
+    def test_decode_typeddict_ignores_whitespace(self, s, x):
+        class Test(TypedDict, total=False):
+            a: int
+            b: int
+
+        x2 = msgspec.json.decode(s, type=Test)
+        assert x == x2
+
+    @pytest.mark.parametrize(
+        "s, error",
+        [
+            (b"{", "truncated"),
+            (b'{"a"', "truncated"),
+            (b"{,}", "object keys must be strings"),
+            (b"{:}", "object keys must be strings"),
+            (b"{1: 2}", "object keys must be strings"),
+            (b'{"a": 1, }', "trailing comma in object"),
+            (b'{"a": 1, "b" 2}', "expected ':'"),
+            (b'{"a": 1, "b": 2  "c"}', r"expected ',' or '}'"),
+        ],
+    )
+    def test_decode_typeddict_malformed(self, s, error):
+        class Test(TypedDict, total=False):
+            a: int
+            b: int
+
+        with pytest.raises(msgspec.DecodeError, match=error):
+            msgspec.json.decode(s, type=Test)
 
 
 class TestStruct:
