@@ -428,7 +428,6 @@ typedef struct {
     PyObject *str___args__;
     PyObject *str___total__;
     PyObject *str___required_keys__;
-    PyObject *str___optional_keys__;
     PyObject *typing_list;
     PyObject *typing_set;
     PyObject *typing_frozenset;
@@ -11575,7 +11574,6 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->str___args__);
     Py_CLEAR(st->str___total__);
     Py_CLEAR(st->str___required_keys__);
-    Py_CLEAR(st->str___optional_keys__);
     Py_CLEAR(st->typing_dict);
     Py_CLEAR(st->typing_list);
     Py_CLEAR(st->typing_set);
@@ -11892,7 +11890,6 @@ PyInit__core(void)
     CACHED_STRING(str___args__, "__args__");
     CACHED_STRING(str___total__, "__total__");
     CACHED_STRING(str___required_keys__, "__required_keys__");
-    CACHED_STRING(str___optional_keys__, "__optional_keys__");
 
     return m;
 }
