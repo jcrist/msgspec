@@ -57,14 +57,18 @@ class Person(msgspec.Struct):
     first: str
     last: str
     age: int
-    prefect: bool = False
 
 
 class PersonArray(msgspec.Struct, array_like=True):
     first: str
     last: str
     age: int
-    prefect: bool = False
+
+
+class PersonDict(TypedDict):
+    first: str
+    last: str
+    age: int
 
 
 class Point(NamedTuple):
@@ -494,8 +498,16 @@ class TestUnionTypeErrors:
         assert "custom type" in str(rec.value)
         assert repr(typ) in str(rec.value)
 
-    @pytest.mark.parametrize("typ", [Union[dict, Person], Union[Person, dict]])
-    def test_err_union_with_struct_and_dict(self, typ, proto):
+    @pytest.mark.parametrize(
+        "typ",
+        [
+            Union[dict, Person],
+            Union[Person, dict],
+            Union[PersonDict, dict],
+            Union[Person, PersonDict],
+        ],
+    )
+    def test_err_union_with_multiple_dict_like_types(self, typ, proto):
         with pytest.raises(TypeError) as rec:
             proto.Decoder(typ)
         assert "more than one dict-like type" in str(rec.value)
@@ -999,7 +1011,7 @@ class TestTypedDict:
         assert dec.decode(proto.encode(msg)) == msg
         assert dec2.decode(proto.encode(msg)) == msg
 
-    def test_type_error(self, proto):
+    def test_subtype_error(self, proto):
         class Ex(TypedDict):
             a: int
             b: Union[list, tuple]
@@ -1012,7 +1024,7 @@ class TestTypedDict:
     def test_type_errors_not_json(self, msgpack_first):
         class Ex(TypedDict):
             a: int
-            b: dict[int, int]
+            b: Dict[int, int]
 
         if msgpack_first:
             dec = msgspec.msgpack.Decoder(Ex)
@@ -1053,12 +1065,12 @@ class TestTypedDict:
     def test_recursive_type_errors_not_json(self, msgpack_first):
         source = """
         from __future__ import annotations
-        from typing import TypedDict, Union
+        from typing import TypedDict, Union, Dict
 
         class Ex(TypedDict):
             a: int
             b: Union[Ex, None]
-            c: dict[int, int]
+            c: Dict[int, int]
         """
         with temp_module(source) as mod:
             if msgpack_first:
