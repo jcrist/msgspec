@@ -115,6 +115,7 @@ Most combinations of the following types are supported (see
 - `typing.Optional`
 - `typing.Union`
 - `typing.Literal`
+- `typing.TypedDict`
 - `msgspec.msgpack.Ext`
 - `msgspec.Raw`
 - `enum.Enum` derived types
@@ -451,6 +452,48 @@ values don't match their respective types (if specified).
     Traceback (most recent call last):
       File "<stdin>", line 1, in <module>
     msgspec.DecodeError: Expected `int`, got `str` - at `$[...]`
+
+``TypedDict``
+~~~~~~~~~~~~~~~~~~~~
+
+`typing.TypedDict` provides a way to specify different types for different
+values in a ``dict``, rather than a single value type (the ``int`` in
+``Dict[str, int]``, for example).  At runtime these are just standard
+``dict`` types, the ``TypedDict`` type is only there to provide the schema
+information during decoding. Note that ``msgspec`` supports both
+`typing.TypedDict` and ``typing_extensions.TypedDict`` (a backport).
+
+`typing.TypedDict` types map to JSON objects/MessagePack maps. During decoding,
+any extra fields are ignored. An error is raised during decoding if the type
+doesn't match or if any required fields are missing.
+
+When possible we recommend using `msgspec.Struct` instead of ``TypedDict`` for
+specifying schemas - :doc:`structs` are faster, more ergonomic, and support
+additional features. Still, you may want to use a ``TypedDict`` if you're
+already using them elsewhere, or if you have downstream code that requires a
+``dict`` instead of an object.
+
+.. code-block:: python
+
+    >>> from typing import TypedDict
+
+    >>> class Person(TypedDict):
+    ...     name: str
+    ...     age: int
+
+    >>> ben = {"name": "ben", "age": 25}
+
+    >>> msg = msgspec.json.encode(ben)
+
+    >>> msgspec.json.decode(msg, type=Person)
+    {'name': 'ben', 'age': 25}
+
+    >>> wrong_type = b'{"name": "chad", "age": "twenty"}'
+
+    >>> msgspec.json.decode(wrong_type, type=Person)
+    Traceback (most recent call last):
+      File "<stdin>", line 1, in <module>
+    msgspec.DecodeError: Expected `int`, got `str` - at `$.age`
 
 ``Struct``
 ~~~~~~~~~~
