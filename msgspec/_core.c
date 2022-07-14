@@ -75,6 +75,16 @@ unicode_str_and_size(PyObject *str, Py_ssize_t *size) {
     return PyUnicode_AsUTF8AndSize(str, size);
 }
 
+/* Access macro to the members which are floating "behind" the object */
+#define MS_PyHeapType_GET_MEMBERS(etype) \
+    ((PyMemberDef *)(((char *)(etype)) + Py_TYPE(etype)->tp_basicsize))
+
+#define MS_GET_FIRST_SLOT(obj) \
+    *((PyObject **)((char *)(obj) + sizeof(PyObject))) \
+
+#define MS_SET_FIRST_SLOT(obj, val) \
+    MS_GET_FIRST_SLOT(obj) = (val)
+
 /*************************************************************************
  * GC Utilities                                                          *
  *************************************************************************/
@@ -744,14 +754,21 @@ IntLookup_New(PyObject *arg, PyObject *tag_field, bool array_like) {
         /* Use compact representation */
         size_t size = range + 1;
 
-        IntLookupCompact *out = (IntLookupCompact *) _PyObject_GC_Malloc(
-            sizeof(IntLookupCompact) + (size + 1) * sizeof(PyObject *)
+        /* XXX: In Python 3.11+ there's not an easy way to allocate an untyped
+         * block of memory that is also tracked by the GC. To hack around this
+         * we set `tp_itemsize = 1` for `IntLookup_Type`, and manually calculate
+         * the size of trailing parts. It's gross, but it works. */
+        size_t nextra = (
+            sizeof(IntLookupCompact)
+            + (size * sizeof(PyObject *))
+            - sizeof(IntLookup)
         );
-        if (out == NULL) {
-            PyErr_NoMemory();
-            goto cleanup;
-        }
-        PyObject_InitVar((PyVarObject *)out, &IntLookup_Type, size);
+        IntLookupCompact *out = PyObject_GC_NewVar(
+            IntLookupCompact, &IntLookup_Type, nextra
+        );
+        if (out == NULL) goto cleanup;
+        /* XXX: overwrite `ob_size`, since we lied above */
+        SET_SIZE(out, size);
 
         out->offset = imin;
         for (size_t i = 0; i < size; i++) {
@@ -790,14 +807,18 @@ IntLookup_New(PyObject *arg, PyObject *tag_field, bool array_like) {
         size_t size = 4;
         while (size < (size_t)needed) { size <<= 1; }
 
-        IntLookupHashmap *out = (IntLookupHashmap *) _PyObject_GC_Malloc(
-            sizeof(IntLookupHashmap) + (size + 1) * sizeof(IntLookupEntry)
+        /* XXX: This is hacky, see comment above allocating IntLookupCompact */
+        size_t nextra = (
+            sizeof(IntLookupHashmap)
+            + (size * sizeof(IntLookupEntry))
+            - sizeof(IntLookup)
         );
-        if (out == NULL) {
-            PyErr_NoMemory();
-            goto cleanup;
-        }
-        PyObject_InitVar((PyVarObject *)out, &IntLookup_Type, size);
+        IntLookupHashmap *out = PyObject_GC_NewVar(
+            IntLookupHashmap, &IntLookup_Type, nextra
+        );
+        if (out == NULL) goto cleanup;
+        /* XXX: overwrite `ob_size`, since we lied above */
+        SET_SIZE(out, size);
 
         for (size_t i = 0; i < size; i++) {
             out->table[i].key = 0;
@@ -904,7 +925,7 @@ static PyTypeObject IntLookup_Type = {
     PyVarObject_HEAD_INIT(NULL, 0)
     .tp_name = "msgspec._core.IntLookup",
     .tp_basicsize = sizeof(IntLookup),
-    .tp_itemsize = 0,
+    .tp_itemsize = 1,
     .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
     .tp_dealloc = (destructor)IntLookup_dealloc,
     .tp_clear = (inquiry)IntLookup_clear,
@@ -2791,16 +2812,22 @@ Struct_freelist_clear(void) {
     /* Non-gc freelist */
     for (i = 0; i < STRUCT_FREELIST_MAX_SIZE; i++) {
         while ((obj = struct_freelist[i]) != NULL) {
-            struct_freelist[i] = (PyObject *)obj->ob_type;
+            struct_freelist[i] = MS_GET_FIRST_SLOT(obj);
+            PyTypeObject *type = Py_TYPE(obj);
             PyObject_Del(obj);
+            /* Decref the object type after freeing the memory */
+            Py_DECREF(type);
         }
         struct_freelist_len[i] = 0;
     }
     /* GC freelist */
     for (i = STRUCT_FREELIST_MAX_SIZE; i < STRUCT_FREELIST_MAX_SIZE * 2; i++) {
         while ((obj = struct_freelist[i]) != NULL) {
-            struct_freelist[i] = (PyObject *)obj->ob_type;
+            struct_freelist[i] = MS_GET_FIRST_SLOT(obj);
+            PyTypeObject *type = Py_TYPE(obj);
             PyObject_GC_Del(obj);
+            /* Decref the object type after freeing the memory */
+            Py_DECREF(type);
         }
         struct_freelist_len[i] = 0;
     }
@@ -2822,9 +2849,20 @@ Struct_alloc(PyTypeObject *type) {
         struct_freelist[free_ind] != NULL)
     {
         /* Pop object off freelist */
-        obj = struct_freelist[free_ind];
-        struct_freelist[free_ind] = (PyObject *)obj->ob_type;
         struct_freelist_len[free_ind]--;
+        obj = struct_freelist[free_ind];
+        struct_freelist[free_ind] = MS_GET_FIRST_SLOT(obj);
+        MS_SET_FIRST_SLOT(obj, NULL);
+
+        /* Decref the old object type */
+        Py_DECREF(obj->ob_type);
+
+        /* Initialize the object. This is mirrored from within `PyObject_Init`,
+        * as well as PyType_GenericAlloc */
+        obj->ob_type = type;
+        Py_INCREF(type);
+        _Py_NewReference(obj);
+        return obj;
     }
 #else
     if (false) {
@@ -2832,24 +2870,16 @@ Struct_alloc(PyTypeObject *type) {
 #endif
     else {
         if (is_gc) {
-            obj = _PyObject_GC_Malloc(type->tp_basicsize);
+            obj = PyObject_GC_New(PyObject, type);
         }
         else {
-            obj = (PyObject *)PyObject_Malloc(type->tp_basicsize);
+            obj = PyObject_New(PyObject, type);
         }
-
-        if (obj == NULL) {
-            return PyErr_NoMemory();
-        }
-
-        memset(obj, '\0', type->tp_basicsize);
+        if (obj == NULL) return NULL;
+        /* Zero out slot fields */
+        memset((char *)obj + sizeof(PyObject), '\0', type->tp_basicsize - sizeof(PyObject));
+        return obj;
     }
-    /* Initialize the object. This is mirrored from within `PyObject_Init`,
-     * as well as PyType_GenericAlloc */
-    obj->ob_type = type;
-    Py_INCREF(type);
-    _Py_NewReference(obj);
-    return obj;
 }
 
 /* Mirrored from cpython Objects/typeobject.c */
@@ -2860,7 +2890,7 @@ clear_slots(PyTypeObject *type, PyObject *self)
     PyMemberDef *mp;
 
     n = Py_SIZE(type);
-    mp = PyHeapType_GET_MEMBERS((PyHeapTypeObject *)type);
+    mp = MS_PyHeapType_GET_MEMBERS((PyHeapTypeObject *)type);
     for (i = 0; i < n; i++, mp++) {
         if (mp->type == T_OBJECT_EX && !(mp->flags & READONLY)) {
             char *addr = (char *)self + mp->offset;
@@ -2921,19 +2951,19 @@ Struct_dealloc(PyObject *self) {
             MS_AS_GC(self)->_gc_next = 0;
             MS_AS_GC(self)->_gc_prev = 0;
         }
-        self->ob_type = (PyTypeObject *)(struct_freelist[free_ind]);
         struct_freelist_len[free_ind]++;
+        MS_SET_FIRST_SLOT(self, struct_freelist[free_ind]);
         struct_freelist[free_ind] = self;
     }
+#else
+    if (false) {
+    }
+#endif
     else {
         type->tp_free(self);
+        /* Decref the object type immediately */
+        Py_DECREF(type);
     }
-#else
-    type->tp_free(self);
-#endif
-
-    /* Decref the object type */
-    Py_DECREF(type);
 
 done:
     Py_TRASHCAN_END
@@ -3502,7 +3532,7 @@ StructMeta_new_inner(
 
     Py_CLEAR(new_args);
 
-    PyMemberDef *mp = PyHeapType_GET_MEMBERS(cls);
+    PyMemberDef *mp = MS_PyHeapType_GET_MEMBERS(cls);
     for (i = 0; i < Py_SIZE(cls); i++, mp++) {
         offset = PyLong_FromSsize_t(mp->offset);
         if (offset == NULL)
