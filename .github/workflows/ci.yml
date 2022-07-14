@@ -57,10 +57,13 @@ jobs:
         run: |
           export LD_PRELOAD=`gcc -print-file-name=libasan.so`
           coverage run -m pytest -s -m "not mypy and not pyright"
+          coverage xml
+          gcov -abcu `find build/ -name *.o`
 
       - name: Upload Codecov
         uses: codecov/codecov-action@v3
-
+        with:
+          files: coverage.xml,_core.c.gcov,atof.h.gcov,ryu.h.gcov
 
   build_wheels:
     name: Build wheels on ${{ matrix.os }}
