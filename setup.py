@@ -5,15 +5,19 @@ from setuptools import setup
 from setuptools.extension import Extension
 
 SANITIZE = os.environ.get("MSGSPEC_SANITIZE", False)
-DEBUG = os.environ.get("MSGSPEC_DEBUG", SANITIZE)
+COVERAGE = os.environ.get("MSGSPEC_COVERAGE", False)
+DEBUG = os.environ.get("MSGSPEC_DEBUG", SANITIZE or COVERAGE)
 
 extra_compile_args = []
 extra_link_args = []
-if DEBUG:
-    extra_compile_args.extend(["-O0", "-g", "-UNDEBUG"])
 if SANITIZE:
     extra_compile_args.extend(["-fsanitize=address", "-fsanitize=undefined"])
     extra_link_args.extend(["-lasan", "-lubsan"])
+if COVERAGE:
+    extra_compile_args.append("--coverage")
+    extra_link_args.append("-lgcov")
+if DEBUG:
+    extra_compile_args.extend(["-O0", "-g", "-UNDEBUG"])
 
 ext_modules = [
     Extension(
