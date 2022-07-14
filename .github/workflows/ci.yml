@@ -103,7 +103,7 @@ jobs:
             echo "CIBW_BUILD=cp38-* cp39-* cp310-* cp311-*" >> $GITHUB_ENV
 
       - name: Build & Test Wheels
-        uses: pypa/cibuildwheel@v2.4.0
+        uses: pypa/cibuildwheel@v2.8.0
 
       - name: Upload artifact
         uses: actions/upload-artifact@v2
