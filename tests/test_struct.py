@@ -7,12 +7,23 @@ import operator
 import pickle
 import sys
 import weakref
+from contextlib import contextmanager
 from typing import Any, Optional
 
 import pytest
 
 import msgspec
 from msgspec import Struct, defstruct
+
+
+@contextmanager
+def nogc():
+    """Temporarily disable GC"""
+    try:
+        gc.disable()
+        yield
+    finally:
+        gc.enable()
 
 
 class Fruit(enum.IntEnum):
@@ -688,17 +699,43 @@ class TestStructGC:
         assert gc.is_tracked(copy.copy(Test(1, []))) == has_gc
 
     def test_struct_dealloc_decrefs_type(self):
-        class Test(Struct):
+        """XXX: This test assumes the freelist is in use, and won't pass if
+        msgspec is compiled without the freelist"""
+
+        class Test1(Struct):
             x: int
             y: int
 
-        orig = sys.getrefcount(Test)
-        t = Test(1, 2)
-        temp = sys.getrefcount(Test)
-        assert temp == orig + 1
-        del t
-        new = sys.getrefcount(Test)
-        assert orig == new
+        class Test2(Struct):
+            x: int
+            y: int
+
+        with nogc():
+            orig_1 = sys.getrefcount(Test1)
+            orig_2 = sys.getrefcount(Test2)
+            t = Test1(1, 2)
+            assert sys.getrefcount(Test1) == orig_1 + 1
+            del t
+            # This check assumes the freelist is in use. Python 3.11
+            # PyObject_GC_Del now requires type information to properly
+            # deallocate, so we need to keep a reference to the originating
+            # type for an allocation around, even if it's stored on the
+            # freelist.
+            assert sys.getrefcount(Test1) == orig_1 + 1
+            # Allocating a struct of the same size that was just deleted should
+            # hit the freelist, reusing the same memory allocation. Test1 should
+            # be decref'd and the new type incref'd
+            t = Test2(1, 2)
+            assert sys.getrefcount(Test1) == orig_1
+            assert sys.getrefcount(Test2) == orig_2 + 1
+            del t
+            assert sys.getrefcount(Test1) == orig_1
+            assert sys.getrefcount(Test2) == orig_2 + 1
+            # Running a full GC pass will clear the freelist, decrementing the
+            # refcount of `Test2`
+            gc.collect()
+            assert sys.getrefcount(Test1) == orig_1
+            assert sys.getrefcount(Test2) == orig_2
 
     @pytest.mark.parametrize("has_gc", [False, True])
     def test_struct_dealloc_calls_finalizer(self, has_gc):
