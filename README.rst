@@ -1,7 +1,7 @@
 msgspec
 =======
 
-|github| |pypi| |conda|
+|github| |pypi| |conda| |codecov|
 
 ``msgspec`` is a *fast* and *friendly* serialization library for Python,
 supporting both JSON_ and MessagePack_. It integrates well with Python's `type
@@ -75,3 +75,5 @@ New BSD. See the
    :target: https://pypi.org/project/msgspec/
 .. |conda| image:: https://img.shields.io/conda/vn/conda-forge/msgspec.svg
    :target: https://anaconda.org/conda-forge/msgspec
+.. |codecov| image:: https://codecov.io/gh/jcrist/msgspec/branch/main/graph/badge.svg
+   :target: https://codecov.io/gh/jcrist/msgspec
