@@ -27,7 +27,7 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          pip install pytest mypy pyright msgpack
+          pip install pytest mypy pyright msgpack coverage
 
       - name: Build Msgspec
         run: |
@@ -42,9 +42,10 @@ jobs:
       - name: pyright
         run: py.test tests/test_pyright.py
 
-      - name: Rebuild with sanitizers
+      - name: Rebuild with sanitizers & coverage
         env:
           MSGSPEC_SANITIZE: "true"
+          MSGSPEC_COVERAGE: "true"
         run: |
           python setup.py clean --all
           pip install -e .
@@ -55,7 +56,14 @@ jobs:
           ASAN_OPTIONS: "detect_leaks=0"
         run: |
           export LD_PRELOAD=`gcc -print-file-name=libasan.so`
-          py.test -s -m "not mypy and not pyright"
+          coverage run -m pytest -s -m "not mypy and not pyright"
+          coverage xml
+          gcov -abcu `find build/ -name *.o`
+
+      - name: Upload Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: coverage.xml,_core.c.gcov,atof.h.gcov,ryu.h.gcov
 
   build_wheels:
     name: Build wheels on ${{ matrix.os }}
