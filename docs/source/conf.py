@@ -32,6 +32,7 @@ extensions = [
     "sphinx.ext.extlinks",
     "sphinx.ext.intersphinx",
     "sphinx_copybutton",
+    "IPython.sphinxext.ipython_console_highlighting",
 ]
 intersphinx_mapping = {"python": ("https://docs.python.org/3", None)}
 napoleon_numpy_docstring = True
@@ -42,5 +43,5 @@ extlinks = {
     "issue": ("https://github.com/jcrist/msgspec/issues/%s", "Issue #"),
     "pr": ("https://github.com/jcrist/msgspec/pull/%s", "PR #"),
 }
-copybutton_prompt_text = r">>> |\.\.\. |\$ "
+copybutton_prompt_text = r">>> |\.\.\. |\$ |In \[\d*\]: | {2,5}\.\.\.: "
 copybutton_prompt_is_regexp = True

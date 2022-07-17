@@ -160,5 +160,6 @@ is required.
     extending.rst
     perf-tips.rst
     benchmarks.rst
+    examples/index.rst
     api.rst
     changelog.rst
