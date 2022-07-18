@@ -3377,10 +3377,10 @@ StructMeta_new_inner(
         }
     }
 
-    fields = PyTuple_New(PyDict_Size(arg_fields) + PyDict_Size(kwarg_fields));
+    fields = PyTuple_New(PyDict_GET_SIZE(arg_fields) + PyDict_GET_SIZE(kwarg_fields));
     if (fields == NULL)
         goto error;
-    defaults = PyTuple_New(PyDict_Size(kwarg_fields));
+    defaults = PyTuple_New(PyDict_GET_SIZE(kwarg_fields));
     if (defaults == NULL)
         goto error;
 
@@ -4099,7 +4099,7 @@ maybe_deepcopy_default(PyObject *obj) {
     }
 
     /* Fast paths for known empty collections */
-    if (type == &PyDict_Type && PyDict_Size(obj) == 0) {
+    if (type == &PyDict_Type && PyDict_GET_SIZE(obj) == 0) {
         return PyDict_New();
     }
     else if (type == &PyList_Type && PyList_GET_SIZE(obj) == 0) {
@@ -4138,8 +4138,8 @@ is_default(PyObject *x, PyObject *d) {
     ) return true;
     if (
         d_type == &PyDict_Type
-        && PyDict_Size(x) == 0
-        && PyDict_Size(d) == 0
+        && PyDict_GET_SIZE(x) == 0
+        && PyDict_GET_SIZE(d) == 0
     ) return true;
     if (
         d_type == &PySet_Type
