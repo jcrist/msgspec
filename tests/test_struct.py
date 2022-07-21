@@ -699,9 +699,6 @@ class TestStructGC:
         assert gc.is_tracked(copy.copy(Test(1, []))) == has_gc
 
     def test_struct_dealloc_decrefs_type(self):
-        """XXX: This test assumes the freelist is in use, and won't pass if
-        msgspec is compiled without the freelist"""
-
         class Test1(Struct):
             x: int
             y: int
@@ -716,23 +713,15 @@ class TestStructGC:
             t = Test1(1, 2)
             assert sys.getrefcount(Test1) == orig_1 + 1
             del t
-            # This check assumes the freelist is in use. Python 3.11
-            # PyObject_GC_Del now requires type information to properly
-            # deallocate, so we need to keep a reference to the originating
-            # type for an allocation around, even if it's stored on the
-            # freelist.
-            assert sys.getrefcount(Test1) == orig_1 + 1
+            assert sys.getrefcount(Test1) == orig_1
             # Allocating a struct of the same size that was just deleted should
-            # hit the freelist, reusing the same memory allocation. Test1 should
-            # be decref'd and the new type incref'd
+            # hit the freelist, reusing the same memory allocation.
             t = Test2(1, 2)
             assert sys.getrefcount(Test1) == orig_1
             assert sys.getrefcount(Test2) == orig_2 + 1
             del t
             assert sys.getrefcount(Test1) == orig_1
-            assert sys.getrefcount(Test2) == orig_2 + 1
-            # Running a full GC pass will clear the freelist, decrementing the
-            # refcount of `Test2`
+            assert sys.getrefcount(Test2) == orig_2
             gc.collect()
             assert sys.getrefcount(Test1) == orig_1
             assert sys.getrefcount(Test2) == orig_2
@@ -817,6 +806,22 @@ class TestStructGC:
         assert ref() is not None
         del t
         assert ref() is None
+
+    def test_struct_dealloc_in_gc_properly_handles_type_decref(self):
+        """Due to a bug in 3.11 compatibility this briefly led to segfaults"""
+
+        def inner():
+            class Box(msgspec.Struct):
+                a: Any
+
+            gc.collect()
+
+            o = Box(None)
+            o.a = o
+
+        for _ in range(5):
+            inner()
+            gc.collect()
 
 
 class MyStruct(Struct):

@@ -1317,14 +1317,13 @@ static PyTypeObject Raw_Type = {
     .tp_doc = Raw__doc__,
     .tp_basicsize = sizeof(Raw),
     .tp_itemsize = sizeof(char),
-    .tp_flags = Py_TPFLAGS_DEFAULT | _Py_TPFLAGS_HAVE_VECTORCALL,
+    .tp_flags = Py_TPFLAGS_DEFAULT,
     .tp_new = Raw_new,
     .tp_dealloc = (destructor) Raw_dealloc,
     .tp_as_buffer = &Raw_as_buffer,
     .tp_as_sequence = &Raw_as_sequence,
     .tp_methods = Raw_methods,
     .tp_richcompare = (richcmpfunc) Raw_richcompare,
-    .tp_call = PyVectorcall_Call
 };
 
 /*************************************************************************
@@ -2813,10 +2812,7 @@ Struct_freelist_clear(void) {
     for (i = 0; i < STRUCT_FREELIST_MAX_SIZE; i++) {
         while ((obj = struct_freelist[i]) != NULL) {
             struct_freelist[i] = MS_GET_FIRST_SLOT(obj);
-            PyTypeObject *type = Py_TYPE(obj);
             PyObject_Del(obj);
-            /* Decref the object type after freeing the memory */
-            Py_DECREF(type);
         }
         struct_freelist_len[i] = 0;
     }
@@ -2824,10 +2820,7 @@ Struct_freelist_clear(void) {
     for (i = STRUCT_FREELIST_MAX_SIZE; i < STRUCT_FREELIST_MAX_SIZE * 2; i++) {
         while ((obj = struct_freelist[i]) != NULL) {
             struct_freelist[i] = MS_GET_FIRST_SLOT(obj);
-            PyTypeObject *type = Py_TYPE(obj);
             PyObject_GC_Del(obj);
-            /* Decref the object type after freeing the memory */
-            Py_DECREF(type);
         }
         struct_freelist_len[i] = 0;
     }
@@ -2853,9 +2846,6 @@ Struct_alloc(PyTypeObject *type) {
         obj = struct_freelist[free_ind];
         struct_freelist[free_ind] = MS_GET_FIRST_SLOT(obj);
         MS_SET_FIRST_SLOT(obj, NULL);
-
-        /* Decref the old object type */
-        Py_DECREF(obj->ob_type);
 
         /* Initialize the object. This is mirrored from within `PyObject_Init`,
         * as well as PyType_GenericAlloc */
@@ -2945,11 +2935,32 @@ Struct_dealloc(PyObject *self) {
         size <= STRUCT_FREELIST_MAX_SIZE &&
         struct_freelist_len[free_ind] < STRUCT_FREELIST_MAX_PER_SIZE)
     {
+        /* XXX: Python 3.11 requires GC types to have a valid ob_type field
+         * when deleted, it uses this to determine the header size. This means
+         * that objects shoved in the freelist need to still have an `ob_type`
+         * field. However, we can't decref any GC types in
+         * `Struct_freelist_clear`, since that's called during a GC traversal
+         * and deleting GC objects in a traversal leads to segfaults. To work
+         * around this, we set `ob_type` to a valid statically allocated type
+         * just so `PyObject_GC_Del` still works. This means that we can still
+         * clear the freelist in a traversal without ever needing to free a GC
+         * type. The actual type is still decref'd here.
+         *
+         * All of this is very complicated and finicky, and indicates we may need
+         * to reevaluate if the freelist is even worth it.
+         * */
+
         /* Push object onto freelist */
         if (is_gc) {
             /* Reset GC state before pushing onto freelist */
             MS_AS_GC(self)->_gc_next = 0;
             MS_AS_GC(self)->_gc_prev = 0;
+            /* A statically allocated GC type */
+            self->ob_type = &IntLookup_Type;
+        }
+        else {
+            /* A statically allocated non-GC type */
+            self->ob_type = &StructMixinType;
         }
         struct_freelist_len[free_ind]++;
         MS_SET_FIRST_SLOT(self, struct_freelist[free_ind]);
@@ -2961,10 +2972,9 @@ Struct_dealloc(PyObject *self) {
 #endif
     else {
         type->tp_free(self);
-        /* Decref the object type immediately */
-        Py_DECREF(type);
     }
-
+    /* Decref the object type immediately */
+    Py_DECREF(type);
 done:
     Py_TRASHCAN_END
 }
@@ -3896,7 +3906,12 @@ StructMeta_clear(StructMetaObject *self)
 static void
 StructMeta_dealloc(StructMetaObject *self)
 {
+    /* The GC invariants require dealloc immediately untrack to avoid double
+     * deallocation. However, PyType_Type.tp_dealloc assumes the type is
+     * currently tracked. Hence the unfortunate untrack/retrack below. */
+    PyObject_GC_UnTrack(self);
     StructMeta_clear(self);
+    PyObject_GC_Track(self);
     PyType_Type.tp_dealloc((PyObject *)self);
 }
 
@@ -5053,10 +5068,9 @@ static PyTypeObject Ext_Type = {
     .tp_doc = Ext__doc__,
     .tp_basicsize = sizeof(Ext),
     .tp_itemsize = 0,
-    .tp_flags = Py_TPFLAGS_DEFAULT | _Py_TPFLAGS_HAVE_VECTORCALL,
+    .tp_flags = Py_TPFLAGS_DEFAULT,
     .tp_new = Ext_new,
     .tp_dealloc = (destructor) Ext_dealloc,
-    .tp_call = PyVectorcall_Call,
     .tp_richcompare = Ext_richcompare,
     .tp_members = Ext_members,
     .tp_methods = Ext_methods
@@ -5177,6 +5191,7 @@ Encoder_clear(Encoder *self)
 static void
 Encoder_dealloc(Encoder *self)
 {
+    PyObject_GC_UnTrack(self);
     Encoder_clear(self);
     Py_TYPE(self)->tp_free((PyObject *)self);
 }
@@ -7281,6 +7296,7 @@ Decoder_traverse(Decoder *self, visitproc visit, void *arg)
 static void
 Decoder_dealloc(Decoder *self)
 {
+    PyObject_GC_UnTrack(self);
     TypeNode_Free(self->state.type);
     Py_XDECREF(self->orig_type);
     Py_XDECREF(self->state.dec_hook);
@@ -8937,6 +8953,7 @@ JSONDecoder_traverse(JSONDecoder *self, visitproc visit, void *arg)
 static void
 JSONDecoder_dealloc(JSONDecoder *self)
 {
+    PyObject_GC_UnTrack(self);
     TypeNode_Free(self->state.type);
     Py_XDECREF(self->orig_type);
     Py_XDECREF(self->state.dec_hook);
