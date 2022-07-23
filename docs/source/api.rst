@@ -69,3 +69,6 @@ Exceptions
 
 .. autoexception:: DecodeError
     :show-inheritance:
+
+.. autoexception:: ValidationError
+    :show-inheritance:
