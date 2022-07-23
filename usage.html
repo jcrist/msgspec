@@ -355,7 +355,7 @@ Most combinations of the following types are supported (see
 <span class="gp">... </span><span class="p">)</span>
 <span class="gt">Traceback (most recent call last):</span>
   File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
-<span class="gr">msgspec.DecodeError</span>: <span class="n">Expected `str`, got `int` - at `$[1].groups[1]`</span>
+<span class="gr">msgspec.ValidationError</span>: <span class="n">Expected `str`, got `int` - at `$[1].groups[1]`</span>
 </pre></div>
 </div>
 <p>Unlike some other libraries (e.g. <a class="reference external" href="https://pydantic-docs.helpmanual.io/">pydantic</a>), <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> won’t perform any
@@ -365,7 +365,7 @@ the string to an int.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;[1, 2, &quot;3&quot;]&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">])</span>
 <span class="gt">Traceback (most recent call last):</span>
   File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
-<span class="gr">msgspec.DecodeError</span>: <span class="n">Expected `int`, got `str` - at `$[2]`</span>
+<span class="gr">msgspec.ValidationError</span>: <span class="n">Expected `int`, got `str` - at `$[2]`</span>
 </pre></div>
 </div>
 <p>The <em>one exception</em> to this rule is float handling - if a <a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">float</span></code></a> is specified
@@ -408,7 +408,7 @@ MessagePack.</p>
 <h3><code class="docutils literal notranslate"><span class="pre">int</span></code><a class="headerlink" href="#int" title="Permalink to this heading">#</a></h3>
 <p>Integers map to JSON numbers/MessagePack integers. Only values that fit in an
 <code class="docutils literal notranslate"><span class="pre">int64</span></code> or <code class="docutils literal notranslate"><span class="pre">uint64</span></code> (within <code class="docutils literal notranslate"><span class="pre">[-2**63,</span> <span class="pre">2**64</span> <span class="pre">-</span> <span class="pre">1]</span></code>, inclusive) are
-supported. Values outside this range will raise a <a class="reference internal" href="api.html#msgspec.DecodeError" title="msgspec.DecodeError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.DecodeError</span></code></a>
+supported. Values outside this range will raise a <a class="reference internal" href="api.html#msgspec.ValidationError" title="msgspec.ValidationError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.ValidationError</span></code></a>
 during decoding.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="mi">123</span><span class="p">)</span>
 <span class="go">b&quot;123&quot;</span>
@@ -499,7 +499,7 @@ or doesn’t match any valid <a class="reference external" href="https://docs.py
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;4&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">JobState</span><span class="p">)</span>
 <span class="gt">Traceback (most recent call last):</span>
   File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
-<span class="gr">msgspec.DecodeError</span>: <span class="n">Invalid enum value 4</span>
+<span class="gr">msgspec.ValidationError</span>: <span class="n">Invalid enum value 4</span>
 </pre></div>
 </div>
 </section>
@@ -523,7 +523,7 @@ isn’t a string or doesn’t match any valid <a class="reference external" href
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;&quot;GRAPE&quot;&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Fruit</span><span class="p">)</span>
 <span class="gt">Traceback (most recent call last):</span>
   File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
-<span class="gr">msgspec.DecodeError</span>: <span class="n">Invalid enum value &#39;GRAPE&#39;</span>
+<span class="gr">msgspec.ValidationError</span>: <span class="n">Invalid enum value &#39;GRAPE&#39;</span>
 </pre></div>
 </div>
 </section>
@@ -550,7 +550,7 @@ to UTC.</p>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;&quot;oops not a date&quot;&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="p">)</span>
 <span class="gt">Traceback (most recent call last):</span>
   File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
-<span class="gr">msgspec.DecodeError</span>: <span class="n">Invalid RFC3339 encoded datetime</span>
+<span class="gr">msgspec.ValidationError</span>: <span class="n">Invalid RFC3339 encoded datetime</span>
 </pre></div>
 </div>
 </section>
@@ -578,7 +578,7 @@ element type (if provided).</p>
 <span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;[1, 2, &quot;oops&quot;]&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Set</span><span class="p">[</span><span class="nb">int</span><span class="p">])</span>
 <span class="gt">Traceback (most recent call last):</span>
   File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
-<span class="gr">msgspec.DecodeError</span>: <span class="n">Expected `int`, got `str` - at `$[2]`</span>
+<span class="gr">msgspec.ValidationError</span>: <span class="n">Expected `int`, got `str` - at `$[2]`</span>
 </pre></div>
 </div>
 </section>
@@ -601,7 +601,7 @@ values don’t match their respective types (if specified).</p>
 <span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;{&quot;x&quot;:1,&quot;y&quot;:&quot;oops&quot;}&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">])</span>
 <span class="gt">Traceback (most recent call last):</span>
   File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
-<span class="gr">msgspec.DecodeError</span>: <span class="n">Expected `int`, got `str` - at `$[...]`</span>
+<span class="gr">msgspec.ValidationError</span>: <span class="n">Expected `int`, got `str` - at `$[...]`</span>
 </pre></div>
 </div>
 </section>
@@ -639,7 +639,7 @@ already using them elsewhere, or if you have downstream code that requires a
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">wrong_type</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Person</span><span class="p">)</span>
 <span class="gt">Traceback (most recent call last):</span>
   File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
-<span class="gr">msgspec.DecodeError</span>: <span class="n">Expected `int`, got `str` - at `$.age`</span>
+<span class="gr">msgspec.ValidationError</span>: <span class="n">Expected `int`, got `str` - at `$.age`</span>
 </pre></div>
 </div>
 </section>
@@ -686,7 +686,7 @@ doesn’t match or if any required fields are missing.</p>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">wrong_type</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">User</span><span class="p">)</span>
 <span class="gt">Traceback (most recent call last):</span>
   File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
-<span class="gr">msgspec.DecodeError</span>: <span class="n">Expected `str`, got `int` - at `$.groups[1]`</span>
+<span class="gr">msgspec.ValidationError</span>: <span class="n">Expected `str`, got `int` - at `$.groups[1]`</span>
 </pre></div>
 </div>
 <p>If you pass <code class="docutils literal notranslate"><span class="pre">array_like=True</span></code> when defining the struct type, they’re instead
@@ -717,7 +717,7 @@ fields have their defaults applied. Type checking also still applies.</p>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;[&quot;david&quot;, [&quot;finance&quot;, 123]]&#39;</span><span class="p">)</span>
 <span class="gt">Traceback (most recent call last):</span>
   File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
-<span class="gr">msgspec.DecodeError</span>: <span class="n">Expected `str`, got `int` - at `$[1][1]`</span>
+<span class="gr">msgspec.ValidationError</span>: <span class="n">Expected `str`, got `int` - at `$[1][1]`</span>
 </pre></div>
 </div>
 </section>
@@ -747,12 +747,12 @@ values, or doesn’t match any of their component types.</p>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;4&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Literal</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">])</span>
 <span class="gt">Traceback (most recent call last):</span>
   File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
-<span class="gr">msgspec.DecodeError</span>: <span class="n">Invalid enum value 4</span>
+<span class="gr">msgspec.ValidationError</span>: <span class="n">Invalid enum value 4</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;&quot;bad&quot;&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Literal</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">])</span>
 <span class="gt">Traceback (most recent call last):</span>
   File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
-<span class="gr">msgspec.DecodeError</span>: <span class="n">Expected `int`, got `str`</span>
+<span class="gr">msgspec.ValidationError</span>: <span class="n">Expected `int`, got `str`</span>
 </pre></div>
 </div>
 </section>
@@ -792,7 +792,7 @@ multiple struct types are only supported through <a class="reference internal" h
 <span class="gp">&gt;&gt;&gt; </span><span class="n">decoder</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;false&#39;</span><span class="p">)</span>
 <span class="gt">Traceback (most recent call last):</span>
   File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
-<span class="gr">msgspec.DecodeError</span>: <span class="n">Expected `int | str | array`, got `bool`</span>
+<span class="gr">msgspec.ValidationError</span>: <span class="n">Expected `int | str | array`, got `bool`</span>
 </pre></div>
 </div>
 </section>

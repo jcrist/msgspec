@@ -239,7 +239,7 @@ annotations</a> , providing ergonomic (and performant!) schema validation.</p>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;{&quot;name&quot;:&quot;bob&quot;,&quot;groups&quot;:[123]}&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">User</span><span class="p">)</span>
 <span class="gt">Traceback (most recent call last):</span>
   File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
-<span class="gr">msgspec.DecodeError</span>: <span class="n">Expected `str`, got `int` - at `$.groups[0]`</span>
+<span class="gr">msgspec.ValidationError</span>: <span class="n">Expected `str`, got `int` - at `$.groups[0]`</span>
 </pre></div>
 </div>
 <p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> is designed to be as performant as possible, while retaining some

@@ -304,7 +304,7 @@ only checked when <em>decoding</em> a serialized message when using a <code clas
 <span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;{&quot;x&quot;: 1.0, &quot;y&quot;: &quot;oops&quot;}&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Point</span><span class="p">)</span>
 <span class="gt">Traceback (most recent call last):</span>
   File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
-<span class="gr">msgspec.DecodeError</span>: <span class="n">Expected `float`, got `str` - at `$.y`</span>
+<span class="gr">msgspec.ValidationError</span>: <span class="n">Expected `float`, got `str` - at `$.y`</span>
 </pre></div>
 </div>
 <p>This is intentional. Static type checkers like <a class="reference external" href="https://mypy.readthedocs.io/en/stable/">mypy</a>/<a class="reference external" href="https://github.com/microsoft/pyright">pyright</a> work well with
@@ -645,7 +645,7 @@ code will still refer to them using their original names.</p>
 <span class="gp">... </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;{&quot;fieldOne&quot;: 5}&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Example</span><span class="p">)</span>
 <span class="gt">Traceback (most recent call last):</span>
   File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
-<span class="gr">msgspec.DecodeError</span>: <span class="n">Object missing required field `fieldTwo`</span>
+<span class="gr">msgspec.ValidationError</span>: <span class="n">Object missing required field `fieldTwo`</span>
 </pre></div>
 </div>
 <p>Note that if renaming to camelCase, you may run into issues if your field names
