@@ -5,6 +5,7 @@ from ._core import (
     MsgspecError,
     EncodeError,
     DecodeError,
+    ValidationError,
 )
 from . import msgpack
 from . import json
