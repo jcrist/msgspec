@@ -170,7 +170,7 @@ If a message doesn't match the expected type, an error is raised.
     ... )
     Traceback (most recent call last):
       File "<stdin>", line 1, in <module>
-    msgspec.DecodeError: Expected `str`, got `int` - at `$[1].groups[1]`
+    msgspec.ValidationError: Expected `str`, got `int` - at `$[1].groups[1]`
 
 Unlike some other libraries (e.g. pydantic_), ``msgspec`` won't perform any
 unsafe implicit conversion. For example, if an integer is specified and a
@@ -182,7 +182,7 @@ the string to an int.
     >>> msgspec.json.decode(b'[1, 2, "3"]', type=List[int])
     Traceback (most recent call last):
       File "<stdin>", line 1, in <module>
-    msgspec.DecodeError: Expected `int`, got `str` - at `$[2]`
+    msgspec.ValidationError: Expected `int`, got `str` - at `$[2]`
 
 The *one exception* to this rule is float handling - if a `float` is specified
 and an integer is decoded, the integer will be converted to a float. This is
@@ -234,7 +234,7 @@ MessagePack.
 
 Integers map to JSON numbers/MessagePack integers. Only values that fit in an
 ``int64`` or ``uint64`` (within ``[-2**63, 2**64 - 1]``, inclusive) are
-supported. Values outside this range will raise a `msgspec.DecodeError`
+supported. Values outside this range will raise a `msgspec.ValidationError`
 during decoding.
 
 .. code-block:: python
@@ -339,7 +339,7 @@ or doesn't match any valid `enum.IntEnum` member.
     >>> msgspec.json.decode(b'4', type=JobState)
     Traceback (most recent call last):
       File "<stdin>", line 1, in <module>
-    msgspec.DecodeError: Invalid enum value 4
+    msgspec.ValidationError: Invalid enum value 4
 
 ``Enum``
 ~~~~~~~~
@@ -365,7 +365,7 @@ isn't a string or doesn't match any valid `enum.Enum` member.
     >>> msgspec.json.decode(b'"GRAPE"', type=Fruit)
     Traceback (most recent call last):
       File "<stdin>", line 1, in <module>
-    msgspec.DecodeError: Invalid enum value 'GRAPE'
+    msgspec.ValidationError: Invalid enum value 'GRAPE'
 
 ``datetime``
 ~~~~~~~~~~~~
@@ -395,7 +395,7 @@ to UTC.
     >>> msgspec.json.decode(b'"oops not a date"', type=datetime.datetime)
     Traceback (most recent call last):
       File "<stdin>", line 1, in <module>
-    msgspec.DecodeError: Invalid RFC3339 encoded datetime
+    msgspec.ValidationError: Invalid RFC3339 encoded datetime
 
 ``list`` / ``tuple`` / ``set`` / ``frozenset``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -425,7 +425,7 @@ element type (if provided).
     ... msgspec.json.decode(b'[1, 2, "oops"]', type=Set[int])
     Traceback (most recent call last):
       File "<stdin>", line 1, in <module>
-    msgspec.DecodeError: Expected `int`, got `str` - at `$[2]`
+    msgspec.ValidationError: Expected `int`, got `str` - at `$[2]`
 
 ``dict``
 ~~~~~~~~
@@ -451,7 +451,7 @@ values don't match their respective types (if specified).
     ... msgspec.json.decode(b'{"x":1,"y":"oops"}', type=Dict[str, int])
     Traceback (most recent call last):
       File "<stdin>", line 1, in <module>
-    msgspec.DecodeError: Expected `int`, got `str` - at `$[...]`
+    msgspec.ValidationError: Expected `int`, got `str` - at `$[...]`
 
 ``TypedDict``
 ~~~~~~~~~~~~~~~~~~~~
@@ -493,7 +493,7 @@ already using them elsewhere, or if you have downstream code that requires a
     >>> msgspec.json.decode(wrong_type, type=Person)
     Traceback (most recent call last):
       File "<stdin>", line 1, in <module>
-    msgspec.DecodeError: Expected `int`, got `str` - at `$.age`
+    msgspec.ValidationError: Expected `int`, got `str` - at `$.age`
 
 ``Struct``
 ~~~~~~~~~~
@@ -543,7 +543,7 @@ doesn't match or if any required fields are missing.
     >>> msgspec.json.decode(wrong_type, type=User)
     Traceback (most recent call last):
       File "<stdin>", line 1, in <module>
-    msgspec.DecodeError: Expected `str`, got `int` - at `$.groups[1]`
+    msgspec.ValidationError: Expected `str`, got `int` - at `$.groups[1]`
 
 If you pass ``array_like=True`` when defining the struct type, they're instead
 treated as ``array`` types during encoding/decoding.  In this case fields are
@@ -576,7 +576,7 @@ fields have their defaults applied. Type checking also still applies.
     >>> msgspec.json.decode(b'["david", ["finance", 123]]')
     Traceback (most recent call last):
       File "<stdin>", line 1, in <module>
-    msgspec.DecodeError: Expected `str`, got `int` - at `$[1][1]`
+    msgspec.ValidationError: Expected `str`, got `int` - at `$[1][1]`
 
 ``Literal``
 ~~~~~~~~~~~
@@ -609,12 +609,12 @@ values, or doesn't match any of their component types.
     >>> msgspec.json.decode(b'4', type=Literal[1, 2, 3])
     Traceback (most recent call last):
       File "<stdin>", line 1, in <module>
-    msgspec.DecodeError: Invalid enum value 4
+    msgspec.ValidationError: Invalid enum value 4
 
     >>> msgspec.json.decode(b'"bad"', type=Literal[1, 2, 3])
     Traceback (most recent call last):
       File "<stdin>", line 1, in <module>
-    msgspec.DecodeError: Expected `int`, got `str`
+    msgspec.ValidationError: Expected `int`, got `str`
 
 ``Union`` /  ``Optional``
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -661,7 +661,7 @@ Union restrictions are as follows:
     >>> decoder.decode(b'false')
     Traceback (most recent call last):
       File "<stdin>", line 1, in <module>
-    msgspec.DecodeError: Expected `int | str | array`, got `bool`
+    msgspec.ValidationError: Expected `int | str | array`, got `bool`
 
 ``Raw``
 ~~~~~~~
