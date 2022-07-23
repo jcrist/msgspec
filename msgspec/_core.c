@@ -421,6 +421,7 @@ typedef struct {
     PyObject *MsgspecError;
     PyObject *EncodeError;
     PyObject *DecodeError;
+    PyObject *ValidationError;
     PyObject *StructType;
     PyTypeObject *EnumMetaType;
     PyObject *struct_lookup_cache;
@@ -2736,7 +2737,7 @@ cleanup:
         MsgspecState *st = msgspec_get_global_state(); \
         PyObject *suffix = PathNode_ErrSuffix(path); \
         if (suffix != NULL) { \
-            PyErr_Format(st->DecodeError, format, __VA_ARGS__, suffix); \
+            PyErr_Format(st->ValidationError, format, __VA_ARGS__, suffix); \
             Py_DECREF(suffix); \
         } \
     } while (0)
@@ -2778,7 +2779,7 @@ ms_error_with_path(const char *msg, PathNode *path) {
     MsgspecState *st = msgspec_get_global_state();
     PyObject *suffix = PathNode_ErrSuffix(path);
     if (suffix != NULL) {
-        PyErr_Format(st->DecodeError, msg, suffix);
+        PyErr_Format(st->ValidationError, msg, suffix);
         Py_DECREF(suffix);
     }
     return NULL;
@@ -3894,11 +3895,17 @@ StructMeta_clear(StructMetaObject *self)
     Py_CLEAR(self->struct_tag_value);
     Py_CLEAR(self->struct_tag);
     Py_CLEAR(self->rename);
-    PyMem_Free(self->struct_offsets);
+    if (self->struct_offsets != NULL) {
+        PyMem_Free(self->struct_offsets);
+        self->struct_offsets = NULL;
+    }
     if (self->struct_types != NULL) {
         for (i = 0; i < nfields; i++) {
             TypeNode_Free(self->struct_types[i]);
+            self->struct_types[i] = NULL;
         }
+        PyMem_Free(self->struct_types);
+        self->struct_types = NULL;
     }
     return PyType_Type.tp_clear((PyObject *)self);
 }
@@ -10836,7 +10843,7 @@ json_decode_object(
 }
 
 static MS_NOINLINE PyObject *
-json_decode_extended_float(JSONDecoderState *self) {
+json_decode_extended_float(JSONDecoderState *self, PathNode *path) {
     uint32_t nd = 0;
     int32_t dp = 0;
 
@@ -10954,7 +10961,9 @@ json_decode_extended_float(JSONDecoderState *self) {
     }
     ms_hpd_trim(&dec);
     double res = ms_hpd_to_double(&dec);
-    if (Py_IS_INFINITY(res)) return json_err_invalid(self, "number out of range");
+    if (Py_IS_INFINITY(res)) {
+        return ms_error_with_path("Number out of range%U", path);
+    }
     return PyFloat_FromDouble(res);
 }
 
@@ -11117,7 +11126,7 @@ fallback_extended:
     if (MS_UNLIKELY(!(type->types & (MS_TYPE_ANY | MS_TYPE_FLOAT)))) {
         return ms_validation_error("float", type, path);
     }
-    return json_decode_extended_float(self);
+    return json_decode_extended_float(self, path);
 }
 
 static MS_NOINLINE PyObject *
@@ -11826,6 +11835,13 @@ PyInit__core(void)
     );
     if (st->DecodeError == NULL)
         return NULL;
+    st->ValidationError = PyErr_NewExceptionWithDoc(
+        "msgspec.ValidationError",
+        "The message didn't match the expected schema",
+        st->DecodeError, NULL
+    );
+    if (st->ValidationError == NULL)
+        return NULL;
 
     Py_INCREF(st->MsgspecError);
     if (PyModule_AddObject(m, "MsgspecError", st->MsgspecError) < 0)
@@ -11835,6 +11851,9 @@ PyInit__core(void)
         return NULL;
     Py_INCREF(st->DecodeError);
     if (PyModule_AddObject(m, "DecodeError", st->DecodeError) < 0)
+        return NULL;
+    Py_INCREF(st->ValidationError);
+    if (PyModule_AddObject(m, "ValidationError", st->ValidationError) < 0)
         return NULL;
 
     /* Initialize the struct_lookup_cache */
