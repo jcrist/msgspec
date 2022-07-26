@@ -43,7 +43,7 @@ annotations`_ , providing ergonomic (and performant!) schema validation.
     >>> msgspec.json.decode(b'{"name":"bob","groups":[123]}', type=User)
     Traceback (most recent call last):
       File "<stdin>", line 1, in <module>
-    msgspec.DecodeError: Expected `str`, got `int` - at `$.groups[0]`
+    msgspec.ValidationError: Expected `str`, got `int` - at `$.groups[0]`
 
 ``msgspec`` is designed to be as performant as possible, while retaining some
 of the nicities of validation libraries like pydantic_. For supported types,
