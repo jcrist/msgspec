@@ -2,10 +2,10 @@
 <html class="no-js" lang="en">
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
-    <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+    <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Structs" href="structs.html" /><link rel="prev" title="msgspec" href="index.html" />
 
-    <meta name="generator" content="sphinx-5.0.2, furo 2022.06.21"/>
+    <meta name="generator" content="sphinx-5.1.0, furo 2022.06.21"/>
         <title>Usage</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=40978830699223671f4072448e654b5958f38b89" />
@@ -892,12 +892,14 @@ map to Python types in a protocol specific manner.</p>
 <li><p><code class="docutils literal notranslate"><span class="pre">array</span></code>: <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">list</span></code></a></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">object</span></code>: <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a></p></li>
 </ul>
+<aside class="footnote-list brackets">
 <aside class="footnote brackets" id="number-json" role="note">
 <span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id2">1</a><span class="fn-bracket">]</span></span>
 <p>Numbers are decoded as integers if they contain no decimal or
 exponent components (e.g. <code class="docutils literal notranslate"><span class="pre">1</span></code> but not <code class="docutils literal notranslate"><span class="pre">1.0</span></code> or <code class="docutils literal notranslate"><span class="pre">1e10</span></code>), and fit in either
 an <code class="docutils literal notranslate"><span class="pre">int64</span></code> or <code class="docutils literal notranslate"><span class="pre">uint64</span></code> (within <code class="docutils literal notranslate"><span class="pre">[-2**63,</span> <span class="pre">2**64</span> <span class="pre">-</span> <span class="pre">1]</span></code>, inclusive). All
 other numbers decode as floats.</p>
+</aside>
 </aside>
 <p><strong>MessagePack</strong></p>
 <p>MessagePack types are decoded to Python types as follows:</p>
@@ -912,11 +914,13 @@ other numbers decode as floats.</p>
 <li><p><code class="docutils literal notranslate"><span class="pre">map</span></code>: <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">ext</span></code>: <a class="reference internal" href="api.html#msgspec.msgpack.Ext" title="msgspec.msgpack.Ext"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.msgpack.Ext</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.datetime" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.datetime</span></code></a>, or a custom type</p></li>
 </ul>
+<aside class="footnote-list brackets">
 <aside class="footnote brackets" id="tuple" role="note">
 <span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id3">2</a><span class="fn-bracket">]</span></span>
 <p>Tuples are only used when the array type must be hashable (e.g.
 keys in a <code class="docutils literal notranslate"><span class="pre">dict</span></code> or <code class="docutils literal notranslate"><span class="pre">set</span></code>). All other array types are deserialized as lists
 by default.</p>
+</aside>
 </aside>
 </section>
 </section>
