@@ -4338,8 +4338,7 @@ Struct_repr(PyObject *self) {
 
     recursive = Py_ReprEnter(self);
     if (recursive != 0) {
-        out = (recursive < 0) ? NULL : PyUnicode_FromString("...");
-        goto cleanup;
+        return (recursive < 0) ? NULL : PyUnicode_FromString("...");  /* cpylint-ignore */
     }
 
     fields = StructMeta_GET_FIELDS(Py_TYPE(self));
@@ -5846,8 +5845,7 @@ mpack_encode_list(EncoderState *self, PyObject *obj)
         return -1;
     if (len == 0)
         return 0;
-    if (Py_EnterRecursiveCall(" while serializing an object"))
-        return -1;
+    if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
     for (i = 0; i < len; i++) {
         if (mpack_encode(self, PyList_GET_ITEM(obj, i)) < 0) {
             status = -1;
@@ -5871,8 +5869,7 @@ mpack_encode_set(EncoderState *self, PyObject *obj)
         return -1;
     if (len == 0)
         return 0;
-    if (Py_EnterRecursiveCall(" while serializing an object"))
-        return -1;
+    if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
     while (_PySet_NextEntry(obj, &ppos, &item, &hash)) {
         if (mpack_encode(self, item) < 0) {
             status = -1;
@@ -5894,8 +5891,7 @@ mpack_encode_tuple(EncoderState *self, PyObject *obj)
         return -1;
     if (len == 0)
         return 0;
-    if (Py_EnterRecursiveCall(" while serializing an object"))
-        return -1;
+    if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
     for (i = 0; i < len; i++) {
         if (mpack_encode(self, PyTuple_GET_ITEM(obj, i)) < 0) {
             status = -1;
@@ -5948,8 +5944,7 @@ mpack_encode_dict(EncoderState *self, PyObject *obj)
         return -1;
     if (len == 0)
         return 0;
-    if (Py_EnterRecursiveCall(" while serializing an object"))
-        return -1;
+    if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
     while (PyDict_Next(obj, &pos, &key, &val)) {
         if (mpack_encode(self, key) < 0 || mpack_encode(self, val) < 0) {
             status = -1;
@@ -5978,7 +5973,7 @@ mpack_encode_struct(EncoderState *self, PyObject *obj)
     if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
 
     if (struct_type->array_like == OPT_TRUE) {
-        if (mpack_encode_array_header(self, len, "structs") < 0) return -1;
+        if (mpack_encode_array_header(self, len, "structs") < 0) goto cleanup;
         if (tagged) {
             if (mpack_encode(self, tag_value) < 0) goto cleanup;
         }
@@ -5991,7 +5986,7 @@ mpack_encode_struct(EncoderState *self, PyObject *obj)
     }
     else {
         Py_ssize_t header_offset = self->output_len;
-        if (mpack_encode_map_header(self, len, "structs") < 0) return -1;
+        if (mpack_encode_map_header(self, len, "structs") < 0) goto cleanup;
 
         if (tagged) {
             if (mpack_encode_str(self, tag_field) < 0) goto cleanup;
@@ -6801,8 +6796,7 @@ json_encode_list(EncoderState *self, PyObject *obj)
     if (len == 0) return ms_write(self, "[]", 2);
 
     if (ms_write(self, "[", 1) < 0) return -1;
-    if (Py_EnterRecursiveCall(" while serializing an object"))
-        return -1;
+    if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
     for (i = 0; i < len; i++) {
         if (json_encode(self, PyList_GET_ITEM(obj, i)) < 0) goto cleanup;
         if (ms_write(self, ",", 1) < 0) goto cleanup;
@@ -6827,8 +6821,7 @@ json_encode_set(EncoderState *self, PyObject *obj)
     if (len == 0) return ms_write(self, "[]", 2);
 
     if (ms_write(self, "[", 1) < 0) return -1;
-    if (Py_EnterRecursiveCall(" while serializing an object"))
-        return -1;
+    if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
     while (_PySet_NextEntry(obj, &ppos, &item, &hash)) {
         if (json_encode(self, item) < 0) goto cleanup;
         if (ms_write(self, ",", 1) < 0) goto cleanup;
@@ -6851,8 +6844,7 @@ json_encode_tuple(EncoderState *self, PyObject *obj)
     if (len == 0) return ms_write(self, "[]", 2);
 
     if (ms_write(self, "[", 1) < 0) return -1;
-    if (Py_EnterRecursiveCall(" while serializing an object"))
-        return -1;
+    if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
     for (i = 0; i < len; i++) {
         if (json_encode(self, PyTuple_GET_ITEM(obj, i)) < 0) goto cleanup;
         if (ms_write(self, ",", 1) < 0) goto cleanup;
@@ -6875,8 +6867,7 @@ json_encode_dict(EncoderState *self, PyObject *obj)
     len = PyDict_GET_SIZE(obj);
     if (len == 0) return ms_write(self, "{}", 2);
     if (ms_write(self, "{", 1) < 0) return -1;
-    if (Py_EnterRecursiveCall(" while serializing an object"))
-        return -1;
+    if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
     while (PyDict_Next(obj, &pos, &key, &val)) {
         if (!PyUnicode_CheckExact(key)) {
             PyErr_SetString(PyExc_TypeError, "dict keys must be strings");
@@ -7318,7 +7309,7 @@ Decoder_repr(Decoder *self) {
 
     recursive = Py_ReprEnter((PyObject *)self);
     if (recursive != 0) {
-        return (recursive < 0) ? NULL : PyUnicode_FromString("...");
+        return (recursive < 0) ? NULL : PyUnicode_FromString("...");  /* cpylint-ignore */
     }
     typstr = PyObject_Repr(self->orig_type);
     if (typstr != NULL) {
@@ -7809,7 +7800,7 @@ mpack_decode_list(
 
     if (Py_EnterRecursiveCall(" while deserializing an object")) {
         Py_DECREF(res);
-        return NULL;
+        return NULL; /* cpylint-ignore */
     }
     for (i = 0; i < size; i++) {
         PathNode el_path = {path, i};
@@ -7837,7 +7828,7 @@ mpack_decode_set(
 
     if (Py_EnterRecursiveCall(" while deserializing an object")) {
         Py_DECREF(res);
-        return NULL;
+        return NULL; /* cpylint-ignore */
     }
     for (i = 0; i < size; i++) {
         PathNode el_path = {path, i};
@@ -7866,7 +7857,7 @@ mpack_decode_vartuple(
 
     if (Py_EnterRecursiveCall(" while deserializing an object")) {
         Py_DECREF(res);
-        return NULL;
+        return NULL; /* cpylint-ignore */
     }
     for (i = 0; i < size; i++) {
         PathNode el_path = {path, i};
@@ -7906,7 +7897,7 @@ mpack_decode_fixtuple(
 
     if (Py_EnterRecursiveCall(" while deserializing an object")) {
         Py_DECREF(res);
-        return NULL;
+        return NULL; /* cpylint-ignore */
     }
 
     offset = TypeNode_get_array_offset(type);
@@ -8217,7 +8208,7 @@ mpack_decode_dict(
 
     if (Py_EnterRecursiveCall(" while deserializing an object")) {
         Py_DECREF(res);
-        return NULL;
+        return NULL; /* cpylint-ignore */
     }
     for (i = 0; i < size; i++) {
         key = mpack_decode_key(self, key_type, &key_path);
@@ -8308,7 +8299,7 @@ mpack_decode_struct_map(
     if (Py_EnterRecursiveCall(" while deserializing an object")) return NULL;
 
     res = Struct_alloc((PyTypeObject *)(st_type));
-    if (res == NULL) return NULL;
+    if (res == NULL) goto error;
 
     for (i = 0; i < size; i++) {
         PathNode key_path = {path, PATH_KEY, NULL};
@@ -8320,7 +8311,7 @@ mpack_decode_struct_map(
             if (MS_UNLIKELY(field_index == -2)) {
                 PathNode tag_path = {path, PATH_STR, st_type->struct_tag_field};
                 if (mpack_ensure_tag_matches(self, &tag_path, st_type->struct_tag_value) < 0) {
-                    return NULL;
+                    goto error;
                 }
             }
             else {
@@ -8975,7 +8966,7 @@ JSONDecoder_repr(JSONDecoder *self) {
 
     recursive = Py_ReprEnter((PyObject *)self);
     if (recursive != 0) {
-        return (recursive < 0) ? NULL : PyUnicode_FromString("...");
+        return (recursive < 0) ? NULL : PyUnicode_FromString("...");  /* cpylint-ignore */
     }
     typstr = PyObject_Repr(self->orig_type);
     if (typstr != NULL) {
@@ -9867,7 +9858,7 @@ json_decode_list(JSONDecoderState *self, TypeNode *el_type, PathNode *path) {
     if (out == NULL) return NULL;
     if (Py_EnterRecursiveCall(" while deserializing an object")) {
         Py_DECREF(out);
-        return NULL;
+        return NULL; /* cpylint-ignore */
     }
     while (true) {
         if (MS_UNLIKELY(!json_peek_skip_ws(self, &c))) goto error;
@@ -9927,7 +9918,7 @@ json_decode_set(
     if (out == NULL) return NULL;
     if (Py_EnterRecursiveCall(" while deserializing an object")) {
         Py_DECREF(out);
-        return NULL;
+        return NULL; /* cpylint-ignore */
     }
     while (true) {
         if (MS_UNLIKELY(!json_peek_skip_ws(self, &c))) goto error;
@@ -10011,7 +10002,7 @@ json_decode_fixtuple(JSONDecoderState *self, TypeNode *type, PathNode *path) {
 
     if (Py_EnterRecursiveCall(" while deserializing an object")) {
         Py_DECREF(out);
-        return NULL;
+        return NULL; /* cpylint-ignore */
     }
 
     while (true) {
@@ -10090,7 +10081,7 @@ json_decode_struct_array_inner(
 
     if (Py_EnterRecursiveCall(" while deserializing an object")) {
         Py_DECREF(out);
-        return NULL;
+        return NULL; /* cpylint-ignore */
     }
     while (true) {
         if (MS_UNLIKELY(!json_peek_skip_ws(self, &c))) goto error;
@@ -10461,7 +10452,7 @@ json_decode_dict(
 
     if (Py_EnterRecursiveCall(" while deserializing an object")) {
         Py_DECREF(out);
-        return NULL;
+        return NULL; /* cpylint-ignore */
     }
     while (true) {
         /* Parse '}' or ',', then peek the next character */
@@ -10644,7 +10635,7 @@ json_decode_struct_map_inner(
 
     if (Py_EnterRecursiveCall(" while deserializing an object")) {
         Py_DECREF(out);
-        return NULL;
+        return NULL; /* cpylint-ignore */
     }
     while (true) {
         /* Parse '}' or ',', then peek the next character */
@@ -10702,7 +10693,7 @@ json_decode_struct_map_inner(
             /* Decode and check that the tag value matches the expected value */
             PathNode tag_path = {path, PATH_STR, st_type->struct_tag_field};
             if (json_ensure_tag_matches(self, &tag_path, st_type->struct_tag_value) < 0) {
-                return NULL;
+                goto error;
             }
         }
         else {
