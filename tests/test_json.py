@@ -18,7 +18,6 @@ from typing import (
     FrozenSet,
     List,
     Literal,
-    NamedTuple,
     Optional,
     Set,
     Tuple,
@@ -72,9 +71,13 @@ class Node(msgspec.Struct):
     right: Optional[Node] = None
 
 
-class Point(NamedTuple):
-    x: float
-    y: float
+class Custom:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+
+    def __eq__(self, other):
+        return self.x == other.x and self.y == other.y
 
 
 class TestInvalidJSONTypes:
@@ -508,12 +511,12 @@ class TestDecodeFunction:
 
     def test_decode_dec_hook(self):
         def dec_hook(typ, obj):
-            assert typ is Point
+            assert typ is Custom
             return typ(*obj)
 
-        res = msgspec.json.decode(b"[1, 2]", type=Point, dec_hook=dec_hook)
-        assert res == Point(1, 2)
-        assert isinstance(res, Point)
+        res = msgspec.json.decode(b"[1, 2]", type=Custom, dec_hook=dec_hook)
+        assert res == Custom(1, 2)
+        assert isinstance(res, Custom)
 
     def test_decode_with_trailing_characters_errors(self):
         with pytest.raises(msgspec.DecodeError):
@@ -551,37 +554,37 @@ class TestDecoderMisc:
         def dec_hook(typ, obj):
             nonlocal called
             called = True
-            assert typ is Point
-            return Point(*obj)
+            assert typ is Custom
+            return Custom(*obj)
 
-        dec = msgspec.json.Decoder(type=List[Point], dec_hook=dec_hook)
+        dec = msgspec.json.Decoder(type=List[Custom], dec_hook=dec_hook)
         msg = dec.decode(b"[[1,2],[3,4],[5,6]]")
         assert called
-        assert msg == [Point(1, 2), Point(3, 4), Point(5, 6)]
-        assert isinstance(msg[0], Point)
+        assert msg == [Custom(1, 2), Custom(3, 4), Custom(5, 6)]
+        assert isinstance(msg[0], Custom)
 
     def test_decode_dec_hook_errors(self):
         def dec_hook(typ, obj):
             assert obj == "some string"
             raise TypeError("Oh no!")
 
-        dec = msgspec.json.Decoder(type=Point, dec_hook=dec_hook)
+        dec = msgspec.json.Decoder(type=Custom, dec_hook=dec_hook)
 
         with pytest.raises(TypeError, match="Oh no!"):
             dec.decode(b'"some string"')
 
     def test_decode_dec_hook_wrong_type(self):
-        dec = msgspec.json.Decoder(type=Point, dec_hook=lambda t, o: o)
+        dec = msgspec.json.Decoder(type=Custom, dec_hook=lambda t, o: o)
 
         with pytest.raises(
             msgspec.ValidationError,
-            match="Expected `Point`, got `list`",
+            match="Expected `Custom`, got `list`",
         ):
             dec.decode(b"[1, 2]")
 
     def test_decode_dec_hook_wrong_type_in_struct(self):
         class Test(msgspec.Struct):
-            point: Point
+            point: Custom
             other: int
 
         dec = msgspec.json.Decoder(type=Test, dec_hook=lambda t, o: o)
@@ -589,7 +592,7 @@ class TestDecoderMisc:
         with pytest.raises(msgspec.ValidationError) as rec:
             dec.decode(b'{"point": [1, 2], "other": 3}')
 
-        assert "Expected `Point`, got `list` - at `$.point`" == str(rec.value)
+        assert "Expected `Custom`, got `list` - at `$.point`" == str(rec.value)
 
     def test_decode_dec_hook_wrong_type_generic(self):
         dec = msgspec.json.Decoder(type=Deque[int], dec_hook=lambda t, o: o)
@@ -2576,11 +2579,11 @@ class TestRaw:
 
     def test_raw_can_be_mixed_with_custom_type(self):
         class Test(msgspec.Struct):
-            x: Union[Point, msgspec.Raw]
+            x: Union[Custom, msgspec.Raw]
 
         def dec_hook(typ, obj):
-            assert typ is Point
+            assert typ is Custom
             return typ(*obj)
 
         res = msgspec.json.decode(b'{"x": [1, 2]}', type=Test, dec_hook=dec_hook)
-        assert res == Test(Point(1, 2))
+        assert res == Test(Custom(1, 2))
