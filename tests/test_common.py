@@ -11,7 +11,6 @@ from typing import (
     List,
     Union,
     Deque,
-    NamedTuple,
     Dict,
     Tuple,
     Optional,
@@ -71,9 +70,13 @@ class PersonDict(TypedDict):
     age: int
 
 
-class Point(NamedTuple):
-    x: float
-    y: float
+class Custom:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+
+    def __eq__(self, other):
+        return self.x == other.x and self.y == other.y
 
 
 class Rand:
@@ -539,8 +542,7 @@ class TestUnionTypeErrors:
     def test_err_union_with_struct_array_like_and_array(self, typ, proto):
         with pytest.raises(TypeError) as rec:
             proto.Decoder(typ)
-        assert "array_like=True" in str(rec.value)
-        assert "Type unions containing" in str(rec.value)
+        assert "more than one array-like type" in str(rec.value)
         assert repr(typ) in str(rec.value)
 
     @pytest.mark.parametrize("types", [(FruitInt, int), (FruitInt, Literal[1, 2])])
@@ -572,7 +574,7 @@ class TestUnionTypeErrors:
             (Union[set, tuple], "array-like"),
             (Union[Tuple[int, ...], list], "array-like"),
             (Union[Tuple[int, float, str], set], "array-like"),
-            (Union[Deque, int, Point], "custom"),
+            (Union[Deque, int, Custom], "custom"),
         ],
     )
     def test_err_union_conflicts(self, typ, kind, proto):
@@ -642,7 +644,7 @@ class TestStructUnion:
 
         assert "not supported" in str(rec.value)
         if array_like:
-            assert "other array-like types" in str(rec.value)
+            assert "more than one array-like type" in str(rec.value)
         else:
             assert "more than one dict-like type" in str(rec.value)
         assert repr(typ) in str(rec.value)

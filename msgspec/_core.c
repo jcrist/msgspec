@@ -439,6 +439,8 @@ typedef struct {
     PyObject *str___args__;
     PyObject *str___total__;
     PyObject *str___required_keys__;
+    PyObject *str__fields;
+    PyObject *str__field_defaults;
     PyObject *typing_list;
     PyObject *typing_set;
     PyObject *typing_frozenset;
@@ -1358,7 +1360,8 @@ static PyTypeObject Raw_Type = {
 #define MS_TYPE_INTLITERAL          (1u << 24)
 #define MS_TYPE_STRLITERAL          (1u << 25)
 #define MS_TYPE_TYPEDDICT           (1u << 26)
-#define MS_TYPE_REQUIRED            (1u << 27)
+#define MS_TYPE_NAMEDTUPLE          (1u << 27)
+#define MS_TYPE_REQUIRED            (1u << 28)
 
 typedef struct TypeNode {
     uint32_t types;
@@ -1382,6 +1385,15 @@ typedef struct TypedDictInfo {
     TypedDictEntry fields[];
 } TypedDictInfo;
 
+typedef struct NamedTupleInfo {
+    PyObject_VAR_HEAD
+    bool json_compatible;
+    bool traversing;
+    PyObject *class;
+    PyObject *defaults;
+    TypeNode *types[];
+} NamedTupleInfo;
+
 typedef struct {
     PyHeapTypeObject base;
     PyObject *struct_fields;
@@ -1404,11 +1416,13 @@ typedef struct {
 } StructMetaObject;
 
 static PyTypeObject TypedDictInfo_Type;
+static PyTypeObject NamedTupleInfo_Type;
 static PyTypeObject StructMetaType;
 static PyTypeObject Ext_Type;
 static TypeNode* TypeNode_Convert(PyObject *type, bool, bool *);
 static int StructMeta_prep_types(PyObject*, bool, bool*);
 static PyObject* TypedDictInfo_Convert(PyObject*, bool, bool*);
+static PyObject* NamedTupleInfo_Convert(PyObject*, bool, bool*);
 
 #define StructMeta_GET_FIELDS(s) (((StructMetaObject *)(s))->struct_fields)
 #define StructMeta_GET_NFIELDS(s) (PyTuple_GET_SIZE((((StructMetaObject *)(s))->struct_fields)))
@@ -1434,7 +1448,7 @@ TypeNode_get_size(TypeNode *type, Py_ssize_t *n_typenode) {
                 MS_TYPE_STRUCT_ARRAY | MS_TYPE_STRUCT_ARRAY_UNION |
                 MS_TYPE_INTENUM | MS_TYPE_INTLITERAL |
                 MS_TYPE_ENUM | MS_TYPE_STRLITERAL |
-                MS_TYPE_TYPEDDICT
+                MS_TYPE_TYPEDDICT | MS_TYPE_NAMEDTUPLE
             )
         );
         if (type->types & MS_TYPE_DICT) n_type += 2;
@@ -1500,6 +1514,20 @@ TypeNode_get_typeddict_info(TypeNode *type) {
     return ((TypeNodeExtra *)type)->extra[i];
 }
 
+static MS_INLINE NamedTupleInfo *
+TypeNode_get_namedtuple_info(TypeNode *type) {
+    Py_ssize_t i = ms_popcount(
+        type->types & (
+            MS_TYPE_STRUCT | MS_TYPE_STRUCT_UNION |
+            MS_TYPE_STRUCT_ARRAY | MS_TYPE_STRUCT_ARRAY_UNION |
+            MS_TYPE_INTENUM | MS_TYPE_INTLITERAL |
+            MS_TYPE_ENUM | MS_TYPE_STRLITERAL |
+            MS_TYPE_TYPEDDICT
+        )
+    );
+    return ((TypeNodeExtra *)type)->extra[i];
+}
+
 static MS_INLINE void
 TypeNode_get_dict(TypeNode *type, TypeNode **key, TypeNode **val) {
     Py_ssize_t i = ms_popcount(
@@ -1508,7 +1536,7 @@ TypeNode_get_dict(TypeNode *type, TypeNode **key, TypeNode **val) {
             MS_TYPE_STRUCT_ARRAY | MS_TYPE_STRUCT_ARRAY_UNION |
             MS_TYPE_INTENUM | MS_TYPE_INTLITERAL |
             MS_TYPE_ENUM | MS_TYPE_STRLITERAL |
-            MS_TYPE_TYPEDDICT
+            MS_TYPE_TYPEDDICT | MS_TYPE_NAMEDTUPLE
         )
     );
     *key = ((TypeNodeExtra *)type)->extra[i];
@@ -1523,7 +1551,7 @@ TypeNode_get_array_offset(TypeNode *type) {
             MS_TYPE_STRUCT_ARRAY | MS_TYPE_STRUCT_ARRAY_UNION |
             MS_TYPE_INTENUM | MS_TYPE_INTLITERAL |
             MS_TYPE_ENUM | MS_TYPE_STRLITERAL |
-            MS_TYPE_TYPEDDICT
+            MS_TYPE_TYPEDDICT | MS_TYPE_NAMEDTUPLE
         )
     );
     if (type->types & MS_TYPE_DICT) i += 2;
@@ -1611,7 +1639,7 @@ typenode_simple_repr(TypeNode *self) {
         self->types & (
             MS_TYPE_STRUCT_ARRAY | MS_TYPE_STRUCT_ARRAY_UNION |
             MS_TYPE_LIST | MS_TYPE_SET | MS_TYPE_FROZENSET |
-            MS_TYPE_VARTUPLE | MS_TYPE_FIXTUPLE
+            MS_TYPE_VARTUPLE | MS_TYPE_FIXTUPLE | MS_TYPE_NAMEDTUPLE
         )
     ) {
         if (!strbuilder_extend(&builder, "array", 5)) return NULL;
@@ -1637,6 +1665,7 @@ typedef struct {
     PyObject *dict_key_obj;
     PyObject *dict_val_obj;
     PyObject *typeddict_obj;
+    PyObject *namedtuple_obj;
     PyObject *literals;
     PyObject *int_literal_values;
     PyObject *int_literal_lookup;
@@ -1657,6 +1686,7 @@ typenode_from_collect_state(TypeNodeCollectState *state, bool err_not_json, bool
     if (state->str_literal_lookup != NULL) n_extra++;
     if (state->custom_obj != NULL) n_extra++;
     if (state->typeddict_obj != NULL) n_extra++;
+    if (state->namedtuple_obj != NULL) n_extra++;
     if (state->dict_key_obj != NULL) n_extra += 2;
     if (state->array_el_obj != NULL) {
         if (PyTuple_Check(state->array_el_obj)) {
@@ -1775,6 +1805,13 @@ typenode_from_collect_state(TypeNodeCollectState *state, bool err_not_json, bool
         if (info == NULL) goto error;
         out->extra[e_ind++] = info;
     }
+    if (state->namedtuple_obj != NULL) {
+        PyObject *info = NamedTupleInfo_Convert(
+            state->namedtuple_obj, err_not_json, json_compatible
+        );
+        if (info == NULL) goto error;
+        out->extra[e_ind++] = info;
+    }
     if (state->dict_key_obj != NULL) {
         TypeNode *temp = TypeNode_Convert(state->dict_key_obj, err_not_json, json_compatible);
         if (temp == NULL) goto error;
@@ -1854,17 +1891,25 @@ typenode_collect_check_invariants(
         return -1;
     }
 
-    /* Ensure structs with array_like=True don't conflict with array types */
-    if (state->array_el_obj && (state->types & (MS_TYPE_STRUCT_ARRAY | MS_TYPE_STRUCT_ARRAY_UNION))) {
+    /* Ensure at most one array-like type in the union */
+    if (ms_popcount(
+            state->types & (
+                MS_TYPE_STRUCT_ARRAY | MS_TYPE_STRUCT_ARRAY_UNION |
+                MS_TYPE_LIST | MS_TYPE_SET | MS_TYPE_FROZENSET |
+                MS_TYPE_VARTUPLE | MS_TYPE_FIXTUPLE | MS_TYPE_NAMEDTUPLE
+            )
+        ) > 1
+    ) {
         PyErr_Format(
             PyExc_TypeError,
-            "Type unions containing a Struct type with `array_like=True` may "
-            "not contain other array-like types - type `%R` is not supported",
+            "Type unions may not contain more than one array-like type "
+            "(`Struct(array_like=True)`, `list`, `set`, `frozenset`, `tuple`, "
+            "`NamedTuple`) - type `%R` is not supported",
             state->context
         );
         return -1;
     }
-    /* Ensure structs with array_like=False don't conflict with dict types */
+    /* Ensure at most one dict-like type in the union */
     if (ms_popcount(
             state->types & (
                 MS_TYPE_STRUCT | MS_TYPE_STRUCT_UNION |
@@ -1985,6 +2030,17 @@ typenode_collect_typeddict(TypeNodeCollectState *state, PyObject *obj) {
     state->types |= MS_TYPE_TYPEDDICT;
     Py_INCREF(obj);
     state->typeddict_obj = obj;
+    return 0;
+}
+
+static int
+typenode_collect_namedtuple(TypeNodeCollectState *state, PyObject *obj) {
+    if (state->namedtuple_obj != NULL) {
+        return typenode_collect_err_unique(state, "NamedTuple");
+    }
+    state->types |= MS_TYPE_NAMEDTUPLE;
+    Py_INCREF(obj);
+    state->namedtuple_obj = obj;
     return 0;
 }
 
@@ -2351,6 +2407,7 @@ typenode_collect_clear_state(TypeNodeCollectState *state) {
     Py_CLEAR(state->dict_key_obj);
     Py_CLEAR(state->dict_val_obj);
     Py_CLEAR(state->typeddict_obj);
+    Py_CLEAR(state->namedtuple_obj);
     Py_CLEAR(state->literals);
     Py_CLEAR(state->int_literal_values);
     Py_CLEAR(state->int_literal_lookup);
@@ -2496,6 +2553,13 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
         && PyType_IsSubtype((PyTypeObject *)obj, &PyDict_Type)
         && PyObject_HasAttr(obj, state->mod->str___total__)) {
         return typenode_collect_typeddict(state, obj);
+    }
+
+    /* Check if namedtuple through duck-typing */
+    if (PyType_Check(obj)
+        && PyType_IsSubtype((PyTypeObject *)obj, &PyTuple_Type)
+        && PyObject_HasAttr(obj, state->mod->str__fields)) {
+        return typenode_collect_namedtuple(state, obj);
     }
 
     /* Attempt to extract __origin__/__args__ from the obj as a typing object */
@@ -4920,6 +4984,196 @@ static PyTypeObject TypedDictInfo_Type = {
     .tp_clear = (inquiry)TypedDictInfo_clear,
     .tp_traverse = (traverseproc)TypedDictInfo_traverse,
     .tp_dealloc = (destructor)TypedDictInfo_dealloc,
+};
+
+static PyObject *
+NamedTupleInfo_Convert(PyObject *obj, bool err_not_json, bool *json_compatible) {
+    MsgspecState *mod = msgspec_get_global_state();
+    NamedTupleInfo *info = NULL;
+    PyObject *annotations = NULL, *fields = NULL, *defaults = NULL, *defaults_list = NULL;
+    bool cache_set = false, succeeded = false;
+
+    /* Check if cached */
+    PyObject *cached = PyObject_GetAttr(obj, mod->str___msgspec_cache__);
+    if (cached != NULL) {
+        if (Py_TYPE(cached) != &NamedTupleInfo_Type) {
+            Py_DECREF(cached);
+            PyErr_Format(
+                PyExc_RuntimeError,
+                "%R.__msgspec_cache__ has been overwritten",
+                obj
+            );
+            return NULL;
+        }
+
+        /* True if NamedTupleInfo is still being built (due to a
+         * recursive type definition). Just return immediately. */
+        if (((NamedTupleInfo *)cached)->traversing) return cached;
+
+        if (!((NamedTupleInfo *)cached)->json_compatible) {
+            if (json_compatible != NULL) {
+                *json_compatible = false;
+            }
+            if (!err_not_json) return cached;
+            /* XXX: If we want to error, we need to recurse again here. This won't
+            * modify any internal state, since it will error too early. */
+            Py_DECREF(cached);
+        }
+        else {
+            return cached;
+        }
+    }
+
+    /* Clear the getattr error, if any */
+    PyErr_Clear();
+
+    /* Not cached, extract fields from NamedTuple object */
+    annotations = CALL_ONE_ARG(mod->get_type_hints, obj);
+    if (annotations == NULL) goto cleanup;
+    fields = PyObject_GetAttr(obj, mod->str__fields);
+    if (fields == NULL) goto cleanup;
+    defaults = PyObject_GetAttr(obj, mod->str__field_defaults);
+    if (defaults == NULL) goto cleanup;
+
+    if (cached != NULL) {
+        /* If cached is not NULL, this means that a NamedTupleInfo already exists for
+         * this NamedTuple, but it's not JSON compatible and we're recursing through
+         * again to raise a nice TypeError. In this case we:
+         * - Temporarily mark the NamedTupleInfo object as being recursively traversed
+         *   to guard against recursion errors.
+         * - Call `TypeNode_Convert` on every field type, bubbling up the error if
+         *   raised, otherwise immediately free the result.
+         */
+        ((NamedTupleInfo *)cached)->traversing = true;
+        Py_ssize_t pos = 0;
+        PyObject *val;
+        while (PyDict_Next(annotations, &pos, NULL, &val)) {
+            bool item_is_json_compatible = true;
+            TypeNode *type = TypeNode_Convert(val, err_not_json, &item_is_json_compatible);
+            if (type == NULL) break;
+            TypeNode_Free(type);
+        }
+        ((NamedTupleInfo *)cached)->traversing = false;
+        goto cleanup;
+    }
+
+    /* Allocate and zero-out a new NamedTupleInfo object */
+    Py_ssize_t nfields = PyTuple_GET_SIZE(fields);
+    info = PyObject_GC_NewVar(NamedTupleInfo, &NamedTupleInfo_Type, nfields);
+    if (info == NULL) goto cleanup;
+    info->class = NULL;
+    info->defaults = NULL;
+    for (Py_ssize_t i = 0; i < nfields; i++) {
+        info->types[i] = NULL;
+    }
+    /* Mark this info object as still being traversed to guard */
+    info->traversing = true;
+
+    /* If not already cached, then cache on NamedTuple object _before_
+    * traversing fields. This is to ensure self-referential NamedTuple work. */
+    if (PyObject_SetAttr(obj, mod->str___msgspec_cache__, (PyObject *)info) < 0) {
+        goto cleanup;
+    }
+    cache_set = true;
+
+    /* Traverse fields and initialize NamedTupleInfo */
+    bool tuple_is_json_compatible = true;
+    defaults_list = PyList_New(0);
+    if (defaults_list == NULL) goto cleanup;
+    for (Py_ssize_t i = 0; i < nfields; i++) {
+        PyObject *field = PyTuple_GET_ITEM(fields, i);
+        /* Get the field type, defaulting to Any */
+        PyObject *type_obj = PyDict_GetItem(annotations, field);
+        if (type_obj == NULL) {
+            type_obj = mod->typing_any;
+            Py_INCREF(type_obj);
+        }
+        /* Convert the type to a TypeNode */
+        bool item_is_json_compatible = true;
+        TypeNode *type = TypeNode_Convert(type_obj, err_not_json, &item_is_json_compatible);
+        tuple_is_json_compatible &= item_is_json_compatible;
+        Py_DECREF(type_obj);
+        if (type == NULL) goto cleanup;
+        info->types[i] = type;
+        /* Get the field default (if any), and append it to the list */
+        PyObject *default_obj = PyDict_GetItem(defaults, field);
+        if (default_obj != NULL) {
+            int status = PyList_Append(defaults_list, default_obj);
+            Py_DECREF(default_obj);
+            if (status < 0) goto cleanup;
+        }
+    }
+    Py_INCREF(obj);
+    info->class = obj;
+    info->defaults = PyList_AsTuple(defaults_list);
+    if (info->defaults == NULL) goto cleanup;
+    info->json_compatible = tuple_is_json_compatible;
+    if (!tuple_is_json_compatible && json_compatible != NULL) {
+        *json_compatible = false;
+    }
+
+    succeeded = true;
+
+cleanup:
+    if (!succeeded) {
+        Py_CLEAR(info);
+        if (cache_set) {
+            /* An error occurred after the cache was created and set on the
+            * NamedTuple. We need to delete the attribute */
+            if (PyObject_DelAttr(obj, mod->str___msgspec_cache__) < 0) {
+                /* Ignore errors if deletion fails */
+                PyErr_Clear();
+            }
+        }
+    }
+    Py_XDECREF(annotations);
+    Py_XDECREF(fields);
+    Py_XDECREF(defaults);
+    Py_XDECREF(defaults_list);
+    return (PyObject *)info;
+}
+
+static int
+NamedTupleInfo_traverse(NamedTupleInfo *self, visitproc visit, void *arg)
+{
+    Py_VISIT(self->class);
+    Py_VISIT(self->defaults);
+    for (Py_ssize_t i = 0; i < Py_SIZE(self); i++) {
+        int out = TypeNode_traverse(self->types[i], visit, arg);
+        if (out != 0) return out;
+    }
+    return 0;
+}
+
+static int
+NamedTupleInfo_clear(NamedTupleInfo *self)
+{
+    Py_CLEAR(self->class);
+    Py_CLEAR(self->defaults);
+    for (Py_ssize_t i = 0; i < Py_SIZE(self); i++) {
+        TypeNode_Free(self->types[i]);
+        self->types[i] = NULL;
+    }
+    return 0;
+}
+
+static void
+NamedTupleInfo_dealloc(NamedTupleInfo *self)
+{
+    PyObject_GC_UnTrack(self);
+    NamedTupleInfo_clear(self);
+    Py_TYPE(self)->tp_free((PyObject *)self);
+}
+
+static PyTypeObject NamedTupleInfo_Type = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "msgspec._core.NamedTupleInfo",
+    .tp_basicsize = sizeof(NamedTupleInfo),
+    .tp_itemsize = sizeof(TypeNode *),
+    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
+    .tp_clear = (inquiry)NamedTupleInfo_clear,
+    .tp_traverse = (traverseproc)NamedTupleInfo_traverse,
+    .tp_dealloc = (destructor)NamedTupleInfo_dealloc,
 };
 
 
@@ -7914,6 +8168,67 @@ mpack_decode_fixtuple(
     return res;
 }
 
+
+static PyObject *
+mpack_decode_namedtuple(
+    DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *path, bool is_key
+) {
+    NamedTupleInfo *info = TypeNode_get_namedtuple_info(type);
+    Py_ssize_t nfields = Py_SIZE(info);
+    Py_ssize_t ndefaults = info->defaults == NULL ? 0 : PyTuple_GET_SIZE(info->defaults);
+    Py_ssize_t nrequired = nfields - ndefaults;
+
+    if (size < nrequired || nfields < size) {
+        /* tuple is the incorrect size, raise and return */
+        if (ndefaults == 0) {
+            ms_raise_validation_error(
+                path,
+                "Expected `array` of length %zd, got %zd%U",
+                nfields,
+                size
+            );
+        }
+        else {
+            ms_raise_validation_error(
+                path,
+                "Expected `array` of length %zd to %zd, got %zd%U",
+                nrequired,
+                nfields,
+                size
+            );
+        }
+        return NULL;
+    }
+    if (Py_EnterRecursiveCall(" while deserializing an object")) return NULL;
+
+    PyTypeObject *nt_type = (PyTypeObject *)(info->class);
+    PyObject *res = nt_type->tp_alloc(nt_type, nfields);
+    if (res == NULL) goto error;
+    for (Py_ssize_t i = 0; i < nfields; i++) {
+        PyTuple_SET_ITEM(res, i, NULL);
+    }
+
+    for (Py_ssize_t i = 0; i < size; i++) {
+        PathNode el_path = {path, i};
+        PyObject *item = mpack_decode(self, info->types[i], &el_path, is_key);
+        if (MS_UNLIKELY(item == NULL)) goto error;
+        PyTuple_SET_ITEM(res, i, item);
+    }
+    for (Py_ssize_t i = size; i < nfields; i++) {
+        PyObject *item = maybe_deepcopy_default(
+            PyTuple_GET_ITEM(info->defaults, i - nrequired)
+        );
+        if (item == NULL) goto error;
+        PyTuple_SET_ITEM(res, i, item);
+    }
+    Py_LeaveRecursiveCall();
+    return res;
+error:
+    Py_LeaveRecursiveCall();
+    Py_CLEAR(res);
+    return NULL;
+}
+
 static int
 mpack_ensure_tag_matches(
     DecoderState *self, PathNode *path, PyObject *expected_tag
@@ -8122,6 +8437,9 @@ mpack_decode_array(
     }
     else if (type->types & MS_TYPE_FIXTUPLE) {
         return mpack_decode_fixtuple(self, size, type, path, is_key);
+    }
+    else if (type->types & MS_TYPE_NAMEDTUPLE) {
+        return mpack_decode_namedtuple(self, size, type, path, is_key);
     }
     else if (type->types & MS_TYPE_STRUCT_ARRAY) {
         return mpack_decode_struct_array(self, size, type, path, is_key);
@@ -10049,9 +10367,105 @@ json_decode_fixtuple(JSONDecoderState *self, TypeNode *type, PathNode *path) {
 size_error:
     ms_raise_validation_error(
         path,
-        "Expected `array` of length %zd",
+        "Expected `array` of length %zd%U",
         tex->fixtuple_size
     );
+error:
+    Py_LeaveRecursiveCall();
+    Py_DECREF(out);
+    return NULL;
+}
+
+static PyObject *
+json_decode_namedtuple(JSONDecoderState *self, TypeNode *type, PathNode *path) {
+    unsigned char c;
+    bool first = true;
+    Py_ssize_t nfields, ndefaults, nrequired;
+    NamedTupleInfo *info = TypeNode_get_namedtuple_info(type);
+
+    nfields = Py_SIZE(info);
+    ndefaults = info->defaults == NULL ? 0 : PyTuple_GET_SIZE(info->defaults);
+    nrequired = nfields - ndefaults;
+
+    self->input_pos++; /* Skip '[' */
+
+    if (Py_EnterRecursiveCall(" while deserializing an object")) return NULL;
+
+    PyTypeObject *nt_type = (PyTypeObject *)(info->class);
+    PyObject *out = nt_type->tp_alloc(nt_type, nfields);
+    if (out == NULL) goto error;
+    for (Py_ssize_t i = 0; i < nfields; i++) {
+        PyTuple_SET_ITEM(out, i, NULL);
+    }
+
+    Py_ssize_t i = 0;
+    while (true) {
+        if (MS_UNLIKELY(!json_peek_skip_ws(self, &c))) goto error;
+        /* Parse ']' or ',', then peek the next character */
+        if (c == ']') {
+            self->input_pos++;
+            if (MS_UNLIKELY(i < nrequired)) goto size_error;
+            break;
+        }
+        else if (c == ',' && !first) {
+            self->input_pos++;
+            if (MS_UNLIKELY(!json_peek_skip_ws(self, &c))) goto error;
+        }
+        else if (first) {
+            /* Only the first item doesn't need a comma delimiter */
+            first = false;
+        }
+        else {
+            json_err_invalid(self, "expected ',' or ']'");
+            goto error;
+        }
+
+        if (MS_UNLIKELY(c == ']')) {
+            json_err_invalid(self, "trailing comma in array");
+            goto error;
+        }
+
+        /* Check we don't have too many elements */
+        if (MS_UNLIKELY(i >= nfields)) goto size_error;
+
+        /* Parse item */
+        PathNode el_path = {path, i, NULL};
+        PyObject *item = json_decode(self, info->types[i], &el_path);
+        if (item == NULL) goto error;
+
+        /* Add item to tuple */
+        PyTuple_SET_ITEM(out, i, item);
+        i++;
+    }
+    Py_LeaveRecursiveCall();
+
+    /* Fill in defaults */
+    for (; i < nfields; i++) {
+        PyObject *item = maybe_deepcopy_default(
+            PyTuple_GET_ITEM(info->defaults, i - nrequired)
+        );
+        if (item == NULL) goto error;
+        PyTuple_SET_ITEM(out, i, item);
+    }
+
+    return out;
+
+size_error:
+    if (ndefaults == 0) {
+        ms_raise_validation_error(
+            path,
+            "Expected `array` of length %zd%U",
+            nfields
+        );
+    }
+    else {
+        ms_raise_validation_error(
+            path,
+            "Expected `array` of length %zd to %zd%U",
+            nrequired,
+            nfields
+        );
+    }
 error:
     Py_LeaveRecursiveCall();
     Py_DECREF(out);
@@ -10425,6 +10839,9 @@ json_decode_array(
     }
     else if (type->types & MS_TYPE_FIXTUPLE) {
         return json_decode_fixtuple(self, type, path);
+    }
+    else if (type->types & MS_TYPE_NAMEDTUPLE) {
+        return json_decode_namedtuple(self, type, path);
     }
     else if (type->types & MS_TYPE_STRUCT_ARRAY) {
         return json_decode_struct_array(self, type, path);
@@ -11621,6 +12038,8 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->str___args__);
     Py_CLEAR(st->str___total__);
     Py_CLEAR(st->str___required_keys__);
+    Py_CLEAR(st->str__fields);
+    Py_CLEAR(st->str__field_defaults);
     Py_CLEAR(st->typing_dict);
     Py_CLEAR(st->typing_list);
     Py_CLEAR(st->typing_set);
@@ -11746,6 +12165,8 @@ PyInit__core(void)
     if (PyType_Ready(&StrLookup_Type) < 0)
         return NULL;
     if (PyType_Ready(&TypedDictInfo_Type) < 0)
+        return NULL;
+    if (PyType_Ready(&NamedTupleInfo_Type) < 0)
         return NULL;
     if (PyType_Ready(&StructMetaType) < 0)
         return NULL;
@@ -11947,6 +12368,8 @@ PyInit__core(void)
     CACHED_STRING(str___args__, "__args__");
     CACHED_STRING(str___total__, "__total__");
     CACHED_STRING(str___required_keys__, "__required_keys__");
+    CACHED_STRING(str__fields, "_fields");
+    CACHED_STRING(str__field_defaults, "_field_defaults");
 
     return m;
 }
