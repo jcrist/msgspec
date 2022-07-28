@@ -5,7 +5,7 @@
     <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Performance Tips" href="perf-tips.html" /><link rel="prev" title="Structs" href="structs.html" />
 
-    <meta name="generator" content="sphinx-5.1.0, furo 2022.06.21"/>
+    <meta name="generator" content="sphinx-5.1.1, furo 2022.06.21"/>
         <title>Extending</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=40978830699223671f4072448e654b5958f38b89" />
@@ -254,8 +254,8 @@ serialized. This process is then reversed during decoding.</p>
 required to roundtrip a message, since no custom type info is sent as part of
 the message.</p>
 <p>This method works best for types that are similar to a natively supported type
-(e.g. a <a class="reference external" href="https://docs.python.org/3/library/collections.html#collections.OrderedDict" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collections.OrderedDict</span></code></a> is similar to a <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a>).  This can be
-accomplished by defining two callback functions:</p>
+(e.g. a <a class="reference external" href="https://docs.python.org/3/library/collections.html#collections.deque" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collections.deque</span></code></a> is similar to a <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">list</span></code></a>).  This can be accomplished
+by defining two callback functions:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">enc_hook</span></code> in <code class="docutils literal notranslate"><span class="pre">Encoder</span></code>, for transforming custom types into values
 that <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> already knows how to serialize.</p></li>
