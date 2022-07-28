@@ -5743,6 +5743,8 @@ ms_decode_custom(PyObject *obj, PyObject *dec_hook, bool generic, TypeNode* type
 
     if (obj == NULL) return NULL;
 
+    if (obj == Py_None && type->types & MS_TYPE_NONE) return obj;
+
     custom_obj = TypeNode_get_custom(type);
 
     if (dec_hook != NULL) {

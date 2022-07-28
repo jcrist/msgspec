@@ -522,6 +522,18 @@ class TestDecoderMisc:
         assert msg == [Custom(1, 2), Custom(3, 4), Custom(5, 6)]
         assert isinstance(msg[0], Custom)
 
+    def test_decoder_dec_hook_optional_custom_type(self):
+        called = False
+
+        def dec_hook(typ, obj):
+            nonlocal called
+            called = True
+
+        dec = msgspec.msgpack.Decoder(type=Optional[Custom], dec_hook=dec_hook)
+        msg = dec.decode(msgspec.msgpack.encode(None))
+        assert not called
+        assert msg is None
+
     def test_decode_dec_hook_errors(self):
         def dec_hook(typ, obj):
             assert obj == "some string"
