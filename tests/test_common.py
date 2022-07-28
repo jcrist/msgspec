@@ -102,6 +102,22 @@ def rand():
     yield Rand()
 
 
+class TestEncodeSubclasses:
+    def test_encode_dict_subclass(self, proto):
+        class subclass(dict):
+            pass
+
+        for msg in [{}, {"a": 1, "b": 2}]:
+            assert proto.encode(subclass(msg)) == proto.encode(msg)
+
+    def test_encode_list_subclass(self, proto):
+        class subclass(list):
+            pass
+
+        for msg in [[], [1, 2]]:
+            assert proto.encode(subclass(msg)) == proto.encode(msg)
+
+
 class TestIntEnum:
     def test_empty_errors(self):
         class Empty(enum.IntEnum):

@@ -118,9 +118,11 @@ Most combinations of the following types are supported (see
 - `typing.TypedDict`
 - `msgspec.msgpack.Ext`
 - `msgspec.Raw`
-- `enum.Enum` derived types
-- `enum.IntEnum` derived types
-- `msgspec.Struct` derived types
+- `enum.Enum` subclasses
+- `enum.IntEnum` subclasses
+- `msgspec.Struct` subclasses
+- `list` subclasses (encoding only)
+- `dict` subclasses (encoding only)
 - Custom types (see :doc:`extending`)
 
 To specify the expected type, you can pass it to ``decode``, or when creating a
@@ -404,6 +406,10 @@ to UTC.
 MessagePack.  An error is raised if the elements don't match the specified
 element type (if provided).
 
+``list`` subclasses are also supported for encoding only - to decode into a
+``list`` subclass you'll need to implement a ``dec_hook`` (see
+:doc:`extending`).
+
 .. code-block:: python
 
     >>> msgspec.json.encode([1, 2, 3])
@@ -431,6 +437,10 @@ element type (if provided).
 ~~~~~~~~
 
 Dicts encode/decode as JSON objects/MessagePack maps.
+
+Dict subclasses (`collections.OrderedDict`, for example) are also supported for
+encoding only - to decode into a ``dict`` subclass you'll need to implement a
+``dec_hook`` (see :doc:`extending`).
 
 Note that JSON only supports string keys, while MessagePack supports any
 hashable for the key type. An error is raised during decoding if the keys or
