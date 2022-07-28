@@ -305,6 +305,7 @@ Most combinations of the following types are supported (see
 <li><p><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.Optional</span></code></a></p></li>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Union" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.Union</span></code></a></p></li>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.Literal</span></code></a></p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.NamedTuple" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.NamedTuple</span></code></a> / <a class="reference external" href="https://docs.python.org/3/library/collections.html#collections.namedtuple" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collections.namedtuple</span></code></a></p></li>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypedDict" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.TypedDict</span></code></a></p></li>
 <li><p><a class="reference internal" href="api.html#msgspec.msgpack.Ext" title="msgspec.msgpack.Ext"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.msgpack.Ext</span></code></a></p></li>
 <li><p><a class="reference internal" href="api.html#msgspec.Raw" title="msgspec.Raw"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Raw</span></code></a></p></li>
@@ -313,6 +314,7 @@ Most combinations of the following types are supported (see
 <li><p><a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> subclasses</p></li>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">list</span></code></a> subclasses (encoding only)</p></li>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a> subclasses (encoding only)</p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tuple</span></code></a> subclasses (encoding only)</p></li>
 <li><p>Custom types (see <a class="reference internal" href="extending.html"><span class="doc">Extending</span></a>)</p></li>
 </ul>
 <p>To specify the expected type, you can pass it to <code class="docutils literal notranslate"><span class="pre">decode</span></code>, or when creating a
@@ -584,6 +586,42 @@ element type (if provided).</p>
 <span class="gt">Traceback (most recent call last):</span>
   File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
 <span class="gr">msgspec.ValidationError</span>: <span class="n">Expected `int`, got `str` - at `$[2]`</span>
+</pre></div>
+</div>
+</section>
+<section id="namedtuple">
+<h3><code class="docutils literal notranslate"><span class="pre">NamedTuple</span></code><a class="headerlink" href="#namedtuple" title="Permalink to this heading">#</a></h3>
+<p><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.NamedTuple" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.NamedTuple</span></code></a> types map to arrays in both JSON and MessagePack.  An error
+is raised during decoding if the type doesn’t match or if any required fields
+are missing.</p>
+<p>Note that <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> supports both <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.NamedTuple" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.NamedTuple</span></code></a> and
+<a class="reference external" href="https://docs.python.org/3/library/collections.html#collections.namedtuple" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collections.namedtuple</span></code></a>, although the latter lacks a way to specify field
+types.</p>
+<p>When possible we recommend using <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> (possibly with
+<code class="docutils literal notranslate"><span class="pre">array_like=True</span></code> and <code class="docutils literal notranslate"><span class="pre">frozen=True</span></code>) instead of <code class="docutils literal notranslate"><span class="pre">NamedTuple</span></code> for
+specifying schemas - <a class="reference internal" href="structs.html"><span class="doc">Structs</span></a> are faster, more ergonomic, and support
+additional features.  Still, you may want to use a <code class="docutils literal notranslate"><span class="pre">NamedTuple</span></code> if you’re
+already using them elsewhere, or if you have downstream code that requires a
+<code class="docutils literal notranslate"><span class="pre">tuple</span></code> instead of an object.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">NamedTuple</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">Person</span><span class="p">(</span><span class="n">NamedTuple</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+<span class="gp">... </span>    <span class="n">age</span><span class="p">:</span> <span class="nb">int</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">ben</span> <span class="o">=</span> <span class="n">Person</span><span class="p">(</span><span class="s2">&quot;ben&quot;</span><span class="p">,</span> <span class="mi">25</span><span class="p">)</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">ben</span><span class="p">)</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Person</span><span class="p">)</span>
+<span class="go">Person(name=&#39;ben&#39;, age=25)</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">wrong_type</span> <span class="o">=</span> <span class="sa">b</span><span class="s1">&#39;[&quot;chad&quot;, &quot;twenty&quot;]&#39;</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">wrong_type</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Person</span><span class="p">)</span>
+<span class="gt">Traceback (most recent call last):</span>
+  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+<span class="gr">msgspec.ValidationError</span>: <span class="n">Expected `int`, got `str` - at `$[1]`</span>
 </pre></div>
 </div>
 </section>
@@ -1078,6 +1116,7 @@ efficiently skipped without decoding.</p>
 <li><a class="reference internal" href="#enum"><code class="docutils literal notranslate"><span class="pre">Enum</span></code></a></li>
 <li><a class="reference internal" href="#datetime"><code class="docutils literal notranslate"><span class="pre">datetime</span></code></a></li>
 <li><a class="reference internal" href="#list-tuple-set-frozenset"><code class="docutils literal notranslate"><span class="pre">list</span></code> / <code class="docutils literal notranslate"><span class="pre">tuple</span></code> / <code class="docutils literal notranslate"><span class="pre">set</span></code> / <code class="docutils literal notranslate"><span class="pre">frozenset</span></code></a></li>
+<li><a class="reference internal" href="#namedtuple"><code class="docutils literal notranslate"><span class="pre">NamedTuple</span></code></a></li>
 <li><a class="reference internal" href="#dict"><code class="docutils literal notranslate"><span class="pre">dict</span></code></a></li>
 <li><a class="reference internal" href="#typeddict"><code class="docutils literal notranslate"><span class="pre">TypedDict</span></code></a></li>
 <li><a class="reference internal" href="#struct"><code class="docutils literal notranslate"><span class="pre">Struct</span></code></a></li>
