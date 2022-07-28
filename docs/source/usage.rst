@@ -115,6 +115,7 @@ Most combinations of the following types are supported (see
 - `typing.Optional`
 - `typing.Union`
 - `typing.Literal`
+- `typing.NamedTuple` / `collections.namedtuple`
 - `typing.TypedDict`
 - `msgspec.msgpack.Ext`
 - `msgspec.Raw`
@@ -123,6 +124,7 @@ Most combinations of the following types are supported (see
 - `msgspec.Struct` subclasses
 - `list` subclasses (encoding only)
 - `dict` subclasses (encoding only)
+- `tuple` subclasses (encoding only)
 - Custom types (see :doc:`extending`)
 
 To specify the expected type, you can pass it to ``decode``, or when creating a
@@ -432,6 +434,46 @@ element type (if provided).
     Traceback (most recent call last):
       File "<stdin>", line 1, in <module>
     msgspec.ValidationError: Expected `int`, got `str` - at `$[2]`
+
+``NamedTuple``
+~~~~~~~~~~~~~~
+
+`typing.NamedTuple` types map to arrays in both JSON and MessagePack.  An error
+is raised during decoding if the type doesn't match or if any required fields
+are missing.
+
+Note that ``msgspec`` supports both `typing.NamedTuple` and
+`collections.namedtuple`, although the latter lacks a way to specify field
+types.
+
+When possible we recommend using `msgspec.Struct` (possibly with
+``array_like=True`` and ``frozen=True``) instead of ``NamedTuple`` for
+specifying schemas - :doc:`structs` are faster, more ergonomic, and support
+additional features.  Still, you may want to use a ``NamedTuple`` if you're
+already using them elsewhere, or if you have downstream code that requires a
+``tuple`` instead of an object.
+
+.. code-block:: python
+
+    >>> from typing import NamedTuple
+
+    >>> class Person(NamedTuple):
+    ...     name: str
+    ...     age: int
+
+    >>> ben = Person("ben", 25)
+
+    >>> msg = msgspec.json.encode(ben)
+
+    >>> msgspec.json.decode(msg, type=Person)
+    Person(name='ben', age=25)
+
+    >>> wrong_type = b'["chad", "twenty"]'
+
+    >>> msgspec.json.decode(wrong_type, type=Person)
+    Traceback (most recent call last):
+      File "<stdin>", line 1, in <module>
+    msgspec.ValidationError: Expected `int`, got `str` - at `$[1]`
 
 ``dict``
 ~~~~~~~~
