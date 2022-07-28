@@ -18,6 +18,7 @@ from typing import (
     FrozenSet,
     List,
     Literal,
+    NamedTuple,
     Optional,
     Set,
     Tuple,
@@ -1684,6 +1685,41 @@ class TestSequences:
             msgspec.ValidationError, match="Expected `array` of length 3"
         ):
             dec.decode(b'[1, "two"]')
+
+
+class TestNamedTuple:
+    """Most tests are in `test_common`, this just tests some JSON peculiarities"""
+
+    @pytest.mark.parametrize(
+        "s, x",
+        [(b"[\t\n\r ]", ()), (b"   [  1  ,  2  ]   ", (1, 2))],
+    )
+    def test_decode_namedtuple_ignores_whitespace(self, s, x):
+        class Test(NamedTuple):
+            a: int = 0
+            b: int = 1
+
+        x2 = msgspec.json.decode(s, type=Test)
+        assert x2 == Test(*x)
+
+    @pytest.mark.parametrize(
+        "s, error",
+        [
+            (b"[", "truncated"),
+            (b"[1", "truncated"),
+            (b"[,]", "invalid character"),
+            (b"[, 1]", "invalid character"),
+            (b"[1, ]", "trailing comma in array"),
+            (b"[1, 2 3]", r"expected ',' or ']'"),
+        ],
+    )
+    def test_decode_namedtuple_malformed(self, s, error):
+        class Test(NamedTuple):
+            a: int
+            b: int
+
+        with pytest.raises(msgspec.DecodeError, match=error):
+            msgspec.json.decode(s, type=Test)
 
 
 class TestDict:

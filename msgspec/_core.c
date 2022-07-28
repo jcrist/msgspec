@@ -5086,23 +5086,20 @@ NamedTupleInfo_Convert(PyObject *obj, bool err_not_json, bool *json_compatible) 
         PyObject *type_obj = PyDict_GetItem(annotations, field);
         if (type_obj == NULL) {
             type_obj = mod->typing_any;
-            Py_INCREF(type_obj);
         }
         /* Convert the type to a TypeNode */
         bool item_is_json_compatible = true;
         TypeNode *type = TypeNode_Convert(type_obj, err_not_json, &item_is_json_compatible);
         tuple_is_json_compatible &= item_is_json_compatible;
-        Py_DECREF(type_obj);
         if (type == NULL) goto cleanup;
         info->types[i] = type;
         /* Get the field default (if any), and append it to the list */
         PyObject *default_obj = PyDict_GetItem(defaults, field);
         if (default_obj != NULL) {
-            int status = PyList_Append(defaults_list, default_obj);
-            Py_DECREF(default_obj);
-            if (status < 0) goto cleanup;
+            if (PyList_Append(defaults_list, default_obj) < 0) goto cleanup;
         }
     }
+    info->traversing = false;
     Py_INCREF(obj);
     info->class = obj;
     info->defaults = PyList_AsTuple(defaults_list);
@@ -5111,6 +5108,7 @@ NamedTupleInfo_Convert(PyObject *obj, bool err_not_json, bool *json_compatible) 
     if (!tuple_is_json_compatible && json_compatible != NULL) {
         *json_compatible = false;
     }
+    PyObject_GC_Track(info);
 
     succeeded = true;
 
@@ -6515,7 +6513,7 @@ mpack_encode(EncoderState *self, PyObject *obj)
     else if (type == &PySet_Type || type == &PyFrozenSet_Type) {
         return mpack_encode_set(self, obj);
     }
-    else if (type == &PyTuple_Type) {
+    else if (PyTuple_Check(obj)) {
         return mpack_encode_tuple(self, obj);
     }
     else if (type == PyDateTimeAPI->DateTimeType) {
@@ -7309,7 +7307,7 @@ json_encode(EncoderState *self, PyObject *obj)
     else if (PyList_Check(obj)) {
         return json_encode_list(self, obj);
     }
-    else if (type == &PyTuple_Type) {
+    else if (PyTuple_Check(obj)) {
         return json_encode_tuple(self, obj);
     }
     else if (type == &PySet_Type || type == &PyFrozenSet_Type) {
