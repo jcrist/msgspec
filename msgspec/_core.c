@@ -6243,10 +6243,10 @@ mpack_encode(EncoderState *self, PyObject *obj)
     else if (Py_TYPE(type) == &StructMetaType) {
         return mpack_encode_struct(self, obj);
     }
-    else if (type == &PyList_Type) {
+    else if (PyList_Check(obj)) {
         return mpack_encode_list(self, obj);
     }
-    else if (type == &PyDict_Type) {
+    else if (PyDict_Check(obj)) {
         return mpack_encode_dict(self, obj);
     }
     else if (type == &PyBytes_Type) {
@@ -7052,7 +7052,7 @@ json_encode(EncoderState *self, PyObject *obj)
     else if (type == &PyUnicode_Type) {
         return json_encode_str(self, obj);
     }
-    else if (type == &PyList_Type) {
+    else if (PyList_Check(obj)) {
         return json_encode_list(self, obj);
     }
     else if (type == &PyTuple_Type) {
@@ -7061,7 +7061,7 @@ json_encode(EncoderState *self, PyObject *obj)
     else if (type == &PySet_Type || type == &PyFrozenSet_Type) {
         return json_encode_set(self, obj);
     }
-    else if (type == &PyDict_Type) {
+    else if (PyDict_Check(obj)) {
         return json_encode_dict(self, obj);
     }
     else if (Py_TYPE(type) == &StructMetaType) {

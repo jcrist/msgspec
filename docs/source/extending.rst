@@ -58,8 +58,8 @@ required to roundtrip a message, since no custom type info is sent as part of
 the message.
 
 This method works best for types that are similar to a natively supported type
-(e.g. a `collections.OrderedDict` is similar to a `dict`).  This can be
-accomplished by defining two callback functions:
+(e.g. a `collections.deque` is similar to a `list`).  This can be accomplished
+by defining two callback functions:
 
 - ``enc_hook`` in ``Encoder``, for transforming custom types into values
   that ``msgspec`` already knows how to serialize.
