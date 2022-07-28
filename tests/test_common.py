@@ -6,15 +6,17 @@ import sys
 import random
 import string
 import weakref
+from collections import namedtuple
 from typing import (
-    Literal,
-    List,
-    Union,
     Deque,
     Dict,
-    Tuple,
+    List,
+    Literal,
+    NamedTuple,
     Optional,
+    Tuple,
     TypedDict,
+    Union,
 )
 
 import pytest
@@ -70,6 +72,12 @@ class PersonDict(TypedDict):
     age: int
 
 
+class PersonTuple(NamedTuple):
+    first: str
+    last: str
+    age: int
+
+
 class Custom:
     def __init__(self, x, y):
         self.x = x
@@ -118,6 +126,13 @@ class TestEncodeSubclasses:
             pass
 
         for msg in [[], [1, 2]]:
+            assert proto.encode(subclass(msg)) == proto.encode(msg)
+
+    def test_encode_tuple_subclass(self, proto):
+        class subclass(tuple):
+            pass
+
+        for msg in [(), (1, 2)]:
             assert proto.encode(subclass(msg)) == proto.encode(msg)
 
 
@@ -537,7 +552,13 @@ class TestUnionTypeErrors:
         assert repr(typ) in str(rec.value)
 
     @pytest.mark.parametrize(
-        "typ", [Union[PersonArray, list], Union[tuple, PersonArray]]
+        "typ",
+        [
+            Union[PersonArray, list],
+            Union[tuple, PersonArray],
+            Union[PersonArray, PersonTuple],
+            Union[PersonTuple, frozenset],
+        ],
     )
     def test_err_union_with_struct_array_like_and_array(self, typ, proto):
         with pytest.raises(TypeError) as rec:
@@ -1214,3 +1235,167 @@ class TestTypedDict:
         msg = dec.decode(proto.encode({"key_name_1": 1, "key_name_2": 2}))
         for k1, k2 in zip(sorted(Ex.__annotations__), sorted(msg)):
             assert k1 is k2
+
+
+class TestNamedTuple:
+    def test_type_cached(self, proto):
+        class Ex(NamedTuple):
+            a: int
+            b: str
+
+        msg = (1, "two")
+
+        dec = proto.Decoder(Ex)
+        info = Ex.__msgspec_cache__
+        assert info is not None
+        dec2 = proto.Decoder(Ex)
+        assert Ex.__msgspec_cache__ is info
+
+        assert dec.decode(proto.encode(msg)) == msg
+        assert dec2.decode(proto.encode(msg)) == msg
+
+    def test_subtype_error(self, proto):
+        class Ex(NamedTuple):
+            a: int
+            b: Union[list, tuple]
+
+        with pytest.raises(TypeError, match="may not contain more than one array-like"):
+            proto.Decoder(Ex)
+        assert not hasattr(Ex, "__msgspec_cache__")
+
+    @pytest.mark.parametrize("msgpack_first", [False, True])
+    def test_type_errors_not_json(self, msgpack_first):
+        class Ex(NamedTuple):
+            a: int
+            b: Dict[int, int]
+
+        if msgpack_first:
+            dec = msgspec.msgpack.Decoder(Ex)
+            info = Ex.__msgspec_cache__
+            assert info is not None
+            msg = Ex(1, {1: 2})
+            assert dec.decode(msgspec.msgpack.encode(msg)) == msg
+
+        with pytest.raises(TypeError, match="JSON doesn't support"):
+            msgspec.json.Decoder(Ex)
+
+        if msgpack_first:
+            assert Ex.__msgspec_cache__ is info
+        else:
+            assert not hasattr(Ex, "__msgspec_cache__")
+
+    def test_recursive_type(self, proto):
+        source = """
+        from __future__ import annotations
+        from typing import NamedTuple, Union
+
+        class Ex(NamedTuple):
+            a: int
+            b: Union[Ex, None]
+        """
+
+        with temp_module(source) as mod:
+            msg = mod.Ex(1, mod.Ex(2, None))
+            dec = proto.Decoder(mod.Ex)
+            assert dec.decode(proto.encode(msg)) == msg
+
+            with pytest.raises(msgspec.ValidationError) as rec:
+                dec.decode(proto.encode(mod.Ex(1, ("bad", "two"))))
+            assert "`$[1][0]`" in str(rec.value)
+            assert "Expected `int`, got `str`" in str(rec.value)
+
+    @pytest.mark.parametrize("msgpack_first", [True])
+    def test_recursive_type_errors_not_json(self, msgpack_first):
+        source = """
+        from __future__ import annotations
+        from typing import NamedTuple, Union, Dict
+
+        class Ex(NamedTuple):
+            a: int
+            b: Union[Ex, None]
+            c: Dict[int, int]
+        """
+        with temp_module(source) as mod:
+            if msgpack_first:
+                dec = msgspec.msgpack.Decoder(mod.Ex)
+                info = mod.Ex.__msgspec_cache__
+                assert info is not None
+                msg = mod.Ex(1, None, {1: 2})
+                assert dec.decode(msgspec.msgpack.encode(msg)) == msg
+
+            with pytest.raises(TypeError, match="JSON doesn't support"):
+                msgspec.json.Decoder(mod.Ex)
+
+            if msgpack_first:
+                assert mod.Ex.__msgspec_cache__ is info
+            else:
+                assert not hasattr(mod.Ex, "__msgspec_cache__")
+
+    @pytest.mark.parametrize("use_typing", [True, False])
+    def test_decode_namedtuple_no_defaults(self, proto, use_typing):
+        if use_typing:
+
+            class Example(NamedTuple):
+                a: int
+                b: int
+                c: int
+
+        else:
+            Example = namedtuple("Example", "a b c")
+
+        dec = proto.Decoder(Example)
+        msg = Example(1, 2, 3)
+        res = dec.decode(proto.encode(msg))
+        assert res == msg
+
+        suffix = ", got 1" if proto is msgspec.msgpack else ""
+        with pytest.raises(msgspec.ValidationError, match=f"length 3{suffix}"):
+            dec.decode(proto.encode((1,)))
+
+        suffix = ", got 6" if proto is msgspec.msgpack else ""
+        with pytest.raises(msgspec.ValidationError, match=f"length 3{suffix}"):
+            dec.decode(proto.encode((1, 2, 3, 4, 5, 6)))
+
+    @pytest.mark.parametrize("use_typing", [True, False])
+    def test_decode_namedtuple_with_defaults(self, proto, use_typing):
+        if use_typing:
+
+            class Example(NamedTuple):
+                a: int
+                b: int
+                c: int = -3
+                d: int = -4
+                e: int = -5
+
+        else:
+            Example = namedtuple("Example", "a b c d e", defaults=(-3, -4, -5))
+
+        dec = proto.Decoder(Example)
+        for args in [(1, 2), (1, 2, 3), (1, 2, 3, 4), (1, 2, 3, 4, 5)]:
+            msg = Example(*args)
+        res = dec.decode(proto.encode(msg))
+        assert res == msg
+
+        suffix = ", got 1" if proto is msgspec.msgpack else ""
+        with pytest.raises(msgspec.ValidationError, match=f"length 2 to 5{suffix}"):
+            dec.decode(proto.encode((1,)))
+
+        suffix = ", got 6" if proto is msgspec.msgpack else ""
+        with pytest.raises(msgspec.ValidationError, match=f"length 2 to 5{suffix}"):
+            dec.decode(proto.encode((1, 2, 3, 4, 5, 6)))
+
+    def test_decode_namedtuple_field_wrong_type(self, proto):
+        dec = proto.Decoder(PersonTuple)
+        msg = proto.encode((1, "bad", 2))
+        with pytest.raises(
+            msgspec.ValidationError, match=r"Expected `str`, got `int` - at `\$\[0\]`"
+        ):
+            dec.decode(msg)
+
+    def test_decode_namedtuple_not_array(self, proto):
+        dec = proto.Decoder(PersonTuple)
+        msg = proto.encode({})
+        with pytest.raises(
+            msgspec.ValidationError, match="Expected `array`, got `object`"
+        ):
+            dec.decode(msg)
