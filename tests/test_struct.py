@@ -454,6 +454,14 @@ def test_struct_repr():
 
     assert repr(Test(1, "hello")) == "Test(a=1, b='hello')"
 
+    class Test(Struct):
+        a: int
+        b: Any
+
+    t = Test(1, Test(2, None))
+    t.b.b = t
+    assert repr(t) == "Test(a=1, b=Test(a=2, b=...))"
+
 
 def test_struct_repr_errors():
     msg = "Oh no!"
@@ -1070,6 +1078,8 @@ class TestOrderAndEq:
                 res = func(origin, Point(x, y))
                 assert res == sol
 
+        assert func(origin, origin) == func(1, 1)
+
     @pytest.mark.parametrize("eq, order", [(False, False), (True, False), (True, True)])
     def test_struct_compare_returns_notimplemented(self, eq, order):
         class Test(Struct, eq=eq, order=order):
@@ -1249,16 +1259,28 @@ class TestRename:
             field_one: int
             field_two: str
             __field__three__: bool
+            field4: float
 
-        assert Test.__struct_encode_fields__ == ("fieldOne", "fieldTwo", "fieldThree")
+        assert Test.__struct_encode_fields__ == (
+            "fieldOne",
+            "fieldTwo",
+            "fieldThree",
+            "field4",
+        )
 
     def test_rename_pascal(self):
         class Test(Struct, rename="pascal"):
             field_one: int
             field_two: str
             __field__three__: bool
+            field4: float
 
-        assert Test.__struct_encode_fields__ == ("FieldOne", "FieldTwo", "FieldThree")
+        assert Test.__struct_encode_fields__ == (
+            "FieldOne",
+            "FieldTwo",
+            "FieldThree",
+            "Field4",
+        )
 
     def test_rename_callable(self):
         class Test(Struct, rename=str.title):

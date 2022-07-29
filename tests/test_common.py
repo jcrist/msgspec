@@ -514,6 +514,16 @@ class TestLiterals:
         ):
             dec.decode(msgspec.msgpack.encode("carrot"))
 
+    def test_mix_int_and_int_literal(self):
+        dec = msgspec.msgpack.Decoder(Union[Literal[-1, 1], int])
+        for x in [-1, 1, 10]:
+            assert dec.decode(msgspec.msgpack.encode(x)) == x
+
+    def test_mix_str_and_str_literal(self):
+        dec = msgspec.msgpack.Decoder(Union[Literal["a", "b"], str])
+        for x in ["a", "b", "c"]:
+            assert dec.decode(msgspec.msgpack.encode(x)) == x
+
 
 class TestUnionTypeErrors:
     def test_decoder_unsupported_type(self, proto):
@@ -739,6 +749,7 @@ class TestStructUnion:
         "tag1, tag2, unknown",
         [
             ("Test1", "Test2", "Test3"),
+            (0, 1, 2),
             (123, -123, 0),
         ],
     )
@@ -793,6 +804,7 @@ class TestStructUnion:
         "tag1, tag2, tag3, unknown",
         [
             ("Test1", "Test2", "Test3", "Test4"),
+            (0, 1, 2, 3),
             (123, -123, 0, -1),
         ],
     )
@@ -1054,6 +1066,16 @@ class TestTypedDict:
         assert dec.decode(proto.encode(msg)) == msg
         assert dec2.decode(proto.encode(msg)) == msg
 
+    def test_multiple_typeddict_errors(self, proto):
+        class Ex1(TypedDict):
+            a: int
+
+        class Ex2(TypedDict):
+            b: int
+
+        with pytest.raises(TypeError, match="may not contain more than one TypedDict"):
+            proto.Decoder(Union[Ex1, Ex2])
+
     def test_subtype_error(self, proto):
         class Ex(TypedDict):
             a: int
@@ -1064,20 +1086,28 @@ class TestTypedDict:
         assert not hasattr(Ex, "__msgspec_cache__")
 
     @pytest.mark.parametrize("msgpack_first", [False, True])
-    def test_type_errors_not_json(self, msgpack_first):
+    @pytest.mark.parametrize("wrap", [False, True])
+    def test_type_errors_not_json(self, msgpack_first, wrap):
         class Ex(TypedDict):
             a: int
             b: Dict[int, int]
 
+        if wrap:
+            typ = TypedDict("Test", {"x": Ex})
+        else:
+            typ = Ex
+
         if msgpack_first:
-            dec = msgspec.msgpack.Decoder(Ex)
+            dec = msgspec.msgpack.Decoder(typ)
             info = Ex.__msgspec_cache__
             assert info is not None
             msg = {"a": 1, "b": {1: 2}}
+            if wrap:
+                msg = {"x": msg}
             assert dec.decode(msgspec.msgpack.encode(msg)) == msg
 
         with pytest.raises(TypeError, match="JSON doesn't support"):
-            msgspec.json.Decoder(Ex)
+            msgspec.json.Decoder(typ)
 
         if msgpack_first:
             assert Ex.__msgspec_cache__ is info
@@ -1254,6 +1284,16 @@ class TestNamedTuple:
         assert dec.decode(proto.encode(msg)) == msg
         assert dec2.decode(proto.encode(msg)) == msg
 
+    def test_multiple_namedtuple_errors(self, proto):
+        class Ex1(NamedTuple):
+            a: int
+
+        class Ex2(NamedTuple):
+            b: int
+
+        with pytest.raises(TypeError, match="may not contain more than one NamedTuple"):
+            proto.Decoder(Union[Ex1, Ex2])
+
     def test_subtype_error(self, proto):
         class Ex(NamedTuple):
             a: int
@@ -1264,20 +1304,28 @@ class TestNamedTuple:
         assert not hasattr(Ex, "__msgspec_cache__")
 
     @pytest.mark.parametrize("msgpack_first", [False, True])
-    def test_type_errors_not_json(self, msgpack_first):
+    @pytest.mark.parametrize("wrap", [False, True])
+    def test_type_errors_not_json(self, msgpack_first, wrap):
         class Ex(NamedTuple):
             a: int
             b: Dict[int, int]
 
+        if wrap:
+            typ = TypedDict("Test", {"x": Ex})
+        else:
+            typ = Ex
+
         if msgpack_first:
-            dec = msgspec.msgpack.Decoder(Ex)
+            dec = msgspec.msgpack.Decoder(typ)
             info = Ex.__msgspec_cache__
             assert info is not None
             msg = Ex(1, {1: 2})
+            if wrap:
+                msg = {"x": msg}
             assert dec.decode(msgspec.msgpack.encode(msg)) == msg
 
         with pytest.raises(TypeError, match="JSON doesn't support"):
-            msgspec.json.Decoder(Ex)
+            msgspec.json.Decoder(typ)
 
         if msgpack_first:
             assert Ex.__msgspec_cache__ is info

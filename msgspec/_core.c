@@ -614,6 +614,7 @@ typedef struct Lookup {
     PyObject_VAR_HEAD
     PyObject *tag_field;  /* used for struct lookup table only */
     bool array_like;
+    bool json_compatible;
 } Lookup;
 
 static PyTypeObject IntLookup_Type;
@@ -651,6 +652,7 @@ typedef struct StrLookup {
 } StrLookup;
 
 #define Lookup_array_like(obj) ((Lookup *)(obj))->array_like
+#define Lookup_json_compatible(obj) ((Lookup *)(obj))->json_compatible
 #define Lookup_tag_field(obj) ((Lookup *)(obj))->tag_field
 #define Lookup_IsStrLookup(obj) (Py_TYPE(obj) == &StrLookup_Type)
 #define Lookup_IsIntLookup(obj) (Py_TYPE(obj) == &IntLookup_Type)
@@ -681,7 +683,7 @@ _IntLookupHashmap_Set(IntLookupHashmap *self, int64_t key, PyObject *value) {
 }
 
 static PyObject *
-IntLookup_New(PyObject *arg, PyObject *tag_field, bool array_like) {
+IntLookup_New(PyObject *arg, PyObject *tag_field, bool array_like, bool json_compatible) {
     Py_ssize_t nitems;
     PyObject *item, *items = NULL;
     IntLookup *self = NULL;
@@ -847,10 +849,11 @@ IntLookup_New(PyObject *arg, PyObject *tag_field, bool array_like) {
         self->compact = false;
     }
 
-    /* Store the tag field & array_like status (struct lookup only) */
+    /* Store extra metadata (struct lookup only) */
     Py_XINCREF(tag_field);
     self->common.tag_field = tag_field;
     self->common.array_like = array_like;
+    self->common.json_compatible = json_compatible;
 
 cleanup:
     Py_XDECREF(items);
@@ -973,7 +976,7 @@ StrLookup_Set(StrLookup *self, PyObject *key, PyObject *value) {
 }
 
 static PyObject *
-StrLookup_New(PyObject *arg, PyObject *tag_field, bool array_like) {
+StrLookup_New(PyObject *arg, PyObject *tag_field, bool array_like, bool json_compatible) {
     Py_ssize_t nitems;
     PyObject *item, *items = NULL;
     StrLookup *self = NULL;
@@ -1041,10 +1044,11 @@ StrLookup_New(PyObject *arg, PyObject *tag_field, bool array_like) {
         }
     }
 
-    /* Store the tag field & array_like status (struct lookup only) */
+    /* Store extra metadata (struct lookup only) */
     Py_XINCREF(tag_field);
     self->common.tag_field = tag_field;
     self->common.array_like = array_like;
+    self->common.json_compatible = json_compatible;
 
 cleanup:
     Py_XDECREF(items);
@@ -1744,7 +1748,7 @@ typenode_from_collect_state(TypeNodeCollectState *state, bool err_not_json, bool
         if (lookup == NULL) {
             /* IntLookup isn't created yet, create and store on enum class */
             PyErr_Clear();
-            lookup = IntLookup_New(state->intenum_obj, NULL, false);
+            lookup = IntLookup_New(state->intenum_obj, NULL, false, false);
             if (lookup == NULL) goto error;
             if (PyObject_SetAttr(state->intenum_obj, state->mod->str___msgspec_cache__, lookup) < 0) {
                 Py_DECREF(lookup);
@@ -1774,7 +1778,7 @@ typenode_from_collect_state(TypeNodeCollectState *state, bool err_not_json, bool
             PyErr_Clear();
             PyObject *member_map = PyObject_GetAttr(state->enum_obj, state->mod->str__member_map_);
             if (member_map == NULL) goto error;
-            lookup = StrLookup_New(member_map, NULL, false);
+            lookup = StrLookup_New(member_map, NULL, false, false);
             Py_DECREF(member_map);
             if (lookup == NULL) goto error;
             if (PyObject_SetAttr(state->enum_obj, state->mod->str___msgspec_cache__, lookup) < 0) {
@@ -2173,12 +2177,12 @@ typenode_collect_convert_literals(TypeNodeCollectState *state) {
             /* Convert values to lookup objects (if values exist for each type) */
             if (state->int_literal_values != NULL) {
                 state->types |= MS_TYPE_INTLITERAL;
-                state->int_literal_lookup = IntLookup_New(state->int_literal_values, NULL, false);
+                state->int_literal_lookup = IntLookup_New(state->int_literal_values, NULL, false, false);
                 if (state->int_literal_lookup == NULL) return -1;
             }
             if (state->str_literal_values != NULL) {
                 state->types |= MS_TYPE_STRLITERAL;
-                state->str_literal_lookup = StrLookup_New(state->str_literal_values, NULL, false);
+                state->str_literal_lookup = StrLookup_New(state->str_literal_values, NULL, false, false);
                 if (state->str_literal_lookup == NULL) return -1;
             }
 
@@ -2203,17 +2207,51 @@ typenode_collect_convert_literals(TypeNodeCollectState *state) {
         /* Convert values to lookup objects (if values exist for each type) */
         if (state->int_literal_values != NULL) {
             state->types |= MS_TYPE_INTLITERAL;
-            state->int_literal_lookup = IntLookup_New(state->int_literal_values, NULL, false);
+            state->int_literal_lookup = IntLookup_New(state->int_literal_values, NULL, false, false);
             if (state->int_literal_lookup == NULL) return -1;
         }
         if (state->str_literal_values != NULL) {
             state->types |= MS_TYPE_STRLITERAL;
-            state->str_literal_lookup = StrLookup_New(state->str_literal_values, NULL, false);
+            state->str_literal_lookup = StrLookup_New(state->str_literal_values, NULL, false, false);
             if (state->str_literal_lookup == NULL) return -1;
         }
         return 0;
     }
 }
+
+static void
+_lookup_raise_json_incompatible(PyObject *lookup) {
+    if (Py_TYPE(lookup) == &StrLookup_Type) {
+        StrLookup *lk = (StrLookup *)lookup;
+        for (Py_ssize_t i = 0; i < Py_SIZE(lk); i++) {
+            if (lk->table[i].value != NULL) {
+                PyObject *struct_type = lk->table[i].value;
+                if (StructMeta_prep_types(struct_type, true, NULL) < 0) return;
+            }
+        }
+    }
+    else {
+        if (((IntLookup *)lookup)->compact) {
+            IntLookupCompact *lk = (IntLookupCompact *)lookup;
+            for (Py_ssize_t i = 0; i < Py_SIZE(lk); i++) {
+                if (lk->table[i] != NULL) {
+                    PyObject *struct_type = lk->table[i];
+                    if (StructMeta_prep_types(struct_type, true, NULL) < 0) return;
+                }
+            }
+        }
+        else {
+            IntLookupHashmap *lk = (IntLookupHashmap *)lookup;
+            for (Py_ssize_t i = 0; i < Py_SIZE(lk); i++) {
+                if (lk->table[i].value != NULL) {
+                    PyObject *struct_type = lk->table[i].value;
+                    if (StructMeta_prep_types(struct_type, true, NULL) < 0) return;
+                }
+            }
+        }
+    }
+}
+
 
 static int
 typenode_collect_convert_structs(
@@ -2246,6 +2284,17 @@ typenode_collect_convert_structs(
     );
     if (lookup != NULL) {
         /* Lookup was in the cache, update the state and return */
+        bool union_json_compatible = Lookup_json_compatible(lookup);
+        if (!union_json_compatible) {
+            if (json_compatible != NULL) {
+                *json_compatible = union_json_compatible;
+            }
+            if (err_not_json) {
+                /* Recurse to raise nice error message */
+                _lookup_raise_json_incompatible(lookup);
+                return -1;
+            }
+        }
         Py_INCREF(lookup);
         state->structs_lookup = lookup;
 
@@ -2273,6 +2322,7 @@ typenode_collect_convert_structs(
     Py_ssize_t set_pos = 0;
     Py_hash_t set_hash;
     bool array_like = false;
+    bool union_json_compatible = true;
     bool tags_are_strings = true;
     int status = -1;
 
@@ -2289,9 +2339,7 @@ typenode_collect_convert_structs(
         if (StructMeta_prep_types((PyObject *)struct_type, err_not_json, &item_json_compatible) < 0) {
             goto cleanup;
         }
-        if (!item_json_compatible && json_compatible != NULL) {
-            *json_compatible = false;
-        }
+        union_json_compatible &= item_json_compatible;
 
         if (item_tag_value == NULL) {
             PyErr_Format(
@@ -2353,12 +2401,15 @@ typenode_collect_convert_structs(
             goto cleanup;
         }
     }
+    if (json_compatible != NULL && !union_json_compatible) {
+        *json_compatible = union_json_compatible;
+    }
     /* Build a lookup from tag_value -> struct_type */
     if (tags_are_strings) {
-        lookup = StrLookup_New(tag_mapping, tag_field, array_like);
+        lookup = StrLookup_New(tag_mapping, tag_field, array_like, union_json_compatible);
     }
     else {
-        lookup = IntLookup_New(tag_mapping, tag_field, array_like);
+        lookup = IntLookup_New(tag_mapping, tag_field, array_like, union_json_compatible);
     }
     if (lookup == NULL) goto cleanup;
 
@@ -3130,7 +3181,7 @@ rename_camel_inner(PyObject *field, bool cap_first) {
     parts = PyUnicode_Split(field, underscore, -1);
     if (parts == NULL) goto cleanup;
 
-    if (PyList_GET_SIZE(parts) == 1) {
+    if (PyList_GET_SIZE(parts) == 1 && !cap_first) {
         Py_INCREF(field);
         out = field;
         goto cleanup;
