@@ -534,9 +534,10 @@ isn’t a string or doesn’t match any valid <a class="reference external" href
 <section id="datetime">
 <h3><code class="docutils literal notranslate"><span class="pre">datetime</span></code><a class="headerlink" href="#datetime" title="Permalink to this heading">#</a></h3>
 <p><a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.datetime" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.datetime</span></code></a> values are serialized as <a class="reference external" href="https://datatracker.ietf.org/doc/html/rfc3339">RFC3339</a> encoded strings in JSON,
-and the <a class="reference external" href="https://github.com/msgpack/msgpack/blob/master/spec.md#timestamp-extension-type">timestamp extension</a> in MessagePack. Only <a class="reference external" href="https://docs.python.org/3/library/datetime.html#aware-and-naive-objects">timezone aware</a>
-datetime objects are supported. During decoding, all timezones are normalized
-to UTC.</p>
+and the <a class="reference external" href="https://github.com/msgpack/msgpack/blob/master/spec.md#timestamp-extension-type">timestamp extension</a> in MessagePack. Only <a class="reference external" href="https://docs.python.org/3/library/datetime.html#aware-and-naive-objects">timezone-aware</a>
+datetime objects are supported by default (timezone-naive datetimes can be
+supported using an <code class="docutils literal notranslate"><span class="pre">enc_hook</span></code>, see <a class="reference internal" href="extending.html"><span class="doc">Extending</span></a>). During decoding, all
+timezones are normalized to UTC.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">datetime</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">tz</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">timezone</span><span class="p">(</span><span class="n">datetime</span><span class="o">.</span><span class="n">timedelta</span><span class="p">(</span><span class="n">hours</span><span class="o">=-</span><span class="mi">6</span><span class="p">))</span>
