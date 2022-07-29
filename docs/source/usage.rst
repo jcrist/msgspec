@@ -375,10 +375,11 @@ isn't a string or doesn't match any valid `enum.Enum` member.
 ~~~~~~~~~~~~
 
 `datetime.datetime` values are serialized as RFC3339_ encoded strings in JSON,
-and the `timestamp extension`_ in MessagePack. Only `timezone aware
+and the `timestamp extension`_ in MessagePack. Only `timezone-aware
 <https://docs.python.org/3/library/datetime.html#aware-and-naive-objects>`__
-datetime objects are supported. During decoding, all timezones are normalized
-to UTC.
+datetime objects are supported by default (timezone-naive datetimes can be
+supported using an ``enc_hook``, see :doc:`extending`). During decoding, all
+timezones are normalized to UTC.
 
 .. code-block:: python
 
