@@ -133,6 +133,16 @@ class TestEncodeFunction:
         dec = msgspec.msgpack.Decoder()
         assert dec.decode(msgspec.msgpack.encode(1)) == 1
 
+    def test_encode_bad_arguments(self):
+        with pytest.raises(TypeError, match="Missing 1 required arguments"):
+            msgspec.msgpack.encode()
+
+        with pytest.raises(TypeError, match="Extra positional"):
+            msgspec.msgpack.encode(1, 2)
+
+        with pytest.raises(TypeError, match="enc_hook must be callable"):
+            msgspec.msgpack.encode(1, enc_hook="bad")
+
     def test_encode_error(self):
         with pytest.raises(TypeError):
             msgspec.msgpack.encode(object())
@@ -151,6 +161,11 @@ class TestEncodeFunction:
             TypeError, match="Encoding objects of type Foo is unsupported"
         ):
             msgspec.msgpack.encode(Foo())
+
+        with pytest.raises(
+            TypeError, match="Encoding objects of type Foo is unsupported"
+        ):
+            msgspec.msgpack.encode(Foo(), enc_hook=None)
 
     def test_encode_enc_hook(self):
         unsupported = object()
@@ -276,6 +291,13 @@ class TestDecodeFunction:
 
 
 class TestEncoderMisc:
+    def test_encoder_init_errors(self):
+        with pytest.raises(TypeError):
+            msgspec.msgpack.Encoder(bad=1)
+
+        with pytest.raises(TypeError, match="enc_hook must be callable"):
+            msgspec.msgpack.Encoder(enc_hook=1)
+
     @pytest.mark.parametrize("x", [-(2**63) - 1, 2**64])
     def test_encode_integer_limits(self, x):
         enc = msgspec.msgpack.Encoder()
@@ -335,6 +357,9 @@ class TestEncoderMisc:
         enc = msgspec.msgpack.Encoder()
         assert enc.enc_hook is None
 
+        enc = msgspec.msgpack.Encoder(enc_hook=None)
+        assert enc.enc_hook is None
+
         with pytest.raises(
             TypeError, match="Encoding objects of type Foo is unsupported"
         ):
@@ -390,6 +415,15 @@ class TestEncoderMisc:
         with pytest.raises(RecursionError):
             enc.encode(object())
 
+    def test_encode_bad_arguments(self):
+        enc = msgspec.msgpack.Encoder()
+
+        with pytest.raises(TypeError, match="Missing 1 required arguments"):
+            enc.encode()
+
+        with pytest.raises(TypeError, match="Extra positional"):
+            enc.encode(1, 2)
+
     def test_encode_into_bad_arguments(self):
         enc = msgspec.msgpack.Encoder()
 
@@ -401,6 +435,12 @@ class TestEncoderMisc:
 
         with pytest.raises(ValueError, match="offset"):
             enc.encode_into(1, bytearray(), -2)
+
+        with pytest.raises(TypeError, match="Missing 1 required arguments"):
+            enc.encode_into(1)
+
+        with pytest.raises(TypeError, match="Extra positional"):
+            enc.encode_into(1, bytearray(), 2, 3)
 
     @pytest.mark.parametrize("buf_size", [0, 1, 16, 55, 60])
     def test_encode_into(self, buf_size):
@@ -482,6 +522,14 @@ class TestEncoderMisc:
         sol = msgspec.msgpack.encode(x, enc_hook=enc_hook)
         assert res == sol
 
+    def test_encode_datetime_non_utc_tzinfo(self):
+        tzinfo = datetime.timezone(datetime.timedelta(hours=1))
+        x = datetime.datetime.now(tzinfo)
+        x2 = x.astimezone(datetime.timezone.utc)
+        res = msgspec.msgpack.encode(x)
+        sol = msgspec.msgpack.encode(x2)
+        assert res == sol
+
 
 class TestDecoderMisc:
     def test_decoder_type_attribute(self):
@@ -503,6 +551,10 @@ class TestDecoderMisc:
 
         dec = msgspec.msgpack.Decoder(ext_hook=ext_hook)
         assert dec.ext_hook is ext_hook
+
+    def test_decoder_bad_args(self):
+        with pytest.raises(TypeError):
+            msgspec.msgpack.Decoder(bad=1)
 
     def test_decoder_ext_hook_not_callable(self):
         with pytest.raises(TypeError):
@@ -779,6 +831,13 @@ class TestTypedDecoder:
         self.check_unexpected_type(
             datetime.datetime, msgspec.msgpack.Ext(1, b"test"), "Expected `datetime`"
         )
+
+    def test_datetime_invalid(self):
+        msg = msgspec.msgpack.encode(msgspec.msgpack.Ext(-1, b"\x01\x02\x03"))
+        with pytest.raises(
+            msgspec.ValidationError, match="Invalid MessagePack timestamp"
+        ):
+            msgspec.msgpack.decode(msg, type=datetime.datetime)
 
     @pytest.mark.parametrize("size", SIZES)
     def test_list_lengths(self, size):
@@ -1213,6 +1272,16 @@ class TestExt:
         assert x.code == 1
         assert x.data == data
 
+    def test_init_bad_arguments(self):
+        with pytest.raises(TypeError, match="Ext takes no keyword arguments"):
+            msgspec.msgpack.Ext(code=1, data=b"two")
+
+        with pytest.raises(TypeError, match="expected 2 arguments, got 3"):
+            msgspec.msgpack.Ext(1, b"two", 3)
+
+        with pytest.raises(TypeError, match="expected 2 arguments, got 0"):
+            msgspec.msgpack.Ext()
+
     def test_compare(self):
         x = msgspec.msgpack.Ext(1, b"two")
         x2 = msgspec.msgpack.Ext(1, b"two")
@@ -1224,6 +1293,11 @@ class TestExt:
         assert not (x == x3)
         assert x != x4
         assert not (x == x4)
+
+        assert not (x == 1)
+        assert x != 1
+        with pytest.raises(TypeError):
+            x >= x2
 
     @pytest.mark.parametrize("code", [-128, -2, 0, 2, 127])
     def test_code_roundtrip(self, code):

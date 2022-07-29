@@ -1668,12 +1668,15 @@ class TestSequences:
         )
 
     @pytest.mark.parametrize("type", [List[int], Set[int], Tuple[int, ...]])
-    def test_decode_typed_list_wrong_element_type(self, type):
+    @pytest.mark.parametrize("bad_index", [0, 9, 10, 91, 1234])
+    def test_decode_typed_list_wrong_element_type(self, type, bad_index):
         dec = msgspec.json.Decoder(type)
-        with pytest.raises(
-            msgspec.ValidationError, match=r"Expected `int`, got `str` - at `\$\[1\]`"
-        ):
-            dec.decode(b'[1, "oops"]')
+        data = [1] * (bad_index + 1)
+        data[bad_index] = "oops"
+        msg = msgspec.json.encode(data)
+        err_msg = rf"Expected `int`, got `str` - at `\$\[{bad_index}\]`"
+        with pytest.raises(msgspec.ValidationError, match=err_msg):
+            dec.decode(msg)
 
     @pytest.mark.parametrize(
         "s, error",
@@ -1754,6 +1757,10 @@ class TestNamedTuple:
 
 
 class TestDict:
+    def test_encode_dict_raises_non_string_keys(self):
+        with pytest.raises(TypeError, match="dict keys must be strings"):
+            msgspec.json.encode({"a": 1, 2: "bad"})
+
     @pytest.mark.parametrize("x", [{}, {"a": 1}, {"a": 1, "b": 2}])
     def test_roundtrip_dict(self, x):
         s = msgspec.json.encode(x)
@@ -2302,6 +2309,26 @@ class TestStructUnion:
 
         res = msgspec.json.decode(s, type=Union[Test1, Test2])
         assert res == Test1(1, 2)
+
+    @pytest.mark.parametrize("preinit", [False, True])
+    @pytest.mark.parametrize("tags", [("A", "B"), (0, 2), (0, 1000)])
+    @pytest.mark.parametrize("wrap", [False, True])
+    def test_struct_union_not_json_compatible(self, preinit, tags, wrap):
+        class Test1(msgspec.Struct, tag=tags[0]):
+            a: int
+
+        class Test2(msgspec.Struct, tag=tags[1]):
+            b: Dict[int, int]
+
+        typ = Union[Test1, Test2]
+        if wrap:
+            typ = TypedDict("Test3", {"c": typ})
+
+        if preinit:
+            msgspec.msgpack.Decoder(typ)
+
+        with pytest.raises(TypeError, match="JSON doesn't support dicts with"):
+            msgspec.json.Decoder(typ)
 
 
 class TestStructArray:
