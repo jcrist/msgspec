@@ -881,6 +881,25 @@ class TestDatetime:
         s = msgspec.json.encode(x)
         assert s == expected
 
+    def test_encode_datetime_no_tzinfo_errors_by_default(self):
+        x = datetime.datetime.now()
+        with pytest.raises(
+            TypeError, match="Encoding timezone-naive datetime objects is unsupported"
+        ):
+            msgspec.json.encode(x)
+
+    def test_encode_datetime_no_tzinfo_hits_enc_hook(self):
+        x = datetime.datetime.now()
+        res = msgspec.json.encode(x.replace(tzinfo=datetime.timezone.utc))
+
+        def enc_hook(obj):
+            if isinstance(obj, datetime.datetime):
+                return obj.replace(tzinfo=datetime.timezone.utc)
+            raise TypeError(str(type(obj)))
+
+        sol = msgspec.json.encode(x, enc_hook=enc_hook)
+        assert res == sol
+
     @pytest.mark.parametrize(
         "dt",
         [

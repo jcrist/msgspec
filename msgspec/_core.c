@@ -5791,6 +5791,23 @@ ms_decode_custom(PyObject *obj, PyObject *dec_hook, bool generic, TypeNode* type
     return out;
 }
 
+static int
+ms_encode_err_type_unsupported(PyTypeObject *type) {
+    if (type == PyDateTimeAPI->DateTimeType) {
+        PyErr_SetString(
+            PyExc_TypeError,
+            "Encoding timezone-naive datetime objects is unsupported"
+        );
+    }
+    else {
+        PyErr_Format(
+            PyExc_TypeError,
+            "Encoding objects of type %.200s is unsupported",
+            type->tp_name
+        );
+    }
+    return -1;
+}
 
 /*************************************************************************
  * MessagePack Encoder                                                   *
@@ -6420,14 +6437,6 @@ mpack_encode_datetime(EncoderState *self, PyObject *obj)
     int32_t nanoseconds;
     PyObject *tzinfo;
 
-    if (!MS_HAS_TZINFO(obj)) {
-        PyErr_SetString(
-            self->mod->EncodeError,
-            "Can't encode naive datetime objects"
-        );
-        return -1;
-    }
-
     tzinfo = MS_GET_TZINFO(obj);
     if (tzinfo == PyDateTime_TimeZone_UTC) {
         datetime_to_epoch(obj, &seconds, &nanoseconds);
@@ -6518,7 +6527,7 @@ mpack_encode(EncoderState *self, PyObject *obj)
     else if (PyTuple_Check(obj)) {
         return mpack_encode_tuple(self, obj);
     }
-    else if (type == PyDateTimeAPI->DateTimeType) {
+    else if (type == PyDateTimeAPI->DateTimeType && MS_HAS_TZINFO(obj)) {
         return mpack_encode_datetime(self, obj);
     }
     else if (type == &Ext_Type) {
@@ -6542,12 +6551,7 @@ mpack_encode(EncoderState *self, PyObject *obj)
         Py_DECREF(temp);
         return status;
     }
-    else {
-        PyErr_Format(PyExc_TypeError,
-                     "Encoding objects of type %.200s is unsupported",
-                     type->tp_name);
-        return -1;
-    }
+    return ms_encode_err_type_unsupported(type);
 }
 
 static PyObject*
@@ -6954,14 +6958,6 @@ json_encode_datetime(EncoderState *self, PyObject *obj)
     int32_t offset_days = 0, offset_secs = 0;
     PyObject *tzinfo;
 
-    if (!MS_HAS_TZINFO(obj)) {
-        PyErr_SetString(
-            self->mod->EncodeError,
-            "Can't encode naive datetime objects"
-        );
-        return -1;
-    }
-
     tzinfo = MS_GET_TZINFO(obj);
     if (tzinfo != PyDateTime_TimeZone_UTC) {
         PyObject *offset = CALL_METHOD_ONE_ARG(tzinfo, self->mod->str_utcoffset, obj);
@@ -7321,7 +7317,7 @@ json_encode(EncoderState *self, PyObject *obj)
     else if (Py_TYPE(type) == &StructMetaType) {
         return json_encode_struct(self, obj);
     }
-    else if (type == PyDateTimeAPI->DateTimeType) {
+    else if (type == PyDateTimeAPI->DateTimeType && MS_HAS_TZINFO(obj)) {
         return json_encode_datetime(self, obj);
     }
     else if (type == &PyBytes_Type) {
@@ -7352,12 +7348,7 @@ json_encode(EncoderState *self, PyObject *obj)
         Py_DECREF(temp);
         return status;
     }
-    else {
-        PyErr_Format(PyExc_TypeError,
-                     "Encoding objects of type %.200s is unsupported",
-                     type->tp_name);
-        return -1;
-    }
+    return ms_encode_err_type_unsupported(type);
 }
 
 static PyObject*
