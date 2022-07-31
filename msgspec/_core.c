@@ -4935,11 +4935,11 @@ TypedDictInfo_Convert(PyObject *obj, bool err_not_json, bool *json_compatible) {
 error:
     if (cache_set) {
         /* An error occurred after the cache was created and set on the
-         * TypedDict. We need to delete the attribute */
-        if (PyObject_DelAttr(obj, mod->str___msgspec_cache__) < 0) {
-            /* Ignore errors if deletion fails */
-            PyErr_Clear();
-        }
+         * TypedDict. We need to delete the attribute.
+         *
+         * No need for error checking, if deletion fails, we raise that error
+         * instead. */
+        PyObject_DelAttr(obj, mod->str___msgspec_cache__);
     }
     Py_XDECREF((PyObject *)info);
     Py_XDECREF(annotations);
@@ -5168,11 +5168,11 @@ cleanup:
         Py_CLEAR(info);
         if (cache_set) {
             /* An error occurred after the cache was created and set on the
-            * NamedTuple. We need to delete the attribute */
-            if (PyObject_DelAttr(obj, mod->str___msgspec_cache__) < 0) {
-                /* Ignore errors if deletion fails */
-                PyErr_Clear();
-            }
+            * NamedTuple. We need to delete the attribute 
+            *
+            * No need for error checking, if deletion fails, we raise that
+            * error instead. */
+            PyObject_DelAttr(obj, mod->str___msgspec_cache__);
         }
     }
     Py_XDECREF(annotations);
