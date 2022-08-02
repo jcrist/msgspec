@@ -3,6 +3,21 @@ Changelog
 
 .. currentmodule:: msgspec
 
+Version 0.8.0 (2022-08-01)
+--------------------------
+
+- Support integer tag values when using :ref:`tagged unions
+  <struct-tagged-unions>` (:pr:`135`).
+- Support decoding into `typing.TypedDict` types (:pr:`142`).
+- Support encoding/decoding `typing.NamedTuple` types (:pr:`161`).
+- Test against CPython 3.11 prelease builds (:pr:`146`).
+- Add `ValidationError` (a subclass of `DecodeError`) to allow differentiating
+  between errors due to a message not matching the schema from those due to the
+  message being invalid JSON (:pr:`155`).
+- Support encoding subclasses of `list`/`dict` (:pr:`160`).
+- Fix a bug preventing decoding custom types wrapped in a `typing.Optional`
+  (:pr:`162`).
+
 Version 0.7.1 (2022-06-27)
 --------------------------
 
