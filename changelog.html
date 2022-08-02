@@ -205,6 +205,21 @@
         <article role="main">
           <section id="changelog">
 <h1>Changelog<a class="headerlink" href="#changelog" title="Permalink to this heading">#</a></h1>
+<section id="version-0-8-0-2022-08-01">
+<h2>Version 0.8.0 (2022-08-01)<a class="headerlink" href="#version-0-8-0-2022-08-01" title="Permalink to this heading">#</a></h2>
+<ul class="simple">
+<li><p>Support integer tag values when using <a class="reference internal" href="structs.html#struct-tagged-unions"><span class="std std-ref">tagged unions</span></a> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/135">PR #135</a>).</p></li>
+<li><p>Support decoding into <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypedDict" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.TypedDict</span></code></a> types (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/142">PR #142</a>).</p></li>
+<li><p>Support encoding/decoding <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.NamedTuple" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.NamedTuple</span></code></a> types (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/161">PR #161</a>).</p></li>
+<li><p>Test against CPython 3.11 prelease builds (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/146">PR #146</a>).</p></li>
+<li><p>Add <a class="reference internal" href="api.html#msgspec.ValidationError" title="msgspec.ValidationError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ValidationError</span></code></a> (a subclass of <a class="reference internal" href="api.html#msgspec.DecodeError" title="msgspec.DecodeError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">DecodeError</span></code></a>) to allow differentiating
+between errors due to a message not matching the schema from those due to the
+message being invalid JSON (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/155">PR #155</a>).</p></li>
+<li><p>Support encoding subclasses of <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">list</span></code></a>/<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/160">PR #160</a>).</p></li>
+<li><p>Fix a bug preventing decoding custom types wrapped in a <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.Optional</span></code></a>
+(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/162">PR #162</a>).</p></li>
+</ul>
+</section>
 <section id="version-0-7-1-2022-06-27">
 <h2>Version 0.7.1 (2022-06-27)<a class="headerlink" href="#version-0-7-1-2022-06-27" title="Permalink to this heading">#</a></h2>
 <ul class="simple">
@@ -423,6 +438,7 @@ faster decoding.</p></li>
           <div class="toc-tree">
             <ul>
 <li><a class="reference internal" href="#">Changelog</a><ul>
+<li><a class="reference internal" href="#version-0-8-0-2022-08-01">Version 0.8.0 (2022-08-01)</a></li>
 <li><a class="reference internal" href="#version-0-7-1-2022-06-27">Version 0.7.1 (2022-06-27)</a></li>
 <li><a class="reference internal" href="#version-0-7-0-2022-06-20">Version 0.7.0 (2022-06-20)</a></li>
 <li><a class="reference internal" href="#version-0-6-0-2022-04-06">Version 0.6.0 (2022-04-06)</a></li>
