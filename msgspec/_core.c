@@ -1372,45 +1372,60 @@ static PyTypeObject Raw_Type = {
  * Struct, PathNode, and TypeNode Types                                  *
  *************************************************************************/
 
-#define MS_TYPE_ANY                 (1u << 0)
-#define MS_TYPE_NONE                (1u << 1)
-#define MS_TYPE_BOOL                (1u << 2)
-#define MS_TYPE_INT                 (1u << 3)
-#define MS_TYPE_FLOAT               (1u << 4)
-#define MS_TYPE_STR                 (1u << 5)
-#define MS_TYPE_BYTES               (1u << 6)
-#define MS_TYPE_BYTEARRAY           (1u << 7)
-#define MS_TYPE_DATETIME            (1u << 8)
-#define MS_TYPE_EXT                 (1u << 9)
-#define MS_TYPE_STRUCT              (1u << 10)
-#define MS_TYPE_STRUCT_ARRAY        (1u << 11)
-#define MS_TYPE_STRUCT_UNION        (1u << 12)
-#define MS_TYPE_STRUCT_ARRAY_UNION  (1u << 13)
-#define MS_TYPE_ENUM                (1u << 14)
-#define MS_TYPE_INTENUM             (1u << 15)
-#define MS_TYPE_CUSTOM              (1u << 16)
-#define MS_TYPE_CUSTOM_GENERIC      (1u << 17)
-#define MS_TYPE_DICT                (1u << 18)
-#define MS_TYPE_LIST                (1u << 19)
-#define MS_TYPE_SET                 (1u << 20)
-#define MS_TYPE_FROZENSET           (1u << 21)
-#define MS_TYPE_VARTUPLE            (1u << 22)
-#define MS_TYPE_FIXTUPLE            (1u << 23)
-#define MS_TYPE_INTLITERAL          (1u << 24)
-#define MS_TYPE_STRLITERAL          (1u << 25)
-#define MS_TYPE_TYPEDDICT           (1u << 26)
-#define MS_TYPE_NAMEDTUPLE          (1u << 27)
-#define MS_TYPE_REQUIRED            (1u << 28)
+/* Types */
+#define MS_TYPE_ANY                 (1ull << 0)
+#define MS_TYPE_NONE                (1ull << 1)
+#define MS_TYPE_BOOL                (1ull << 2)
+#define MS_TYPE_INT                 (1ull << 3)
+#define MS_TYPE_FLOAT               (1ull << 4)
+#define MS_TYPE_STR                 (1ull << 5)
+#define MS_TYPE_BYTES               (1ull << 6)
+#define MS_TYPE_BYTEARRAY           (1ull << 7)
+#define MS_TYPE_DATETIME            (1ull << 8)
+#define MS_TYPE_EXT                 (1ull << 9)
+#define MS_TYPE_STRUCT              (1ull << 10)
+#define MS_TYPE_STRUCT_ARRAY        (1ull << 11)
+#define MS_TYPE_STRUCT_UNION        (1ull << 12)
+#define MS_TYPE_STRUCT_ARRAY_UNION  (1ull << 13)
+#define MS_TYPE_ENUM                (1ull << 14)
+#define MS_TYPE_INTENUM             (1ull << 15)
+#define MS_TYPE_CUSTOM              (1ull << 16)
+#define MS_TYPE_CUSTOM_GENERIC      (1ull << 17)
+#define MS_TYPE_DICT                (1ull << 18)
+#define MS_TYPE_LIST                (1ull << 19)
+#define MS_TYPE_SET                 (1ull << 20)
+#define MS_TYPE_FROZENSET           (1ull << 21)
+#define MS_TYPE_VARTUPLE            (1ull << 22)
+#define MS_TYPE_FIXTUPLE            (1ull << 23)
+#define MS_TYPE_INTLITERAL          (1ull << 24)
+#define MS_TYPE_STRLITERAL          (1ull << 25)
+#define MS_TYPE_TYPEDDICT           (1ull << 26)
+#define MS_TYPE_NAMEDTUPLE          (1ull << 27)
+/* Constraints */
+#define MS_CONSTR_REQUIRED          (1ull << 32)
 
 typedef struct TypeNode {
-    uint32_t types;
+    uint64_t types;
 } TypeNode;
+
+typedef union TypeDetail {
+    int64_t i64;
+    double f64;
+    void *pointer;
+} TypeDetail;
 
 typedef struct TypeNodeExtra {
     TypeNode type;
     Py_ssize_t fixtuple_size;
-    void* extra[];
+    TypeDetail extra[];
 } TypeNodeExtra;
+
+/* A simple extension of TypeNodeExtra to allow for static allocation */
+typedef struct {
+    uint64_t types;
+    Py_ssize_t fixtuple_size;
+    TypeDetail extra[1];
+} TypeNodeSimple;
 
 typedef struct TypedDictEntry {
     PyObject *key;
@@ -1502,19 +1517,19 @@ TypeNode_get_size(TypeNode *type, Py_ssize_t *n_typenode) {
 static MS_INLINE StructMetaObject *
 TypeNode_get_struct(TypeNode *type) {
     /* Struct types are always first */
-    return ((TypeNodeExtra *)type)->extra[0];
+    return ((TypeNodeExtra *)type)->extra[0].pointer;
 }
 
 static MS_INLINE Lookup *
 TypeNode_get_struct_union(TypeNode *type) {
     /* Struct union types are always first */
-    return ((TypeNodeExtra *)type)->extra[0];
+    return ((TypeNodeExtra *)type)->extra[0].pointer;
 }
 
 static MS_INLINE PyObject *
 TypeNode_get_custom(TypeNode *type) {
     /* Custom types can't be mixed with anything */
-    return ((TypeNodeExtra *)type)->extra[0];
+    return ((TypeNodeExtra *)type)->extra[0].pointer;
 }
 
 static MS_INLINE IntLookup *
@@ -1525,7 +1540,7 @@ TypeNode_get_int_enum_or_literal(TypeNode *type) {
             MS_TYPE_STRUCT_ARRAY | MS_TYPE_STRUCT_ARRAY_UNION
         )
     );
-    return ((TypeNodeExtra *)type)->extra[i];
+    return ((TypeNodeExtra *)type)->extra[i].pointer;
 }
 
 static MS_INLINE StrLookup *
@@ -1537,7 +1552,7 @@ TypeNode_get_str_enum_or_literal(TypeNode *type) {
             MS_TYPE_INTENUM | MS_TYPE_INTLITERAL
         )
     );
-    return ((TypeNodeExtra *)type)->extra[i];
+    return ((TypeNodeExtra *)type)->extra[i].pointer;
 }
 
 static MS_INLINE TypedDictInfo *
@@ -1550,7 +1565,7 @@ TypeNode_get_typeddict_info(TypeNode *type) {
             MS_TYPE_ENUM | MS_TYPE_STRLITERAL
         )
     );
-    return ((TypeNodeExtra *)type)->extra[i];
+    return ((TypeNodeExtra *)type)->extra[i].pointer;
 }
 
 static MS_INLINE NamedTupleInfo *
@@ -1564,7 +1579,7 @@ TypeNode_get_namedtuple_info(TypeNode *type) {
             MS_TYPE_TYPEDDICT
         )
     );
-    return ((TypeNodeExtra *)type)->extra[i];
+    return ((TypeNodeExtra *)type)->extra[i].pointer;
 }
 
 static MS_INLINE void
@@ -1578,8 +1593,8 @@ TypeNode_get_dict(TypeNode *type, TypeNode **key, TypeNode **val) {
             MS_TYPE_TYPEDDICT | MS_TYPE_NAMEDTUPLE
         )
     );
-    *key = ((TypeNodeExtra *)type)->extra[i];
-    *val = ((TypeNodeExtra *)type)->extra[i + 1];
+    *key = ((TypeNodeExtra *)type)->extra[i].pointer;
+    *val = ((TypeNodeExtra *)type)->extra[i + 1].pointer;
 }
 
 static MS_INLINE Py_ssize_t
@@ -1599,7 +1614,7 @@ TypeNode_get_array_offset(TypeNode *type) {
 
 static MS_INLINE TypeNode *
 TypeNode_get_array(TypeNode *type) {
-    return ((TypeNodeExtra *)type)->extra[TypeNode_get_array_offset(type)];
+    return ((TypeNodeExtra *)type)->extra[TypeNode_get_array_offset(type)].pointer;
 }
 
 static void
@@ -1610,11 +1625,11 @@ TypeNode_Free(TypeNode *self) {
     TypeNodeExtra *tex = (TypeNodeExtra *)self;
 
     for (i = 0; i < n_obj; i++) {
-        PyObject *obj = (PyObject *)(tex->extra[i]);
+        PyObject *obj = (PyObject *)(tex->extra[i].pointer);
         Py_XDECREF(obj);
     }
     for (i = n_obj; i < (n_obj + n_typenode); i++) {
-        TypeNode *node = (TypeNode *)(tex->extra[i]);
+        TypeNode *node = (TypeNode *)(tex->extra[i].pointer);
         TypeNode_Free(node);
     }
     PyMem_Free(self);
@@ -1628,12 +1643,12 @@ TypeNode_traverse(TypeNode *self, visitproc visit, void *arg) {
     TypeNodeExtra *tex = (TypeNodeExtra *)self;
 
     for (i = 0; i < n_obj; i++) {
-        PyObject *obj = (PyObject *)(tex->extra[i]);
+        PyObject *obj = (PyObject *)(tex->extra[i].pointer);
         Py_VISIT(obj);
     }
     for (i = n_obj; i < (n_obj + n_typenode); i++) {
         int out;
-        TypeNode *node = (TypeNode *)(tex->extra[i]);
+        TypeNode *node = (TypeNode *)(tex->extra[i].pointer);
         if ((out = TypeNode_traverse(node, visit, arg)) != 0) return out;
     }
     return 0;
@@ -1693,7 +1708,7 @@ typenode_simple_repr(TypeNode *self) {
 typedef struct {
     MsgspecState *mod;
     PyObject *context;
-    uint32_t types;
+    uint64_t types;
     PyObject *struct_obj;
     PyObject *structs_set;
     PyObject *structs_lookup;
@@ -1750,7 +1765,7 @@ typenode_from_collect_state(TypeNodeCollectState *state, bool err_not_json, bool
 
     /* Use calloc so that `out->extra` is initialized, easing cleanup on error */
     TypeNodeExtra *out = (TypeNodeExtra *)PyMem_Calloc(
-        1, sizeof(TypeNodeExtra) + n_extra * sizeof(void *)
+        1, sizeof(TypeNodeExtra) + n_extra * sizeof(TypeDetail)
     );
     if (out == NULL) {
         PyErr_NoMemory();
@@ -1768,15 +1783,15 @@ typenode_from_collect_state(TypeNodeCollectState *state, bool err_not_json, bool
          * check for `Any` alone, and only have to handle custom types in one
          * location  (e.g. `mpack_decode`). */
         out->type.types |= MS_TYPE_ANY;
-        out->extra[e_ind++] = state->custom_obj;
+        out->extra[e_ind++].pointer = state->custom_obj;
     }
     if (state->struct_obj != NULL) {
         Py_INCREF(state->struct_obj);
-        out->extra[e_ind++] = state->struct_obj;
+        out->extra[e_ind++].pointer = state->struct_obj;
     }
     if (state->structs_lookup != NULL) {
         Py_INCREF(state->structs_lookup);
-        out->extra[e_ind++] = state->structs_lookup;
+        out->extra[e_ind++].pointer = state->structs_lookup;
     }
     if (state->intenum_obj != NULL) {
         PyObject *lookup = PyObject_GetAttr(state->intenum_obj, state->mod->str___msgspec_cache__);
@@ -1800,11 +1815,11 @@ typenode_from_collect_state(TypeNodeCollectState *state, bool err_not_json, bool
             );
             goto error;
         }
-        out->extra[e_ind++] = lookup;
+        out->extra[e_ind++].pointer = lookup;
     }
     if (state->int_literal_lookup != NULL) {
         Py_INCREF(state->int_literal_lookup);
-        out->extra[e_ind++] = state->int_literal_lookup;
+        out->extra[e_ind++].pointer = state->int_literal_lookup;
     }
     if (state->enum_obj != NULL) {
         PyObject *lookup = PyObject_GetAttr(state->enum_obj, state->mod->str___msgspec_cache__);
@@ -1831,30 +1846,30 @@ typenode_from_collect_state(TypeNodeCollectState *state, bool err_not_json, bool
             );
             goto error;
         }
-        out->extra[e_ind++] = lookup;
+        out->extra[e_ind++].pointer = lookup;
     }
     if (state->str_literal_lookup != NULL) {
         Py_INCREF(state->str_literal_lookup);
-        out->extra[e_ind++] = state->str_literal_lookup;
+        out->extra[e_ind++].pointer = state->str_literal_lookup;
     }
     if (state->typeddict_obj != NULL) {
         PyObject *info = TypedDictInfo_Convert(
             state->typeddict_obj, err_not_json, json_compatible
         );
         if (info == NULL) goto error;
-        out->extra[e_ind++] = info;
+        out->extra[e_ind++].pointer = info;
     }
     if (state->namedtuple_obj != NULL) {
         PyObject *info = NamedTupleInfo_Convert(
             state->namedtuple_obj, err_not_json, json_compatible
         );
         if (info == NULL) goto error;
-        out->extra[e_ind++] = info;
+        out->extra[e_ind++].pointer = info;
     }
     if (state->dict_key_obj != NULL) {
         TypeNode *temp = TypeNode_Convert(state->dict_key_obj, err_not_json, json_compatible);
         if (temp == NULL) goto error;
-        out->extra[e_ind++] = temp;
+        out->extra[e_ind++].pointer = temp;
         /* Check that JSON dict keys are strings */
         if (temp->types & ~(MS_TYPE_ANY | MS_TYPE_STR | MS_TYPE_STRLITERAL)) {
             if (err_not_json) {
@@ -1871,7 +1886,7 @@ typenode_from_collect_state(TypeNodeCollectState *state, bool err_not_json, bool
         }
         temp = TypeNode_Convert(state->dict_val_obj, err_not_json, json_compatible);
         if (temp == NULL) goto error;
-        out->extra[e_ind++] = temp;
+        out->extra[e_ind++].pointer = temp;
     }
     if (state->array_el_obj != NULL) {
         if (has_fixtuple) {
@@ -1882,7 +1897,7 @@ typenode_from_collect_state(TypeNodeCollectState *state, bool err_not_json, bool
                     json_compatible
                 );
                 if (temp == NULL) goto error;
-                out->extra[e_ind++] = temp;
+                out->extra[e_ind++].pointer = temp;
             }
         }
         else {
@@ -1890,7 +1905,7 @@ typenode_from_collect_state(TypeNodeCollectState *state, bool err_not_json, bool
                 state->array_el_obj, err_not_json, json_compatible
             );
             if (temp == NULL) goto error;
-            out->extra[e_ind++] = temp;
+            out->extra[e_ind++].pointer = temp;
         }
     }
     return (TypeNode *)out;
@@ -2038,7 +2053,7 @@ typenode_collect_dict(TypeNodeCollectState *state, PyObject *obj, PyObject *key,
 }
 
 static int
-typenode_collect_array(TypeNodeCollectState *state, uint32_t type, PyObject *obj) {
+typenode_collect_array(TypeNodeCollectState *state, uint64_t type, PyObject *obj) {
     if (state->array_el_obj != NULL) {
         return typenode_collect_err_unique(
             state, "array-like (list, set, tuple)"
@@ -2051,7 +2066,7 @@ typenode_collect_array(TypeNodeCollectState *state, uint32_t type, PyObject *obj
 }
 
 static int
-typenode_collect_custom(TypeNodeCollectState *state, uint32_t type, PyObject *obj) {
+typenode_collect_custom(TypeNodeCollectState *state, uint64_t type, PyObject *obj) {
     if (state->custom_obj != NULL) {
         return typenode_collect_err_unique(state, "custom");
     }
@@ -4954,7 +4969,7 @@ TypedDictInfo_Convert(PyObject *obj, bool err_not_json, bool *json_compatible) {
         dict_is_json_compatible &= item_is_json_compatible;
         int contains = PySet_Contains(required, key);
         if (contains == -1) goto error;
-        if (contains) { type->types |= MS_TYPE_REQUIRED; }
+        if (contains) { type->types |= MS_CONSTR_REQUIRED; }
         i++;
     }
     info->nrequired = PySet_GET_SIZE(required);
@@ -5013,7 +5028,7 @@ static void
 TypedDictInfo_error_missing(TypedDictInfo *self, PyObject *dict, PathNode *path) {
     Py_ssize_t nfields = Py_SIZE(self);
     for (Py_ssize_t i = 0; i < nfields; i++) {
-        if (self->fields[i].type->types & MS_TYPE_REQUIRED) {
+        if (self->fields[i].type->types & MS_CONSTR_REQUIRED) {
             PyObject *field = self->fields[i].key;
             int contains = PyDict_Contains(dict, field);
             if (contains < 0) return;
@@ -8225,7 +8240,7 @@ mpack_decode_fixtuple(
     offset = TypeNode_get_array_offset(type);
     for (i = 0; i < tex->fixtuple_size; i++) {
         PathNode el_path = {path, i};
-        item = mpack_decode(self, tex->extra[offset + i], &el_path, is_key);
+        item = mpack_decode(self, tex->extra[offset + i].pointer, &el_path, is_key);
         if (MS_UNLIKELY(item == NULL)) {
             Py_CLEAR(res);
             break;
@@ -8651,7 +8666,7 @@ mpack_decode_typeddict(
              * reference. */
             Py_DECREF(val);
             if (status < 0) goto error;
-            if ((PyDict_GET_SIZE(res) != cur_size) && (field_type->types & MS_TYPE_REQUIRED)) {
+            if ((PyDict_GET_SIZE(res) != cur_size) && (field_type->types & MS_CONSTR_REQUIRED)) {
                 nrequired++;
             }
         }
@@ -9219,11 +9234,10 @@ msgspec_msgpack_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, 
         }
         else {
             bool array_like = ((StructMetaObject *)type)->array_like == OPT_TRUE;
-            struct {
-                uint32_t types;
-                Py_ssize_t fixtuple_size;
-                void* extra[1];
-            } type_obj = {array_like ? MS_TYPE_STRUCT_ARRAY : MS_TYPE_STRUCT, 0, {type}};
+            TypeNodeSimple type_obj;
+            type_obj.types = array_like ? MS_TYPE_STRUCT_ARRAY : MS_TYPE_STRUCT;
+            type_obj.fixtuple_size = 0;
+            type_obj.extra[0].pointer = type;
             res = mpack_decode(&state, (TypeNode*)(&type_obj), NULL, false);
         }
         PyBuffer_Release(&buffer);
@@ -10421,7 +10435,7 @@ json_decode_fixtuple(JSONDecoderState *self, TypeNode *type, PathNode *path) {
         if (MS_UNLIKELY(i >= tex->fixtuple_size)) goto size_error;
 
         /* Parse item */
-        item = json_decode(self, tex->extra[offset + i], &el_path);
+        item = json_decode(self, tex->extra[offset + i].pointer, &el_path);
         if (item == NULL) goto error;
         el_path.index++;
 
@@ -11081,7 +11095,7 @@ json_decode_typeddict(
              * reference. */
             Py_DECREF(val);
             if (status < 0) goto error;
-            if ((PyDict_GET_SIZE(out) != cur_size) && (field_type->types & MS_TYPE_REQUIRED)) {
+            if ((PyDict_GET_SIZE(out) != cur_size) && (field_type->types & MS_CONSTR_REQUIRED)) {
                 nrequired++;
             }
         }
@@ -12029,11 +12043,10 @@ msgspec_json_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyO
         }
         else {
             bool array_like = ((StructMetaObject *)type)->array_like == OPT_TRUE;
-            struct {
-                uint32_t types;
-                Py_ssize_t fixtuple_size;
-                void* extra[1];
-            } type_obj = {array_like ? MS_TYPE_STRUCT_ARRAY : MS_TYPE_STRUCT, 0, {type}};
+            TypeNodeSimple type_obj;
+            type_obj.types = array_like ? MS_TYPE_STRUCT_ARRAY : MS_TYPE_STRUCT;
+            type_obj.fixtuple_size = 0;
+            type_obj.extra[0].pointer = type;
             res = json_decode(&state, (TypeNode*)(&type_obj), NULL);
         }
 
