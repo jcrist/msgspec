@@ -12,6 +12,12 @@ Struct
 .. autofunction:: defstruct
 
 
+Meta
+----
+
+.. autoclass:: Meta
+    :members:
+
 Raw
 ---
 

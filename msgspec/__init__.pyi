@@ -11,6 +11,7 @@ from typing import (
     ClassVar,
     Literal,
     overload,
+    Final,
 )
 
 # Use `__dataclass_transform__` to catch more errors under pyright. Since we don't expose
@@ -81,6 +82,36 @@ class Raw(bytes):
     @overload
     def __init__(self, msg: bytes) -> None: ...
     def copy(self) -> "Raw": ...
+
+class Meta:
+    def __init__(
+        self,
+        *,
+        gt: Union[int, float, None] = None,
+        ge: Union[int, float, None] = None,
+        lt: Union[int, float, None] = None,
+        le: Union[int, float, None] = None,
+        multiple_of: Union[int, float, None] = None,
+        pattern: Union[str, None] = None,
+        min_length: Union[int, None] = None,
+        max_length: Union[int, None] = None,
+        title: Union[str, None] = None,
+        description: Union[str, None] = None,
+        examples: Union[list, None] = None,
+        extra_json_schema: Union[dict, None] = None,
+    ): ...
+    gt: Final[Union[int, float, None]]
+    ge: Final[Union[int, float, None]]
+    lt: Final[Union[int, float, None]]
+    le: Final[Union[int, float, None]]
+    multiple_of: Final[Union[int, float, None]]
+    pattern: Final[Union[str, None]]
+    min_length: Final[Union[int, None]]
+    max_length: Final[Union[int, None]]
+    title: Final[Union[str, None]]
+    description: Final[Union[str, None]]
+    examples: Final[Union[list, None]]
+    extra_json_schema: Final[Union[dict, None]]
 
 class MsgspecError(Exception): ...
 class EncodeError(MsgspecError): ...

@@ -489,6 +489,7 @@ typedef struct {
     PyObject *types_uniontype;
 #endif
     PyObject *astimezone;
+    PyObject *re_compile;
     PyObject *deepcopy;
     uint8_t gc_cycle;
 } MsgspecState;
@@ -578,6 +579,8 @@ typedef struct strbuilder {
     Py_ssize_t capacity;  /* How many bytes can be written */
 } strbuilder;
 
+#define strbuilder_extend_literal(self, str) strbuilder_extend(self, str, sizeof(str) - 1)
+
 static bool strbuilder_extend(strbuilder *self, const char *buf, Py_ssize_t nbytes) {
     /* Optimization - store first write by reference.
      *
@@ -589,7 +592,7 @@ static bool strbuilder_extend(strbuilder *self, const char *buf, Py_ssize_t nbyt
         return true;
     }
 
-    Py_ssize_t required = self->capacity + nbytes + self->sep_size;
+    Py_ssize_t required = self->size + nbytes + self->sep_size;
 
     if (!self->capacity) {
         char *temp = self->buffer;
@@ -1369,6 +1372,432 @@ static PyTypeObject Raw_Type = {
 };
 
 /*************************************************************************
+ * Meta                                                                  *
+ *************************************************************************/
+
+static PyTypeObject Meta_Type;
+
+typedef struct Meta {
+    PyObject_HEAD
+    PyObject *gt;
+    PyObject *ge;
+    PyObject *lt;
+    PyObject *le;
+    PyObject *multiple_of;
+    PyObject *pattern;
+    PyObject *regex;
+    PyObject *min_length;
+    PyObject *max_length;
+    PyObject *title;
+    PyObject *description;
+    PyObject *examples;
+    PyObject *extra_json_schema;
+} Meta;
+
+static bool
+ensure_is_string(PyObject *val, const char *param) {
+    if (PyUnicode_CheckExact(val)) return true;
+    PyErr_Format(
+        PyExc_TypeError,
+        "`%s` must be a str, got %.200s",
+        param, Py_TYPE(val)->tp_name
+    );
+    return false;
+}
+
+static bool
+ensure_is_nonnegative_integer(PyObject *val, const char *param) {
+    if (!PyLong_CheckExact(val)) {
+        PyErr_Format(
+            PyExc_TypeError,
+            "`%s` must be an int, got %.200s",
+            param, Py_TYPE(val)->tp_name
+        );
+        return false;
+    }
+    Py_ssize_t x = PyLong_AsSsize_t(val);
+    if (x >= 0) return true;
+    PyErr_Format(PyExc_ValueError, "`%s` must be >= 0, got %R", param, val);
+    return false;
+}
+
+static bool
+ensure_is_finite_numeric(PyObject *val, const char *param, bool pos_53bit) {
+    double x;
+    if (PyLong_CheckExact(val)) {
+        x = PyLong_AsDouble(val);
+    }
+    else if (PyFloat_CheckExact(val)) {
+        x = PyFloat_AS_DOUBLE(val);
+        if (!isfinite(x)) {
+            PyErr_Format(
+                PyExc_ValueError,
+                "`%s` must be finite, %R is not supported",
+                param, val
+            );
+            return false;
+        }
+    }
+    else {
+        PyErr_Format(
+            PyExc_TypeError,
+            "`%s` must be an int or float, got %.200s",
+            param, Py_TYPE(val)->tp_name
+        );
+        return false;
+    }
+    if (pos_53bit && !(x > 0 && x < 1ul << 53)) {
+        PyErr_Format(
+            PyExc_ValueError, "`%s` must be > 0 and < 2**53", param
+        );
+        return false;
+    }
+    return true;
+}
+
+PyDoc_STRVAR(Meta__doc__,
+"Meta(*, gt=None, ge=None, lt=None, le=None, multiple_of=None, pattern=None, "
+"min_length=None, max_length=None, title=None, description=None, examples=None, "
+"extra_json_schema=None)\n"
+"--\n"
+"\n"
+"Extra metadata and constraints for a type or field.\n"
+"\n"
+"Parameters\n"
+"----------\n"
+"gt : int or float, optional\n"
+"    The annotated value must be greater than ``gt``.\n"
+"ge : int or float, optional\n"
+"    The annotated value must be greater than or equal to ``ge``.\n"
+"lt : int or float, optional\n"
+"    The annotated value must be less than ``lt``.\n"
+"le : int or float, optional\n"
+"    The annotated value must be less than or equal to ``le``.\n"
+"multiple_of : int or float, optional\n"
+"    The annotated value must be a multiple of ``multiple_of``.\n"
+"pattern : str, optional\n"
+"    A regex pattern that the annotated value must match against. Note that\n"
+"    the pattern is treated as **unanchored**, meaning the ``re.search``\n"
+"    method is used when matching.\n"
+"min_length: int, optional\n"
+"    The annotated value must have a length greater than or equal to\n"
+"    ``min_length``.\n"
+"max_length: int, optional\n"
+"    The annotated value must have a length less than or equal to\n"
+"    ``max_length``.\n"
+"title: str, optional\n"
+"    The title to use for the annotated value when generating a json-schema.\n"
+"description: str, optional\n"
+"    The description to use for the annotated value when generating a\n"
+"    json-schema.\n"
+"examples: list, optional\n"
+"    A list of examples to use for the annotated value when generating a\n"
+"    json-schema.\n"
+"extra_json_schema: dict, optional\n"
+"    A dict of extra fields to set for the annotated value when generating\n"
+"    a json-schema. This dict is recursively merged with the generated schema,\n"
+"    with ``extra_json_schema`` overriding any conflicting autogenerated fields.\n"
+"\n"
+"Examples\n"
+"--------\n"
+"Here we use ``Meta`` to add constraints on two different types. The first\n"
+"defines a new type alias ``NonNegativeInt``, which is an integer that must be\n"
+"``>= 0``. This type alias can be reused in multiple locations. The second uses\n"
+"``Meta`` inline in a struct definition to restrict the ``name`` string field\n"
+"to a maximum length of 32 characters.\n"
+"\n"
+">>> from typing import Annotated\n"
+">>> from msgspec import Struct, Meta\n"
+">>> NonNegativeInt = Annotated[int, Meta(ge=0)]\n"
+">>> class User(Struct):\n"
+"...     name: Annotated[str, Meta(max_length=32)]\n"
+"...     age: NonNegativeInt\n"
+"...\n"
+">>> msgspec.json.decode(b'{\"name\": \"alice\", \"age\": 25}', type=User)\n"
+"User(name='alice', age=25)\n"
+);
+static PyObject *
+Meta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
+    static char *kwlist[] = {
+        "gt", "ge", "lt", "le", "multiple_of",
+        "pattern", "min_length", "max_length",
+        "title", "description", "examples", "extra_json_schema",
+        NULL
+    };
+    PyObject *gt = NULL, *ge = NULL, *lt = NULL, *le = NULL, *multiple_of = NULL;
+    PyObject *pattern = NULL, *min_length = NULL, *max_length = NULL;
+    PyObject *title = NULL, *description = NULL, *examples = NULL, *extra_json_schema = NULL;
+    PyObject *regex = NULL;
+
+    /* Parse arguments: (name, bases, dict) */
+    if (!PyArg_ParseTupleAndKeywords(
+            args, kwargs, "|$OOOOOOOOOOOO:Meta.__new__", kwlist,
+            &gt, &ge, &lt, &le, &multiple_of,
+            &pattern, &min_length, &max_length,
+            &title, &description, &examples, &extra_json_schema
+        )
+    )
+        return NULL;
+
+#define NONE_TO_NULL(x) do { if (x == Py_None) {x = NULL;} } while(0)
+    NONE_TO_NULL(gt);
+    NONE_TO_NULL(ge);
+    NONE_TO_NULL(lt);
+    NONE_TO_NULL(le);
+    NONE_TO_NULL(multiple_of);
+    NONE_TO_NULL(pattern);
+    NONE_TO_NULL(min_length);
+    NONE_TO_NULL(max_length);
+    NONE_TO_NULL(title);
+    NONE_TO_NULL(description);
+    NONE_TO_NULL(examples);
+    NONE_TO_NULL(extra_json_schema);
+#undef NONE_TO_NULL
+
+    /* Check parameter types/values */
+    if (gt != NULL && !ensure_is_finite_numeric(gt, "gt", false)) return NULL;
+    if (ge != NULL && !ensure_is_finite_numeric(ge, "ge", false)) return NULL;
+    if (lt != NULL && !ensure_is_finite_numeric(lt, "lt", false)) return NULL;
+    if (le != NULL && !ensure_is_finite_numeric(le, "le", false)) return NULL;
+    if (multiple_of != NULL && !ensure_is_finite_numeric(multiple_of, "multiple_of", true)) return NULL;
+    if (pattern != NULL && !ensure_is_string(pattern, "pattern")) return NULL;
+    if (min_length != NULL && !ensure_is_nonnegative_integer(min_length, "min_length")) return NULL;
+    if (max_length != NULL && !ensure_is_nonnegative_integer(max_length, "max_length")) return NULL;
+
+    /* Check multiple constraint restrictions */
+    if (gt != NULL && ge != NULL) {
+        PyErr_SetString(PyExc_ValueError, "Cannot specify both `gt` and `ge`");
+        return NULL;
+    }
+    if (lt != NULL && le != NULL) {
+        PyErr_SetString(PyExc_ValueError, "Cannot specify both `lt` and `le`");
+        return NULL;
+    }
+    bool numeric = (gt != NULL || ge != NULL || lt != NULL || le != NULL || multiple_of != NULL);
+    bool other = (pattern != NULL || min_length != NULL || max_length != NULL);
+    if (numeric && other) {
+        PyErr_SetString(
+            PyExc_ValueError,
+            "Cannot mix numeric constraints (gt, lt, ...) with non-numeric "
+            "constraints (pattern, min_length, max_length)"
+        );
+        return NULL;
+    }
+
+    /* Check types/values of extra metadata */
+    if (title != NULL && !ensure_is_string(title, "title")) return NULL;
+    if (description != NULL && !ensure_is_string(description, "description")) return NULL;
+    if (examples != NULL && !PyList_CheckExact(examples)) {
+        PyErr_Format(
+            PyExc_TypeError,
+            "`examples` must be a list, got %.200s",
+            Py_TYPE(examples)->tp_name
+        );
+        return NULL;
+    }
+    if (extra_json_schema != NULL && !PyDict_CheckExact(extra_json_schema)) {
+        PyErr_Format(
+            PyExc_TypeError,
+            "`extra_json_schema` must be a dict, got %.200s",
+            Py_TYPE(extra_json_schema)->tp_name
+        );
+        return NULL;
+    }
+
+    /* regex compile pattern if provided */
+    if (pattern != NULL) {
+        MsgspecState *mod = msgspec_get_global_state();
+        regex = CALL_ONE_ARG(mod->re_compile, pattern);
+        if (regex == NULL) return NULL;
+    }
+
+    Meta *out = (Meta *)Meta_Type.tp_alloc(&Meta_Type, 0);
+    if (out == NULL) return NULL;
+
+#define SET_FIELD(x) do { Py_XINCREF(x); out->x = x; } while(0)
+    SET_FIELD(gt);
+    SET_FIELD(ge);
+    SET_FIELD(lt);
+    SET_FIELD(le);
+    SET_FIELD(multiple_of);
+    SET_FIELD(pattern);
+    SET_FIELD(regex);
+    SET_FIELD(min_length);
+    SET_FIELD(max_length);
+    SET_FIELD(title);
+    SET_FIELD(description);
+    SET_FIELD(examples);
+    SET_FIELD(extra_json_schema);
+#undef SET_FIELD
+    return (PyObject *)out;
+}
+
+static int
+Meta_traverse(Meta *self, visitproc visit, void *arg) {
+    Py_VISIT(self->regex);
+    Py_VISIT(self->examples);
+    Py_VISIT(self->extra_json_schema);
+    return 0;
+}
+
+static void
+Meta_clear(Meta *self) {
+    Py_CLEAR(self->gt);
+    Py_CLEAR(self->ge);
+    Py_CLEAR(self->lt);
+    Py_CLEAR(self->le);
+    Py_CLEAR(self->multiple_of);
+    Py_CLEAR(self->pattern);
+    Py_CLEAR(self->regex);
+    Py_CLEAR(self->min_length);
+    Py_CLEAR(self->max_length);
+    Py_CLEAR(self->title);
+    Py_CLEAR(self->description);
+    Py_CLEAR(self->examples);
+    Py_CLEAR(self->extra_json_schema);
+}
+
+static void
+Meta_dealloc(Meta *self) {
+    PyObject_GC_UnTrack(self);
+    Meta_clear(self);
+    Py_TYPE(self)->tp_free((PyObject *)self);
+}
+
+static bool
+_config_repr_part(strbuilder *builder, const char *prefix, Py_ssize_t prefix_size, PyObject *field, bool *first) {
+    if (*first) {
+        *first = false;
+    }
+    else {
+        if (!strbuilder_extend_literal(builder, ", ")) return false;
+    }
+    if (!strbuilder_extend(builder, prefix, prefix_size)) return false;
+    PyObject *repr = PyObject_Repr(field);
+    if (repr == NULL) return false;
+    bool ok = strbuilder_extend_unicode(builder, repr);
+    Py_DECREF(repr);
+    return ok;
+}
+
+static PyObject *
+Meta_repr(Meta *self) {
+    strbuilder builder = {0};
+    bool first = true;
+    if (!strbuilder_extend_literal(&builder, "msgspec.Meta(")) return NULL;
+    /* sizeof(#field) is the length of the field name + 1 (null terminator). We
+     * want the length of field name + 1 (for the `=`). */
+#define DO_REPR(field) do { \
+    if (self->field != NULL) { \
+        if (!_config_repr_part(&builder, #field "=", sizeof(#field), self->field, &first)) return NULL; \
+    } } while(0)
+    DO_REPR(gt);
+    DO_REPR(ge);
+    DO_REPR(lt);
+    DO_REPR(le);
+    DO_REPR(multiple_of);
+    DO_REPR(pattern);
+    DO_REPR(min_length);
+    DO_REPR(max_length);
+    DO_REPR(title);
+    DO_REPR(description);
+    DO_REPR(examples);
+    DO_REPR(extra_json_schema);
+#undef DO_REPR
+    if (!strbuilder_extend_literal(&builder, ")")) return NULL;
+    return strbuilder_build(&builder);
+}
+
+static int
+_config_richcompare_part(PyObject *left, PyObject *right) {
+    if ((left == NULL) != (right == NULL)) {
+        return 0;
+    }
+    if (left != NULL) {
+        return PyObject_RichCompareBool(left, right, Py_EQ);
+    }
+    else {
+        return 1;
+    }
+}
+
+static PyObject *
+Meta_richcompare(Meta *self, PyObject *py_other, int op) {
+    int equal = 1;
+    PyObject *out;
+
+    if (Py_TYPE(py_other) != &Meta_Type) {
+        Py_RETURN_NOTIMPLEMENTED;
+    }
+    if (!(op == Py_EQ || op == Py_NE)) {
+        Py_RETURN_NOTIMPLEMENTED;
+    }
+    Meta *other = (Meta *)py_other;
+
+    /* Only need to loop if self is not other` */
+    if (MS_LIKELY(self != other)) {
+#define DO_COMPARE(field) do { \
+        equal = _config_richcompare_part(self->field, other->field); \
+        if (equal < 0) return NULL; \
+        if (!equal) goto done; \
+    } while (0)
+        DO_COMPARE(gt);
+        DO_COMPARE(ge);
+        DO_COMPARE(lt);
+        DO_COMPARE(le);
+        DO_COMPARE(multiple_of);
+        DO_COMPARE(pattern);
+        DO_COMPARE(min_length);
+        DO_COMPARE(max_length);
+        DO_COMPARE(title);
+        DO_COMPARE(description);
+        DO_COMPARE(examples);
+        DO_COMPARE(extra_json_schema);
+    }
+#undef DO_COMPARE
+done:
+    if (op == Py_EQ) {
+        out = equal ? Py_True : Py_False;
+    }
+    else {
+        out = (!equal) ? Py_True : Py_False;
+    }
+    Py_INCREF(out);
+    return out;
+}
+
+static PyMemberDef Meta_members[] = {
+    {"gt", T_OBJECT, offsetof(Meta, gt), READONLY, NULL},
+    {"ge", T_OBJECT, offsetof(Meta, ge), READONLY, NULL},
+    {"lt", T_OBJECT, offsetof(Meta, lt), READONLY, NULL},
+    {"le", T_OBJECT, offsetof(Meta, le), READONLY, NULL},
+    {"multiple_of", T_OBJECT, offsetof(Meta, multiple_of), READONLY, NULL},
+    {"pattern", T_OBJECT, offsetof(Meta, pattern), READONLY, NULL},
+    {"min_length", T_OBJECT, offsetof(Meta, min_length), READONLY, NULL},
+    {"max_length", T_OBJECT, offsetof(Meta, max_length), READONLY, NULL},
+    {"title", T_OBJECT, offsetof(Meta, title), READONLY, NULL},
+    {"description", T_OBJECT, offsetof(Meta, description), READONLY, NULL},
+    {"examples", T_OBJECT, offsetof(Meta, examples), READONLY, NULL},
+    {"extra_json_schema", T_OBJECT, offsetof(Meta, extra_json_schema), READONLY, NULL},
+    {NULL},
+};
+
+static PyTypeObject Meta_Type = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "msgspec.Meta",
+    .tp_doc = Meta__doc__,
+    .tp_basicsize = sizeof(Meta),
+    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
+    .tp_new = Meta_new,
+    .tp_traverse = (traverseproc) Meta_traverse,
+    .tp_clear = (inquiry) Meta_clear,
+    .tp_dealloc = (destructor) Meta_dealloc,
+    .tp_members = Meta_members,
+    .tp_repr = (reprfunc) Meta_repr,
+    .tp_richcompare = (richcmpfunc) Meta_richcompare
+};
+
+/*************************************************************************
  * Struct, PathNode, and TypeNode Types                                  *
  *************************************************************************/
 
@@ -1662,32 +2091,32 @@ typenode_simple_repr(TypeNode *self) {
         return PyUnicode_FromString("any");
     }
     if (self->types & MS_TYPE_BOOL) {
-        if (!strbuilder_extend(&builder, "bool", 4)) return NULL;
+        if (!strbuilder_extend_literal(&builder, "bool")) return NULL;
     }
     if (self->types & (MS_TYPE_INT | MS_TYPE_INTENUM | MS_TYPE_INTLITERAL)) {
-        if (!strbuilder_extend(&builder, "int", 3)) return NULL;
+        if (!strbuilder_extend_literal(&builder, "int")) return NULL;
     }
     if (self->types & MS_TYPE_FLOAT) {
-        if (!strbuilder_extend(&builder, "float", 5)) return NULL;
+        if (!strbuilder_extend_literal(&builder, "float")) return NULL;
     }
     if (self->types & (MS_TYPE_STR | MS_TYPE_ENUM | MS_TYPE_STRLITERAL)) {
-        if (!strbuilder_extend(&builder, "str", 3)) return NULL;
+        if (!strbuilder_extend_literal(&builder, "str")) return NULL;
     }
     if (self->types & (MS_TYPE_BYTES | MS_TYPE_BYTEARRAY)) {
-        if (!strbuilder_extend(&builder, "bytes", 5)) return NULL;
+        if (!strbuilder_extend_literal(&builder, "bytes")) return NULL;
     }
     if (self->types & MS_TYPE_DATETIME) {
-        if (!strbuilder_extend(&builder, "datetime", 8)) return NULL;
+        if (!strbuilder_extend_literal(&builder, "datetime")) return NULL;
     }
     if (self->types & MS_TYPE_EXT) {
-        if (!strbuilder_extend(&builder, "ext", 3)) return NULL;
+        if (!strbuilder_extend_literal(&builder, "ext")) return NULL;
     }
     if (self->types & (
             MS_TYPE_STRUCT | MS_TYPE_STRUCT_UNION |
             MS_TYPE_TYPEDDICT | MS_TYPE_DICT
         )
     ) {
-        if (!strbuilder_extend(&builder, "object", 6)) return NULL;
+        if (!strbuilder_extend_literal(&builder, "object")) return NULL;
     }
     if (
         self->types & (
@@ -1696,10 +2125,10 @@ typenode_simple_repr(TypeNode *self) {
             MS_TYPE_VARTUPLE | MS_TYPE_FIXTUPLE | MS_TYPE_NAMEDTUPLE
         )
     ) {
-        if (!strbuilder_extend(&builder, "array", 5)) return NULL;
+        if (!strbuilder_extend_literal(&builder, "array")) return NULL;
     }
     if (self->types & MS_TYPE_NONE) {
-        if (!strbuilder_extend(&builder, "null", 4)) return NULL;
+        if (!strbuilder_extend_literal(&builder, "null")) return NULL;
     }
 
     return strbuilder_build(&builder);
@@ -2815,7 +3244,7 @@ PathNode_ErrSuffix(PathNode *path) {
     path_orig = path;
 
     /* Start with the root element */
-    if (!strbuilder_extend(&parts, "`$", 2)) goto cleanup;
+    if (!strbuilder_extend_literal(&parts, "`$")) goto cleanup;
 
     while (path != NULL) {
         if (path->object != NULL) {
@@ -2829,29 +3258,29 @@ PathNode_ErrSuffix(PathNode *path) {
                     path->index
                 );
             }
-            if (!strbuilder_extend(&parts, ".", 1)) goto cleanup;
+            if (!strbuilder_extend_literal(&parts, ".")) goto cleanup;
             if (!strbuilder_extend_unicode(&parts, name)) goto cleanup;
         }
         else if (path->index == PATH_ELLIPSIS) {
-            if (!strbuilder_extend(&parts, "[...]", 5)) goto cleanup;
+            if (!strbuilder_extend_literal(&parts, "[...]")) goto cleanup;
         }
         else if (path->index == PATH_KEY) {
             if (groups == NULL) {
                 groups = PyList_New(0);
                 if (groups == NULL) goto cleanup;
             }
-            if (!strbuilder_extend(&parts, "`", 1)) goto cleanup;
+            if (!strbuilder_extend_literal(&parts, "`")) goto cleanup;
             group = strbuilder_build(&parts);
             if (group == NULL) goto cleanup;
             if (PyList_Append(groups, group) < 0) goto cleanup;
             Py_CLEAR(group);
-            strbuilder_extend(&parts, "`key", 4);
+            strbuilder_extend_literal(&parts, "`key");
         }
         else {
             char buf[20];
             char *p = &buf[20];
             Py_ssize_t x = path->index;
-            if (!strbuilder_extend(&parts, "[", 1)) goto cleanup;
+            if (!strbuilder_extend_literal(&parts, "[")) goto cleanup;
             while (x >= 100) {
                 const int64_t old = x;
                 p -= 2;
@@ -2866,11 +3295,11 @@ PathNode_ErrSuffix(PathNode *path) {
                 *--p = x + '0';
             }
             if (!strbuilder_extend(&parts, p, &buf[20] - p)) goto cleanup;
-            if (!strbuilder_extend(&parts, "]", 1)) goto cleanup;
+            if (!strbuilder_extend_literal(&parts, "]")) goto cleanup;
         }
         path = path->parent;
     }
-    if (!strbuilder_extend(&parts, "`", 1)) goto cleanup;
+    if (!strbuilder_extend_literal(&parts, "`")) goto cleanup;
 
     if (groups == NULL) {
         path_repr = strbuilder_build(&parts);
@@ -12134,6 +12563,7 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->types_uniontype);
 #endif
     Py_CLEAR(st->astimezone);
+    Py_CLEAR(st->re_compile);
     Py_CLEAR(st->deepcopy);
     return 0;
 }
@@ -12212,6 +12642,7 @@ msgspec_traverse(PyObject *m, visitproc visit, void *arg)
     Py_VISIT(st->types_uniontype);
 #endif
     Py_VISIT(st->astimezone);
+    Py_VISIT(st->re_compile);
     Py_VISIT(st->deepcopy);
     return 0;
 }
@@ -12249,6 +12680,8 @@ PyInit__core(void)
         return NULL;
     if (PyType_Ready(&NamedTupleInfo_Type) < 0)
         return NULL;
+    if (PyType_Ready(&Meta_Type) < 0)
+        return NULL;
     if (PyType_Ready(&StructMetaType) < 0)
         return NULL;
     if (PyType_Ready(&StructMixinType) < 0)
@@ -12272,17 +12705,20 @@ PyInit__core(void)
         return NULL;
 
     /* Add types */
-    Py_INCREF(&Encoder_Type);
-    if (PyModule_AddObject(m, "MsgpackEncoder", (PyObject *)&Encoder_Type) < 0)
-        return NULL;
-    Py_INCREF(&Decoder_Type);
-    if (PyModule_AddObject(m, "MsgpackDecoder", (PyObject *)&Decoder_Type) < 0)
+    Py_INCREF(&Meta_Type);
+    if (PyModule_AddObject(m, "Meta", (PyObject *)&Meta_Type) < 0)
         return NULL;
     Py_INCREF(&Ext_Type);
     if (PyModule_AddObject(m, "Ext", (PyObject *)&Ext_Type) < 0)
         return NULL;
     Py_INCREF(&Raw_Type);
     if (PyModule_AddObject(m, "Raw", (PyObject *)&Raw_Type) < 0)
+        return NULL;
+    Py_INCREF(&Encoder_Type);
+    if (PyModule_AddObject(m, "MsgpackEncoder", (PyObject *)&Encoder_Type) < 0)
+        return NULL;
+    Py_INCREF(&Decoder_Type);
+    if (PyModule_AddObject(m, "MsgpackDecoder", (PyObject *)&Decoder_Type) < 0)
         return NULL;
     Py_INCREF(&JSONEncoder_Type);
     if (PyModule_AddObject(m, "JSONEncoder", (PyObject *)&JSONEncoder_Type) < 0)
@@ -12412,25 +12848,27 @@ PyInit__core(void)
 
     /* Get the datetime.datetime.astimezone method */
     temp_module = PyImport_ImportModule("datetime");
-    if (temp_module == NULL)
-        return NULL;
+    if (temp_module == NULL) return NULL;
     temp_obj = PyObject_GetAttrString(temp_module, "datetime");
     Py_DECREF(temp_module);
-    if (temp_obj == NULL)
-        return NULL;
+    if (temp_obj == NULL) return NULL;
     st->astimezone = PyObject_GetAttrString(temp_obj, "astimezone");
     Py_DECREF(temp_obj);
-    if (st->astimezone == NULL)
-        return NULL;
+    if (st->astimezone == NULL) return NULL;
+
+    /* Get the re.compile function */
+    temp_module = PyImport_ImportModule("re");
+    if (temp_module == NULL) return NULL;
+    st->re_compile = PyObject_GetAttrString(temp_module, "compile");
+    Py_DECREF(temp_module);
+    if (st->re_compile == NULL) return NULL;
 
     /* Get the copy.deepcopy function */
     temp_module = PyImport_ImportModule("copy");
-    if (temp_module == NULL)
-        return NULL;
+    if (temp_module == NULL) return NULL;
     st->deepcopy = PyObject_GetAttrString(temp_module, "deepcopy");
     Py_DECREF(temp_module);
-    if (st->deepcopy == NULL)
-        return NULL;
+    if (st->deepcopy == NULL) return NULL;
 
     /* Initialize cached constant strings */
 #define CACHED_STRING(attr, str) \
