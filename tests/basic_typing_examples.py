@@ -249,6 +249,54 @@ def check_defstruct_config_options() -> None:
     )
 
 ##########################################################
+# Meta                                                   #
+##########################################################
+
+def check_meta_constructor() -> None:
+    msgspec.Meta()
+    for val in [1, 1.5, None]:
+        msgspec.Meta(gt=val)
+        msgspec.Meta(ge=val)
+        msgspec.Meta(lt=val)
+        msgspec.Meta(le=val)
+        msgspec.Meta(multiple_of=val)
+    for val2 in ["string", None]:
+        msgspec.Meta(pattern=val2)
+        msgspec.Meta(title=val2)
+        msgspec.Meta(description=val2)
+    for val3 in [1, None]:
+        msgspec.Meta(min_length=val3)
+        msgspec.Meta(max_length=val3)
+    for val4 in [[1, 2, 3], None]:
+        msgspec.Meta(examples=val4)
+    for val5 in [{"foo": "bar"}, None]:
+        msgspec.Meta(extra_json_schema=val5)
+
+
+def check_meta_attributes() -> None:
+    c = msgspec.Meta()
+    print(c.gt)
+    print(c.ge)
+    print(c.lt)
+    print(c.le)
+    print(c.multiple_of)
+    print(c.pattern)
+    print(c.min_length)
+    print(c.max_length)
+    print(c.title)
+    print(c.description)
+    print(c.examples)
+    print(c.extra_json_schema)
+
+
+def check_meta_equal() -> None:
+    c1 = msgspec.Meta()
+    c2 = msgspec.Meta()
+    if c1 == c2:
+        print("ok")
+
+
+##########################################################
 # Raw                                                    #
 ##########################################################
 

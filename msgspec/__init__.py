@@ -2,6 +2,7 @@ from ._core import (
     Struct,
     defstruct,
     Raw,
+    Meta,
     MsgspecError,
     EncodeError,
     DecodeError,
