@@ -107,11 +107,9 @@ class TestMetaObject:
         with pytest.raises(ValueError, match=f"`{field}` must be finite"):
             Meta(**{field: float("inf")})
 
-    @pytest.mark.parametrize("val", [0, 0.0, 2**53, float(2**53)])
+    @pytest.mark.parametrize("val", [0, 0.0])
     def test_multiple_of_bounds(self, val):
-        with pytest.raises(
-            ValueError, match=r"`multiple_of` must be > 0 and < 2\*\*53"
-        ):
+        with pytest.raises(ValueError, match=r"`multiple_of` must be > 0"):
             Meta(multiple_of=val)
 
     @pytest.mark.parametrize("field", ["min_length", "max_length"])
