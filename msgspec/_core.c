@@ -23,14 +23,14 @@
 #endif
 
 #ifdef __GNUC__
-#define ms_popcount(i) __builtin_popcount(i)
+#define ms_popcount(i) __builtin_popcountll(i)
 #else
 static int
-ms_popcount(uint32_t i) {
-     i = i - ((i >> 1) & 0x55555555);        // add pairs of bits
-     i = (i & 0x33333333) + ((i >> 2) & 0x33333333);  // quads
-     i = (i + (i >> 4)) & 0x0F0F0F0F;        // groups of 8
-     return (i * 0x01010101) >> 24;          // horizontal sum of bytes
+ms_popcount(uint64_t i) {                            \
+    i = i - ((i >> 1) & 0x5555555555555555);  // pairs
+    i = (i & 0x3333333333333333) + ((i >> 2) & 0x3333333333333333);  // quads
+    i = (i + (i >> 4)) & 0x0F0F0F0F0F0F0F0F;  // groups of 8
+    return (uint64_t)(i * 0x0101010101010101) >> 56;  // sum bytes
 }
 #endif
 
@@ -1425,7 +1425,7 @@ ensure_is_nonnegative_integer(PyObject *val, const char *param) {
 }
 
 static bool
-ensure_is_finite_numeric(PyObject *val, const char *param, bool pos_53bit) {
+ensure_is_finite_numeric(PyObject *val, const char *param, bool positive) {
     double x;
     if (PyLong_CheckExact(val)) {
         x = PyLong_AsDouble(val);
@@ -1449,10 +1449,8 @@ ensure_is_finite_numeric(PyObject *val, const char *param, bool pos_53bit) {
         );
         return false;
     }
-    if (pos_53bit && !(x > 0 && x < 1ul << 53)) {
-        PyErr_Format(
-            PyExc_ValueError, "`%s` must be > 0 and < 2**53", param
-        );
+    if (positive && x <= 0) {
+        PyErr_Format(PyExc_ValueError, "`%s` must be > 0", param);
         return false;
     }
     return true;
@@ -1835,25 +1833,23 @@ static PyTypeObject Meta_Type = {
 #define MS_TYPE_NAMEDTUPLE          (1ull << 28)
 /* Constraints */
 #define MS_CONSTR_REQUIRED          (1ull << 32)
-#define MS_CONSTR_INT_GT            (1ull << 33)
-#define MS_CONSTR_INT_GE            (1ull << 34)
-#define MS_CONSTR_INT_LT            (1ull << 35)
-#define MS_CONSTR_INT_LE            (1ull << 36)
-#define MS_CONSTR_INT_MULTIPLE_OF   (1ull << 37)
-#define MS_CONSTR_FLOAT_GT          (1ull << 38)
-#define MS_CONSTR_FLOAT_GE          (1ull << 39)
-#define MS_CONSTR_FLOAT_LT          (1ull << 40)
-#define MS_CONSTR_FLOAT_LE          (1ull << 41)
-#define MS_CONSTR_FLOAT_MULTIPLE_OF (1ull << 42)
-#define MS_CONSTR_STR_REGEX         (1ull << 43)
-#define MS_CONSTR_STR_MIN_LENGTH    (1ull << 44)
-#define MS_CONSTR_STR_MAX_LENGTH    (1ull << 45)
-#define MS_CONSTR_BYTES_MIN_LENGTH  (1ull << 46)
-#define MS_CONSTR_BYTES_MAX_LENGTH  (1ull << 47)
-#define MS_CONSTR_ARRAY_MIN_LENGTH  (1ull << 48)
-#define MS_CONSTR_ARRAY_MAX_LENGTH  (1ull << 49)
-#define MS_CONSTR_MAP_MIN_LENGTH    (1ull << 50)
-#define MS_CONSTR_MAP_MAX_LENGTH    (1ull << 51)
+#define MS_CONSTR_INT_MIN           (1ull << 33)
+#define MS_CONSTR_INT_MAX           (1ull << 34)
+#define MS_CONSTR_INT_MULTIPLE_OF   (1ull << 35)
+#define MS_CONSTR_FLOAT_GT          (1ull << 36)
+#define MS_CONSTR_FLOAT_GE          (1ull << 37)
+#define MS_CONSTR_FLOAT_LT          (1ull << 38)
+#define MS_CONSTR_FLOAT_LE          (1ull << 39)
+#define MS_CONSTR_FLOAT_MULTIPLE_OF (1ull << 40)
+#define MS_CONSTR_STR_REGEX         (1ull << 41)
+#define MS_CONSTR_STR_MIN_LENGTH    (1ull << 42)
+#define MS_CONSTR_STR_MAX_LENGTH    (1ull << 43)
+#define MS_CONSTR_BYTES_MIN_LENGTH  (1ull << 44)
+#define MS_CONSTR_BYTES_MAX_LENGTH  (1ull << 45)
+#define MS_CONSTR_ARRAY_MIN_LENGTH  (1ull << 46)
+#define MS_CONSTR_ARRAY_MAX_LENGTH  (1ull << 47)
+#define MS_CONSTR_MAP_MIN_LENGTH    (1ull << 48)
+#define MS_CONSTR_MAP_MAX_LENGTH    (1ull << 49)
 
 /* A TypeNode encodes information about all types at the same hierarchy in the
  * type tree. They can encode both single types (`int`) and unions of types
@@ -1866,7 +1862,7 @@ static PyTypeObject Meta_Type = {
  * which fields are set, a bitmask of `types` is used, masking both the types
  * and constraints set on the node.
  *
- * The order these details are stored in consistent, allowing the offset of a
+ * The order these details are stored is consistent, allowing the offset of a
  * field to be computed using an efficient bitmask and popcount.
  *
  * The order is documented below:
@@ -1878,9 +1874,9 @@ static PyTypeObject Meta_Type = {
  * O | NAMEDTUPLE |
  * O | STR_REGEX |
  * T | DICT [key, value] |
- * T | FIXTUPLE [size, types...] | LIST | SET | FROZENSET | VARTUPLE |
- * I | INT_GT | INT_GE |
- * I | INT_LT | INT_LE |
+ * T | LIST | SET | FROZENSET | VARTUPLE |
+ * I | INT_MIN |
+ * I | INT_MAX |
  * I | INT_MULTIPLE_OF |
  * F | FLOAT_GT | FLOAT_GE |
  * F | FLOAT_LT | FLOAT_LE |
@@ -1893,7 +1889,54 @@ static PyTypeObject Meta_Type = {
  * S | ARRAY_MAX_LENGTH |
  * S | MAP_MIN_LENGTH |
  * S | MAP_MAX_LENGTH |
+ * T | FIXTUPLE [size, types ...] |
  * */
+
+#define SLOT_00 ( \
+    MS_TYPE_STRUCT | MS_TYPE_STRUCT_ARRAY | \
+    MS_TYPE_STRUCT_UNION | MS_TYPE_STRUCT_ARRAY_UNION | \
+    MS_TYPE_CUSTOM | MS_TYPE_CUSTOM_GENERIC \
+)
+#define SLOT_01 (MS_TYPE_INTENUM | MS_TYPE_INTLITERAL)
+#define SLOT_02 (MS_TYPE_ENUM | MS_TYPE_STRLITERAL)
+#define SLOT_03 MS_TYPE_TYPEDDICT
+#define SLOT_04 MS_TYPE_NAMEDTUPLE
+#define SLOT_05 MS_CONSTR_STR_REGEX
+#define SLOT_06 MS_TYPE_DICT
+#define SLOT_07 (MS_TYPE_LIST | MS_TYPE_VARTUPLE | MS_TYPE_SET | MS_TYPE_FROZENSET)
+#define SLOT_08 MS_CONSTR_INT_MIN
+#define SLOT_09 MS_CONSTR_INT_MAX
+#define SLOT_10 MS_CONSTR_INT_MULTIPLE_OF
+#define SLOT_11 (MS_CONSTR_FLOAT_GE | MS_CONSTR_FLOAT_GT)
+#define SLOT_12 (MS_CONSTR_FLOAT_LE | MS_CONSTR_FLOAT_LT)
+#define SLOT_13 MS_CONSTR_FLOAT_MULTIPLE_OF
+#define SLOT_14 MS_CONSTR_STR_MIN_LENGTH
+#define SLOT_15 MS_CONSTR_STR_MAX_LENGTH
+#define SLOT_16 MS_CONSTR_BYTES_MIN_LENGTH
+#define SLOT_17 MS_CONSTR_BYTES_MAX_LENGTH
+#define SLOT_18 MS_CONSTR_ARRAY_MIN_LENGTH
+#define SLOT_19 MS_CONSTR_ARRAY_MAX_LENGTH
+#define SLOT_20 MS_CONSTR_MAP_MIN_LENGTH
+#define SLOT_21 MS_CONSTR_MAP_MAX_LENGTH
+
+/* Is a post decode hook needed? */
+#define MS_REQUIRES_POST_DECODE ( \
+    MS_TYPE_CUSTOM | MS_TYPE_CUSTOM_GENERIC | \
+    MS_CONSTR_INT_MIN | \
+    MS_CONSTR_INT_MAX | \
+    MS_CONSTR_INT_MULTIPLE_OF | \
+    MS_CONSTR_FLOAT_GT | MS_CONSTR_FLOAT_GE | \
+    MS_CONSTR_FLOAT_LT | MS_CONSTR_FLOAT_LE | \
+    MS_CONSTR_FLOAT_MULTIPLE_OF | \
+    MS_CONSTR_STR_MIN_LENGTH | \
+    MS_CONSTR_STR_MAX_LENGTH | \
+    MS_CONSTR_BYTES_MIN_LENGTH | \
+    MS_CONSTR_BYTES_MAX_LENGTH | \
+    MS_CONSTR_ARRAY_MIN_LENGTH | \
+    MS_CONSTR_ARRAY_MAX_LENGTH | \
+    MS_CONSTR_MAP_MIN_LENGTH | \
+    MS_CONSTR_MAP_MAX_LENGTH \
+)
 
 typedef union TypeDetail {
     int64_t i64;
@@ -1994,37 +2037,19 @@ TypeNode_get_custom(TypeNode *type) {
 
 static MS_INLINE IntLookup *
 TypeNode_get_int_enum_or_literal(TypeNode *type) {
-    Py_ssize_t i = ms_popcount(
-        type->types & (
-            MS_TYPE_STRUCT | MS_TYPE_STRUCT_UNION |
-            MS_TYPE_STRUCT_ARRAY | MS_TYPE_STRUCT_ARRAY_UNION
-        )
-    );
+    Py_ssize_t i = ms_popcount(type->types & SLOT_00);
     return type->details[i].pointer;
 }
 
 static MS_INLINE StrLookup *
 TypeNode_get_str_enum_or_literal(TypeNode *type) {
-    Py_ssize_t i = ms_popcount(
-        type->types & (
-            MS_TYPE_STRUCT | MS_TYPE_STRUCT_UNION |
-            MS_TYPE_STRUCT_ARRAY | MS_TYPE_STRUCT_ARRAY_UNION |
-            MS_TYPE_INTENUM | MS_TYPE_INTLITERAL
-        )
-    );
+    Py_ssize_t i = ms_popcount(type->types & (SLOT_00 | SLOT_01));
     return type->details[i].pointer;
 }
 
 static MS_INLINE TypedDictInfo *
 TypeNode_get_typeddict_info(TypeNode *type) {
-    Py_ssize_t i = ms_popcount(
-        type->types & (
-            MS_TYPE_STRUCT | MS_TYPE_STRUCT_UNION |
-            MS_TYPE_STRUCT_ARRAY | MS_TYPE_STRUCT_ARRAY_UNION |
-            MS_TYPE_INTENUM | MS_TYPE_INTLITERAL |
-            MS_TYPE_ENUM | MS_TYPE_STRLITERAL
-        )
-    );
+    Py_ssize_t i = ms_popcount(type->types & (SLOT_00 | SLOT_01 | SLOT_02));
     return type->details[i].pointer;
 }
 
@@ -2032,11 +2057,17 @@ static MS_INLINE NamedTupleInfo *
 TypeNode_get_namedtuple_info(TypeNode *type) {
     Py_ssize_t i = ms_popcount(
         type->types & (
-            MS_TYPE_STRUCT | MS_TYPE_STRUCT_UNION |
-            MS_TYPE_STRUCT_ARRAY | MS_TYPE_STRUCT_ARRAY_UNION |
-            MS_TYPE_INTENUM | MS_TYPE_INTLITERAL |
-            MS_TYPE_ENUM | MS_TYPE_STRLITERAL |
-            MS_TYPE_TYPEDDICT
+            SLOT_00 | SLOT_01 | SLOT_02 | SLOT_03
+        )
+    );
+    return type->details[i].pointer;
+}
+
+static MS_INLINE PyObject *
+TypeNode_get_constr_str_regex(TypeNode *type) {
+    Py_ssize_t i = ms_popcount(
+        type->types & (
+            SLOT_00 | SLOT_01 | SLOT_02 | SLOT_03 | SLOT_04
         )
     );
     return type->details[i].pointer;
@@ -2046,46 +2077,192 @@ static MS_INLINE void
 TypeNode_get_dict(TypeNode *type, TypeNode **key, TypeNode **val) {
     Py_ssize_t i = ms_popcount(
         type->types & (
-            MS_TYPE_STRUCT | MS_TYPE_STRUCT_UNION |
-            MS_TYPE_STRUCT_ARRAY | MS_TYPE_STRUCT_ARRAY_UNION |
-            MS_TYPE_INTENUM | MS_TYPE_INTLITERAL |
-            MS_TYPE_ENUM | MS_TYPE_STRLITERAL |
-            MS_TYPE_TYPEDDICT | MS_TYPE_NAMEDTUPLE
+            SLOT_00 | SLOT_01 | SLOT_02 | SLOT_03 | SLOT_04 | SLOT_05
         )
     );
     *key = type->details[i].pointer;
     *val = type->details[i + 1].pointer;
 }
 
-static MS_INLINE void
-TypeNode_get_fixtuple(TypeNode *type, Py_ssize_t *offset, Py_ssize_t *size) {
-    Py_ssize_t i = ms_popcount(
-        type->types & (
-            MS_TYPE_STRUCT | MS_TYPE_STRUCT_UNION |
-            MS_TYPE_STRUCT_ARRAY | MS_TYPE_STRUCT_ARRAY_UNION |
-            MS_TYPE_INTENUM | MS_TYPE_INTLITERAL |
-            MS_TYPE_ENUM | MS_TYPE_STRLITERAL |
-            MS_TYPE_TYPEDDICT | MS_TYPE_NAMEDTUPLE |
-            MS_TYPE_DICT
-        )
-    );
-    *size = type->details[i].py_ssize_t;
-    *offset = i + 1;
-}
-
 static MS_INLINE TypeNode *
 TypeNode_get_array(TypeNode *type) {
     Py_ssize_t i = ms_popcount(
         type->types & (
-            MS_TYPE_STRUCT | MS_TYPE_STRUCT_UNION |
-            MS_TYPE_STRUCT_ARRAY | MS_TYPE_STRUCT_ARRAY_UNION |
-            MS_TYPE_INTENUM | MS_TYPE_INTLITERAL |
-            MS_TYPE_ENUM | MS_TYPE_STRLITERAL |
-            MS_TYPE_TYPEDDICT | MS_TYPE_NAMEDTUPLE |
-            MS_TYPE_DICT
+            SLOT_00 | SLOT_01 | SLOT_02 | SLOT_03 | SLOT_04 | SLOT_05 | SLOT_06
         )
     );
     return type->details[i].pointer;
+}
+
+static MS_INLINE int64_t
+TypeNode_get_constr_int_min(TypeNode *type) {
+    Py_ssize_t i = ms_popcount(
+        type->types & (
+            SLOT_00 | SLOT_01 | SLOT_02 | SLOT_03 | SLOT_04 | SLOT_05 | SLOT_06 | SLOT_07
+        )
+    );
+    return type->details[i].i64;
+}
+
+static MS_INLINE int64_t
+TypeNode_get_constr_int_max(TypeNode *type) {
+    Py_ssize_t i = ms_popcount(
+        type->types & (
+            SLOT_00 | SLOT_01 | SLOT_02 | SLOT_03 | SLOT_04 | SLOT_05 | SLOT_06 | SLOT_07 |
+            SLOT_08
+        )
+    );
+    return type->details[i].i64;
+}
+
+static MS_INLINE int64_t
+TypeNode_get_constr_int_multiple_of(TypeNode *type) {
+    Py_ssize_t i = ms_popcount(
+        type->types & (
+            SLOT_00 | SLOT_01 | SLOT_02 | SLOT_03 | SLOT_04 | SLOT_05 | SLOT_06 | SLOT_07 |
+            SLOT_08 | SLOT_09
+        )
+    );
+    return type->details[i].i64;
+}
+
+static MS_INLINE double
+TypeNode_get_constr_float_min(TypeNode *type) {
+    Py_ssize_t i = ms_popcount(
+        type->types & (
+            SLOT_00 | SLOT_01 | SLOT_02 | SLOT_03 | SLOT_04 | SLOT_05 | SLOT_06 | SLOT_07 |
+            SLOT_08 | SLOT_09 | SLOT_10
+        )
+    );
+    return type->details[i].f64;
+}
+
+static MS_INLINE double
+TypeNode_get_constr_float_max(TypeNode *type) {
+    Py_ssize_t i = ms_popcount(
+        type->types & (
+            SLOT_00 | SLOT_01 | SLOT_02 | SLOT_03 | SLOT_04 | SLOT_05 | SLOT_06 | SLOT_07 |
+            SLOT_08 | SLOT_09 | SLOT_10 | SLOT_11
+        )
+    );
+    return type->details[i].f64;
+}
+
+static MS_INLINE double
+TypeNode_get_constr_float_multiple_of(TypeNode *type) {
+    Py_ssize_t i = ms_popcount(
+        type->types & (
+            SLOT_00 | SLOT_01 | SLOT_02 | SLOT_03 | SLOT_04 | SLOT_05 | SLOT_06 | SLOT_07 |
+            SLOT_08 | SLOT_09 | SLOT_10 | SLOT_11 | SLOT_12
+        )
+    );
+    return type->details[i].f64;
+}
+
+static MS_INLINE Py_ssize_t
+TypeNode_get_str_min_length(TypeNode *type) {
+    Py_ssize_t i = ms_popcount(
+        type->types & (
+            SLOT_00 | SLOT_01 | SLOT_02 | SLOT_03 | SLOT_04 | SLOT_05 | SLOT_06 | SLOT_07 |
+            SLOT_08 | SLOT_09 | SLOT_10 | SLOT_11 | SLOT_12 | SLOT_13
+        )
+    );
+    return type->details[i].py_ssize_t;
+}
+
+static MS_INLINE Py_ssize_t
+TypeNode_get_str_max_length(TypeNode *type) {
+    Py_ssize_t i = ms_popcount(
+        type->types & (
+            SLOT_00 | SLOT_01 | SLOT_02 | SLOT_03 | SLOT_04 | SLOT_05 | SLOT_06 | SLOT_07 |
+            SLOT_08 | SLOT_09 | SLOT_10 | SLOT_11 | SLOT_12 | SLOT_13 | SLOT_14
+        )
+    );
+    return type->details[i].py_ssize_t;
+}
+
+static MS_INLINE Py_ssize_t
+TypeNode_get_bytes_min_length(TypeNode *type) {
+    Py_ssize_t i = ms_popcount(
+        type->types & (
+            SLOT_00 | SLOT_01 | SLOT_02 | SLOT_03 | SLOT_04 | SLOT_05 | SLOT_06 | SLOT_07 |
+            SLOT_08 | SLOT_09 | SLOT_10 | SLOT_11 | SLOT_12 | SLOT_13 | SLOT_14 | SLOT_15
+        )
+    );
+    return type->details[i].py_ssize_t;
+}
+
+static MS_INLINE Py_ssize_t
+TypeNode_get_bytes_max_length(TypeNode *type) {
+    Py_ssize_t i = ms_popcount(
+        type->types & (
+            SLOT_00 | SLOT_01 | SLOT_02 | SLOT_03 | SLOT_04 | SLOT_05 | SLOT_06 | SLOT_07 |
+            SLOT_08 | SLOT_09 | SLOT_10 | SLOT_11 | SLOT_12 | SLOT_13 | SLOT_14 | SLOT_15 |
+            SLOT_16
+        )
+    );
+    return type->details[i].py_ssize_t;
+}
+
+static MS_INLINE Py_ssize_t
+TypeNode_get_array_min_length(TypeNode *type) {
+    Py_ssize_t i = ms_popcount(
+        type->types & (
+            SLOT_00 | SLOT_01 | SLOT_02 | SLOT_03 | SLOT_04 | SLOT_05 | SLOT_06 | SLOT_07 |
+            SLOT_08 | SLOT_09 | SLOT_10 | SLOT_11 | SLOT_12 | SLOT_13 | SLOT_14 | SLOT_15 |
+            SLOT_16 | SLOT_17
+        )
+    );
+    return type->details[i].py_ssize_t;
+}
+
+static MS_INLINE Py_ssize_t
+TypeNode_get_array_max_length(TypeNode *type) {
+    Py_ssize_t i = ms_popcount(
+        type->types & (
+            SLOT_00 | SLOT_01 | SLOT_02 | SLOT_03 | SLOT_04 | SLOT_05 | SLOT_06 | SLOT_07 |
+            SLOT_08 | SLOT_09 | SLOT_10 | SLOT_11 | SLOT_12 | SLOT_13 | SLOT_14 | SLOT_15 |
+            SLOT_16 | SLOT_17 | SLOT_18
+        )
+    );
+    return type->details[i].py_ssize_t;
+}
+
+static MS_INLINE Py_ssize_t
+TypeNode_get_map_min_length(TypeNode *type) {
+    Py_ssize_t i = ms_popcount(
+        type->types & (
+            SLOT_00 | SLOT_01 | SLOT_02 | SLOT_03 | SLOT_04 | SLOT_05 | SLOT_06 | SLOT_07 |
+            SLOT_08 | SLOT_09 | SLOT_10 | SLOT_11 | SLOT_12 | SLOT_13 | SLOT_14 | SLOT_15 |
+            SLOT_16 | SLOT_17 | SLOT_18 | SLOT_19
+        )
+    );
+    return type->details[i].py_ssize_t;
+}
+
+static MS_INLINE Py_ssize_t
+TypeNode_get_map_max_length(TypeNode *type) {
+    Py_ssize_t i = ms_popcount(
+        type->types & (
+            SLOT_00 | SLOT_01 | SLOT_02 | SLOT_03 | SLOT_04 | SLOT_05 | SLOT_06 | SLOT_07 |
+            SLOT_08 | SLOT_09 | SLOT_10 | SLOT_11 | SLOT_12 | SLOT_13 | SLOT_14 | SLOT_15 |
+            SLOT_16 | SLOT_17 | SLOT_18 | SLOT_19 | SLOT_20
+        )
+    );
+    return type->details[i].py_ssize_t;
+}
+
+static MS_INLINE void
+TypeNode_get_fixtuple(TypeNode *type, Py_ssize_t *offset, Py_ssize_t *size) {
+    Py_ssize_t i = ms_popcount(
+        type->types & (
+            SLOT_00 | SLOT_01 | SLOT_02 | SLOT_03 | SLOT_04 | SLOT_05 | SLOT_06 | SLOT_07 |
+            SLOT_08 | SLOT_09 | SLOT_10 | SLOT_11 | SLOT_12 | SLOT_13 | SLOT_14 | SLOT_15 |
+            SLOT_16 | SLOT_17 | SLOT_18 | SLOT_19 | SLOT_20 | SLOT_21
+        )
+    );
+    *size = type->details[i].py_ssize_t;
+    *offset = i + 1;
 }
 
 static void
@@ -2232,6 +2409,44 @@ typedef struct {
     PyObject *max_length;
 } Constraints;
 
+typedef struct {
+    MsgspecState *mod;
+    PyObject *context;
+    uint64_t types;
+    PyObject *struct_obj;
+    PyObject *structs_set;
+    PyObject *structs_lookup;
+    PyObject *intenum_obj;
+    PyObject *enum_obj;
+    PyObject *custom_obj;
+    PyObject *array_el_obj;
+    PyObject *dict_key_obj;
+    PyObject *dict_val_obj;
+    PyObject *typeddict_obj;
+    PyObject *namedtuple_obj;
+    PyObject *literals;
+    PyObject *int_literal_values;
+    PyObject *int_literal_lookup;
+    PyObject *str_literal_values;
+    PyObject *str_literal_lookup;
+    /* Constraints */
+    int64_t c_int_min;
+    int64_t c_int_max;
+    int64_t c_int_multiple_of;
+    double c_float_min;
+    double c_float_max;
+    double c_float_multiple_of;
+    PyObject *c_str_regex;
+    Py_ssize_t c_str_min_length;
+    Py_ssize_t c_str_max_length;
+    Py_ssize_t c_bytes_min_length;
+    Py_ssize_t c_bytes_max_length;
+    Py_ssize_t c_array_min_length;
+    Py_ssize_t c_array_max_length;
+    Py_ssize_t c_map_min_length;
+    Py_ssize_t c_map_max_length;
+} TypeNodeCollectState;
+
 static MS_INLINE bool
 constraints_is_empty(Constraints *self) {
     return (
@@ -2256,7 +2471,7 @@ _set_constraint(PyObject *source, PyObject **target, const char *name, PyObject 
     PyErr_Format(
         PyExc_TypeError,
         "Multiple `Meta` annotations setting `%s` found, "
-        "type `%R` is not supported",
+        "type `%R` is invalid",
         name, type
     );
     return -1;
@@ -2275,78 +2490,260 @@ constraints_update(Constraints *self, Meta *meta, PyObject *type) {
     set_constraint(regex);
     set_constraint(min_length);
     set_constraint(max_length);
+    if (self->gt != NULL && self->ge != NULL) {
+        PyErr_Format(
+            PyExc_TypeError,
+            "Cannot set both `gt` and `ge` on the same annotated type, "
+            "type `%R` is invalid",
+            type
+        );
+        return -1;
+    }
+    if (self->lt != NULL && self->le != NULL) {
+        PyErr_Format(
+            PyExc_TypeError,
+            "Cannot set both `lt` and `le` on the same annotated type, "
+            "type `%R` is invalid",
+            type
+        );
+        return -1;
+    }
     return 0;
 #undef set_constraint
 }
 
-typedef struct {
-    MsgspecState *mod;
-    PyObject *context;
-    uint64_t types;
-    PyObject *struct_obj;
-    PyObject *structs_set;
-    PyObject *structs_lookup;
-    PyObject *intenum_obj;
-    PyObject *enum_obj;
-    PyObject *custom_obj;
-    PyObject *array_el_obj;
-    PyObject *dict_key_obj;
-    PyObject *dict_val_obj;
-    PyObject *typeddict_obj;
-    PyObject *namedtuple_obj;
-    PyObject *literals;
-    PyObject *int_literal_values;
-    PyObject *int_literal_lookup;
-    PyObject *str_literal_values;
-    PyObject *str_literal_lookup;
-    /* Constraints */
-    int64_t c_int_gt;
-    int64_t c_int_ge;
-    int64_t c_int_lt;
-    int64_t c_int_le;
-    double c_int_multiple_of;
-    double c_float_gt;
-    double c_float_ge;
-    double c_float_lt;
-    double c_float_le;
-    double c_float_multiple_of;
-    PyObject *c_str_regex;
-    Py_ssize_t c_str_min_length;
-    Py_ssize_t c_str_max_length;
-    Py_ssize_t c_bytes_min_length;
-    Py_ssize_t c_bytes_max_length;
-    Py_ssize_t c_array_min_length;
-    Py_ssize_t c_array_max_length;
-    Py_ssize_t c_map_min_length;
-    Py_ssize_t c_map_max_length;
-} TypeNodeCollectState;
+enum constraint_kind {
+    CK_INT = 0,
+    CK_FLOAT = 1,
+    CK_STR = 2,
+    CK_BYTES = 3,
+    CK_ARRAY = 4,
+    CK_MAP = 5,
+    CK_OTHER = 6,
+};
 
-static int typenode_collect_type_full(TypeNodeCollectState*, PyObject*, Constraints*);
+static int
+err_invalid_constraint(const char *name, const char *kind, PyObject *obj) {
+    PyErr_Format(
+        PyExc_TypeError,
+        "Can only set `%s` on a %s type - type `%R` is invalid",
+        name, kind, obj
+    );
+    return -1;
+}
+
+static bool
+_constr_as_i64(PyObject *obj, int64_t *target, int offset) {
+    int overflow;
+    int64_t x = PyLong_AsLongLongAndOverflow(obj, &overflow);
+    if (overflow != 0) {
+        PyErr_SetString(
+            PyExc_ValueError,
+            "Integer bounds constraints (`ge`, `le`, ...) that don't fit in an "
+            "int64 are currently unsupported. If you need this feature, please "
+            "open an issue on GitHub"
+        );
+        return false;
+    }
+    else if (x == -1 && PyErr_Occurred()) {
+        return false;
+    }
+    /* Do offsets for lt/gt */
+    if (offset == -1) {
+        if (x == (-1LL << 63)) {
+            PyErr_SetString(PyExc_ValueError, "lt <= -2**63 is not supported");
+            return false;
+        }
+        x -= 1;
+    }
+    else if (offset == 1) {
+        if (x == ((1ULL << 63) - 1)) {
+            PyErr_SetString(PyExc_ValueError, "gt >= 2**63 - 1 is not supported");
+            return false;
+        }
+        x += 1;
+    }
+
+    *target = x;
+    return true;
+}
+
+static bool
+_constr_as_f64(PyObject *obj, double *target) {
+    double x = PyFloat_AsDouble(obj);
+    if (x == -1.0 && PyErr_Occurred()) return false;
+    *target = x;
+    return true;
+}
+
+static bool
+_constr_as_py_ssize_t(PyObject *obj, Py_ssize_t *target) {
+    Py_ssize_t x = PyLong_AsSsize_t(obj);
+    if (x == -1 && PyErr_Occurred()) return false;
+    *target = x;
+    return true;
+}
+
+static int
+typenode_collect_constraints(
+    TypeNodeCollectState *state,
+    Constraints *constraints,
+    enum constraint_kind kind,
+    PyObject *obj
+) {
+    /* If no constraints, do nothing */
+    if (constraints == NULL) return 0;
+    if (constraints_is_empty(constraints)) return 0;
+
+    /* Check that the constraints are valid for the corresponding type */
+    if (kind != CK_INT && kind != CK_FLOAT) {
+        if (constraints->gt != NULL) return err_invalid_constraint("gt", "numeric", obj);
+        if (constraints->ge != NULL) return err_invalid_constraint("ge", "numeric", obj);
+        if (constraints->lt != NULL) return err_invalid_constraint("lt", "numeric", obj);
+        if (constraints->le != NULL) return err_invalid_constraint("le", "numeric", obj);
+        if (constraints->multiple_of != NULL) return err_invalid_constraint("multiple_of", "numeric", obj);
+    }
+    if (kind != CK_STR) {
+        if (constraints->regex != NULL) return err_invalid_constraint("pattern", "str", obj);
+    }
+    if (kind != CK_STR && kind != CK_BYTES && kind != CK_ARRAY && kind != CK_MAP) {
+        if (constraints->min_length != NULL) return err_invalid_constraint("min_length", "str or container", obj);
+        if (constraints->max_length != NULL) return err_invalid_constraint("max_length", "str or container", obj);
+    }
+
+    /* Next attempt to fill in the state. */
+    if (kind == CK_INT) {
+        if (constraints->gt != NULL) {
+            state->types |= MS_CONSTR_INT_MIN;
+            if (!_constr_as_i64(constraints->gt, &(state->c_int_min), 1)) return -1;
+        }
+        else if (constraints->ge != NULL) {
+            state->types |= MS_CONSTR_INT_MIN;
+            if (!_constr_as_i64(constraints->ge, &(state->c_int_min), 0)) return -1;
+        }
+        if (constraints->lt != NULL) {
+            state->types |= MS_CONSTR_INT_MAX;
+            if (!_constr_as_i64(constraints->lt, &(state->c_int_max), -1)) return -1;
+            state->c_int_min -= 1;
+        }
+        else if (constraints->le != NULL) {
+            state->types |= MS_CONSTR_INT_MAX;
+            if (!_constr_as_i64(constraints->le, &(state->c_int_max), 0)) return -1;
+        }
+        if (constraints->multiple_of != NULL) {
+            state->types |= MS_CONSTR_INT_MULTIPLE_OF;
+            if (!_constr_as_i64(constraints->multiple_of, &(state->c_int_multiple_of), 0)) return -1;
+        }
+    }
+    else if (kind == CK_FLOAT) {
+        if (constraints->gt != NULL) {
+            state->types |= MS_CONSTR_FLOAT_GT;
+            if (!_constr_as_f64(constraints->gt, &(state->c_float_min))) return -1;
+        }
+        else if (constraints->ge != NULL) {
+            state->types |= MS_CONSTR_FLOAT_GE;
+            if (!_constr_as_f64(constraints->ge, &(state->c_float_min))) return -1;
+        }
+        if (constraints->lt != NULL) {
+            state->types |= MS_CONSTR_FLOAT_LT;
+            if (!_constr_as_f64(constraints->lt, &(state->c_float_max))) return -1;
+        }
+        else if (constraints->le != NULL) {
+            state->types |= MS_CONSTR_FLOAT_LE;
+            if (!_constr_as_f64(constraints->le, &(state->c_float_max))) return -1;
+        }
+        if (constraints->multiple_of != NULL) {
+            state->types |= MS_CONSTR_FLOAT_MULTIPLE_OF;
+            if (!_constr_as_f64(constraints->multiple_of, &(state->c_float_multiple_of))) return -1;
+        }
+    }
+    else if (kind == CK_STR) {
+        if (constraints->regex != NULL) {
+            state->types |= MS_CONSTR_STR_REGEX;
+            Py_INCREF(constraints->regex);
+            state->c_str_regex = constraints->regex;
+        }
+        if (constraints->min_length != NULL) {
+            state->types |= MS_CONSTR_STR_MIN_LENGTH;
+            if (!_constr_as_py_ssize_t(constraints->min_length, &(state->c_str_min_length))) return -1;
+        }
+        if (constraints->max_length != NULL) {
+            state->types |= MS_CONSTR_STR_MAX_LENGTH;
+            if (!_constr_as_py_ssize_t(constraints->max_length, &(state->c_str_max_length))) return -1;
+        }
+    }
+    else if (kind == CK_BYTES) {
+        if (constraints->min_length != NULL) {
+            state->types |= MS_CONSTR_BYTES_MIN_LENGTH;
+            if (!_constr_as_py_ssize_t(constraints->min_length, &(state->c_bytes_min_length))) return -1;
+        }
+        if (constraints->max_length != NULL) {
+            state->types |= MS_CONSTR_BYTES_MAX_LENGTH;
+            if (!_constr_as_py_ssize_t(constraints->max_length, &(state->c_bytes_max_length))) return -1;
+        }
+    }
+    else if (kind == CK_ARRAY) {
+        if (constraints->min_length != NULL) {
+            state->types |= MS_CONSTR_ARRAY_MIN_LENGTH;
+            if (!_constr_as_py_ssize_t(constraints->min_length, &(state->c_array_min_length))) return -1;
+        }
+        if (constraints->max_length != NULL) {
+            state->types |= MS_CONSTR_ARRAY_MAX_LENGTH;
+            if (!_constr_as_py_ssize_t(constraints->max_length, &(state->c_array_max_length))) return -1;
+        }
+    }
+    else if (kind == CK_MAP) {
+        if (constraints->min_length != NULL) {
+            state->types |= MS_CONSTR_MAP_MIN_LENGTH;
+            if (!_constr_as_py_ssize_t(constraints->min_length, &(state->c_map_min_length))) return -1;
+        }
+        if (constraints->max_length != NULL) {
+            state->types |= MS_CONSTR_MAP_MAX_LENGTH;
+            if (!_constr_as_py_ssize_t(constraints->max_length, &(state->c_map_max_length))) return -1;
+        }
+    }
+    return 0;
+}
+
+static int typenode_collect_type_full(TypeNodeCollectState*, PyObject*, enum constraint_kind *);
 
 static TypeNode *
 typenode_from_collect_state(TypeNodeCollectState *state, bool err_not_json, bool *json_compatible) {
     Py_ssize_t e_ind, n_extra = 0, fixtuple_size = 0;
     bool has_fixtuple = false;
 
-    if (state->struct_obj != NULL) n_extra++;
-    if (state->structs_lookup != NULL) n_extra++;
-    if (state->intenum_obj != NULL) n_extra++;
-    if (state->int_literal_lookup != NULL) n_extra++;
-    if (state->enum_obj != NULL) n_extra++;
-    if (state->str_literal_lookup != NULL) n_extra++;
-    if (state->custom_obj != NULL) n_extra++;
-    if (state->typeddict_obj != NULL) n_extra++;
-    if (state->namedtuple_obj != NULL) n_extra++;
-    if (state->dict_key_obj != NULL) n_extra += 2;
-    if (state->array_el_obj != NULL) {
-        if (PyTuple_Check(state->array_el_obj)) {
-            has_fixtuple = true;
-            fixtuple_size = PyTuple_GET_SIZE(state->array_el_obj);
-            n_extra += fixtuple_size + 1;
-        }
-        else {
-            n_extra++;
-        }
+    n_extra = ms_popcount(
+        state->types & (
+            MS_TYPE_STRUCT | MS_TYPE_STRUCT_ARRAY |
+            MS_TYPE_STRUCT_UNION | MS_TYPE_STRUCT_ARRAY_UNION |
+            MS_TYPE_CUSTOM | MS_TYPE_CUSTOM_GENERIC |
+            MS_TYPE_INTENUM | MS_TYPE_INTLITERAL |
+            MS_TYPE_ENUM | MS_TYPE_STRLITERAL |
+            MS_TYPE_TYPEDDICT |
+            MS_TYPE_NAMEDTUPLE |
+            MS_CONSTR_STR_REGEX |
+            MS_TYPE_DICT |
+            MS_TYPE_LIST | MS_TYPE_SET | MS_TYPE_FROZENSET | MS_TYPE_VARTUPLE |
+            MS_CONSTR_INT_MIN |
+            MS_CONSTR_INT_MAX |
+            MS_CONSTR_INT_MULTIPLE_OF |
+            MS_CONSTR_FLOAT_GT | MS_CONSTR_FLOAT_GE |
+            MS_CONSTR_FLOAT_LT | MS_CONSTR_FLOAT_LE |
+            MS_CONSTR_FLOAT_MULTIPLE_OF |
+            MS_CONSTR_STR_MIN_LENGTH |
+            MS_CONSTR_STR_MAX_LENGTH |
+            MS_CONSTR_BYTES_MIN_LENGTH |
+            MS_CONSTR_BYTES_MAX_LENGTH |
+            MS_CONSTR_ARRAY_MIN_LENGTH |
+            MS_CONSTR_ARRAY_MAX_LENGTH |
+            MS_CONSTR_MAP_MIN_LENGTH |
+            MS_CONSTR_MAP_MAX_LENGTH
+        )
+    );
+    if (state->types & MS_TYPE_FIXTUPLE) {
+        has_fixtuple = true;
+        fixtuple_size = PyTuple_GET_SIZE(state->array_el_obj);
+        n_extra += fixtuple_size + 1;
     }
 
     if (n_extra == 0) {
@@ -2460,6 +2857,10 @@ typenode_from_collect_state(TypeNodeCollectState *state, bool err_not_json, bool
         if (info == NULL) goto error;
         out->details[e_ind++].pointer = info;
     }
+    if (state->types & MS_CONSTR_STR_REGEX) {
+        Py_INCREF(state->c_str_regex);
+        out->details[e_ind++].pointer = state->c_str_regex;
+    }
     if (state->dict_key_obj != NULL) {
         TypeNode *temp = TypeNode_Convert(state->dict_key_obj, err_not_json, json_compatible);
         if (temp == NULL) goto error;
@@ -2503,6 +2904,48 @@ typenode_from_collect_state(TypeNodeCollectState *state, bool err_not_json, bool
             if (temp == NULL) goto error;
             out->details[e_ind++].pointer = temp;
         }
+    }
+    if (state->types & MS_CONSTR_INT_MIN) {
+        out->details[e_ind++].i64 = state->c_int_min;
+    }
+    if (state->types & MS_CONSTR_INT_MAX) {
+        out->details[e_ind++].i64 = state->c_int_max;
+    }
+    if (state->types & MS_CONSTR_INT_MULTIPLE_OF) {
+        out->details[e_ind++].i64 = state->c_int_multiple_of;
+    }
+    if (state->types & (MS_CONSTR_FLOAT_GT | MS_CONSTR_FLOAT_GE)) {
+        out->details[e_ind++].f64 = state->c_float_min;
+    }
+    if (state->types & (MS_CONSTR_FLOAT_LT | MS_CONSTR_FLOAT_LE)) {
+        out->details[e_ind++].f64 = state->c_float_max;
+    }
+    if (state->types & MS_CONSTR_FLOAT_MULTIPLE_OF) {
+        out->details[e_ind++].f64 = state->c_float_multiple_of;
+    }
+    if (state->types & MS_CONSTR_STR_MIN_LENGTH) {
+        out->details[e_ind++].py_ssize_t = state->c_str_min_length;
+    }
+    if (state->types & MS_CONSTR_STR_MAX_LENGTH) {
+        out->details[e_ind++].py_ssize_t = state->c_str_max_length;
+    }
+    if (state->types & MS_CONSTR_BYTES_MIN_LENGTH) {
+        out->details[e_ind++].py_ssize_t = state->c_bytes_min_length;
+    }
+    if (state->types & MS_CONSTR_BYTES_MAX_LENGTH) {
+        out->details[e_ind++].py_ssize_t = state->c_bytes_max_length;
+    }
+    if (state->types & MS_CONSTR_ARRAY_MIN_LENGTH) {
+        out->details[e_ind++].py_ssize_t = state->c_array_min_length;
+    }
+    if (state->types & MS_CONSTR_ARRAY_MAX_LENGTH) {
+        out->details[e_ind++].py_ssize_t = state->c_array_max_length;
+    }
+    if (state->types & MS_CONSTR_MAP_MIN_LENGTH) {
+        out->details[e_ind++].py_ssize_t = state->c_map_min_length;
+    }
+    if (state->types & MS_CONSTR_MAP_MAX_LENGTH) {
+        out->details[e_ind++].py_ssize_t = state->c_map_max_length;
     }
     return (TypeNode *)out;
 
@@ -2562,7 +3005,7 @@ typenode_collect_check_invariants(
     /* Ensure at most one dict-like type in the union */
     int ndictlike = ms_popcount(
         state->types & (MS_TYPE_STRUCT | MS_TYPE_STRUCT_UNION | MS_TYPE_TYPEDDICT)
-    ); 
+    );
     if (state->types & MS_TYPE_DICT) {
         ndictlike++;
     }
@@ -2690,7 +3133,11 @@ typenode_collect_annotated(TypeNodeCollectState *state, PyObject *obj) {
             if (constraints_update(&constraints, (Meta *)annot, obj) < 0) goto cleanup;
         }
     }
-    status = typenode_collect_type_full(state, origin, &constraints);
+    enum constraint_kind kind;
+    if (typenode_collect_type_full(state, origin, &kind) < 0) goto cleanup;
+    if (typenode_collect_constraints(state, &constraints, kind, obj) < 0) goto cleanup;
+
+    status = 0;
 
 cleanup:
     Py_XDECREF(origin);
@@ -3141,15 +3588,17 @@ typenode_collect_clear_state(TypeNodeCollectState *state) {
 
 static int
 typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
-    return typenode_collect_type_full(state, obj, NULL);
+    enum constraint_kind kind;
+    return typenode_collect_type_full(state, obj, &kind);
 }
 
 static int
 typenode_collect_type_full(
-    TypeNodeCollectState *state, PyObject *obj, Constraints *constraints
+    TypeNodeCollectState *state, PyObject *obj, enum constraint_kind *kind
 ) {
     int out = -1;
     PyObject *origin = NULL, *args = NULL;
+    *kind = CK_OTHER;
 
     /* If `Any` type already encountered, nothing to do */
     if (state->types & MS_TYPE_ANY) return 0;
@@ -3171,22 +3620,27 @@ typenode_collect_type_full(
     }
     else if (obj == (PyObject *)(&PyLong_Type)) {
         state->types |= MS_TYPE_INT;
+        *kind = CK_INT;
         return 0;
     }
     else if (obj == (PyObject *)(&PyFloat_Type)) {
         state->types |= MS_TYPE_FLOAT;
+        *kind = CK_FLOAT;
         return 0;
     }
     else if (obj == (PyObject *)(&PyUnicode_Type)) {
         state->types |= MS_TYPE_STR;
+        *kind = CK_STR;
         return 0;
     }
     else if (obj == (PyObject *)(&PyBytes_Type)) {
         state->types |= MS_TYPE_BYTES;
+        *kind = CK_BYTES;
         return 0;
     }
     else if (obj == (PyObject *)(&PyByteArray_Type)) {
         state->types |= MS_TYPE_BYTEARRAY;
+        *kind = CK_BYTES;
         return 0;
     }
     else if (obj == (PyObject *)(PyDateTimeAPI->DateTimeType)) {
@@ -3249,18 +3703,23 @@ typenode_collect_type_full(
     /* Generic collections can be spelled a few different ways, so the below
      * logic is a bit split up as we discover what type of thing `obj` is. */
     if (obj == (PyObject*)(&PyDict_Type) || obj == state->mod->typing_dict) {
+        *kind = CK_MAP;
         return typenode_collect_dict(state, obj, state->mod->typing_any, state->mod->typing_any);
     }
     else if (obj == (PyObject*)(&PyList_Type) || obj == state->mod->typing_list) {
+        *kind = CK_ARRAY;
         return typenode_collect_array(state, MS_TYPE_LIST, state->mod->typing_any);
     }
     else if (obj == (PyObject*)(&PySet_Type) || obj == state->mod->typing_set) {
+        *kind = CK_ARRAY;
         return typenode_collect_array(state, MS_TYPE_SET, state->mod->typing_any);
     }
     else if (obj == (PyObject*)(&PyFrozenSet_Type) || obj == state->mod->typing_frozenset) {
+        *kind = CK_ARRAY;
         return typenode_collect_array(state, MS_TYPE_FROZENSET, state->mod->typing_any);
     }
     else if (obj == (PyObject*)(&PyTuple_Type) || obj == state->mod->typing_tuple) {
+        *kind = CK_ARRAY;
         return typenode_collect_array(state, MS_TYPE_VARTUPLE, state->mod->typing_any);
     }
 
@@ -3320,6 +3779,7 @@ typenode_collect_type_full(
 
     if (origin == (PyObject*)(&PyDict_Type)) {
         if (PyTuple_GET_SIZE(args) != 2) goto invalid;
+        *kind = CK_MAP;
         out = typenode_collect_dict(
             state, obj, PyTuple_GET_ITEM(args, 0), PyTuple_GET_ITEM(args, 1)
         );
@@ -3327,6 +3787,7 @@ typenode_collect_type_full(
     }
     else if (origin == (PyObject*)(&PyList_Type)) {
         if (PyTuple_GET_SIZE(args) != 1) goto invalid;
+        *kind = CK_ARRAY;
         out = typenode_collect_array(
             state, MS_TYPE_LIST, PyTuple_GET_ITEM(args, 0)
         );
@@ -3334,6 +3795,7 @@ typenode_collect_type_full(
     }
     else if (origin == (PyObject*)(&PySet_Type)) {
         if (PyTuple_GET_SIZE(args) != 1) goto invalid;
+        *kind = CK_ARRAY;
         out = typenode_collect_array(
             state, MS_TYPE_SET, PyTuple_GET_ITEM(args, 0)
         );
@@ -3341,6 +3803,7 @@ typenode_collect_type_full(
     }
     else if (origin == (PyObject*)(&PyFrozenSet_Type)) {
         if (PyTuple_GET_SIZE(args) != 1) goto invalid;
+        *kind = CK_ARRAY;
         out = typenode_collect_array(
             state, MS_TYPE_FROZENSET, PyTuple_GET_ITEM(args, 0)
         );
@@ -3348,6 +3811,7 @@ typenode_collect_type_full(
     }
     else if (origin == (PyObject*)(&PyTuple_Type)) {
         if (PyTuple_GET_SIZE(args) == 2 && PyTuple_GET_ITEM(args, 1) == Py_Ellipsis) {
+            *kind = CK_ARRAY;
             out = typenode_collect_array(
                 state, MS_TYPE_VARTUPLE, PyTuple_GET_ITEM(args, 0)
             );
@@ -6472,10 +6936,11 @@ ms_decode_int_enum_or_literal_uint64(uint64_t val, TypeNode *type, PathNode *pat
     return out;
 }
 
-static MS_NOINLINE PyObject *
-ms_decode_custom(PyObject *obj, PyObject *dec_hook, bool generic, TypeNode* type, PathNode *path) {
+static PyObject *
+ms_decode_custom(PyObject *obj, PyObject *dec_hook, TypeNode* type, PathNode *path) {
     PyObject *custom_cls = NULL, *custom_obj, *out = NULL;
     int status;
+    bool generic = type->types & MS_TYPE_CUSTOM_GENERIC;
 
     if (obj == NULL) return NULL;
 
@@ -6526,6 +6991,92 @@ ms_decode_custom(PyObject *obj, PyObject *dec_hook, bool generic, TypeNode* type
     }
     return out;
 }
+
+static MS_NOINLINE PyObject *
+_err_int_constraint(const char *msg, int64_t c, PathNode *path) {
+    ms_raise_validation_error(path, msg, c);
+    return NULL;
+}
+
+static PyObject *
+ms_apply_int_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
+    if (type->types & (
+            MS_CONSTR_INT_MIN |
+            MS_CONSTR_INT_MAX |
+            MS_CONSTR_INT_MULTIPLE_OF
+        )
+    ) {
+        int overflow;
+        int64_t x = PyLong_AsLongLongAndOverflow(obj, &overflow);
+
+        if (type->types & MS_CONSTR_INT_MIN) {
+            int64_t imin = TypeNode_get_constr_int_min(type);
+            /* always ok if overflow */
+            bool ok = overflow || x >= imin;
+            if (!ok) {
+                return _err_int_constraint("Expected an int >= %lld%U", imin, path);
+            }
+        }
+        if (type->types & MS_CONSTR_INT_MAX) {
+            int64_t imax = TypeNode_get_constr_int_max(type);
+            /* never ok if overflow */
+            bool ok = !overflow && x <= imax;
+            if (!ok) {
+                return _err_int_constraint("Expected an int <= %lld%U", imax, path);
+            }
+        }
+        if (type->types & MS_CONSTR_INT_MULTIPLE_OF) {
+            int64_t mo = TypeNode_get_constr_int_multiple_of(type);
+            bool ok;
+            if (MS_UNLIKELY(overflow)) {
+                uint64_t ux = PyLong_AsUnsignedLongLong(obj);
+                ok = (ux % mo) == 0;
+            }
+            else {
+                ok = (x % mo) == 0;
+            }
+            if (!ok) {
+                return _err_int_constraint(
+                    "Expected an int that's a multiple of %lld%U", mo, path
+                );
+            }
+        }
+    }
+    return obj;
+}
+
+static PyObject *
+ms_apply_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
+    PyTypeObject *py_type = Py_TYPE(obj);
+    if (py_type == &PyLong_Type) {
+        return ms_apply_int_constraints(obj, type, path);
+    }
+    else if (py_type == &PyFloat_Type) {
+    }
+    else if (py_type == &PyUnicode_Type) {
+    }
+    else if (py_type == &PyBytes_Type || py_type == &PyByteArray_Type) {
+    }
+    else if (
+        py_type == &PyList_Type || py_type == &PyTuple_Type ||
+        py_type == &PySet_Type || py_type == &PyFrozenSet_Type
+    ) {
+    }
+    else if (py_type == &PyDict_Type) {
+    }
+    return obj;
+}
+
+static MS_NOINLINE PyObject *
+ms_post_decode(PyObject *obj, PyObject *dec_hook, TypeNode *type, PathNode *path) {
+    if (type->types & (MS_TYPE_CUSTOM | MS_TYPE_CUSTOM_GENERIC)) {
+        return ms_decode_custom(obj, dec_hook, type, path);
+    }
+    else {
+        return ms_apply_constraints(obj, type, path);
+    }
+}
+
 
 static int
 ms_encode_err_type_unsupported(PyTypeObject *type) {
@@ -9666,10 +10217,8 @@ mpack_decode(
         return mpack_decode_raw(self);
     }
     PyObject *obj = mpack_decode_nocustom(self, type, path, is_key);
-    if (MS_UNLIKELY(type->types & (MS_TYPE_CUSTOM | MS_TYPE_CUSTOM_GENERIC))) {
-        return ms_decode_custom(
-            obj, self->dec_hook, type->types & MS_TYPE_CUSTOM_GENERIC, type, path
-        );
+    if (MS_UNLIKELY(type->types & MS_REQUIRES_POST_DECODE)) {
+        return ms_post_decode(obj, self->dec_hook, type, path);
     }
     return obj;
 }
@@ -12289,10 +12838,8 @@ json_decode(
         return json_decode_raw(self);
     }
     PyObject *obj = json_decode_nocustom(self, type, path);
-    if (MS_UNLIKELY(type->types & (MS_TYPE_CUSTOM | MS_TYPE_CUSTOM_GENERIC))) {
-        return ms_decode_custom(
-            obj, self->dec_hook, type->types & MS_TYPE_CUSTOM_GENERIC, type, path
-        );
+    if (MS_UNLIKELY(type->types & MS_REQUIRES_POST_DECODE)) {
+        return ms_post_decode(obj, self->dec_hook, type, path);
     }
     return obj;
 }
