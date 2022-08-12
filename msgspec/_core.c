@@ -7161,6 +7161,27 @@ ms_apply_bytes_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
 }
 
 static PyObject *
+ms_apply_array_constraints(PyObject *obj, Py_ssize_t len, TypeNode *type, PathNode *path) {
+    if (type->types & MS_CONSTR_ARRAY_MIN_LENGTH) {
+        Py_ssize_t c = TypeNode_get_constr_array_min_length(type);
+        if (len < c) {
+            return _err_py_ssize_t_constraint(
+                "Array must have length >= %zd%U", c, path
+            );
+        }
+    }
+    if (type->types & MS_CONSTR_ARRAY_MAX_LENGTH) {
+        Py_ssize_t c = TypeNode_get_constr_array_max_length(type);
+        if (len > c) {
+            return _err_py_ssize_t_constraint(
+                "Array must have length <= %zd%U", c, path
+            );
+        }
+    }
+    return obj;
+}
+
+static PyObject *
 ms_apply_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
     PyTypeObject *py_type = Py_TYPE(obj);
     if (py_type == &PyLong_Type) {
@@ -7175,10 +7196,11 @@ ms_apply_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
     else if (py_type == &PyBytes_Type || py_type == &PyByteArray_Type) {
         return ms_apply_bytes_constraints(obj, type, path);
     }
-    else if (
-        py_type == &PyList_Type || py_type == &PyTuple_Type ||
-        py_type == &PySet_Type || py_type == &PyFrozenSet_Type
-    ) {
+    else if (py_type == &PyList_Type || py_type == &PyTuple_Type) {
+        return ms_apply_array_constraints(obj, Py_SIZE(obj), type, path);
+    }
+    else if (py_type == &PySet_Type || py_type == &PyFrozenSet_Type) {
+        return ms_apply_array_constraints(obj, PySet_GET_SIZE(obj), type, path);
     }
     else if (py_type == &PyDict_Type) {
     }
