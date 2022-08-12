@@ -75,6 +75,41 @@ unicode_str_and_size(PyObject *str, Py_ssize_t *size) {
     return PyUnicode_AsUTF8AndSize(str, size);
 }
 
+
+/* Optimized version of PyLong_AsLongLongAndOverflow/PyLong_AsUnsignedLongLong.
+ *
+ * Returns True if sign * scale won't fit in an `int64` or a `uint64`.
+ */
+static inline bool
+fast_long_extract_parts(PyObject *vv, bool *neg, uint64_t *scale) {
+    uint64_t prev, x = 0;
+    PyLongObject *v = (PyLongObject *)vv;
+    Py_ssize_t i = Py_SIZE(v);
+    bool negative = false;
+
+    if (MS_LIKELY(i == 1)) {
+        x = v->ob_digit[0];
+    }
+    else if (i != 0) {
+        negative = i < 0;
+        if (MS_UNLIKELY(negative)) { i = -i; }
+        while (--i >= 0) {
+            prev = x;
+            x = (x << PyLong_SHIFT) + v->ob_digit[i];
+            if ((x >> PyLong_SHIFT) != prev) {
+                return true;
+            }
+        }
+        if (negative && x > (1ull << 63)) {
+            return true;
+        }
+    }
+
+    *neg = negative;
+    *scale = x;
+    return false;
+}
+
 /* Access macro to the members which are floating "behind" the object */
 #define MS_PyHeapType_GET_MEMBERS(etype) \
     ((PyMemberDef *)(((char *)(etype)) + Py_TYPE(etype)->tp_basicsize))
@@ -5168,7 +5203,7 @@ cleanup:
         Py_CLEAR(info);
         if (cache_set) {
             /* An error occurred after the cache was created and set on the
-            * NamedTuple. We need to delete the attribute 
+            * NamedTuple. We need to delete the attribute.
             *
             * No need for error checking, if deletion fails, we raise that
             * error instead. */
@@ -5935,74 +5970,75 @@ mpack_encode_bool(EncoderState *self, PyObject *obj)
 static int
 mpack_encode_long(EncoderState *self, PyObject *obj)
 {
-    int overflow;
-    int64_t x = PyLong_AsLongLongAndOverflow(obj, &overflow);
-    uint64_t ux = x;
-    if (overflow != 0) {
-        if (overflow > 0) {
-            ux = PyLong_AsUnsignedLongLong(obj);
-            x = (1ULL << 63) - 1ULL;
-            if (ux == ((uint64_t)(-1)) && PyErr_Occurred()) {
-                return -1;
-            }
-        } else {
-            PyErr_SetString(PyExc_OverflowError, "can't serialize ints < -2**63");
-            return -1;
-        }
-    }
-    else if (x == -1 && PyErr_Occurred()) {
+    bool overflow, neg;
+    uint64_t ux;
+    overflow = fast_long_extract_parts(obj, &neg, &ux);
+    if (MS_UNLIKELY(overflow)) {
+        PyErr_SetString(
+            PyExc_OverflowError,
+            "can't serialize ints < -2**63 or > 2**64 - 1"
+        );
         return -1;
     }
-
-    if(x < -(1LL<<5)) {
-        if(x < -(1LL<<15)) {
-            if(x < -(1LL<<31)) {
-                char buf[9];
-                buf[0] = MP_INT64;
-                _msgspec_store64(&buf[1], x);
-                return ms_write(self, buf, 9);
+    if (MS_UNLIKELY(neg)) {
+        int64_t x = -ux;
+        if(x < -(1LL<<5)) {
+            if(x < -(1LL<<15)) {
+                if(x < -(1LL<<31)) {
+                    char buf[9];
+                    buf[0] = MP_INT64;
+                    _msgspec_store64(&buf[1], x);
+                    return ms_write(self, buf, 9);
+                } else {
+                    char buf[5];
+                    buf[0] = MP_INT32;
+                    _msgspec_store32(&buf[1], (int32_t)x);
+                    return ms_write(self, buf, 5);
+                }
             } else {
-                char buf[5];
-                buf[0] = MP_INT32;
-                _msgspec_store32(&buf[1], (int32_t)x);
-                return ms_write(self, buf, 5);
-            }
-        } else {
-            if(x < -(1<<7)) {
-                char buf[3];
-                buf[0] = MP_INT16;
-                _msgspec_store16(&buf[1], (int16_t)x);
-                return ms_write(self, buf, 3);
-            } else {
-                char buf[2] = {MP_INT8, (x & 0xff)};
-                return ms_write(self, buf, 2);
+                if(x < -(1<<7)) {
+                    char buf[3];
+                    buf[0] = MP_INT16;
+                    _msgspec_store16(&buf[1], (int16_t)x);
+                    return ms_write(self, buf, 3);
+                } else {
+                    char buf[2] = {MP_INT8, (x & 0xff)};
+                    return ms_write(self, buf, 2);
+                }
             }
         }
-    } else if(x < (1<<7)) {
-        char buf[1] = {(x & 0xff)};
-        return ms_write(self, buf, 1);
-    } else {
-        if(x < (1<<16)) {
-            if(x < (1<<8)) {
-                char buf[2] = {MP_UINT8, (x & 0xff)};
-                return ms_write(self, buf, 2);
-            } else {
-                char buf[3];
-                buf[0] = MP_UINT16;
-                _msgspec_store16(&buf[1], (uint16_t)x);
-                return ms_write(self, buf, 3);
-            }
+        else {
+            char buf[1] = {(x & 0xff)};
+            return ms_write(self, buf, 1);
+        }
+    }
+    else {
+        if (ux < (1<<7)) {
+            char buf[1] = {(ux & 0xff)};
+            return ms_write(self, buf, 1);
         } else {
-            if(x < (1LL<<32)) {
-                char buf[5];
-                buf[0] = MP_UINT32;
-                _msgspec_store32(&buf[1], (uint32_t)x);
-                return ms_write(self, buf, 5);
+            if(ux < (1<<16)) {
+                if(ux < (1<<8)) {
+                    char buf[2] = {MP_UINT8, (ux & 0xff)};
+                    return ms_write(self, buf, 2);
+                } else {
+                    char buf[3];
+                    buf[0] = MP_UINT16;
+                    _msgspec_store16(&buf[1], (uint16_t)ux);
+                    return ms_write(self, buf, 3);
+                }
             } else {
-                char buf[9];
-                buf[0] = MP_UINT64;
-                _msgspec_store64(&buf[1], ux);
-                return ms_write(self, buf, 9);
+                if(ux < (1LL<<32)) {
+                    char buf[5];
+                    buf[0] = MP_UINT32;
+                    _msgspec_store32(&buf[1], (uint32_t)ux);
+                    return ms_write(self, buf, 5);
+                } else {
+                    char buf[9];
+                    buf[0] = MP_UINT64;
+                    _msgspec_store64(&buf[1], ux);
+                    return ms_write(self, buf, 9);
+                }
             }
         }
     }
@@ -6721,30 +6757,20 @@ json_encode_false(EncoderState *self)
 
 static int
 json_encode_long(EncoderState *self, PyObject *obj) {
-    int neg, overflow;
     char buf[20];
     char *p = &buf[20];
-    int64_t xsigned = PyLong_AsLongLongAndOverflow(obj, &overflow);
     uint64_t x;
-    if (overflow) {
-        if (overflow > 0) {
-            neg = false;
-            x = PyLong_AsUnsignedLongLong(obj);
-            if (x == ((uint64_t)(-1)) && PyErr_Occurred()) return -1;
-        } else {
-            PyErr_SetString(PyExc_OverflowError, "can't serialize ints < -2**63");
-            return -1;
-        }
-    }
-    else if (xsigned == -1 && PyErr_Occurred()) {
+    bool neg, overflow;
+    overflow = fast_long_extract_parts(obj, &neg, &x);
+    if (MS_UNLIKELY(overflow)) {
+        PyErr_SetString(
+            PyExc_OverflowError,
+            "can't serialize ints < -2**63 or > 2**64 - 1"
+        );
         return -1;
     }
-    else {
-        neg = xsigned < 0;
-        x = neg ? -xsigned : xsigned;
-    }
     while (x >= 100) {
-        int64_t const old = x;
+        uint64_t const old = x;
         p -= 2;
         x /= 100;
         memcpy(p, DIGIT_TABLE + ((old - (x * 100)) << 1), 2);
