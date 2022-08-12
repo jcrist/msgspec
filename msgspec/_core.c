@@ -7137,6 +7137,30 @@ ms_apply_str_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
 }
 
 static PyObject *
+ms_apply_bytes_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
+    /* XXX: this relies on the cpython implementation detail that both bytes +
+     * bytearray encode their size using Py_SIZE */
+    Py_ssize_t len = Py_SIZE(obj);
+    if (type->types & MS_CONSTR_BYTES_MIN_LENGTH) {
+        Py_ssize_t c = TypeNode_get_constr_bytes_min_length(type);
+        if (len < c) {
+            return _err_py_ssize_t_constraint(
+                "Bytes must have length >= %zd%U", c, path
+            );
+        }
+    }
+    if (type->types & MS_CONSTR_BYTES_MAX_LENGTH) {
+        Py_ssize_t c = TypeNode_get_constr_bytes_max_length(type);
+        if (len > c) {
+            return _err_py_ssize_t_constraint(
+                "Bytes must have length <= %zd%U", c, path
+            );
+        }
+    }
+    return obj;
+}
+
+static PyObject *
 ms_apply_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
     PyTypeObject *py_type = Py_TYPE(obj);
     if (py_type == &PyLong_Type) {
@@ -7149,6 +7173,7 @@ ms_apply_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
         return ms_apply_str_constraints(obj, type, path);
     }
     else if (py_type == &PyBytes_Type || py_type == &PyByteArray_Type) {
+        return ms_apply_bytes_constraints(obj, type, path);
     }
     else if (
         py_type == &PyList_Type || py_type == &PyTuple_Type ||
