@@ -2160,7 +2160,7 @@ TypeNode_get_constr_float_multiple_of(TypeNode *type) {
 }
 
 static MS_INLINE Py_ssize_t
-TypeNode_get_str_min_length(TypeNode *type) {
+TypeNode_get_constr_str_min_length(TypeNode *type) {
     Py_ssize_t i = ms_popcount(
         type->types & (
             SLOT_00 | SLOT_01 | SLOT_02 | SLOT_03 | SLOT_04 | SLOT_05 | SLOT_06 | SLOT_07 |
@@ -2171,7 +2171,7 @@ TypeNode_get_str_min_length(TypeNode *type) {
 }
 
 static MS_INLINE Py_ssize_t
-TypeNode_get_str_max_length(TypeNode *type) {
+TypeNode_get_constr_str_max_length(TypeNode *type) {
     Py_ssize_t i = ms_popcount(
         type->types & (
             SLOT_00 | SLOT_01 | SLOT_02 | SLOT_03 | SLOT_04 | SLOT_05 | SLOT_06 | SLOT_07 |
@@ -2182,7 +2182,7 @@ TypeNode_get_str_max_length(TypeNode *type) {
 }
 
 static MS_INLINE Py_ssize_t
-TypeNode_get_bytes_min_length(TypeNode *type) {
+TypeNode_get_constr_bytes_min_length(TypeNode *type) {
     Py_ssize_t i = ms_popcount(
         type->types & (
             SLOT_00 | SLOT_01 | SLOT_02 | SLOT_03 | SLOT_04 | SLOT_05 | SLOT_06 | SLOT_07 |
@@ -2193,7 +2193,7 @@ TypeNode_get_bytes_min_length(TypeNode *type) {
 }
 
 static MS_INLINE Py_ssize_t
-TypeNode_get_bytes_max_length(TypeNode *type) {
+TypeNode_get_constr_bytes_max_length(TypeNode *type) {
     Py_ssize_t i = ms_popcount(
         type->types & (
             SLOT_00 | SLOT_01 | SLOT_02 | SLOT_03 | SLOT_04 | SLOT_05 | SLOT_06 | SLOT_07 |
@@ -2205,7 +2205,7 @@ TypeNode_get_bytes_max_length(TypeNode *type) {
 }
 
 static MS_INLINE Py_ssize_t
-TypeNode_get_array_min_length(TypeNode *type) {
+TypeNode_get_constr_array_min_length(TypeNode *type) {
     Py_ssize_t i = ms_popcount(
         type->types & (
             SLOT_00 | SLOT_01 | SLOT_02 | SLOT_03 | SLOT_04 | SLOT_05 | SLOT_06 | SLOT_07 |
@@ -2217,7 +2217,7 @@ TypeNode_get_array_min_length(TypeNode *type) {
 }
 
 static MS_INLINE Py_ssize_t
-TypeNode_get_array_max_length(TypeNode *type) {
+TypeNode_get_constr_array_max_length(TypeNode *type) {
     Py_ssize_t i = ms_popcount(
         type->types & (
             SLOT_00 | SLOT_01 | SLOT_02 | SLOT_03 | SLOT_04 | SLOT_05 | SLOT_06 | SLOT_07 |
@@ -2229,7 +2229,7 @@ TypeNode_get_array_max_length(TypeNode *type) {
 }
 
 static MS_INLINE Py_ssize_t
-TypeNode_get_map_min_length(TypeNode *type) {
+TypeNode_get_constr_map_min_length(TypeNode *type) {
     Py_ssize_t i = ms_popcount(
         type->types & (
             SLOT_00 | SLOT_01 | SLOT_02 | SLOT_03 | SLOT_04 | SLOT_05 | SLOT_06 | SLOT_07 |
@@ -2241,7 +2241,7 @@ TypeNode_get_map_min_length(TypeNode *type) {
 }
 
 static MS_INLINE Py_ssize_t
-TypeNode_get_map_max_length(TypeNode *type) {
+TypeNode_get_constr_map_max_length(TypeNode *type) {
     Py_ssize_t i = ms_popcount(
         type->types & (
             SLOT_00 | SLOT_01 | SLOT_02 | SLOT_03 | SLOT_04 | SLOT_05 | SLOT_06 | SLOT_07 |
@@ -7063,7 +7063,7 @@ ms_apply_float_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
             if (ge) {
                 return _err_float_constraint("Expected a float >= %R%U", c, path);
             }
-                return _err_float_constraint("Expected a float > %R%U", c, path);
+            return _err_float_constraint("Expected a float > %R%U", c, path);
         }
     }
     if (type->types & (MS_CONSTR_FLOAT_LE | MS_CONSTR_FLOAT_LT)) {
@@ -7074,7 +7074,7 @@ ms_apply_float_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
             if (le) {
                 return _err_float_constraint("Expected a float <= %R%U", c, path);
             }
-                return _err_float_constraint("Expected a float < %R%U", c, path);
+            return _err_float_constraint("Expected a float < %R%U", c, path);
         }
     }
     if (type->types & MS_CONSTR_FLOAT_MULTIPLE_OF) {
@@ -7083,6 +7083,53 @@ ms_apply_float_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
         if (!ok) {
             return _err_float_constraint(
                 "Expected a float that's a multiple of %R%U", c, path
+            );
+        }
+    }
+    return obj;
+}
+
+static MS_NOINLINE PyObject *
+_err_py_ssize_t_constraint(const char *msg, Py_ssize_t c, PathNode *path) {
+    ms_raise_validation_error(path, msg, c);
+    return NULL;
+}
+
+static PyObject *
+ms_apply_str_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
+    if (!(type->types & MS_STR_CONSTRS)) return obj;
+
+    Py_ssize_t len = PyUnicode_GET_LENGTH(obj);
+
+    if (type->types & MS_CONSTR_STR_REGEX) {
+        PyObject *regex = TypeNode_get_constr_str_regex(type);
+        PyObject *res = PyObject_CallMethod(regex, "search", "O", obj);
+        if (res == NULL) return NULL;
+        bool ok = (res != Py_None);
+        Py_DECREF(res);
+        if (!ok) {
+            PyObject *pattern = PyObject_GetAttrString(regex, "pattern");
+            if (pattern == NULL) return NULL;
+            ms_raise_validation_error(
+                path, "String does not match regex %R%U", pattern
+            );
+            Py_DECREF(pattern);
+            return NULL;
+        }
+    }
+    if (type->types & MS_CONSTR_STR_MIN_LENGTH) {
+        Py_ssize_t c = TypeNode_get_constr_str_min_length(type);
+        if (len < c) {
+            return _err_py_ssize_t_constraint(
+                "String must have length >= %zd%U", c, path
+            );
+        }
+    }
+    if (type->types & MS_CONSTR_STR_MAX_LENGTH) {
+        Py_ssize_t c = TypeNode_get_constr_str_max_length(type);
+        if (len > c) {
+            return _err_py_ssize_t_constraint(
+                "String must have length <= %zd%U", c, path
             );
         }
     }
@@ -7099,6 +7146,7 @@ ms_apply_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
         return ms_apply_float_constraints(obj, type, path);
     }
     else if (py_type == &PyUnicode_Type) {
+        return ms_apply_str_constraints(obj, type, path);
     }
     else if (py_type == &PyBytes_Type || py_type == &PyByteArray_Type) {
     }
