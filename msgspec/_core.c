@@ -1919,23 +1919,23 @@ static PyTypeObject Meta_Type = {
 #define SLOT_20 MS_CONSTR_MAP_MIN_LENGTH
 #define SLOT_21 MS_CONSTR_MAP_MAX_LENGTH
 
+/* Common groups */
+#define MS_INT_CONSTRS (SLOT_08 | SLOT_09 | SLOT_10)
+#define MS_FLOAT_CONSTRS (SLOT_11 | SLOT_12 | SLOT_13)
+#define MS_STR_CONSTRS (SLOT_05 | SLOT_14 | SLOT_15)
+#define MS_BYTES_CONSTRS (SLOT_16 | SLOT_17)
+#define MS_ARRAY_CONSTRS (SLOT_18 | SLOT_19)
+#define MS_MAP_CONSTRS (SLOT_20 | SLOT_21)
+
 /* Is a post decode hook needed? */
 #define MS_REQUIRES_POST_DECODE ( \
     MS_TYPE_CUSTOM | MS_TYPE_CUSTOM_GENERIC | \
-    MS_CONSTR_INT_MIN | \
-    MS_CONSTR_INT_MAX | \
-    MS_CONSTR_INT_MULTIPLE_OF | \
-    MS_CONSTR_FLOAT_GT | MS_CONSTR_FLOAT_GE | \
-    MS_CONSTR_FLOAT_LT | MS_CONSTR_FLOAT_LE | \
-    MS_CONSTR_FLOAT_MULTIPLE_OF | \
-    MS_CONSTR_STR_MIN_LENGTH | \
-    MS_CONSTR_STR_MAX_LENGTH | \
-    MS_CONSTR_BYTES_MIN_LENGTH | \
-    MS_CONSTR_BYTES_MAX_LENGTH | \
-    MS_CONSTR_ARRAY_MIN_LENGTH | \
-    MS_CONSTR_ARRAY_MAX_LENGTH | \
-    MS_CONSTR_MAP_MIN_LENGTH | \
-    MS_CONSTR_MAP_MAX_LENGTH \
+    MS_INT_CONSTRS | \
+    MS_FLOAT_CONSTRS | \
+    MS_STR_CONSTRS | \
+    MS_BYTES_CONSTRS | \
+    MS_ARRAY_CONSTRS | \
+    MS_MAP_CONSTRS \
 )
 
 typedef union TypeDetail {
@@ -7000,46 +7000,90 @@ _err_int_constraint(const char *msg, int64_t c, PathNode *path) {
 
 static PyObject *
 ms_apply_int_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
-    if (type->types & (
-            MS_CONSTR_INT_MIN |
-            MS_CONSTR_INT_MAX |
-            MS_CONSTR_INT_MULTIPLE_OF
-        )
-    ) {
-        int overflow;
-        int64_t x = PyLong_AsLongLongAndOverflow(obj, &overflow);
+    if (!(type->types & MS_INT_CONSTRS)) return obj;
 
-        if (type->types & MS_CONSTR_INT_MIN) {
-            int64_t imin = TypeNode_get_constr_int_min(type);
-            /* always ok if overflow */
-            bool ok = overflow || x >= imin;
-            if (!ok) {
-                return _err_int_constraint("Expected an int >= %lld%U", imin, path);
-            }
+    int overflow;
+    int64_t x = PyLong_AsLongLongAndOverflow(obj, &overflow);
+
+    if (type->types & MS_CONSTR_INT_MIN) {
+        int64_t c = TypeNode_get_constr_int_min(type);
+        /* always ok if overflow */
+        bool ok = overflow || x >= c;
+        if (!ok) {
+            return _err_int_constraint("Expected an int >= %lld%U", c, path);
         }
-        if (type->types & MS_CONSTR_INT_MAX) {
-            int64_t imax = TypeNode_get_constr_int_max(type);
-            /* never ok if overflow */
-            bool ok = !overflow && x <= imax;
-            if (!ok) {
-                return _err_int_constraint("Expected an int <= %lld%U", imax, path);
-            }
+    }
+    if (type->types & MS_CONSTR_INT_MAX) {
+        int64_t c = TypeNode_get_constr_int_max(type);
+        /* never ok if overflow */
+        bool ok = !overflow && x <= c;
+        if (!ok) {
+            return _err_int_constraint("Expected an int <= %lld%U", c, path);
         }
-        if (type->types & MS_CONSTR_INT_MULTIPLE_OF) {
-            int64_t mo = TypeNode_get_constr_int_multiple_of(type);
-            bool ok;
-            if (MS_UNLIKELY(overflow)) {
-                uint64_t ux = PyLong_AsUnsignedLongLong(obj);
-                ok = (ux % mo) == 0;
+    }
+    if (type->types & MS_CONSTR_INT_MULTIPLE_OF) {
+        int64_t c = TypeNode_get_constr_int_multiple_of(type);
+        bool ok;
+        if (MS_UNLIKELY(overflow)) {
+            uint64_t ux = PyLong_AsUnsignedLongLong(obj);
+            ok = (ux % c) == 0;
+        }
+        else {
+            ok = (x % c) == 0;
+        }
+        if (!ok) {
+            return _err_int_constraint(
+                "Expected an int that's a multiple of %lld%U", c, path
+            );
+        }
+    }
+    return obj;
+}
+
+static MS_NOINLINE PyObject *
+_err_float_constraint(const char *msg, double c, PathNode *path) {
+    PyObject *py_c = PyFloat_FromDouble(c);
+    if (py_c == NULL) return NULL;
+    ms_raise_validation_error(path, msg, py_c);
+    Py_DECREF(py_c);
+    return NULL;
+}
+
+static PyObject *
+ms_apply_float_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
+    if (!(type->types & MS_FLOAT_CONSTRS)) return obj;
+
+    double x = PyFloat_AS_DOUBLE(obj);
+
+    if (type->types & (MS_CONSTR_FLOAT_GE | MS_CONSTR_FLOAT_GT)) {
+        bool ge = type->types & MS_CONSTR_FLOAT_GE;
+        double c = TypeNode_get_constr_float_min(type);
+        bool ok = ge ? (x >= c) : (x > c);
+        if (!ok) {
+            if (ge) {
+                return _err_float_constraint("Expected a float >= %R%U", c, path);
             }
-            else {
-                ok = (x % mo) == 0;
+                return _err_float_constraint("Expected a float > %R%U", c, path);
+        }
+    }
+    if (type->types & (MS_CONSTR_FLOAT_LE | MS_CONSTR_FLOAT_LT)) {
+        bool le = type->types & MS_CONSTR_FLOAT_LE;
+        double c = TypeNode_get_constr_float_max(type);
+        bool ok = le ? (x <= c) : (x < c);
+        if (!ok) {
+            if (le) {
+                return _err_float_constraint("Expected a float <= %R%U", c, path);
             }
-            if (!ok) {
-                return _err_int_constraint(
-                    "Expected an int that's a multiple of %lld%U", mo, path
-                );
-            }
+                return _err_float_constraint("Expected a float < %R%U", c, path);
+        }
+    }
+    if (type->types & MS_CONSTR_FLOAT_MULTIPLE_OF) {
+        double c = TypeNode_get_constr_float_multiple_of(type);
+        bool ok = fmod(x, c) == 0.0;
+        if (!ok) {
+            return _err_float_constraint(
+                "Expected a float that's a multiple of %R%U", c, path
+            );
         }
     }
     return obj;
@@ -7052,6 +7096,7 @@ ms_apply_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
         return ms_apply_int_constraints(obj, type, path);
     }
     else if (py_type == &PyFloat_Type) {
+        return ms_apply_float_constraints(obj, type, path);
     }
     else if (py_type == &PyUnicode_Type) {
     }
