@@ -68,7 +68,7 @@ create a ``Decoder`` once and use the ``Decoder.decode`` method instead.
     >>> import msgspec
 
     >>> # Create a JSON decoder
-    ... encoder = msgspec.json.Decoder()
+    ... decoder = msgspec.json.Decoder()
 
     >>> # Decode JSON using the decoder
     ... decoder.decode(b'{"hello":"world"}')
