@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <limits.h>
+#include <float.h>
 
 #define PY_SSIZE_T_CLEAN
 #include "Python.h"
@@ -1927,17 +1928,6 @@ static PyTypeObject Meta_Type = {
 #define MS_ARRAY_CONSTRS (SLOT_18 | SLOT_19)
 #define MS_MAP_CONSTRS (SLOT_20 | SLOT_21)
 
-/* Is a post decode hook needed? */
-#define MS_REQUIRES_POST_DECODE ( \
-    MS_TYPE_CUSTOM | MS_TYPE_CUSTOM_GENERIC | \
-    MS_INT_CONSTRS | \
-    MS_FLOAT_CONSTRS | \
-    MS_STR_CONSTRS | \
-    MS_BYTES_CONSTRS | \
-    MS_ARRAY_CONSTRS | \
-    MS_MAP_CONSTRS \
-)
-
 typedef union TypeDetail {
     int64_t i64;
     double f64;
@@ -2569,9 +2559,15 @@ _constr_as_i64(PyObject *obj, int64_t *target, int offset) {
 }
 
 static bool
-_constr_as_f64(PyObject *obj, double *target) {
+_constr_as_f64(PyObject *obj, double *target, int offset) {
     double x = PyFloat_AsDouble(obj);
     if (x == -1.0 && PyErr_Occurred()) return false;
+    if (offset == 1) {
+        x = nextafter(x, DBL_MAX);
+    }
+    else if (offset == -1) {
+        x = nextafter(x, -DBL_MAX);
+    }
     *target = x;
     return true;
 }
@@ -2638,23 +2634,23 @@ typenode_collect_constraints(
     else if (kind == CK_FLOAT) {
         if (constraints->gt != NULL) {
             state->types |= MS_CONSTR_FLOAT_GT;
-            if (!_constr_as_f64(constraints->gt, &(state->c_float_min))) return -1;
+            if (!_constr_as_f64(constraints->gt, &(state->c_float_min), 1)) return -1;
         }
         else if (constraints->ge != NULL) {
             state->types |= MS_CONSTR_FLOAT_GE;
-            if (!_constr_as_f64(constraints->ge, &(state->c_float_min))) return -1;
+            if (!_constr_as_f64(constraints->ge, &(state->c_float_min), 0)) return -1;
         }
         if (constraints->lt != NULL) {
             state->types |= MS_CONSTR_FLOAT_LT;
-            if (!_constr_as_f64(constraints->lt, &(state->c_float_max))) return -1;
+            if (!_constr_as_f64(constraints->lt, &(state->c_float_max), -1)) return -1;
         }
         else if (constraints->le != NULL) {
             state->types |= MS_CONSTR_FLOAT_LE;
-            if (!_constr_as_f64(constraints->le, &(state->c_float_max))) return -1;
+            if (!_constr_as_f64(constraints->le, &(state->c_float_max), 0)) return -1;
         }
         if (constraints->multiple_of != NULL) {
             state->types |= MS_CONSTR_FLOAT_MULTIPLE_OF;
-            if (!_constr_as_f64(constraints->multiple_of, &(state->c_float_multiple_of))) return -1;
+            if (!_constr_as_f64(constraints->multiple_of, &(state->c_float_multiple_of), 0)) return -1;
         }
     }
     else if (kind == CK_STR) {
@@ -6936,11 +6932,13 @@ ms_decode_int_enum_or_literal_uint64(uint64_t val, TypeNode *type, PathNode *pat
     return out;
 }
 
-static PyObject *
+static MS_NOINLINE PyObject *
 ms_decode_custom(PyObject *obj, PyObject *dec_hook, TypeNode* type, PathNode *path) {
     PyObject *custom_cls = NULL, *custom_obj, *out = NULL;
     int status;
     bool generic = type->types & MS_TYPE_CUSTOM_GENERIC;
+
+    if (obj == NULL) return NULL;
 
     if (obj == Py_None && type->types & MS_TYPE_NONE) return obj;
 
@@ -6990,260 +6988,280 @@ ms_decode_custom(PyObject *obj, PyObject *dec_hook, TypeNode* type, PathNode *pa
     return out;
 }
 
-static MS_NOINLINE int
+static MS_NOINLINE PyObject *
 _err_int_constraint(const char *msg, int64_t c, PathNode *path) {
     ms_raise_validation_error(path, msg, c);
-    return -1;
+    return NULL;
 }
 
-static int
-ms_check_int_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
-    if (!(type->types & MS_INT_CONSTRS)) return 0;
-
-    int overflow;
-    int64_t x = PyLong_AsLongLongAndOverflow(obj, &overflow);
-
+static MS_NOINLINE PyObject *
+ms_decode_constr_int(int64_t x, TypeNode *type, PathNode *path) {
     if (type->types & MS_CONSTR_INT_MIN) {
         int64_t c = TypeNode_get_constr_int_min(type);
-        /* always ok if overflow */
-        bool ok = overflow || x >= c;
-        if (!ok) {
+        bool ok = x >= c;
+        if (MS_UNLIKELY(!ok)) {
             return _err_int_constraint("Expected an int >= %lld%U", c, path);
         }
     }
     if (type->types & MS_CONSTR_INT_MAX) {
         int64_t c = TypeNode_get_constr_int_max(type);
-        /* never ok if overflow */
-        bool ok = !overflow && x <= c;
-        if (!ok) {
+        bool ok = x <= c;
+        if (MS_UNLIKELY(!ok)) {
             return _err_int_constraint("Expected an int <= %lld%U", c, path);
         }
     }
-    if (type->types & MS_CONSTR_INT_MULTIPLE_OF) {
+    if (MS_UNLIKELY(type->types & MS_CONSTR_INT_MULTIPLE_OF)) {
         int64_t c = TypeNode_get_constr_int_multiple_of(type);
-        bool ok;
-        if (MS_UNLIKELY(overflow)) {
-            uint64_t ux = PyLong_AsUnsignedLongLong(obj);
-            ok = (ux % c) == 0;
-        }
-        else {
-            ok = (x % c) == 0;
-        }
-        if (!ok) {
+        bool ok = (x % c) == 0;
+        if (MS_UNLIKELY(!ok)) {
             return _err_int_constraint(
                 "Expected an int that's a multiple of %lld%U", c, path
             );
         }
     }
-    return 0;
+    return PyLong_FromLongLong(x);
 }
 
-static MS_NOINLINE int
-_err_float_constraint(const char *msg, double c, PathNode *path) {
+static MS_INLINE PyObject *
+ms_decode_int(int64_t x, TypeNode *type, PathNode *path) {
+    if (MS_UNLIKELY(type->types & MS_INT_CONSTRS)) {
+        return ms_decode_constr_int(x, type, path);
+    }
+    return PyLong_FromLongLong(x);
+}
+
+static MS_NOINLINE PyObject *
+ms_decode_constr_uint(uint64_t x, TypeNode *type, PathNode *path) {
+    if (type->types & MS_CONSTR_INT_MAX) {
+        int64_t c = TypeNode_get_constr_int_max(type);
+        return _err_int_constraint("Expected an int <= %lld%U", c, path);
+    }
+    if (MS_UNLIKELY(type->types & MS_CONSTR_INT_MULTIPLE_OF)) {
+        int64_t c = TypeNode_get_constr_int_multiple_of(type);
+        bool ok = (x % c) == 0;
+        if (MS_UNLIKELY(!ok)) {
+            return _err_int_constraint(
+                "Expected an int that's a multiple of %lld%U", c, path
+            );
+        }
+    }
+    return PyLong_FromUnsignedLongLong(x);
+}
+
+static MS_INLINE PyObject *
+ms_decode_uint(uint64_t x, TypeNode *type, PathNode *path) {
+    if (MS_LIKELY(x <= LLONG_MAX)) {
+        return ms_decode_int(x, type, path);
+    }
+    else if (MS_UNLIKELY(type->types & MS_INT_CONSTRS)) {
+        return ms_decode_constr_uint(x, type, path);
+    }
+    return PyLong_FromUnsignedLongLong(x);
+}
+
+static MS_NOINLINE PyObject *
+_err_float_constraint(
+    const char *msg, int offset, double c, PathNode *path
+) {
+    if (offset == 1) {
+        c = nextafter(c, DBL_MAX);
+    }
+    else if (offset == -1) {
+        c = nextafter(c, -DBL_MAX);
+    }
     PyObject *py_c = PyFloat_FromDouble(c);
-    if (py_c == NULL) return -1;
-    ms_raise_validation_error(path, msg, py_c);
-    Py_DECREF(py_c);
-    return -1;
+    if (py_c != NULL) {
+        ms_raise_validation_error(path, "Expected a float %s %R%U", msg, py_c);
+        Py_DECREF(py_c);
+    }
+    return NULL;
 }
 
-static int
-ms_check_float_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
-    if (!(type->types & MS_FLOAT_CONSTRS)) return 0;
-
-    double x = PyFloat_AS_DOUBLE(obj);
-
+static MS_NOINLINE PyObject *
+ms_decode_constr_float(double x, TypeNode *type, PathNode *path) {
     if (type->types & (MS_CONSTR_FLOAT_GE | MS_CONSTR_FLOAT_GT)) {
-        bool ge = type->types & MS_CONSTR_FLOAT_GE;
         double c = TypeNode_get_constr_float_min(type);
-        bool ok = ge ? (x >= c) : (x > c);
-        if (!ok) {
-            if (ge) {
-                return _err_float_constraint("Expected a float >= %R%U", c, path);
-            }
-            return _err_float_constraint("Expected a float > %R%U", c, path);
+        bool ok = x >= c;
+        if (MS_UNLIKELY(!ok)) {
+            bool eq = type->types & MS_CONSTR_FLOAT_GE;
+            return _err_float_constraint(
+                eq ? ">=" : ">",
+                eq ? 0 : -1,
+                c,
+                path
+            );
         }
     }
     if (type->types & (MS_CONSTR_FLOAT_LE | MS_CONSTR_FLOAT_LT)) {
-        bool le = type->types & MS_CONSTR_FLOAT_LE;
         double c = TypeNode_get_constr_float_max(type);
-        bool ok = le ? (x <= c) : (x < c);
-        if (!ok) {
-            if (le) {
-                return _err_float_constraint("Expected a float <= %R%U", c, path);
-            }
-            return _err_float_constraint("Expected a float < %R%U", c, path);
-        }
-    }
-    if (type->types & MS_CONSTR_FLOAT_MULTIPLE_OF) {
-        double c = TypeNode_get_constr_float_multiple_of(type);
-        bool ok = fmod(x, c) == 0.0;
-        if (!ok) {
+        bool ok = x <= c;
+        if (MS_UNLIKELY(!ok)) {
+            bool eq = type->types & MS_CONSTR_FLOAT_LE;
             return _err_float_constraint(
-                "Expected a float that's a multiple of %R%U", c, path
+                eq ? "<=" : "<",
+                eq ? 0 : 1,
+                c,
+                path
             );
         }
     }
-    return 0;
+    if (MS_UNLIKELY(type->types & MS_CONSTR_FLOAT_MULTIPLE_OF)) {
+        double c = TypeNode_get_constr_float_multiple_of(type);
+        bool ok = fmod(x, c) == 0.0;
+        if (MS_UNLIKELY(!ok)) {
+            return _err_float_constraint(
+                "that's a multiple of", 0, c, path
+            );
+        }
+    }
+    return PyFloat_FromDouble(x);
 }
 
-static MS_NOINLINE int
+static MS_INLINE PyObject *
+ms_decode_float(double x, TypeNode *type, PathNode *path) {
+    if (MS_UNLIKELY(type->types & MS_FLOAT_CONSTRS)) {
+        return ms_decode_constr_float(x, type, path);
+    }
+    return PyFloat_FromDouble(x);
+}
+
+static MS_NOINLINE bool
 _err_py_ssize_t_constraint(const char *msg, Py_ssize_t c, PathNode *path) {
     ms_raise_validation_error(path, msg, c);
-    return -1;
+    return false;
 }
 
-static int
-ms_check_str_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
-    if (!(type->types & MS_STR_CONSTRS)) return 0;
+static MS_NOINLINE PyObject *
+_ms_check_str_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
+    if (obj == NULL) return NULL;
 
     Py_ssize_t len = PyUnicode_GET_LENGTH(obj);
 
-    if (type->types & MS_CONSTR_STR_REGEX) {
-        PyObject *regex = TypeNode_get_constr_str_regex(type);
-        PyObject *res = PyObject_CallMethod(regex, "search", "O", obj);
-        if (res == NULL) return -1;
-        bool ok = (res != Py_None);
-        Py_DECREF(res);
-        if (!ok) {
-            PyObject *pattern = PyObject_GetAttrString(regex, "pattern");
-            if (pattern == NULL) return -1;
-            ms_raise_validation_error(
-                path, "String does not match regex %R%U", pattern
-            );
-            Py_DECREF(pattern);
-            return -1;
-        }
-    }
     if (type->types & MS_CONSTR_STR_MIN_LENGTH) {
         Py_ssize_t c = TypeNode_get_constr_str_min_length(type);
         if (len < c) {
-            return _err_py_ssize_t_constraint(
+            _err_py_ssize_t_constraint(
                 "String must have length >= %zd%U", c, path
             );
+            goto error;
         }
     }
     if (type->types & MS_CONSTR_STR_MAX_LENGTH) {
         Py_ssize_t c = TypeNode_get_constr_str_max_length(type);
         if (len > c) {
-            return _err_py_ssize_t_constraint(
+            _err_py_ssize_t_constraint(
                 "String must have length <= %zd%U", c, path
             );
+            goto error;
         }
     }
-    return 0;
+    if (type->types & MS_CONSTR_STR_REGEX) {
+        PyObject *regex = TypeNode_get_constr_str_regex(type);
+        PyObject *res = PyObject_CallMethod(regex, "search", "O", obj);
+        if (res == NULL) goto error;
+        bool ok = (res != Py_None);
+        Py_DECREF(res);
+        if (!ok) {
+            PyObject *pattern = PyObject_GetAttrString(regex, "pattern");
+            if (pattern == NULL) goto error;
+            ms_raise_validation_error(
+                path, "String does not match regex %R%U", pattern
+            );
+            Py_DECREF(pattern);
+            goto error;
+        }
+    }
+    return obj;
+
+error:
+    Py_DECREF(obj);
+    return NULL;
 }
 
-static int
-ms_check_bytes_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
-    Py_ssize_t len = Py_SIZE(obj);
-    if (type->types & MS_CONSTR_BYTES_MIN_LENGTH) {
+static MS_INLINE PyObject *
+ms_check_str_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
+    if (MS_LIKELY(!(type->types & MS_STR_CONSTRS))) return obj;
+    return _ms_check_str_constraints(obj, type, path);
+}
+
+static bool
+ms_passes_bytes_constraints(Py_ssize_t size, TypeNode *type, PathNode *path) {
+    if (MS_UNLIKELY(type->types & MS_CONSTR_BYTES_MIN_LENGTH)) {
         Py_ssize_t c = TypeNode_get_constr_bytes_min_length(type);
-        if (len < c) {
+        if (size < c) {
             return _err_py_ssize_t_constraint(
                 "Bytes must have length >= %zd%U", c, path
             );
         }
     }
-    if (type->types & MS_CONSTR_BYTES_MAX_LENGTH) {
+    if (MS_UNLIKELY(type->types & MS_CONSTR_BYTES_MAX_LENGTH)) {
         Py_ssize_t c = TypeNode_get_constr_bytes_max_length(type);
-        if (len > c) {
+        if (size > c) {
             return _err_py_ssize_t_constraint(
                 "Bytes must have length <= %zd%U", c, path
             );
         }
     }
-    return 0;
+    return true;
 }
 
-static int
-ms_check_array_constraints(Py_ssize_t len, TypeNode *type, PathNode *path) {
-    if (type->types & MS_CONSTR_ARRAY_MIN_LENGTH) {
+static MS_NOINLINE bool
+_ms_passes_array_constraints(Py_ssize_t size, TypeNode *type, PathNode *path) {
+    if (MS_UNLIKELY(type->types & MS_CONSTR_ARRAY_MIN_LENGTH)) {
         Py_ssize_t c = TypeNode_get_constr_array_min_length(type);
-        if (len < c) {
+        if (size < c) {
             return _err_py_ssize_t_constraint(
                 "Array must have length >= %zd%U", c, path
             );
         }
     }
-    if (type->types & MS_CONSTR_ARRAY_MAX_LENGTH) {
+    if (MS_UNLIKELY(type->types & MS_CONSTR_ARRAY_MAX_LENGTH)) {
         Py_ssize_t c = TypeNode_get_constr_array_max_length(type);
-        if (len > c) {
+        if (size > c) {
             return _err_py_ssize_t_constraint(
                 "Array must have length <= %zd%U", c, path
             );
         }
     }
-    return 0;
+    return true;
 }
 
-static int
-ms_check_dict_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
-    Py_ssize_t len = PyDict_GET_SIZE(obj);
+static MS_INLINE bool
+ms_passes_array_constraints(Py_ssize_t size, TypeNode *type, PathNode *path) {
+    if (MS_UNLIKELY(type->types & MS_ARRAY_CONSTRS)) {
+        return _ms_passes_array_constraints(size, type, path);
+    }
+    return true;
+}
 
-    if (type->types & MS_CONSTR_MAP_MIN_LENGTH) {
+static MS_NOINLINE bool
+_ms_passes_map_constraints(Py_ssize_t size, TypeNode *type, PathNode *path) {
+    if (MS_UNLIKELY(type->types & MS_CONSTR_MAP_MIN_LENGTH)) {
         Py_ssize_t c = TypeNode_get_constr_map_min_length(type);
-        if (len < c) {
+        if (size < c) {
             return _err_py_ssize_t_constraint(
                 "Object must have length >= %zd%U", c, path
             );
         }
     }
-    if (type->types & MS_CONSTR_MAP_MAX_LENGTH) {
+    if (MS_UNLIKELY(type->types & MS_CONSTR_MAP_MAX_LENGTH)) {
         Py_ssize_t c = TypeNode_get_constr_map_max_length(type);
-        if (len > c) {
-            return _err_py_ssize_t_constraint(
+        if (size > c) {
+           return _err_py_ssize_t_constraint(
                 "Object must have length <= %zd%U", c, path
             );
         }
     }
-    return 0;
+    return true;
 }
 
-static int
-ms_check_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
-    PyTypeObject *py_type = Py_TYPE(obj);
-    if (py_type == &PyLong_Type) {
-        return ms_check_int_constraints(obj, type, path);
+static MS_INLINE bool
+ms_passes_map_constraints(Py_ssize_t size, TypeNode *type, PathNode *path) {
+    if (MS_UNLIKELY(type->types & MS_MAP_CONSTRS)) {
+        return _ms_passes_map_constraints(size, type, path);
     }
-    else if (py_type == &PyFloat_Type) {
-        return ms_check_float_constraints(obj, type, path);
-    }
-    else if (py_type == &PyUnicode_Type) {
-        return ms_check_str_constraints(obj, type, path);
-    }
-    else if (py_type == &PyBytes_Type || py_type == &PyByteArray_Type) {
-        return ms_check_bytes_constraints(obj, type, path);
-    }
-    else if (py_type == &PyList_Type || py_type == &PyTuple_Type) {
-        return ms_check_array_constraints(Py_SIZE(obj), type, path);
-    }
-    else if (py_type == &PySet_Type || py_type == &PyFrozenSet_Type) {
-        return ms_check_array_constraints(PySet_GET_SIZE(obj), type, path);
-    }
-    else if (py_type == &PyDict_Type) {
-        return ms_check_dict_constraints(obj, type, path);
-    }
-    return 0;
+    return true;
 }
-
-static MS_NOINLINE PyObject *
-ms_post_decode(PyObject *obj, PyObject *dec_hook, TypeNode *type, PathNode *path) {
-    if (obj == NULL) return NULL;
-
-    if (type->types & (MS_TYPE_CUSTOM | MS_TYPE_CUSTOM_GENERIC)) {
-        return ms_decode_custom(obj, dec_hook, type, path);
-    }
-    else {
-        if (ms_check_constraints(obj, type, path) < 0) {
-            /* Constraints failed, decref and return */
-            Py_DECREF(obj);
-            return NULL;
-        }
-        return obj;
-    }
-}
-
 
 static int
 ms_encode_err_type_unsupported(PyTypeObject *type) {
@@ -9398,10 +9416,10 @@ mpack_decode_int(DecoderState *self, int64_t x, TypeNode *type, PathNode *path) 
         return ms_decode_int_enum_or_literal_int64(x, type, path);
     }
     else if (type->types & (MS_TYPE_ANY | MS_TYPE_INT)) {
-        return PyLong_FromLongLong(x);
+        return ms_decode_int(x, type, path);
     }
     else if (type->types & MS_TYPE_FLOAT) {
-        return PyFloat_FromDouble(x);
+        return ms_decode_float(x, type, path);
     }
     return ms_validation_error("int", type, path);
 }
@@ -9412,10 +9430,10 @@ mpack_decode_uint(DecoderState *self, uint64_t x, TypeNode *type, PathNode *path
         return ms_decode_int_enum_or_literal_uint64(x, type, path);
     }
     else if (type->types & (MS_TYPE_ANY | MS_TYPE_INT)) {
-        return PyLong_FromUnsignedLongLong(x);
+        return ms_decode_uint(x, type, path);
     }
     else if (type->types & MS_TYPE_FLOAT) {
-        return PyFloat_FromDouble(x);
+        return ms_decode_float(x, type, path);
     }
     return ms_validation_error("int", type, path);
 }
@@ -9441,7 +9459,7 @@ mpack_decode_bool(DecoderState *self, PyObject *val, TypeNode *type, PathNode *p
 static PyObject *
 mpack_decode_float(DecoderState *self, double val, TypeNode *type, PathNode *path) {
     if (type->types & (MS_TYPE_ANY | MS_TYPE_FLOAT)) {
-        return PyFloat_FromDouble(val);
+        return ms_decode_float(val, type, path);
     }
     return ms_validation_error("float", type, path);
 }
@@ -9454,7 +9472,9 @@ mpack_decode_str(DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *
         if (MS_UNLIKELY(type->types & (MS_TYPE_ENUM | MS_TYPE_STRLITERAL))) {
             return ms_decode_str_enum_or_literal(s, size, type, path);
         }
-        return PyUnicode_DecodeUTF8(s, size, NULL);
+        return ms_check_str_constraints(
+            PyUnicode_DecodeUTF8(s, size, NULL), type, path
+        );
     }
     return ms_validation_error("str", type, path);
 }
@@ -9464,6 +9484,8 @@ mpack_decode_bin(
     DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *path
 ) {
     if (MS_UNLIKELY(size < 0)) return NULL;
+
+    if (MS_UNLIKELY(!ms_passes_bytes_constraints(size, type, path))) return NULL;
 
     char *s = NULL;
     if (MS_UNLIKELY(mpack_read(self, &s, size) < 0)) return NULL;
@@ -9851,6 +9873,8 @@ static PyObject *
 mpack_decode_array(
     DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *path, bool is_key
 ) {
+    if (MS_UNLIKELY(!ms_passes_array_constraints(size, type, path))) return NULL;
+
     if (type->types & MS_TYPE_ANY) {
         TypeNode type_any = {MS_TYPE_ANY};
         if (is_key) {
@@ -10157,6 +10181,9 @@ mpack_decode_map(
         return mpack_decode_typeddict(self, size, type, path);
     }
     else if (type->types & (MS_TYPE_DICT | MS_TYPE_ANY)) {
+        if (MS_UNLIKELY(!ms_passes_map_constraints(size, type, path))) {
+            return NULL;
+        }
         TypeNode *key, *val;
         TypeNode type_any = {MS_TYPE_ANY};
         if (type->types & MS_TYPE_ANY) {
@@ -10384,8 +10411,8 @@ mpack_decode(
         return mpack_decode_raw(self);
     }
     PyObject *obj = mpack_decode_nocustom(self, type, path, is_key);
-    if (MS_UNLIKELY(type->types & MS_REQUIRES_POST_DECODE)) {
-        return ms_post_decode(obj, self->dec_hook, type, path);
+    if (MS_UNLIKELY(type->types & (MS_TYPE_CUSTOM | MS_TYPE_CUSTOM_GENERIC))) {
+        return ms_decode_custom(obj, self->dec_hook, type, path);
     }
     return obj;
 }
@@ -11349,6 +11376,8 @@ json_decode_binary(
     if (size > 1 && buffer[size - 2] == '=') npad++;
 
     bin_size = (size / 4) * 3 - npad;
+    if (!ms_passes_bytes_constraints(bin_size, type, path)) return NULL;
+
     if (type->types & MS_TYPE_BYTES) {
         out = PyBytes_FromStringAndSize(NULL, bin_size);
         if (out == NULL) return NULL;
@@ -11524,14 +11553,15 @@ json_decode_string(JSONDecoderState *self, TypeNode *type, PathNode *path) {
         Py_ssize_t size = json_decode_string_view(self, &view, &is_ascii);
         if (size < 0) return NULL;
         if (MS_LIKELY(type->types & (MS_TYPE_STR | MS_TYPE_ANY))) {
+            PyObject *out;
             if (MS_LIKELY(is_ascii)) {
-                PyObject *out = PyUnicode_New(size, 127);
+                out = PyUnicode_New(size, 127);
                 memcpy(((PyASCIIObject *)out) + 1, view, size);
-                return out;
             }
             else {
-                return PyUnicode_DecodeUTF8(view, size, NULL);
+                out = PyUnicode_DecodeUTF8(view, size, NULL);
             }
+            return ms_check_str_constraints(out, type, path);
         }
         else if (MS_UNLIKELY(type->types & MS_TYPE_DATETIME)) {
             return json_decode_datetime(self, view, size, path);
@@ -11550,6 +11580,7 @@ static PyObject *
 json_decode_string_key(JSONDecoderState *self, TypeNode *type, PathNode *path) {
     bool is_ascii = true;
     bool is_enum = type->types & (MS_TYPE_ENUM | MS_TYPE_STRLITERAL);
+    bool has_constrs = type->types & MS_STR_CONSTRS;
     char *view = NULL;
     Py_ssize_t size;
 
@@ -11559,8 +11590,10 @@ json_decode_string_key(JSONDecoderState *self, TypeNode *type, PathNode *path) {
     if (MS_UNLIKELY(is_enum)) {
         return ms_decode_str_enum_or_literal(view, size, type, path);
     }
-    else if (MS_UNLIKELY(!is_ascii)) {
-        return PyUnicode_DecodeUTF8(view, size, NULL);
+    else if (MS_UNLIKELY(!is_ascii || has_constrs)) {
+        return ms_check_str_constraints(
+            PyUnicode_DecodeUTF8(view, size, NULL), type, path
+        );
     }
 
     if (MS_LIKELY(size > 0 && size <= STRING_CACHE_MAX_STRING_LENGTH)) {
@@ -11585,10 +11618,8 @@ json_decode_string_key(JSONDecoderState *self, TypeNode *type, PathNode *path) {
         /* Swap out the str in the cache */
         Py_INCREF(new);
         string_cache[index] = new;
-
         return new;
     }
-
     /* Create a new ASCII str object */
     PyObject *new = PyUnicode_New(size, 127);
     memcpy(((PyASCIIObject *)new) + 1, view, size);
@@ -11596,7 +11627,7 @@ json_decode_string_key(JSONDecoderState *self, TypeNode *type, PathNode *path) {
 }
 
 static PyObject *
-json_decode_list(JSONDecoderState *self, TypeNode *el_type, PathNode *path) {
+json_decode_list(JSONDecoderState *self, TypeNode *type, TypeNode *el_type, PathNode *path) {
     PyObject *out, *item = NULL;
     unsigned char c;
     bool first = true;
@@ -11644,6 +11675,11 @@ json_decode_list(JSONDecoderState *self, TypeNode *el_type, PathNode *path) {
         if (PyList_Append(out, item) < 0) goto error;
         Py_CLEAR(item);
     }
+
+    if (MS_UNLIKELY(!ms_passes_array_constraints(PyList_GET_SIZE(out), type, path))) {
+        goto error;
+    }
+
     Py_LeaveRecursiveCall();
     return out;
 error:
@@ -11655,7 +11691,7 @@ error:
 
 static PyObject *
 json_decode_set(
-    JSONDecoderState *self, bool mutable, TypeNode *el_type, PathNode *path
+    JSONDecoderState *self, TypeNode *type, TypeNode *el_type, PathNode *path
 ) {
     PyObject *out, *item = NULL;
     unsigned char c;
@@ -11664,8 +11700,9 @@ json_decode_set(
 
     self->input_pos++; /* Skip '[' */
 
-    out = mutable ? PySet_New(NULL) : PyFrozenSet_New(NULL);
+    out = (type->types & MS_TYPE_SET) ?  PySet_New(NULL) : PyFrozenSet_New(NULL);
     if (out == NULL) return NULL;
+
     if (Py_EnterRecursiveCall(" while deserializing an object")) {
         Py_DECREF(out);
         return NULL; /* cpylint-ignore */
@@ -11704,6 +11741,11 @@ json_decode_set(
         if (PySet_Add(out, item) < 0) goto error;
         Py_CLEAR(item);
     }
+
+    if (MS_UNLIKELY(!ms_passes_array_constraints(PySet_GET_SIZE(out), type, path))) {
+        goto error;
+    }
+
     Py_LeaveRecursiveCall();
     return out;
 error:
@@ -11714,11 +11756,11 @@ error:
 }
 
 static PyObject *
-json_decode_vartuple(JSONDecoderState *self, TypeNode *el_type, PathNode *path) {
+json_decode_vartuple(JSONDecoderState *self, TypeNode *type, TypeNode *el_type, PathNode *path) {
     PyObject *list, *item, *out = NULL;
     Py_ssize_t size, i;
 
-    list = json_decode_list(self, el_type, path);
+    list = json_decode_list(self, type, el_type, path);
     if (list == NULL) return NULL;
 
     size = PyList_GET_SIZE(list);
@@ -12255,18 +12297,16 @@ json_decode_array(
 ) {
     if (type->types & MS_TYPE_ANY) {
         TypeNode type_any = {MS_TYPE_ANY};
-        return json_decode_list(self, &type_any, path);
+        return json_decode_list(self, type, &type_any, path);
     }
     else if (type->types & MS_TYPE_LIST) {
-        return json_decode_list(self, TypeNode_get_array(type), path);
+        return json_decode_list(self, type, TypeNode_get_array(type), path);
     }
     else if (type->types & (MS_TYPE_SET | MS_TYPE_FROZENSET)) {
-        return json_decode_set(
-            self, type->types & MS_TYPE_SET, TypeNode_get_array(type), path
-        );
+        return json_decode_set(self, type, TypeNode_get_array(type), path);
     }
     else if (type->types & MS_TYPE_VARTUPLE) {
-        return json_decode_vartuple(self, TypeNode_get_array(type), path);
+        return json_decode_vartuple(self, type, TypeNode_get_array(type), path);
     }
     else if (type->types & MS_TYPE_FIXTUPLE) {
         return json_decode_fixtuple(self, type, path);
@@ -12285,7 +12325,7 @@ json_decode_array(
 
 static PyObject *
 json_decode_dict(
-    JSONDecoderState *self, TypeNode *key_type, TypeNode *val_type, PathNode *path
+    JSONDecoderState *self, TypeNode *type, TypeNode *key_type, TypeNode *val_type, PathNode *path
 ) {
     PyObject *out, *key = NULL, *val = NULL;
     unsigned char c;
@@ -12354,6 +12394,9 @@ json_decode_dict(
         Py_CLEAR(key);
         Py_CLEAR(val);
     }
+
+    if (MS_UNLIKELY(!ms_passes_map_constraints(PyDict_GET_SIZE(out), type, path))) goto error;
+
     Py_LeaveRecursiveCall();
     return out;
 
@@ -12662,12 +12705,12 @@ json_decode_object(
 ) {
     if (type->types & MS_TYPE_ANY) {
         TypeNode type_any = {MS_TYPE_ANY};
-        return json_decode_dict(self, &type_any, type, path);
+        return json_decode_dict(self, type, &type_any, &type_any, path);
     }
     else if (type->types & MS_TYPE_DICT) {
         TypeNode *key, *val;
         TypeNode_get_dict(type, &key, &val);
-        return json_decode_dict(self, key, val, path);
+        return json_decode_dict(self, type, key, val, path);
     }
     else if (type->types & MS_TYPE_TYPEDDICT) {
         return json_decode_typeddict(self, type, path);
@@ -12682,7 +12725,7 @@ json_decode_object(
 }
 
 static MS_NOINLINE PyObject *
-json_decode_extended_float(JSONDecoderState *self, PathNode *path) {
+json_decode_extended_float(JSONDecoderState *self, TypeNode *type, PathNode *path) {
     uint32_t nd = 0;
     int32_t dp = 0;
 
@@ -12803,7 +12846,7 @@ json_decode_extended_float(JSONDecoderState *self, PathNode *path) {
     if (Py_IS_INFINITY(res)) {
         return ms_error_with_path("Number out of range%U", path);
     }
-    return PyFloat_FromDouble(res);
+    return ms_decode_float(res, type, path);
 }
 
 static PyObject *
@@ -12937,9 +12980,9 @@ end_integer:
     if (!is_float) {
         if (MS_LIKELY(type->types & (MS_TYPE_ANY | MS_TYPE_INT))) {
             if (is_negative) {
-                return PyLong_FromLongLong(-1 * (int64_t)mantissa);
+                return ms_decode_int(-1 * (int64_t)mantissa, type, path);
             }
-            return PyLong_FromUnsignedLongLong(mantissa);
+            return ms_decode_uint(mantissa, type, path);
         }
         else if (MS_UNLIKELY(type->types & (MS_TYPE_INTENUM | MS_TYPE_INTLITERAL))) {
             if (is_negative) {
@@ -12953,7 +12996,7 @@ end_integer:
         if (MS_UNLIKELY(!reconstruct_double(mantissa, exponent, is_negative, &val))) {
             goto fallback_extended;
         }
-        return PyFloat_FromDouble(val);
+        return ms_decode_float(val, type, path);
     }
     if (!is_float) {
         return ms_validation_error("int", type, path);
@@ -12965,7 +13008,7 @@ fallback_extended:
     if (MS_UNLIKELY(!(type->types & (MS_TYPE_ANY | MS_TYPE_FLOAT)))) {
         return ms_validation_error("float", type, path);
     }
-    return json_decode_extended_float(self, path);
+    return json_decode_extended_float(self, type, path);
 }
 
 static MS_NOINLINE PyObject *
@@ -13005,8 +13048,8 @@ json_decode(
         return json_decode_raw(self);
     }
     PyObject *obj = json_decode_nocustom(self, type, path);
-    if (MS_UNLIKELY(type->types & MS_REQUIRES_POST_DECODE)) {
-        return ms_post_decode(obj, self->dec_hook, type, path);
+    if (MS_UNLIKELY(type->types & (MS_TYPE_CUSTOM | MS_TYPE_CUSTOM_GENERIC))) {
+        return ms_decode_custom(obj, self->dec_hook, type, path);
     }
     return obj;
 }
