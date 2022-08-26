@@ -3208,6 +3208,11 @@ rename_upper(PyObject *field) {
 }
 
 static PyObject*
+rename_kebap(PyObject *field) {
+    return PyObject_CallMethod(field, "replace", "ss", "_", "-");
+}
+
+static PyObject*
 rename_camel_inner(PyObject *field, bool cap_first) {
     PyObject *parts = NULL, *out = NULL, *empty = NULL;
     PyObject *underscore = PyUnicode_FromStringAndSize("_", 1);
@@ -3276,6 +3281,9 @@ StructMeta_rename_fields(PyObject *fields, PyObject *rename)
         }
         else if (PyUnicode_CompareWithASCIIString(rename, "upper") == 0) {
             method = &rename_upper;
+        }
+        else if (PyUnicode_CompareWithASCIIString(rename, "kebap") == 0) {
+            method = &rename_kebap;
         }
         else if (PyUnicode_CompareWithASCIIString(rename, "camel") == 0) {
             method = &rename_camel;
@@ -4792,8 +4800,9 @@ PyDoc_STRVAR(Struct__doc__,
 "   information.\n"
 "rename: str, callable, or None, default None\n"
 "   Controls renaming the field names used when encoding/decoding the struct.\n"
-"   May be one of ``\"lower\"``, ``\"upper\"``, ``\"camel\"``, or ``\"pascal\"``\n"
-"   to rename in lowercase, UPPERCASE, camelCase, or PascalCase respectively\n"
+"   May be one of ``\"lower\"``, ``\"upper\"``, ``\"kebap\"``, ``\"camel\"``, or\n"
+"   ``\"pascal\"`` to rename in lowercase, UPPERCASE, kebap-case, camelCase, or\n"
+"   PascalCase respectively\n"
 "   Alternatively, may be a callable that takes a string (the field name) and\n"
 "   returns a new string. Default is ``None`` for no field renaming.\n"
 "array_like: bool, default False\n"

@@ -1254,6 +1254,13 @@ class TestRename:
 
         assert Test.__struct_encode_fields__ == ("FIELD_ONE", "FIELD_TWO")
 
+    def test_rename_kebap(self):
+        class Test(Struct, rename="kebap"):
+            field_one: int
+            field_two: str
+
+        assert Test.__struct_encode_fields__ == ("field_one", "field-one")
+
     def test_rename_camel(self):
         class Test(Struct, rename="camel"):
             field_one: int
