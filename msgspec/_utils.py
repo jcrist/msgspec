@@ -20,16 +20,20 @@ except Exception:
         Required = NotRequired = None
 
 
-def get_type_hints(obj):
-    return _get_type_hints(obj, include_extras=True)
+if Required is None and _AnnotatedAlias is None:
+    get_type_hints = _get_type_hints
+else:
+
+    def get_type_hints(obj):
+        return _get_type_hints(obj, include_extras=True)
 
 
 def get_typeddict_hints(obj):
-    hints = _get_type_hints(obj, include_extras=True)
+    hints = get_type_hints(obj)
     out = {}
     for k, v in hints.items():
         # Strip off Required/NotRequired
-        if getattr(v, "__origin__", None) in (Required, NotRequired):
+        if getattr(v, "__origin__", False) in (Required, NotRequired):
             v = v.__args__[0]
         out[k] = v
     return out

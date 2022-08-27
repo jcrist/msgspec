@@ -1239,7 +1239,7 @@ class TestTypedDict:
 
         if not hasattr(Ex, "__required_keys__"):
             # This should be Python 3.8, builtin typing only
-            pytest.skip(reason="partially optional TypedDict not supported")
+            pytest.skip("partially optional TypedDict not supported")
 
         dec = proto.Decoder(Ex)
 
