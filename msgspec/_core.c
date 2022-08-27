@@ -76,6 +76,20 @@ unicode_str_and_size(PyObject *str, Py_ssize_t *size) {
     return PyUnicode_AsUTF8AndSize(str, size);
 }
 
+/* Hash algorithm borrowed from cpython 3.10's hashing algorithm for tuples.
+ * See https://github.com/python/cpython/blob/4bcef2bb48b3fd82011a89c1c716421b789f1442/Objects/tupleobject.c#L386-L424
+ */
+#if SIZEOF_PY_UHASH_T > 4
+#define MS_HASH_XXPRIME_1 ((Py_uhash_t)11400714785074694791ULL)
+#define MS_HASH_XXPRIME_2 ((Py_uhash_t)14029467366897019727ULL)
+#define MS_HASH_XXPRIME_5 ((Py_uhash_t)2870177450012600261ULL)
+#define MS_HASH_XXROTATE(x) ((x << 31) | (x >> 33))  /* Rotate left 31 bits */
+#else
+#define MS_HASH_XXPRIME_1 ((Py_uhash_t)2654435761UL)
+#define MS_HASH_XXPRIME_2 ((Py_uhash_t)2246822519UL)
+#define MS_HASH_XXPRIME_5 ((Py_uhash_t)374761393UL)
+#define MS_HASH_XXROTATE(x) ((x << 13) | (x >> 19))  /* Rotate left 13 bits */
+#endif
 
 /* Optimized version of PyLong_AsLongLongAndOverflow/PyLong_AsUnsignedLongLong.
  *
@@ -1711,7 +1725,7 @@ Meta_repr(Meta *self) {
 }
 
 static int
-_config_richcompare_part(PyObject *left, PyObject *right) {
+_meta_richcompare_part(PyObject *left, PyObject *right) {
     if ((left == NULL) != (right == NULL)) {
         return 0;
     }
@@ -1739,7 +1753,7 @@ Meta_richcompare(Meta *self, PyObject *py_other, int op) {
     /* Only need to loop if self is not other` */
     if (MS_LIKELY(self != other)) {
 #define DO_COMPARE(field) do { \
-        equal = _config_richcompare_part(self->field, other->field); \
+        equal = _meta_richcompare_part(self->field, other->field); \
         if (equal < 0) return NULL; \
         if (!equal) goto done; \
     } while (0)
@@ -1766,6 +1780,36 @@ done:
     }
     Py_INCREF(out);
     return out;
+}
+
+static Py_hash_t
+Meta_hash(Meta *self) {
+    Py_ssize_t nfields = 0;
+    Py_uhash_t acc = MS_HASH_XXPRIME_5;
+
+#define DO_HASH(field) \
+    if (self->field != NULL) { \
+        Py_uhash_t lane = PyObject_Hash(self->field); \
+        if (lane == (Py_uhash_t)-1) return -1; \
+        acc += lane * MS_HASH_XXPRIME_2; \
+        acc = MS_HASH_XXROTATE(acc); \
+        acc *= MS_HASH_XXPRIME_1; \
+        nfields += 1; \
+    }
+    DO_HASH(gt);
+    DO_HASH(ge);
+    DO_HASH(lt);
+    DO_HASH(le);
+    DO_HASH(multiple_of);
+    DO_HASH(pattern);
+    DO_HASH(min_length);
+    DO_HASH(max_length);
+    DO_HASH(title);
+    DO_HASH(description);
+    /* Leave out examples & description, since they could be unhashable */
+#undef DO_HASH
+    acc += nfields ^ (MS_HASH_XXPRIME_5 ^ 3527539UL);
+    return (acc == (Py_uhash_t)-1) ?  1546275796 : acc;
 }
 
 static PyMemberDef Meta_members[] = {
@@ -1796,7 +1840,8 @@ static PyTypeObject Meta_Type = {
     .tp_dealloc = (destructor) Meta_dealloc,
     .tp_members = Meta_members,
     .tp_repr = (reprfunc) Meta_repr,
-    .tp_richcompare = (richcmpfunc) Meta_richcompare
+    .tp_richcompare = (richcmpfunc) Meta_richcompare,
+    .tp_hash = (hashfunc) Meta_hash
 };
 
 /*************************************************************************
@@ -2530,7 +2575,7 @@ _constr_as_i64(PyObject *obj, int64_t *target, int offset) {
         PyErr_SetString(
             PyExc_ValueError,
             "Integer bounds constraints (`ge`, `le`, ...) that don't fit in an "
-            "int64 are currently unsupported. If you need this feature, please "
+            "int64 are currently not supported. If you need this feature, please "
             "open an issue on GitHub"
         );
         return false;
@@ -2560,7 +2605,9 @@ _constr_as_i64(PyObject *obj, int64_t *target, int offset) {
 
 static bool
 _constr_as_f64(PyObject *obj, double *target, int offset) {
+    /* Use PyFloat_AsDouble to also handle integers */
     double x = PyFloat_AsDouble(obj);
+    /* Should never be hit, types already checked */
     if (x == -1.0 && PyErr_Occurred()) return false;
     if (offset == 1) {
         x = nextafter(x, DBL_MAX);
@@ -2575,6 +2622,7 @@ _constr_as_f64(PyObject *obj, double *target, int offset) {
 static bool
 _constr_as_py_ssize_t(PyObject *obj, Py_ssize_t *target) {
     Py_ssize_t x = PyLong_AsSsize_t(obj);
+    /* Should never be hit, types already checked */
     if (x == -1 && PyErr_Occurred()) return false;
     *target = x;
     return true;
@@ -2603,8 +2651,8 @@ typenode_collect_constraints(
         if (constraints->regex != NULL) return err_invalid_constraint("pattern", "str", obj);
     }
     if (kind != CK_STR && kind != CK_BYTES && kind != CK_ARRAY && kind != CK_MAP) {
-        if (constraints->min_length != NULL) return err_invalid_constraint("min_length", "str or container", obj);
-        if (constraints->max_length != NULL) return err_invalid_constraint("max_length", "str or container", obj);
+        if (constraints->min_length != NULL) return err_invalid_constraint("min_length", "str, bytes, or collection", obj);
+        if (constraints->max_length != NULL) return err_invalid_constraint("max_length", "str, bytes, or collection", obj);
     }
 
     /* Next attempt to fill in the state. */
@@ -5644,21 +5692,6 @@ cleanup:
     return out;
 }
 
-/* Hash algorithm borrowed from cpython 3.10's hashing algorithm for tuples.
- * See https://github.com/python/cpython/blob/4bcef2bb48b3fd82011a89c1c716421b789f1442/Objects/tupleobject.c#L386-L424
- */
-#if SIZEOF_PY_UHASH_T > 4
-#define MS_HASH_XXPRIME_1 ((Py_uhash_t)11400714785074694791ULL)
-#define MS_HASH_XXPRIME_2 ((Py_uhash_t)14029467366897019727ULL)
-#define MS_HASH_XXPRIME_5 ((Py_uhash_t)2870177450012600261ULL)
-#define MS_HASH_XXROTATE(x) ((x << 31) | (x >> 33))  /* Rotate left 31 bits */
-#else
-#define MS_HASH_XXPRIME_1 ((Py_uhash_t)2654435761UL)
-#define MS_HASH_XXPRIME_2 ((Py_uhash_t)2246822519UL)
-#define MS_HASH_XXPRIME_5 ((Py_uhash_t)374761393UL)
-#define MS_HASH_XXROTATE(x) ((x << 13) | (x >> 19))  /* Rotate left 13 bits */
-#endif
-
 static Py_hash_t
 Struct_hash(PyObject *self) {
     PyObject *val;
@@ -7000,14 +7033,14 @@ ms_decode_constr_int(int64_t x, TypeNode *type, PathNode *path) {
         int64_t c = TypeNode_get_constr_int_min(type);
         bool ok = x >= c;
         if (MS_UNLIKELY(!ok)) {
-            return _err_int_constraint("Expected an int >= %lld%U", c, path);
+            return _err_int_constraint("Expected `int` >= %lld%U", c, path);
         }
     }
     if (type->types & MS_CONSTR_INT_MAX) {
         int64_t c = TypeNode_get_constr_int_max(type);
         bool ok = x <= c;
         if (MS_UNLIKELY(!ok)) {
-            return _err_int_constraint("Expected an int <= %lld%U", c, path);
+            return _err_int_constraint("Expected `int` <= %lld%U", c, path);
         }
     }
     if (MS_UNLIKELY(type->types & MS_CONSTR_INT_MULTIPLE_OF)) {
@@ -7015,7 +7048,7 @@ ms_decode_constr_int(int64_t x, TypeNode *type, PathNode *path) {
         bool ok = (x % c) == 0;
         if (MS_UNLIKELY(!ok)) {
             return _err_int_constraint(
-                "Expected an int that's a multiple of %lld%U", c, path
+                "Expected `int` that's a multiple of %lld%U", c, path
             );
         }
     }
@@ -7034,14 +7067,14 @@ static MS_NOINLINE PyObject *
 ms_decode_constr_uint(uint64_t x, TypeNode *type, PathNode *path) {
     if (type->types & MS_CONSTR_INT_MAX) {
         int64_t c = TypeNode_get_constr_int_max(type);
-        return _err_int_constraint("Expected an int <= %lld%U", c, path);
+        return _err_int_constraint("Expected `int` <= %lld%U", c, path);
     }
     if (MS_UNLIKELY(type->types & MS_CONSTR_INT_MULTIPLE_OF)) {
         int64_t c = TypeNode_get_constr_int_multiple_of(type);
         bool ok = (x % c) == 0;
         if (MS_UNLIKELY(!ok)) {
             return _err_int_constraint(
-                "Expected an int that's a multiple of %lld%U", c, path
+                "Expected `int` that's a multiple of %lld%U", c, path
             );
         }
     }
@@ -7050,10 +7083,10 @@ ms_decode_constr_uint(uint64_t x, TypeNode *type, PathNode *path) {
 
 static MS_INLINE PyObject *
 ms_decode_uint(uint64_t x, TypeNode *type, PathNode *path) {
-    if (MS_LIKELY(x <= LLONG_MAX)) {
-        return ms_decode_int(x, type, path);
-    }
-    else if (MS_UNLIKELY(type->types & MS_INT_CONSTRS)) {
+    if (MS_UNLIKELY(type->types & MS_INT_CONSTRS)) {
+        if (MS_LIKELY(x <= LLONG_MAX)) {
+            return ms_decode_int(x, type, path);
+        }
         return ms_decode_constr_uint(x, type, path);
     }
     return PyLong_FromUnsignedLongLong(x);
@@ -7071,7 +7104,7 @@ _err_float_constraint(
     }
     PyObject *py_c = PyFloat_FromDouble(c);
     if (py_c != NULL) {
-        ms_raise_validation_error(path, "Expected a float %s %R%U", msg, py_c);
+        ms_raise_validation_error(path, "Expected `float` %s %R%U", msg, py_c);
         Py_DECREF(py_c);
     }
     return NULL;
@@ -7107,7 +7140,7 @@ ms_decode_constr_float(double x, TypeNode *type, PathNode *path) {
     }
     if (MS_UNLIKELY(type->types & MS_CONSTR_FLOAT_MULTIPLE_OF)) {
         double c = TypeNode_get_constr_float_multiple_of(type);
-        bool ok = fmod(x, c) == 0.0;
+        bool ok = x == 0 || fmod(x, c) == 0.0;
         if (MS_UNLIKELY(!ok)) {
             return _err_float_constraint(
                 "that's a multiple of", 0, c, path
@@ -7141,7 +7174,7 @@ _ms_check_str_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
         Py_ssize_t c = TypeNode_get_constr_str_min_length(type);
         if (len < c) {
             _err_py_ssize_t_constraint(
-                "String must have length >= %zd%U", c, path
+                "Expected `str` of length >= %zd%U", c, path
             );
             goto error;
         }
@@ -7150,7 +7183,7 @@ _ms_check_str_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
         Py_ssize_t c = TypeNode_get_constr_str_max_length(type);
         if (len > c) {
             _err_py_ssize_t_constraint(
-                "String must have length <= %zd%U", c, path
+                "Expected `str` of length <= %zd%U", c, path
             );
             goto error;
         }
@@ -7165,7 +7198,7 @@ _ms_check_str_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
             PyObject *pattern = PyObject_GetAttrString(regex, "pattern");
             if (pattern == NULL) goto error;
             ms_raise_validation_error(
-                path, "String does not match regex %R%U", pattern
+                path, "Expected `str` matching regex %R%U", pattern
             );
             Py_DECREF(pattern);
             goto error;
@@ -7190,7 +7223,7 @@ ms_passes_bytes_constraints(Py_ssize_t size, TypeNode *type, PathNode *path) {
         Py_ssize_t c = TypeNode_get_constr_bytes_min_length(type);
         if (size < c) {
             return _err_py_ssize_t_constraint(
-                "Bytes must have length >= %zd%U", c, path
+                "Expected `bytes` of length >= %zd%U", c, path
             );
         }
     }
@@ -7198,7 +7231,7 @@ ms_passes_bytes_constraints(Py_ssize_t size, TypeNode *type, PathNode *path) {
         Py_ssize_t c = TypeNode_get_constr_bytes_max_length(type);
         if (size > c) {
             return _err_py_ssize_t_constraint(
-                "Bytes must have length <= %zd%U", c, path
+                "Expected `bytes` of length <= %zd%U", c, path
             );
         }
     }
@@ -7211,7 +7244,7 @@ _ms_passes_array_constraints(Py_ssize_t size, TypeNode *type, PathNode *path) {
         Py_ssize_t c = TypeNode_get_constr_array_min_length(type);
         if (size < c) {
             return _err_py_ssize_t_constraint(
-                "Array must have length >= %zd%U", c, path
+                "Expected `array` of length >= %zd%U", c, path
             );
         }
     }
@@ -7219,7 +7252,7 @@ _ms_passes_array_constraints(Py_ssize_t size, TypeNode *type, PathNode *path) {
         Py_ssize_t c = TypeNode_get_constr_array_max_length(type);
         if (size > c) {
             return _err_py_ssize_t_constraint(
-                "Array must have length <= %zd%U", c, path
+                "Expected `array` of length <= %zd%U", c, path
             );
         }
     }
@@ -7240,7 +7273,7 @@ _ms_passes_map_constraints(Py_ssize_t size, TypeNode *type, PathNode *path) {
         Py_ssize_t c = TypeNode_get_constr_map_min_length(type);
         if (size < c) {
             return _err_py_ssize_t_constraint(
-                "Object must have length >= %zd%U", c, path
+                "Expected `object` of length >= %zd%U", c, path
             );
         }
     }
@@ -7248,7 +7281,7 @@ _ms_passes_map_constraints(Py_ssize_t size, TypeNode *type, PathNode *path) {
         Py_ssize_t c = TypeNode_get_constr_map_max_length(type);
         if (size > c) {
            return _err_py_ssize_t_constraint(
-                "Object must have length <= %zd%U", c, path
+                "Expected `object` of length <= %zd%U", c, path
             );
         }
     }
