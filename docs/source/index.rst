@@ -157,6 +157,7 @@ is required.
 
     usage.rst
     structs.rst
+    constraints.rst
     extending.rst
     perf-tips.rst
     benchmarks.rst
