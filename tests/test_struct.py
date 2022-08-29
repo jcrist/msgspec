@@ -1254,23 +1254,30 @@ class TestRename:
 
         assert Test.__struct_encode_fields__ == ("FIELD_ONE", "FIELD_TWO")
 
-    def test_rename_kebap(self):
-        class Test(Struct, rename="kebap"):
+    def test_rename_kebab(self):
+        class Test(Struct, rename="kebab"):
             field_one: int
-            field_two: str
+            field_two_with_suffix: str
+            __field_three__: bool
+            field4: float
 
-        assert Test.__struct_encode_fields__ == ("field_one", "field-one")
+        assert Test.__struct_encode_fields__ == (
+            "field-one",
+            "field-two-with-suffix",
+            "field-three",
+            "field4",
+        )
 
     def test_rename_camel(self):
         class Test(Struct, rename="camel"):
             field_one: int
-            field_two: str
+            field_two_with_suffix: str
             __field__three__: bool
             field4: float
 
         assert Test.__struct_encode_fields__ == (
             "fieldOne",
-            "fieldTwo",
+            "fieldTwoWithSuffix",
             "fieldThree",
             "field4",
         )
@@ -1278,13 +1285,13 @@ class TestRename:
     def test_rename_pascal(self):
         class Test(Struct, rename="pascal"):
             field_one: int
-            field_two: str
+            field_two_with_suffix: str
             __field__three__: bool
             field4: float
 
         assert Test.__struct_encode_fields__ == (
             "FieldOne",
-            "FieldTwo",
+            "FieldTwoWithSuffix",
             "FieldThree",
             "Field4",
         )

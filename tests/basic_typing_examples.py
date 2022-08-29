@@ -53,6 +53,9 @@ def check_struct_rename() -> None:
     class TestPascal(msgspec.Struct, rename="pascal"):
         x: int
 
+    class TestKebab(msgspec.Struct, rename="kebab"):
+        x: int
+
     class TestCallable(msgspec.Struct, rename=lambda x: x.title()):
         x: int
 
