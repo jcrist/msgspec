@@ -251,10 +251,11 @@ See the docs for more information.</p>
 then this defaults to <code class="docutils literal notranslate"><span class="pre">&quot;type&quot;</span></code>. See the <code class="docutils literal notranslate"><span class="pre">tag</span></code> docs above for more
 information.</p></li>
 <li><p><strong>rename</strong> (<em>str, callable, or None, default None</em>) – Controls renaming the field names used when encoding/decoding the struct.
-May be one of <code class="docutils literal notranslate"><span class="pre">&quot;lower&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;upper&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;camel&quot;</span></code>, or <code class="docutils literal notranslate"><span class="pre">&quot;pascal&quot;</span></code>
-to rename in lowercase, UPPERCASE, camelCase, or PascalCase respectively
-Alternatively, may be a callable that takes a string (the field name) and
-returns a new string. Default is <code class="docutils literal notranslate"><span class="pre">None</span></code> for no field renaming.</p></li>
+May be one of <code class="docutils literal notranslate"><span class="pre">&quot;lower&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;upper&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;camel&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;pascal&quot;</span></code>, or
+<code class="docutils literal notranslate"><span class="pre">&quot;kebab&quot;</span></code> to rename in lowercase, UPPERCASE, camelCase, PascalCase,
+or kebab-case respectively. Alternatively, may be a callable that takes a
+string (the field name) and returns a new string. Default is <code class="docutils literal notranslate"><span class="pre">None</span></code> for
+no field renaming.</p></li>
 <li><p><strong>array_like</strong> (<em>bool, default False</em>) – If True, this struct type will be treated as an array-like type during
 encoding/decoding, rather than a dict-like type (the default). This may
 improve performance, at the cost of a more inscrutable message encoding</p></li>
