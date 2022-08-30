@@ -42,7 +42,9 @@ class Struct(metaclass=__StructMeta):
         tag: Union[None, bool, str, int, Callable[[str], Union[str, int]]] = None,
         tag_field: Union[None, str] = None,
         rename: Union[
-            None, Literal["lower", "upper", "camel", "pascal"], Callable[[str], str]
+            None,
+            Literal["lower", "upper", "camel", "pascal", "kebab"],
+            Callable[[str], str],
         ] = None,
         omit_defaults: bool = False,
         frozen: bool = False,
@@ -63,7 +65,9 @@ def defstruct(
     tag: Union[None, bool, str, int, Callable[[str], Union[str, int]]] = None,
     tag_field: Union[None, str] = None,
     rename: Union[
-        None, Literal["lower", "upper", "camel", "pascal"], Callable[[str], str]
+        None,
+        Literal["lower", "upper", "camel", "pascal", "kebab"],
+        Callable[[str], str],
     ] = None,
     omit_defaults: bool = False,
     frozen: bool = False,

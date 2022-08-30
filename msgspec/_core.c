@@ -4366,6 +4366,23 @@ rename_upper(PyObject *field) {
 }
 
 static PyObject*
+rename_kebab(PyObject *field) {
+    PyObject *underscore = NULL, *dash = NULL, *temp = NULL, *out = NULL;
+    underscore = PyUnicode_FromStringAndSize("_", 1);
+    if (underscore == NULL) goto error;
+    dash = PyUnicode_FromStringAndSize("-", 1);
+    if (dash == NULL) goto error;
+    temp = PyObject_CallMethod(field, "strip", "s", "_");
+    if (temp == NULL) goto error;
+    out = PyUnicode_Replace(temp, underscore, dash, -1);
+error:
+    Py_XDECREF(underscore);
+    Py_XDECREF(dash);
+    Py_XDECREF(temp);
+    return out;
+}
+
+static PyObject*
 rename_camel_inner(PyObject *field, bool cap_first) {
     PyObject *parts = NULL, *out = NULL, *empty = NULL;
     PyObject *underscore = PyUnicode_FromStringAndSize("_", 1);
@@ -4440,6 +4457,9 @@ StructMeta_rename_fields(PyObject *fields, PyObject *rename)
         }
         else if (PyUnicode_CompareWithASCIIString(rename, "pascal") == 0) {
             method = &rename_pascal;
+        }
+        else if (PyUnicode_CompareWithASCIIString(rename, "kebab") == 0) {
+            method = &rename_kebab;
         }
         else {
             PyErr_Format(PyExc_ValueError, "rename='%U' is unsupported", rename);
@@ -5935,10 +5955,11 @@ PyDoc_STRVAR(Struct__doc__,
 "   information.\n"
 "rename: str, callable, or None, default None\n"
 "   Controls renaming the field names used when encoding/decoding the struct.\n"
-"   May be one of ``\"lower\"``, ``\"upper\"``, ``\"camel\"``, or ``\"pascal\"``\n"
-"   to rename in lowercase, UPPERCASE, camelCase, or PascalCase respectively\n"
-"   Alternatively, may be a callable that takes a string (the field name) and\n"
-"   returns a new string. Default is ``None`` for no field renaming.\n"
+"   May be one of ``\"lower\"``, ``\"upper\"``, ``\"camel\"``, ``\"pascal\"``, or\n"
+"   ``\"kebab\"`` to rename in lowercase, UPPERCASE, camelCase, PascalCase,\n"
+"   or kebab-case respectively. Alternatively, may be a callable that takes a\n"
+"   string (the field name) and returns a new string. Default is ``None`` for\n"
+"   no field renaming.\n"
 "array_like: bool, default False\n"
 "   If True, this struct type will be treated as an array-like type during\n"
 "   encoding/decoding, rather than a dict-like type (the default). This may\n"
