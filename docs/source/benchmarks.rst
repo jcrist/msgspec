@@ -72,18 +72,11 @@ etc...).
 
 .. raw:: html
 
-    <div class="bk-root" id="bench-1"></div>
-
-.. note::
-
-    You can use the radio buttons on the bottom to sort by encode time, decode
-    time, total roundtrip time, or serialized message size. Hovering over a bar
-    will also display its corresponding value.
+    <div id="bench-1"></div>
 
 From the chart above, you can see that ``msgspec msgpack array-like`` is the
-fastest method for both serialization and deserialization. It also results in
-the smallest serialized message size, just edging out ``pyrobuf``. This makes
-sense; with ``array_like=True`` `Struct` types don’t serialize the field names
+fastest method for both serialization and deserialization. This makes sense;
+with ``array_like=True`` `msgspec.Struct` types don’t serialize the field names
 in each message (things like ``"first"``, ``"last"``, …), only the values,
 leading to smaller messages and higher performance.
 
@@ -107,7 +100,7 @@ the efficiency of the encoding/decoding.
 
 .. raw:: html
 
-    <div class="bk-root" id="bench-1k"></div>
+    <div id="bench-1k"></div>
 
 
 Schema Validation
@@ -123,12 +116,12 @@ lacking builtin validation.
 
 .. raw:: html
 
-    <div class="bk-root" id="bench-1-validate"></div>
+    <div id="bench-1-validate"></div>
 
 
 .. raw:: html
 
-    <div class="bk-root" id="bench-1k-validate"></div>
+    <div id="bench-1k-validate"></div>
 
 
 These plots show the performance benefit of performing type validation during
@@ -283,21 +276,102 @@ msgpack_, and pydantic_ combined. However, the total installed binary size of
 
 .. raw:: html
 
-    <script type="text/javascript" src="https://cdn.bokeh.org/bokeh/release/bokeh-2.4.2.min.js" integrity="XypntL49z55iwGVUW4qsEu83zKL3XEcz0MjuGOQ9SlaaQ68X/g+k1FcioZi7oQAc" crossorigin="anonymous"></script>
-    <script type="text/javascript" src="https://cdn.bokeh.org/bokeh/release/bokeh-widgets-2.4.2.min.js" integrity="TX0gSQTdXTTeScqxj6PVQxTiRW8DOoGVwinyi1D3kxv7wuxQ02XkOxv0xwiypcAH" crossorigin="anonymous"></script>
-    <script>
-    fetch('_static/bench-1.json')
-        .then(function(response) { return response.json() })
-        .then(function(item) { return Bokeh.embed.embed_item(item, 'bench-1') })
-    fetch('_static/bench-1k.json')
-        .then(function(response) { return response.json() })
-        .then(function(item) { return Bokeh.embed.embed_item(item, 'bench-1k') })
-    fetch('_static/bench-1-validate.json')
-        .then(function(response) { return response.json() })
-        .then(function(item) { return Bokeh.embed.embed_item(item, 'bench-1-validate') })
-    fetch('_static/bench-1k-validate.json')
-        .then(function(response) { return response.json() })
-        .then(function(item) { return Bokeh.embed.embed_item(item, 'bench-1k-validate') })
+    <script src="https://cdn.jsdelivr.net/npm/vega@5.22.1"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vega-lite@5.5.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vega-embed@6.21.0"></script>
+
+.. raw:: html
+
+    <script type="text/javascript">
+    var bench1 = {"$schema":"https://vega.github.io/schema/vega-lite/v5.2.0.json","title":"Benchmark - 1 object","config":{"view":{"continuousHeight":250,"stroke":null},"legend":{"title":null}},"data":{"values":[{"library":"ujson","method":"encode","time":0.7012743479572237},{"library":"ujson","method":"decode","time":0.7776292819762602},{"library":"ujson","method":"total","time":1.478903629933484},{"library":"orjson","method":"encode","time":0.270221913990099},{"library":"orjson","method":"decode","time":0.47302685596514493},{"library":"orjson","method":"total","time":0.7432487699552439},{"library":"msgpack","method":"encode","time":0.33563854201929644},{"library":"msgpack","method":"decode","time":0.6668438279302791},{"library":"msgpack","method":"total","time":1.0024823699495757},{"library":"pyrobuf","method":"encode","time":0.6535854979883879},{"library":"pyrobuf","method":"decode","time":0.8572735339403152},{"library":"pyrobuf","method":"total","time":1.5108590319287032},{"library":"msgspec msgpack","method":"encode","time":0.1143525434890762},{"library":"msgspec msgpack","method":"decode","time":0.216143439989537},{"library":"msgspec msgpack","method":"total","time":0.3304959834786132},{"library":"msgspec msgpack array-like","method":"encode","time":0.08384290180401877},{"library":"msgspec msgpack array-like","method":"decode","time":0.18552350549725816},{"library":"msgspec msgpack array-like","method":"total","time":0.2693664073012769},{"library":"msgspec json","method":"encode","time":0.15185418899636716},{"library":"msgspec json","method":"decode","time":0.25328061397885904},{"library":"msgspec json","method":"total","time":0.4051348029752262},{"library":"msgspec json array-like","method":"encode","time":0.12715389250661246},{"library":"msgspec json array-like","method":"decode","time":0.1939729375008028},{"library":"msgspec json array-like","method":"total","time":0.32112683000741526}]},"transform":[{"calculate":"join([format(datum.time, '.3'), ' \u03bcs'], '')","as":"tooltip"}],"mark":"bar","encoding":{"color":{"field":"method","type":"nominal","scale":{"scheme":"tableau20"},"sort":["encode","decode","total"]},"column":{"field":"library","header":{"labelExpr":"split(datum.label, ' ')","orient":"bottom"},"sort":{"field":"time","op":"sum","order":"descending"},"title":null,"type":"nominal"},"tooltip":{"field":"tooltip","type":"nominal"},"x":{"axis":{"labels":false,"ticks":false,"title":null},"field":"method","type":"nominal","sort":["encode","decode","total"]},"y":{"axis":{"grid":false,"title":"Time (\u03bcs)"},"field":"time","type":"quantitative"}}}
+    var bench1k = {"$schema":"https://vega.github.io/schema/vega-lite/v5.2.0.json","title":"Benchmark - 1000 objects","config":{"view":{"continuousHeight":250,"stroke":null},"legend":{"title":null}},"data":{"values":[{"library":"ujson","method":"encode","time":1.101782970072236},{"library":"ujson","method":"decode","time":1.555958529934287},{"library":"ujson","method":"total","time":2.657741500006523},{"library":"orjson","method":"encode","time":0.3649891969980672},{"library":"orjson","method":"decode","time":0.9309962659608573},{"library":"orjson","method":"total","time":1.2959854629589247},{"library":"msgpack","method":"encode","time":0.6081249018898234},{"library":"msgpack","method":"decode","time":1.294329529919196},{"library":"msgpack","method":"total","time":1.902454431809019},{"library":"pyrobuf","method":"encode","time":1.0089194800821133},{"library":"pyrobuf","method":"decode","time":1.3111909248982556},{"library":"pyrobuf","method":"total","time":2.320110404980369},{"library":"msgspec msgpack","method":"encode","time":0.18089910550042987},{"library":"msgspec msgpack","method":"decode","time":0.51097683806438},{"library":"msgspec msgpack","method":"total","time":0.6918759435648099},{"library":"msgspec msgpack array-like","method":"encode","time":0.13219198951264843},{"library":"msgspec msgpack array-like","method":"decode","time":0.45566565392073244},{"library":"msgspec msgpack array-like","method":"total","time":0.5878576434333809},{"library":"msgspec json","method":"encode","time":0.260556788998656},{"library":"msgspec json","method":"decode","time":0.5511399440001696},{"library":"msgspec json","method":"total","time":0.8116967329988257},{"library":"msgspec json array-like","method":"encode","time":0.22168874100316316},{"library":"msgspec json array-like","method":"decode","time":0.4427989659598097},{"library":"msgspec json array-like","method":"total","time":0.6644877069629728}]},"transform":[{"calculate":"join([format(datum.time, '.3'), ' ms'], '')","as":"tooltip"}],"mark":"bar","encoding":{"color":{"field":"method","type":"nominal","scale":{"scheme":"tableau20"},"sort":["encode","decode","total"]},"column":{"field":"library","header":{"labelExpr":"split(datum.label, ' ')","orient":"bottom"},"sort":{"field":"time","op":"sum","order":"descending"},"title":null,"type":"nominal"},"tooltip":{"field":"tooltip","type":"nominal"},"x":{"axis":{"labels":false,"ticks":false,"title":null},"field":"method","type":"nominal","sort":["encode","decode","total"]},"y":{"axis":{"grid":false,"title":"Time (ms)"},"field":"time","type":"quantitative"}}}
+    var bench1Valid = {"$schema":"https://vega.github.io/schema/vega-lite/v5.2.0.json","title":"Benchmark - 1 object (with validation)","config":{"view":{"continuousHeight":250,"stroke":null},"legend":{"title":null}},"data":{"values":[{"library":"ujson","method":"encode","time":0.6922125678975135},{"library":"ujson","method":"decode","time":7.359909660881385},{"library":"ujson","method":"total","time":8.052122228778899},{"library":"orjson","method":"encode","time":0.2709180919919163},{"library":"orjson","method":"decode","time":6.773042919812724},{"library":"orjson","method":"total","time":7.043961011804639},{"library":"msgpack","method":"encode","time":0.33384405297692865},{"library":"msgpack","method":"decode","time":6.877972360234708},{"library":"msgpack","method":"total","time":7.211816413211636},{"library":"pyrobuf","method":"encode","time":0.6596007460029796},{"library":"pyrobuf","method":"decode","time":0.8478293239604682},{"library":"pyrobuf","method":"total","time":1.5074300699634477},{"library":"msgspec msgpack","method":"encode","time":0.11420045502018183},{"library":"msgspec msgpack","method":"decode","time":0.2132822080166079},{"library":"msgspec msgpack","method":"total","time":0.32748266303678975},{"library":"msgspec msgpack array-like","method":"encode","time":0.08239950019633398},{"library":"msgspec msgpack array-like","method":"decode","time":0.1821009054838214},{"library":"msgspec msgpack array-like","method":"total","time":0.26450040568015537},{"library":"msgspec json","method":"encode","time":0.1502124664839357},{"library":"msgspec json","method":"decode","time":0.25309216300956905},{"library":"msgspec json","method":"total","time":0.40330462949350476},{"library":"msgspec json array-like","method":"encode","time":0.12519875550060533},{"library":"msgspec json array-like","method":"decode","time":0.19663669299916364},{"library":"msgspec json array-like","method":"total","time":0.32183544849976903}]},"transform":[{"calculate":"join([format(datum.time, '.3'), ' \u03bcs'], '')","as":"tooltip"}],"mark":"bar","encoding":{"color":{"field":"method","type":"nominal","scale":{"scheme":"tableau20"},"sort":["encode","decode","total"]},"column":{"field":"library","header":{"labelExpr":"split(datum.label, ' ')","orient":"bottom"},"sort":{"field":"time","op":"sum","order":"descending"},"title":null,"type":"nominal"},"tooltip":{"field":"tooltip","type":"nominal"},"x":{"axis":{"labels":false,"ticks":false,"title":null},"field":"method","type":"nominal","sort":["encode","decode","total"]},"y":{"axis":{"grid":false,"title":"Time (\u03bcs)"},"field":"time","type":"quantitative"}}};
+    var bench1kValid = {"$schema":"https://vega.github.io/schema/vega-lite/v5.2.0.json","title":"Benchmark - 1000 objects (with validation)","config":{"view":{"continuousHeight":250,"stroke":null},"legend":{"title":null}},"data":{"values":[{"library":"ujson","method":"encode","time":1.1192577800829895},{"library":"ujson","method":"decode","time":17.770024048513733},{"library":"ujson","method":"total","time":18.889281828596722},{"library":"orjson","method":"encode","time":0.4230181769817136},{"library":"orjson","method":"decode","time":20.486827500280924},{"library":"orjson","method":"total","time":20.909845677262638},{"library":"msgpack","method":"encode","time":0.7460016140248626},{"library":"msgpack","method":"decode","time":21.01829019957222},{"library":"msgpack","method":"total","time":21.764291813597083},{"library":"pyrobuf","method":"encode","time":1.2017700148862787},{"library":"pyrobuf","method":"decode","time":1.3608337150071748},{"library":"pyrobuf","method":"total","time":2.562603729893453},{"library":"msgspec msgpack","method":"encode","time":0.2100023890088778},{"library":"msgspec msgpack","method":"decode","time":0.6212230399250984},{"library":"msgspec msgpack","method":"total","time":0.8312254289339762},{"library":"msgspec msgpack array-like","method":"encode","time":0.16647084298892878},{"library":"msgspec msgpack array-like","method":"decode","time":0.55215780204162},{"library":"msgspec msgpack array-like","method":"total","time":0.7186286450305488},{"library":"msgspec json","method":"encode","time":0.31874892802443355},{"library":"msgspec json","method":"decode","time":0.6870125960558653},{"library":"msgspec json","method":"total","time":1.0057615240802988},{"library":"msgspec json array-like","method":"encode","time":0.2696757350349799},{"library":"msgspec json array-like","method":"decode","time":0.5378577479859814},{"library":"msgspec json array-like","method":"total","time":0.8075334830209613}]},"transform":[{"calculate":"join([format(datum.time, '.3'), ' ms'], '')","as":"tooltip"}],"mark":"bar","encoding":{"color":{"field":"method","type":"nominal","scale":{"scheme":"tableau20"},"sort":["encode","decode","total"]},"column":{"field":"library","header":{"labelExpr":"split(datum.label, ' ')","orient":"bottom"},"sort":{"field":"time","op":"sum","order":"descending"},"title":null,"type":"nominal"},"tooltip":{"field":"tooltip","type":"nominal"},"x":{"axis":{"labels":false,"ticks":false,"title":null},"field":"method","type":"nominal","sort":["encode","decode","total"]},"y":{"axis":{"grid":false,"title":"Time (ms)"},"field":"time","type":"quantitative"}}};
+
+    function buildPlot(div, rows, title) {
+        var i, time_unit, scale, max_time = 0;
+        for (i = 0; i < rows.length; i++) {
+            var total = rows[i][1] + rows[i][2];
+            if (total > max_time) {
+                max_time = total;
+            }
+        }
+        if (max_time < 1e-6) {
+            time_unit = "ns";
+            scale = 1e9;
+        }
+        else if (max_time < 1e-3) {
+            time_unit = "μs";
+            scale = 1e6;
+        }
+        else {
+            time_unit = "ms";
+            scale = 1e3;
+        }
+
+        var columns = ["encode", "decode", "total"];
+        var data = [];
+        for (i = 0; i < rows.length; i++) {
+            var lib = rows[i][0];
+            var et = rows[i][1] * scale;
+            var dt = rows[i][2] * scale;
+            var tt = et + dt;
+            data.push({library: lib, method: "encode", time: et});
+            data.push({library: lib, method: "decode", time: dt});
+            data.push({library: lib, method: "total", time: tt});
+        }
+
+        var spec = {
+            "$schema": "https://vega.github.io/schema/vega-lite/v5.2.0.json",
+            "title": title,
+            "config": {
+                "view": {"continuousHeight": 250, "stroke": null},
+                "legend": {"title": null},
+            },
+            "data": {"values": data},
+            "transform": [
+                {
+                    "calculate": `join([format(datum.time, '.3'), ' ${time_unit}'], '')`,
+                    "as": "tooltip",
+                }
+            ],
+            "mark": "bar",
+            "encoding": {
+                "color": {
+                    "field": "method",
+                    "type": "nominal",
+                    "scale": {"scheme": "tableau20"},
+                    "sort": columns,
+                },
+                "column": {
+                    "field": "library",
+                    "header": {"labelExpr": "split(datum.label, ' ')", "orient": "bottom"},
+                    "sort": {"field": "time", "op": "sum", "order": "descending"},
+                    "title": null,
+                    "type": "nominal",
+                },
+                "tooltip": {"field": "tooltip", "type": "nominal"},
+                "x": {
+                    "axis": {"labels": false, "ticks": false, "title": null},
+                    "field": "method",
+                    "type": "nominal",
+                    "sort": columns,
+                },
+                "y": {
+                    "axis": {"grid": false, "title": `Time (${time_unit})`},
+                    "field": "time",
+                    "type": "quantitative",
+                },
+            },
+        };
+        vegaEmbed(div, spec);
+    }
+
+    var data = {"1": [["ujson", 7.030435859924182e-07, 7.639844279037788e-07], ["orjson", 2.729362859972753e-07, 4.700861860765144e-07], ["msgpack", 3.361755030346103e-07, 6.437368659535423e-07], ["pyrobuf", 6.585190480109304e-07, 8.175451980205253e-07], ["msgspec msgpack", 1.1347354299505241e-07, 2.1372027799952774e-07], ["msgspec msgpack array-like", 8.304792979033664e-08, 1.827640509873163e-07], ["msgspec json", 1.491183284961153e-07, 2.529406379908323e-07], ["msgspec json array-like", 1.2631406149012035e-07, 2.012530609499663e-07]], "1k": [["ujson", 0.001102395214838907, 0.0015488704800372944], ["orjson", 0.0003646563779911958, 0.0009273472519125789], ["msgpack", 0.0006639056000858545, 0.001252785309916362], ["pyrobuf", 0.001007149354845751, 0.0012639255350222812], ["msgspec msgpack", 0.0001816850150062237, 0.0005268073680344969], ["msgspec msgpack array-like", 0.00013447317949612624, 0.00046300101198721677], ["msgspec json", 0.00026055755803827197, 0.0005569243360077962], ["msgspec json array-like", 0.00021961575601017101, 0.00044483237201347947]], "1-valid": [["ujson", 6.967446720227599e-07, 7.38570460001938e-06], ["orjson", 2.7809841802809387e-07, 7.023546079872176e-06], ["msgpack", 3.3430971595225853e-07, 7.071110340766609e-06], ["pyrobuf", 6.591738880379126e-07, 8.14532220014371e-07], ["msgspec msgpack", 1.1331076300120913e-07, 2.1414168103365227e-07], ["msgspec msgpack array-like", 8.293645720696077e-08, 1.8254028499359264e-07], ["msgspec json", 1.5054226550273598e-07, 2.4940696998965e-07], ["msgspec json array-like", 1.2410027100122535e-07, 1.9837152998661623e-07]], "1k-valid": [["ujson", 0.00129786730511114, 0.02141073290258646], ["orjson", 0.00044180043006781486, 0.02110853819758631], ["msgpack", 0.0007393227140419185, 0.02092509400099516], ["pyrobuf", 0.0012027352498262189, 0.0013232087399228476], ["msgspec msgpack", 0.00021633048250805587, 0.0006201737138908357], ["msgspec msgpack array-like", 0.00016943000350147486, 0.0005656970220152288], ["msgspec json", 0.0003191211699740961, 0.0006765304539585487], ["msgspec json array-like", 0.0002677371469908394, 0.000542826394084841]]};
+    buildPlot('#bench-1', data["1"], "Benchmark - 1 Object");
+    buildPlot('#bench-1k', data["1k"], "Benchmark - 1000 Objects");
+    buildPlot('#bench-1-validate', data["1-valid"], "Benchmark - 1 Object, With Validation");
+    buildPlot('#bench-1k-validate', data["1k-valid"], "Benchmark - 1000 Objects, With Validation");
     </script>
 
 
