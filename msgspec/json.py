@@ -4,3 +4,4 @@ from ._core import (
     json_encode as encode,
     json_decode as decode,
 )
+from ._utils import schema, schema_components
