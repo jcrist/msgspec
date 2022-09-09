@@ -505,3 +505,25 @@ def check_json_decode_dec_hook() -> None:
 
     msgspec.json.decode(b"test", dec_hook=dec_hook)
     msgspec.json.Decoder(dec_hook=dec_hook)
+
+
+##########################################################
+# JSON Schema                                            #
+##########################################################
+
+
+def check_json_schema() -> None:
+    o = msgspec.json.schema(List[int])
+    reveal_type(o)  # assert ("Dict" in typ or "dict" in typ)
+
+
+def check_json_schema_components() -> None:
+    s, c = msgspec.json.schema_components([List[int]])
+    reveal_type(s)  # assert ("dict" in typ.lower()) and ("tuple" in typ.lower())
+    reveal_type(c)  # assert ("dict" in typ.lower())
+
+
+def check_json_schema_components_full() -> None:
+    s, c = msgspec.json.schema_components([List[int]], ref_template="#/definitions/{name}")
+    reveal_type(s)  # assert ("dict" in typ.lower()) and ("tuple" in typ.lower())
+    reveal_type(c)  # assert ("dict" in typ.lower())

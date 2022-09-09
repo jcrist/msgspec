@@ -3860,6 +3860,19 @@ typenode_collect_type_full(
                 state, MS_TYPE_VARTUPLE, PyTuple_GET_ITEM(args, 0)
             );
         }
+        else if (
+            PyTuple_GET_SIZE(args) == 1 &&
+            PyTuple_CheckExact(PyTuple_GET_ITEM(args, 0)) &&
+            PyTuple_GET_SIZE(PyTuple_GET_ITEM(args, 0)) == 0
+        ) {
+            /* XXX: this case handles a weird compatibility issue:
+             * - Tuple[()].__args__ == ((),)
+             * - tuple[()].__args__ == ()
+             */
+            out = typenode_collect_array(
+                state, MS_TYPE_FIXTUPLE, PyTuple_GET_ITEM(args, 0)
+            );
+        }
         else {
             out = typenode_collect_array(state, MS_TYPE_FIXTUPLE, args);
         }
