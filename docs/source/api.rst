@@ -62,6 +62,16 @@ MessagePack
 .. autofunction:: decode
 
 
+JSON Schema
+-----------
+
+.. currentmodule:: msgspec.json
+
+.. autofunction:: schema
+
+.. autofunction:: schema_components
+
+
 Exceptions
 ----------
 

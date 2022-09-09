@@ -1,7 +1,13 @@
 import datetime
 import enum
 import re
-from typing import Any, Union, Literal, Tuple, Dict
+import sys
+from typing import Any, Union, Literal, List, Tuple, Dict, Set, FrozenSet
+
+if sys.version_info >= (3, 9):
+    from collections.abc import Iterable
+else:
+    from typing import Iterable
 
 try:
     from types import UnionType
@@ -31,6 +37,7 @@ except Exception:
 
 
 if Required is None and _AnnotatedAlias is None:
+    # No extras available, so no `include_extras`
     get_type_hints = _get_type_hints
 else:
 
@@ -39,6 +46,7 @@ else:
 
 
 def get_typeddict_hints(obj):
+    """Same as `get_type_hints`, but strips off Required/NotRequired"""
     hints = get_type_hints(obj)
     out = {}
     for k, v in hints.items():
@@ -52,8 +60,8 @@ def get_typeddict_hints(obj):
 def schema(type: Any) -> Dict[str, Any]:
     """Generate a JSON Schema for a given type.
 
-    Any schemas for (potentially) shared components are extracted and stored in a
-    ``"$defs"`` field.
+    Any schemas for (potentially) shared components are extracted and stored in
+    a top-level ``"$defs"`` field.
 
     If you want to generate schemas for multiple types, or to have more control
     over the generated schema you may want to use ``schema_components`` instead.
@@ -72,14 +80,14 @@ def schema(type: Any) -> Dict[str, Any]:
     --------
     schema_components
     """
-    (out,), components = schema_components(type)
+    (out,), components = schema_components((type,))
     if components:
         out["$defs"] = components
     return out
 
 
 def schema_components(
-    *types: Any, ref_template: str = "#/$defs/{name}"
+    types: Iterable[Any], ref_template: str = "#/$defs/{name}"
 ) -> Tuple[Tuple[Dict[str, Any], ...], Dict[str, Any]]:
     """Generate JSON Schemas for one or more types.
 
@@ -88,8 +96,8 @@ def schema_components(
 
     Parameters
     ----------
-    types : Type
-        One or more types to generate schemas for.
+    types : Iterable[Type]
+        An iterable of one or more types to generate schemas for.
     ref_template : str, optional
         A template to use when generating ``"$ref"`` fields. This template is
         formatted with the type name as ``template.format(name=name)``. This
@@ -105,24 +113,18 @@ def schema_components(
     components : dict
         A mapping of name to schema for any shared components used by
         ``schemas``.
+
+    See Also
+    --------
+    schema
     """
     return SchemaBuilder(types, ref_template).run()
 
 
-def normalize_default(d):
+def roundtrip_json(d):
     from ._core import json_encode, json_decode
 
     return json_decode(json_encode(d))
-
-
-def to_title(field, pat=re.compile("((?<=[a-z0-9])[A-Z]|(?!^)[A-Z](?=[a-z]))")):
-    if "_" in field:
-        out = field.replace("_", " ")
-    elif "-" in field:
-        out = field.replace("-", " ")
-    else:
-        out = pat.sub(r" \1", field)
-    return out[0].upper() + out[1:]
 
 
 def merge_json(a, b):
@@ -155,19 +157,67 @@ def is_enum(t):
 
 
 def is_typeddict(t):
-    return type(t) is type and issubclass(t, dict) and hasattr(t, "__total__")
+    try:
+        return issubclass(t, dict) and hasattr(t, "__total__")
+    except TypeError:
+        return False
 
 
 def is_namedtuple(t):
-    return type(t) is type and issubclass(t, tuple) and hasattr(t, "_fields")
+    try:
+        return issubclass(t, tuple) and hasattr(t, "_fields")
+    except TypeError:
+        return False
+
+
+def has_nondefault_docstring(t):
+    if not (doc := getattr(t, "__doc__", None)):
+        return False
+
+    if is_enum(t):
+        # TODO: The startswith check was added for compatibility with the
+        # Python 3.11 release candidate, but the cpython code requiring this
+        # change has since been removed. This check can be removed once Python
+        # 3.11 is released.
+        return not (
+            doc == "An enumeration."
+            or doc.startswith("A collection of name/value pairs.")
+        )
+    elif is_namedtuple(t):
+        return not (doc.startswith(f"{t.__name__}(") and doc.endswith(")"))
+    return True
 
 
 UNSET = type("Unset", (), {"__repr__": lambda s: "UNSET"})()
 
 
+def origin_args_metadata(t):
+    from ._core import Meta
+
+    if type(t) is _AnnotatedAlias:
+        metadata = tuple(m for m in t.__metadata__ if type(m) is Meta)
+        t = t.__origin__
+    else:
+        metadata = ()
+
+    if type(t) is UnionType:
+        args = t.__args__
+        t = Union
+    elif t in (List, Tuple, Set, FrozenSet, Dict):
+        t = t.__origin__
+        args = None
+    elif hasattr(t, "__origin__"):
+        args = getattr(t, "__args__", None)
+        t = t.__origin__
+    else:
+        args = None
+
+    return t, args, metadata
+
+
 class SchemaBuilder:
     def __init__(self, types, ref_template):
-        self.types = types
+        self.types = tuple(types)
         self.ref_template = ref_template
         # Cache of type hints per type
         self.type_hints = {}
@@ -190,6 +240,11 @@ class SchemaBuilder:
         return (*self.structs, *self.enums, *self.typeddicts, *self.namedtuples)
 
     def run(self):
+        # First construct a decoder to validate the types are valid
+        from ._core import JSONDecoder
+
+        JSONDecoder(Tuple[self.types])
+
         for t in self.types:
             self._collect_type(t)
 
@@ -203,38 +258,26 @@ class SchemaBuilder:
         return schemas, components
 
     def _collect_type(self, t):
-        if type(t) is _AnnotatedAlias:
-            t = t.__origin__
+        t, args, metadata = origin_args_metadata(t)
 
         if is_enum(t):
             self.enums.add(t)
-            return
         elif is_struct(t):
-            if t in self.structs:
-                return
-            self.structs.add(t)
-            self._collect_fields(t)
+            if t not in self.structs:
+                self.structs.add(t)
+                self._collect_fields(t)
         elif is_typeddict(t):
-            if t in self.typeddicts:
-                return
-            self.typeddicts.add(t)
-            self._collect_fields(t)
+            if t not in self.typeddicts:
+                self.typeddicts.add(t)
+                self._collect_fields(t)
         elif is_namedtuple(t):
-            if t in self.namedtuples:
-                return
-            self.namedtuples.add(t)
-            self._collect_fields(t)
-        else:
-            try:
-                origin = t.__origin__
-                args = t.__args__
-            except AttributeError:
-                return
-
-            if origin in (dict, list, tuple, set, frozenset):
-                for a in args:
-                    if a is not ...:
-                        self._collect_type(a)
+            if t not in self.namedtuples:
+                self.namedtuples.add(t)
+                self._collect_fields(t)
+        elif t in (dict, list, tuple, set, frozenset, Union) and args:
+            for a in args:
+                if a is not ...:
+                    self._collect_type(a)
 
     def _collect_fields(self, t):
         fields = self._get_type_hints(t)
@@ -263,58 +306,31 @@ class SchemaBuilder:
                 names[name] = t
         self.subtype_names = {v: k for k, v in names.items()}
 
-    def _type_to_schema(self, t, *, title=UNSET, default=UNSET, check_ref=True):
-        from ._core import Raw, Ext, Meta
-
-        if check_ref:
-            if name := self.subtype_names.get(t):
-                return {"$ref": self.ref_template.format(name=name)}
-
-        if type(t) is _AnnotatedAlias:
-            metadata = tuple(m for m in t.__metadata__ if type(m) is Meta)
-            t = t.__origin__
-        else:
-            metadata = ()
-
-        if type(t) is UnionType:
-            t = Union
-            args = t.__args__
-        else:
-            try:
-                args = t.__args__
-                t = t.__origin__
-            except AttributeError:
-                args = ()
-
+    def _process_metadata(self, t, metadata):
         schema = {}
-        extra_schema = {}
-
-        if title is not UNSET:
-            schema["title"] = title
-        if default is not UNSET:
-            schema["default"] = normalize_default(default)
-
+        extra = {}
         for meta in metadata:
-            for attr in ["title", "description", "examples"]:
-                if (value := getattr(meta, attr)) is not None:
-                    schema[attr] = value
+            if meta.title:
+                schema["title"] = meta.title
+            if meta.description:
+                schema["description"] = meta.description
+            if meta.examples:
+                schema["examples"] = roundtrip_json(meta.examples)
             if meta.extra_json_schema is not None:
-                merge_json(extra_schema, meta.extra_json_schema)
-
-            if t in (int, float):
-                if meta.ge is not None:
-                    schema["maximum"] = meta.ge
-                if meta.gt is not None:
-                    schema["exclusiveMaximum"] = meta.gt
-                if meta.le is not None:
-                    schema["minimum"] = meta.le
-                if meta.lt is not None:
-                    schema["exclusiveMinimum"] = meta.lt
-                if meta.multiple_of is not None:
-                    schema["multipleOf"] = meta.multiple_of
-            elif t is str:
-                if meta.pattern is not None:
-                    schema["pattern"] = meta.pattern
+                extra = merge_json(extra, roundtrip_json(meta.extra_json_schema))
+            if meta.ge is not None:
+                schema["minimum"] = meta.ge
+            if meta.gt is not None:
+                schema["exclusiveMinimum"] = meta.gt
+            if meta.le is not None:
+                schema["maximum"] = meta.le
+            if meta.lt is not None:
+                schema["exclusiveMaximum"] = meta.lt
+            if meta.multiple_of is not None:
+                schema["multipleOf"] = meta.multiple_of
+            if meta.pattern is not None:
+                schema["pattern"] = meta.pattern
+            if t is str:
                 if meta.max_length is not None:
                     schema["maxLength"] = meta.max_length
                 if meta.min_length is not None:
@@ -334,6 +350,20 @@ class SchemaBuilder:
                     schema["maxProperties"] = meta.max_length
                 if meta.min_length is not None:
                     schema["minProperties"] = meta.min_length
+        return schema, extra
+
+    def _type_to_schema(self, typ, *, default=UNSET, check_ref=True):
+        from ._core import Raw, Ext
+
+        t, args, metadata = origin_args_metadata(typ)
+        schema, extra = self._process_metadata(t, metadata)
+
+        if check_ref and (name := self.subtype_names.get(t)):
+            schema["$ref"] = self.ref_template.format(name=name)
+            return merge_json(schema, extra)
+
+        if default is not UNSET:
+            schema["default"] = roundtrip_json(default)
 
         if t in (Any, Raw):
             pass
@@ -344,7 +374,7 @@ class SchemaBuilder:
         elif t is int:
             schema["type"] = "integer"
         elif t is float:
-            schema["type"] = "float"
+            schema["type"] = "number"
         elif t is str:
             schema["type"] = "string"
         elif t in (bytes, bytearray):
@@ -359,24 +389,63 @@ class SchemaBuilder:
                 schema["items"] = self._type_to_schema(args[0])
         elif t is tuple:
             schema["type"] = "array"
-            if not args or len(args) == 2 and args[-1] is ...:
-                schema["items"] = self._type_to_schema(args[0])
-            else:
-                schema["prefixItems"] = [self._type_to_schema(a) for a in args]
-                schema["minItems"] = len(args)
-                schema["maxItems"] = len(args)
-                schema["items"] = False
+            if args is not None:
+                # Handle an annoying compatibility issue:
+                # - Tuple[()] has args == ((),)
+                # - tuple[()] has args == ()
+                if args == ((),):
+                    args = ()
+                if len(args) == 2 and args[-1] is ...:
+                    schema["items"] = self._type_to_schema(args[0])
+                elif args:
+                    schema["prefixItems"] = [self._type_to_schema(a) for a in args]
+                    schema["minItems"] = len(args)
+                    schema["maxItems"] = len(args)
+                    schema["items"] = False
+                else:
+                    schema["minItems"] = 0
+                    schema["maxItems"] = 0
         elif t is dict:
             schema["type"] = "object"
             if args:
                 schema["additionalProperties"] = self._type_to_schema(args[1])
         elif t is Union:
-            schema["anyOf"] = [self._type_to_schema(a) for a in args]
+            structs = {}
+            other = []
+            tag_field = None
+            for a in args:
+                a_t, a_args, a_metadata = origin_args_metadata(a)
+                if is_struct(a_t) and not a_t.array_like:
+                    tag_field = a_t.__struct_tag_field__
+                    structs[a_t.__struct_tag__] = a
+                else:
+                    other.append(a)
+
+            options = [self._type_to_schema(a) for a in other]
+
+            if len(structs) >= 2:
+                mapping = {
+                    k: self.ref_template.format(name=self.subtype_names[v])
+                    for k, v in structs.items()
+                }
+                struct_schema = {
+                    "anyOf": [self._type_to_schema(s) for s in structs.values()],
+                    "discriminator": {"propertyName": tag_field, "mapping": mapping},
+                }
+                if options:
+                    options.append(struct_schema)
+                    schema["anyOf"] = options
+                else:
+                    schema.update(struct_schema)
+            else:
+                if len(structs) == 1:
+                    options.append(self._type_to_schema(*structs.values()))
+                schema["anyOf"] = options
         elif t is Literal:
             schema["enum"] = sorted(args)
         elif is_enum(t):
             schema.setdefault("title", t.__name__)
-            if t.__doc__:
+            if has_nondefault_docstring(t):
                 schema.setdefault("description", t.__doc__)
             if issubclass(t, enum.IntEnum):
                 schema["enum"] = sorted(int(e) for e in t)
@@ -384,34 +453,45 @@ class SchemaBuilder:
                 schema["enum"] = sorted(e.name for e in t)
         elif is_struct(t):
             schema.setdefault("title", t.__name__)
-            if t.__doc__:
+            if has_nondefault_docstring(t):
                 schema.setdefault("description", t.__doc__)
             hints = self._get_type_hints(t)
+            required = []
+            names = []
+            fields = []
+
+            if t.__struct_tag_field__:
+                required.append(t.__struct_tag_field__)
+                names.append(t.__struct_tag_field__)
+                fields.append({"enum": [t.__struct_tag__]})
+
             n_required = len(t.__struct_fields__) - len(t.__struct_defaults__)
-            fields = [
-                self._type_to_schema(hints[f], default=d, title=to_title(ef))
+            required.extend(t.__struct_encode_fields__[:n_required])
+            names.extend(t.__struct_encode_fields__)
+            fields.extend(
+                self._type_to_schema(hints[f], default=d)
                 for f, ef, d in zip(
                     t.__struct_fields__,
                     t.__struct_encode_fields__,
                     (UNSET,) * n_required + t.__struct_defaults__,
                 )
-            ]
+            )
             if t.array_like:
                 schema["type"] = "array"
                 schema["prefixItems"] = fields
-                schema["minItems"] = n_required
+                schema["minItems"] = len(required)
             else:
                 schema["type"] = "object"
-                schema["required"] = list(t.__struct_encode_fields__[:n_required])
-                schema["properties"] = dict(zip(t.__struct_encode_fields__, fields))
+                schema["properties"] = dict(zip(names, fields))
+                schema["required"] = required
         elif is_typeddict(t):
             schema.setdefault("title", t.__name__)
-            if t.__doc__:
+            if has_nondefault_docstring(t):
                 schema.setdefault("description", t.__doc__)
             hints = self._get_type_hints(t)
             schema["type"] = "object"
             schema["properties"] = {
-                field: self._type_to_schema(field_type, title=to_title(field))
+                field: self._type_to_schema(field_type)
                 for field, field_type in hints.items()
             }
             if hasattr(t, "__required_keys__"):
@@ -421,17 +501,14 @@ class SchemaBuilder:
             else:
                 required = []
             schema["required"] = required
-
         elif is_namedtuple(t):
             schema.setdefault("title", t.__name__)
-            if t.__doc__:
+            if has_nondefault_docstring(t):
                 schema.setdefault("description", t.__doc__)
             hints = self._get_type_hints(t)
             fields = [
                 self._type_to_schema(
-                    hints.get(f, Any),
-                    default=t._field_defaults.get(f, UNSET),
-                    title=to_title(f),
+                    hints.get(f, Any), default=t._field_defaults.get(f, UNSET)
                 )
                 for f in t._fields
             ]
@@ -441,7 +518,7 @@ class SchemaBuilder:
             schema["maxItems"] = len(t._fields)
         elif t is Ext:
             raise TypeError("json-schema doesn't support msgpack Ext types")
-        elif not extra_schema:
+        elif not extra:
             # `t` is a custom type, an explicit schema is required
             raise TypeError(
                 "Custom types currently require a schema be explicitly provided "
@@ -449,7 +526,7 @@ class SchemaBuilder:
                 f"{t!r} is not supported"
             )
 
-        if extra_schema:
-            schema = merge_json(schema, extra_schema)
+        if extra:
+            schema = merge_json(schema, extra)
 
         return schema
