@@ -159,6 +159,7 @@ is required.
     structs.rst
     constraints.rst
     extending.rst
+    jsonschema.rst
     perf-tips.rst
     benchmarks.rst
     examples/index.rst
