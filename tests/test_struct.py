@@ -480,6 +480,22 @@ def test_struct_repr_errors():
         repr(t)
 
 
+def test_struct_rich_repr():
+    assert Struct().__rich_repr__() == ()
+
+    class Test(Struct):
+        a: int
+        b: str
+
+    t = Test(1, "hello")
+
+    assert t.__rich_repr__() == (("a", 1), ("b", "hello"))
+
+    del t.b
+    with pytest.raises(AttributeError):
+        t.__rich_repr__()
+
+
 def test_struct_copy():
     x = copy.copy(Struct())
     assert type(x) is Struct

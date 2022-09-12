@@ -187,6 +187,9 @@ def check_struct_methods() -> None:
     a.x = a.x + b.y
     repr(a)
 
+    for name, val in a.__rich_repr__():
+        print(f"{name} = {val}")
+
 
 def check_struct_attributes() -> None:
     class Point(msgspec.Struct):
@@ -297,6 +300,12 @@ def check_meta_equal() -> None:
     c2 = msgspec.Meta()
     if c1 == c2:
         print("ok")
+
+
+def check_meta_methods() -> None:
+    c = msgspec.Meta()
+    for name, val in c.__rich_repr__():
+        print(f"{name} = {val}")
 
 
 ##########################################################
