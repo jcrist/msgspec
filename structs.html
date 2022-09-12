@@ -163,6 +163,7 @@
 <li class="toctree-l1 current current-page"><a class="current reference internal" href="#">Structs</a></li>
 <li class="toctree-l1"><a class="reference internal" href="constraints.html">Constraints</a></li>
 <li class="toctree-l1"><a class="reference internal" href="extending.html">Extending</a></li>
+<li class="toctree-l1"><a class="reference internal" href="jsonschema.html">JSON Schema</a></li>
 <li class="toctree-l1"><a class="reference internal" href="perf-tips.html">Performance Tips</a></li>
 <li class="toctree-l1"><a class="reference internal" href="benchmarks.html">Benchmarks</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="examples/index.html">Examples</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
@@ -242,6 +243,7 @@ annotations:</p>
 <li><p><code class="docutils literal notranslate"><span class="pre">__copy__</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">__eq__</span></code> &amp; <code class="docutils literal notranslate"><span class="pre">__ne__</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">__match_args__</span></code> (for Python 3.10+’s <a class="reference external" href="https://docs.python.org/3/reference/compound_stmts.html#the-match-statement">pattern matching</a>)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">__rich_repr__</span></code> (for pretty printing support with <a class="reference external" href="https://rich.readthedocs.io/en/stable/pretty.html">rich</a>)</p></li>
 </ul>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">alice</span> <span class="o">=</span> <span class="n">User</span><span class="p">(</span><span class="s2">&quot;alice&quot;</span><span class="p">,</span> <span class="n">groups</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;admin&quot;</span><span class="p">,</span> <span class="s2">&quot;engineering&quot;</span><span class="p">})</span>
 
