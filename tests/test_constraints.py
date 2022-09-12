@@ -104,6 +104,18 @@ class TestMetaObject:
         c = Meta(gt=0, lt=1)
         assert repr(c) == "msgspec.Meta(gt=0, lt=1)"
 
+    def test_rich_repr_empty(self):
+        assert Meta().__rich_repr__() == []
+
+    @pytest.mark.parametrize("field", FIELDS)
+    def test_rich_repr_one_field(self, field):
+        m = Meta(**{field: FIELDS[field]})
+        assert m.__rich_repr__() == [(field, FIELDS[field])]
+
+    def test_rich_repr_multiple_fields(self):
+        m = Meta(gt=0, lt=1)
+        assert m.__rich_repr__() == [("gt", 0), ("lt", 1)]
+
     def test_equality(self):
         assert_eq(Meta(), Meta())
         assert_ne(Meta(), None)

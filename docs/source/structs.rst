@@ -41,6 +41,7 @@ annotations:
 - ``__copy__``
 - ``__eq__`` & ``__ne__``
 - ``__match_args__`` (for Python 3.10+'s `pattern matching`_)
+- ``__rich_repr__`` (for pretty printing support with rich_)
 
 .. code-block:: python
 
@@ -686,3 +687,4 @@ collected (leading to a memory leak).
 .. _reference counting: https://en.wikipedia.org/wiki/Reference_counting
 .. _cyclic garbage collector: https://devguide.python.org/garbage_collector/
 .. _tagged unions: https://en.wikipedia.org/wiki/Tagged_union
+.. _rich: https://rich.readthedocs.io/en/stable/pretty.html

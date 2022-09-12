@@ -1724,6 +1724,35 @@ Meta_repr(Meta *self) {
     return strbuilder_build(&builder);
 }
 
+static PyObject *
+Meta_rich_repr(PyObject *py_self, PyObject *args) {
+    Meta *self = (Meta *)py_self;
+    PyObject *out = PyList_New(0);
+    if (out == NULL) goto error;
+#define DO_REPR(field) do { \
+    if (self->field != NULL) { \
+        PyObject *part = Py_BuildValue("(UO)", #field, self->field); \
+        if (part == NULL || (PyList_Append(out, part) < 0)) goto error;\
+    } } while(0)
+    DO_REPR(gt);
+    DO_REPR(ge);
+    DO_REPR(lt);
+    DO_REPR(le);
+    DO_REPR(multiple_of);
+    DO_REPR(pattern);
+    DO_REPR(min_length);
+    DO_REPR(max_length);
+    DO_REPR(title);
+    DO_REPR(description);
+    DO_REPR(examples);
+    DO_REPR(extra_json_schema);
+#undef DO_REPR
+    return out;
+error:
+    Py_XDECREF(out);
+    return NULL;
+}
+
 static int
 _meta_richcompare_part(PyObject *left, PyObject *right) {
     if ((left == NULL) != (right == NULL)) {
@@ -1812,6 +1841,11 @@ Meta_hash(Meta *self) {
     return (acc == (Py_uhash_t)-1) ?  1546275796 : acc;
 }
 
+static PyMethodDef Meta_methods[] = {
+    {"__rich_repr__", Meta_rich_repr, METH_NOARGS, "rich repr"},
+    {NULL, NULL},
+};
+
 static PyMemberDef Meta_members[] = {
     {"gt", T_OBJECT, offsetof(Meta, gt), READONLY, NULL},
     {"ge", T_OBJECT, offsetof(Meta, ge), READONLY, NULL},
@@ -1838,6 +1872,7 @@ static PyTypeObject Meta_Type = {
     .tp_traverse = (traverseproc) Meta_traverse,
     .tp_clear = (inquiry) Meta_clear,
     .tp_dealloc = (destructor) Meta_dealloc,
+    .tp_methods = Meta_methods,
     .tp_members = Meta_members,
     .tp_repr = (reprfunc) Meta_repr,
     .tp_richcompare = (richcmpfunc) Meta_richcompare,
@@ -5870,6 +5905,28 @@ error:
 }
 
 static PyObject *
+Struct_rich_repr(PyObject *self, PyObject *args) {
+    PyObject *fields = StructMeta_GET_FIELDS(Py_TYPE(self));
+    Py_ssize_t nfields = PyTuple_GET_SIZE(fields);
+
+    PyObject *out = PyTuple_New(nfields);
+    if (out == NULL) goto error;
+
+    for (Py_ssize_t i = 0; i < nfields; i++) {
+        PyObject *field = PyTuple_GET_ITEM(fields, i);
+        PyObject *val = Struct_get_index(self, i);
+        if (val == NULL) goto error;
+        PyObject *part = PyTuple_Pack(2, field, val);
+        if (part == NULL) goto error;
+        PyTuple_SET_ITEM(out, i, part);
+    }
+    return out;
+error:
+    Py_XDECREF(out);
+    return NULL;
+}
+
+static PyObject *
 StructMixin_fields(PyObject *self, void *closure) {
     PyObject *out = ((StructMetaObject *)Py_TYPE(self))->struct_fields;
     Py_INCREF(out);
@@ -5893,6 +5950,7 @@ StructMixin_defaults(PyObject *self, void *closure) {
 static PyMethodDef Struct_methods[] = {
     {"__copy__", Struct_copy, METH_NOARGS, "copy a struct"},
     {"__reduce__", Struct_reduce, METH_NOARGS, "reduce a struct"},
+    {"__rich_repr__", Struct_rich_repr, METH_NOARGS, "rich repr"},
     {NULL, NULL},
 };
 
