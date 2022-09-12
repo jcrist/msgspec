@@ -600,26 +600,10 @@ typedef struct strbuilder {
 #define strbuilder_extend_literal(self, str) strbuilder_extend(self, str, sizeof(str) - 1)
 
 static bool strbuilder_extend(strbuilder *self, const char *buf, Py_ssize_t nbytes) {
-    /* Optimization - store first write by reference.
-     *
-     * This is only possible because the appended buffers are assumed to be
-     * string constants (and thus their lifetime will exist after this call */
-    if (self->buffer == NULL) {
-        self->buffer = (char *)buf;
-        self->size = nbytes;
-        return true;
-    }
-
+    bool is_first_write = self->size == 0;
     Py_ssize_t required = self->size + nbytes + self->sep_size;
 
-    if (!self->capacity) {
-        char *temp = self->buffer;
-        self->capacity = Py_MAX(16, required);
-        self->buffer = PyMem_Malloc(self->capacity);
-        if (self->buffer == NULL) return false;
-        memcpy(self->buffer, temp, self->size);
-    }
-    else if (required > self->capacity) {
+    if (required > self->capacity) {
         self->capacity = required * 1.5;
         char *new_buf = PyMem_Realloc(self->buffer, self->capacity);
         if (new_buf == NULL) {
@@ -629,7 +613,7 @@ static bool strbuilder_extend(strbuilder *self, const char *buf, Py_ssize_t nbyt
         }
         self->buffer = new_buf;
     }
-    if (self->sep_size) {
+    if (self->sep_size && !is_first_write) {
         memcpy(self->buffer + self->size, self->sep, self->sep_size);
         self->size += self->sep_size;
     }
@@ -1681,7 +1665,7 @@ Meta_dealloc(Meta *self) {
 }
 
 static bool
-_config_repr_part(strbuilder *builder, const char *prefix, Py_ssize_t prefix_size, PyObject *field, bool *first) {
+_meta_repr_part(strbuilder *builder, const char *prefix, Py_ssize_t prefix_size, PyObject *field, bool *first) {
     if (*first) {
         *first = false;
     }
@@ -1705,8 +1689,11 @@ Meta_repr(Meta *self) {
      * want the length of field name + 1 (for the `=`). */
 #define DO_REPR(field) do { \
     if (self->field != NULL) { \
-        if (!_config_repr_part(&builder, #field "=", sizeof(#field), self->field, &first)) return NULL; \
-    } } while(0)
+        if (!_meta_repr_part(&builder, #field "=", sizeof(#field), self->field, &first)) { \
+            goto error; \
+        } \
+    } \
+} while(0)
     DO_REPR(gt);
     DO_REPR(ge);
     DO_REPR(lt);
@@ -1720,8 +1707,11 @@ Meta_repr(Meta *self) {
     DO_REPR(examples);
     DO_REPR(extra_json_schema);
 #undef DO_REPR
-    if (!strbuilder_extend_literal(&builder, ")")) return NULL;
+    if (!strbuilder_extend_literal(&builder, ")")) goto error;
     return strbuilder_build(&builder);
+error:
+    strbuilder_reset(&builder);
+    return NULL;
 }
 
 static PyObject *
