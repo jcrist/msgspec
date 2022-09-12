@@ -95,6 +95,15 @@ class TestMetaObject:
             c = Meta(**{field: None})
             assert repr(c) == "msgspec.Meta()"
 
+    def test_repr_error(self):
+        class Oops:
+            def __repr__(self):
+                raise ValueError("Oh no!")
+
+        m = Meta(extra_json_schema={"oops": Oops()})
+        with pytest.raises(ValueError, match="Oh no!"):
+            repr(m)
+
     @pytest.mark.parametrize("field", FIELDS)
     def test_repr_one_field(self, field):
         c = Meta(**{field: FIELDS[field]})
