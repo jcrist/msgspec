@@ -12,9 +12,40 @@ html_theme = "furo"
 html_title = ""
 templates_path = ["_templates"]
 html_static_path = ["_static"]
+html_css_files = ["custom.css"]
+pygments_style = "default"
+
+_link_color_light = "#024bb0"
+_link_color_dark = "#5192d2"
+
 html_theme_options = {
     "light_logo": "msgspec-logo-light.svg",
     "dark_logo": "msgspec-logo-dark.svg",
+    "light_css_variables": {
+        "color-brand-primary": "black",
+        "color-brand-content": _link_color_light,
+        "color-foreground-muted": "#808080",
+        "color-highlight-on-target": "inherit",
+        "color-highlighted-background": "#ffffcc",
+        "color-sidebar-link-text": "black",
+        "color-sidebar-link-text--top-level": "black",
+        "color-link": _link_color_light,
+        "color-link--hover": _link_color_light,
+        "color-link-underline": "transparent",
+        "color-link-underline--hover": _link_color_light,
+    },
+    "dark_css_variables": {
+        "color-brand-primary": "#ffffff",
+        "color-brand-content": _link_color_dark,
+        "color-highlight-on-target": "inherit",
+        "color-highlighted-background": "#333300",
+        "color-sidebar-link-text": "#ffffffcc",
+        "color-sidebar-link-text--top-level": "#ffffffcc",
+        "color-link": _link_color_dark,
+        "color-link--hover": _link_color_dark,
+        "color-link-underline": "transparent",
+        "color-link-underline--hover": _link_color_dark,
+    },
     "sidebar_hide_name": True,
     "footer_icons": [
         {

@@ -1,24 +1,13 @@
-.centered-radio .bk-inline {
-    text-align: center;
-    display: inline-block;
+body[data-theme]:not([data-theme="dark"]) .highlight .gp, .highlight .gh {
+    color: #808080;
+    font-weight: normal;
 }
 
-.footnote {
-    font-size: small;
+body[data-theme]:not([data-theme="dark"]) .highlight .go {
+    color: #203060;
 }
 
-dl.method, dl.attribute, dl.function {
-    margin-top: 15px;
-}
-
-ul.spaced.simple li {
-    margin-bottom: 15px;
-}
-
-ul.simple li {
-    margin-bottom: 5px;
-}
-
-ol.simple li {
-    margin-bottom: 5px;
+body[data-theme="dark"] .highlight .gh, .highlight .gp {
+    color: #aaaaaa;
+    font-weight: normal;
 }

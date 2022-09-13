@@ -3,7 +3,7 @@ msgspec
 
 ``msgspec`` is a *fast* and *friendly* serialization library for Python,
 supporting both JSON_ and MessagePack_. It integrates well with Python's `type
-annotations`_ , providing ergonomic (and performant!) schema validation.
+annotations`_, providing ergonomic (and performant!) schema validation.
 
 **Define** your message schemas using standard Python type annotations.
 
@@ -19,7 +19,7 @@ annotations`_ , providing ergonomic (and performant!) schema validation.
     ...     groups: Set[str] = set()
     ...     email: Optional[str] = None
 
-**Encode** messages as JSON_ or MessagePack_.
+**Encode** messages as JSON or MessagePack.
 
 .. code-block:: python
 
@@ -56,19 +56,17 @@ Highlights
 - ``msgspec`` is **fast**. :doc:`benchmarks` show it's among the fastest
   serialization methods for Python, outperforming all other JSON/MessagePack
   libraries compared.
-- ``msgspec`` is **friendly**. Through use of Python's `type annotations`_,
+- ``msgspec`` is **friendly**. Through use of Python's type annotations,
   messages are :ref:`validated <typed-deserialization>` during deserialization
   in a declaritive way. ``msgspec`` also works well with other type-checking
   tooling like mypy_ and pyright_, providing excellent editor integration.
-- ``msgspec`` is **flexible**. Unlike other libraries like `json` or
-  `msgpack-python`_, ``msgspec`` natively supports a wider range of Python builtin
-  types. Support for additional types can also be added through :doc:`extensions
-  <extending>`.
-- ``msgspec`` is **lightweight**. It has no dependencies, and the installed
-  binary size is :ref:`a fraction of that of comparable libraries
-  <benchmark-library-size>`.
+- ``msgspec`` is **flexible**. It natively supports a wide range of Python
+  builtin types. Support for additional types can also be added through
+  :doc:`extensions <extending>`.
+- ``msgspec`` is **lightweight**. It has no dependencies, and the binary size
+  is :ref:`a fraction of that of comparable libraries <benchmark-library-size>`.
 - ``msgspec`` is **correct**. The encoders/decoders implemented are strictly
-  compliant with the JSON_ and MessagePack_ specifications, providing stronger
+  compliant with the JSON and MessagePack specifications, providing stronger
   guarantees of compatibility with other systems.
 
 
@@ -92,7 +90,7 @@ following:
   If a field is missing from a request or has the wrong type, you probably want
   to raise a nice error message rather than just throwing a 500 error.
 
-  ``msgspec`` lets you describe your schema via `type annotations`_, and will
+  ``msgspec`` lets you describe your schema via type annotations, and will
   efficiently :ref:`validate <typed-deserialization>` messages against this
   schema while decoding.
 
@@ -118,10 +116,10 @@ following:
   <schema-evolution>`. Messages can be sent between clients with different
   schemas without error, allowing systems to evolve over time.
 
-While there are other tools in this space, ``msgspec`` should (in general) be
-an :doc:`order of magnitude faster <benchmarks>` than other options. We also
-hope that it's quick to learn and friendly to use, letting you focus less on
-serialization and more on your application code.
+While there are other tools in this space, ``msgspec`` should be an :doc:`order
+of magnitude faster <benchmarks>` than other options. We also hope that it's
+quick to learn and friendly to use, letting you focus less on serialization and
+more on your application code.
 
 
 Installation
@@ -146,7 +144,6 @@ is required.
 .. _type annotations: https://docs.python.org/3/library/typing.html
 .. _JSON: https://json.org
 .. _MessagePack: https://msgpack.org
-.. _msgpack-python: https://github.com/msgpack/msgpack-python
 .. _pydantic: https://pydantic-docs.helpmanual.io/
 .. _mypy: https://mypy.readthedocs.io
 .. _pyright: https://github.com/microsoft/pyright
@@ -154,14 +151,27 @@ is required.
 .. toctree::
     :hidden:
     :maxdepth: 2
+    :caption: User Guide
 
     usage.rst
     structs.rst
     constraints.rst
-    extending.rst
     jsonschema.rst
+
+.. toctree::
+    :hidden:
+    :maxdepth: 2
+    :caption: Advanced
+
+    extending.rst
     perf-tips.rst
-    benchmarks.rst
+
+.. toctree::
+    :hidden:
+    :maxdepth: 2
+    :caption: Reference
+
     examples/index.rst
     api.rst
+    benchmarks.rst
     changelog.rst
