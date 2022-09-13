@@ -251,15 +251,16 @@ See the docs for more information.</p>
 <li><p><strong>tag_field</strong> (<em>str or None, default None</em>) – The field name to use for tagged union support. If <code class="docutils literal notranslate"><span class="pre">tag</span></code> is non-None,
 then this defaults to <code class="docutils literal notranslate"><span class="pre">&quot;type&quot;</span></code>. See the <code class="docutils literal notranslate"><span class="pre">tag</span></code> docs above for more
 information.</p></li>
-<li><p><strong>rename</strong> (<em>str, callable, or None, default None</em>) – Controls renaming the field names used when encoding/decoding the struct.
+<li><p><strong>rename</strong> (<em>str, mapping, callable, or None, default None</em>) – Controls renaming the field names used when encoding/decoding the struct.
 May be one of <code class="docutils literal notranslate"><span class="pre">&quot;lower&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;upper&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;camel&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;pascal&quot;</span></code>, or
 <code class="docutils literal notranslate"><span class="pre">&quot;kebab&quot;</span></code> to rename in lowercase, UPPERCASE, camelCase, PascalCase,
-or kebab-case respectively. Alternatively, may be a callable that takes a
-string (the field name) and returns a new string. Default is <code class="docutils literal notranslate"><span class="pre">None</span></code> for
-no field renaming.</p></li>
+or kebab-case respectively. May also be a mapping from field names to the
+renamed names (missing fields are not renamed). Alternatively, may be a
+callable that takes the field name and returns a new name or <code class="docutils literal notranslate"><span class="pre">None</span></code> to
+not rename that field. Default is <code class="docutils literal notranslate"><span class="pre">None</span></code> for no field renaming.</p></li>
 <li><p><strong>array_like</strong> (<em>bool, default False</em>) – If True, this struct type will be treated as an array-like type during
 encoding/decoding, rather than a dict-like type (the default). This may
-improve performance, at the cost of a more inscrutable message encoding</p></li>
+improve performance, at the cost of a more inscrutable message encoding.</p></li>
 <li><p><strong>gc</strong> (<em>bool, default True</em>) – Whether garbage collection is enabled for this type. Disabling this <em>may</em>
 help reduce GC pressure, but will prevent reference cycles composed of only
 <code class="docutils literal notranslate"><span class="pre">gc=False</span></code> from being collected. It is the user’s responsibility to ensure

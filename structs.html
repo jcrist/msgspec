@@ -621,8 +621,11 @@ Python.</p>
 <li><p><code class="docutils literal notranslate"><span class="pre">&quot;upper&quot;</span></code>: uppercase all fields (<code class="docutils literal notranslate"><span class="pre">EXAMPLE_FIELD</span></code>)</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">&quot;camel&quot;</span></code>: camelCase all fields (<code class="docutils literal notranslate"><span class="pre">exampleField</span></code>)</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">&quot;pascal&quot;</span></code>: PascalCase all fields (<code class="docutils literal notranslate"><span class="pre">ExampleField</span></code>)</p></li>
-<li><p>A callable (signature <code class="docutils literal notranslate"><span class="pre">rename(name:</span> <span class="pre">str)</span> <span class="pre">-&gt;</span> <span class="pre">str</span></code>) to use to rename all
-field names</p></li>
+<li><p>A mapping from field names to the renamed names. Field names missing from the
+mapping will not be renamed.</p></li>
+<li><p>A callable (signature <code class="docutils literal notranslate"><span class="pre">rename(name:</span> <span class="pre">str)</span> <span class="pre">-&gt;</span> <span class="pre">Optional[str]</span></code>) to use to
+rename all field names. Note that <code class="docutils literal notranslate"><span class="pre">None</span></code> for a return value indicates the
+original field name should be used.</p></li>
 </ul>
 <p>The renamed field names are used for encoding and decoding only, any python
 code will still refer to them using their original names.</p>
@@ -666,8 +669,8 @@ generating <code class="xref py py-obj docutils literal notranslate"><span class
     <span class="o">...</span>
 <span class="p">}</span>
 
-<span class="c1"># Pass `.get` method to `rename` to explicitly rename all fields</span>
-<span class="k">class</span> <span class="nc">V1PodSpec</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">rename</span><span class="o">=</span><span class="n">v1podspec_names</span><span class="o">.</span><span class="n">get</span><span class="p">):</span>
+<span class="c1"># Pass the mapping to `rename` to explicitly rename all fields</span>
+<span class="k">class</span> <span class="nc">V1PodSpec</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">rename</span><span class="o">=</span><span class="n">v1podspec_names</span><span class="p">):</span>
     <span class="o">...</span>
     <span class="n">service_account_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
     <span class="n">set_hostname_as_fqdn</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
