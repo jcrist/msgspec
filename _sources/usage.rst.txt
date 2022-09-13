@@ -1,6 +1,8 @@
 Usage
 =====
 
+.. currentmodule:: msgspec
+
 ``msgspec`` supports multiple serialization protocols, accessed through
 separate submodules:
 
@@ -284,7 +286,7 @@ provided, the `int` will be automatically converted.
 Strings map to JSON or MessagePack strings.
 
 Note that for JSON, only the characters required by RFC8259_ are escaped to
-ascii; unicode characters (e.g. ``"𝄞"``) are _not_ escaped and are serialized
+ascii; unicode characters (e.g. ``"𝄞"``) are *not* escaped and are serialized
 directly as UTF-8 bytes.
 
 .. code-block:: python

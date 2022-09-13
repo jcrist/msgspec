@@ -3,7 +3,7 @@
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
     <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
-<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Examples" href="examples/index.html" /><link rel="prev" title="Performance Tips" href="perf-tips.html" />
+<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Changelog" href="changelog.html" /><link rel="prev" title="API Docs" href="api.html" />
 
     <meta name="generator" content="sphinx-5.1.1, furo 2022.06.21"/>
         <title>Benchmarks</title>
@@ -11,6 +11,7 @@
     <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=40978830699223671f4072448e654b5958f38b89" />
     <link rel="stylesheet" type="text/css" href="_static/copybutton.css" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?digest=30d1aed668e5c3a91c3e3bf6a60b675221979f0e" />
+    <link rel="stylesheet" type="text/css" href="_static/custom.css" />
     
     
 
@@ -19,18 +20,49 @@
   body {
     --color-code-background: #f8f8f8;
   --color-code-foreground: black;
+  --color-brand-primary: black;
+  --color-brand-content: #024bb0;
+  --color-foreground-muted: #808080;
+  --color-highlight-on-target: inherit;
+  --color-highlighted-background: #ffffcc;
+  --color-sidebar-link-text: black;
+  --color-sidebar-link-text--top-level: black;
+  --color-link: #024bb0;
+  --color-link--hover: #024bb0;
+  --color-link-underline: transparent;
+  --color-link-underline--hover: #024bb0;
   
   }
   @media not print {
     body[data-theme="dark"] {
       --color-code-background: #202020;
   --color-code-foreground: #d0d0d0;
+  --color-brand-primary: #ffffff;
+  --color-brand-content: #5192d2;
+  --color-highlight-on-target: inherit;
+  --color-highlighted-background: #333300;
+  --color-sidebar-link-text: #ffffffcc;
+  --color-sidebar-link-text--top-level: #ffffffcc;
+  --color-link: #5192d2;
+  --color-link--hover: #5192d2;
+  --color-link-underline: transparent;
+  --color-link-underline--hover: #5192d2;
   
     }
     @media (prefers-color-scheme: dark) {
       body:not([data-theme="light"]) {
         --color-code-background: #202020;
   --color-code-foreground: #d0d0d0;
+  --color-brand-primary: #ffffff;
+  --color-brand-content: #5192d2;
+  --color-highlight-on-target: inherit;
+  --color-highlighted-background: #333300;
+  --color-sidebar-link-text: #ffffffcc;
+  --color-sidebar-link-text--top-level: #ffffffcc;
+  --color-link: #5192d2;
+  --color-link--hover: #5192d2;
+  --color-link-underline: transparent;
+  --color-link-underline--hover: #5192d2;
   
       }
     }
@@ -158,19 +190,26 @@
   <input type="hidden" name="area" value="default">
 </form>
 <div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
-  <ul class="current">
+  <p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
+<ul>
 <li class="toctree-l1"><a class="reference internal" href="usage.html">Usage</a></li>
 <li class="toctree-l1"><a class="reference internal" href="structs.html">Structs</a></li>
 <li class="toctree-l1"><a class="reference internal" href="constraints.html">Constraints</a></li>
-<li class="toctree-l1"><a class="reference internal" href="extending.html">Extending</a></li>
 <li class="toctree-l1"><a class="reference internal" href="jsonschema.html">JSON Schema</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Advanced</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="extending.html">Extending</a></li>
 <li class="toctree-l1"><a class="reference internal" href="perf-tips.html">Performance Tips</a></li>
-<li class="toctree-l1 current current-page"><a class="current reference internal" href="#">Benchmarks</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul class="current">
 <li class="toctree-l1 has-children"><a class="reference internal" href="examples/index.html">Examples</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="examples/geojson.html">GeoJSON</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="api.html">API Docs</a></li>
+<li class="toctree-l1 current current-page"><a class="current reference internal" href="#">Benchmarks</a></li>
 <li class="toctree-l1"><a class="reference internal" href="changelog.html">Changelog</a></li>
 </ul>
 
@@ -589,23 +628,23 @@ buildPlot('#bench-1k-validate', data["1k-valid"], "Benchmark - 1000 Objects, Wit
       <footer>
         
         <div class="related-pages">
-          <a class="next-page" href="examples/index.html">
+          <a class="next-page" href="changelog.html">
               <div class="page-info">
                 <div class="context">
                   <span>Next</span>
                 </div>
-                <div class="title">Examples</div>
+                <div class="title">Changelog</div>
               </div>
               <svg><use href="#svg-arrow-right"></use></svg>
             </a>
-          <a class="prev-page" href="perf-tips.html">
+          <a class="prev-page" href="api.html">
               <svg><use href="#svg-arrow-right"></use></svg>
               <div class="page-info">
                 <div class="context">
                   <span>Previous</span>
                 </div>
                 
-                <div class="title">Performance Tips</div>
+                <div class="title">API Docs</div>
                 
               </div>
             </a>

@@ -11,6 +11,7 @@
     <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=40978830699223671f4072448e654b5958f38b89" />
     <link rel="stylesheet" type="text/css" href="_static/copybutton.css" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?digest=30d1aed668e5c3a91c3e3bf6a60b675221979f0e" />
+    <link rel="stylesheet" type="text/css" href="_static/custom.css" />
     
     
 
@@ -19,18 +20,49 @@
   body {
     --color-code-background: #f8f8f8;
   --color-code-foreground: black;
+  --color-brand-primary: black;
+  --color-brand-content: #024bb0;
+  --color-foreground-muted: #808080;
+  --color-highlight-on-target: inherit;
+  --color-highlighted-background: #ffffcc;
+  --color-sidebar-link-text: black;
+  --color-sidebar-link-text--top-level: black;
+  --color-link: #024bb0;
+  --color-link--hover: #024bb0;
+  --color-link-underline: transparent;
+  --color-link-underline--hover: #024bb0;
   
   }
   @media not print {
     body[data-theme="dark"] {
       --color-code-background: #202020;
   --color-code-foreground: #d0d0d0;
+  --color-brand-primary: #ffffff;
+  --color-brand-content: #5192d2;
+  --color-highlight-on-target: inherit;
+  --color-highlighted-background: #333300;
+  --color-sidebar-link-text: #ffffffcc;
+  --color-sidebar-link-text--top-level: #ffffffcc;
+  --color-link: #5192d2;
+  --color-link--hover: #5192d2;
+  --color-link-underline: transparent;
+  --color-link-underline--hover: #5192d2;
   
     }
     @media (prefers-color-scheme: dark) {
       body:not([data-theme="light"]) {
         --color-code-background: #202020;
   --color-code-foreground: #d0d0d0;
+  --color-brand-primary: #ffffff;
+  --color-brand-content: #5192d2;
+  --color-highlight-on-target: inherit;
+  --color-highlighted-background: #333300;
+  --color-sidebar-link-text: #ffffffcc;
+  --color-sidebar-link-text--top-level: #ffffffcc;
+  --color-link: #5192d2;
+  --color-link--hover: #5192d2;
+  --color-link-underline: transparent;
+  --color-link-underline--hover: #5192d2;
   
       }
     }
@@ -158,19 +190,26 @@
   <input type="hidden" name="area" value="default">
 </form>
 <div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
-  <ul class="current">
+  <p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
+<ul class="current">
 <li class="toctree-l1 current current-page"><a class="current reference internal" href="#">Usage</a></li>
 <li class="toctree-l1"><a class="reference internal" href="structs.html">Structs</a></li>
 <li class="toctree-l1"><a class="reference internal" href="constraints.html">Constraints</a></li>
-<li class="toctree-l1"><a class="reference internal" href="extending.html">Extending</a></li>
 <li class="toctree-l1"><a class="reference internal" href="jsonschema.html">JSON Schema</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Advanced</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="extending.html">Extending</a></li>
 <li class="toctree-l1"><a class="reference internal" href="perf-tips.html">Performance Tips</a></li>
-<li class="toctree-l1"><a class="reference internal" href="benchmarks.html">Benchmarks</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
 <li class="toctree-l1 has-children"><a class="reference internal" href="examples/index.html">Examples</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="examples/geojson.html">GeoJSON</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="api.html">API Docs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="benchmarks.html">Benchmarks</a></li>
 <li class="toctree-l1"><a class="reference internal" href="changelog.html">Changelog</a></li>
 </ul>
 
@@ -453,7 +492,7 @@ provided, the <a class="reference external" href="https://docs.python.org/3/libr
 <h3><code class="docutils literal notranslate"><span class="pre">str</span></code><a class="headerlink" href="#str" title="Permalink to this heading">#</a></h3>
 <p>Strings map to JSON or MessagePack strings.</p>
 <p>Note that for JSON, only the characters required by <a class="reference external" href="https://datatracker.ietf.org/doc/html/rfc8259">RFC8259</a> are escaped to
-ascii; unicode characters (e.g. <code class="docutils literal notranslate"><span class="pre">&quot;𝄞&quot;</span></code>) are _not_ escaped and are serialized
+ascii; unicode characters (e.g. <code class="docutils literal notranslate"><span class="pre">&quot;𝄞&quot;</span></code>) are <em>not</em> escaped and are serialized
 directly as UTF-8 bytes.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s2">&quot;Hello, world!&quot;</span><span class="p">)</span>
 <span class="go">b&#39;&quot;Hello, world!&quot;&#39;</span>
@@ -816,11 +855,11 @@ value.</p>
 <li><p>Unions may contain at most one of <a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">int</span></code></a> / <a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.IntEnum" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enum.IntEnum</span></code></a></p></li>
 <li><p>Unions may contain at most one of <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">str</span></code></a> / <a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.Enum" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enum.Enum</span></code></a>. <a class="reference internal" href="api.html#msgspec.json.Decoder" title="msgspec.json.Decoder"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.json.Decoder</span></code></a>
 extends this requirement to also include <a class="reference external" href="https://docs.python.org/3/library/datetime.html#module-datetime" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime</span></code></a> / <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytes</span></code></a> / <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytearray" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytearray</span></code></a>.</p></li>
-<li><p>Unions may contain at most one <em>untagged</em> <code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code> type. Unions containing
+<li><p>Unions may contain at most one <em>untagged</em> <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code></a> type. Unions containing
 multiple struct types are only supported through <a class="reference internal" href="structs.html#struct-tagged-unions"><span class="std std-ref">Tagged Unions</span></a>.</p></li>
-<li><p>Unions may contain at most one of <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a> / <code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code> (with <code class="docutils literal notranslate"><span class="pre">array_like=False</span></code>)</p></li>
+<li><p>Unions may contain at most one of <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a> / <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code></a> (with <code class="docutils literal notranslate"><span class="pre">array_like=False</span></code>)</p></li>
 <li><p>Unions may contain at most one of <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">list</span></code></a> / <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tuple</span></code></a> / <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#set" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set</span></code></a> / <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#frozenset" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">frozenset</span></code></a> /
-<code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code> (with <code class="docutils literal notranslate"><span class="pre">array_like=True</span></code>).</p></li>
+<a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code></a> (with <code class="docutils literal notranslate"><span class="pre">array_like=True</span></code>).</p></li>
 <li><p>Unions with custom types are unsupported beyond optionality (i.e.
 <code class="docutils literal notranslate"><span class="pre">Optional[CustomType]</span></code>)</p></li>
 </ul>
