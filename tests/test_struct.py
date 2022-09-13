@@ -1319,15 +1319,30 @@ class TestRename:
 
         assert Test.__struct_encode_fields__ == ("Field_One", "Field_Two")
 
+    def test_rename_callable_returns_none(self):
+        class Test(Struct, rename={"from_": "from"}.get):
+            from_: str
+            to: str
+
+        assert Test.__struct_encode_fields__ == ("from", "to")
+
     def test_rename_callable_returns_non_string(self):
         with pytest.raises(
-            TypeError, match="Expected calling `rename` to return a `str`, got `int`"
+            TypeError,
+            match="Expected calling `rename` to return a `str` or `None`, got `int`",
         ):
 
             class Test(Struct, rename=lambda x: 1):
                 aa1: int
                 aa2: int
                 ab1: int
+
+    def test_rename_mapping(self):
+        class Test(Struct, rename={"from_": "from"}):
+            from_: str
+            to: str
+
+        assert Test.__struct_encode_fields__ == ("from", "to")
 
     def test_rename_bad_value(self):
         with pytest.raises(ValueError, match="rename='invalid' is unsupported"):
@@ -1336,7 +1351,7 @@ class TestRename:
                 x: int
 
     def test_rename_bad_type(self):
-        with pytest.raises(TypeError, match="str or a callable"):
+        with pytest.raises(TypeError, match="str, callable, or mapping"):
 
             class Test(Struct, rename=1):
                 x: int

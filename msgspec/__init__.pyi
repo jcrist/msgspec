@@ -1,17 +1,18 @@
 from typing import (
-    Type,
-    Callable,
-    Dict,
-    Tuple,
-    Iterable,
-    Optional,
     Any,
-    Union,
-    TypeVar,
+    Callable,
     ClassVar,
-    Literal,
-    overload,
+    Dict,
     Final,
+    Iterable,
+    Literal,
+    Mapping,
+    Optional,
+    Tuple,
+    Type,
+    TypeVar,
+    Union,
+    overload,
 )
 
 # Use `__dataclass_transform__` to catch more errors under pyright. Since we don't expose
@@ -44,7 +45,8 @@ class Struct(metaclass=__StructMeta):
         rename: Union[
             None,
             Literal["lower", "upper", "camel", "pascal", "kebab"],
-            Callable[[str], str],
+            Callable[[str], Optional[str]],
+            Mapping[str, str],
         ] = None,
         omit_defaults: bool = False,
         frozen: bool = False,
@@ -68,7 +70,8 @@ def defstruct(
     rename: Union[
         None,
         Literal["lower", "upper", "camel", "pascal", "kebab"],
-        Callable[[str], str],
+        Callable[[str], Optional[str]],
+        Mapping[str, str],
     ] = None,
     omit_defaults: bool = False,
     frozen: bool = False,
