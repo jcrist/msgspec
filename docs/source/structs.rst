@@ -468,8 +468,11 @@ To handle this, ``msgspec`` supports a ``rename`` configuration option in
 - ``"upper"``: uppercase all fields (``EXAMPLE_FIELD``)
 - ``"camel"``: camelCase all fields (``exampleField``)
 - ``"pascal"``: PascalCase all fields (``ExampleField``)
-- A callable (signature ``rename(name: str) -> str``) to use to rename all
-  field names
+- A mapping from field names to the renamed names. Field names missing from the
+  mapping will not be renamed.
+- A callable (signature ``rename(name: str) -> Optional[str]``) to use to
+  rename all field names. Note that ``None`` for a return value indicates the
+  original field name should be used.
 
 The renamed field names are used for encoding and decoding only, any python
 code will still refer to them using their original names.
@@ -519,8 +522,8 @@ generating `Struct` types to match an existing API.
         ...
     }
 
-    # Pass `.get` method to `rename` to explicitly rename all fields
-    class V1PodSpec(msgspec.Struct, rename=v1podspec_names.get):
+    # Pass the mapping to `rename` to explicitly rename all fields
+    class V1PodSpec(msgspec.Struct, rename=v1podspec_names):
         ...
         service_account_name: str = ""
         set_hostname_as_fqdn: bool = False

@@ -59,6 +59,12 @@ def check_struct_rename() -> None:
     class TestCallable(msgspec.Struct, rename=lambda x: x.title()):
         x: int
 
+    class TestCallableNone(msgspec.Struct, rename=lambda x: None):
+        x: int
+
+    class TestMapping(msgspec.Struct, rename={"x": "X"}):
+        x: int
+
     class TestNone(msgspec.Struct, rename=None):
         x: int
 

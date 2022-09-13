@@ -4404,17 +4404,17 @@ Struct_setattro_default(PyObject *self, PyObject *key, PyObject *value) {
 }
 
 static PyObject*
-rename_lower(PyObject *field) {
+rename_lower(PyObject *rename, PyObject *field) {
     return PyObject_CallMethod(field, "lower", NULL);
 }
 
 static PyObject*
-rename_upper(PyObject *field) {
+rename_upper(PyObject *rename, PyObject *field) {
     return PyObject_CallMethod(field, "upper", NULL);
 }
 
 static PyObject*
-rename_kebab(PyObject *field) {
+rename_kebab(PyObject *rename, PyObject *field) {
     PyObject *underscore = NULL, *dash = NULL, *temp = NULL, *out = NULL;
     underscore = PyUnicode_FromStringAndSize("_", 1);
     if (underscore == NULL) goto error;
@@ -4470,13 +4470,57 @@ cleanup:
 }
 
 static PyObject*
-rename_camel(PyObject *field) {
+rename_camel(PyObject *rename, PyObject *field) {
     return rename_camel_inner(field, false);
 }
 
 static PyObject*
-rename_pascal(PyObject *field) {
+rename_pascal(PyObject *rename, PyObject *field) {
     return rename_camel_inner(field, true);
+}
+
+static PyObject*
+rename_callable(PyObject *rename, PyObject *field) {
+    PyObject *temp = CALL_ONE_ARG(rename, field);
+    if (temp == NULL) return NULL;
+    if (PyUnicode_CheckExact(temp)) return temp;
+    if (temp == Py_None) {
+        Py_DECREF(temp);
+        Py_INCREF(field);
+        return field;
+    }
+    PyErr_Format(
+        PyExc_TypeError,
+        "Expected calling `rename` to return a `str` or `None`, got `%.200s`",
+        Py_TYPE(temp)->tp_name
+    );
+    Py_DECREF(temp);
+    return NULL;
+}
+
+static PyObject*
+rename_mapping(PyObject *rename, PyObject *field) {
+    PyObject *temp = PyObject_GetItem(rename, field);
+    if (temp == NULL) {
+        PyErr_Clear();
+        Py_INCREF(field);
+        return field;
+    }
+    else if (temp == Py_None) {
+        Py_DECREF(temp);
+        Py_INCREF(field);
+        return field;
+    }
+    else if (PyUnicode_CheckExact(temp)) {
+        return temp;
+    }
+    PyErr_Format(
+        PyExc_TypeError,
+        "Expected `rename[field]` to return a `str` or `None`, got `%.200s`",
+        Py_TYPE(temp)->tp_name
+    );
+    Py_DECREF(temp);
+    return NULL;
 }
 
 static int json_str_requires_escaping(PyObject *);
@@ -4490,10 +4534,8 @@ StructMeta_rename_fields(PyObject *fields, PyObject *rename)
         return fields;
     }
 
-    PyObject *out = NULL, *out_set = NULL;
-
+    PyObject* (*method)(PyObject *, PyObject *);
     if (PyUnicode_CheckExact(rename)) {
-        PyObject* (*method)(PyObject *);
         if (PyUnicode_CompareWithASCIIString(rename, "lower") == 0) {
             method = &rename_lower;
         }
@@ -4513,35 +4555,25 @@ StructMeta_rename_fields(PyObject *fields, PyObject *rename)
             PyErr_Format(PyExc_ValueError, "rename='%U' is unsupported", rename);
             return NULL;
         }
-        out = PyTuple_New(PyTuple_GET_SIZE(fields));
-        if (out == NULL) return NULL;
-        for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(fields); i++) {
-            PyObject *temp = method(PyTuple_GET_ITEM(fields, i));
-            if (temp == NULL) goto error;
-            PyTuple_SET_ITEM(out, i, temp);
-        }
     }
     else if (PyCallable_Check(rename)) {
-        out = PyTuple_New(PyTuple_GET_SIZE(fields));
-        if (out == NULL) return NULL;
-        for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(fields); i++) {
-            PyObject *temp = CALL_ONE_ARG(rename, PyTuple_GET_ITEM(fields, i));
-            if (temp == NULL) goto error;
-            if (!PyUnicode_CheckExact(temp)) {
-                PyErr_Format(
-                    PyExc_TypeError,
-                    "Expected calling `rename` to return a `str`, got `%.200s`",
-                    Py_TYPE(temp)->tp_name
-                );
-                Py_DECREF(temp);
-                goto error;
-            }
-            PyTuple_SET_ITEM(out, i, temp);
-        }
+        method = &rename_callable;
+    }
+    else if (PyMapping_Check(rename)) {
+        method = &rename_mapping;
     }
     else {
-        PyErr_SetString(PyExc_TypeError, "`rename` must be a str or a callable");
+        PyErr_SetString(PyExc_TypeError, "`rename` must be a str, callable, or mapping");
         return NULL;
+    }
+
+    PyObject *out_set = NULL;
+    PyObject *out = PyTuple_New(PyTuple_GET_SIZE(fields));
+    if (out == NULL) return NULL;
+    for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(fields); i++) {
+        PyObject *temp = method(rename, PyTuple_GET_ITEM(fields, i));
+        if (temp == NULL) goto error;
+        PyTuple_SET_ITEM(out, i, temp);
     }
 
     /* Ensure that renamed fields don't collide */
@@ -6024,17 +6056,18 @@ PyDoc_STRVAR(Struct__doc__,
 "   The field name to use for tagged union support. If ``tag`` is non-None,\n"
 "   then this defaults to ``\"type\"``. See the ``tag`` docs above for more\n"
 "   information.\n"
-"rename: str, callable, or None, default None\n"
+"rename: str, mapping, callable, or None, default None\n"
 "   Controls renaming the field names used when encoding/decoding the struct.\n"
 "   May be one of ``\"lower\"``, ``\"upper\"``, ``\"camel\"``, ``\"pascal\"``, or\n"
 "   ``\"kebab\"`` to rename in lowercase, UPPERCASE, camelCase, PascalCase,\n"
-"   or kebab-case respectively. Alternatively, may be a callable that takes a\n"
-"   string (the field name) and returns a new string. Default is ``None`` for\n"
-"   no field renaming.\n"
+"   or kebab-case respectively. May also be a mapping from field names to the\n"
+"   renamed names (missing fields are not renamed). Alternatively, may be a\n"
+"   callable that takes the field name and returns a new name or ``None`` to\n"
+"   not rename that field. Default is ``None`` for no field renaming.\n"
 "array_like: bool, default False\n"
 "   If True, this struct type will be treated as an array-like type during\n"
 "   encoding/decoding, rather than a dict-like type (the default). This may\n"
-"   improve performance, at the cost of a more inscrutable message encoding\n"
+"   improve performance, at the cost of a more inscrutable message encoding.\n"
 "gc: bool, default True\n"
 "   Whether garbage collection is enabled for this type. Disabling this *may*\n"
 "   help reduce GC pressure, but will prevent reference cycles composed of only\n"
