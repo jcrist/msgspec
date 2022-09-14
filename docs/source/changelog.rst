@@ -3,6 +3,19 @@ Changelog
 
 .. currentmodule:: msgspec
 
+Version 0.9.0 (2022-09-13)
+--------------------------
+
+- Support for :doc:`constraints <constraints>` during validation. For example,
+  this allows ensuring a field is an integer >= 0. (:pr:`176`)
+- New utilities for generating :doc:`JSON Schemas <jsonschema>` from type
+  definitions (:pr:`181`)
+- Support for pretty printing using `rich
+  <https://rich.readthedocs.io/en/stable/pretty.html>`_ (:pr:`183`)
+- Improve integer encoding performance (:pr:`170`)
+- Builtin support for renaming fields using kebab-case (:pr:`175`)
+- Support for passing a mapping when renaming fields (:pr:`185`)
+
 Version 0.8.0 (2022-08-01)
 --------------------------
 
