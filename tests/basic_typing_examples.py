@@ -205,6 +205,9 @@ def check_struct_attributes() -> None:
     for field in Point.__struct_fields__:
         reveal_type(field)  # assert "str" in typ
 
+    for field in Point.__match_args__:
+        reveal_type(field)  # assert "any" not in typ.lower()
+
     p = Point(1, 2)
 
     for field in p.__struct_fields__:
