@@ -37,6 +37,7 @@ class __StructMeta(type):
 
 class Struct(metaclass=__StructMeta):
     __struct_fields__: ClassVar[Tuple[str, ...]]
+    __match_args__: ClassVar[Tuple[str, ...]]
     def __init__(self, *args: Any, **kwargs: Any) -> None: ...
     def __init_subclass__(
         cls,
