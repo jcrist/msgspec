@@ -33,6 +33,7 @@ class Encoder:
 class Decoder(Generic[T]):
     type: Type[T]
     dec_hook: dec_hook_sig
+
     @overload
     def __init__(
         self: Decoder[Any],
@@ -43,6 +44,13 @@ class Decoder(Generic[T]):
     def __init__(
         self: Decoder[T],
         type: Type[T] = ...,
+        *,
+        dec_hook: dec_hook_sig = None,
+    ) -> None: ...
+    @overload
+    def __init__(
+        self: Decoder[Any],
+        type: Any = ...,
         *,
         dec_hook: dec_hook_sig = None,
     ) -> None: ...
@@ -61,6 +69,13 @@ def decode(
     type: Type[T] = ...,
     dec_hook: dec_hook_sig = None,
 ) -> T: ...
+@overload
+def decode(
+    buf: bytes,
+    *,
+    type: Any = ...,
+    dec_hook: dec_hook_sig = None,
+) -> Any: ...
 def encode(obj: Any, *, enc_hook: enc_hook_sig = None) -> bytes: ...
 def schema(type: Any) -> Dict[str, Any]: ...
 def schema_components(

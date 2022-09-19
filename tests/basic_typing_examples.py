@@ -1,7 +1,9 @@
 # fmt: off
+from __future__ import annotations
+
 import datetime
 import pickle
-from typing import List, Any, Type
+from typing import List, Any, Type, Union
 import msgspec
 
 def check___version__() -> None:
@@ -391,6 +393,14 @@ def check_msgpack_Decoder_decode_typed() -> None:
     reveal_type(o)  # assert ("List" in typ or "list" in typ) and "int" in typ
 
 
+def check_msgpack_Decoder_decode_union() -> None:
+    # Pyright doesn't require the annotation, but mypy does until TypeForm
+    # is supported. This is mostly checking that no error happens here.
+    dec: msgspec.msgpack.Decoder[Union[int, str]] = msgspec.msgpack.Decoder(Union[int, str])
+    o = dec.decode(b'')
+    reveal_type(o)  # assert ("int" in typ and "str" in typ)
+
+
 def check_msgpack_Decoder_decode_type_comment() -> None:
     dec = msgspec.msgpack.Decoder()  # type: msgspec.msgpack.Decoder[List[int]]
     b = msgspec.msgpack.encode([1, 2, 3])
@@ -412,6 +422,11 @@ def check_msgpack_decode_typed() -> None:
     o = msgspec.msgpack.decode(b, type=List[int])
 
     reveal_type(o)  # assert ("List" in typ or "list" in typ) and "int" in typ
+
+
+def check_msgpack_decode_typed_union() -> None:
+    o: Union[int, str] = msgspec.msgpack.decode(b"", type=Union[int, str])
+    reveal_type(o)  # assert "int" in typ and "str" in typ
 
 
 def check_msgpack_encode_enc_hook() -> None:
@@ -495,6 +510,12 @@ def check_json_Decoder_decode_type_comment() -> None:
     reveal_type(o)  # assert ("List" in typ or "list" in typ) and "int" in typ
 
 
+def check_json_Decoder_decode_union() -> None:
+    dec: msgspec.json.Decoder[Union[int, str]] = msgspec.json.Decoder(Union[int, str])
+    o = dec.decode(b'')
+    reveal_type(o)  # assert ("int" in typ and "str" in typ)
+
+
 def check_json_decode_any() -> None:
     b = msgspec.json.encode([1, 2, 3])
     o = msgspec.json.decode(b)
@@ -507,6 +528,11 @@ def check_json_decode_typed() -> None:
     o = msgspec.json.decode(b, type=List[int])
 
     reveal_type(o)  # assert ("List" in typ or "list" in typ) and "int" in typ
+
+
+def check_json_decode_typed_union() -> None:
+    o: Union[int, str] = msgspec.json.decode(b"", type=Union[int, str])
+    reveal_type(o)  # assert "int" in typ and "str" in typ
 
 
 def check_json_encode_enc_hook() -> None:
