@@ -4,7 +4,6 @@ repos:
     hooks:
     - id: black
       language_version: python3
-      args: ["--target-version=py38"]
 
   - repo: https://gitlab.com/pycqa/flake8
     rev: 4.0.1
