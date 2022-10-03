@@ -8,6 +8,7 @@ MiB) JSON file containing nested metadata about every package on conda-forge.
 The following libraries are compared:
 
 - json_
+- ujson_
 - orjson_
 - simdjson_
 - msgspec_
@@ -18,13 +19,19 @@ determine the top 10 packages by file size.
 
 **Results**
 
+.. raw:: html
+
+    <div id="bench-conda-repodata"></div>
+
 .. code-block:: text
 
    $ python query_repodata.py
-   json: 131.14 ms
+   json: 139.14 ms
+   ujson: 124.91 ms
    orjson: 91.69 ms
-   simdjson: 66.22 ms
-   msgspec: 25.09 ms
+   simdjson: 66.40 ms
+   msgspec: 25.73 ms
+
 
 **Commentary**
 
@@ -62,10 +69,49 @@ The full example source can be found `here
 .. literalinclude:: ../../../examples/conda-repodata/query_repodata.py
     :language: python
 
+.. raw:: html
+
+    <script src="https://cdn.jsdelivr.net/npm/vega@5.22.1"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vega-lite@5.5.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vega-embed@6.21.0"></script>
+    <script type="text/javascript">
+    var spec = {
+        "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+        "title": {
+            "text": "Benchmark - Processing current_repodata.json",
+            "anchor": "start"
+        },
+        "config": {"view": {"discreteWidth": 400, "stroke": null}},
+        "data": {
+            "values": [
+            {"library": "json", "time": 139.14},
+            {"library": "ujson", "time": 124.91},
+            {"library": "orjson", "time": 91.69},
+            {"library": "simdjson", "time": 66.40},
+            {"library": "msgspec", "time": 25.73}
+            ]
+        },
+        "transform": [
+            {
+                "calculate": `join([format(datum.time, '.3'), 'ms'], ' ')`,
+                "as": "tooltip",
+            }
+        ],
+        "mark": "bar",
+        "encoding": {
+            "tooltip": {"field": "tooltip", "type": "nominal"},
+            "x": {"field": "library", "type": "nominal", "axis": {"labelAngle": 0, "title": null}, "sort": {"field": "time", "order": "descending"}},
+            "y": {"field": "time", "type": "quantitative", "axis": {"title": "time (ms)", "grid": false}}
+        }
+    };
+    vegaEmbed("#bench-conda-repodata", spec);
+    </script>
+
 
 .. _conda-forge: https://conda-forge.org/
 .. _current_repodata.json: https://conda.anaconda.org/conda-forge/noarch/current_repodata.json
 .. _json: https://docs.python.org/3/library/json.html
+.. _ujson: https://github.com/ultrajson/ultrajson
 .. _msgspec: https://jcristharif.com/msgspec/
 .. _orjson: https://github.com/ijl/orjson
 .. _simdjson: https://github.com/TkTech/pysimdjson
