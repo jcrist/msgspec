@@ -5,6 +5,7 @@ import msgspec
 import orjson
 import requests
 import simdjson
+import ujson
 
 
 def query_msgspec(data: bytes) -> list[tuple[int, str]]:
@@ -40,6 +41,13 @@ def query_json(data: bytes) -> list[tuple[int, str]]:
     )[:10]
 
 
+def query_ujson(data: bytes) -> list[tuple[int, str]]:
+    repo_data = ujson.loads(data)
+    return sorted(
+        ((p["size"], p["name"]) for p in repo_data["packages"].values()), reverse=True
+    )[:10]
+
+
 def query_simdjson(data: bytes) -> list[tuple[int, str]]:
     repo_data = simdjson.Parser().parse(data)
     return sorted(
@@ -56,6 +64,7 @@ data = resp.content
 
 libraries = [
     ("json", query_json),
+    ("ujson", query_ujson),
     ("orjson", query_orjson),
     ("simdjson", query_simdjson),
     ("msgspec", query_msgspec),
