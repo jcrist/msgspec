@@ -62,6 +62,8 @@ encoding and decoding performance (since there's less work to do).
 For more information, see :ref:`omit_defaults`.
 
 
+.. _avoid-decoding-unused-fields:
+
 Avoid Decoding Unused Fields
 ----------------------------
 
@@ -106,6 +108,9 @@ We can then use these types to decode the `example tweet json
 Of course there are downsides to defining smaller "view" types, but if decoding
 performance is a bottleneck in your workflow, you may benefit from this
 technique.
+
+For a more in-depth example of this technique, see the
+:doc:`examples/conda-repodata` example.
 
 
 Reduce Allocations
