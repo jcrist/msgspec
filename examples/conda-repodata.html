@@ -255,6 +255,7 @@ MiB) JSON file containing nested metadata about every package on conda-forge.</p
 <p>The following libraries are compared:</p>
 <ul class="simple">
 <li><p><a class="reference external" href="https://docs.python.org/3/library/json.html">json</a></p></li>
+<li><p><a class="reference external" href="https://github.com/ultrajson/ultrajson">ujson</a></p></li>
 <li><p><a class="reference external" href="https://github.com/ijl/orjson">orjson</a></p></li>
 <li><p><a class="reference external" href="https://github.com/TkTech/pysimdjson">simdjson</a></p></li>
 <li><p><a class="reference external" href="https://jcristharif.com/msgspec/">msgspec</a></p></li>
@@ -263,11 +264,12 @@ MiB) JSON file containing nested metadata about every package on conda-forge.</p
 <code class="docutils literal notranslate"><span class="pre">current_repodata.json</span></code> file, extract the name and size of each package, and
 determine the top 10 packages by file size.</p>
 <p><strong>Results</strong></p>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>$ python query_repodata.py
-json: 131.14 ms
+<div id="bench-conda-repodata"></div><div class="highlight-text notranslate"><div class="highlight"><pre><span></span>$ python query_repodata.py
+json: 139.14 ms
+ujson: 124.91 ms
 orjson: 91.69 ms
-simdjson: 66.22 ms
-msgspec: 25.09 ms
+simdjson: 66.40 ms
+msgspec: 25.73 ms
 </pre></div>
 </div>
 <p><strong>Commentary</strong></p>
@@ -303,6 +305,7 @@ indirection costs later on during use. See <a class="reference internal" href=".
 <span class="kn">import</span> <span class="nn">orjson</span>
 <span class="kn">import</span> <span class="nn">requests</span>
 <span class="kn">import</span> <span class="nn">simdjson</span>
+<span class="kn">import</span> <span class="nn">ujson</span>
 
 
 <span class="k">def</span> <span class="nf">query_msgspec</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="nb">bytes</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">str</span><span class="p">]]:</span>
@@ -338,6 +341,13 @@ indirection costs later on during use. See <a class="reference internal" href=".
     <span class="p">)[:</span><span class="mi">10</span><span class="p">]</span>
 
 
+<span class="k">def</span> <span class="nf">query_ujson</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="nb">bytes</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">str</span><span class="p">]]:</span>
+    <span class="n">repo_data</span> <span class="o">=</span> <span class="n">ujson</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+    <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span>
+        <span class="p">((</span><span class="n">p</span><span class="p">[</span><span class="s2">&quot;size&quot;</span><span class="p">],</span> <span class="n">p</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">])</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">repo_data</span><span class="p">[</span><span class="s2">&quot;packages&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">()),</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span>
+    <span class="p">)[:</span><span class="mi">10</span><span class="p">]</span>
+
+
 <span class="k">def</span> <span class="nf">query_simdjson</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="nb">bytes</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">str</span><span class="p">]]:</span>
     <span class="n">repo_data</span> <span class="o">=</span> <span class="n">simdjson</span><span class="o">.</span><span class="n">Parser</span><span class="p">()</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
     <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span>
@@ -354,6 +364,7 @@ indirection costs later on during use. See <a class="reference internal" href=".
 
 <span class="n">libraries</span> <span class="o">=</span> <span class="p">[</span>
     <span class="p">(</span><span class="s2">&quot;json&quot;</span><span class="p">,</span> <span class="n">query_json</span><span class="p">),</span>
+    <span class="p">(</span><span class="s2">&quot;ujson&quot;</span><span class="p">,</span> <span class="n">query_ujson</span><span class="p">),</span>
     <span class="p">(</span><span class="s2">&quot;orjson&quot;</span><span class="p">,</span> <span class="n">query_orjson</span><span class="p">),</span>
     <span class="p">(</span><span class="s2">&quot;simdjson&quot;</span><span class="p">,</span> <span class="n">query_simdjson</span><span class="p">),</span>
     <span class="p">(</span><span class="s2">&quot;msgspec&quot;</span><span class="p">,</span> <span class="n">query_msgspec</span><span class="p">),</span>
@@ -367,7 +378,41 @@ indirection costs later on during use. See <a class="reference internal" href=".
     <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">lib</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="p">(</span><span class="n">stop</span> <span class="o">-</span> <span class="n">start</span><span class="p">)</span> <span class="o">*</span> <span class="mi">1000</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2"> ms&quot;</span><span class="p">)</span>
 </pre></div>
 </div>
-</section>
+<script src="https://cdn.jsdelivr.net/npm/vega@5.22.1"></script>
+<script src="https://cdn.jsdelivr.net/npm/vega-lite@5.5.0"></script>
+<script src="https://cdn.jsdelivr.net/npm/vega-embed@6.21.0"></script>
+<script type="text/javascript">
+var spec = {
+    "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+    "title": {
+        "text": "Benchmark - Processing current_repodata.json",
+        "anchor": "start"
+    },
+    "config": {"view": {"discreteWidth": 400, "stroke": null}},
+    "data": {
+        "values": [
+        {"library": "json", "time": 139.14},
+        {"library": "ujson", "time": 124.91},
+        {"library": "orjson", "time": 91.69},
+        {"library": "simdjson", "time": 66.40},
+        {"library": "msgspec", "time": 25.73}
+        ]
+    },
+    "transform": [
+        {
+            "calculate": `join([format(datum.time, '.3'), 'ms'], ' ')`,
+            "as": "tooltip",
+        }
+    ],
+    "mark": "bar",
+    "encoding": {
+        "tooltip": {"field": "tooltip", "type": "nominal"},
+        "x": {"field": "library", "type": "nominal", "axis": {"labelAngle": 0, "title": null}, "sort": {"field": "time", "order": "descending"}},
+        "y": {"field": "time", "type": "quantitative", "axis": {"title": "time (ms)", "grid": false}}
+    }
+};
+vegaEmbed("#bench-conda-repodata", spec);
+</script></section>
 
         </article>
       </div>
