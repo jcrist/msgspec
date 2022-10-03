@@ -5,10 +5,10 @@
     <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Examples" href="examples/index.html" /><link rel="prev" title="Extending" href="extending.html" />
 
-    <meta name="generator" content="sphinx-5.1.1, furo 2022.09.15"/>
+    <meta name="generator" content="sphinx-5.2.3, furo 2022.09.29"/>
         <title>Performance Tips</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
-    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=9ec31e2665bf879c1d47d93a8ec4893870ee1e45" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=d81277517bee4d6b0349d71bb2661d4890b5617c" />
     <link rel="stylesheet" type="text/css" href="_static/copybutton.css" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?digest=30d1aed668e5c3a91c3e3bf6a60b675221979f0e" />
     <link rel="stylesheet" type="text/css" href="_static/custom.css" />
@@ -207,6 +207,7 @@
 <li class="toctree-l1 has-children"><a class="reference internal" href="examples/index.html">Examples</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="examples/geojson.html">GeoJSON</a></li>
 <li class="toctree-l2"><a class="reference internal" href="examples/asyncio-kv.html">Asyncio TCP Key-Value Server</a></li>
+<li class="toctree-l2"><a class="reference internal" href="examples/conda-repodata.html">Conda Repodata</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="api.html">API Docs</a></li>
@@ -231,7 +232,8 @@
           <span>Back to top</span>
         </a>
         <div class="content-icon-container">
-          <div class="theme-toggle-container theme-toggle-content">
+          
+<div class="theme-toggle-container theme-toggle-content">
             <button class="theme-toggle">
               <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
               <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
@@ -297,7 +299,7 @@ encoding and decoding performance (since there’s less work to do).</p>
 <p>For more information, see <a class="reference internal" href="structs.html#omit-defaults"><span class="std std-ref">Omitting Default Values</span></a>.</p>
 </section>
 <section id="avoid-decoding-unused-fields">
-<h2>Avoid Decoding Unused Fields<a class="headerlink" href="#avoid-decoding-unused-fields" title="Permalink to this heading">#</a></h2>
+<span id="id1"></span><h2>Avoid Decoding Unused Fields<a class="headerlink" href="#avoid-decoding-unused-fields" title="Permalink to this heading">#</a></h2>
 <p>When decoding large inputs, sometimes you’re only interested in a few specific
 fields. Since decoding large objects is inherently allocation heavy, it may be
 beneficial to define a smaller <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> type that only has the fields
@@ -331,6 +333,8 @@ decoding fields that are never used.</p>
 <p>Of course there are downsides to defining smaller “view” types, but if decoding
 performance is a bottleneck in your workflow, you may benefit from this
 technique.</p>
+<p>For a more in-depth example of this technique, see the
+<a class="reference internal" href="examples/conda-repodata.html"><span class="doc">Conda Repodata</span></a> example.</p>
 </section>
 <section id="reduce-allocations">
 <h2>Reduce Allocations<a class="headerlink" href="#reduce-allocations" title="Permalink to this heading">#</a></h2>
@@ -580,6 +584,7 @@ average another ~2x speedup for decoding (and ~1.5x speedup for encoding).</p>
     <script src="_static/underscore.js"></script>
     <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
     <script src="_static/doctools.js"></script>
+    <script src="_static/sphinx_highlight.js"></script>
     <script src="_static/scripts/furo.js"></script>
     <script src="_static/clipboard.min.js"></script>
     <script src="_static/copybutton.js"></script>

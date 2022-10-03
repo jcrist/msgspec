@@ -3,12 +3,12 @@
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
     <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
-<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Benchmarks" href="benchmarks.html" /><link rel="prev" title="Asyncio TCP Key-Value Server" href="examples/asyncio-kv.html" />
+<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Benchmarks" href="benchmarks.html" /><link rel="prev" title="Conda Repodata" href="examples/conda-repodata.html" />
 
-    <meta name="generator" content="sphinx-5.1.1, furo 2022.09.15"/>
+    <meta name="generator" content="sphinx-5.2.3, furo 2022.09.29"/>
         <title>API Docs</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
-    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=9ec31e2665bf879c1d47d93a8ec4893870ee1e45" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=d81277517bee4d6b0349d71bb2661d4890b5617c" />
     <link rel="stylesheet" type="text/css" href="_static/copybutton.css" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?digest=30d1aed668e5c3a91c3e3bf6a60b675221979f0e" />
     <link rel="stylesheet" type="text/css" href="_static/custom.css" />
@@ -207,6 +207,7 @@
 <li class="toctree-l1 has-children"><a class="reference internal" href="examples/index.html">Examples</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="examples/geojson.html">GeoJSON</a></li>
 <li class="toctree-l2"><a class="reference internal" href="examples/asyncio-kv.html">Asyncio TCP Key-Value Server</a></li>
+<li class="toctree-l2"><a class="reference internal" href="examples/conda-repodata.html">Conda Repodata</a></li>
 </ul>
 </li>
 <li class="toctree-l1 current current-page"><a class="current reference internal" href="#">API Docs</a></li>
@@ -231,7 +232,8 @@
           <span>Back to top</span>
         </a>
         <div class="content-icon-container">
-          <div class="theme-toggle-container theme-toggle-content">
+          
+<div class="theme-toggle-container theme-toggle-content">
             <button class="theme-toggle">
               <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
               <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
@@ -903,14 +905,14 @@ OpenAPI schema.</p></li>
               </div>
               <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
             </a>
-          <a class="prev-page" href="examples/asyncio-kv.html">
+          <a class="prev-page" href="examples/conda-repodata.html">
               <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
               <div class="page-info">
                 <div class="context">
                   <span>Previous</span>
                 </div>
                 
-                <div class="title">Asyncio TCP Key-Value Server</div>
+                <div class="title">Conda Repodata</div>
                 
               </div>
             </a>
@@ -950,13 +952,67 @@ OpenAPI schema.</p></li>
           <div class="toc-tree">
             <ul>
 <li><a class="reference internal" href="#">API Docs</a><ul>
-<li><a class="reference internal" href="#struct">Struct</a></li>
-<li><a class="reference internal" href="#meta">Meta</a></li>
-<li><a class="reference internal" href="#raw">Raw</a></li>
-<li><a class="reference internal" href="#json">JSON</a></li>
-<li><a class="reference internal" href="#messagepack">MessagePack</a></li>
-<li><a class="reference internal" href="#json-schema">JSON Schema</a></li>
-<li><a class="reference internal" href="#exceptions">Exceptions</a></li>
+<li><a class="reference internal" href="#struct">Struct</a><ul>
+<li><a class="reference internal" href="#msgspec.Struct"><code class="docutils literal notranslate"><span class="pre">Struct</span></code></a></li>
+<li><a class="reference internal" href="#msgspec.defstruct"><code class="docutils literal notranslate"><span class="pre">defstruct()</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#meta">Meta</a><ul>
+<li><a class="reference internal" href="#msgspec.Meta"><code class="docutils literal notranslate"><span class="pre">Meta</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#raw">Raw</a><ul>
+<li><a class="reference internal" href="#msgspec.Raw"><code class="docutils literal notranslate"><span class="pre">Raw</span></code></a><ul>
+<li><a class="reference internal" href="#msgspec.Raw.copy"><code class="docutils literal notranslate"><span class="pre">Raw.copy()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a class="reference internal" href="#json">JSON</a><ul>
+<li><a class="reference internal" href="#msgspec.json.Encoder"><code class="docutils literal notranslate"><span class="pre">Encoder</span></code></a><ul>
+<li><a class="reference internal" href="#msgspec.json.Encoder.encode"><code class="docutils literal notranslate"><span class="pre">Encoder.encode()</span></code></a></li>
+<li><a class="reference internal" href="#msgspec.json.Encoder.encode_into"><code class="docutils literal notranslate"><span class="pre">Encoder.encode_into()</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#msgspec.json.Decoder"><code class="docutils literal notranslate"><span class="pre">Decoder</span></code></a><ul>
+<li><a class="reference internal" href="#msgspec.json.Decoder.decode"><code class="docutils literal notranslate"><span class="pre">Decoder.decode()</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#msgspec.json.encode"><code class="docutils literal notranslate"><span class="pre">encode()</span></code></a></li>
+<li><a class="reference internal" href="#msgspec.json.decode"><code class="docutils literal notranslate"><span class="pre">decode()</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#messagepack">MessagePack</a><ul>
+<li><a class="reference internal" href="#msgspec.msgpack.Encoder"><code class="docutils literal notranslate"><span class="pre">Encoder</span></code></a><ul>
+<li><a class="reference internal" href="#msgspec.msgpack.Encoder.encode"><code class="docutils literal notranslate"><span class="pre">Encoder.encode()</span></code></a></li>
+<li><a class="reference internal" href="#msgspec.msgpack.Encoder.encode_into"><code class="docutils literal notranslate"><span class="pre">Encoder.encode_into()</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#msgspec.msgpack.Decoder"><code class="docutils literal notranslate"><span class="pre">Decoder</span></code></a><ul>
+<li><a class="reference internal" href="#msgspec.msgpack.Decoder.decode"><code class="docutils literal notranslate"><span class="pre">Decoder.decode()</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#msgspec.msgpack.Ext"><code class="docutils literal notranslate"><span class="pre">Ext</span></code></a><ul>
+<li><a class="reference internal" href="#msgspec.msgpack.Ext.code"><code class="docutils literal notranslate"><span class="pre">Ext.code</span></code></a></li>
+<li><a class="reference internal" href="#msgspec.msgpack.Ext.data"><code class="docutils literal notranslate"><span class="pre">Ext.data</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#msgspec.msgpack.encode"><code class="docutils literal notranslate"><span class="pre">encode()</span></code></a></li>
+<li><a class="reference internal" href="#msgspec.msgpack.decode"><code class="docutils literal notranslate"><span class="pre">decode()</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#json-schema">JSON Schema</a><ul>
+<li><a class="reference internal" href="#msgspec.json.schema"><code class="docutils literal notranslate"><span class="pre">schema()</span></code></a></li>
+<li><a class="reference internal" href="#msgspec.json.schema_components"><code class="docutils literal notranslate"><span class="pre">schema_components()</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#exceptions">Exceptions</a><ul>
+<li><a class="reference internal" href="#msgspec.MsgspecError"><code class="docutils literal notranslate"><span class="pre">MsgspecError</span></code></a></li>
+<li><a class="reference internal" href="#msgspec.EncodeError"><code class="docutils literal notranslate"><span class="pre">EncodeError</span></code></a></li>
+<li><a class="reference internal" href="#msgspec.DecodeError"><code class="docutils literal notranslate"><span class="pre">DecodeError</span></code></a></li>
+<li><a class="reference internal" href="#msgspec.ValidationError"><code class="docutils literal notranslate"><span class="pre">ValidationError</span></code></a></li>
+</ul>
+</li>
 </ul>
 </li>
 </ul>
@@ -973,6 +1029,7 @@ OpenAPI schema.</p></li>
     <script src="_static/underscore.js"></script>
     <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
     <script src="_static/doctools.js"></script>
+    <script src="_static/sphinx_highlight.js"></script>
     <script src="_static/scripts/furo.js"></script>
     <script src="_static/clipboard.min.js"></script>
     <script src="_static/copybutton.js"></script>
