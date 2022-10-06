@@ -60,8 +60,10 @@ The libraries we're benchmarking are the following:
   message types configured with ``array_like=True``
 
 Each benchmark creates one or more instances of a ``Person`` message, and
-serializes it/deserializes it in a loop. The `full benchmark source can be
-found here <https://github.com/jcrist/msgspec/tree/main/benchmarks>`__.
+serializes it/deserializes it in a loop.
+
+The full benchmark source can be found
+`here <https://github.com/jcrist/msgspec/tree/main/benchmarks>`__.
 
 1 Object
 ^^^^^^^^
@@ -141,6 +143,67 @@ of these issues. Only a single pass over the decoded data is taken, and the
 specified output types are created correctly the first time, avoiding the need
 for additional unnecessary allocations.
 
+.. _memory-benchmark:
+
+Benchmark - Memory Usage
+------------------------
+
+Here we benchmark loading a `medium-sized JSON file
+<https://conda.anaconda.org/conda-forge/noarch/repodata.json>`__ (~65 MiB)
+containing information on all the ``noarch`` packages in conda-forge_. We
+compare the following libraries:
+
+- msgspec_ with ``msgspec.Struct`` schemas pre-defined
+- msgspec_
+- json_
+- ujson_
+- orjson_
+- simdjson_
+
+For each library, we measure both the peak increase in memory usage (RSS) and
+the time to JSON decode the file.
+
+The full benchmark source can be found `here
+<https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_memory.py>`__.
+
+**Results (smaller is better):**
+
++---------------------+--------------+------+-----------+------+
+|                     | memory (MiB) | vs.  | time (ms) | vs.  |
++=====================+==============+======+===========+======+
+| **msgspec structs** | 83.6         | 1.0x | 170.6     | 1.0x |
++---------------------+--------------+------+-----------+------+
+| **msgspec**         | 145.3        | 1.7x | 383.1     | 2.2x |
++---------------------+--------------+------+-----------+------+
+| **json**            | 213.5        | 2.6x | 526.4     | 3.1x |
++---------------------+--------------+------+-----------+------+
+| **ujson**           | 230.6        | 2.8x | 666.8     | 3.9x |
++---------------------+--------------+------+-----------+------+
+| **orjson**          | 263.9        | 3.2x | 410.0     | 2.4x |
++---------------------+--------------+------+-----------+------+
+| **simdjson**        | 403.7        | 4.8x | 615.1     | 3.6x |
++---------------------+--------------+------+-----------+------+
+
+- ``msgspec`` decoding into :doc:`Struct <structs>` types uses the least amount of
+  memory, and is also the fastest to decode. This makes sense; ``Struct`` types
+  are cheaper to allocate and more memory efficient than ``dict`` types, and for
+  large messages these differences can really add up.
+
+- ``msgspec`` decoding without a schema is the second best option for both
+  memory usage and speed. When decoding without a schema, ``msgspec`` makes the
+  assumption that the underlying message probably still has some structure;
+  short dict keys are temporarily cached to be reused later on, rather than
+  reallocated every time. This means that instead of allocating 10,000 copies
+  of the string ``"name"``, only a single copy is allocated and reused. For
+  large messages this can lead to significant memory savings. ``json`` and
+  ``orjson`` also use similar optimizations, but not as effectively.
+
+- ``orjson`` and ``simdjson`` use 3-5x more memory than ``msgspec`` in this
+  benchmark. In addition to the reasons above, both of these decoders require
+  copying the original message into a temporary buffer. In this case, the extra
+  copy adds an extra 65 MiB of overhead!
+
+
 .. _struct-benchmark:
 
 Benchmark - Structs
@@ -164,7 +227,7 @@ For each library, the following operations are benchmarked:
 - Time to compare two instances for equality (``==``/``!=``).
 - Time to compare two instances for order (``<``/``>``/``<=``/``>=``)
 
-The `full benchmark source can be found here
+The full benchmark source can be found `here
 <https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_structs.py>`__.
 
 **Results (smaller is better):**
@@ -211,7 +274,7 @@ of the benchmarked type, then measure:
 - The amount of time it takes to do a full garbage collection (gc) pass
 - The total amount of memory used by this data structure
 
-The `full benchmark source can be found here
+The full benchmark source can be found `here
 <https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_gc.py>`__.
 
 **Results (smaller is better):**
@@ -253,7 +316,7 @@ Benchmark - Library Size
 
 Here we compare the on-disk size of a few Python libraries.
 
-The `full benchmark source can be found here
+The full benchmark source can be found `here
 <https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_library_size.py>`__.
 
 **Results (smaller is better)**
@@ -374,8 +437,11 @@ msgpack_, and pydantic_ combined. However, the total installed binary size of
 .. _msgspec: https://jcristharif.com/msgspec/
 .. _msgpack: https://github.com/msgpack/msgpack-python
 .. _orjson: https://github.com/ijl/orjson
+.. _json: https://docs.python.org/3/library/json.html
+.. _simdjson: https://github.com/TkTech/pysimdjson
 .. _pyrobuf: https://github.com/appnexus/pyrobuf
 .. _ujson: https://github.com/ultrajson/ultrajson
 .. _attrs: https://www.attrs.org
 .. _dataclasses: https://docs.python.org/3/library/dataclasses.html
 .. _pydantic: https://pydantic-docs.helpmanual.io/
+.. _conda-forge: https://conda-forge.org/
