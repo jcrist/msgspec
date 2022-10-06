@@ -299,8 +299,9 @@ message types</p></li>
 message types configured with <code class="docutils literal notranslate"><span class="pre">array_like=True</span></code></p></li>
 </ul>
 <p>Each benchmark creates one or more instances of a <code class="docutils literal notranslate"><span class="pre">Person</span></code> message, and
-serializes it/deserializes it in a loop. The <a class="reference external" href="https://github.com/jcrist/msgspec/tree/main/benchmarks">full benchmark source can be
-found here</a>.</p>
+serializes it/deserializes it in a loop.</p>
+<p>The full benchmark source can be found
+<a class="reference external" href="https://github.com/jcrist/msgspec/tree/main/benchmarks">here</a>.</p>
 <section id="object">
 <h3>1 Object<a class="headerlink" href="#object" title="Permalink to this heading">#</a></h3>
 <p>Some workflows involve sending around very small messages. Here the overhead
@@ -353,6 +354,92 @@ specified output types are created correctly the first time, avoiding the need
 for additional unnecessary allocations.</p>
 </section>
 </section>
+<section id="benchmark-memory-usage">
+<span id="memory-benchmark"></span><h2>Benchmark - Memory Usage<a class="headerlink" href="#benchmark-memory-usage" title="Permalink to this heading">#</a></h2>
+<p>Here we benchmark loading a <a class="reference external" href="https://conda.anaconda.org/conda-forge/noarch/repodata.json">medium-sized JSON file</a> (~65 MiB)
+containing information on all the <code class="docutils literal notranslate"><span class="pre">noarch</span></code> packages in <a class="reference external" href="https://conda-forge.org/">conda-forge</a>. We
+compare the following libraries:</p>
+<ul class="simple">
+<li><p><a class="reference external" href="https://jcristharif.com/msgspec/">msgspec</a> with <code class="docutils literal notranslate"><span class="pre">msgspec.Struct</span></code> schemas pre-defined</p></li>
+<li><p><a class="reference external" href="https://jcristharif.com/msgspec/">msgspec</a></p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/json.html">json</a></p></li>
+<li><p><a class="reference external" href="https://github.com/ultrajson/ultrajson">ujson</a></p></li>
+<li><p><a class="reference external" href="https://github.com/ijl/orjson">orjson</a></p></li>
+<li><p><a class="reference external" href="https://github.com/TkTech/pysimdjson">simdjson</a></p></li>
+</ul>
+<p>For each library, we measure both the peak increase in memory usage (RSS) and
+the time to JSON decode the file.</p>
+<p>The full benchmark source can be found <a class="reference external" href="https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_memory.py">here</a>.</p>
+<p><strong>Results (smaller is better):</strong></p>
+<div class="table-wrapper docutils container">
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"></th>
+<th class="head"><p>memory (MiB)</p></th>
+<th class="head"><p>vs.</p></th>
+<th class="head"><p>time (ms)</p></th>
+<th class="head"><p>vs.</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><strong>msgspec structs</strong></p></td>
+<td><p>83.6</p></td>
+<td><p>1.0x</p></td>
+<td><p>170.6</p></td>
+<td><p>1.0x</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>msgspec</strong></p></td>
+<td><p>145.3</p></td>
+<td><p>1.7x</p></td>
+<td><p>383.1</p></td>
+<td><p>2.2x</p></td>
+</tr>
+<tr class="row-even"><td><p><strong>json</strong></p></td>
+<td><p>213.5</p></td>
+<td><p>2.6x</p></td>
+<td><p>526.4</p></td>
+<td><p>3.1x</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>ujson</strong></p></td>
+<td><p>230.6</p></td>
+<td><p>2.8x</p></td>
+<td><p>666.8</p></td>
+<td><p>3.9x</p></td>
+</tr>
+<tr class="row-even"><td><p><strong>orjson</strong></p></td>
+<td><p>263.9</p></td>
+<td><p>3.2x</p></td>
+<td><p>410.0</p></td>
+<td><p>2.4x</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>simdjson</strong></p></td>
+<td><p>403.7</p></td>
+<td><p>4.8x</p></td>
+<td><p>615.1</p></td>
+<td><p>3.6x</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> decoding into <a class="reference internal" href="structs.html"><span class="doc">Struct</span></a> types uses the least amount of
+memory, and is also the fastest to decode. This makes sense; <code class="docutils literal notranslate"><span class="pre">Struct</span></code> types
+are cheaper to allocate and more memory efficient than <code class="docutils literal notranslate"><span class="pre">dict</span></code> types, and for
+large messages these differences can really add up.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> decoding without a schema is the second best option for both
+memory usage and speed. When decoding without a schema, <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> makes the
+assumption that the underlying message probably still has some structure;
+short dict keys are temporarily cached to be reused later on, rather than
+reallocated every time. This means that instead of allocating 10,000 copies
+of the string <code class="docutils literal notranslate"><span class="pre">&quot;name&quot;</span></code>, only a single copy is allocated and reused. For
+large messages this can lead to significant memory savings. <code class="docutils literal notranslate"><span class="pre">json</span></code> and
+<code class="docutils literal notranslate"><span class="pre">orjson</span></code> also use similar optimizations, but not as effectively.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">orjson</span></code> and <code class="docutils literal notranslate"><span class="pre">simdjson</span></code> use 3-5x more memory than <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> in this
+benchmark. In addition to the reasons above, both of these decoders require
+copying the original message into a temporary buffer. In this case, the extra
+copy adds an extra 65 MiB of overhead!</p></li>
+</ul>
+</section>
 <section id="benchmark-structs">
 <span id="struct-benchmark"></span><h2>Benchmark - Structs<a class="headerlink" href="#benchmark-structs" title="Permalink to this heading">#</a></h2>
 <p>Here we benchmark common <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> operations, comparing their
@@ -373,7 +460,7 @@ libraries that make use of these classes.</p></li>
 <li><p>Time to compare two instances for equality (<code class="docutils literal notranslate"><span class="pre">==</span></code>/<code class="docutils literal notranslate"><span class="pre">!=</span></code>).</p></li>
 <li><p>Time to compare two instances for order (<code class="docutils literal notranslate"><span class="pre">&lt;</span></code>/<code class="docutils literal notranslate"><span class="pre">&gt;</span></code>/<code class="docutils literal notranslate"><span class="pre">&lt;=</span></code>/<code class="docutils literal notranslate"><span class="pre">&gt;=</span></code>)</p></li>
 </ul>
-<p>The <a class="reference external" href="https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_structs.py">full benchmark source can be found here</a>.</p>
+<p>The full benchmark source can be found <a class="reference external" href="https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_structs.py">here</a>.</p>
 <p><strong>Results (smaller is better):</strong></p>
 <div class="table-wrapper docutils container">
 <table class="docutils align-default">
@@ -444,7 +531,7 @@ of the benchmarked type, then measure:</p>
 <li><p>The amount of time it takes to do a full garbage collection (gc) pass</p></li>
 <li><p>The total amount of memory used by this data structure</p></li>
 </ul>
-<p>The <a class="reference external" href="https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_gc.py">full benchmark source can be found here</a>.</p>
+<p>The full benchmark source can be found <a class="reference external" href="https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_gc.py">here</a>.</p>
 <p><strong>Results (smaller is better):</strong></p>
 <div class="table-wrapper docutils container">
 <table class="docutils align-default">
@@ -493,7 +580,7 @@ composing dict can be skipped during GC traversal.</p></li>
 <section id="benchmark-library-size">
 <span id="id1"></span><h2>Benchmark - Library Size<a class="headerlink" href="#benchmark-library-size" title="Permalink to this heading">#</a></h2>
 <p>Here we compare the on-disk size of a few Python libraries.</p>
-<p>The <a class="reference external" href="https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_library_size.py">full benchmark source can be found here</a>.</p>
+<p>The full benchmark source can be found <a class="reference external" href="https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_library_size.py">here</a>.</p>
 <p><strong>Results (smaller is better)</strong></p>
 <div class="table-wrapper docutils container">
 <table class="docutils align-default">
@@ -689,6 +776,7 @@ buildPlot('#bench-1k-validate', data["1k-valid"], "Benchmark - 1000 Objects, Wit
 <li><a class="reference internal" href="#schema-validation">Schema Validation</a></li>
 </ul>
 </li>
+<li><a class="reference internal" href="#benchmark-memory-usage">Benchmark - Memory Usage</a></li>
 <li><a class="reference internal" href="#benchmark-structs">Benchmark - Structs</a></li>
 <li><a class="reference internal" href="#benchmark-garbage-collection">Benchmark - Garbage Collection</a></li>
 <li><a class="reference internal" href="#benchmark-library-size">Benchmark - Library Size</a></li>
