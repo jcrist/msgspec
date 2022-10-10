@@ -33,6 +33,9 @@ import msgspec
 from utils import temp_module
 
 
+UTC = datetime.timezone.utc
+
+
 class FruitInt(enum.IntEnum):
     APPLE = 1
     BANANA = 2
@@ -826,17 +829,17 @@ class TestBinary:
 class TestDatetime:
     def test_encode_datetime(self):
         # All fields, zero padded
-        x = datetime.datetime(1, 2, 3, 4, 5, 6, 7, datetime.timezone.utc)
+        x = datetime.datetime(1, 2, 3, 4, 5, 6, 7, UTC)
         s = msgspec.json.encode(x)
         assert s == b'"0001-02-03T04:05:06.000007Z"'
 
         # All fields, no zeros
-        x = datetime.datetime(1234, 12, 31, 14, 56, 27, 123456, datetime.timezone.utc)
+        x = datetime.datetime(1234, 12, 31, 14, 56, 27, 123456, UTC)
         s = msgspec.json.encode(x)
         assert s == b'"1234-12-31T14:56:27.123456Z"'
 
     def test_encode_datetime_no_microsecond(self):
-        x = datetime.datetime(1234, 12, 31, 14, 56, 27, 0, datetime.timezone.utc)
+        x = datetime.datetime(1234, 12, 31, 14, 56, 27, 0, UTC)
         s = msgspec.json.encode(x)
         assert s == b'"1234-12-31T14:56:27Z"'
 
@@ -890,11 +893,11 @@ class TestDatetime:
 
     def test_encode_datetime_no_tzinfo_hits_enc_hook(self):
         x = datetime.datetime.now()
-        res = msgspec.json.encode(x.replace(tzinfo=datetime.timezone.utc))
+        res = msgspec.json.encode(x.replace(tzinfo=UTC))
 
         def enc_hook(obj):
             if isinstance(obj, datetime.datetime):
-                return obj.replace(tzinfo=datetime.timezone.utc)
+                return obj.replace(tzinfo=UTC)
             raise TypeError(str(type(obj)))
 
         sol = msgspec.json.encode(x, enc_hook=enc_hook)
@@ -944,21 +947,62 @@ class TestDatetime:
     def test_decode_datetime_not_case_sensitive(self, t, z):
         """Both T & Z can be upper/lowercase"""
         s = f'"0001-02-03{t}04:05:06.000007{z}"'.encode("utf-8")
-        exp = datetime.datetime(1, 2, 3, 4, 5, 6, 7, datetime.timezone.utc)
+        exp = datetime.datetime(1, 2, 3, 4, 5, 6, 7, UTC)
         res = msgspec.json.decode(s, type=datetime.datetime)
         assert res == exp
 
     def test_decode_min_datetime(self):
         res = msgspec.json.decode(b'"0001-01-01T00:00:00Z"', type=datetime.datetime)
-        exp = datetime.datetime.min.replace(tzinfo=datetime.timezone.utc)
+        exp = datetime.datetime.min.replace(tzinfo=UTC)
         assert res == exp
 
     def test_decode_max_datetime(self):
         res = msgspec.json.decode(
             b'"9999-12-31T23:59:59.999999Z"', type=datetime.datetime
         )
-        exp = datetime.datetime.max.replace(tzinfo=datetime.timezone.utc)
+        exp = datetime.datetime.max.replace(tzinfo=UTC)
         assert res == exp
+
+    @pytest.mark.parametrize(
+        "msg, sol",
+        [
+            (
+                b'"2022-01-02T03:04:05.1234564Z"',
+                datetime.datetime(2022, 1, 2, 3, 4, 5, 123456, UTC),
+            ),
+            (
+                b'"2022-01-02T03:04:05.1234565Z"',
+                datetime.datetime(2022, 1, 2, 3, 4, 5, 123457, UTC),
+            ),
+            (
+                b'"2022-01-02T03:04:05.12345650000000000001Z"',
+                datetime.datetime(2022, 1, 2, 3, 4, 5, 123457, UTC),
+            ),
+            (
+                b'"2022-01-02T03:04:05.9999995Z"',
+                datetime.datetime(2022, 1, 2, 3, 4, 6, 0, UTC),
+            ),
+            (
+                b'"2022-01-02T03:04:59.9999995Z"',
+                datetime.datetime(2022, 1, 2, 3, 5, 0, 0, UTC),
+            ),
+            (
+                b'"2022-01-02T03:59:59.9999995Z"',
+                datetime.datetime(2022, 1, 2, 4, 0, 0, 0, UTC),
+            ),
+            (
+                b'"2022-01-02T23:59:59.9999995Z"',
+                datetime.datetime(2022, 1, 3, 0, 0, 0, 0, UTC),
+            ),
+            (
+                b'"2022-02-28T23:59:59.9999995Z"',
+                datetime.datetime(2022, 3, 1, 0, 0, 0, 0, UTC),
+            ),
+        ],
+    )
+    def test_decode_datetime_nanos(self, msg, sol):
+        res = msgspec.json.decode(msg, type=datetime.datetime)
+        assert res == sol
 
     @pytest.mark.parametrize(
         "s",
@@ -970,7 +1014,6 @@ class TestDatetime:
             b'"0001-02-03T4:05:06.000007Z"',
             b'"0001-02-03T04:5:06.000007Z"',
             b'"0001-02-03T04:05:6.000007Z"',
-            b'"0001-02-03T04:05:06.0000007Z"',
             b'"0001-02-03T04:05:06.000007+0:00"',
             b'"0001-02-03T04:05:06.000007+00:0"',
             # Trailing data
@@ -979,6 +1022,8 @@ class TestDatetime:
             b'"0001-02-03T04:05:"',
             # Missing timezone
             b'"0001-02-03T04:05:06"',
+            b'"0001-02-03T04:05:06.000001"',
+            b'"0001-02-03T04:05:06.00000001"',
             # Missing +/-
             b'"0001-02-03T04:05:06.00000700:00"',
             # Missing digits after decimal

@@ -11590,6 +11590,7 @@ json_decode_datetime(
 ) {
     int year, month, day, hour, minute, second, microsecond = 0, offset = 0;
     const char *buf_end = buf + size;
+    bool round_up_micros = false;
     char c;
 
     /* A valid datetime is at least 20 characters in length */
@@ -11618,20 +11619,35 @@ json_decode_datetime(
 
     /* Parse decimal if present.
      *
-     * We accept up to 6 decimal digits and error if more are present. We
-     * *could* instead drop the excessive digits and round, but that's more
-     * complicated. Other systems commonly accept 3 or 6 digits, but RFC3339
-     * doesn't specify a decimal precision.  */
+     * Python datetime's only supports microsecond precision, but RFC3339
+     * doesn't specify a decimal precision limit. To work around this we
+     * support infinite decimal digits, but round to the closest microsecond.
+     * This means that nanosecond timestamps won't properly roundtrip through
+     * datetime objects, but there's not much we can do about that. Other
+     * systems commonly accept 3 or 6 digits, support for/usage of nanosecond
+     * precision is rare. */
     if (c == '.') {
         int ndigits = 0;
-        while (buf < buf_end) {
+        while (buf < buf_end && ndigits < 6) {
             c = *buf++;
-            if (!is_digit(c)) break;
+            if (!is_digit(c)) goto end_decimal;
             ndigits++;
-            /* if decimal precision is higher than we support, error */
-            if (ndigits > 6) goto invalid;
             microsecond = microsecond * 10 + (c - '0');
         }
+        c = *buf++;
+        if (is_digit(c)) {
+            /* This timestamp has higher precision than microseconds; parse
+            * the next digit to support rounding, then skip all remaining
+            * digits */
+            if ((c - '0') >= 5) {
+                round_up_micros = true;
+            }
+            while (buf < buf_end) {
+                c = *buf++;
+                if (!is_digit(c)) break;
+            }
+        }
+end_decimal:
         /* Error if no digits after decimal */
         if (ndigits == 0) goto invalid;
         int pow10[6] = {100000, 10000, 1000, 100, 10, 1};
@@ -11671,6 +11687,18 @@ json_decode_datetime(
     if (hour > 23) goto invalid;
     if (minute > 59) goto invalid;
     if (second > 59) goto invalid;
+
+    if (MS_UNLIKELY(round_up_micros)) {
+        microsecond++;
+        if (microsecond == 1000000) {
+            microsecond = 0;
+            second++;
+            if (second == 60) {
+                second = 0;
+                offset--;
+            }
+        }
+    }
 
     if (offset) {
         if (datetime_apply_tz_offset(&year, &month, &day, &hour, &minute, offset) < 0) {
