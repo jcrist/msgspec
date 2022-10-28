@@ -5,7 +5,7 @@
     <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Changelog" href="changelog.html" /><link rel="prev" title="API Docs" href="api.html" />
 
-    <meta name="generator" content="sphinx-5.2.3, furo 2022.09.29"/>
+    <meta name="generator" content="sphinx-5.3.0, furo 2022.09.29"/>
         <title>Benchmarks</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=d81277517bee4d6b0349d71bb2661d4890b5617c" />
@@ -317,7 +317,7 @@ well, encoding/decoding faster than all other options, even those implementing
 the same serialization protocol. This is partly due to the use of <code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code>
 types here - since all keys are statically known, the msgspec decoders can
 apply a few optimizations not available to other Python libraries that rely on
-<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a> types instead.</p>
+<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a> types instead.</p>
 <p>That said, all of these methods serialize/deserialize pretty quickly relative
 to other python operations, so unless you’re counting every microsecond your
 choice here probably doesn’t matter that much.</p>
@@ -345,7 +345,7 @@ decoding is slower for two reasons:</p>
 <li><p>It requires traversing over the entire output structure a second time (which
 can be slow due to pointer chasing)</p></li>
 <li><p>It may require converting some python objects to their desired output types
-(e.g. converting a decoded <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.10)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a> to a <a class="reference external" href="https://pydantic-docs.helpmanual.io/">pydantic</a> model), resulting in
+(e.g. converting a decoded <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a> to a <a class="reference external" href="https://pydantic-docs.helpmanual.io/">pydantic</a> model), resulting in
 allocating many temporary python objects.</p></li>
 </ul>
 <p>In contrast, libraries like <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> that validate during decoding have none
