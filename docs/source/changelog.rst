@@ -3,6 +3,13 @@ Changelog
 
 .. currentmodule:: msgspec
 
+Version 0.9.1 (2022-10-27)
+--------------------------
+
+- Enable Python 3.11 builds (:pr:`205`)
+- Support greater than microsecond resolution when parsing JSON timestamps (:pr:`201`)
+- Work around a limitation in mypy for typed decoders (:pr:`191`)
+
 Version 0.9.0 (2022-09-13)
 --------------------------
 
