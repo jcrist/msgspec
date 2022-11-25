@@ -42,6 +42,17 @@ def check_struct_omit_defaults() -> None:
     reveal_type(t.y)  # assert "str" in typ
 
 
+def check_struct_forbid_unknown_fields() -> None:
+    class Test(msgspec.Struct, forbid_unknown_fields=True):
+        x: int
+        y: str
+
+    t = Test(1, "foo")
+    reveal_type(t)  # assert "Test" in typ
+    reveal_type(t.x)  # assert "int" in typ
+    reveal_type(t.y)  # assert "str" in typ
+
+
 def check_struct_rename() -> None:
     class TestLower(msgspec.Struct, rename="lower"):
         x: int
@@ -255,6 +266,7 @@ def check_defstruct_config_options() -> None:
         "Test",
         ("x", "y"),
         omit_defaults=True,
+        forbid_unknown_fields=True,
         frozen=True,
         order=True,
         eq=True,

@@ -1020,6 +1020,36 @@ class TestStructOmitDefaults:
             assert res == sol
 
 
+class TestStructForbidUnknownFields:
+    def test_forbid_unknown_fields(self, proto):
+        class Test(msgspec.Struct, forbid_unknown_fields=True):
+            x: int
+            y: int
+
+        good = Test(1, 2)
+        assert proto.decode(proto.encode(good), type=Test) == good
+
+        bad = proto.encode({"x": 1, "y": 2, "z": 3})
+        with pytest.raises(
+            msgspec.ValidationError, match="Object contains unknown field `z`"
+        ):
+            proto.decode(bad, type=Test)
+
+    def test_forbid_unknown_fields_array_like(self, proto):
+        class Test(msgspec.Struct, forbid_unknown_fields=True, array_like=True):
+            x: int
+            y: int
+
+        good = Test(1, 2)
+        assert proto.decode(proto.encode(good), type=Test) == good
+
+        bad = proto.encode([1, 2, 3])
+        with pytest.raises(
+            msgspec.ValidationError, match="Expected `array` of at most length 2"
+        ):
+            proto.decode(bad, type=Test)
+
+
 class PointUpper(msgspec.Struct, rename="upper"):
     x: int
     y: int
