@@ -559,9 +559,10 @@ faster to create/compare/encode/decode. For more information, see the
 :doc:`structs` page.
 
 By default `msgspec.Struct` types map to JSON objects/MessagePack maps. During
-decoding, any extra fields are ignored, and any missing optional fields have
-their default values applied. An error is raised during decoding if the type
-doesn't match or if any required fields are missing.
+decoding, any unknown fields are ignored (this can be disabled, see
+:ref:`forbid-unknown-fields`), and any missing optional fields have their
+default values applied. An error is raised during decoding if the type doesn't
+match or if any required fields are missing.
 
 .. code-block:: python
 

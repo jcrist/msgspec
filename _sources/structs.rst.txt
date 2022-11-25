@@ -452,6 +452,53 @@ detection logic is as follows:
     ...     return False
 
 
+.. _forbid-unknown-fields:
+
+Forbidding Unknown Fields
+-------------------------
+
+By default ``msgspec`` will skip unknown fields encountered when decoding into
+``Struct`` types. This is normally desired, as it allows for
+:ref:`schema-evolution` and more flexible decoding.
+
+One downside is that typos may go unnoticed when decoding ``Struct`` types with
+optional fields. For example:
+
+.. code-block:: python
+
+    >>> class Example(msgspec.Struct):
+    ...     field_one: int
+    ...     field_two: bool = False
+
+    >>> msgspec.json.decode(
+    ...     b'{"field_one": 1, "field_twoo": true}',  # oops, a typo
+    ...     type=Example
+    ... )
+    Example(field_one=1, field_two=False)
+
+In this example, the misspelled ``"field_twoo"`` is ignored since no field with
+that name exists. Since ``field_two`` has a default value, the default is used
+and no error is raised for a missing field.
+
+To prevent typos like this, you can configure ``forbid_unknown_fields=True`` as
+part of the struct definition. If this option is enabled, any unknown fields
+encountered will result in an error.
+
+.. code-block:: python
+
+    >>> class Example(msgspec.Struct, forbid_unknown_fields=True):
+    ...     field_one: int
+    ...     field_two: bool = False
+
+    >>> msgspec.json.decode(
+    ...     b'{"field_one": 1, "field_twoo": true}',  # oops, a typo
+    ...     type=Example
+    ... )
+    Traceback (most recent call last):
+      File "<stdin>", line 1, in <module>
+    msgspec.ValidationError: Object contains unknown field `field_twoo`
+
+
 Renaming Field Names
 --------------------
 

@@ -649,6 +649,44 @@ detection logic is as follows:</p>
 </pre></div>
 </div>
 </section>
+<section id="forbidding-unknown-fields">
+<span id="forbid-unknown-fields"></span><h2>Forbidding Unknown Fields<a class="headerlink" href="#forbidding-unknown-fields" title="Permalink to this heading">#</a></h2>
+<p>By default <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> will skip unknown fields encountered when decoding into
+<code class="docutils literal notranslate"><span class="pre">Struct</span></code> types. This is normally desired, as it allows for
+<a class="reference internal" href="usage.html#schema-evolution"><span class="std std-ref">Schema Evolution</span></a> and more flexible decoding.</p>
+<p>One downside is that typos may go unnoticed when decoding <code class="docutils literal notranslate"><span class="pre">Struct</span></code> types with
+optional fields. For example:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">Example</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="n">field_one</span><span class="p">:</span> <span class="nb">int</span>
+<span class="gp">... </span>    <span class="n">field_two</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="sa">b</span><span class="s1">&#39;{&quot;field_one&quot;: 1, &quot;field_twoo&quot;: true}&#39;</span><span class="p">,</span>  <span class="c1"># oops, a typo</span>
+<span class="gp">... </span>    <span class="nb">type</span><span class="o">=</span><span class="n">Example</span>
+<span class="gp">... </span><span class="p">)</span>
+<span class="go">Example(field_one=1, field_two=False)</span>
+</pre></div>
+</div>
+<p>In this example, the misspelled <code class="docutils literal notranslate"><span class="pre">&quot;field_twoo&quot;</span></code> is ignored since no field with
+that name exists. Since <code class="docutils literal notranslate"><span class="pre">field_two</span></code> has a default value, the default is used
+and no error is raised for a missing field.</p>
+<p>To prevent typos like this, you can configure <code class="docutils literal notranslate"><span class="pre">forbid_unknown_fields=True</span></code> as
+part of the struct definition. If this option is enabled, any unknown fields
+encountered will result in an error.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">Example</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">forbid_unknown_fields</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="n">field_one</span><span class="p">:</span> <span class="nb">int</span>
+<span class="gp">... </span>    <span class="n">field_two</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="sa">b</span><span class="s1">&#39;{&quot;field_one&quot;: 1, &quot;field_twoo&quot;: true}&#39;</span><span class="p">,</span>  <span class="c1"># oops, a typo</span>
+<span class="gp">... </span>    <span class="nb">type</span><span class="o">=</span><span class="n">Example</span>
+<span class="gp">... </span><span class="p">)</span>
+<span class="gt">Traceback (most recent call last):</span>
+  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+<span class="gr">msgspec.ValidationError</span>: <span class="n">Object contains unknown field `field_twoo`</span>
+</pre></div>
+</div>
+</section>
 <section id="renaming-field-names">
 <h2>Renaming Field Names<a class="headerlink" href="#renaming-field-names" title="Permalink to this heading">#</a></h2>
 <p>Sometimes you want the field name used in the encoded message to differ from
@@ -921,6 +959,7 @@ collected (leading to a memory leak).</p>
 <li><a class="reference internal" href="#frozen-instances">Frozen Instances</a></li>
 <li><a class="reference internal" href="#tagged-unions">Tagged Unions</a></li>
 <li><a class="reference internal" href="#omitting-default-values">Omitting Default Values</a></li>
+<li><a class="reference internal" href="#forbidding-unknown-fields">Forbidding Unknown Fields</a></li>
 <li><a class="reference internal" href="#renaming-field-names">Renaming Field Names</a></li>
 <li><a class="reference internal" href="#encoding-decoding-as-arrays">Encoding/Decoding as Arrays</a></li>
 <li><a class="reference internal" href="#runtime-definition">Runtime Definition</a></li>

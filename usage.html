@@ -741,9 +741,10 @@ You can think of them as similar to <a class="reference external" href="https://
 faster to create/compare/encode/decode. For more information, see the
 <a class="reference internal" href="structs.html"><span class="doc">Structs</span></a> page.</p>
 <p>By default <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> types map to JSON objects/MessagePack maps. During
-decoding, any extra fields are ignored, and any missing optional fields have
-their default values applied. An error is raised during decoding if the type
-doesn’t match or if any required fields are missing.</p>
+decoding, any unknown fields are ignored (this can be disabled, see
+<a class="reference internal" href="structs.html#forbid-unknown-fields"><span class="std std-ref">Forbidding Unknown Fields</span></a>), and any missing optional fields have their
+default values applied. An error is raised during decoding if the type doesn’t
+match or if any required fields are missing.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Set</span><span class="p">,</span> <span class="n">Optional</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">User</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
