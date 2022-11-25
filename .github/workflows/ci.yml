@@ -34,7 +34,7 @@ jobs:
           pip install -e .
 
       - name: Run black & flake8
-        uses: pre-commit/action@v2.0.0
+        uses: pre-commit/action@v3.0.0
 
       - name: mypy
         run: py.test tests/test_mypy.py
