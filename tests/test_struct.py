@@ -895,6 +895,7 @@ def test_struct_handles_missing_attributes():
         ("array_like", False),
         ("gc", True),
         ("omit_defaults", False),
+        ("forbid_unknown_fields", False),
     ],
 )
 def test_struct_option_precedence(option, default):
@@ -1470,6 +1471,7 @@ class TestDefStruct:
         "option, default",
         [
             ("omit_defaults", False),
+            ("forbid_unknown_fields", False),
             ("frozen", False),
             ("order", False),
             ("eq", True),

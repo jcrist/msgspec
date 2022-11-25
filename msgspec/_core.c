@@ -2056,6 +2056,7 @@ typedef struct {
     int8_t array_like;
     int8_t gc;
     int8_t omit_defaults;
+    int8_t forbid_unknown_fields;
 } StructMetaObject;
 
 static PyTypeObject TypedDictInfo_Type;
@@ -4119,6 +4120,17 @@ ms_invalid_cuint_value(uint64_t val, PathNode *path) {
     return NULL;
 }
 
+static MS_NOINLINE PyObject *
+ms_error_unknown_field(char *key, Py_ssize_t key_size, PathNode *path) {
+    PyObject *field = PyUnicode_FromStringAndSize(key, key_size);
+    if (field == NULL) return NULL;
+    ms_raise_validation_error(
+        path, "Object contains unknown field `%U`%U", field
+    );
+    Py_DECREF(field);
+    return NULL;
+}
+
 /* Same as ms_raise_validation_error, except doesn't require any format arguments. */
 static PyObject *
 ms_error_with_path(const char *msg, PathNode *path) {
@@ -4608,7 +4620,8 @@ static PyObject *
 StructMeta_new_inner(
     PyTypeObject *type, PyObject *name, PyObject *bases, PyObject *namespace,
     PyObject *arg_tag_field, PyObject *arg_tag, PyObject *arg_rename,
-    int arg_omit_defaults, int arg_frozen, int arg_eq, int arg_order,
+    int arg_omit_defaults, int arg_forbid_unknown_fields,
+    int arg_frozen, int arg_eq, int arg_order,
     int arg_array_like, int arg_gc, int arg_weakref
 ) {
     StructMetaObject *cls = NULL;
@@ -4621,7 +4634,7 @@ StructMeta_new_inner(
     PyObject *rename = NULL, *encode_fields = NULL;
     PyObject *tag_field_temp = NULL, *tag_temp = NULL;
     PyObject *tag = NULL, *tag_field = NULL,  *tag_value = NULL;
-    int omit_defaults = -1, frozen = -1, eq = -1, order = -1, array_like = -1, gc = -1;
+    int omit_defaults = -1, forbid_unknown_fields = -1, frozen = -1, eq = -1, order = -1, array_like = -1, gc = -1;
     bool already_has_weakref = false;
     MsgspecState *mod = msgspec_get_global_state();
 
@@ -4687,6 +4700,10 @@ StructMeta_new_inner(
         omit_defaults = STRUCT_MERGE_OPTIONS(
             omit_defaults, ((StructMetaObject *)base)->omit_defaults
         );
+        forbid_unknown_fields = STRUCT_MERGE_OPTIONS(
+            forbid_unknown_fields,
+            ((StructMetaObject *)base)->forbid_unknown_fields
+        );
         base_fields = StructMeta_GET_FIELDS(base);
         base_defaults = StructMeta_GET_DEFAULTS(base);
         base_offsets = StructMeta_GET_OFFSETS(base);
@@ -4724,6 +4741,7 @@ StructMeta_new_inner(
     array_like = STRUCT_MERGE_OPTIONS(array_like, arg_array_like);
     gc = STRUCT_MERGE_OPTIONS(gc, arg_gc);
     omit_defaults = STRUCT_MERGE_OPTIONS(omit_defaults, arg_omit_defaults);
+    forbid_unknown_fields = STRUCT_MERGE_OPTIONS(forbid_unknown_fields, arg_forbid_unknown_fields);
 
     if (eq == OPT_FALSE && order == OPT_TRUE) {
         PyErr_SetString(PyExc_ValueError, "eq must be true if order is true");
@@ -4978,6 +4996,7 @@ StructMeta_new_inner(
     cls->array_like = array_like;
     cls->gc = gc;
     cls->omit_defaults = omit_defaults;
+    cls->forbid_unknown_fields = forbid_unknown_fields;
     return (PyObject *) cls;
 error:
     Py_XDECREF(arg_fields);
@@ -5004,23 +5023,26 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
 {
     PyObject *name = NULL, *bases = NULL, *namespace = NULL;
     PyObject *arg_tag_field = NULL, *arg_tag = NULL, *arg_rename = NULL;
-    int arg_omit_defaults = -1, arg_frozen = -1, arg_eq = -1, arg_order = -1;
+    int arg_omit_defaults = -1, arg_forbid_unknown_fields = -1;
+    int arg_frozen = -1, arg_eq = -1, arg_order = -1;
     int arg_array_like = -1, arg_gc = -1, arg_weakref = -1;
 
     static char *kwlist[] = {
         "name", "bases", "dict",
         "tag_field", "tag", "rename",
-        "omit_defaults", "frozen", "eq", "order",
+        "omit_defaults", "forbid_unknown_fields",
+        "frozen", "eq", "order",
         "array_like", "gc", "weakref",
         NULL
     };
 
     /* Parse arguments: (name, bases, dict) */
     if (!PyArg_ParseTupleAndKeywords(
-            args, kwargs, "UO!O!|$OOOppppppp:StructMeta.__new__", kwlist,
+            args, kwargs, "UO!O!|$OOOpppppppp:StructMeta.__new__", kwlist,
             &name, &PyTuple_Type, &bases, &PyDict_Type, &namespace,
             &arg_tag_field, &arg_tag, &arg_rename,
-            &arg_omit_defaults, &arg_frozen, &arg_eq, &arg_order,
+            &arg_omit_defaults, &arg_forbid_unknown_fields,
+            &arg_frozen, &arg_eq, &arg_order,
             &arg_array_like, &arg_gc, &arg_weakref
         )
     )
@@ -5029,7 +5051,8 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
     return StructMeta_new_inner(
         type, name, bases, namespace,
         arg_tag_field, arg_tag, arg_rename,
-        arg_omit_defaults, arg_frozen, arg_eq, arg_order,
+        arg_omit_defaults, arg_forbid_unknown_fields,
+        arg_frozen, arg_eq, arg_order,
         arg_array_like, arg_gc, arg_weakref
     );
 }
@@ -5038,8 +5061,8 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
 PyDoc_STRVAR(msgspec_defstruct__doc__,
 "defstruct(name, fields, *, bases=(), module=None, namespace=None, "
 "tag_field=None, tag=None, rename=None, omit_defaults=False, "
-"frozen=False, eq=True, order=False, array_like=False, gc=True, "
-"weakref=False)\n"
+"forbid_unknown_fields=False, frozen=False, eq=True, order=False, "
+"array_like=False, gc=True, weakref=False)\n"
 "--\n"
 "\n"
 "Dynamically define a new Struct class.\n"
@@ -5074,23 +5097,26 @@ msgspec_defstruct(PyObject *self, PyObject *args, PyObject *kwargs)
     PyObject *name = NULL, *fields = NULL, *bases = NULL, *module = NULL, *namespace = NULL;
     PyObject *arg_tag_field = NULL, *arg_tag = NULL, *arg_rename = NULL;
     PyObject *new_bases = NULL, *annotations = NULL, *fields_fast = NULL, *out = NULL;
-    int arg_omit_defaults = -1, arg_frozen = -1, arg_eq = -1, arg_order = -1;
+    int arg_omit_defaults = -1, arg_forbid_unknown_fields = -1;
+    int arg_frozen = -1, arg_eq = -1, arg_order = -1;
     int arg_array_like = -1, arg_gc = -1, arg_weakref = -1;
 
     static char *kwlist[] = {
         "name", "fields", "bases", "module", "namespace",
         "tag_field", "tag", "rename",
-        "omit_defaults", "frozen", "eq", "order",
+        "omit_defaults", "forbid_unknown_fields",
+        "frozen", "eq", "order",
         "array_like", "gc", "weakref",
         NULL
     };
 
     /* Parse arguments: (name, bases, dict) */
     if (!PyArg_ParseTupleAndKeywords(
-            args, kwargs, "UO|$O!UO!OOOppppppp:defstruct", kwlist,
+            args, kwargs, "UO|$O!UO!OOOpppppppp:defstruct", kwlist,
             &name, &fields, &PyTuple_Type, &bases, &module, &PyDict_Type, &namespace,
             &arg_tag_field, &arg_tag, &arg_rename,
-            &arg_omit_defaults, &arg_frozen, &arg_eq, &arg_order,
+            &arg_omit_defaults, &arg_forbid_unknown_fields,
+            &arg_frozen, &arg_eq, &arg_order,
             &arg_array_like, &arg_gc, &arg_weakref)
     )
         return NULL;
@@ -5156,7 +5182,8 @@ msgspec_defstruct(PyObject *self, PyObject *args, PyObject *kwargs)
     out = StructMeta_new_inner(
         &StructMetaType, name, bases, namespace,
         arg_tag_field, arg_tag, arg_rename,
-        arg_omit_defaults, arg_frozen, arg_eq, arg_order,
+        arg_omit_defaults, arg_forbid_unknown_fields,
+        arg_frozen, arg_eq, arg_order,
         arg_array_like, arg_gc, arg_weakref
     );
 
@@ -5363,6 +5390,13 @@ StructMeta_omit_defaults(StructMetaObject *self, void *closure)
 }
 
 static PyObject*
+StructMeta_forbid_unknown_fields(StructMetaObject *self, void *closure)
+{
+    if (self->forbid_unknown_fields == OPT_TRUE) { Py_RETURN_TRUE; }
+    else { Py_RETURN_FALSE; }
+}
+
+static PyObject*
 StructMeta_signature(StructMetaObject *self, void *closure)
 {
     Py_ssize_t nfields, ndefaults, npos, i;
@@ -5471,6 +5505,7 @@ static PyGetSetDef StructMeta_getset[] = {
     {"array_like", (getter) StructMeta_array_like, NULL, NULL, NULL},
     {"gc", (getter) StructMeta_gc, NULL, NULL, NULL},
     {"omit_defaults", (getter) StructMeta_omit_defaults, NULL, NULL, NULL},
+    {"forbid_unknown_fields", (getter) StructMeta_forbid_unknown_fields, NULL, NULL, NULL},
     {NULL},
 };
 
@@ -6029,6 +6064,10 @@ PyDoc_STRVAR(Struct__doc__,
 "   Whether fields should be omitted from encoding if the corresponding value\n"
 "   is the default for that field. Enabling this may reduce message size, and\n"
 "   often also improve encoding & decoding performance.\n"
+"forbid_unknown_fields: bool, default False\n"
+"   If True, an error is raised if an unknown field is encountered while\n"
+"   decoding structs of this type. If False (the default), no error is raised\n"
+"   and the unknown field is skipped.\n"
 "tag: str, int, bool, callable, or None, default None\n"
 "   Used along with ``tag_field`` for configuring tagged union support. If\n"
 "   either are non-None, then the struct is considered \"tagged\". In this case,\n"
@@ -9973,11 +10012,24 @@ mpack_decode_struct_array_inner(
             should_untrack = !MS_OBJ_IS_GC(val);
         }
     }
-    /* Ignore all trailing fields */
-    while (size > 0) {
-        if (mpack_skip(self) < 0)
+    if (MS_UNLIKELY(size > 0)) {
+        if (MS_UNLIKELY(st_type->forbid_unknown_fields == OPT_TRUE)) {
+            ms_raise_validation_error(
+                path,
+                "Expected `array` of at most length %zd, got %zd%U",
+                nfields,
+                nfields + size
+            );
             goto error;
-        size--;
+        }
+        else {
+            /* Ignore all trailing fields */
+            while (size > 0) {
+                if (mpack_skip(self) < 0)
+                    goto error;
+                size--;
+            }
+        }
     }
     Py_LeaveRecursiveCall();
     if (is_gc && !should_untrack)
@@ -10241,8 +10293,14 @@ mpack_decode_struct_map(
                 }
             }
             else {
-                /* Unknown field, skip */
-                if (mpack_skip(self) < 0) goto error;
+                /* Unknown field */
+                if (MS_UNLIKELY(st_type->forbid_unknown_fields == OPT_TRUE)) {
+                    ms_error_unknown_field(key, key_size, path);
+                    goto error;
+                }
+                else {
+                    if (mpack_skip(self) < 0) goto error;
+                }
             }
         }
         else {
@@ -12183,8 +12241,18 @@ json_decode_struct_array_inner(
             item_path.index++;
         }
         else {
-            /* Skip trailing fields */
-            if (json_skip(self) < 0) goto error;
+            if (MS_UNLIKELY(st_type->forbid_unknown_fields == OPT_TRUE)) {
+                ms_raise_validation_error(
+                    path,
+                    "Expected `array` of at most length %zd",
+                    nfields
+                );
+                goto error;
+            }
+            else {
+                /* Skip trailing fields */
+                if (json_skip(self) < 0) goto error;
+            }
         }
     }
 
@@ -12764,8 +12832,14 @@ json_decode_struct_map_inner(
             }
         }
         else {
-            /* Skip unknown fields */
-            if (json_skip(self) < 0) goto error;
+            /* Unknown field */
+            if (MS_UNLIKELY(st_type->forbid_unknown_fields == OPT_TRUE)) {
+                ms_error_unknown_field(key, key_size, path);
+                goto error;
+            }
+            else {
+                if (json_skip(self) < 0) goto error;
+            }
         }
     }
     if (Struct_fill_in_defaults(st_type, out, path) < 0) goto error;
