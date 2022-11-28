@@ -479,7 +479,6 @@ typedef struct {
     PyObject *str__value2member_map_;
     PyObject *str___msgspec_cache__;
     PyObject *str__value_;
-    PyObject *str_value;
     PyObject *str_type;
     PyObject *str_enc_hook;
     PyObject *str_dec_hook;
@@ -13796,7 +13795,6 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->str__value2member_map_);
     Py_CLEAR(st->str___msgspec_cache__);
     Py_CLEAR(st->str__value_);
-    Py_CLEAR(st->str_value);
     Py_CLEAR(st->str_type);
     Py_CLEAR(st->str_enc_hook);
     Py_CLEAR(st->str_dec_hook);
@@ -14134,7 +14132,6 @@ PyInit__core(void)
     CACHED_STRING(str__value2member_map_, "_value2member_map_");
     CACHED_STRING(str___msgspec_cache__, "__msgspec_cache__");
     CACHED_STRING(str__value_, "_value_");
-    CACHED_STRING(str_value, "value");
     CACHED_STRING(str_type, "type");
     CACHED_STRING(str_enc_hook, "enc_hook");
     CACHED_STRING(str_dec_hook, "dec_hook");
