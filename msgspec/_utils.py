@@ -477,10 +477,14 @@ class SchemaBuilder:
                 schema["type"] = "array"
                 schema["prefixItems"] = fields
                 schema["minItems"] = len(required)
+                if t.forbid_unknown_fields:
+                    schema["maxItems"] = len(t.__struct_fields__)
             else:
                 schema["type"] = "object"
                 schema["properties"] = dict(zip(names, fields))
                 schema["required"] = required
+                if t.forbid_unknown_fields:
+                    schema["additionalProperties"] = False
         elif is_typeddict(t):
             schema.setdefault("title", t.__name__)
             if has_nondefault_docstring(t):

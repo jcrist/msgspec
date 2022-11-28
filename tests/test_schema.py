@@ -222,7 +222,7 @@ def test_str_literal():
 
 
 def test_struct_object():
-    class Point(msgspec.Struct):
+    class Point(msgspec.Struct, forbid_unknown_fields=True):
         x: int
         y: int
 
@@ -265,13 +265,17 @@ def test_struct_object():
                     "y": {"type": "integer"},
                 },
                 "required": ["x", "y"],
+                "additionalProperties": False,
             },
         },
     }
 
 
-def test_struct_array_like():
-    class Example(msgspec.Struct, array_like=True):
+@pytest.mark.parametrize("forbid_unknown_fields", [False, True])
+def test_struct_array_like(forbid_unknown_fields):
+    class Example(
+        msgspec.Struct, array_like=True, forbid_unknown_fields=forbid_unknown_fields
+    ):
         """An example docstring"""
 
         a: int
@@ -279,7 +283,7 @@ def test_struct_array_like():
         c: List[int] = []
         d: Dict[str, int] = {}
 
-    assert msgspec.json.schema(Example) == {
+    sol = {
         "$ref": "#/$defs/Example",
         "$defs": {
             "Example": {
@@ -300,6 +304,9 @@ def test_struct_array_like():
             }
         },
     }
+    if forbid_unknown_fields:
+        sol["$defs"]["Example"]["maxItems"] = 4
+    assert msgspec.json.schema(Example) == sol
 
 
 def test_struct_no_fields():
