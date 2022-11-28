@@ -34,6 +34,14 @@ def proto(request):
         return msgspec.msgpack
 
 
+try:
+    from enum import StrEnum
+except ImportError:
+
+    class StrEnum(str, enum.Enum):
+        pass
+
+
 class FruitInt(enum.IntEnum):
     APPLE = 1
     BANANA = 2
@@ -137,12 +145,46 @@ class TestEncodeSubclasses:
 
 
 class TestIntEnum:
-    def test_empty_errors(self):
+    def test_empty_errors(self, proto):
         class Empty(enum.IntEnum):
             pass
 
         with pytest.raises(TypeError, match="Enum types must have at least one item"):
-            msgspec.msgpack.Decoder(Empty)
+            proto.Decoder(Empty)
+
+    @pytest.mark.parametrize("base_cls", [enum.IntEnum, enum.Enum])
+    def test_encode(self, proto, base_cls):
+        class Test(base_cls):
+            A = 1
+            B = 2
+
+        assert proto.encode(Test.A) == proto.encode(1)
+
+    @pytest.mark.parametrize("base_cls", [enum.IntEnum, enum.Enum])
+    def test_decode(self, proto, base_cls):
+        class Test(base_cls):
+            A = 1
+            B = 2
+
+        dec = proto.Decoder(Test)
+        assert dec.decode(proto.encode(1)) is Test.A
+        assert dec.decode(proto.encode(2)) is Test.B
+
+        with pytest.raises(msgspec.ValidationError, match="Invalid enum value 3"):
+            dec.decode(proto.encode(3))
+
+    def test_decode_nested(self, proto):
+        class Test(msgspec.Struct):
+            fruit: FruitInt
+
+        dec = proto.Decoder(Test)
+
+        dec.decode(proto.encode({"fruit": 1})) == Test(FruitInt.APPLE)
+
+        with pytest.raises(
+            msgspec.ValidationError, match=r"Invalid enum value 3 - at `\$.fruit`"
+        ):
+            dec.decode(proto.encode({"fruit": 3}))
 
     def test_int_lookup_reused(self):
         class Test(enum.IntEnum):
@@ -273,17 +315,85 @@ class TestIntEnum:
 
 
 class TestEnum:
-    def test_empty_errors(self):
+    def test_empty_errors(self, proto):
         class Empty(enum.Enum):
             pass
 
         with pytest.raises(TypeError, match="Enum types must have at least one item"):
-            msgspec.msgpack.Decoder(Empty)
+            proto.Decoder(Empty)
+
+    def test_unsupported_type_errors(self, proto):
+        class Bad(enum.Enum):
+            A = 1.5
+
+        with pytest.raises(
+            msgspec.EncodeError, match="Only enums with int or str values are supported"
+        ):
+            proto.encode(Bad.A)
+
+        with pytest.raises(TypeError) as rec:
+            proto.Decoder(Bad)
+
+        assert "Enums must contain either all str or all int values" in str(rec.value)
+        assert repr(Bad) in str(rec.value)
+
+    @pytest.mark.parametrize(
+        "values",
+        [
+            [("A", 1), ("B", 2), ("C", "c")],
+            [("A", "a"), ("B", "b"), ("C", 3)],
+        ],
+    )
+    def test_mixed_value_types_errors(self, values, proto):
+        Bad = enum.Enum("Bad", values)
+
+        with pytest.raises(TypeError) as rec:
+            proto.Decoder(Bad)
+
+        assert "Enums must contain either all str or all int values" in str(rec.value)
+        assert repr(Bad) in str(rec.value)
+
+    @pytest.mark.parametrize("base_cls", [StrEnum, enum.Enum])
+    def test_encode(self, proto, base_cls):
+        class Test(base_cls):
+            A = "apple"
+            B = "banana"
+
+        assert proto.encode(Test.A) == proto.encode("apple")
+
+    @pytest.mark.parametrize("base_cls", [StrEnum, enum.Enum])
+    def test_decode(self, proto, base_cls):
+        class Test(base_cls):
+            A = "apple"
+            B = "banana"
+
+        dec = proto.Decoder(Test)
+        assert dec.decode(proto.encode("apple")) is Test.A
+        assert dec.decode(proto.encode("banana")) is Test.B
+
+        with pytest.raises(
+            msgspec.ValidationError, match="Invalid enum value 'cherry'"
+        ):
+            dec.decode(proto.encode("cherry"))
+
+    def test_decode_nested(self, proto):
+        class Test(msgspec.Struct):
+            fruit: FruitStr
+
+        dec = proto.Decoder(Test)
+
+        dec.decode(proto.encode({"fruit": "apple"})) == Test(FruitStr.APPLE)
+
+        with pytest.raises(
+            msgspec.ValidationError,
+            match=r"Invalid enum value 'cherry' - at `\$.fruit`",
+        ):
+            dec.decode(proto.encode({"fruit": "cherry"}))
 
     def test_str_lookup_reused(self):
         class Test(enum.Enum):
-            A = 1
-            B = 2
+            A = "a"
+            B = "b"
 
         dec = msgspec.msgpack.Decoder(Test)  # noqa
         count = sys.getrefcount(Test.__msgspec_cache__)
@@ -299,8 +409,8 @@ class TestEnum:
 
     def test_str_lookup_gc(self):
         class Test(enum.Enum):
-            A = 1
-            B = 2
+            A = "a"
+            B = "b"
 
         dec = msgspec.msgpack.Decoder(Test)
         assert gc.is_tracked(Test.__msgspec_cache__)
@@ -336,11 +446,13 @@ class TestEnum:
 
         unique_str = strgen(length).__next__
 
-        myenum = enum.Enum("myenum", [unique_str() for _ in range(nitems)])
+        myenum = enum.Enum(
+            "myenum", [(unique_str(), unique_str()) for _ in range(nitems)]
+        )
         dec = msgspec.msgpack.Decoder(myenum)
 
         for val in myenum:
-            msg = msgspec.msgpack.encode(val.name)
+            msg = msgspec.msgpack.encode(val.value)
             val2 = dec.decode(msg)
             assert val == val2
 
@@ -370,11 +482,13 @@ class TestEnum:
 
         unique_str = strgen().__next__
 
-        myenum = enum.Enum("myenum", [unique_str() for _ in range(nitems)])
+        myenum = enum.Enum(
+            "myenum", [(unique_str(), unique_str()) for _ in range(nitems)]
+        )
         dec = msgspec.msgpack.Decoder(myenum)
 
         for val in myenum:
-            msg = msgspec.msgpack.encode(val.name)
+            msg = msgspec.msgpack.encode(val.value)
             val2 = dec.decode(msg)
             assert val == val2
 
@@ -597,8 +711,8 @@ class TestUnionTypeErrors:
     @pytest.mark.parametrize(
         "typ,kind",
         [
-            (Union[FruitInt, VeggieInt], "IntEnum"),
-            (Union[FruitStr, VeggieStr], "Enum"),
+            (Union[FruitInt, VeggieInt], "int enum"),
+            (Union[FruitStr, VeggieStr], "str enum"),
             (Union[Dict[int, float], dict], "dict"),
             (Union[List[int], List[float]], "array-like"),
             (Union[List[int], tuple], "array-like"),

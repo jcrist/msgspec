@@ -36,24 +36,9 @@ from utils import temp_module
 UTC = datetime.timezone.utc
 
 
-class FruitInt(enum.IntEnum):
-    APPLE = 1
-    BANANA = 2
-
-
 class FruitStr(enum.Enum):
     APPLE = "apple"
     BANANA = "banana"
-
-
-class VeggieInt(enum.IntEnum):
-    CARROT = 1
-    LETTUCE = 2
-
-
-class VeggieStr(enum.Enum):
-    CARROT = "carrot"
-    LETTUCE = "banana"
 
 
 class Person(msgspec.Struct):
@@ -1069,32 +1054,6 @@ class TestDatetime:
             msgspec.json.decode(s, type=datetime.datetime)
 
 
-class TestEnum:
-    def test_encode_enum(self):
-        s = msgspec.json.encode(FruitStr.APPLE)
-        assert s == b'"APPLE"'
-
-    def test_decode_enum(self):
-        x = msgspec.json.decode(b'"APPLE"', type=FruitStr)
-        assert x == FruitStr.APPLE
-
-    def test_decode_enum_invalid_value(self):
-        with pytest.raises(
-            msgspec.ValidationError, match="Invalid enum value 'MISSING'"
-        ):
-            msgspec.json.decode(b'"MISSING"', type=FruitStr)
-
-    def test_decode_enum_invalid_value_nested(self):
-        class Test(msgspec.Struct):
-            fruit: FruitStr
-
-        with pytest.raises(
-            msgspec.ValidationError,
-            match=r"Invalid enum value 'MISSING' - at `\$.fruit`",
-        ):
-            msgspec.json.decode(b'{"fruit": "MISSING"}', type=Test)
-
-
 class TestIntegers:
     @pytest.mark.parametrize("ndigits", range(21))
     def test_encode_int(self, ndigits):
@@ -1182,29 +1141,6 @@ class TestIntegers:
     def test_decode_int_type_error(self):
         with pytest.raises(msgspec.ValidationError, match="Expected `str`, got `int`"):
             msgspec.json.decode(b"123", type=str)
-
-
-class TestIntEnum:
-    def test_encode_intenum(self):
-        s = msgspec.json.encode(FruitInt.APPLE)
-        assert s == b"1"
-
-    def test_decode_intenum(self):
-        x = msgspec.json.decode(b"1", type=FruitInt)
-        assert x == FruitInt.APPLE
-
-    def test_decode_intenum_invalid_value(self):
-        with pytest.raises(msgspec.ValidationError, match="Invalid enum value 3"):
-            msgspec.json.decode(b"3", type=FruitInt)
-
-    def test_decode_intenum_invalid_value_nested(self):
-        class Test(msgspec.Struct):
-            fruit: FruitInt
-
-        with pytest.raises(
-            msgspec.ValidationError, match=r"Invalid enum value 3 - at `\$.fruit`"
-        ):
-            msgspec.json.decode(b'{"fruit": 3}', type=Test)
 
 
 class TestLiteral:

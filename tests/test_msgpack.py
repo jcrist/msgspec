@@ -38,16 +38,6 @@ class FruitStr(enum.Enum):
     BANANA = "banana"
 
 
-class VeggieInt(enum.IntEnum):
-    CARROT = 1
-    LETTUCE = 2
-
-
-class VeggieStr(enum.Enum):
-    CARROT = "carrot"
-    LETTUCE = "banana"
-
-
 class Person(msgspec.Struct):
     first: str
     last: str
@@ -1043,7 +1033,7 @@ class TestTypedDecoder:
         dec = msgspec.msgpack.Decoder(FruitStr)
 
         a = enc.encode(FruitStr.APPLE)
-        assert enc.encode("APPLE") == a
+        assert enc.encode("apple") == a
         assert dec.decode(a) == FruitStr.APPLE
 
         with pytest.raises(msgspec.DecodeError, match="truncated"):

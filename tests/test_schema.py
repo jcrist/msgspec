@@ -207,7 +207,7 @@ def test_enum():
             "Example": {
                 "title": "Example",
                 "description": "A docstring",
-                "enum": ["A", "B", "C"],
+                "enum": ["x", "y", "z"],
             }
         },
     }
@@ -767,7 +767,7 @@ def test_schema_components_collects_subtypes():
 
     assert s == {"type": "object", "additionalProperties": r4}
     assert components == {
-        "ExEnum": {"enum": ["A"], "title": "ExEnum"},
+        "ExEnum": {"enum": [1], "title": "ExEnum"},
         "ExStruct": {
             "type": "object",
             "title": "ExStruct",
