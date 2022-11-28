@@ -525,56 +525,6 @@ type in MessagePack.</p>
 </pre></div>
 </div>
 </section>
-<section id="intenum">
-<h3><code class="docutils literal notranslate"><span class="pre">IntEnum</span></code><a class="headerlink" href="#intenum" title="Permalink to this heading">#</a></h3>
-<p><a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.IntEnum" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enum.IntEnum</span></code></a> types encode as their integer <em>values</em> in both JSON and
-MessagePack. An error is raised during decoding if the value isn’t an integer,
-or doesn’t match any valid <a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.IntEnum" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enum.IntEnum</span></code></a> member.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">enum</span>
-
-<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">JobState</span><span class="p">(</span><span class="n">enum</span><span class="o">.</span><span class="n">IntEnum</span><span class="p">):</span>
-<span class="gp">... </span>    <span class="n">CREATED</span> <span class="o">=</span> <span class="mi">0</span>
-<span class="gp">... </span>    <span class="n">RUNNING</span> <span class="o">=</span> <span class="mi">1</span>
-<span class="gp">... </span>    <span class="n">SUCCEEDED</span> <span class="o">=</span> <span class="mi">2</span>
-<span class="gp">... </span>    <span class="n">FAILED</span> <span class="o">=</span> <span class="mi">3</span>
-
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">JobState</span><span class="o">.</span><span class="n">RUNNING</span><span class="p">)</span>
-<span class="go">b&#39;1&#39;</span>
-
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;2&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">JobState</span><span class="p">)</span>
-<span class="go">&lt;JobState.SUCCEEDED: 2&gt;</span>
-
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;4&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">JobState</span><span class="p">)</span>
-<span class="gt">Traceback (most recent call last):</span>
-  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
-<span class="gr">msgspec.ValidationError</span>: <span class="n">Invalid enum value 4</span>
-</pre></div>
-</div>
-</section>
-<section id="enum">
-<h3><code class="docutils literal notranslate"><span class="pre">Enum</span></code><a class="headerlink" href="#enum" title="Permalink to this heading">#</a></h3>
-<p><a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.Enum" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enum.Enum</span></code></a> types encode as strings of the member <em>names</em> (not their values) in
-both JSON and MessagePack. An error is raised during decoding if the value
-isn’t a string or doesn’t match any valid <a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.Enum" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enum.Enum</span></code></a> member.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">enum</span>
-
-<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">Fruit</span><span class="p">(</span><span class="n">enum</span><span class="o">.</span><span class="n">Enum</span><span class="p">):</span>
-<span class="gp">... </span>    <span class="n">APPLE</span> <span class="o">=</span> <span class="s2">&quot;apple value&quot;</span>
-<span class="gp">... </span>    <span class="n">BANANA</span> <span class="o">=</span> <span class="s2">&quot;banana value&quot;</span>
-
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">Fruit</span><span class="o">.</span><span class="n">APPLE</span><span class="p">)</span>
-<span class="go">b&#39;&quot;APPLE&quot;&#39;</span>
-
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;&quot;APPLE&quot;&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Fruit</span><span class="p">)</span>
-<span class="go">&lt;Fruit.APPLE: &#39;apple value&#39;&gt;</span>
-
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;&quot;GRAPE&quot;&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Fruit</span><span class="p">)</span>
-<span class="gt">Traceback (most recent call last):</span>
-  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
-<span class="gr">msgspec.ValidationError</span>: <span class="n">Invalid enum value &#39;GRAPE&#39;</span>
-</pre></div>
-</div>
-</section>
 <section id="datetime">
 <h3><code class="docutils literal notranslate"><span class="pre">datetime</span></code><a class="headerlink" href="#datetime" title="Permalink to this heading">#</a></h3>
 <p><a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.datetime" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.datetime</span></code></a> values are serialized as <a class="reference external" href="https://datatracker.ietf.org/doc/html/rfc3339">RFC3339</a> encoded strings in JSON,
@@ -810,6 +760,48 @@ fields have their defaults applied. Type checking also still applies.</p>
 <span class="gt">Traceback (most recent call last):</span>
   File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
 <span class="gr">msgspec.ValidationError</span>: <span class="n">Expected `str`, got `int` - at `$[1][1]`</span>
+</pre></div>
+</div>
+</section>
+<section id="enum-intenum">
+<h3><code class="docutils literal notranslate"><span class="pre">Enum</span></code> / <code class="docutils literal notranslate"><span class="pre">IntEnum</span></code><a class="headerlink" href="#enum-intenum" title="Permalink to this heading">#</a></h3>
+<p><a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.Enum" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enum.Enum</span></code></a> and <a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.IntEnum" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enum.IntEnum</span></code></a> types encode as their member <em>values</em> in both
+JSON and MessagePack. Only enums composed of all string or all integer values
+are supported. An error is raised during decoding if the value isn’t the proper
+type, or doesn’t match any valid member.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">enum</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">Fruit</span><span class="p">(</span><span class="n">enum</span><span class="o">.</span><span class="n">Enum</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="n">APPLE</span> <span class="o">=</span> <span class="s2">&quot;apple&quot;</span>
+<span class="gp">... </span>    <span class="n">BANANA</span> <span class="o">=</span> <span class="s2">&quot;banana&quot;</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">Fruit</span><span class="o">.</span><span class="n">APPLE</span><span class="p">)</span>
+<span class="go">b&#39;&quot;apple&quot;&#39;</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;&quot;apple&quot;&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Fruit</span><span class="p">)</span>
+<span class="go">&lt;Fruit.APPLE: &#39;apple&#39;&gt;</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;&quot;grape&quot;&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Fruit</span><span class="p">)</span>
+<span class="gt">Traceback (most recent call last):</span>
+  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+<span class="gr">msgspec.ValidationError</span>: <span class="n">Invalid enum value &#39;grape&#39;</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">JobState</span><span class="p">(</span><span class="n">enum</span><span class="o">.</span><span class="n">IntEnum</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="n">CREATED</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="gp">... </span>    <span class="n">RUNNING</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="gp">... </span>    <span class="n">SUCCEEDED</span> <span class="o">=</span> <span class="mi">2</span>
+<span class="gp">... </span>    <span class="n">FAILED</span> <span class="o">=</span> <span class="mi">3</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">JobState</span><span class="o">.</span><span class="n">RUNNING</span><span class="p">)</span>
+<span class="go">b&#39;1&#39;</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;2&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">JobState</span><span class="p">)</span>
+<span class="go">&lt;JobState.SUCCEEDED: 2&gt;</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;4&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">JobState</span><span class="p">)</span>
+<span class="gt">Traceback (most recent call last):</span>
+  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+<span class="gr">msgspec.ValidationError</span>: <span class="n">Invalid enum value 4</span>
 </pre></div>
 </div>
 </section>
@@ -1158,14 +1150,13 @@ efficiently skipped without decoding.</p>
 <li><a class="reference internal" href="#float"><code class="docutils literal notranslate"><span class="pre">float</span></code></a></li>
 <li><a class="reference internal" href="#str"><code class="docutils literal notranslate"><span class="pre">str</span></code></a></li>
 <li><a class="reference internal" href="#bytes-bytearray-memoryview"><code class="docutils literal notranslate"><span class="pre">bytes</span></code> / <code class="docutils literal notranslate"><span class="pre">bytearray</span></code> / <code class="docutils literal notranslate"><span class="pre">memoryview</span></code></a></li>
-<li><a class="reference internal" href="#intenum"><code class="docutils literal notranslate"><span class="pre">IntEnum</span></code></a></li>
-<li><a class="reference internal" href="#enum"><code class="docutils literal notranslate"><span class="pre">Enum</span></code></a></li>
 <li><a class="reference internal" href="#datetime"><code class="docutils literal notranslate"><span class="pre">datetime</span></code></a></li>
 <li><a class="reference internal" href="#list-tuple-set-frozenset"><code class="docutils literal notranslate"><span class="pre">list</span></code> / <code class="docutils literal notranslate"><span class="pre">tuple</span></code> / <code class="docutils literal notranslate"><span class="pre">set</span></code> / <code class="docutils literal notranslate"><span class="pre">frozenset</span></code></a></li>
 <li><a class="reference internal" href="#namedtuple"><code class="docutils literal notranslate"><span class="pre">NamedTuple</span></code></a></li>
 <li><a class="reference internal" href="#dict"><code class="docutils literal notranslate"><span class="pre">dict</span></code></a></li>
 <li><a class="reference internal" href="#typeddict"><code class="docutils literal notranslate"><span class="pre">TypedDict</span></code></a></li>
 <li><a class="reference internal" href="#struct"><code class="docutils literal notranslate"><span class="pre">Struct</span></code></a></li>
+<li><a class="reference internal" href="#enum-intenum"><code class="docutils literal notranslate"><span class="pre">Enum</span></code> / <code class="docutils literal notranslate"><span class="pre">IntEnum</span></code></a></li>
 <li><a class="reference internal" href="#literal"><code class="docutils literal notranslate"><span class="pre">Literal</span></code></a></li>
 <li><a class="reference internal" href="#union-optional"><code class="docutils literal notranslate"><span class="pre">Union</span></code> /  <code class="docutils literal notranslate"><span class="pre">Optional</span></code></a></li>
 <li><a class="reference internal" href="#raw"><code class="docutils literal notranslate"><span class="pre">Raw</span></code></a></li>

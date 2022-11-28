@@ -319,60 +319,6 @@ type in MessagePack.
     >>> msgspec.json.decode(msg, type=bytearray)
     bytearray(b'\xf0\x9d\x84\x9e')
 
-``IntEnum``
-~~~~~~~~~~~
-
-`enum.IntEnum` types encode as their integer *values* in both JSON and
-MessagePack. An error is raised during decoding if the value isn't an integer,
-or doesn't match any valid `enum.IntEnum` member.
-
-.. code-block:: python
-
-    >>> import enum
-
-    >>> class JobState(enum.IntEnum):
-    ...     CREATED = 0
-    ...     RUNNING = 1
-    ...     SUCCEEDED = 2
-    ...     FAILED = 3
-
-    >>> msgspec.json.encode(JobState.RUNNING)
-    b'1'
-
-    >>> msgspec.json.decode(b'2', type=JobState)
-    <JobState.SUCCEEDED: 2>
-
-    >>> msgspec.json.decode(b'4', type=JobState)
-    Traceback (most recent call last):
-      File "<stdin>", line 1, in <module>
-    msgspec.ValidationError: Invalid enum value 4
-
-``Enum``
-~~~~~~~~
-
-`enum.Enum` types encode as strings of the member *names* (not their values) in
-both JSON and MessagePack. An error is raised during decoding if the value
-isn't a string or doesn't match any valid `enum.Enum` member.
-
-.. code-block:: python
-
-    >>> import enum
-
-    >>> class Fruit(enum.Enum):
-    ...     APPLE = "apple value"
-    ...     BANANA = "banana value"
-
-    >>> msgspec.json.encode(Fruit.APPLE)
-    b'"APPLE"'
-
-    >>> msgspec.json.decode(b'"APPLE"', type=Fruit)
-    <Fruit.APPLE: 'apple value'>
-
-    >>> msgspec.json.decode(b'"GRAPE"', type=Fruit)
-    Traceback (most recent call last):
-      File "<stdin>", line 1, in <module>
-    msgspec.ValidationError: Invalid enum value 'GRAPE'
-
 ``datetime``
 ~~~~~~~~~~~~
 
@@ -633,6 +579,50 @@ fields have their defaults applied. Type checking also still applies.
     Traceback (most recent call last):
       File "<stdin>", line 1, in <module>
     msgspec.ValidationError: Expected `str`, got `int` - at `$[1][1]`
+
+``Enum`` / ``IntEnum``
+~~~~~~~~~~~~~~~~~~~~~~
+
+`enum.Enum` and `enum.IntEnum` types encode as their member *values* in both
+JSON and MessagePack. Only enums composed of all string or all integer values
+are supported. An error is raised during decoding if the value isn't the proper
+type, or doesn't match any valid member.
+
+.. code-block:: python
+
+    >>> import enum
+
+    >>> class Fruit(enum.Enum):
+    ...     APPLE = "apple"
+    ...     BANANA = "banana"
+
+    >>> msgspec.json.encode(Fruit.APPLE)
+    b'"apple"'
+
+    >>> msgspec.json.decode(b'"apple"', type=Fruit)
+    <Fruit.APPLE: 'apple'>
+
+    >>> msgspec.json.decode(b'"grape"', type=Fruit)
+    Traceback (most recent call last):
+      File "<stdin>", line 1, in <module>
+    msgspec.ValidationError: Invalid enum value 'grape'
+
+    >>> class JobState(enum.IntEnum):
+    ...     CREATED = 0
+    ...     RUNNING = 1
+    ...     SUCCEEDED = 2
+    ...     FAILED = 3
+
+    >>> msgspec.json.encode(JobState.RUNNING)
+    b'1'
+
+    >>> msgspec.json.decode(b'2', type=JobState)
+    <JobState.SUCCEEDED: 2>
+
+    >>> msgspec.json.decode(b'4', type=JobState)
+    Traceback (most recent call last):
+      File "<stdin>", line 1, in <module>
+    msgspec.ValidationError: Invalid enum value 4
 
 ``Literal``
 ~~~~~~~~~~~
