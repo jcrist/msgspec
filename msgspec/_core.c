@@ -476,10 +476,10 @@ typedef struct {
     PyTypeObject *EnumMetaType;
     PyObject *struct_lookup_cache;
     PyObject *str___weakref__;
-    PyObject *str__name_;
-    PyObject *str__member_map_;
+    PyObject *str__value2member_map_;
     PyObject *str___msgspec_cache__;
-    PyObject *str_name;
+    PyObject *str__value_;
+    PyObject *str_value;
     PyObject *str_type;
     PyObject *str_enc_hook;
     PyObject *str_dec_hook;
@@ -758,7 +758,7 @@ IntLookup_New(PyObject *arg, PyObject *tag_field, bool array_like, bool json_com
             PyErr_SetString( \
                 PyExc_NotImplementedError, \
                 "Integer values > (2**63 - 1) are not currently supported for " \
-                "IntEnum/Literal/integer tags. If you need this feature, please " \
+                "Enum/Literal/integer tags. If you need this feature, please " \
                 "open an issue on GitHub." \
             ); \
             goto cleanup; \
@@ -1048,6 +1048,7 @@ StrLookup_New(PyObject *arg, PyObject *tag_field, bool array_like, bool json_com
     self = PyObject_GC_NewVar(StrLookup, &StrLookup_Type, size);
     if (self == NULL) goto cleanup;
     /* Zero out memory */
+    self->common.tag_field = NULL;
     for (size_t i = 0; i < size; i++) {
         self->table[i].key = NULL;
         self->table[i].value = NULL;
@@ -1059,7 +1060,7 @@ StrLookup_New(PyObject *arg, PyObject *tag_field, bool array_like, bool json_com
 
         while (PyDict_Next(arg, &pos, &key, &val)) {
             if (!PyUnicode_CheckExact(key)) {
-                PyErr_SetString(PyExc_RuntimeError, "Enum names must be strings");
+                PyErr_SetString(PyExc_RuntimeError, "Enum values must be strings");
                 Py_CLEAR(self);
                 goto cleanup;
             }
@@ -1073,7 +1074,7 @@ StrLookup_New(PyObject *arg, PyObject *tag_field, bool array_like, bool json_com
         for (Py_ssize_t i = 0; i < nitems; i++) {
             item = PyTuple_GET_ITEM(items, i);
             if (!PyUnicode_CheckExact(item)) {
-                PyErr_SetString(PyExc_RuntimeError, "Enum names must be strings");
+                PyErr_SetString(PyExc_RuntimeError, "Enum values must be strings");
                 Py_CLEAR(self);
                 goto cleanup;
             }
@@ -2859,7 +2860,10 @@ typenode_from_collect_state(TypeNodeCollectState *state, bool err_not_json, bool
         if (lookup == NULL) {
             /* IntLookup isn't created yet, create and store on enum class */
             PyErr_Clear();
-            lookup = IntLookup_New(state->intenum_obj, NULL, false, false);
+            PyObject *member_map = PyObject_GetAttr(state->intenum_obj, state->mod->str__value2member_map_);
+            if (member_map == NULL) goto error;
+            lookup = IntLookup_New(member_map, NULL, false, false);
+            Py_DECREF(member_map);
             if (lookup == NULL) goto error;
             if (PyObject_SetAttr(state->intenum_obj, state->mod->str___msgspec_cache__, lookup) < 0) {
                 Py_DECREF(lookup);
@@ -2887,7 +2891,7 @@ typenode_from_collect_state(TypeNodeCollectState *state, bool err_not_json, bool
         if (lookup == NULL) {
             /* StrLookup isn't created yet, create and store on enum class */
             PyErr_Clear();
-            PyObject *member_map = PyObject_GetAttr(state->enum_obj, state->mod->str__member_map_);
+            PyObject *member_map = PyObject_GetAttr(state->enum_obj, state->mod->str__value2member_map_);
             if (member_map == NULL) goto error;
             lookup = StrLookup_New(member_map, NULL, false, false);
             Py_DECREF(member_map);
@@ -3106,7 +3110,7 @@ typenode_collect_check_invariants(
         PyErr_Format(
             PyExc_TypeError,
             "Type unions may not contain more than one int-like type (`int`, "
-            "`IntEnum`, `Literal[int values]`) - type `%R` is not supported",
+            "`Enum`, `Literal[int values]`) - type `%R` is not supported",
             state->context
         );
         return -1;
@@ -3144,6 +3148,73 @@ typenode_collect_check_invariants(
         }
         if (json_compatible != NULL)
             *json_compatible = false;
+    }
+    return 0;
+}
+
+static int
+typenode_collect_enum(TypeNodeCollectState *state, PyObject *obj) {
+    bool is_intenum;
+
+    if (PyType_IsSubtype((PyTypeObject *)obj, &PyLong_Type)) {
+        is_intenum = true;
+    }
+    else if (PyType_IsSubtype((PyTypeObject *)obj, &PyUnicode_Type)) {
+        is_intenum = false;
+    }
+    else {
+        PyObject *members = PyObject_GetAttr(obj, state->mod->str__value2member_map_);
+        if (members == NULL) return -1;
+        if (!PyDict_Check(members)) {
+            Py_DECREF(members);
+            PyErr_SetString(
+                PyExc_RuntimeError, "Expected _value2member_map_ to be a dict"
+            );
+            return -1;
+        }
+        /* Traverse _value2member_map_ to determine key type */
+        Py_ssize_t pos = 0;
+        PyObject *key;
+        bool all_ints = true;
+        bool all_strs = true;
+        while (PyDict_Next(members, &pos, &key, NULL)) {
+            all_ints &= PyLong_CheckExact(key);
+            all_strs &= PyUnicode_CheckExact(key);
+        }
+        Py_CLEAR(members);
+
+        if (all_ints) {
+            is_intenum = true;
+        }
+        else if (all_strs) {
+            is_intenum = false;
+        }
+        else {
+            PyErr_Format(
+                PyExc_TypeError,
+                "Enums must contain either all str or all int values - "
+                "type `%R` is not supported",
+                state->context
+            );
+            return -1;
+        }
+    }
+
+    if (is_intenum) {
+        if (state->intenum_obj != NULL) {
+            return typenode_collect_err_unique(state, "int enum");
+        }
+        state->types |= MS_TYPE_INTENUM;
+        Py_INCREF(obj);
+        state->intenum_obj = obj;
+    }
+    else {
+        if (state->enum_obj != NULL) {
+            return typenode_collect_err_unique(state, "str enum");
+        }
+        state->types |= MS_TYPE_ENUM;
+        Py_INCREF(obj);
+        state->enum_obj = obj;
     }
     return 0;
 }
@@ -3748,26 +3819,7 @@ typenode_collect_type_full(
 
     /* Enum types */
     if (Py_TYPE(obj) == state->mod->EnumMetaType) {
-        if (PyType_IsSubtype((PyTypeObject *)obj, &PyLong_Type)) {
-            /* IntEnum */
-            if (state->intenum_obj != NULL) {
-                return typenode_collect_err_unique(state, "IntEnum");
-            }
-            state->types |= MS_TYPE_INTENUM;
-            Py_INCREF(obj);
-            state->intenum_obj = obj;
-            return 0;
-        }
-        else {
-            /* Enum */
-            if (state->enum_obj != NULL) {
-                return typenode_collect_err_unique(state, "Enum");
-            }
-            state->types |= MS_TYPE_ENUM;
-            Py_INCREF(obj);
-            state->enum_obj = obj;
-            return 0;
-        }
+        return typenode_collect_enum(state, obj);
     }
 
     /* Generic collections can be spelled a few different ways, so the below
@@ -8065,28 +8117,26 @@ mpack_encode_enum(EncoderState *self, PyObject *obj)
 {
     if (PyLong_Check(obj))
         return mpack_encode_long(self, obj);
+    if (PyUnicode_Check(obj))
+        return mpack_encode_str(self, obj);
 
     int status;
-    PyObject *name = NULL;
-    /* Try the private variable first for speed, fall back to the public
-     * interface if not available */
-    name = PyObject_GetAttr(obj, self->mod->str__name_);
-    if (name == NULL) {
-        PyErr_Clear();
-        name = PyObject_GetAttr(obj, self->mod->str_name);
-        if (name == NULL)
-            return -1;
+    PyObject *value = PyObject_GetAttr(obj, self->mod->str__value_);
+    if (value == NULL) return -1;
+    if (PyLong_CheckExact(value)) {
+        status = mpack_encode_long(self, value);
     }
-    if (PyUnicode_CheckExact(name)) {
-        status = mpack_encode_str(self, name);
-    } else {
+    else if (PyUnicode_CheckExact(value)) {
+        status = mpack_encode_str(self, value);
+    }
+    else {
         PyErr_SetString(
             self->mod->EncodeError,
-            "Enum's with non-str names aren't supported"
+            "Only enums with int or str values are supported"
         );
         status = -1;
     }
-    Py_DECREF(name);
+    Py_DECREF(value);
     return status;
 }
 
@@ -8559,28 +8609,26 @@ json_encode_enum(EncoderState *self, PyObject *obj)
 {
     if (PyLong_Check(obj))
         return json_encode_long(self, obj);
+    if (PyUnicode_Check(obj))
+        return json_encode_str(self, obj);
 
     int status;
-    PyObject *name = NULL;
-    /* Try the private variable first for speed, fall back to the public
-     * interface if not available */
-    name = PyObject_GetAttr(obj, self->mod->str__name_);
-    if (name == NULL) {
-        PyErr_Clear();
-        name = PyObject_GetAttr(obj, self->mod->str_name);
-        if (name == NULL)
-            return -1;
+    PyObject *value = PyObject_GetAttr(obj, self->mod->str__value_);
+    if (value == NULL) return -1;
+    if (PyLong_CheckExact(value)) {
+        status = json_encode_long(self, value);
     }
-    if (PyUnicode_CheckExact(name)) {
-        status = json_encode_str(self, name);
-    } else {
+    else if (PyUnicode_CheckExact(value)) {
+        status = json_encode_str(self, value);
+    }
+    else {
         PyErr_SetString(
             self->mod->EncodeError,
-            "Enum's with non-str names aren't supported"
+            "Only enums with int or str values are supported"
         );
         status = -1;
     }
-    Py_DECREF(name);
+    Py_DECREF(value);
     return status;
 }
 
@@ -13745,10 +13793,10 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->EnumMetaType);
     Py_CLEAR(st->struct_lookup_cache);
     Py_CLEAR(st->str___weakref__);
-    Py_CLEAR(st->str__name_);
-    Py_CLEAR(st->str__member_map_);
+    Py_CLEAR(st->str__value2member_map_);
     Py_CLEAR(st->str___msgspec_cache__);
-    Py_CLEAR(st->str_name);
+    Py_CLEAR(st->str__value_);
+    Py_CLEAR(st->str_value);
     Py_CLEAR(st->str_type);
     Py_CLEAR(st->str_enc_hook);
     Py_CLEAR(st->str_dec_hook);
@@ -14083,10 +14131,10 @@ PyInit__core(void)
 #define CACHED_STRING(attr, str) \
     if ((st->attr = PyUnicode_InternFromString(str)) == NULL) return NULL
     CACHED_STRING(str___weakref__, "__weakref__");
-    CACHED_STRING(str__name_, "_name_");
-    CACHED_STRING(str__member_map_, "_member_map_");
+    CACHED_STRING(str__value2member_map_, "_value2member_map_");
     CACHED_STRING(str___msgspec_cache__, "__msgspec_cache__");
-    CACHED_STRING(str_name, "name");
+    CACHED_STRING(str__value_, "_value_");
+    CACHED_STRING(str_value, "value");
     CACHED_STRING(str_type, "type");
     CACHED_STRING(str_enc_hook, "enc_hook");
     CACHED_STRING(str_dec_hook, "dec_hook");

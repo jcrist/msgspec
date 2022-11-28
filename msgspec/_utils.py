@@ -447,10 +447,7 @@ class SchemaBuilder:
             schema.setdefault("title", t.__name__)
             if has_nondefault_docstring(t):
                 schema.setdefault("description", t.__doc__)
-            if issubclass(t, enum.IntEnum):
-                schema["enum"] = sorted(int(e) for e in t)
-            else:
-                schema["enum"] = sorted(e.name for e in t)
+            schema["enum"] = sorted(e.value for e in t)
         elif is_struct(t):
             schema.setdefault("title", t.__name__)
             if has_nondefault_docstring(t):
