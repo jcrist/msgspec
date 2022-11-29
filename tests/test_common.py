@@ -3,8 +3,6 @@ from __future__ import annotations
 import enum
 import gc
 import sys
-import random
-import string
 import weakref
 from collections import namedtuple
 from typing import (
@@ -93,32 +91,6 @@ class Custom:
 
     def __eq__(self, other):
         return self.x == other.x and self.y == other.y
-
-
-class Rand:
-    """Random source, pulled out into fixture with repr so the seed is
-    displayed on failing tests"""
-
-    def __init__(self, seed=0):
-        self.seed = seed or random.randint(0, 2**32 - 1)
-        self.rand = random.Random(self.seed)
-
-    def __repr__(self):
-        return f"Rand({self.seed})"
-
-    def str(self, n, m=0):
-        """
-        randstr(N) -> random string of length N.
-        randstr(N,M) -> random string between lengths N & M
-        """
-        if m:
-            n = self.rand.randint(n, m)
-        return "".join(self.rand.choices(string.ascii_letters, k=n))
-
-
-@pytest.fixture
-def rand():
-    yield Rand()
 
 
 class TestEncodeSubclasses:
