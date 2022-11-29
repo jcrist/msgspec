@@ -7,9 +7,7 @@ import gc
 import itertools
 import json
 import math
-import random
 import string
-import struct
 import sys
 from typing import (
     Any,
@@ -782,7 +780,7 @@ class TestStrings:
 
 class TestBinary:
     @pytest.mark.parametrize(
-        "x", [b"", b"a", b"ab", b"abc", b"abcd", b"abcde", b"abcdef"]
+        "x", [b"", b"a", b"ab", b"abc", b"abcd", b"abcde", b"abcdef", b"\x00\xff"]
     )
     @pytest.mark.parametrize("type", [bytes, bytearray, memoryview])
     def test_encode_binary(self, x, type):
@@ -792,14 +790,22 @@ class TestBinary:
         assert s == expected
 
     @pytest.mark.parametrize(
-        "x", [b"", b"a", b"ab", b"abc", b"abcd", b"abcde", b"abcdef"]
+        "x", [b"", b"a", b"ab", b"abc", b"abcd", b"abcde", b"abcdef", b"\x00\xff"]
     )
     @pytest.mark.parametrize("type", [bytes, bytearray])
     def test_decode_binary(self, x, type):
-        s = msgspec.json.encode(x)
+        s = b'"' + base64.b64encode(x) + b'"'
         x2 = msgspec.json.decode(s, type=type)
         assert x == x2
         assert isinstance(x2, type)
+
+    @pytest.mark.parametrize("n", [1023, 1024, 1025])
+    def test_roundtrip_random(self, n, rand):
+        for _ in range(10):
+            x = rand.bytes(n)
+            s = msgspec.json.encode(x)
+            x2 = msgspec.json.decode(s, type=bytes)
+            assert x == x2
 
     @pytest.mark.parametrize(
         "s", [b'"Y"', b'"YQ"', b'"YQ="', b'"YQI"', b'"YQI=="', b'"YQJj="', b'"AB*D"']
@@ -1277,19 +1283,9 @@ class TestFloat:
         x2 = msgspec.json.decode(s)
         assert x == x2
 
-    def test_roundtrip_float_random_checks(self):
-        """Generate 1000 random floats to check"""
-        rand = random.Random()
-
-        def randfloats(N):
-            while N:
-                dbytes = rand.getrandbits(64).to_bytes(8, "big")
-                x = struct.unpack("!d", dbytes)[0]
-                if math.isfinite(x):
-                    N -= 1
-                    yield x
-
-        for x in randfloats(1000):
+    def test_roundtrip_float_random_checks(self, rand):
+        for _ in range(1000):
+            x = rand.float()
             s = msgspec.json.encode(x)
             x2 = msgspec.json.decode(s)
             assert x == x2

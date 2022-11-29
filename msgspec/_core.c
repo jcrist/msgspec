@@ -8527,7 +8527,8 @@ static const char base64_encode_table[] =
 static int
 json_encode_bin(EncoderState *self, const char* buf, Py_ssize_t len) {
     char *out;
-    int nbits = 0, charbuf = 0;
+    int nbits = 0;
+    unsigned int charbuf = 0;
     Py_ssize_t encoded_len;
 
     if (len >= (1LL << 32)) {
@@ -8546,8 +8547,9 @@ json_encode_bin(EncoderState *self, const char* buf, Py_ssize_t len) {
     out = self->output_buffer_raw + self->output_len;
 
     *out++ = '"';
+
     for (; len > 0; len--, buf++) {
-        charbuf = (charbuf << 8) | *buf;
+        charbuf = (charbuf << 8) | (unsigned char)(*buf);
         nbits += 8;
         while (nbits >= 6) {
             unsigned char ind = (charbuf >> (nbits - 6)) & 0x3f;
