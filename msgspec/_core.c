@@ -475,6 +475,7 @@ typedef struct {
     PyObject *StructType;
     PyTypeObject *EnumMetaType;
     PyObject *struct_lookup_cache;
+    PyObject *str___slots__;
     PyObject *str___weakref__;
     PyObject *str__value2member_map_;
     PyObject *str___msgspec_cache__;
@@ -491,6 +492,7 @@ typedef struct {
     PyObject *str___required_keys__;
     PyObject *str__fields;
     PyObject *str__field_defaults;
+    PyObject *str___dataclass_fields__;
     PyObject *typing_list;
     PyObject *typing_set;
     PyObject *typing_frozenset;
@@ -8422,18 +8424,23 @@ json_encode_float(EncoderState *self, PyObject *obj) {
     return ms_write(self, buf, n);
 }
 
+static MS_INLINE int
+json_encode_cstr(EncoderState *self, const char *str, Py_ssize_t size) {
+    if (ms_ensure_space(self, size + 2) < 0) return -1;
+    char *p = self->output_buffer_raw + self->output_len;
+    *p++ = '"';
+    memcpy(p, str, size);
+    *(p + size) = '"';
+    self->output_len += size + 2;
+    return 0;
+}
+
 static inline int
 json_encode_str_nocheck(EncoderState *self, PyObject *obj) {
     Py_ssize_t len;
     const char* buf = unicode_str_and_size(obj, &len);
     if (buf == NULL) return -1;
-    if (ms_ensure_space(self, len + 2) < 0) return -1;
-    char *p = self->output_buffer_raw + self->output_len;
-    *p++ = '"';
-    memcpy(p, buf, len);
-    *(p + len) = '"';
-    self->output_len += len + 2;
-    return 0;
+    return json_encode_cstr(self, buf, len);
 }
 
 /* A table of escape characters to use for each byte (0 if no escape needed) */
@@ -8839,6 +8846,64 @@ cleanup:
     return status;
 }
 
+
+/* This method encodes an object as a map, with fields taken from `__dict__`,
+ * followed by all `__slots__` in the class hierarchy. Any unset slots are
+ * ignored, and `__weakref__` is not included. */
+static int
+json_encode_object(EncoderState *self, PyObject *obj)
+{
+    int status = -1;
+    if (ms_write(self, "{", 1) < 0) return -1;
+    if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
+    /* First encode everything in `__dict__` */
+    PyObject *dict = PyObject_GenericGetDict(obj, NULL);
+    if (MS_UNLIKELY(dict == NULL)) {
+        PyErr_Clear();
+    }
+    else {
+        PyObject *key, *val;
+        Py_ssize_t pos = 0;
+        while (PyDict_Next(dict, &pos, &key, &val)) {
+            if (!PyUnicode_CheckExact(key)) {
+                PyErr_SetString(PyExc_TypeError, "dict keys must be strings");
+                goto cleanup;
+            }
+            if (json_encode_str_nocheck(self, key) < 0) goto cleanup;
+            if (ms_write(self, ":", 1) < 0) goto cleanup;
+            if (json_encode(self, val) < 0) goto cleanup;
+            if (ms_write(self, ",", 1) < 0) goto cleanup;
+        }
+    }
+    /* Then encode everything in slots */
+    PyTypeObject *type = Py_TYPE(obj);
+    while (type != NULL) {
+        Py_ssize_t n = Py_SIZE(type);
+        if (n) {
+            PyMemberDef *mp = MS_PyHeapType_GET_MEMBERS((PyHeapTypeObject *)type);
+            for (Py_ssize_t i = 0; i < n; i++, mp++) {
+                if (mp->type == T_OBJECT_EX && !(mp->flags & READONLY)) {
+                    char *addr = (char *)obj + mp->offset;
+                    PyObject *val = *(PyObject **)addr;
+                    if (val == NULL) continue;
+                    if (json_encode_cstr(self, mp->name, strlen(mp->name)) < 0) goto cleanup;
+                    if (ms_write(self, ":", 1) < 0) goto cleanup;
+                    if (json_encode(self, val) < 0) goto cleanup;
+                    if (ms_write(self, ",", 1) < 0) goto cleanup;
+                }
+            }
+        }
+        type = type->tp_base;
+    }
+    /* Overwrite trailing comma with } */
+    *(self->output_buffer_raw + self->output_len - 1) = '}';
+    status = 0;
+cleanup:
+    Py_XDECREF(dict);
+    Py_LeaveRecursiveCall();
+    return status;
+}
+
 static int
 json_encode_struct_default(
     EncoderState *self, StructMetaObject *struct_type, PyObject *obj
@@ -9037,6 +9102,9 @@ json_encode(EncoderState *self, PyObject *obj)
     }
     else if (Py_TYPE(type) == self->mod->EnumMetaType) {
         return json_encode_enum(self, obj);
+    }
+    else if (PyDict_Contains(type->tp_dict, self->mod->str___dataclass_fields__)) {
+        return json_encode_object(self, obj);
     }
 
     if (self->enc_hook != NULL) {
@@ -13797,6 +13865,7 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->StructType);
     Py_CLEAR(st->EnumMetaType);
     Py_CLEAR(st->struct_lookup_cache);
+    Py_CLEAR(st->str___slots__);
     Py_CLEAR(st->str___weakref__);
     Py_CLEAR(st->str__value2member_map_);
     Py_CLEAR(st->str___msgspec_cache__);
@@ -13813,6 +13882,7 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->str___required_keys__);
     Py_CLEAR(st->str__fields);
     Py_CLEAR(st->str__field_defaults);
+    Py_CLEAR(st->str___dataclass_fields__);
     Py_CLEAR(st->typing_dict);
     Py_CLEAR(st->typing_list);
     Py_CLEAR(st->typing_set);
@@ -14134,6 +14204,7 @@ PyInit__core(void)
     /* Initialize cached constant strings */
 #define CACHED_STRING(attr, str) \
     if ((st->attr = PyUnicode_InternFromString(str)) == NULL) return NULL
+    CACHED_STRING(str___slots__, "__slots__");
     CACHED_STRING(str___weakref__, "__weakref__");
     CACHED_STRING(str__value2member_map_, "_value2member_map_");
     CACHED_STRING(str___msgspec_cache__, "__msgspec_cache__");
@@ -14150,6 +14221,7 @@ PyInit__core(void)
     CACHED_STRING(str___required_keys__, "__required_keys__");
     CACHED_STRING(str__fields, "_fields");
     CACHED_STRING(str__field_defaults, "_field_defaults");
+    CACHED_STRING(str___dataclass_fields__, "__dataclass_fields__");
 
     return m;
 }
