@@ -7686,11 +7686,9 @@ mpack_encode_float(EncoderState *self, PyObject *obj)
     return ms_write(self, buf, 9);
 }
 
-static int
-mpack_encode_str(EncoderState *self, PyObject *obj)
+static inline int
+mpack_encode_cstr(EncoderState *self, const char *buf, Py_ssize_t len)
 {
-    Py_ssize_t len;
-    const char* buf = unicode_str_and_size(obj, &len);
     if (buf == NULL) {
         return -1;
     }
@@ -7722,6 +7720,15 @@ mpack_encode_str(EncoderState *self, PyObject *obj)
         return -1;
     }
     return len > 0 ? ms_write(self, buf, len) : 0;
+}
+
+static int
+mpack_encode_str(EncoderState *self, PyObject *obj)
+{
+    Py_ssize_t len;
+    const char* buf = unicode_str_and_size(obj, &len);
+    if (buf == NULL) return -1;
+    return mpack_encode_cstr(self, buf, len);
 }
 
 static int
@@ -7939,6 +7946,91 @@ mpack_encode_dict(EncoderState *self, PyObject *obj)
             break;
         }
     }
+    Py_LeaveRecursiveCall();
+    return status;
+}
+
+/* This method encodes an object as a map, with fields taken from `__dict__`,
+ * followed by all `__slots__` in the class hierarchy. Any unset slots are
+ * ignored, and `__weakref__` is not included. */
+static int
+mpack_encode_object(EncoderState *self, PyObject *obj)
+{
+    int status = -1;
+    Py_ssize_t size, max_size;
+
+    if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
+
+    /* Calculate the maximum number of fields that could be part of this object.
+     * This is roughly equal to:
+     *     max_size = size = len(getattr(obj, '__dict__', {}))
+     *     max_size += sum(len(getattr(c, '__slots__', ())) for c in type(obj).mro())
+     */
+    PyObject *dict = PyObject_GenericGetDict(obj, NULL);
+    if (MS_UNLIKELY(dict == NULL)) {
+        PyErr_Clear();
+        size = 0;
+        max_size = 0;
+    }
+    else {
+        max_size = PyDict_GET_SIZE(dict);
+        size = max_size;
+    }
+
+    PyTypeObject *type = Py_TYPE(obj);
+    while (type != NULL) {
+        max_size += Py_SIZE(type);
+        type = type->tp_base;
+    }
+    /* Cache header offset in case we need to adjust the header after writing */
+    Py_ssize_t header_offset = self->output_len;
+    if (mpack_encode_map_header(self, max_size, "objects") < 0) goto cleanup;
+
+    /* First encode everything in `__dict__` */
+    if (dict != NULL) {
+        PyObject *key, *val;
+        Py_ssize_t pos = 0;
+        while (PyDict_Next(dict, &pos, &key, &val)) {
+            if (mpack_encode(self, key) < 0) goto cleanup;
+            if (mpack_encode(self, val) < 0) goto cleanup;
+        }
+    }
+    /* Then encode everything in slots */
+    type = Py_TYPE(obj);
+    while (type != NULL) {
+        Py_ssize_t n = Py_SIZE(type);
+        if (n) {
+            PyMemberDef *mp = MS_PyHeapType_GET_MEMBERS((PyHeapTypeObject *)type);
+            for (Py_ssize_t i = 0; i < n; i++, mp++) {
+                if (mp->type == T_OBJECT_EX && !(mp->flags & READONLY)) {
+                    char *addr = (char *)obj + mp->offset;
+                    PyObject *val = *(PyObject **)addr;
+                    if (val == NULL) continue;
+                    if (mpack_encode_cstr(self, mp->name, strlen(mp->name)) < 0) goto cleanup;
+                    if (mpack_encode(self, val) < 0) goto cleanup;
+                    size++;
+                }
+            }
+        }
+        type = type->tp_base;
+    }
+    if (size != max_size) {
+        /* Some fields were NULL, need to adjust header. We write the header
+         * using the width type of `max_size`, but the value of `size`. */
+        char *header_loc = self->output_buffer_raw + header_offset;
+        if (max_size < 16) {
+            *header_loc = MP_FIXMAP | size;
+        } else if (max_size < (1 << 16)) {
+            *header_loc++ = MP_MAP16;
+            _msgspec_store16(header_loc, (uint16_t)size);
+        } else {
+            *header_loc++ = MP_MAP32;
+            _msgspec_store32(header_loc, (uint32_t)size);
+        }
+    }
+    status = 0;
+cleanup:
+    Py_XDECREF(dict);
     Py_LeaveRecursiveCall();
     return status;
 }
@@ -8254,6 +8346,10 @@ mpack_encode(EncoderState *self, PyObject *obj)
     else if (Py_TYPE(type) == self->mod->EnumMetaType) {
         return mpack_encode_enum(self, obj);
     }
+    else if (PyDict_Contains(type->tp_dict, self->mod->str___dataclass_fields__)) {
+        return mpack_encode_object(self, obj);
+    }
+
     if (self->enc_hook != NULL) {
         int status = -1;
         PyObject *temp;
