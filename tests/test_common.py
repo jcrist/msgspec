@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 import enum
 import gc
 import sys
@@ -22,6 +23,10 @@ import pytest
 import msgspec
 
 from utils import temp_module
+
+
+py310_plus = pytest.mark.skipif(sys.version_info[:2] < (3, 10), reason="3.10+ only")
+py311_plus = pytest.mark.skipif(sys.version_info[:2] < (3, 11), reason="3.10+ only")
 
 
 @pytest.fixture(params=["json", "msgpack"])
@@ -700,7 +705,7 @@ class TestUnionTypeErrors:
         assert f"more than one {kind}" in str(rec.value)
         assert repr(typ) in str(rec.value)
 
-    @pytest.mark.skipif(sys.version_info[:2] < (3, 10), reason="3.10 only")
+    @py310_plus
     def test_310_union_types(self, proto):
         dec = proto.Decoder(int | str | None)
         for msg in [1, "abc", None]:
@@ -1563,3 +1568,80 @@ class TestNamedTuple:
             msgspec.ValidationError, match="Expected `array`, got `object`"
         ):
             dec.decode(msg)
+
+
+class TestDataclass:
+    def test_encode_dataclass_no_slots(self, proto):
+        @dataclass
+        class Test:
+            x: int
+            y: int
+
+        x = Test(1, 2)
+        res = proto.encode(x)
+        sol = proto.encode({"x": 1, "y": 2})
+        assert res == sol
+
+    @py310_plus
+    def test_encode_dataclass_slots(self, proto):
+        @dataclass(slots=True)
+        class Test:
+            x: int
+            y: int
+
+        x = Test(1, 2)
+        res = proto.encode(x)
+        sol = proto.encode({"x": 1, "y": 2})
+        assert res == sol
+
+    @py310_plus
+    @pytest.mark.parametrize("slots", [True, False])
+    def test_encode_dataclass_missing_fields(self, proto, slots):
+        @dataclass(slots=slots)
+        class Test:
+            x: int
+            y: int
+            z: int
+
+        x = Test(1, 2, 3)
+        sol = {"x": 1, "y": 2, "z": 3}
+        for field in "xyz":
+            delattr(x, field)
+            del sol[field]
+            res = proto.decode(proto.encode(x))
+            assert res == sol
+
+    @py310_plus
+    @pytest.mark.parametrize("slots_base", [True, False])
+    @pytest.mark.parametrize("slots", [True, False])
+    def test_encode_dataclass_subclasses(self, proto, slots_base, slots):
+        @dataclass(slots=slots_base)
+        class Base:
+            x: int
+            y: int
+
+        @dataclass(slots=slots)
+        class Test(Base):
+            y: int
+            z: int
+
+        x = Test(1, 2, 3)
+        res = proto.decode(proto.encode(x))
+        assert res == {"x": 1, "y": 2, "z": 3}
+
+        # Missing attribute ignored
+        del x.y
+        res = proto.decode(proto.encode(x))
+        assert res == {"x": 1, "z": 3}
+
+    @py311_plus
+    def test_encode_dataclass_weakref_slot(self, proto):
+        @dataclass(slots=True, weakref_slot=True)
+        class Test:
+            x: int
+            y: int
+
+        x = Test(1, 2)
+        ref = weakref.ref(x)  # noqa
+        res = proto.decode(proto.encode(x))
+        assert res == {"x": 1, "y": 2}
