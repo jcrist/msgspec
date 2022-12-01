@@ -8951,6 +8951,8 @@ json_encode_object(EncoderState *self, PyObject *obj)
 {
     int status = -1;
     if (ms_write(self, "{", 1) < 0) return -1;
+    Py_ssize_t start_offset = self->output_len;
+
     if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
     /* First encode everything in `__dict__` */
     PyObject *dict = PyObject_GenericGetDict(obj, NULL);
@@ -8991,9 +8993,14 @@ json_encode_object(EncoderState *self, PyObject *obj)
         }
         type = type->tp_base;
     }
-    /* Overwrite trailing comma with } */
-    *(self->output_buffer_raw + self->output_len - 1) = '}';
-    status = 0;
+    /* If any fields written, overwrite trailing comma with }, otherwise append } */
+    if (MS_LIKELY(self->output_len != start_offset)) {
+        *(self->output_buffer_raw + self->output_len - 1) = '}';
+        status = 0;
+    }
+    else {
+        status = ms_write(self, "}", 1);
+    }
 cleanup:
     Py_XDECREF(dict);
     Py_LeaveRecursiveCall();
