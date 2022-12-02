@@ -13,14 +13,10 @@ def temp_module(code):
     exec whatever is needed for that test"""
     code = textwrap.dedent(code)
     name = f"temp_{uuid.uuid4().hex}"
-    ns = {"__name__": name}
-    exec(code, ns)
     mod = types.ModuleType(name)
-    for k, v in ns.items():
-        setattr(mod, k, v)
-
+    sys.modules[name] = mod
     try:
-        sys.modules[name] = mod
+        exec(code, mod.__dict__)
         yield mod
     finally:
         sys.modules.pop(name, None)

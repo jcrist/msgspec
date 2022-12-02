@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import enum
 import gc
 import sys
@@ -24,9 +24,11 @@ import msgspec
 
 from utils import temp_module
 
+PY310 = sys.version_info[:2] >= (3, 10)
+PY311 = sys.version_info[:2] >= (3, 11)
 
-py310_plus = pytest.mark.skipif(sys.version_info[:2] < (3, 10), reason="3.10+ only")
-py311_plus = pytest.mark.skipif(sys.version_info[:2] < (3, 11), reason="3.10+ only")
+py310_plus = pytest.mark.skipif(not PY310, reason="3.10+ only")
+py311_plus = pytest.mark.skipif(not PY311, reason="3.11+ only")
 
 
 @pytest.fixture(params=["json", "msgpack"])
@@ -78,6 +80,13 @@ class PersonArray(msgspec.Struct, array_like=True):
 
 
 class PersonDict(TypedDict):
+    first: str
+    last: str
+    age: int
+
+
+@dataclass
+class PersonDataclass:
     first: str
     last: str
     age: int
@@ -643,6 +652,7 @@ class TestUnionTypeErrors:
             Union[dict, Person],
             Union[Person, dict],
             Union[PersonDict, dict],
+            Union[PersonDataclass, dict],
             Union[Person, PersonDict],
         ],
     )
@@ -1605,9 +1615,9 @@ class TestDataclass:
 
         x = Test(1, 2, 3)
         sol = {"x": 1, "y": 2, "z": 3}
-        for field in "xyz":
-            delattr(x, field)
-            del sol[field]
+        for key in "xyz":
+            delattr(x, key)
+            del sol[key]
             res = proto.decode(proto.encode(x))
             assert res == sol
 
@@ -1645,3 +1655,268 @@ class TestDataclass:
         ref = weakref.ref(x)  # noqa
         res = proto.decode(proto.encode(x))
         assert res == {"x": 1, "y": 2}
+
+    def test_type_cached(self, proto):
+        @dataclass
+        class Ex:
+            a: int
+            b: str
+
+        msg = Ex(a=1, b="two")
+
+        dec = proto.Decoder(Ex)
+        info = Ex.__msgspec_cache__
+        assert info is not None
+        dec2 = proto.Decoder(Ex)
+        assert Ex.__msgspec_cache__ is info
+
+        assert dec.decode(proto.encode(msg)) == msg
+        assert dec2.decode(proto.encode(msg)) == msg
+
+    def test_multiple_dataclasses_errors(self, proto):
+        @dataclass
+        class Ex1:
+            a: int
+
+        @dataclass
+        class Ex2:
+            b: int
+
+        with pytest.raises(TypeError, match="may not contain more than one dataclass"):
+            proto.Decoder(Union[Ex1, Ex2])
+
+    def test_subtype_error(self, proto):
+        @dataclass
+        class Ex:
+            a: int
+            b: Union[list, tuple]
+
+        with pytest.raises(TypeError, match="may not contain more than one array-like"):
+            proto.Decoder(Ex)
+        assert not hasattr(Ex, "__msgspec_cache__")
+
+    @pytest.mark.parametrize("msgpack_first", [False, True])
+    @pytest.mark.parametrize("wrap", [False, True])
+    def test_type_errors_not_json(self, msgpack_first, wrap):
+        @dataclass
+        class Ex:
+            a: int
+            b: Dict[int, int]
+
+        if wrap:
+            typ = TypedDict("Test", {"x": Ex})
+        else:
+            typ = Ex
+
+        if msgpack_first:
+            dec = msgspec.msgpack.Decoder(typ)
+            info = Ex.__msgspec_cache__
+            assert info is not None
+            msg = Ex(a=1, b={1: 2})
+            if wrap:
+                msg = {"x": msg}
+            assert dec.decode(msgspec.msgpack.encode(msg)) == msg
+
+        with pytest.raises(TypeError, match="JSON doesn't support"):
+            msgspec.json.Decoder(typ)
+
+        if msgpack_first:
+            assert Ex.__msgspec_cache__ is info
+        else:
+            assert not hasattr(Ex, "__msgspec_cache__")
+
+    def test_recursive_type(self, proto):
+        source = """
+        from __future__ import annotations
+        from typing import Union
+        from dataclasses import dataclass
+
+        @dataclass
+        class Ex:
+            a: int
+            b: Union[Ex, None]
+        """
+
+        with temp_module(source) as mod:
+            msg = mod.Ex(a=1, b=mod.Ex(a=2, b=None))
+            dec = proto.Decoder(mod.Ex)
+            assert dec.decode(proto.encode(msg)) == msg
+
+            with pytest.raises(msgspec.ValidationError) as rec:
+                dec.decode(proto.encode({"a": 1, "b": {"a": "bad"}}))
+            assert "`$.b.a`" in str(rec.value)
+            assert "Expected `int`, got `str`" in str(rec.value)
+
+    @pytest.mark.parametrize("msgpack_first", [True])
+    def test_recursive_type_errors_not_json(self, msgpack_first):
+        source = """
+        from __future__ import annotations
+        from typing import Union, Dict
+        from dataclasses import dataclass
+
+        @dataclass
+        class Ex:
+            a: int
+            b: Union[Ex, None]
+            c: Dict[int, int]
+        """
+        with temp_module(source) as mod:
+            if msgpack_first:
+                dec = msgspec.msgpack.Decoder(mod.Ex)
+                info = mod.Ex.__msgspec_cache__
+                assert info is not None
+                msg = mod.Ex(a=1, b=None, c={1: 2})
+                assert dec.decode(msgspec.msgpack.encode(msg)) == msg
+
+            with pytest.raises(TypeError, match="JSON doesn't support"):
+                msgspec.json.Decoder(mod.Ex)
+
+            if msgpack_first:
+                assert mod.Ex.__msgspec_cache__ is info
+            else:
+                assert not hasattr(mod.Ex, "__msgspec_cache__")
+
+    def test_classvars_ignored(self, proto):
+        source = """
+        from __future__ import annotations
+
+        from typing import ClassVar
+        from dataclasses import dataclass
+
+        @dataclass
+        class Ex:
+            a: int
+            other: ClassVar[int]
+        """
+        with temp_module(source) as mod:
+            msg = mod.Ex(a=1)
+            dec = proto.Decoder(mod.Ex)
+            res = dec.decode(proto.encode({"a": 1, "other": 2}))
+            assert res == msg
+            assert not hasattr(res, "other")
+
+    def test_initvars_forbidden(self, proto):
+        source = """
+        from dataclasses import dataclass, InitVar
+
+        @dataclass
+        class Ex:
+            a: int
+            other: InitVar[int]
+        """
+        with temp_module(source) as mod:
+            with pytest.raises(TypeError, match="`InitVar` fields are not supported"):
+                proto.Decoder(mod.Ex)
+
+    @pytest.mark.parametrize("slots", [False, True])
+    def test_decode_dataclass(self, proto, slots):
+        if slots:
+            if not PY310:
+                pytest.skip(reason="Python 3.10+ required")
+            kws = {"slots": True}
+        else:
+            kws = {}
+
+        @dataclass(**kws)
+        class Example:
+            a: int
+            b: int
+            c: int
+
+        dec = proto.Decoder(Example)
+        msg = Example(1, 2, 3)
+        res = dec.decode(proto.encode(msg))
+        assert res == msg
+
+        # Extra fields ignored
+        res = dec.decode(
+            proto.encode({"x": -1, "a": 1, "y": -2, "b": 2, "z": -3, "c": 3, "": -4})
+        )
+        assert res == msg
+
+        # Missing fields error
+        with pytest.raises(msgspec.ValidationError, match="missing required field `b`"):
+            dec.decode(proto.encode({"a": 1}))
+
+        # Incorrect field types error
+        with pytest.raises(
+            msgspec.ValidationError, match=r"Expected `int`, got `str` - at `\$.a`"
+        ):
+            dec.decode(proto.encode({"a": "bad"}))
+
+    @pytest.mark.parametrize("slots", [False, True])
+    def test_decode_dataclass_defaults(self, proto, slots):
+        if slots:
+            if not PY310:
+                pytest.skip(reason="Python 3.10+ required")
+            kws = {"slots": True}
+        else:
+            kws = {}
+
+        @dataclass(**kws)
+        class Example:
+            a: int
+            b: int
+            c: int = -3
+            d: int = -4
+            e: int = field(default_factory=lambda: -1000)
+
+        dec = proto.Decoder(Example)
+        for args in [(1, 2), (1, 2, 3), (1, 2, 3, 4), (1, 2, 3, 4, 5)]:
+            msg = Example(*args)
+        res = dec.decode(proto.encode(msg))
+        assert res == msg
+
+        # Missing fields error
+        with pytest.raises(msgspec.ValidationError, match="missing required field `a`"):
+            dec.decode(proto.encode({"c": 1, "d": 2, "e": 3}))
+
+    def test_decode_dataclass_default_factory_errors(self, proto):
+        def bad():
+            raise ValueError("Oh no!")
+
+        @dataclass
+        class Example:
+            a: int = field(default_factory=bad)
+
+        with pytest.raises(ValueError, match="Oh no!"):
+            proto.decode(proto.encode({}), type=Example)
+
+    def test_decode_dataclass_post_init(self, proto):
+        called = False
+
+        @dataclass
+        class Example:
+            a: int
+
+            def __post_init__(self):
+                nonlocal called
+                called = True
+
+        res = proto.decode(proto.encode({"a": 1}), type=Example)
+        assert res.a == 1
+        assert called
+
+    def test_decode_dataclass_post_init_errors(self, proto):
+        @dataclass
+        class Example:
+            a: int
+
+            def __post_init__(self):
+                raise ValueError("Oh no!")
+
+        with pytest.raises(ValueError, match="Oh no!"):
+            proto.decode(proto.encode({"a": 1}), type=Example)
+
+    def test_decode_dataclass_not_object(self, proto):
+        @dataclass
+        class Example:
+            a: int
+            b: int
+
+        dec = proto.Decoder(Example)
+        msg = proto.encode([])
+        with pytest.raises(
+            msgspec.ValidationError, match="Expected `object`, got `array`"
+        ):
+            dec.decode(msg)

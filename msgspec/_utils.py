@@ -68,7 +68,7 @@ def get_dataclass_info(cls):
     for field in cls.__dataclass_fields__.values():
         if field._field_type is not _FIELD:
             if field._field_type is _FIELD_INITVAR:
-                raise TypeError("dataclasses with `InitVar` fields is not supported")
+                raise TypeError("dataclasses with `InitVar` fields are not supported")
             continue
         name = field.name
         typ = field.type
