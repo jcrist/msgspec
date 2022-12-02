@@ -57,6 +57,39 @@ def get_typeddict_hints(obj):
     return out
 
 
+def get_dataclass_info(cls):
+    from dataclasses import MISSING, _FIELD_INITVAR, _FIELD
+
+    required = []
+    optional = []
+    defaults = []
+    hints = None
+
+    for field in cls.__dataclass_fields__.values():
+        if field._field_type is not _FIELD:
+            if field._field_type is _FIELD_INITVAR:
+                raise TypeError("dataclasses with `InitVar` fields is not supported")
+            continue
+        name = field.name
+        typ = field.type
+        if type(typ) is str:
+            if hints is None:
+                hints = get_type_hints(cls)
+            typ = hints[name]
+        if field.default is not MISSING:
+            defaults.append(field.default)
+            optional.append((name, typ, False))
+        elif field.default_factory is not MISSING:
+            defaults.append(field.default_factory)
+            optional.append((name, typ, True))
+        else:
+            required.append((name, typ, False))
+
+    required.extend(optional)
+
+    return tuple(required), tuple(defaults), hasattr(cls, "__post_init__")
+
+
 def schema(type: Any) -> Dict[str, Any]:
     """Generate a JSON Schema for a given type.
 
