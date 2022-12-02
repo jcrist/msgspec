@@ -196,6 +196,10 @@ def is_typeddict(t):
         return False
 
 
+def is_dataclass(t):
+    return hasattr(t, "__dataclass_fields__")
+
+
 def is_namedtuple(t):
     try:
         return issubclass(t, tuple) and hasattr(t, "_fields")
@@ -216,7 +220,7 @@ def has_nondefault_docstring(t):
             doc == "An enumeration."
             or doc.startswith("A collection of name/value pairs.")
         )
-    elif is_namedtuple(t):
+    elif is_namedtuple(t) or is_dataclass(t):
         return not (doc.startswith(f"{t.__name__}(") and doc.endswith(")"))
     return True
 
@@ -258,6 +262,7 @@ class SchemaBuilder:
         self.structs = set()
         self.enums = set()
         self.typeddicts = set()
+        self.dataclasses = set()
         self.namedtuples = set()
 
     def _get_type_hints(self, t: Any) -> dict:
@@ -270,7 +275,13 @@ class SchemaBuilder:
 
     @property
     def subtypes(self):
-        return (*self.structs, *self.enums, *self.typeddicts, *self.namedtuples)
+        return (
+            *self.structs,
+            *self.enums,
+            *self.typeddicts,
+            *self.dataclasses,
+            *self.namedtuples,
+        )
 
     def run(self):
         # First construct a decoder to validate the types are valid
@@ -302,6 +313,10 @@ class SchemaBuilder:
         elif is_typeddict(t):
             if t not in self.typeddicts:
                 self.typeddicts.add(t)
+                self._collect_fields(t)
+        elif is_dataclass(t):
+            if t not in self.dataclasses:
+                self.dataclasses.add(t)
                 self._collect_fields(t)
         elif is_namedtuple(t):
             if t not in self.namedtuples:
@@ -534,6 +549,30 @@ class SchemaBuilder:
                 required = sorted(hints)
             else:
                 required = []
+            schema["required"] = required
+        elif is_dataclass(t):
+            from dataclasses import MISSING, fields as get_fields
+
+            schema.setdefault("title", t.__name__)
+            if has_nondefault_docstring(t):
+                schema.setdefault("description", t.__doc__)
+            hints = self._get_type_hints(t)
+            required = []
+            properties = {}
+
+            for field in get_fields(t):
+                if field.default is MISSING:
+                    if field.default_factory is MISSING:
+                        required.append(field.name)
+                    default = UNSET
+                else:
+                    default = field.default
+
+                properties[field.name] = self._type_to_schema(
+                    hints[field.name], default=default
+                )
+            schema["type"] = "object"
+            schema["properties"] = properties
             schema["required"] = required
         elif is_namedtuple(t):
             schema.setdefault("title", t.__name__)
