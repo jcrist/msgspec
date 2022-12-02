@@ -119,6 +119,7 @@ Most combinations of the following types are supported (see
 - `typing.Literal`
 - `typing.NamedTuple` / `collections.namedtuple`
 - `typing.TypedDict`
+- `dataclasses.dataclass` types
 - `msgspec.msgpack.Ext`
 - `msgspec.Raw`
 - `enum.Enum` subclasses
@@ -496,6 +497,45 @@ already using them elsewhere, or if you have downstream code that requires a
       File "<stdin>", line 1, in <module>
     msgspec.ValidationError: Expected `int`, got `str` - at `$.age`
 
+``dataclasses``
+~~~~~~~~~~~~~~~
+
+`dataclasses` map to JSON objects/MessagePack maps. During decoding, any extra
+fields are ignored. An error is raised during decoding if the type doesn't
+match or if any required fields are missing.
+
+If a ``__post_init__`` method is defined on the dataclass, it is called after
+the object is decoded. Note that `"Init-only parameters"
+<https://docs.python.org/3/library/dataclasses.html#init-only-variables>`__
+(i.e. ``InitVar`` fields) are _not_ supported.
+
+When possible we recommend using `msgspec.Struct` instead of dataclasses for
+specifying schemas - :doc:`structs` are faster, more ergonomic, and support
+additional features.
+
+.. code-block:: python
+
+    >>> from dataclasses import dataclass
+
+    >>> @dataclass
+    ... class Person:
+    ...     name: str
+    ...     age: int
+
+    >>> carol = Person(name="carol", age=32)
+
+    >>> msg = msgspec.json.encode(carol)
+
+    >>> msgspec.json.decode(msg, type=Person)
+    Person(name='carol', age=32)
+
+    >>> wrong_type = b'{"name": "doug", "age": "thirty"}'
+
+    >>> msgspec.json.decode(wrong_type, type=Person)
+    Traceback (most recent call last):
+      File "<stdin>", line 1, in <module>
+    msgspec.ValidationError: Expected `int`, got `str` - at `$.age`
+
 ``Struct``
 ~~~~~~~~~~
 
@@ -680,10 +720,11 @@ Union restrictions are as follows:
 - Unions may contain at most one *untagged* `Struct` type. Unions containing
   multiple struct types are only supported through :ref:`struct-tagged-unions`.
 
-- Unions may contain at most one of `dict` / `Struct` (with ``array_like=False``)
+- Unions may contain at most one of `dict` / `typing.TypedDict` /
+  `dataclasses.dataclass` / `Struct` (with ``array_like=False``)
 
 - Unions may contain at most one of `list` / `tuple` / `set` / `frozenset` /
-  `Struct` (with ``array_like=True``).
+  `typing.NamedTuple` / `Struct` (with ``array_like=True``).
 
 - Unions with custom types are unsupported beyond optionality (i.e.
   ``Optional[CustomType]``)
