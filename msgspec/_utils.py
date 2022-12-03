@@ -431,6 +431,9 @@ class SchemaBuilder:
         elif t is datetime.datetime:
             schema["type"] = "string"
             schema["format"] = "date-time"
+        elif t is datetime.date:
+            schema["type"] = "string"
+            schema["format"] = "date"
         elif t in (list, set, frozenset):
             schema["type"] = "array"
             if args:
