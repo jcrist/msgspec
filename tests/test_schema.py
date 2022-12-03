@@ -126,6 +126,13 @@ def test_datetime():
     }
 
 
+def test_date():
+    assert msgspec.json.schema(datetime.date) == {
+        "type": "string",
+        "format": "date",
+    }
+
+
 @pytest.mark.parametrize(
     "typ", [list, tuple, set, frozenset, List, Tuple, Set, FrozenSet]
 )

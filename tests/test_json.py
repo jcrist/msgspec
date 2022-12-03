@@ -70,7 +70,15 @@ class Custom:
 class TestInvalidJSONTypes:
     def test_invalid_type_union(self):
         literal = Literal["a", "b"]
-        types = [FruitStr, literal, str, datetime.datetime, bytes, bytearray]
+        types = [
+            FruitStr,
+            literal,
+            str,
+            datetime.datetime,
+            datetime.date,
+            bytes,
+            bytearray,
+        ]
         for length in [2, 3, 4]:
             for types in itertools.combinations(types, length):
                 if set(types) in ({bytes, bytearray}, {str, literal}):
@@ -1036,9 +1044,9 @@ class TestDatetime:
             b'"0001-00-03T04:05:06.000007Z"',
             b'"0001-13-03T04:05:06.000007Z"',
             # Day out of range for month
-            b'"0001-02-00:05:06.000007Z"',
-            b'"0001-02-29:05:06.000007Z"',
-            b'"2000-02-30:05:06.000007Z"',
+            b'"0001-02-00T01:05:06.000007Z"',
+            b'"0001-02-29T01:05:06.000007Z"',
+            b'"2000-02-30T01:05:06.000007Z"',
             # Hour out of range
             b'"0001-02-03T24:05:06.000007Z"',
             # Minute out of range

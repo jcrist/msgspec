@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+import datetime
 import enum
 import gc
 import sys
 import weakref
 from collections import namedtuple
+from dataclasses import dataclass, field
 from typing import (
     Deque,
     Dict,
@@ -686,7 +687,8 @@ class TestUnionTypeErrors:
         assert repr(typ) in str(rec.value)
 
     @pytest.mark.parametrize(
-        "types", [(FruitStr, str), (FruitStr, Literal["one", "two"])]
+        "types",
+        [(FruitStr, str), (FruitStr, Literal["one", "two"]), (FruitStr, datetime.date)],
     )
     def test_err_union_with_multiple_str_like_types(self, types, proto):
         typ = Union[types]
@@ -1920,3 +1922,69 @@ class TestDataclass:
             msgspec.ValidationError, match="Expected `object`, got `array`"
         ):
             dec.decode(msg)
+
+
+class TestDate:
+    def test_encode_date(self, proto):
+        # All fields, zero padded
+        x = datetime.date(1, 2, 3)
+        s = proto.decode(proto.encode(x))
+        assert s == "0001-02-03"
+
+        # All fields, no zeros
+        x = datetime.date(1234, 12, 31)
+        s = proto.decode(proto.encode(x))
+        assert s == "1234-12-31"
+
+    @pytest.mark.parametrize(
+        "s",
+        [
+            "0001-01-01",
+            "9999-12-31",
+            "0001-02-03",
+            "2020-02-29",
+        ],
+    )
+    def test_decode_date(self, proto, s):
+        sol = datetime.date.fromisoformat(s)
+        res = proto.decode(proto.encode(s), type=datetime.date)
+        assert type(res) is datetime.date
+        assert res == sol
+
+    def test_decode_date_wrong_type(self, proto):
+        msg = proto.encode([])
+        with pytest.raises(
+            msgspec.ValidationError, match="Expected `date`, got `array`"
+        ):
+            proto.decode(msg, type=datetime.date)
+
+    @pytest.mark.parametrize(
+        "s",
+        [
+            # Incorrect field lengths
+            "001-02-03",
+            "0001-2-03",
+            "0001-02-3",
+            # Trailing data
+            "0001-02-0300",
+            # Truncated
+            "0001-02-",
+            # Invalid characters
+            "000a-02-03",
+            "0001-0a-03",
+            "0001-02-0a",
+            # Year out of range
+            "0000-02-03",
+            # Month out of range
+            "0001-00-03",
+            "0001-13-03",
+            # Day out of range for month
+            "0001-02-00",
+            "0001-02-29",
+            "2000-02-30",
+        ],
+    )
+    def test_decode_date_malformed(self, proto, s):
+        msg = proto.encode(s)
+        with pytest.raises(msgspec.ValidationError, match="Invalid RFC3339"):
+            proto.decode(msg, type=datetime.date)

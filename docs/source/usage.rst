@@ -113,6 +113,7 @@ Most combinations of the following types are supported (see
 - `set` / `typing.Set`
 - `frozenset` / `typing.FrozenSet`
 - `datetime.datetime`
+- `datetime.date`
 - `typing.Any`
 - `typing.Optional`
 - `typing.Union`
@@ -350,6 +351,30 @@ timezones are normalized to UTC.
     Traceback (most recent call last):
       File "<stdin>", line 1, in <module>
     msgspec.ValidationError: Invalid RFC3339 encoded datetime
+
+``date``
+~~~~~~~~~~~~
+
+`datetime.date` values are serialized as RFC3339_ encoded strings.
+
+.. code-block:: python
+
+    >>> import datetime
+
+    >>> date = datetime.date(2021, 4, 2)
+
+    >>> msg = msgspec.json.encode(date)
+
+    >>> msg
+    b'"2021-04-02"'
+
+    >>> msgspec.json.decode(msg, type=datetime.date)
+    datetime.date(2021, 4, 2)
+
+    >>> msgspec.json.decode(b'"oops not a date"', type=datetime.datetime)
+    Traceback (most recent call last):
+      File "<stdin>", line 1, in <module>
+    msgspec.ValidationError: Invalid RFC3339 encoded date
 
 ``list`` / ``tuple`` / ``set`` / ``frozenset``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
