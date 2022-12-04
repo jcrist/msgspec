@@ -806,11 +806,39 @@ class TestTypedDecoder:
     def test_bytearray_unexpected_type(self):
         self.check_unexpected_type(bytearray, 1, "Expected `bytes`")
 
-    def test_datetime(self):
+    def test_datetime_aware_ext(self):
         dec = msgspec.msgpack.Decoder(datetime.datetime)
         x = datetime.datetime.now(UTC)
         res = dec.decode(msgspec.msgpack.encode(x))
         assert x == res
+
+    @pytest.mark.parametrize(
+        "s",
+        [
+            "1234-01-02T03:04:05Z",
+            "1234-01-02T03:04:05.123Z",
+            "1234-01-02T03:04:05.123+00:00",
+        ],
+    )
+    def test_decode_datetime_aware_str(self, s):
+        sol = datetime.datetime.fromisoformat(s.replace("Z", "+00:00"))
+        msg = msgspec.msgpack.encode(s)
+        res = msgspec.msgpack.decode(msg, type=datetime.datetime)
+        assert sol == res
+
+    @pytest.mark.parametrize(
+        "s",
+        [
+            "1234-01-02T03:04:05",
+            "1234-01-02T03:04:05.123",
+            "1234-01-02T03:04:05.123456",
+        ],
+    )
+    def test_decode_datetime_naive(self, s):
+        sol = datetime.datetime.fromisoformat(s)
+        msg = msgspec.msgpack.encode(s)
+        res = msgspec.msgpack.decode(msg, type=datetime.datetime)
+        assert sol == res
 
     def test_datetime_unexpected_type(self):
         self.check_unexpected_type(datetime.datetime, 1, "Expected `datetime`")
@@ -1161,8 +1189,8 @@ class TestTypedDecoder:
         [
             ([int, float], [1, 2.5]),
             (
-                [datetime.datetime, msgspec.msgpack.Ext, int, str],
-                [datetime.datetime.now(UTC), msgspec.msgpack.Ext(1, b"two"), 1, "two"],
+                [bytes, msgspec.msgpack.Ext, int, str],
+                [b"test", msgspec.msgpack.Ext(1, b"two"), 1, "two"],
             ),
             ([str, bytearray], ["three", bytearray(b"four")]),
             ([bool, None, float, str], [True, None, 1.5, "test"]),

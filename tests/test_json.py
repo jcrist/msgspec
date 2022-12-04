@@ -941,6 +941,20 @@ class TestDatetime:
         res = msgspec.json.decode(json_s, type=datetime.datetime)
         assert res == exp
 
+    @pytest.mark.parametrize(
+        "s",
+        [
+            "1234-01-02T03:04:05",
+            "1234-01-02T03:04:05.123",
+            "1234-01-02T03:04:05.123456",
+        ],
+    )
+    def test_decode_datetime_naive(self, s):
+        sol = datetime.datetime.fromisoformat(s)
+        msg = f'"{s}"'.encode("utf-8")
+        res = msgspec.json.decode(msg, type=datetime.datetime)
+        assert sol == res
+
     @pytest.mark.parametrize("t", ["T", "t"])
     @pytest.mark.parametrize("z", ["Z", "z"])
     def test_decode_datetime_not_case_sensitive(self, t, z):
@@ -1016,16 +1030,16 @@ class TestDatetime:
             b'"0001-02-03T04:05:06.000007+0:00"',
             b'"0001-02-03T04:05:06.000007+00:0"',
             # Trailing data
-            b'"0001-02-03T04:05:06.000007+00:00:00"',
+            b'"0001-02-03T04:05:06.000007+00:000"',
+            b'"0001-02-03T04:05:06.000007Z0"',
+            b'"0001-02-03T04:05:06a"',
+            b'"0001-02-03T04:05:06.000007a"',
             # Truncated
             b'"0001-02-03T04:05:"',
-            # Missing timezone
-            b'"0001-02-03T04:05:06"',
-            b'"0001-02-03T04:05:06.000001"',
-            b'"0001-02-03T04:05:06.00000001"',
             # Missing +/-
             b'"0001-02-03T04:05:06.00000700:00"',
             # Missing digits after decimal
+            b'"0001-02-03T04:05:06."',
             b'"0001-02-03T04:05:06.Z"',
             # Invalid characters
             b'"000a-02-03T04:05:06.000007Z"',
