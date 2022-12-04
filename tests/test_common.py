@@ -4,6 +4,7 @@ import datetime
 import enum
 import gc
 import sys
+import uuid
 import weakref
 from collections import namedtuple
 from dataclasses import dataclass, field
@@ -1988,3 +1989,26 @@ class TestDate:
         msg = proto.encode(s)
         with pytest.raises(msgspec.ValidationError, match="Invalid RFC3339"):
             proto.decode(msg, type=datetime.date)
+
+
+class TestUUID:
+    def test_encode_uuid(self, proto):
+        u = uuid.uuid4()
+        res = proto.encode(u)
+        sol = proto.encode(str(u))
+        assert res == sol
+
+    def test_encode_uuid_malformed_internals(self, proto):
+        """Ensure that if some other code mutates the uuid object, we error
+        nicely rather than segfaulting"""
+        u = uuid.uuid4()
+        object.__delattr__(u, "int")
+
+        with pytest.raises(AttributeError):
+            proto.encode(u)
+
+        u = uuid.uuid4()
+        object.__setattr__(u, "int", "oops")
+
+        with pytest.raises(TypeError):
+            proto.encode(u)

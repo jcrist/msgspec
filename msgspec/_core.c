@@ -139,6 +139,16 @@ fast_long_extract_parts(PyObject *vv, bool *neg, uint64_t *scale) {
 #define MS_SET_FIRST_SLOT(obj, val) \
     MS_GET_FIRST_SLOT(obj) = (val)
 
+
+/*************************************************************************
+ * Lookup Tables                                                         *
+ *************************************************************************/
+
+static const char hex_encode_table[] = "0123456789abcdef";
+
+static const char base64_encode_table[] =
+"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
 /*************************************************************************
  * GC Utilities                                                          *
  *************************************************************************/
@@ -312,6 +322,10 @@ typedef struct {
     PyObject *str__field_defaults;
     PyObject *str___dataclass_fields__;
     PyObject *str___post_init__;
+    PyObject *str_int;
+    PyObject *str_is_safe;
+    PyObject *UUIDType;
+    PyObject *uuid_safeuuid_unknown;
     PyObject *typing_list;
     PyObject *typing_set;
     PyObject *typing_frozenset;
@@ -8031,6 +8045,51 @@ invalid:
     return ms_error_with_path("Invalid RFC3339 encoded datetime%U", path);
 }
 
+/*************************************************************************
+ * UUID Utilities                                                        *
+ *************************************************************************/
+
+static int
+ms_encode_uuid(EncoderState *self, PyObject *obj, char *out) {
+    int status = -1;
+    PyObject *int128 = PyObject_GetAttr(obj, self->mod->str_int);
+    if (int128 == NULL) return -1;
+    if (MS_UNLIKELY(!PyLong_CheckExact(int128))) {
+        PyErr_SetString(PyExc_TypeError, "uuid.int must be an int");
+        return -1;
+    }
+    unsigned char scratch[16];
+    unsigned char *buf = scratch;
+
+    if (_PyLong_AsByteArray((PyLongObject *)int128, scratch, 16, 0, 0) < 0) {
+        goto cleanup;
+    }
+
+    for (int i = 0; i < 4; i++) {
+        unsigned char c = *buf++;
+        *out++ = hex_encode_table[c >> 4];
+        *out++ = hex_encode_table[c & 0xF];
+    }
+    *out++ = '-';
+    for (int j = 0; j < 3; j++) {
+        for (int i = 0; i < 2; i++) {
+            unsigned char c = *buf++;
+            *out++ = hex_encode_table[c >> 4];
+            *out++ = hex_encode_table[c & 0xF];
+        }
+        *out++ = '-';
+    }
+    for (int i = 0; i < 6; i++) {
+        unsigned char c = *buf++;
+        *out++ = hex_encode_table[c >> 4];
+        *out++ = hex_encode_table[c & 0xF];
+    }
+    status = 0;
+cleanup:
+    Py_DECREF(int128);
+    return status;
+}
+
 
 /*************************************************************************
  * MessagePack Encoder                                                   *
@@ -8745,6 +8804,14 @@ mpack_encode_enum(EncoderState *self, PyObject *obj)
 }
 
 static int
+mpack_encode_uuid(EncoderState *self, PyObject *obj)
+{
+    char buf[36];
+    if (ms_encode_uuid(self, obj, buf) < 0) return -1;
+    return mpack_encode_cstr(self, buf, 36);
+}
+
+static int
 mpack_encode_date(EncoderState *self, PyObject *obj)
 {
     uint32_t year = PyDateTime_GET_YEAR(obj);
@@ -8873,6 +8940,9 @@ mpack_encode(EncoderState *self, PyObject *obj)
     }
     else if (Py_TYPE(type) == self->mod->EnumMetaType) {
         return mpack_encode_enum(self, obj);
+    }
+    else if (type == (PyTypeObject *)(self->mod->UUIDType)) {
+        return mpack_encode_uuid(self, obj);
     }
     else if (PyDict_Contains(type->tp_dict, self->mod->str___dataclass_fields__)) {
         return mpack_encode_object(self, obj);
@@ -9101,9 +9171,8 @@ json_write_str_fragment(
     /* Write the escaped character */
     char escaped[6] = {'\\', escape, '0', '0'};
     if (MS_UNLIKELY(escape == 'u')) {
-        static const char* const hex = "0123456789abcdef";
-        escaped[4] = hex[c >> 4];
-        escaped[5] = hex[c & 0xF];
+        escaped[4] = hex_encode_table[c >> 4];
+        escaped[5] = hex_encode_table[c & 0xF];
         if (MS_UNLIKELY(ms_write(self, escaped, 6) < 0)) return -1;
     }
     else {
@@ -9151,9 +9220,6 @@ json_encode_str(EncoderState *self, PyObject *obj) {
 
     return ms_write(self, "\"", 1);
 }
-
-static const char base64_encode_table[] =
-"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 static int
 json_encode_bin(EncoderState *self, const char* buf, Py_ssize_t len) {
@@ -9266,6 +9332,16 @@ json_encode_enum(EncoderState *self, PyObject *obj)
     }
     Py_DECREF(value);
     return status;
+}
+
+static int
+json_encode_uuid(EncoderState *self, PyObject *obj)
+{
+    char buf[38];
+    buf[0] = '"';
+    buf[37] = '"';
+    if (ms_encode_uuid(self, obj, buf + 1) < 0) return -1;
+    return ms_write(self, buf, 38);
 }
 
 static int
@@ -9746,6 +9822,9 @@ json_encode(EncoderState *self, PyObject *obj)
     }
     else if (Py_TYPE(type) == self->mod->EnumMetaType) {
         return json_encode_enum(self, obj);
+    }
+    else if (type == (PyTypeObject *)(self->mod->UUIDType)) {
+        return json_encode_uuid(self, obj);
     }
     else if (PyDict_Contains(type->tp_dict, self->mod->str___dataclass_fields__)) {
         return json_encode_object(self, obj);
@@ -14538,6 +14617,10 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->str__field_defaults);
     Py_CLEAR(st->str___dataclass_fields__);
     Py_CLEAR(st->str___post_init__);
+    Py_CLEAR(st->str_int);
+    Py_CLEAR(st->str_is_safe);
+    Py_CLEAR(st->UUIDType);
+    Py_CLEAR(st->uuid_safeuuid_unknown);
     Py_CLEAR(st->typing_dict);
     Py_CLEAR(st->typing_list);
     Py_CLEAR(st->typing_set);
@@ -14847,6 +14930,17 @@ PyInit__core(void)
     Py_DECREF(temp_obj);
     if (st->astimezone == NULL) return NULL;
 
+    /* Get uuid.SafeUUID.unknown */
+    temp_module = PyImport_ImportModule("uuid");
+    if (temp_module == NULL) return NULL;
+    st->UUIDType = PyObject_GetAttrString(temp_module, "UUID");
+    if (st->UUIDType == NULL) return NULL;
+    temp_obj = PyObject_GetAttrString(temp_module, "SafeUUID");
+    if (temp_obj == NULL) return NULL;
+    st->uuid_safeuuid_unknown = PyObject_GetAttrString(temp_obj, "unknown");
+    Py_DECREF(temp_obj);
+    if (st->uuid_safeuuid_unknown == NULL) return NULL;
+
     /* Get the re.compile function */
     temp_module = PyImport_ImportModule("re");
     if (temp_module == NULL) return NULL;
@@ -14882,6 +14976,8 @@ PyInit__core(void)
     CACHED_STRING(str__field_defaults, "_field_defaults");
     CACHED_STRING(str___dataclass_fields__, "__dataclass_fields__");
     CACHED_STRING(str___post_init__, "__post_init__");
+    CACHED_STRING(str_int, "int");
+    CACHED_STRING(str_is_safe, "is_safe");
 
     return m;
 }
