@@ -7729,19 +7729,11 @@ ms_passes_map_constraints(Py_ssize_t size, TypeNode *type, PathNode *path) {
 
 static int
 ms_encode_err_type_unsupported(PyTypeObject *type) {
-    if (type == PyDateTimeAPI->DateTimeType) {
-        PyErr_SetString(
-            PyExc_TypeError,
-            "Encoding timezone-naive datetime objects is unsupported"
-        );
-    }
-    else {
-        PyErr_Format(
-            PyExc_TypeError,
-            "Encoding objects of type %.200s is unsupported",
-            type->tp_name
-        );
-    }
+    PyErr_Format(
+        PyExc_TypeError,
+        "Encoding objects of type %.200s is unsupported",
+        type->tp_name
+    );
     return -1;
 }
 
@@ -7949,6 +7941,113 @@ ms_read_fixint(const char *buf, int width, int *out) {
     }
     *out = x;
     return buf;
+}
+
+/* Requires 10 bytes of scratch space */
+static void
+ms_encode_date(EncoderState *self, PyObject *obj, char *out)
+{
+    uint32_t year = PyDateTime_GET_YEAR(obj);
+    uint8_t month = PyDateTime_GET_MONTH(obj);
+    uint8_t day = PyDateTime_GET_DAY(obj);
+
+    out = ms_write_fixint(out, year, 4);
+    *out++ = '-';
+    out = ms_write_fixint(out, month, 2);
+    *out++ = '-';
+    out = ms_write_fixint(out, day, 2);
+}
+
+/* Requires 32 bytes of scratch space max.
+ *
+ * Returns +nbytes if successful, -1 on failure */
+static int
+ms_encode_datetime(EncoderState *self, PyObject *obj, char *out)
+{
+    uint32_t year = PyDateTime_GET_YEAR(obj);
+    uint8_t month = PyDateTime_GET_MONTH(obj);
+    uint8_t day = PyDateTime_GET_DAY(obj);
+
+    uint8_t hour = PyDateTime_DATE_GET_HOUR(obj);
+    uint8_t minute = PyDateTime_DATE_GET_MINUTE(obj);
+    uint8_t second = PyDateTime_DATE_GET_SECOND(obj);
+    uint32_t microsecond = PyDateTime_DATE_GET_MICROSECOND(obj);
+
+    char *p = out;
+    p = ms_write_fixint(p, year, 4);
+    *p++ = '-';
+    p = ms_write_fixint(p, month, 2);
+    *p++ = '-';
+    p = ms_write_fixint(p, day, 2);
+    *p++ = 'T';
+    p = ms_write_fixint(p, hour, 2);
+    *p++ = ':';
+    p = ms_write_fixint(p, minute, 2);
+    *p++ = ':';
+    p = ms_write_fixint(p, second, 2);
+    if (microsecond) {
+        *p++ = '.';
+        p = ms_write_fixint(p, microsecond, 6);
+    }
+
+    if (MS_HAS_TZINFO(obj)) {
+        int32_t offset_days = 0, offset_secs = 0;
+        PyObject *tzinfo = MS_GET_TZINFO(obj);
+
+        if (tzinfo != PyDateTime_TimeZone_UTC) {
+            PyObject *offset = CALL_METHOD_ONE_ARG(tzinfo, self->mod->str_utcoffset, obj);
+            if (offset == NULL) return -1;
+            if (PyDelta_Check(offset)) {
+                offset_days = PyDateTime_DELTA_GET_DAYS(offset);
+                offset_secs = PyDateTime_DELTA_GET_SECONDS(offset);
+            }
+            else if (offset != Py_None) {
+                PyErr_SetString(
+                    PyExc_TypeError,
+                    "datetime.tzinfo.utcoffset returned a non-timedelta object"
+                );
+                Py_DECREF(offset);
+                return -1;
+            }
+            Py_DECREF(offset);
+        }
+        if (MS_LIKELY(offset_secs == 0)) {
+            *p++ = 'Z';
+        }
+        else {
+            char sign = '+';
+            if (offset_days == -1) {
+                sign = '-';
+                offset_secs = 86400 - offset_secs;
+            }
+            uint8_t offset_hour = offset_secs / 3600;
+            uint8_t offset_min = (offset_secs / 60) % 60;
+            /* If the offset isn't an even number of minutes, RFC 3339
+            * indicates that the offset should be rounded to the nearest
+            * possible hour:min pair */
+            bool round_up = (offset_secs - (offset_hour * 3600 + offset_min * 60)) > 30;
+            if (MS_UNLIKELY(round_up)) {
+                offset_min++;
+                if (offset_min == 60) {
+                    offset_min = 0;
+                    offset_hour++;
+                    if (offset_hour == 24) {
+                        offset_hour = 0;
+                    }
+                }
+            }
+            if (offset_hour == 0 && offset_min == 0) {
+                *p++ = 'Z';
+            }
+            else {
+                *p++ = sign;
+                p = ms_write_fixint(p, offset_hour, 2);
+                *p++ = ':';
+                p = ms_write_fixint(p, offset_min, 2);
+            }
+        }
+    }
+    return p - out;
 }
 
 static PyObject *
@@ -8924,18 +9023,8 @@ mpack_encode_uuid(EncoderState *self, PyObject *obj)
 static int
 mpack_encode_date(EncoderState *self, PyObject *obj)
 {
-    uint32_t year = PyDateTime_GET_YEAR(obj);
-    uint8_t month = PyDateTime_GET_MONTH(obj);
-    uint8_t day = PyDateTime_GET_DAY(obj);
-
     char buf[10];
-    char *p = buf;
-
-    p = ms_write_fixint(p, year, 4);
-    *p++ = '-';
-    p = ms_write_fixint(p, month, 2);
-    *p++ = '-';
-    p = ms_write_fixint(p, day, 2);
+    ms_encode_date(self, obj, buf);
     return mpack_encode_cstr(self, buf, 10);
 }
 
@@ -8945,6 +9034,13 @@ mpack_encode_datetime(EncoderState *self, PyObject *obj)
     int64_t seconds;
     int32_t nanoseconds;
     PyObject *tzinfo;
+
+    if (!MS_HAS_TZINFO(obj)) {
+        char buf[32];
+        int size = ms_encode_datetime(self, obj, buf);
+        if (size < 0) return -1;
+        return mpack_encode_cstr(self, buf, size);
+    }
 
     tzinfo = MS_GET_TZINFO(obj);
     if (tzinfo == PyDateTime_TimeZone_UTC) {
@@ -9036,7 +9132,7 @@ mpack_encode(EncoderState *self, PyObject *obj)
     else if (PyTuple_Check(obj)) {
         return mpack_encode_tuple(self, obj);
     }
-    else if (type == PyDateTimeAPI->DateTimeType && MS_HAS_TZINFO(obj)) {
+    else if (type == PyDateTimeAPI->DateTimeType) {
         return mpack_encode_datetime(self, obj);
     }
     else if (type == PyDateTimeAPI->DateType) {
@@ -9457,113 +9553,22 @@ json_encode_uuid(EncoderState *self, PyObject *obj)
 static int
 json_encode_date(EncoderState *self, PyObject *obj)
 {
-    uint32_t year = PyDateTime_GET_YEAR(obj);
-    uint8_t month = PyDateTime_GET_MONTH(obj);
-    uint8_t day = PyDateTime_GET_DAY(obj);
-
     char buf[12];
-    char *p = buf;
-
-    *p++ = '"';
-    p = ms_write_fixint(p, year, 4);
-    *p++ = '-';
-    p = ms_write_fixint(p, month, 2);
-    *p++ = '-';
-    p = ms_write_fixint(p, day, 2);
-    *p++ = '"';
+    buf[0] = '"';
+    buf[11] = '"';
+    ms_encode_date(self, obj, buf + 1);
     return ms_write(self, buf, 12);
 }
 
 static int
 json_encode_datetime(EncoderState *self, PyObject *obj)
 {
-    uint32_t year = PyDateTime_GET_YEAR(obj);
-    uint8_t month = PyDateTime_GET_MONTH(obj);
-    uint8_t day = PyDateTime_GET_DAY(obj);
-
-    uint8_t hour = PyDateTime_DATE_GET_HOUR(obj);
-    uint8_t minute = PyDateTime_DATE_GET_MINUTE(obj);
-    uint8_t second = PyDateTime_DATE_GET_SECOND(obj);
-    uint32_t microsecond = PyDateTime_DATE_GET_MICROSECOND(obj);
-    int32_t offset_days = 0, offset_secs = 0;
-    PyObject *tzinfo;
-
-    tzinfo = MS_GET_TZINFO(obj);
-    if (tzinfo != PyDateTime_TimeZone_UTC) {
-        PyObject *offset = CALL_METHOD_ONE_ARG(tzinfo, self->mod->str_utcoffset, obj);
-        if (offset == NULL) return -1;
-        if (PyDelta_Check(offset)) {
-            offset_days = PyDateTime_DELTA_GET_DAYS(offset);
-            offset_secs = PyDateTime_DELTA_GET_SECONDS(offset);
-        }
-        else if (offset != Py_None) {
-            PyErr_SetString(
-                PyExc_TypeError,
-                "datetime.tzinfo.utcoffset returned a non-timedelta object"
-            );
-            Py_DECREF(offset);
-            return -1;
-        }
-        Py_DECREF(offset);
-    }
-
     char buf[34];
-    char *p = buf;
-    memset(p, '0', 34);
-
-    *p++ = '"';
-    p = ms_write_fixint(p, year, 4);
-    *p++ = '-';
-    p = ms_write_fixint(p, month, 2);
-    *p++ = '-';
-    p = ms_write_fixint(p, day, 2);
-    *p++ = 'T';
-    p = ms_write_fixint(p, hour, 2);
-    *p++ = ':';
-    p = ms_write_fixint(p, minute, 2);
-    *p++ = ':';
-    p = ms_write_fixint(p, second, 2);
-    if (microsecond) {
-        *p++ = '.';
-        p = ms_write_fixint(p, microsecond, 6);
-    }
-    if (MS_LIKELY(offset_secs == 0)) {
-        *p++ = 'Z';
-    }
-    else {
-        char sign = '+';
-        if (offset_days == -1) {
-            sign = '-';
-            offset_secs = 86400 - offset_secs;
-        }
-        uint8_t offset_hour = offset_secs / 3600;
-        uint8_t offset_min = (offset_secs / 60) % 60;
-        /* If the offset isn't an even number of minutes, RFC 3339
-        * indicates that the offset should be rounded to the nearest
-        * possible hour:min pair */
-        bool round_up = (offset_secs - (offset_hour * 3600 + offset_min * 60)) > 30;
-        if (MS_UNLIKELY(round_up)) {
-            offset_min++;
-            if (offset_min == 60) {
-                offset_min = 0;
-                offset_hour++;
-                if (offset_hour == 24) {
-                    offset_hour = 0;
-                }
-            }
-        }
-        if (offset_hour == 0 && offset_min == 0) {
-            *p++ = 'Z';
-        }
-        else {
-            *p++ = sign;
-            p = ms_write_fixint(p, offset_hour, 2);
-            *p++ = ':';
-            p = ms_write_fixint(p, offset_min, 2);
-        }
-    }
-    *p++ = '"';
-    return ms_write(self, buf, p - buf);
+    buf[0] = '"';
+    int size = ms_encode_datetime(self, obj, buf + 1);
+    if (size < 0) return -1;
+    buf[size + 1] = '"';
+    return ms_write(self, buf, size + 2);
 }
 
 static int
@@ -9912,7 +9917,7 @@ json_encode(EncoderState *self, PyObject *obj)
     else if (Py_TYPE(type) == &StructMetaType) {
         return json_encode_struct(self, obj);
     }
-    else if (type == PyDateTimeAPI->DateTimeType && MS_HAS_TZINFO(obj)) {
+    else if (type == PyDateTimeAPI->DateTimeType) {
         return json_encode_datetime(self, obj);
     }
     else if (type == PyDateTimeAPI->DateType) {

@@ -493,23 +493,19 @@ class TestEncoderMisc:
         res = msgspec.msgpack.decode(msg)
         assert buf == res
 
-    def test_encode_datetime_no_tzinfo_errors_by_default(self):
-        x = datetime.datetime.now()
-        with pytest.raises(
-            TypeError, match="Encoding timezone-naive datetime objects is unsupported"
-        ):
-            msgspec.msgpack.encode(x)
-
-    def test_encode_datetime_no_tzinfo_hits_enc_hook(self):
-        x = datetime.datetime.now()
-        res = msgspec.msgpack.encode(x.replace(tzinfo=datetime.timezone.utc))
-
-        def enc_hook(obj):
-            if isinstance(obj, datetime.datetime):
-                return obj.replace(tzinfo=datetime.timezone.utc)
-            raise TypeError(str(type(obj)))
-
-        sol = msgspec.msgpack.encode(x, enc_hook=enc_hook)
+    @pytest.mark.parametrize(
+        "dt, dt_str",
+        [
+            (datetime.datetime(1, 2, 3, 4, 5, 6), "0001-02-03T04:05:06"),
+            (
+                datetime.datetime(1234, 12, 31, 14, 56, 27, 123456),
+                "1234-12-31T14:56:27.123456",
+            ),
+        ],
+    )
+    def test_encode_datetime_naive(self, dt, dt_str):
+        res = msgspec.msgpack.encode(dt)
+        sol = msgspec.msgpack.encode(dt_str)
         assert res == sol
 
     def test_encode_datetime_non_utc_tzinfo(self):
