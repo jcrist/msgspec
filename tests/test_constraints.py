@@ -53,6 +53,7 @@ FIELDS = {
     "pattern": "^foo$",
     "min_length": 0,
     "max_length": 10,
+    "tz": True,
     "title": "example title",
     "description": "example description",
     "examples": ["example 1", "example 2"],
@@ -155,6 +156,8 @@ class TestMetaObject:
             val2 = {}
         elif isinstance(val, list):
             val2 = []
+        elif isinstance(val, bool):
+            val2 = not val
         elif isinstance(val, int):
             val2 = val + 25
         else:
@@ -201,6 +204,13 @@ class TestMetaObject:
         Meta(**{field: "good"})
         with pytest.raises(TypeError, match=f"`{field}` must be a str, got bytes"):
             Meta(**{field: b"bad"})
+
+    @pytest.mark.parametrize("field", ["tz"])
+    def test_bool_fields(self, field):
+        Meta(**{field: True})
+        Meta(**{field: False})
+        with pytest.raises(TypeError, match=f"`{field}` must be a bool, got float"):
+            Meta(**{field: 1.5})
 
     @pytest.mark.parametrize("field", ["examples"])
     def test_list_fields(self, field):
@@ -255,6 +265,13 @@ class TestInvalidConstraintAnnotations:
             match=f"Can only set `{name}` on a str, bytes, or collection type",
         ):
             msgspec.json.Decoder(Annotated[int, Meta(**{name: 1})])
+
+    def test_invalid_tz_constraint(self):
+        with pytest.raises(
+            TypeError,
+            match="Can only set `tz` on a datetime or time type",
+        ):
+            msgspec.json.Decoder(Annotated[int, Meta(tz=True)])
 
     @pytest.mark.parametrize(
         "name, val",

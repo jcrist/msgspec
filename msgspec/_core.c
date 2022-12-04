@@ -1226,6 +1226,7 @@ typedef struct Meta {
     PyObject *regex;
     PyObject *min_length;
     PyObject *max_length;
+    PyObject *tz;
     PyObject *title;
     PyObject *description;
     PyObject *examples;
@@ -1238,6 +1239,17 @@ ensure_is_string(PyObject *val, const char *param) {
     PyErr_Format(
         PyExc_TypeError,
         "`%s` must be a str, got %.200s",
+        param, Py_TYPE(val)->tp_name
+    );
+    return false;
+}
+
+static bool
+ensure_is_bool(PyObject *val, const char *param) {
+    if (val == Py_True || val == Py_False) return true;
+    PyErr_Format(
+        PyExc_TypeError,
+        "`%s` must be a bool, got %.200s",
         param, Py_TYPE(val)->tp_name
     );
     return false;
@@ -1293,8 +1305,8 @@ ensure_is_finite_numeric(PyObject *val, const char *param, bool positive) {
 
 PyDoc_STRVAR(Meta__doc__,
 "Meta(*, gt=None, ge=None, lt=None, le=None, multiple_of=None, pattern=None, "
-"min_length=None, max_length=None, title=None, description=None, examples=None, "
-"extra_json_schema=None)\n"
+"min_length=None, max_length=None, tz=None, title=None, description=None, "
+"examples=None, extra_json_schema=None)\n"
 "--\n"
 "\n"
 "Extra metadata and constraints for a type or field.\n"
@@ -1321,6 +1333,11 @@ PyDoc_STRVAR(Meta__doc__,
 "max_length: int, optional\n"
 "    The annotated value must have a length less than or equal to\n"
 "    ``max_length``.\n"
+"tz: bool, optional\n"
+"    Configures the timezone-requirements for annotated ``datetime``/``time``\n"
+"    types. Set to ``True`` to require timezone-aware values, or ``False`` to\n"
+"    require timezone-naive values. The default is ``None``, which accepts\n"
+"    either timezone-aware or timezone-naive values.\n"
 "title: str, optional\n"
 "    The title to use for the annotated value when generating a json-schema.\n"
 "description: str, optional\n"
@@ -1356,20 +1373,20 @@ static PyObject *
 Meta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
     static char *kwlist[] = {
         "gt", "ge", "lt", "le", "multiple_of",
-        "pattern", "min_length", "max_length",
+        "pattern", "min_length", "max_length", "tz",
         "title", "description", "examples", "extra_json_schema",
         NULL
     };
     PyObject *gt = NULL, *ge = NULL, *lt = NULL, *le = NULL, *multiple_of = NULL;
-    PyObject *pattern = NULL, *min_length = NULL, *max_length = NULL;
+    PyObject *pattern = NULL, *min_length = NULL, *max_length = NULL, *tz = NULL;
     PyObject *title = NULL, *description = NULL, *examples = NULL, *extra_json_schema = NULL;
     PyObject *regex = NULL;
 
     /* Parse arguments: (name, bases, dict) */
     if (!PyArg_ParseTupleAndKeywords(
-            args, kwargs, "|$OOOOOOOOOOOO:Meta.__new__", kwlist,
+            args, kwargs, "|$OOOOOOOOOOOOO:Meta.__new__", kwlist,
             &gt, &ge, &lt, &le, &multiple_of,
-            &pattern, &min_length, &max_length,
+            &pattern, &min_length, &max_length, &tz,
             &title, &description, &examples, &extra_json_schema
         )
     )
@@ -1384,6 +1401,7 @@ Meta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
     NONE_TO_NULL(pattern);
     NONE_TO_NULL(min_length);
     NONE_TO_NULL(max_length);
+    NONE_TO_NULL(tz);
     NONE_TO_NULL(title);
     NONE_TO_NULL(description);
     NONE_TO_NULL(examples);
@@ -1399,6 +1417,7 @@ Meta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
     if (pattern != NULL && !ensure_is_string(pattern, "pattern")) return NULL;
     if (min_length != NULL && !ensure_is_nonnegative_integer(min_length, "min_length")) return NULL;
     if (max_length != NULL && !ensure_is_nonnegative_integer(max_length, "max_length")) return NULL;
+    if (tz != NULL && !ensure_is_bool(tz, "tz")) return NULL;
 
     /* Check multiple constraint restrictions */
     if (gt != NULL && ge != NULL) {
@@ -1410,12 +1429,12 @@ Meta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
         return NULL;
     }
     bool numeric = (gt != NULL || ge != NULL || lt != NULL || le != NULL || multiple_of != NULL);
-    bool other = (pattern != NULL || min_length != NULL || max_length != NULL);
+    bool other = (pattern != NULL || min_length != NULL || max_length != NULL || tz != NULL);
     if (numeric && other) {
         PyErr_SetString(
             PyExc_ValueError,
             "Cannot mix numeric constraints (gt, lt, ...) with non-numeric "
-            "constraints (pattern, min_length, max_length)"
+            "constraints (pattern, min_length, max_length, tz)"
         );
         return NULL;
     }
@@ -1460,6 +1479,7 @@ Meta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
     SET_FIELD(regex);
     SET_FIELD(min_length);
     SET_FIELD(max_length);
+    SET_FIELD(tz);
     SET_FIELD(title);
     SET_FIELD(description);
     SET_FIELD(examples);
@@ -1487,6 +1507,7 @@ Meta_clear(Meta *self) {
     Py_CLEAR(self->regex);
     Py_CLEAR(self->min_length);
     Py_CLEAR(self->max_length);
+    Py_CLEAR(self->tz);
     Py_CLEAR(self->title);
     Py_CLEAR(self->description);
     Py_CLEAR(self->examples);
@@ -1538,6 +1559,7 @@ Meta_repr(Meta *self) {
     DO_REPR(pattern);
     DO_REPR(min_length);
     DO_REPR(max_length);
+    DO_REPR(tz);
     DO_REPR(title);
     DO_REPR(description);
     DO_REPR(examples);
@@ -1568,6 +1590,7 @@ Meta_rich_repr(PyObject *py_self, PyObject *args) {
     DO_REPR(pattern);
     DO_REPR(min_length);
     DO_REPR(max_length);
+    DO_REPR(tz);
     DO_REPR(title);
     DO_REPR(description);
     DO_REPR(examples);
@@ -1620,6 +1643,7 @@ Meta_richcompare(Meta *self, PyObject *py_other, int op) {
         DO_COMPARE(pattern);
         DO_COMPARE(min_length);
         DO_COMPARE(max_length);
+        DO_COMPARE(tz);
         DO_COMPARE(title);
         DO_COMPARE(description);
         DO_COMPARE(examples);
@@ -1659,6 +1683,7 @@ Meta_hash(Meta *self) {
     DO_HASH(pattern);
     DO_HASH(min_length);
     DO_HASH(max_length);
+    DO_HASH(tz);
     DO_HASH(title);
     DO_HASH(description);
     /* Leave out examples & description, since they could be unhashable */
@@ -1681,6 +1706,7 @@ static PyMemberDef Meta_members[] = {
     {"pattern", T_OBJECT, offsetof(Meta, pattern), READONLY, NULL},
     {"min_length", T_OBJECT, offsetof(Meta, min_length), READONLY, NULL},
     {"max_length", T_OBJECT, offsetof(Meta, max_length), READONLY, NULL},
+    {"tz", T_OBJECT, offsetof(Meta, tz), READONLY, NULL},
     {"title", T_OBJECT, offsetof(Meta, title), READONLY, NULL},
     {"description", T_OBJECT, offsetof(Meta, description), READONLY, NULL},
     {"examples", T_OBJECT, offsetof(Meta, examples), READONLY, NULL},
@@ -1759,6 +1785,8 @@ static PyTypeObject Meta_Type = {
 #define MS_CONSTR_ARRAY_MAX_LENGTH  (1ull << 46)
 #define MS_CONSTR_MAP_MIN_LENGTH    (1ull << 47)
 #define MS_CONSTR_MAP_MAX_LENGTH    (1ull << 48)
+#define MS_CONSTR_TZ_AWARE          (1ull << 49)
+#define MS_CONSTR_TZ_NAIVE          (1ull << 50)
 /* Extra flag bit, used by TypedDict/dataclass implementations */
 #define MS_EXTRA_FLAG               (1ull << 63)
 
@@ -2338,6 +2366,7 @@ typedef struct {
     PyObject *regex;
     PyObject *min_length;
     PyObject *max_length;
+    PyObject *tz;
 } Constraints;
 
 typedef struct {
@@ -2389,7 +2418,8 @@ constraints_is_empty(Constraints *self) {
         self->multiple_of == NULL &&
         self->regex == NULL &&
         self->min_length == NULL &&
-        self->max_length == NULL
+        self->max_length == NULL &&
+        self->tz == NULL
     );
 }
 
@@ -2422,6 +2452,7 @@ constraints_update(Constraints *self, Meta *meta, PyObject *type) {
     set_constraint(regex);
     set_constraint(min_length);
     set_constraint(max_length);
+    set_constraint(tz);
     if (self->gt != NULL && self->ge != NULL) {
         PyErr_Format(
             PyExc_TypeError,
@@ -2449,9 +2480,10 @@ enum constraint_kind {
     CK_FLOAT = 1,
     CK_STR = 2,
     CK_BYTES = 3,
-    CK_ARRAY = 4,
-    CK_MAP = 5,
-    CK_OTHER = 6,
+    CK_TIME = 4,
+    CK_ARRAY = 5,
+    CK_MAP = 6,
+    CK_OTHER = 7,
 };
 
 static int
@@ -2551,6 +2583,9 @@ typenode_collect_constraints(
         if (constraints->min_length != NULL) return err_invalid_constraint("min_length", "str, bytes, or collection", obj);
         if (constraints->max_length != NULL) return err_invalid_constraint("max_length", "str, bytes, or collection", obj);
     }
+    if (kind != CK_TIME) {
+        if (constraints->tz != NULL) return err_invalid_constraint("tz", "datetime or time", obj);
+    }
 
     /* Next attempt to fill in the state. */
     if (kind == CK_INT) {
@@ -2621,6 +2656,19 @@ typenode_collect_constraints(
         if (constraints->max_length != NULL) {
             state->types |= MS_CONSTR_BYTES_MAX_LENGTH;
             if (!_constr_as_py_ssize_t(constraints->max_length, &(state->c_bytes_max_length))) return -1;
+        }
+    }
+    else if (kind == CK_TIME) {
+        if (constraints->tz != NULL) {
+            if (constraints->tz == Py_True) {
+                state->types |= MS_CONSTR_TZ_AWARE;
+            }
+            else {
+                state->types |= MS_CONSTR_TZ_NAIVE;
+            }
+        }
+        else {
+            state->types |= (MS_CONSTR_TZ_AWARE | MS_CONSTR_TZ_NAIVE);
         }
     }
     else if (kind == CK_ARRAY) {
@@ -3687,6 +3735,7 @@ typenode_collect_type_full(
     }
     else if (obj == (PyObject *)(PyDateTimeAPI->DateTimeType)) {
         state->types |= MS_TYPE_DATETIME;
+        *kind = CK_TIME;
         return 0;
     }
     else if (obj == (PyObject *)(PyDateTimeAPI->DateType)) {
