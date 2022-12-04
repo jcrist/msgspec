@@ -843,6 +843,25 @@ class TestDatetime:
         assert s == b'"1234-12-31T14:56:27Z"'
 
     @pytest.mark.parametrize(
+        "dt, sol",
+        [
+            (datetime.datetime(1, 2, 3, 4, 5, 6), b'"0001-02-03T04:05:06"'),
+            (datetime.datetime(1234, 12, 31, 14, 56, 27, 0), b'"1234-12-31T14:56:27"'),
+            (
+                datetime.datetime(1234, 12, 31, 14, 56, 27, 7),
+                b'"1234-12-31T14:56:27.000007"',
+            ),
+            (
+                datetime.datetime(1234, 12, 31, 14, 56, 27, 123456),
+                b'"1234-12-31T14:56:27.123456"',
+            ),
+        ],
+    )
+    def test_encode_datetime_naive(self, dt, sol):
+        res = msgspec.json.encode(dt)
+        assert res == sol
+
+    @pytest.mark.parametrize(
         "offset",
         [
             datetime.timedelta(0),
@@ -882,25 +901,6 @@ class TestDatetime:
         x = datetime.datetime(1234, 12, 31, 14, 56, 27, 123456, tz)
         s = msgspec.json.encode(x)
         assert s == expected
-
-    def test_encode_datetime_no_tzinfo_errors_by_default(self):
-        x = datetime.datetime.now()
-        with pytest.raises(
-            TypeError, match="Encoding timezone-naive datetime objects is unsupported"
-        ):
-            msgspec.json.encode(x)
-
-    def test_encode_datetime_no_tzinfo_hits_enc_hook(self):
-        x = datetime.datetime.now()
-        res = msgspec.json.encode(x.replace(tzinfo=UTC))
-
-        def enc_hook(obj):
-            if isinstance(obj, datetime.datetime):
-                return obj.replace(tzinfo=UTC)
-            raise TypeError(str(type(obj)))
-
-        sol = msgspec.json.encode(x, enc_hook=enc_hook)
-        assert res == sol
 
     @pytest.mark.parametrize(
         "dt",
