@@ -8149,7 +8149,7 @@ error:
     return NULL;
 
 invalid:
-    return ms_error_with_path("Invalid uuid%U", path);
+    return ms_error_with_path("Invalid UUID%U", path);
 }
 
 /*************************************************************************

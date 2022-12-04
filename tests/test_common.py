@@ -2049,5 +2049,5 @@ class TestUUID:
     )
     def test_decode_uuid_malformed(self, proto, uuid_str):
         msg = proto.encode(uuid_str)
-        with pytest.raises(msgspec.ValidationError, match="Invalid uuid"):
+        with pytest.raises(msgspec.ValidationError, match="Invalid UUID"):
             proto.decode(msg, type=uuid.UUID)
