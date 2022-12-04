@@ -1,5 +1,6 @@
 import enum
 import datetime
+import decimal
 import uuid
 from base64 import b64encode
 from copy import deepcopy
@@ -79,13 +80,13 @@ def test_msgpack_ext():
 
 def test_custom():
     with pytest.raises(TypeError, match="Custom types"):
-        assert msgspec.json.schema(uuid.UUID)
+        assert msgspec.json.schema(decimal.Decimal)
 
-    schema = {"type": "string", "pattern": "uuid4"}
+    schema = {"type": "string", "format": "decimal"}
 
     assert (
         msgspec.json.schema(
-            Annotated[uuid.UUID, msgspec.Meta(extra_json_schema=schema)]
+            Annotated[decimal.Decimal, msgspec.Meta(extra_json_schema=schema)]
         )
         == schema
     )
@@ -130,6 +131,13 @@ def test_date():
     assert msgspec.json.schema(datetime.date) == {
         "type": "string",
         "format": "date",
+    }
+
+
+def test_uuid():
+    assert msgspec.json.schema(uuid.UUID) == {
+        "type": "string",
+        "format": "uuid",
     }
 
 
