@@ -114,6 +114,7 @@ Most combinations of the following types are supported (see
 - `frozenset` / `typing.FrozenSet`
 - `datetime.datetime`
 - `datetime.date`
+- `uuid.UUID`
 - `typing.Any`
 - `typing.Optional`
 - `typing.Union`
@@ -371,10 +372,35 @@ timezones are normalized to UTC.
     >>> msgspec.json.decode(msg, type=datetime.date)
     datetime.date(2021, 4, 2)
 
-    >>> msgspec.json.decode(b'"oops not a date"', type=datetime.datetime)
+    >>> msgspec.json.decode(b'"oops not a date"', type=datetime.date)
     Traceback (most recent call last):
       File "<stdin>", line 1, in <module>
     msgspec.ValidationError: Invalid RFC3339 encoded date
+
+``uuid``
+~~~~~~~~
+
+`uuid.UUID` values are serialized as RFC4122_ encoded strings.
+
+.. code-block:: python
+
+    >>> import uuid
+
+    >>> u = uuid.UUID("c4524ac0-e81e-4aa8-a595-0aec605a659a")
+
+    >>> msg = msgspec.json.encode(u)
+
+    >>> msg
+    b'"c4524ac0-e81e-4aa8-a595-0aec605a659a"'
+
+    >>> msgspec.json.decode(msg, type=uuid.UUID)
+    UUID('c4524ac0-e81e-4aa8-a595-0aec605a659a')
+
+    >>> msgspec.json.decode(b'"oops not a uuid"', type=uuid.UUID)
+    Traceback (most recent call last):
+        File "<stdin>", line 1, in <module>
+    msgspec.ValidationError: Invalid UUID
+
 
 ``list`` / ``tuple`` / ``set`` / ``frozenset``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -993,6 +1019,7 @@ efficiently skipped without decoding.
 .. _pydantic: https://pydantic-docs.helpmanual.io/
 .. _RFC8259: https://datatracker.ietf.org/doc/html/rfc8259
 .. _RFC3339: https://datatracker.ietf.org/doc/html/rfc3339
+.. _RFC4122: https://datatracker.ietf.org/doc/html/rfc4122
 .. _timestamp extension: https://github.com/msgpack/msgpack/blob/master/spec.md#timestamp-extension-type
 .. _dataclasses: https://docs.python.org/3/library/dataclasses.html
 .. _attrs: https://www.attrs.org/en/stable/index.html
