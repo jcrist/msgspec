@@ -2,6 +2,7 @@ import datetime
 import enum
 import re
 import sys
+import uuid
 from typing import Any, Union, Literal, List, Tuple, Dict, Set, FrozenSet
 
 if sys.version_info >= (3, 9):
@@ -434,6 +435,9 @@ class SchemaBuilder:
         elif t is datetime.date:
             schema["type"] = "string"
             schema["format"] = "date"
+        elif t is uuid.UUID:
+            schema["type"] = "string"
+            schema["format"] = "uuid"
         elif t in (list, set, frozenset):
             schema["type"] = "array"
             if args:
