@@ -2012,3 +2012,42 @@ class TestUUID:
 
         with pytest.raises(TypeError):
             proto.encode(u)
+
+    @pytest.mark.parametrize("upper", [False, True])
+    def test_decode_uuid(self, proto, upper):
+        u = uuid.uuid4()
+        s = str(u).upper() if upper else str(u)
+        msg = proto.encode(s)
+        res = proto.decode(msg, type=uuid.UUID)
+        assert res == u
+        assert res.is_safe == u.is_safe
+
+    @pytest.mark.parametrize(
+        "uuid_str",
+        [
+            # Truncated segments
+            "1234567-1234-1234-1234-1234567890abc",
+            "12345678-123-1234-1234-1234567890abc",
+            "12345678-1234-123-1234-1234567890abc",
+            "12345678-1234-1234-123-1234567890abc",
+            "12345678-1234-1234-1234-1234567890a-",
+            # Invalid character
+            "1234567x-1234-1234-1234-1234567890ab",
+            "12345678-123x-1234-1234-1234567890ab",
+            "12345678-1234-123x-1234-1234567890ab",
+            "12345678-1234-1234-123x-1234567890ab",
+            "12345678-1234-1234-1234-1234567890ax",
+            # Invalid dash
+            "12345678.1234-1234-1234-1234567890ab",
+            "12345678-1234.1234-1234-1234567890ab",
+            "12345678-1234-1234.1234-1234567890ab",
+            "12345678-1234-1234-1234.1234567890ab",
+            # Trailing data
+            "12345678-1234-1234-1234-1234567890ab-",
+            "12345678-1234-1234-1234-1234567890abc",
+        ],
+    )
+    def test_decode_uuid_malformed(self, proto, uuid_str):
+        msg = proto.encode(uuid_str)
+        with pytest.raises(msgspec.ValidationError, match="Invalid uuid"):
+            proto.decode(msg, type=uuid.UUID)

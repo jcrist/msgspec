@@ -1720,26 +1720,27 @@ static PyTypeObject Meta_Type = {
 #define MS_TYPE_BYTEARRAY           (1ull << 7)
 #define MS_TYPE_DATETIME            (1ull << 8)
 #define MS_TYPE_DATE                (1ull << 9)
-#define MS_TYPE_EXT                 (1ull << 10)
-#define MS_TYPE_STRUCT              (1ull << 11)
-#define MS_TYPE_STRUCT_ARRAY        (1ull << 12)
-#define MS_TYPE_STRUCT_UNION        (1ull << 13)
-#define MS_TYPE_STRUCT_ARRAY_UNION  (1ull << 14)
-#define MS_TYPE_ENUM                (1ull << 15)
-#define MS_TYPE_INTENUM             (1ull << 16)
-#define MS_TYPE_CUSTOM              (1ull << 17)
-#define MS_TYPE_CUSTOM_GENERIC      (1ull << 18)
-#define MS_TYPE_DICT                ((1ull << 19) | (1ull << 20))
-#define MS_TYPE_LIST                (1ull << 21)
-#define MS_TYPE_SET                 (1ull << 22)
-#define MS_TYPE_FROZENSET           (1ull << 23)
-#define MS_TYPE_VARTUPLE            (1ull << 24)
-#define MS_TYPE_FIXTUPLE            (1ull << 25)
-#define MS_TYPE_INTLITERAL          (1ull << 26)
-#define MS_TYPE_STRLITERAL          (1ull << 27)
-#define MS_TYPE_TYPEDDICT           (1ull << 28)
-#define MS_TYPE_DATACLASS           (1ull << 29)
-#define MS_TYPE_NAMEDTUPLE          (1ull << 30)
+#define MS_TYPE_UUID                (1ull << 10)
+#define MS_TYPE_EXT                 (1ull << 11)
+#define MS_TYPE_STRUCT              (1ull << 12)
+#define MS_TYPE_STRUCT_ARRAY        (1ull << 13)
+#define MS_TYPE_STRUCT_UNION        (1ull << 14)
+#define MS_TYPE_STRUCT_ARRAY_UNION  (1ull << 15)
+#define MS_TYPE_ENUM                (1ull << 16)
+#define MS_TYPE_INTENUM             (1ull << 17)
+#define MS_TYPE_CUSTOM              (1ull << 18)
+#define MS_TYPE_CUSTOM_GENERIC      (1ull << 19)
+#define MS_TYPE_DICT                ((1ull << 20) | (1ull << 21))
+#define MS_TYPE_LIST                (1ull << 22)
+#define MS_TYPE_SET                 (1ull << 23)
+#define MS_TYPE_FROZENSET           (1ull << 24)
+#define MS_TYPE_VARTUPLE            (1ull << 25)
+#define MS_TYPE_FIXTUPLE            (1ull << 26)
+#define MS_TYPE_INTLITERAL          (1ull << 27)
+#define MS_TYPE_STRLITERAL          (1ull << 28)
+#define MS_TYPE_TYPEDDICT           (1ull << 29)
+#define MS_TYPE_DATACLASS           (1ull << 30)
+#define MS_TYPE_NAMEDTUPLE          (1ull << 31)
 /* Constraints */
 #define MS_CONSTR_INT_MIN           (1ull << 32)
 #define MS_CONSTR_INT_MAX           (1ull << 33)
@@ -2298,6 +2299,9 @@ typenode_simple_repr(TypeNode *self) {
     }
     if (self->types & MS_TYPE_DATE) {
         if (!strbuilder_extend_literal(&builder, "date")) return NULL;
+    }
+    if (self->types & MS_TYPE_UUID) {
+        if (!strbuilder_extend_literal(&builder, "uuid")) return NULL;
     }
     if (self->types & MS_TYPE_EXT) {
         if (!strbuilder_extend_literal(&builder, "ext")) return NULL;
@@ -2996,14 +3000,16 @@ typenode_collect_check_invariants(
     /* Ensure str-like types don't conflict */
     if (ms_popcount(
             state->types & (
-                MS_TYPE_STR | MS_TYPE_STRLITERAL | MS_TYPE_ENUM | MS_TYPE_DATE
+                MS_TYPE_STR | MS_TYPE_STRLITERAL | MS_TYPE_ENUM |
+                MS_TYPE_DATE | MS_TYPE_UUID
             )
         ) > 1
     ) {
         PyErr_Format(
             PyExc_TypeError,
             "Type unions may not contain more than one str-like type (`str`, "
-            "`Enum`, `Literal[str values]`, `date`) - type `%R` is not supported",
+            "`Enum`, `Literal[str values]`, `date`, `uuid`) - type `%R` is not "
+            "supported",
             state->context
         );
         return -1;
@@ -3015,7 +3021,7 @@ typenode_collect_check_invariants(
             state->types & (
                 MS_TYPE_STR | MS_TYPE_STRLITERAL | MS_TYPE_ENUM |
                 MS_TYPE_BYTES | MS_TYPE_BYTEARRAY |
-                MS_TYPE_DATETIME | MS_TYPE_DATE
+                MS_TYPE_DATETIME | MS_TYPE_DATE | MS_TYPE_UUID
             )
         ) > 1
     ) {
@@ -3024,7 +3030,7 @@ typenode_collect_check_invariants(
                 PyExc_TypeError,
                 "JSON type unions may not contain more than one str-like type "
                 "(`str`, `Enum`, `Literal[str values]`, `bytes`, `bytearray`, "
-                "`datetime`, `date`) - type `%R` is not supported",
+                "`datetime`, `date`, `uuid`) - type `%R` is not supported",
                 state->context
             );
             return -1;
@@ -3685,6 +3691,10 @@ typenode_collect_type_full(
     }
     else if (obj == (PyObject *)(PyDateTimeAPI->DateType)) {
         state->types |= MS_TYPE_DATE;
+        return 0;
+    }
+    else if (obj == state->mod->UUIDType) {
+        state->types |= MS_TYPE_UUID;
         return 0;
     }
     else if (obj == (PyObject *)(&Ext_Type)) {
@@ -8091,6 +8101,57 @@ cleanup:
 }
 
 
+static PyObject *
+ms_decode_uuid(const char *buf, Py_ssize_t size, PathNode *path) {
+    PyObject *out = NULL;
+    unsigned char scratch[16];
+    unsigned char *decoded = scratch;
+    int segments[] = {4, 2, 2, 2, 6};
+
+    /* A valid uuid is 36 characters in length */
+    if (size != 36) goto invalid;
+
+    for (int i = 0; i < 5; i++) {
+        for (int j = 0; j < segments[i]; j++) {
+            char hi = *buf++;
+            if (hi >= '0' && hi <= '9') { hi -= '0'; }
+            else if (hi >= 'a' && hi <= 'f') { hi = hi - 'a' + 10; }
+            else if (hi >= 'A' && hi <= 'F') { hi = hi - 'A' + 10; }
+            else { goto invalid; }
+
+            char lo = *buf++;
+            if (lo >= '0' && lo <= '9') { lo -= '0'; }
+            else if (lo >= 'a' && lo <= 'f') { lo = lo - 'a' + 10; }
+            else if (lo >= 'A' && lo <= 'F') { lo = lo - 'A' + 10; }
+            else { goto invalid; }
+
+            *decoded++ = ((unsigned char)hi << 4) + (unsigned char)lo;
+        }
+        if (i < 4 && *buf++ != '-') goto invalid;
+    }
+    PyObject *int128 = _PyLong_FromByteArray(scratch, 16, 0, 0);
+    if (int128 == NULL) return NULL;
+
+    MsgspecState *mod = msgspec_get_global_state();
+    PyTypeObject *uuid_type = (PyTypeObject *)(mod->UUIDType);
+    out = uuid_type->tp_alloc(uuid_type, 0);
+    if (out == NULL) goto error;
+    /* UUID objects are immutable, use GenericSetAttr instead of SetAttr */
+    if (PyObject_GenericSetAttr(out, mod->str_int, int128) < 0) goto error;
+    if (PyObject_GenericSetAttr(out, mod->str_is_safe, mod->uuid_safeuuid_unknown) < 0) goto error;
+
+    Py_DECREF(int128);
+    return out;
+
+error:
+    Py_DECREF(int128);
+    Py_XDECREF(out);
+    return NULL;
+
+invalid:
+    return ms_error_with_path("Invalid uuid%U", path);
+}
+
 /*************************************************************************
  * MessagePack Encoder                                                   *
  *************************************************************************/
@@ -10500,7 +10561,7 @@ mpack_decode_str(DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *
     if (MS_LIKELY(
             type->types & (
                 MS_TYPE_ANY | MS_TYPE_STR | MS_TYPE_ENUM | MS_TYPE_STRLITERAL |
-                MS_TYPE_DATE
+                MS_TYPE_DATE | MS_TYPE_UUID
             )
         )
     ) {
@@ -10511,6 +10572,9 @@ mpack_decode_str(DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *
         }
         if (MS_UNLIKELY(type->types & MS_TYPE_DATE)) {
             return ms_decode_date(s, size, path);
+        }
+        if (MS_UNLIKELY(type->types & MS_TYPE_UUID)) {
+            return ms_decode_uuid(s, size, path);
         }
         return ms_check_str_constraints(
             PyUnicode_DecodeUTF8(s, size, NULL), type, path
@@ -11126,9 +11190,8 @@ mpack_decode_dataclass(
 
     DataclassInfo *info = TypeNode_get_dataclass_info(type);
 
-    Py_ssize_t nfields = Py_SIZE(info);
     PyTypeObject *dataclass_type = (PyTypeObject *)(info->class);
-    PyObject *out = dataclass_type->tp_alloc(dataclass_type, nfields);
+    PyObject *out = dataclass_type->tp_alloc(dataclass_type, 0);
     if (out == NULL) goto error;
 
     Py_ssize_t pos = 0;
@@ -12538,7 +12601,7 @@ json_decode_string(JSONDecoderState *self, TypeNode *type, PathNode *path) {
             type->types & (
                 MS_TYPE_ANY | MS_TYPE_STR | MS_TYPE_ENUM | MS_TYPE_STRLITERAL |
                 MS_TYPE_BYTES | MS_TYPE_BYTEARRAY |
-                MS_TYPE_DATETIME | MS_TYPE_DATE
+                MS_TYPE_DATETIME | MS_TYPE_DATE | MS_TYPE_UUID
             )
         )
     ) {
@@ -12562,6 +12625,9 @@ json_decode_string(JSONDecoderState *self, TypeNode *type, PathNode *path) {
         }
         else if (MS_UNLIKELY(type->types & MS_TYPE_DATE)) {
             return ms_decode_date(view, size, path);
+        }
+        else if (MS_UNLIKELY(type->types & MS_TYPE_UUID)) {
+            return ms_decode_uuid(view, size, path);
         }
         else if (MS_UNLIKELY(type->types & (MS_TYPE_BYTES | MS_TYPE_BYTEARRAY))) {
             return json_decode_binary(self, view, size, type, path);
@@ -13530,7 +13596,7 @@ json_decode_dataclass(
     if (Py_EnterRecursiveCall(" while deserializing an object")) return NULL;
 
     PyTypeObject *dataclass_type = (PyTypeObject *)(info->class);
-    out = dataclass_type->tp_alloc(dataclass_type, Py_SIZE(info));
+    out = dataclass_type->tp_alloc(dataclass_type, 0);
     if (out == NULL) goto error;
 
     self->input_pos++; /* Skip '{' */
