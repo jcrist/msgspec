@@ -566,6 +566,11 @@ def check_json_decode_dec_hook() -> None:
     msgspec.json.Decoder(dec_hook=dec_hook)
 
 
+def check_json_format() -> None:
+    reveal_type(msgspec.json.format(b"test"))  # assert "bytes" in typ
+    reveal_type(msgspec.json.format(b"test", indent=4))  # assert "bytes" in typ
+
+
 ##########################################################
 # JSON Schema                                            #
 ##########################################################

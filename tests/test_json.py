@@ -2680,3 +2680,86 @@ class TestRaw:
 
         res = msgspec.json.decode(b'{"x": [1, 2]}', type=Test, dec_hook=dec_hook)
         assert res == Test(Custom(1, 2))
+
+
+class TestFormat:
+    @pytest.mark.parametrize(
+        "msg",
+        [
+            b"null",
+            b"false",
+            b"true",
+            b"  true  \n",
+            b"1",
+            b"   \n1\t\r",
+            b"1.5",
+            b'"abc"',
+            b'  \t"abc"  \n\t',
+            b"[]",
+            b"[ \t  ]",
+            b"[1]",
+            b"[1, 2]",
+            b"{}",
+            b"{  }",
+            b'{"a": 1}',
+            b'{"a": 1, "b": 2}',
+            b'{"a": {"x": 1, "y": [1, false]}, "b": ["foo", []]}',
+            b'\n{   "a"    :    \t[   1,    \t\n\r  2]\n}    ',
+        ],
+    )
+    @pytest.mark.parametrize("indent", [-1, 0, 2, 4])
+    def test_format(self, msg, indent):
+        if indent > 0:
+            kwargs = {"separators": None, "indent": indent}
+        elif indent == 0:
+            kwargs = {"separators": None, "indent": None}
+        elif indent < 0:
+            kwargs = {"separators": (",", ":"), "indent": None}
+        sol = json.dumps(json.loads(msg), **kwargs).encode()
+        res = msgspec.json.format(msg, indent=indent)
+
+        assert res == sol
+
+    def test_format_bad_calls(self):
+        with pytest.raises(TypeError):
+            msgspec.json.format("[]")
+
+        with pytest.raises(TypeError):
+            msgspec.json.format(b"[]", indent=None)
+
+        with pytest.raises(TypeError):
+            msgspec.json.format(b"[]", 2)
+
+        with pytest.raises(TypeError):
+            msgspec.json.format(b"[]", bad=2)
+
+    @pytest.mark.parametrize(
+        "msg, err",
+        [
+            (b"nulx", "invalid character"),
+            (b"trux", "invalid character"),
+            (b"falsx", "invalid character"),
+            (b"x1", "invalid character"),
+            (b"1.", "invalid number"),
+            (b"1x", "trailing characters"),
+            (b'"abc', "truncated"),
+            (b'"\\u00cz 123"', "invalid character in unicode escape"),
+            (b"[", "truncated"),
+            (b"[1", "truncated"),
+            (b"[,]", "invalid character"),
+            (b"[, 1]", "invalid character"),
+            (b"[1, ]", "trailing comma in array"),
+            (b"[1, 2 3]", r"expected ',' or ']'"),
+            (b"{", "truncated"),
+            (b'{"a"', "truncated"),
+            (b"{,}", "expected '\"'"),
+            (b"{:}", "expected '\"'"),
+            (b"{1: 2}", "expected '\"'"),
+            (b'{"a": 1, }', "trailing comma in object"),
+            (b'{"a": 1, "b" 2}', "expected ':'"),
+            (b'{"a": 1, "b": 2  "c"}', r"expected ',' or '}'"),
+        ],
+    )
+    def test_format_malformed(self, msg, err):
+        with pytest.raises(msgspec.DecodeError, match=err):
+            msgspec.json.format(msg)
