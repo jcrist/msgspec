@@ -14706,6 +14706,264 @@ json_skip(JSONDecoderState *self)
     }
 }
 
+static int
+json_format(
+    JSONDecoderState *, EncoderState *,
+    Py_ssize_t indent, Py_ssize_t cur_indent
+);
+
+static int
+json_write_indent(EncoderState *self, Py_ssize_t indent, Py_ssize_t cur_indent) {
+    if (indent <= 0) return 0;
+    if (ms_ensure_space(self, cur_indent + 1) < 0) return -1;
+    char *p = self->output_buffer_raw + self->output_len;
+    *p++ = '\n';
+    for (Py_ssize_t i = 0; i < cur_indent; i++) {
+        *p++ = ' ';
+    }
+    self->output_len += cur_indent + 1;
+    return 0;
+}
+
+static int
+json_format_array(
+    JSONDecoderState *dec, EncoderState *enc,
+    Py_ssize_t indent, Py_ssize_t cur_indent
+) {
+    unsigned char c;
+    bool first = true;
+    int out = -1;
+    Py_ssize_t el_indent = cur_indent + indent;
+
+    dec->input_pos++; /* Skip '[' */
+    if (ms_write(enc, "[", 1) < 0) return -1;
+
+    if (Py_EnterRecursiveCall(" while deserializing an object")) return -1;
+    while (true) {
+        if (MS_UNLIKELY(!json_peek_skip_ws(dec, &c))) break;
+        if (c == ']') {
+            dec->input_pos++;
+            if (!first) {
+                if (MS_UNLIKELY(json_write_indent(enc, indent, cur_indent) < 0)) break;
+            }
+            out = ms_write(enc, "]", 1);
+            break;
+        }
+        else if (c == ',' && !first) {
+            dec->input_pos++;
+            if (indent == 0) {
+                if (MS_UNLIKELY(ms_write(enc, ", ", 2) < 0)) break;
+            } else {
+                if (MS_UNLIKELY(ms_write(enc, ",", 1) < 0)) break;
+            }
+            if (MS_UNLIKELY(!json_peek_skip_ws(dec, &c))) break;
+        }
+        else if (first) {
+            first = false;
+        }
+        else {
+            json_err_invalid(dec, "expected ',' or ']'");
+            break;
+        }
+        if (MS_UNLIKELY(c == ']')) {
+            json_err_invalid(dec, "trailing comma in array");
+            break;
+        }
+
+        if (json_write_indent(enc, indent, el_indent) < 0) break;
+        if (json_format(dec, enc, indent, el_indent) < 0) break;
+    }
+    Py_LeaveRecursiveCall();
+    return out;
+}
+
+static int
+json_format_object(
+    JSONDecoderState *dec, EncoderState *enc,
+    Py_ssize_t indent, Py_ssize_t cur_indent
+) {
+    unsigned char c;
+    bool first = true;
+    int out = -1;
+    Py_ssize_t el_indent = cur_indent + indent;
+
+    dec->input_pos++; /* Skip '{' */
+    if (ms_write(enc, "{", 1) < 0) return -1;
+
+    if (Py_EnterRecursiveCall(" while deserializing an object")) return -1;
+    while (true) {
+        if (MS_UNLIKELY(!json_peek_skip_ws(dec, &c))) break;
+        if (c == '}') {
+            dec->input_pos++;
+            if (!first) {
+                if (MS_UNLIKELY(json_write_indent(enc, indent, cur_indent) < 0)) break;
+            }
+            out = ms_write(enc, "}", 1);
+            break;
+        }
+        else if (c == ',' && !first) {
+            dec->input_pos++;
+            if (indent == 0) {
+                if (MS_UNLIKELY(ms_write(enc, ", ", 2) < 0)) break;
+            } else {
+                if (MS_UNLIKELY(ms_write(enc, ",", 1) < 0)) break;
+            }
+            if (MS_UNLIKELY(!json_peek_skip_ws(dec, &c))) break;
+        }
+        else if (first) {
+            first = false;
+        }
+        else {
+            json_err_invalid(dec, "expected ',' or '}'");
+            break;
+        }
+
+        if (c == '"') {
+            if (json_write_indent(enc, indent, el_indent) < 0) break;
+            if (json_format(dec, enc, indent, el_indent) < 0) break;
+        }
+        else if (c == '}') {
+            json_err_invalid(dec, "trailing comma in object");
+            break;
+        }
+        else {
+            json_err_invalid(dec, "expected '\"'");
+            break;
+        }
+
+        if (MS_UNLIKELY(!json_peek_skip_ws(dec, &c))) break;
+        if (c != ':') {
+            json_err_invalid(dec, "expected ':'");
+            break;
+        }
+        dec->input_pos++;
+        if (indent >= 0) {
+            if (ms_write(enc, ": ", 2) < 0) break;
+        }
+        else {
+            if (ms_write(enc, ":", 1) < 0) break;
+        }
+
+        if (json_format(dec, enc, indent, el_indent) < 0) break;
+    }
+    Py_LeaveRecursiveCall();
+    return out;
+}
+
+static int
+json_format(
+    JSONDecoderState *dec, EncoderState *enc,
+    Py_ssize_t indent, Py_ssize_t cur_indent
+) {
+    unsigned char c;
+    if (MS_UNLIKELY(!json_peek_skip_ws(dec, &c))) return -1;
+
+    if (c == '[') {
+        return json_format_array(dec, enc, indent, cur_indent);
+    }
+    else if (c == '{') {
+        return json_format_object(dec, enc, indent, cur_indent);
+    }
+    else {
+        unsigned char *start = dec->input_pos;
+        if (json_skip(dec) < 0) return -1;
+        unsigned char *end = dec->input_pos;
+        return ms_write(enc, (char *)start, end - start);
+    }
+}
+
+PyDoc_STRVAR(msgspec_json_format__doc__,
+"json_format(buf, *, indent=2)\n"
+"--\n"
+"\n"
+"Format an existing JSON message, usually to be more human readable.\n"
+"\n"
+"Parameters\n"
+"----------\n"
+"buf : bytes-like\n"
+"    The JSON message to format.\n"
+"indent : int, optional\n"
+"    How many spaces to indent for a single indentation level. Defaults to 2.\n"
+"    Set to 0 to format the message as a single line, with spaces added between\n"
+"    items for readability. Set to a negative number to strip all unnecessary\n"
+"    whitespace, minimizing the message size.\n"
+"\n"
+"Returns\n"
+"-------\n"
+"output : bytes\n"
+"    The formatted JSON message."
+);
+static PyObject*
+msgspec_json_format(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+    int status;
+    Py_buffer buffer;
+    PyObject *out = NULL, *buf = NULL;
+    static char *kwlist[] = {"buf", "indent", NULL};
+    Py_ssize_t indent = 2;
+
+    /* Parse arguments */
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|$n", kwlist, &buf, &indent))
+        return NULL;
+    if (indent < 0) {
+        indent = -1;
+    }
+
+    buffer.buf = NULL;
+    if (PyObject_GetBuffer(buf, &buffer, PyBUF_CONTIG_RO) >= 0) {
+        JSONDecoderState dec;
+        EncoderState enc;
+
+        /* Init decoder */
+        dec.dec_hook = NULL;
+        dec.type = NULL;
+        dec.scratch = NULL;
+        dec.scratch_capacity = 0;
+        dec.scratch_len = 0;
+        dec.buffer_obj = buf;
+        dec.input_start = buffer.buf;
+        dec.input_pos = buffer.buf;
+        dec.input_end = dec.input_pos + buffer.len;
+
+        /* Init encoder */
+        enc.mod = msgspec_get_global_state();
+        enc.enc_hook = NULL;
+        if (indent >= 0) {
+            /* Assume pretty-printing will take at least as much space as the
+             * input. This is true unless there's existing whitespace. */
+            enc.write_buffer_size = buffer.len;
+        }
+        else {
+            enc.write_buffer_size = 512;
+        }
+        enc.output_len = 0;
+        enc.max_output_len = enc.write_buffer_size;
+        enc.output_buffer = PyBytes_FromStringAndSize(NULL, enc.max_output_len);
+        if (enc.output_buffer != NULL) {
+            enc.output_buffer_raw = PyBytes_AS_STRING(enc.output_buffer);
+            enc.resize_buffer = &ms_resize_bytes;
+
+            status = json_format(&dec, &enc, indent, 0);
+
+            if (status == 0 && json_has_trailing_characters(&dec)) {
+                status = -1;
+            }
+            if (status == 0) {
+                /* Trim output to length */
+                out = enc.output_buffer;
+                FAST_BYTES_SHRINK(out, enc.output_len);
+            } else {
+                /* Error, drop buffer */
+                Py_CLEAR(enc.output_buffer);
+            }
+        }
+
+        PyBuffer_Release(&buffer);
+    }
+
+    return out;
+}
+
 
 PyDoc_STRVAR(JSONDecoder_decode__doc__,
 "decode(self, buf)\n"
@@ -14934,6 +15192,10 @@ static struct PyMethodDef msgspec_methods[] = {
     {
         "json_decode", (PyCFunction) msgspec_json_decode, METH_FASTCALL | METH_KEYWORDS,
         msgspec_json_decode__doc__,
+    },
+    {
+        "json_format", (PyCFunction) msgspec_json_format, METH_VARARGS | METH_KEYWORDS,
+        msgspec_json_format__doc__,
     },
     {NULL, NULL} /* sentinel */
 };
