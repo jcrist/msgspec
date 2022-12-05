@@ -22,6 +22,7 @@ from typing import (
 import pytest
 
 import msgspec
+from msgspec import Meta
 from msgspec._utils import merge_json
 
 from utils import temp_module
@@ -85,9 +86,7 @@ def test_custom():
     schema = {"type": "string", "format": "decimal"}
 
     assert (
-        msgspec.json.schema(
-            Annotated[decimal.Decimal, msgspec.Meta(extra_json_schema=schema)]
-        )
+        msgspec.json.schema(Annotated[decimal.Decimal, Meta(extra_json_schema=schema)])
         == schema
     )
 
@@ -120,11 +119,17 @@ def test_binary(typ):
     }
 
 
-def test_datetime():
-    assert msgspec.json.schema(datetime.datetime) == {
-        "type": "string",
-        "format": "date-time",
-    }
+@pytest.mark.parametrize(
+    "typ, extra",
+    [
+        (datetime.datetime, {}),
+        (Annotated[datetime.datetime, Meta(tz=None)], {}),
+        (Annotated[datetime.datetime, Meta(tz=True)], {"format": "date-time"}),
+        (Annotated[datetime.datetime, Meta(tz=False)], {}),
+    ],
+)
+def test_datetime(typ, extra):
+    assert msgspec.json.schema(typ) == {"type": "string", **extra}
 
 
 def test_date():
@@ -716,7 +721,7 @@ def test_struct_array_union():
     ],
 )
 def test_numeric_metadata(field, constraint):
-    typ = Annotated[int, msgspec.Meta(**{field: 2})]
+    typ = Annotated[int, Meta(**{field: 2})]
     assert msgspec.json.schema(typ) == {"type": "integer", constraint: 2}
 
 
@@ -729,7 +734,7 @@ def test_numeric_metadata(field, constraint):
     ],
 )
 def test_string_metadata(field, val, constraint):
-    typ = Annotated[str, msgspec.Meta(**{field: val})]
+    typ = Annotated[str, Meta(**{field: val})]
     assert msgspec.json.schema(typ) == {"type": "string", constraint: val}
 
 
@@ -740,7 +745,7 @@ def test_string_metadata(field, val, constraint):
 )
 def test_binary_metadata(typ, field, n, constraint):
     n2 = len(b64encode(b"x" * n))
-    typ = Annotated[typ, msgspec.Meta(**{field: n})]
+    typ = Annotated[typ, Meta(**{field: n})]
     assert msgspec.json.schema(typ) == {
         "type": "string",
         constraint: n2,
@@ -754,7 +759,7 @@ def test_binary_metadata(typ, field, n, constraint):
     [("min_length", "minItems"), ("max_length", "maxItems")],
 )
 def test_array_metadata(typ, field, constraint):
-    typ = Annotated[typ, msgspec.Meta(**{field: 2})]
+    typ = Annotated[typ, Meta(**{field: 2})]
     assert msgspec.json.schema(typ) == {"type": "array", constraint: 2}
 
 
@@ -763,14 +768,14 @@ def test_array_metadata(typ, field, constraint):
     [("min_length", "minProperties"), ("max_length", "maxProperties")],
 )
 def test_object_metadata(field, constraint):
-    typ = Annotated[dict, msgspec.Meta(**{field: 2})]
+    typ = Annotated[dict, Meta(**{field: 2})]
     assert msgspec.json.schema(typ) == {"type": "object", constraint: 2}
 
 
 def test_generic_metadata():
     typ = Annotated[
         int,
-        msgspec.Meta(
+        Meta(
             title="the title",
             description="the description",
             examples=[1, 2, 3],
