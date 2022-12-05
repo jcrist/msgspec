@@ -325,12 +325,22 @@ type in MessagePack.
 ``datetime``
 ~~~~~~~~~~~~
 
-`datetime.datetime` values are serialized as RFC3339_ encoded strings in JSON,
-and the `timestamp extension`_ in MessagePack. Only `timezone-aware
-<https://docs.python.org/3/library/datetime.html#aware-and-naive-objects>`__
-datetime objects are supported by default (timezone-naive datetimes can be
-supported using an ``enc_hook``, see :doc:`extending`). During decoding, all
-timezones are normalized to UTC.
+The encoding used for `datetime.datetime` objects is dependent on whether these
+objects are timezone-aware_ or timezone-naive:
+
+- Timezone-aware datetimes are encoded as RFC3339_ compatible strings in JSON,
+  and the `timestamp extension` in MessagePack. Both protocols support decoding
+  RFC3339_ strings into ``datetime`` objects. During decoding all timezones are
+  normalized to UTC.
+
+- Timezone-naive datetimes are encoded as ISO8601_ compatible strings (*almost*
+  RFC3339_ compatible) in both protocols. The lack of a timezone component
+  means they're not strictly RFC3339_ compatible, but are still ISO8601_
+  compatible.
+
+Note that you can require a `datetime.datetime` object to be timezone-aware or
+timezone-naive by specifying a ``tz`` constraint (see
+:ref:`datetime-constraints` for more information).
 
 .. code-block:: python
 
@@ -338,15 +348,25 @@ timezones are normalized to UTC.
 
     >>> tz = datetime.timezone(datetime.timedelta(hours=-6))
 
-    >>> dt = datetime.datetime(2021, 4, 2, 18, 18, 10, 123, tzinfo=tz)
+    >>> tz_aware = datetime.datetime(2021, 4, 2, 18, 18, 10, 123, tzinfo=tz)
 
-    >>> msg = msgspec.json.encode(dt)
+    >>> msg = msgspec.json.encode(tz_aware)
 
     >>> msg
     b'"2021-04-02T18:18:10.000123-06:00"'
 
     >>> msgspec.json.decode(msg, type=datetime.datetime)
     datetime.datetime(2021, 4, 3, 0, 18, 10, 123, tzinfo=datetime.timezone.utc)
+
+    >>> tz_naive = datetime.datetime(2021, 4, 2, 18, 18, 10, 123)
+
+    >>> msg = msgspec.json.encode(tz_naive)
+
+    >>> msg
+    b'"2021-04-02T18:18:10.000123"'
+
+    >>> msgspec.json.decode(msg, type=datetime.datetime)
+    datetime.datetime(2021, 4, 2, 18, 18, 10, 123)
 
     >>> msgspec.json.decode(b'"oops not a date"', type=datetime.datetime)
     Traceback (most recent call last):
@@ -1020,6 +1040,8 @@ efficiently skipped without decoding.
 .. _RFC8259: https://datatracker.ietf.org/doc/html/rfc8259
 .. _RFC3339: https://datatracker.ietf.org/doc/html/rfc3339
 .. _RFC4122: https://datatracker.ietf.org/doc/html/rfc4122
+.. _ISO8601: https://en.wikipedia.org/wiki/ISO_8601
 .. _timestamp extension: https://github.com/msgpack/msgpack/blob/master/spec.md#timestamp-extension-type
 .. _dataclasses: https://docs.python.org/3/library/dataclasses.html
 .. _attrs: https://www.attrs.org/en/stable/index.html
+.. _timezone-aware: https://docs.python.org/3/library/datetime.html#aware-and-naive-objects
