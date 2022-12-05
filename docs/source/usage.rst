@@ -114,6 +114,7 @@ Most combinations of the following types are supported (see
 - `frozenset` / `typing.FrozenSet`
 - `datetime.datetime`
 - `datetime.date`
+- `datetime.time`
 - `uuid.UUID`
 - `typing.Any`
 - `typing.Optional`
@@ -368,7 +369,7 @@ timezone-naive by specifying a ``tz`` constraint (see
     >>> msgspec.json.decode(msg, type=datetime.datetime)
     datetime.datetime(2021, 4, 2, 18, 18, 10, 123)
 
-    >>> msgspec.json.decode(b'"oops not a date"', type=datetime.datetime)
+    >>> msgspec.json.decode(b'"oops"', type=datetime.datetime)
     Traceback (most recent call last):
       File "<stdin>", line 1, in <module>
     msgspec.ValidationError: Invalid RFC3339 encoded datetime
@@ -392,10 +393,59 @@ timezone-naive by specifying a ``tz`` constraint (see
     >>> msgspec.json.decode(msg, type=datetime.date)
     datetime.date(2021, 4, 2)
 
-    >>> msgspec.json.decode(b'"oops not a date"', type=datetime.date)
+    >>> msgspec.json.decode(b'"oops"', type=datetime.date)
     Traceback (most recent call last):
       File "<stdin>", line 1, in <module>
     msgspec.ValidationError: Invalid RFC3339 encoded date
+
+``time``
+~~~~~~~~~~~~
+
+The encoding used for `datetime.time` objects is dependent on whether these
+objects are timezone-aware_ or timezone-naive:
+
+- Timezone-aware times are encoded as RFC3339_ compatible strings. Note that
+  during decoding all timezones are normalized to UTC.
+
+- Timezone-naive times are encoded as ISO8601_ compatible strings (*almost*
+  RFC3339_ compatible) in both protocols. The lack of a timezone component
+  means they're not strictly RFC3339_ compatible, but are still ISO8601_
+  compatible.
+
+Note that you can require a `datetime.time` object to be timezone-aware or
+timezone-naive by specifying a ``tz`` constraint (see
+:ref:`datetime-constraints` for more information).
+
+.. code-block:: python
+
+    >>> import datetime
+
+    >>> tz = datetime.timezone(datetime.timedelta(hours=-6))
+
+    >>> tz_aware = datetime.time(18, 18, 10, 123, tzinfo=tz)
+
+    >>> msg = msgspec.json.encode(tz_aware)
+
+    >>> msg
+    b'"18:18:10.000123-06:00"'
+
+    >>> msgspec.json.decode(msg, type=datetime.time)
+    datetime.time(0, 18, 10, 123, tzinfo=datetime.timezone.utc)
+
+    >>> tz_naive = datetime.time(18, 18, 10, 123)
+
+    >>> msg = msgspec.json.encode(tz_naive)
+
+    >>> msg
+    b'"18:18:10.000123"'
+
+    >>> msgspec.json.decode(msg, type=datetime.time)
+    datetime.time(18, 18, 10, 123)
+
+    >>> msgspec.json.decode(b'"oops"', type=datetime.time)
+    Traceback (most recent call last):
+      File "<stdin>", line 1, in <module>
+    msgspec.ValidationError: Invalid RFC3339 encoded time
 
 ``uuid``
 ~~~~~~~~
@@ -416,7 +466,7 @@ timezone-naive by specifying a ``tz`` constraint (see
     >>> msgspec.json.decode(msg, type=uuid.UUID)
     UUID('c4524ac0-e81e-4aa8-a595-0aec605a659a')
 
-    >>> msgspec.json.decode(b'"oops not a uuid"', type=uuid.UUID)
+    >>> msgspec.json.decode(b'"oops"', type=uuid.UUID)
     Traceback (most recent call last):
         File "<stdin>", line 1, in <module>
     msgspec.ValidationError: Invalid UUID
