@@ -379,6 +379,9 @@ class SchemaBuilder:
                 schema["multipleOf"] = meta.multiple_of
             if meta.pattern is not None:
                 schema["pattern"] = meta.pattern
+            if meta.tz is True:
+                if t is datetime.datetime:
+                    schema["format"] = "date-time"
             if t is str:
                 if meta.max_length is not None:
                     schema["maxLength"] = meta.max_length
@@ -431,7 +434,6 @@ class SchemaBuilder:
             schema["contentEncoding"] = "base64"
         elif t is datetime.datetime:
             schema["type"] = "string"
-            schema["format"] = "date-time"
         elif t is datetime.date:
             schema["type"] = "string"
             schema["format"] = "date"
