@@ -1746,47 +1746,48 @@ static PyTypeObject Meta_Type = {
 #define MS_TYPE_BYTEARRAY           (1ull << 7)
 #define MS_TYPE_DATETIME            (1ull << 8)
 #define MS_TYPE_DATE                (1ull << 9)
-#define MS_TYPE_UUID                (1ull << 10)
-#define MS_TYPE_EXT                 (1ull << 11)
-#define MS_TYPE_STRUCT              (1ull << 12)
-#define MS_TYPE_STRUCT_ARRAY        (1ull << 13)
-#define MS_TYPE_STRUCT_UNION        (1ull << 14)
-#define MS_TYPE_STRUCT_ARRAY_UNION  (1ull << 15)
-#define MS_TYPE_ENUM                (1ull << 16)
-#define MS_TYPE_INTENUM             (1ull << 17)
-#define MS_TYPE_CUSTOM              (1ull << 18)
-#define MS_TYPE_CUSTOM_GENERIC      (1ull << 19)
-#define MS_TYPE_DICT                ((1ull << 20) | (1ull << 21))
-#define MS_TYPE_LIST                (1ull << 22)
-#define MS_TYPE_SET                 (1ull << 23)
-#define MS_TYPE_FROZENSET           (1ull << 24)
-#define MS_TYPE_VARTUPLE            (1ull << 25)
-#define MS_TYPE_FIXTUPLE            (1ull << 26)
-#define MS_TYPE_INTLITERAL          (1ull << 27)
-#define MS_TYPE_STRLITERAL          (1ull << 28)
-#define MS_TYPE_TYPEDDICT           (1ull << 29)
-#define MS_TYPE_DATACLASS           (1ull << 30)
-#define MS_TYPE_NAMEDTUPLE          (1ull << 31)
+#define MS_TYPE_TIME                (1ull << 10)
+#define MS_TYPE_UUID                (1ull << 11)
+#define MS_TYPE_EXT                 (1ull << 12)
+#define MS_TYPE_STRUCT              (1ull << 13)
+#define MS_TYPE_STRUCT_ARRAY        (1ull << 14)
+#define MS_TYPE_STRUCT_UNION        (1ull << 15)
+#define MS_TYPE_STRUCT_ARRAY_UNION  (1ull << 16)
+#define MS_TYPE_ENUM                (1ull << 17)
+#define MS_TYPE_INTENUM             (1ull << 18)
+#define MS_TYPE_CUSTOM              (1ull << 19)
+#define MS_TYPE_CUSTOM_GENERIC      (1ull << 20)
+#define MS_TYPE_DICT                ((1ull << 21) | (1ull << 22))
+#define MS_TYPE_LIST                (1ull << 23)
+#define MS_TYPE_SET                 (1ull << 24)
+#define MS_TYPE_FROZENSET           (1ull << 25)
+#define MS_TYPE_VARTUPLE            (1ull << 26)
+#define MS_TYPE_FIXTUPLE            (1ull << 27)
+#define MS_TYPE_INTLITERAL          (1ull << 28)
+#define MS_TYPE_STRLITERAL          (1ull << 29)
+#define MS_TYPE_TYPEDDICT           (1ull << 30)
+#define MS_TYPE_DATACLASS           (1ull << 31)
+#define MS_TYPE_NAMEDTUPLE          (1ull << 32)
 /* Constraints */
-#define MS_CONSTR_INT_MIN           (1ull << 32)
-#define MS_CONSTR_INT_MAX           (1ull << 33)
-#define MS_CONSTR_INT_MULTIPLE_OF   (1ull << 34)
-#define MS_CONSTR_FLOAT_GT          (1ull << 35)
-#define MS_CONSTR_FLOAT_GE          (1ull << 36)
-#define MS_CONSTR_FLOAT_LT          (1ull << 37)
-#define MS_CONSTR_FLOAT_LE          (1ull << 38)
-#define MS_CONSTR_FLOAT_MULTIPLE_OF (1ull << 39)
-#define MS_CONSTR_STR_REGEX         (1ull << 40)
-#define MS_CONSTR_STR_MIN_LENGTH    (1ull << 41)
-#define MS_CONSTR_STR_MAX_LENGTH    (1ull << 42)
-#define MS_CONSTR_BYTES_MIN_LENGTH  (1ull << 43)
-#define MS_CONSTR_BYTES_MAX_LENGTH  (1ull << 44)
-#define MS_CONSTR_ARRAY_MIN_LENGTH  (1ull << 45)
-#define MS_CONSTR_ARRAY_MAX_LENGTH  (1ull << 46)
-#define MS_CONSTR_MAP_MIN_LENGTH    (1ull << 47)
-#define MS_CONSTR_MAP_MAX_LENGTH    (1ull << 48)
-#define MS_CONSTR_TZ_AWARE          (1ull << 49)
-#define MS_CONSTR_TZ_NAIVE          (1ull << 50)
+#define MS_CONSTR_INT_MIN           (1ull << 42)
+#define MS_CONSTR_INT_MAX           (1ull << 43)
+#define MS_CONSTR_INT_MULTIPLE_OF   (1ull << 44)
+#define MS_CONSTR_FLOAT_GT          (1ull << 45)
+#define MS_CONSTR_FLOAT_GE          (1ull << 46)
+#define MS_CONSTR_FLOAT_LT          (1ull << 47)
+#define MS_CONSTR_FLOAT_LE          (1ull << 48)
+#define MS_CONSTR_FLOAT_MULTIPLE_OF (1ull << 49)
+#define MS_CONSTR_STR_REGEX         (1ull << 50)
+#define MS_CONSTR_STR_MIN_LENGTH    (1ull << 51)
+#define MS_CONSTR_STR_MAX_LENGTH    (1ull << 52)
+#define MS_CONSTR_BYTES_MIN_LENGTH  (1ull << 53)
+#define MS_CONSTR_BYTES_MAX_LENGTH  (1ull << 54)
+#define MS_CONSTR_ARRAY_MIN_LENGTH  (1ull << 55)
+#define MS_CONSTR_ARRAY_MAX_LENGTH  (1ull << 56)
+#define MS_CONSTR_MAP_MIN_LENGTH    (1ull << 57)
+#define MS_CONSTR_MAP_MAX_LENGTH    (1ull << 58)
+#define MS_CONSTR_TZ_AWARE          (1ull << 59)
+#define MS_CONSTR_TZ_NAIVE          (1ull << 60)
 /* Extra flag bit, used by TypedDict/dataclass implementations */
 #define MS_EXTRA_FLAG               (1ull << 63)
 
@@ -7734,12 +7735,12 @@ ms_check_datetime_constraints(
     char *err, *type_str;
     if (tz == Py_None) {
         if (type->types & MS_CONSTR_TZ_AWARE) {
-            err = "Expected a %s with a timezone component%U";
+            err = "Expected `%s` with a timezone component%U";
             goto error;
         }
     }
     else if (type->types & MS_CONSTR_TZ_NAIVE) {
-        err = "Expected a %s with no timezone component%U";
+        err = "Expected `%s` with no timezone component%U";
         goto error;
     }
 
@@ -7749,11 +7750,11 @@ ms_check_datetime_constraints(
     );
 
 error:
-    if (type->types & MS_TYPE_DATETIME) {
-        type_str = "datetime";
+    if (type->types & MS_TYPE_TIME) {
+        type_str = "time";
     }
     else {
-        type_str = "time";
+        type_str = "datetime";
     }
 
     ms_raise_validation_error(path, err, type_str);
@@ -7896,7 +7897,9 @@ datetime_to_epoch(PyObject *obj, int64_t *seconds, int32_t *nanoseconds) {
  * copyright Rich Felker et. al, and is licensed under the standard MIT
  * license.  */
 static PyObject *
-datetime_from_epoch(int64_t epoch_secs, uint32_t epoch_nanos) {
+datetime_from_epoch(
+    int64_t epoch_secs, uint32_t epoch_nanos, TypeNode *type, PathNode *path
+) {
     int64_t days, secs, years;
     int months, remdays, remsecs, remyears;
     int qc_cycles, c_cycles, q_cycles;
@@ -7941,7 +7944,7 @@ datetime_from_epoch(int64_t epoch_secs, uint32_t epoch_nanos) {
         years++;
     }
 
-    return PyDateTimeAPI->DateTime_FromDateAndTime(
+    return ms_check_datetime_constraints(
         years + 2000,
         months + 3,
         remdays + 1,
@@ -7950,7 +7953,8 @@ datetime_from_epoch(int64_t epoch_secs, uint32_t epoch_nanos) {
         remsecs % 60,
         epoch_nanos / 1000,
         PyDateTime_TimeZone_UTC,
-        PyDateTimeAPI->DateTimeType
+        type,
+        path
     );
 }
 
@@ -10434,7 +10438,8 @@ mpack_decode_cint(DecoderState *self, int64_t *out, uint64_t *uout, PathNode *pa
 
 static PyObject *
 mpack_decode_datetime(
-    DecoderState *self, const char *data_buf, Py_ssize_t size, PathNode *path
+    DecoderState *self, const char *data_buf, Py_ssize_t size,
+    TypeNode *type, PathNode *path
 ) {
     uint64_t data64;
     uint32_t nanoseconds;
@@ -10470,7 +10475,7 @@ mpack_decode_datetime(
         err_msg = "Timestamp is out of range%U";
         goto invalid;
     }
-    return datetime_from_epoch(seconds, nanoseconds);
+    return datetime_from_epoch(seconds, nanoseconds, type, path);
 
 invalid:
     return ms_error_with_path(err_msg, path);
@@ -11484,7 +11489,7 @@ mpack_decode_ext(
     if (mpack_read(self, &data_buf, size) < 0) return NULL;
 
     if (type->types & MS_TYPE_DATETIME && code == -1) {
-        return mpack_decode_datetime(self, data_buf, size, path);
+        return mpack_decode_datetime(self, data_buf, size, type, path);
     }
     else if (type->types & MS_TYPE_EXT) {
         data = PyBytes_FromStringAndSize(data_buf, size);
@@ -11501,7 +11506,7 @@ mpack_decode_ext(
      * - otherwise return Ext object
      * */
     if (code == -1) {
-        return mpack_decode_datetime(self, data_buf, size, path);
+        return mpack_decode_datetime(self, data_buf, size, type, path);
     }
     else if (self->ext_hook == NULL) {
         data = PyBytes_FromStringAndSize(data_buf, size);
