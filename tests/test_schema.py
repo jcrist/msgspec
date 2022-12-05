@@ -120,16 +120,16 @@ def test_binary(typ):
 
 
 @pytest.mark.parametrize(
-    "typ, extra",
+    "get_type, extra",
     [
-        (datetime.datetime, {}),
-        (Annotated[datetime.datetime, Meta(tz=None)], {}),
-        (Annotated[datetime.datetime, Meta(tz=True)], {"format": "date-time"}),
-        (Annotated[datetime.datetime, Meta(tz=False)], {}),
+        (lambda: datetime.datetime, {}),
+        (lambda: Annotated[datetime.datetime, Meta(tz=None)], {}),
+        (lambda: Annotated[datetime.datetime, Meta(tz=True)], {"format": "date-time"}),
+        (lambda: Annotated[datetime.datetime, Meta(tz=False)], {}),
     ],
 )
-def test_datetime(typ, extra):
-    assert msgspec.json.schema(typ) == {"type": "string", **extra}
+def test_datetime(get_type, extra):
+    assert msgspec.json.schema(get_type()) == {"type": "string", **extra}
 
 
 def test_date():
