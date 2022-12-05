@@ -106,6 +106,7 @@ class Meta:
         pattern: Union[str, None] = None,
         min_length: Union[int, None] = None,
         max_length: Union[int, None] = None,
+        tz: Union[bool, None] = None,
         title: Union[str, None] = None,
         description: Union[str, None] = None,
         examples: Union[list, None] = None,
@@ -119,6 +120,7 @@ class Meta:
     pattern: Final[Union[str, None]]
     min_length: Final[Union[int, None]]
     max_length: Final[Union[int, None]]
+    tz: Final[Union[int, None]]
     title: Final[Union[str, None]]
     description: Final[Union[str, None]]
     examples: Final[Union[list, None]]

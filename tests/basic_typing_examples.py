@@ -296,10 +296,12 @@ def check_meta_constructor() -> None:
     for val3 in [1, None]:
         msgspec.Meta(min_length=val3)
         msgspec.Meta(max_length=val3)
-    for val4 in [[1, 2, 3], None]:
-        msgspec.Meta(examples=val4)
-    for val5 in [{"foo": "bar"}, None]:
-        msgspec.Meta(extra_json_schema=val5)
+    for val4 in [True, False, None]:
+        msgspec.Meta(tz=val4)
+    for val5 in [[1, 2, 3], None]:
+        msgspec.Meta(examples=val5)
+    for val6 in [{"foo": "bar"}, None]:
+        msgspec.Meta(extra_json_schema=val6)
 
 
 def check_meta_attributes() -> None:
@@ -312,6 +314,7 @@ def check_meta_attributes() -> None:
     print(c.pattern)
     print(c.min_length)
     print(c.max_length)
+    print(c.tz)
     print(c.title)
     print(c.description)
     print(c.examples)
