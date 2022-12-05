@@ -582,6 +582,52 @@ class TestDateTimeConstraints:
             self.roundtrip(proto, Ex, False, as_str)
 
 
+class TestTimeConstraints:
+    @staticmethod
+    def roundtrip(proto, cls, aware, as_str):
+        dt = datetime.datetime.now(datetime.timezone.utc if aware else None).timetz()
+
+        if as_str:
+            s = proto.encode(cls(dt.isoformat()))
+        else:
+            s = proto.encode(cls(dt))
+
+        res = proto.decode(s, type=cls)
+        assert res.x == dt
+
+    @pytest.mark.parametrize("as_str", [True, False])
+    def test_tz_none(self, proto, as_str):
+        class Ex(msgspec.Struct):
+            x: Annotated[datetime.time, Meta(tz=None)]
+
+        self.roundtrip(proto, Ex, True, as_str)
+        self.roundtrip(proto, Ex, False, as_str)
+
+    @pytest.mark.parametrize("as_str", [True, False])
+    def test_tz_false(self, proto, as_str):
+        class Ex(msgspec.Struct):
+            x: Annotated[datetime.time, Meta(tz=False)]
+
+        self.roundtrip(proto, Ex, False, as_str)
+
+        err_msg = r"Expected `time` with no timezone component - at `\$.x`"
+
+        with pytest.raises(msgspec.ValidationError, match=err_msg):
+            self.roundtrip(proto, Ex, True, as_str)
+
+    @pytest.mark.parametrize("as_str", [True, False])
+    def test_tz_true(self, proto, as_str):
+        class Ex(msgspec.Struct):
+            x: Annotated[datetime.time, Meta(tz=True)]
+
+        self.roundtrip(proto, Ex, True, as_str)
+
+        err_msg = r"Expected `time` with a timezone component - at `\$.x`"
+
+        with pytest.raises(msgspec.ValidationError, match=err_msg):
+            self.roundtrip(proto, Ex, False, as_str)
+
+
 class TestBytesConstraints:
     @pytest.mark.parametrize("typ", [bytes, bytearray])
     def test_min_length(self, proto, typ):
