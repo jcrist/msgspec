@@ -132,6 +132,42 @@ These constraints are valid on `str` types:
       File "<stdin>", line 1, in <module>
     msgspec.ValidationError: Expected `str` matching regex '^[a-z0-9_]*$'
 
+.. _datetime-constraints:
+
+Datetime Constraints
+--------------------
+
+These constraints are valid on `datetime.datetime` and `datetime.time` types:
+
+- ``tz``: Whether the annotated type is required to be timezone-aware_. Set to
+  ``True`` to require timezone-aware values, or ``False`` to require
+  timezone-naive values. The default is ``None``, which accepts either
+  timezone-aware or timezone-naive values.
+
+.. code-block:: python
+
+    >>> import msgspec
+
+    >>> from datetime import datetime
+
+    >>> from typing import Annotated
+
+    >>> msgspec.json.decode(
+    ...     b'"2022-04-02T18:18:10"',
+    ...     type=Annotated[datetime, msgspec.Meta(tz=True)]  # require timezone aware
+    ... )
+    Traceback (most recent call last):
+      File "<stdin>", line 1, in <module>
+    msgspec.ValidationError: Expected `datetime` with a timezone component
+
+    >>> msgspec.json.decode(
+    ...     b'"2022-04-02T18:18:10-06:00"',
+    ...     type=Annotated[datetime, msgspec.Meta(tz=False)]  # require timezone naive
+    ... )
+    Traceback (most recent call last):
+      File "<stdin>", line 1, in <module>
+    msgspec.ValidationError: Expected `datetime` with no timezone component
+
 Bytes Constraints
 -----------------
 
@@ -197,3 +233,5 @@ These constraints are valid on `dict` types:
     Traceback (most recent call last):
       File "<stdin>", line 1, in <module>
     msgspec.ValidationError: Expected `object` of length <= 3
+
+.. _timezone-aware: https://docs.python.org/3/library/datetime.html#aware-and-naive-objects

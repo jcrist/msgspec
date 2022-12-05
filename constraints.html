@@ -368,6 +368,39 @@ pattern “^es$” only matches the string “es”</p></li>
 </pre></div>
 </div>
 </section>
+<section id="datetime-constraints">
+<span id="id1"></span><h2>Datetime Constraints<a class="headerlink" href="#datetime-constraints" title="Permalink to this heading">#</a></h2>
+<p>These constraints are valid on <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.datetime" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.datetime</span></code></a> and <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.time" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.time</span></code></a> types:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">tz</span></code>: Whether the annotated type is required to be <a class="reference external" href="https://docs.python.org/3/library/datetime.html#aware-and-naive-objects">timezone-aware</a>. Set to
+<code class="docutils literal notranslate"><span class="pre">True</span></code> to require timezone-aware values, or <code class="docutils literal notranslate"><span class="pre">False</span></code> to require
+timezone-naive values. The default is <code class="docutils literal notranslate"><span class="pre">None</span></code>, which accepts either
+timezone-aware or timezone-naive values.</p></li>
+</ul>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">msgspec</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">datetime</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Annotated</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="sa">b</span><span class="s1">&#39;&quot;2022-04-02T18:18:10&quot;&#39;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="nb">type</span><span class="o">=</span><span class="n">Annotated</span><span class="p">[</span><span class="n">datetime</span><span class="p">,</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">Meta</span><span class="p">(</span><span class="n">tz</span><span class="o">=</span><span class="kc">True</span><span class="p">)]</span>  <span class="c1"># require timezone aware</span>
+<span class="gp">... </span><span class="p">)</span>
+<span class="gt">Traceback (most recent call last):</span>
+  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+<span class="gr">msgspec.ValidationError</span>: <span class="n">Expected `datetime` with a timezone component</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="sa">b</span><span class="s1">&#39;&quot;2022-04-02T18:18:10-06:00&quot;&#39;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="nb">type</span><span class="o">=</span><span class="n">Annotated</span><span class="p">[</span><span class="n">datetime</span><span class="p">,</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">Meta</span><span class="p">(</span><span class="n">tz</span><span class="o">=</span><span class="kc">False</span><span class="p">)]</span>  <span class="c1"># require timezone naive</span>
+<span class="gp">... </span><span class="p">)</span>
+<span class="gt">Traceback (most recent call last):</span>
+  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+<span class="gr">msgspec.ValidationError</span>: <span class="n">Expected `datetime` with no timezone component</span>
+</pre></div>
+</div>
+</section>
 <section id="bytes-constraints">
 <h2>Bytes Constraints<a class="headerlink" href="#bytes-constraints" title="Permalink to this heading">#</a></h2>
 <p>These constraints are valid on <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytes</span></code></a> and <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytearray" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytearray</span></code></a> types:</p>
@@ -496,6 +529,7 @@ pattern “^es$” only matches the string “es”</p></li>
 <li><a class="reference internal" href="#">Constraints</a><ul>
 <li><a class="reference internal" href="#numeric-constraints">Numeric Constraints</a></li>
 <li><a class="reference internal" href="#string-constraints">String Constraints</a></li>
+<li><a class="reference internal" href="#datetime-constraints">Datetime Constraints</a></li>
 <li><a class="reference internal" href="#bytes-constraints">Bytes Constraints</a></li>
 <li><a class="reference internal" href="#sequence-constraints">Sequence Constraints</a></li>
 <li><a class="reference internal" href="#mapping-constraints">Mapping Constraints</a></li>
