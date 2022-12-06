@@ -42,6 +42,8 @@ JSON
 
 .. autofunction:: decode
 
+.. autofunction:: format
+
 
 MessagePack
 -----------
