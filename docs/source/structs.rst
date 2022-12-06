@@ -651,7 +651,7 @@ has a signature similar to `dataclasses.make_dataclass`. See
 
     >>> import msgspec
 
-    >>> Point = msgspec.defstruct("Point", [("x", float), ("y": float)])
+    >>> Point = msgspec.defstruct("Point", [("x", float), ("y", float)])
 
     >>> p = Point(1.0, 2.0)
 
