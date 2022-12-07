@@ -444,6 +444,12 @@ class TestDecodeFunction:
     def test_decode(self):
         assert msgspec.json.decode(b"[1, 2, 3]") == [1, 2, 3]
 
+    def test_decode_from_str(self):
+        assert msgspec.json.decode("[1, 2, 3]") == [1, 2, 3]
+
+        with pytest.raises(msgspec.DecodeError, match="truncated"):
+            assert msgspec.json.decode("[1, 2, 3")
+
     def test_decode_type_keyword(self):
         assert msgspec.json.decode(b"[1, 2, 3]", type=Set[int]) == {1, 2, 3}
 
@@ -519,6 +525,13 @@ class TestDecodeFunction:
 
 
 class TestDecoderMisc:
+    def test_decode_from_str(self):
+        dec = msgspec.json.Decoder()
+        assert dec.decode("[1, 2, 3]") == [1, 2, 3]
+
+        with pytest.raises(msgspec.DecodeError, match="truncated"):
+            assert dec.decode("[1, 2, 3")
+
     def test_decoder_type_attribute(self):
         dec = msgspec.json.Decoder()
         assert dec.type is Any
@@ -2720,9 +2733,12 @@ class TestFormat:
 
         assert res == sol
 
+    def test_format_str(self):
+        assert msgspec.json.format("[1,     2]", indent=0) == "[1, 2]"
+
     def test_format_bad_calls(self):
         with pytest.raises(TypeError):
-            msgspec.json.format("[]")
+            msgspec.json.format(1)
 
         with pytest.raises(TypeError):
             msgspec.json.format(b"[]", indent=None)
