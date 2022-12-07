@@ -80,6 +80,25 @@ unicode_str_and_size(PyObject *str, Py_ssize_t *size) {
     return PyUnicode_AsUTF8AndSize(str, size);
 }
 
+/* Fill in view.buf & view.len from either a Unicode or buffer-compatible
+ * object. */
+static int
+ms_get_buffer(PyObject *obj, Py_buffer *view) {
+    if (MS_UNLIKELY(PyUnicode_CheckExact(obj))) {
+        view->buf = (void *)unicode_str_and_size(obj, &(view->len));
+        if (view->buf == NULL) return -1;
+        return 0;
+    }
+    return PyObject_GetBuffer(obj, view, PyBUF_CONTIG_RO);
+}
+
+static void
+ms_release_buffer(PyObject *obj, Py_buffer *view) {
+    if (MS_LIKELY(!PyUnicode_CheckExact(obj))) {
+        PyBuffer_Release(view);
+    }
+}
+
 /* Hash algorithm borrowed from cpython 3.10's hashing algorithm for tuples.
  * See https://github.com/python/cpython/blob/4bcef2bb48b3fd82011a89c1c716421b789f1442/Objects/tupleobject.c#L386-L424
  */
@@ -11881,7 +11900,7 @@ PyDoc_STRVAR(Decoder_decode__doc__,
 "Returns\n"
 "-------\n"
 "obj : Any\n"
-"    The deserialized object\n"
+"    The deserialized object.\n"
 );
 static PyObject*
 Decoder_decode(Decoder *self, PyObject *const *args, Py_ssize_t nargs)
@@ -11979,7 +11998,7 @@ PyDoc_STRVAR(msgspec_msgpack_decode__doc__,
 "Returns\n"
 "-------\n"
 "obj : Any\n"
-"    The deserialized object\n"
+"    The deserialized object.\n"
 "\n"
 "See Also\n"
 "--------\n"
@@ -14880,7 +14899,7 @@ PyDoc_STRVAR(msgspec_json_format__doc__,
 "\n"
 "Parameters\n"
 "----------\n"
-"buf : bytes-like\n"
+"buf : bytes-like or str\n"
 "    The JSON message to format.\n"
 "indent : int, optional\n"
 "    How many spaces to indent for a single indentation level. Defaults to 2.\n"
@@ -14890,8 +14909,8 @@ PyDoc_STRVAR(msgspec_json_format__doc__,
 "\n"
 "Returns\n"
 "-------\n"
-"output : bytes\n"
-"    The formatted JSON message."
+"output : bytes or str\n"
+"    The formatted JSON message. Returns a str if input is a str, bytes otherwise."
 );
 static PyObject*
 msgspec_json_format(PyObject *self, PyObject *args, PyObject *kwargs)
@@ -14910,7 +14929,7 @@ msgspec_json_format(PyObject *self, PyObject *args, PyObject *kwargs)
     }
 
     buffer.buf = NULL;
-    if (PyObject_GetBuffer(buf, &buffer, PyBUF_CONTIG_RO) >= 0) {
+    if (ms_get_buffer(buf, &buffer) >= 0) {
         JSONDecoderState dec;
         EncoderState enc;
 
@@ -14948,17 +14967,28 @@ msgspec_json_format(PyObject *self, PyObject *args, PyObject *kwargs)
             if (status == 0 && json_has_trailing_characters(&dec)) {
                 status = -1;
             }
+
             if (status == 0) {
-                /* Trim output to length */
-                out = enc.output_buffer;
-                FAST_BYTES_SHRINK(out, enc.output_len);
+                if (PyUnicode_CheckExact(buf)) {
+                    /* str input, str output */
+                    out = PyUnicode_FromStringAndSize(
+                        enc.output_buffer_raw,
+                        enc.output_len
+                    );
+                    Py_CLEAR(enc.output_buffer);
+                }
+                else {
+                    /* Trim output to length */
+                    out = enc.output_buffer;
+                    FAST_BYTES_SHRINK(out, enc.output_len);
+                }
             } else {
                 /* Error, drop buffer */
                 Py_CLEAR(enc.output_buffer);
             }
         }
 
-        PyBuffer_Release(&buffer);
+        ms_release_buffer(buf, &buffer);
     }
 
     return out;
@@ -14973,13 +15003,13 @@ PyDoc_STRVAR(JSONDecoder_decode__doc__,
 "\n"
 "Parameters\n"
 "----------\n"
-"buf : bytes-like\n"
+"buf : bytes-like or str\n"
 "    The message to decode.\n"
 "\n"
 "Returns\n"
 "-------\n"
 "obj : Any\n"
-"    The deserialized object\n"
+"    The deserialized object.\n"
 );
 static PyObject*
 JSONDecoder_decode(JSONDecoder *self, PyObject *const *args, Py_ssize_t nargs)
@@ -14992,7 +15022,8 @@ JSONDecoder_decode(JSONDecoder *self, PyObject *const *args, Py_ssize_t nargs)
         return NULL;
     }
 
-    if (PyObject_GetBuffer(args[0], &buffer, PyBUF_CONTIG_RO) >= 0) {
+    if (ms_get_buffer(args[0], &buffer) >= 0) {
+
         self->state.buffer_obj = args[0];
         self->state.input_start = buffer.buf;
         self->state.input_pos = buffer.buf;
@@ -15004,7 +15035,8 @@ JSONDecoder_decode(JSONDecoder *self, PyObject *const *args, Py_ssize_t nargs)
             Py_CLEAR(res);
         }
 
-        PyBuffer_Release(&buffer);
+        ms_release_buffer(args[0], &buffer);
+
         self->state.buffer_obj = NULL;
         self->state.input_start = NULL;
         self->state.input_pos = NULL;
@@ -15052,7 +15084,7 @@ PyDoc_STRVAR(msgspec_json_decode__doc__,
 "\n"
 "Parameters\n"
 "----------\n"
-"buf : bytes-like\n"
+"buf : bytes-like or str\n"
 "    The message to decode.\n"
 "type : Type, optional\n"
 "    A Python type (in type annotation form) to decode the object as. If\n"
@@ -15069,7 +15101,7 @@ PyDoc_STRVAR(msgspec_json_decode__doc__,
 "Returns\n"
 "-------\n"
 "obj : Any\n"
-"    The deserialized object\n"
+"    The deserialized object.\n"
 "\n"
 "See Also\n"
 "--------\n"
@@ -15130,7 +15162,7 @@ msgspec_json_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyO
     }
 
     buffer.buf = NULL;
-    if (PyObject_GetBuffer(buf, &buffer, PyBUF_CONTIG_RO) >= 0) {
+    if (ms_get_buffer(buf, &buffer) >= 0) {
         state.buffer_obj = buf;
         state.input_start = buffer.buf;
         state.input_pos = buffer.buf;
@@ -15155,7 +15187,7 @@ msgspec_json_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyO
             Py_CLEAR(res);
         }
 
-        PyBuffer_Release(&buffer);
+        ms_release_buffer(buf, &buffer);
     }
 
     PyMem_Free(state.scratch);

@@ -6,6 +6,7 @@ from typing import (
     TypeVar,
     Generic,
     Optional,
+    Union,
     Callable,
     overload,
 )
@@ -54,24 +55,24 @@ class Decoder(Generic[T]):
         *,
         dec_hook: dec_hook_sig = None,
     ) -> None: ...
-    def decode(self, data: bytes) -> T: ...
+    def decode(self, data: Union[bytes, str]) -> T: ...
 
 @overload
 def decode(
-    buf: bytes,
+    buf: Union[bytes, str],
     *,
     dec_hook: dec_hook_sig = None,
 ) -> Any: ...
 @overload
 def decode(
-    buf: bytes,
+    buf: Union[bytes, str],
     *,
     type: Type[T] = ...,
     dec_hook: dec_hook_sig = None,
 ) -> T: ...
 @overload
 def decode(
-    buf: bytes,
+    buf: Union[bytes, str],
     *,
     type: Any = ...,
     dec_hook: dec_hook_sig = None,
@@ -81,4 +82,7 @@ def schema(type: Any) -> Dict[str, Any]: ...
 def schema_components(
     types: Iterable[Any], ref_template: str = "#/$defs/{name}"
 ) -> Tuple[Tuple[Dict[str, Any], ...], Dict[str, Any]]: ...
+@overload
+def format(buf: str, *, indent: int = 2) -> str: ...
+@overload
 def format(buf: bytes, *, indent: int = 2) -> bytes: ...

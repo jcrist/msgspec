@@ -531,6 +531,12 @@ def check_json_Decoder_decode_union() -> None:
     reveal_type(o)  # assert ("int" in typ and "str" in typ)
 
 
+def check_json_Decoder_decode_from_str() -> None:
+    dec = msgspec.json.Decoder(List[int])
+    o = dec.decode("[1, 2, 3]")
+    reveal_type(o)  # assert ("List" in typ or "list" in typ) and "int" in typ
+
+
 def check_json_decode_any() -> None:
     b = msgspec.json.encode([1, 2, 3])
     o = msgspec.json.decode(b)
@@ -548,6 +554,13 @@ def check_json_decode_typed() -> None:
 def check_json_decode_typed_union() -> None:
     o: Union[int, str] = msgspec.json.decode(b"", type=Union[int, str])
     reveal_type(o)  # assert "int" in typ and "str" in typ
+
+
+def check_json_decode_from_str() -> None:
+    msgspec.json.decode("[1, 2, 3]")
+
+    o = msgspec.json.decode("[1, 2, 3]", type=List[int])
+    reveal_type(o)  # assert ("List" in typ or "list" in typ) and "int" in typ
 
 
 def check_json_encode_enc_hook() -> None:
@@ -569,6 +582,8 @@ def check_json_decode_dec_hook() -> None:
 def check_json_format() -> None:
     reveal_type(msgspec.json.format(b"test"))  # assert "bytes" in typ
     reveal_type(msgspec.json.format(b"test", indent=4))  # assert "bytes" in typ
+    reveal_type(msgspec.json.format("test"))  # assert "str" in typ
+    reveal_type(msgspec.json.format("test", indent=4))  # assert "str" in typ
 
 
 ##########################################################
