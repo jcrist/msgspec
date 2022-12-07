@@ -369,7 +369,7 @@ def run(n, validate=False, no_gc=False, quiet=False):
         dumps_time, loads_time = func(n, no_gc, validate)
         log(f"  dumps: {dumps_time * 1e6:.2f} us")
         log(f"  loads: {loads_time * 1e6:.2f} us")
-        log(f"  total: {dumps_time + loads_time * 1e6:.2f} us")
+        log(f"  total: {(dumps_time + loads_time) * 1e6:.2f} us")
         results.append((name, dumps_time, loads_time))
     return results
 
