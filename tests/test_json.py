@@ -9,6 +9,7 @@ import json
 import math
 import string
 import sys
+from dataclasses import dataclass
 from typing import (
     Any,
     Deque,
@@ -1885,6 +1886,50 @@ class TestTypedDict:
     )
     def test_decode_typeddict_malformed(self, s, error):
         class Test(TypedDict, total=False):
+            a: int
+            b: int
+
+        with pytest.raises(msgspec.DecodeError, match=error):
+            msgspec.json.decode(s, type=Test)
+
+
+class TestDataclass:
+    """Most tests are in `test_common`, this just tests some JSON peculiarities"""
+
+    @pytest.mark.parametrize(
+        "s, x",
+        [
+            (b"{\t\n\r }", {}),
+            (b'{\t\n\r "a"    :     1}', {"a": 1}),
+            (b'{ "a"\t : 1 \n, "b": \r 2  }', {"a": 1, "b": 2}),
+            (b'   { "a"\t : 1 \n, "b": \r 2  }   ', {"a": 1, "b": 2}),
+        ],
+    )
+    def test_decode_dataclass_ignores_whitespace(self, s, x):
+        @dataclass
+        class Test:
+            a: int = -1
+            b: int = -2
+
+        x2 = msgspec.json.decode(s, type=Test)
+        assert x2 == Test(**x)
+
+    @pytest.mark.parametrize(
+        "s, error",
+        [
+            (b"{", "truncated"),
+            (b'{"a"', "truncated"),
+            (b"{,}", "object keys must be strings"),
+            (b"{:}", "object keys must be strings"),
+            (b"{1: 2}", "object keys must be strings"),
+            (b'{"a": 1, }', "trailing comma in object"),
+            (b'{"a": 1, "b" 2}', "expected ':'"),
+            (b'{"a": 1, "b": 2  "c"}', r"expected ',' or '}'"),
+        ],
+    )
+    def test_decode_typeddict_malformed(self, s, error):
+        @dataclass
+        class Test:
             a: int
             b: int
 
