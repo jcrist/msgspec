@@ -199,7 +199,7 @@ class TestEncodeFunction:
 
 
 class TestDecodeFunction:
-    def setup(self):
+    def setup_method(self):
         self.buf = msgspec.msgpack.encode([1, 2, 3])
 
     def test_decode(self):
