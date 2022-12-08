@@ -3,6 +3,12 @@ Changelog
 
 .. currentmodule:: msgspec
 
+Version 0.10.1 (2022-12-08)
+---------------------------
+
+- Ignore attributes with leading underscores (``"_"``) when encoding
+  `dataclasses` (:pr:`234`)
+
 Version 0.10.0 (2022-12-07)
 ---------------------------
 
