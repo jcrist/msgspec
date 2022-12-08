@@ -289,7 +289,6 @@ types):</p>
 <li><p><code class="docutils literal notranslate"><span class="pre">ujson</span></code> - <a class="reference external" href="https://github.com/ultrajson/ultrajson">ujson</a> with dict message types</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">orjson</span></code> - <a class="reference external" href="https://github.com/ijl/orjson">orjson</a> with dict message types</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">msgpack</span></code> - <a class="reference external" href="https://github.com/msgpack/msgpack-python">msgpack</a> with dict message types</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">pyrobuf</span></code> - <a class="reference external" href="https://github.com/appnexus/pyrobuf">pyrobuf</a> with protobuf message types</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">msgspec</span> <span class="pre">msgpack</span></code> - <a class="reference external" href="https://jcristharif.com/msgspec/">msgspec</a>’s MessagePack encoding, with <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a>
 message types</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">msgspec</span> <span class="pre">msgpack</span> <span class="pre">array-like</span></code> - <a class="reference external" href="https://jcristharif.com/msgspec/">msgspec</a>’s MessagePack encoding, with
@@ -301,7 +300,7 @@ message types configured with <code class="docutils literal notranslate"><span c
 <p>Each benchmark creates one or more instances of a <code class="docutils literal notranslate"><span class="pre">Person</span></code> message, and
 serializes it/deserializes it in a loop.</p>
 <p>The full benchmark source can be found
-<a class="reference external" href="https://github.com/jcrist/msgspec/tree/main/benchmarks">here</a>.</p>
+<a class="reference external" href="https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_encodings.py">here</a>.</p>
 <section id="object">
 <h3>1 Object<a class="headerlink" href="#object" title="Permalink to this heading">#</a></h3>
 <p>Some workflows involve sending around very small messages. Here the overhead
@@ -328,19 +327,30 @@ choice here probably doesn’t matter that much.</p>
 here, so the per-call overhead will no longer dominate, and we’re now measuring
 the efficiency of the encoding/decoding.</p>
 <div id="bench-1k"></div></section>
-<section id="schema-validation">
-<h3>Schema Validation<a class="headerlink" href="#schema-validation" title="Permalink to this heading">#</a></h3>
-<p>The above benchmarks aren’t 100% fair to <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> or <code class="docutils literal notranslate"><span class="pre">pyrobuf</span></code>. Both
-libraries also perform schema validation on deserialization, checking that the
-message matches the specified schema. None of the other options benchmarked
-support this natively. Instead, many users perform validation post
-deserialization using additional tools like <a class="reference external" href="https://pydantic-docs.helpmanual.io/">pydantic</a>. Here we add the cost of
-schema validation during deserialization, using <a class="reference external" href="https://pydantic-docs.helpmanual.io/">pydantic</a> for all libraries
-lacking builtin validation.</p>
-<div id="bench-1-validate"></div><div id="bench-1k-validate"></div><p>These plots show the performance benefit of performing type validation during
-message decoding (as done by <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> and <a class="reference external" href="https://github.com/appnexus/pyrobuf">pyrobuf</a>) rather than as a
-secondary step with a third-party library like <a class="reference external" href="https://pydantic-docs.helpmanual.io/">pydantic</a>. Validating after
-decoding is slower for two reasons:</p>
+</section>
+<section id="benchmark-schema-validation">
+<h2>Benchmark - Schema Validation<a class="headerlink" href="#benchmark-schema-validation" title="Permalink to this heading">#</a></h2>
+<p>The above benchmarks aren’t 100% fair to <code class="docutils literal notranslate"><span class="pre">msgspec</span></code>, as it also performs
+schema validation on deserialization, checking that the message matches the
+specified schema. None of the other options benchmarked support this natively.
+Instead, many users perform validation post deserialization using additional
+tools like <a class="reference external" href="https://pydantic-docs.helpmanual.io/">pydantic</a>.</p>
+<p>Here we benchmark the following validation libraries, measuring JSON encoding
+and decoding time.</p>
+<ul class="simple">
+<li><p><a class="reference external" href="https://jcristharif.com/msgspec/">msgspec</a></p></li>
+<li><p><a class="reference external" href="https://pydantic-docs.helpmanual.io/">pydantic</a></p></li>
+<li><p><a class="reference external" href="https://catt.rs/en/latest/">cattrs</a></p></li>
+<li><p><a class="reference external" href="https://marshmallow.readthedocs.io/en/stable/index.html">marshmallow</a></p></li>
+</ul>
+<p>The full benchmark source can be found
+<a class="reference external" href="https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_validation.py">here</a>.</p>
+<div id="bench-1k-validate"></div><p>This plot shows the performance benefit of performing type validation during
+message decoding (as done by <code class="docutils literal notranslate"><span class="pre">msgspec</span></code>) rather than as a secondary step with
+a third-party library like <a class="reference external" href="https://pydantic-docs.helpmanual.io/">pydantic</a>. In this benchmark <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> is ~8x
+faster than <code class="docutils literal notranslate"><span class="pre">cattrs</span></code>, ~45x faster than <code class="docutils literal notranslate"><span class="pre">pydantic</span></code>, and ~80x faster than
+<code class="docutils literal notranslate"><span class="pre">marshmallow</span></code>.</p>
+<p>Validating after decoding is slower for two reasons:</p>
 <ul class="simple">
 <li><p>It requires traversing over the entire output structure a second time (which
 can be slow due to pointer chasing)</p></li>
@@ -352,7 +362,6 @@ allocating many temporary python objects.</p></li>
 of these issues. Only a single pass over the decoded data is taken, and the
 specified output types are created correctly the first time, avoiding the need
 for additional unnecessary allocations.</p>
-</section>
 </section>
 <section id="benchmark-memory-usage">
 <span id="memory-benchmark"></span><h2>Benchmark - Memory Usage<a class="headerlink" href="#benchmark-memory-usage" title="Permalink to this heading">#</a></h2>
@@ -701,11 +710,11 @@ function buildPlot(div, rows, title) {
     vegaEmbed(div, spec);
 }
 
-var data = {"1": [["ujson", 7.030435859924182e-07, 7.639844279037788e-07], ["orjson", 2.729362859972753e-07, 4.700861860765144e-07], ["msgpack", 3.361755030346103e-07, 6.437368659535423e-07], ["pyrobuf", 6.585190480109304e-07, 8.175451980205253e-07], ["msgspec msgpack", 1.1347354299505241e-07, 2.1372027799952774e-07], ["msgspec msgpack array-like", 8.304792979033664e-08, 1.827640509873163e-07], ["msgspec json", 1.491183284961153e-07, 2.529406379908323e-07], ["msgspec json array-like", 1.2631406149012035e-07, 2.012530609499663e-07]], "1k": [["ujson", 0.001102395214838907, 0.0015488704800372944], ["orjson", 0.0003646563779911958, 0.0009273472519125789], ["msgpack", 0.0006639056000858545, 0.001252785309916362], ["pyrobuf", 0.001007149354845751, 0.0012639255350222812], ["msgspec msgpack", 0.0001816850150062237, 0.0005268073680344969], ["msgspec msgpack array-like", 0.00013447317949612624, 0.00046300101198721677], ["msgspec json", 0.00026055755803827197, 0.0005569243360077962], ["msgspec json array-like", 0.00021961575601017101, 0.00044483237201347947]], "1-valid": [["ujson", 6.967446720227599e-07, 7.38570460001938e-06], ["orjson", 2.7809841802809387e-07, 7.023546079872176e-06], ["msgpack", 3.3430971595225853e-07, 7.071110340766609e-06], ["pyrobuf", 6.591738880379126e-07, 8.14532220014371e-07], ["msgspec msgpack", 1.1331076300120913e-07, 2.1414168103365227e-07], ["msgspec msgpack array-like", 8.293645720696077e-08, 1.8254028499359264e-07], ["msgspec json", 1.5054226550273598e-07, 2.4940696998965e-07], ["msgspec json array-like", 1.2410027100122535e-07, 1.9837152998661623e-07]], "1k-valid": [["ujson", 0.00129786730511114, 0.02141073290258646], ["orjson", 0.00044180043006781486, 0.02110853819758631], ["msgpack", 0.0007393227140419185, 0.02092509400099516], ["pyrobuf", 0.0012027352498262189, 0.0013232087399228476], ["msgspec msgpack", 0.00021633048250805587, 0.0006201737138908357], ["msgspec msgpack array-like", 0.00016943000350147486, 0.0005656970220152288], ["msgspec json", 0.0003191211699740961, 0.0006765304539585487], ["msgspec json array-like", 0.0002677371469908394, 0.000542826394084841]]};
-buildPlot('#bench-1', data["1"], "Benchmark - 1 Object");
-buildPlot('#bench-1k', data["1k"], "Benchmark - 1000 Objects");
-buildPlot('#bench-1-validate', data["1-valid"], "Benchmark - 1 Object, With Validation");
-buildPlot('#bench-1k-validate', data["1k-valid"], "Benchmark - 1000 Objects, With Validation");
+var results = {"1": [["ujson", 6.717021639924496e-07, 7.829359059687704e-07], ["orjson", 2.631088870111853e-07, 4.62388165993616e-07], ["msgpack", 3.223358949762769e-07, 6.897511919960379e-07], ["msgspec msgpack", 1.1219781800173223e-07, 2.1338467899477108e-07], ["msgspec msgpack array-like", 8.444309020414948e-08, 1.779988644993864e-07], ["msgspec json", 1.4419139400706626e-07, 2.535316209832672e-07], ["msgspec json array-like", 1.1690347650437616e-07, 1.9026524299988523e-07]], "1k": [["ujson", 0.001032715715118684, 0.0015374938599416056], ["orjson", 0.00036241704699932595, 0.000918797859980259], ["msgpack", 0.0006078476320253685, 0.0012546482899051625], ["msgspec msgpack", 0.00017605937899497804, 0.0005109944079886191], ["msgspec msgpack array-like", 0.00013544270300189964, 0.0004263007240369916], ["msgspec json", 0.0002518398549873382, 0.0005371352119836957], ["msgspec json array-like", 0.00022411236297921277, 0.00042209100601030514]]}
+var results_valid = [["msgspec", 0.00024952584999846295, 0.0005602700359886513], ["pydantic", 0.018896686400694307, 0.016377520850801373], ["cattrs", 0.002034737430221867, 0.004708789379801601], ["marshmallow", 0.01409857090038713, 0.052351984195411205]]
+buildPlot('#bench-1', results["1"], "Benchmark - 1 Object");
+buildPlot('#bench-1k', results["1k"], "Benchmark - 1000 Objects");
+buildPlot('#bench-1k-validate', results_valid, "Benchmark - 1000 Objects, With Validation");
 </script></section>
 </section>
 
@@ -773,9 +782,9 @@ buildPlot('#bench-1k-validate', data["1k-valid"], "Benchmark - 1000 Objects, Wit
 <li><a class="reference internal" href="#benchmark-encoding-decoding">Benchmark - Encoding/Decoding</a><ul>
 <li><a class="reference internal" href="#object">1 Object</a></li>
 <li><a class="reference internal" href="#objects">1000 Objects</a></li>
-<li><a class="reference internal" href="#schema-validation">Schema Validation</a></li>
 </ul>
 </li>
+<li><a class="reference internal" href="#benchmark-schema-validation">Benchmark - Schema Validation</a></li>
 <li><a class="reference internal" href="#benchmark-memory-usage">Benchmark - Memory Usage</a></li>
 <li><a class="reference internal" href="#benchmark-structs">Benchmark - Structs</a></li>
 <li><a class="reference internal" href="#benchmark-garbage-collection">Benchmark - Garbage Collection</a></li>
