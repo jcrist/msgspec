@@ -621,9 +621,13 @@ already using them elsewhere, or if you have downstream code that requires a
 ``dataclasses``
 ~~~~~~~~~~~~~~~
 
-`dataclasses` map to JSON objects/MessagePack maps. During decoding, any extra
-fields are ignored. An error is raised during decoding if the type doesn't
-match or if any required fields are missing.
+`dataclasses` map to JSON objects/MessagePack maps.
+
+During encoding, all attributes without a leading underscore (``"_"``) are
+encoded.
+
+During decoding, any extra fields are ignored. An error is raised if a field's
+type doesn't match or if any required fields are missing.
 
 If a ``__post_init__`` method is defined on the dataclass, it is called after
 the object is decoded. Note that `"Init-only parameters"

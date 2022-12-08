@@ -800,9 +800,11 @@ already using them elsewhere, or if you have downstream code that requires a
 </section>
 <section id="dataclasses">
 <h3><code class="docutils literal notranslate"><span class="pre">dataclasses</span></code><a class="headerlink" href="#dataclasses" title="Permalink to this heading">#</a></h3>
-<p><a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#module-dataclasses" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses</span></code></a> map to JSON objects/MessagePack maps. During decoding, any extra
-fields are ignored. An error is raised during decoding if the type doesn’t
-match or if any required fields are missing.</p>
+<p><a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#module-dataclasses" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses</span></code></a> map to JSON objects/MessagePack maps.</p>
+<p>During encoding, all attributes without a leading underscore (<code class="docutils literal notranslate"><span class="pre">&quot;_&quot;</span></code>) are
+encoded.</p>
+<p>During decoding, any extra fields are ignored. An error is raised if a field’s
+type doesn’t match or if any required fields are missing.</p>
 <p>If a <code class="docutils literal notranslate"><span class="pre">__post_init__</span></code> method is defined on the dataclass, it is called after
 the object is decoded. Note that <a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#init-only-variables">“Init-only parameters”</a>
 (i.e. <code class="docutils literal notranslate"><span class="pre">InitVar</span></code> fields) are _not_ supported.</p>
