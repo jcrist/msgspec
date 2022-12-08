@@ -50,7 +50,6 @@ The libraries we're benchmarking are the following:
 - ``ujson`` - ujson_ with dict message types
 - ``orjson`` - orjson_ with dict message types
 - ``msgpack`` - msgpack_ with dict message types
-- ``pyrobuf`` - pyrobuf_ with protobuf message types
 - ``msgspec msgpack`` - msgspec_'s MessagePack encoding, with `msgspec.Struct`
   message types
 - ``msgspec msgpack array-like`` - msgspec_'s MessagePack encoding, with
@@ -63,7 +62,7 @@ Each benchmark creates one or more instances of a ``Person`` message, and
 serializes it/deserializes it in a loop.
 
 The full benchmark source can be found
-`here <https://github.com/jcrist/msgspec/tree/main/benchmarks>`__.
+`here <https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_encodings.py>`__.
 
 1 Object
 ^^^^^^^^
@@ -105,31 +104,37 @@ the efficiency of the encoding/decoding.
     <div id="bench-1k"></div>
 
 
-Schema Validation
-^^^^^^^^^^^^^^^^^
+Benchmark - Schema Validation
+-----------------------------
 
-The above benchmarks aren't 100% fair to ``msgspec`` or ``pyrobuf``. Both
-libraries also perform schema validation on deserialization, checking that the
-message matches the specified schema. None of the other options benchmarked
-support this natively. Instead, many users perform validation post
-deserialization using additional tools like pydantic_. Here we add the cost of
-schema validation during deserialization, using pydantic_ for all libraries
-lacking builtin validation.
+The above benchmarks aren't 100% fair to ``msgspec``, as it also performs
+schema validation on deserialization, checking that the message matches the
+specified schema. None of the other options benchmarked support this natively.
+Instead, many users perform validation post deserialization using additional
+tools like pydantic_.
 
-.. raw:: html
+Here we benchmark the following validation libraries, measuring JSON encoding
+and decoding time.
 
-    <div id="bench-1-validate"></div>
+- msgspec_
+- pydantic_
+- cattrs_
+- marshmallow_
 
+The full benchmark source can be found
+`here <https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_validation.py>`__.
 
 .. raw:: html
 
     <div id="bench-1k-validate"></div>
 
+This plot shows the performance benefit of performing type validation during
+message decoding (as done by ``msgspec``) rather than as a secondary step with
+a third-party library like pydantic_. In this benchmark ``msgspec`` is ~8x
+faster than ``cattrs``, ~45x faster than ``pydantic``, and ~80x faster than
+``marshmallow``.
 
-These plots show the performance benefit of performing type validation during
-message decoding (as done by ``msgspec`` and pyrobuf_) rather than as a
-secondary step with a third-party library like pydantic_. Validating after
-decoding is slower for two reasons:
+Validating after decoding is slower for two reasons:
 
 - It requires traversing over the entire output structure a second time (which
   can be slow due to pointer chasing)
@@ -426,11 +431,11 @@ msgpack_, and pydantic_ combined. However, the total installed binary size of
         vegaEmbed(div, spec);
     }
 
-    var data = {"1": [["ujson", 7.030435859924182e-07, 7.639844279037788e-07], ["orjson", 2.729362859972753e-07, 4.700861860765144e-07], ["msgpack", 3.361755030346103e-07, 6.437368659535423e-07], ["pyrobuf", 6.585190480109304e-07, 8.175451980205253e-07], ["msgspec msgpack", 1.1347354299505241e-07, 2.1372027799952774e-07], ["msgspec msgpack array-like", 8.304792979033664e-08, 1.827640509873163e-07], ["msgspec json", 1.491183284961153e-07, 2.529406379908323e-07], ["msgspec json array-like", 1.2631406149012035e-07, 2.012530609499663e-07]], "1k": [["ujson", 0.001102395214838907, 0.0015488704800372944], ["orjson", 0.0003646563779911958, 0.0009273472519125789], ["msgpack", 0.0006639056000858545, 0.001252785309916362], ["pyrobuf", 0.001007149354845751, 0.0012639255350222812], ["msgspec msgpack", 0.0001816850150062237, 0.0005268073680344969], ["msgspec msgpack array-like", 0.00013447317949612624, 0.00046300101198721677], ["msgspec json", 0.00026055755803827197, 0.0005569243360077962], ["msgspec json array-like", 0.00021961575601017101, 0.00044483237201347947]], "1-valid": [["ujson", 6.967446720227599e-07, 7.38570460001938e-06], ["orjson", 2.7809841802809387e-07, 7.023546079872176e-06], ["msgpack", 3.3430971595225853e-07, 7.071110340766609e-06], ["pyrobuf", 6.591738880379126e-07, 8.14532220014371e-07], ["msgspec msgpack", 1.1331076300120913e-07, 2.1414168103365227e-07], ["msgspec msgpack array-like", 8.293645720696077e-08, 1.8254028499359264e-07], ["msgspec json", 1.5054226550273598e-07, 2.4940696998965e-07], ["msgspec json array-like", 1.2410027100122535e-07, 1.9837152998661623e-07]], "1k-valid": [["ujson", 0.00129786730511114, 0.02141073290258646], ["orjson", 0.00044180043006781486, 0.02110853819758631], ["msgpack", 0.0007393227140419185, 0.02092509400099516], ["pyrobuf", 0.0012027352498262189, 0.0013232087399228476], ["msgspec msgpack", 0.00021633048250805587, 0.0006201737138908357], ["msgspec msgpack array-like", 0.00016943000350147486, 0.0005656970220152288], ["msgspec json", 0.0003191211699740961, 0.0006765304539585487], ["msgspec json array-like", 0.0002677371469908394, 0.000542826394084841]]};
-    buildPlot('#bench-1', data["1"], "Benchmark - 1 Object");
-    buildPlot('#bench-1k', data["1k"], "Benchmark - 1000 Objects");
-    buildPlot('#bench-1-validate', data["1-valid"], "Benchmark - 1 Object, With Validation");
-    buildPlot('#bench-1k-validate', data["1k-valid"], "Benchmark - 1000 Objects, With Validation");
+    var results = {"1": [["ujson", 6.717021639924496e-07, 7.829359059687704e-07], ["orjson", 2.631088870111853e-07, 4.62388165993616e-07], ["msgpack", 3.223358949762769e-07, 6.897511919960379e-07], ["msgspec msgpack", 1.1219781800173223e-07, 2.1338467899477108e-07], ["msgspec msgpack array-like", 8.444309020414948e-08, 1.779988644993864e-07], ["msgspec json", 1.4419139400706626e-07, 2.535316209832672e-07], ["msgspec json array-like", 1.1690347650437616e-07, 1.9026524299988523e-07]], "1k": [["ujson", 0.001032715715118684, 0.0015374938599416056], ["orjson", 0.00036241704699932595, 0.000918797859980259], ["msgpack", 0.0006078476320253685, 0.0012546482899051625], ["msgspec msgpack", 0.00017605937899497804, 0.0005109944079886191], ["msgspec msgpack array-like", 0.00013544270300189964, 0.0004263007240369916], ["msgspec json", 0.0002518398549873382, 0.0005371352119836957], ["msgspec json array-like", 0.00022411236297921277, 0.00042209100601030514]]}
+    var results_valid = [["msgspec", 0.00024952584999846295, 0.0005602700359886513], ["pydantic", 0.018896686400694307, 0.016377520850801373], ["cattrs", 0.002034737430221867, 0.004708789379801601], ["marshmallow", 0.01409857090038713, 0.052351984195411205]]
+    buildPlot('#bench-1', results["1"], "Benchmark - 1 Object");
+    buildPlot('#bench-1k', results["1k"], "Benchmark - 1000 Objects");
+    buildPlot('#bench-1k-validate', results_valid, "Benchmark - 1000 Objects, With Validation");
     </script>
 
 
@@ -439,9 +444,10 @@ msgpack_, and pydantic_ combined. However, the total installed binary size of
 .. _orjson: https://github.com/ijl/orjson
 .. _json: https://docs.python.org/3/library/json.html
 .. _simdjson: https://github.com/TkTech/pysimdjson
-.. _pyrobuf: https://github.com/appnexus/pyrobuf
 .. _ujson: https://github.com/ultrajson/ultrajson
 .. _attrs: https://www.attrs.org
 .. _dataclasses: https://docs.python.org/3/library/dataclasses.html
 .. _pydantic: https://pydantic-docs.helpmanual.io/
+.. _marshmallow: https://marshmallow.readthedocs.io/en/stable/index.html
+.. _cattrs: https://catt.rs/en/latest/
 .. _conda-forge: https://conda-forge.org/
