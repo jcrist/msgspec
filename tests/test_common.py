@@ -1668,6 +1668,20 @@ class TestDataclass:
         res = proto.decode(proto.encode(x))
         assert res == {"x": 1, "y": 2}
 
+    @py310_plus
+    @pytest.mark.parametrize("slots", [True, False])
+    def test_encode_dataclass_skip_leading_underscore(self, proto, slots):
+        @dataclass(slots=slots)
+        class Test:
+            x: int
+            y: int
+            _z: int
+
+        x = Test(1, 2, 3)
+        res = proto.encode(x)
+        sol = proto.encode({"x": 1, "y": 2})
+        assert res == sol
+
     def test_type_cached(self, proto):
         @dataclass
         class Ex:
