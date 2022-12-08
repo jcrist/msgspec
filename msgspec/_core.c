@@ -8945,7 +8945,7 @@ static int
 mpack_encode_object(EncoderState *self, PyObject *obj)
 {
     int status = -1;
-    Py_ssize_t size, max_size;
+    Py_ssize_t size = 0, max_size;
 
     if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
 
@@ -8957,12 +8957,10 @@ mpack_encode_object(EncoderState *self, PyObject *obj)
     PyObject *dict = PyObject_GenericGetDict(obj, NULL);
     if (MS_UNLIKELY(dict == NULL)) {
         PyErr_Clear();
-        size = 0;
         max_size = 0;
     }
     else {
         max_size = PyDict_GET_SIZE(dict);
-        size = max_size;
     }
 
     PyTypeObject *type = Py_TYPE(obj);
@@ -8979,8 +8977,15 @@ mpack_encode_object(EncoderState *self, PyObject *obj)
         PyObject *key, *val;
         Py_ssize_t pos = 0;
         while (PyDict_Next(dict, &pos, &key, &val)) {
-            if (mpack_encode(self, key) < 0) goto cleanup;
-            if (mpack_encode(self, val) < 0) goto cleanup;
+            if (MS_LIKELY(PyUnicode_CheckExact(key))) {
+                Py_ssize_t key_len;
+                const char* key_buf = unicode_str_and_size(key, &key_len);
+                if (MS_UNLIKELY(key_buf == NULL)) goto cleanup;
+                if (MS_UNLIKELY(*key_buf == '_')) continue;
+                if (MS_UNLIKELY(mpack_encode_cstr(self, key_buf, key_len) < 0)) goto cleanup;
+                if (MS_UNLIKELY(mpack_encode(self, val) < 0)) goto cleanup;
+                size++;
+            }
         }
     }
     /* Then encode everything in slots */
@@ -8990,19 +8995,20 @@ mpack_encode_object(EncoderState *self, PyObject *obj)
         if (n) {
             PyMemberDef *mp = MS_PyHeapType_GET_MEMBERS((PyHeapTypeObject *)type);
             for (Py_ssize_t i = 0; i < n; i++, mp++) {
-                if (mp->type == T_OBJECT_EX && !(mp->flags & READONLY)) {
+                if (MS_LIKELY(mp->type == T_OBJECT_EX && !(mp->flags & READONLY))) {
                     char *addr = (char *)obj + mp->offset;
                     PyObject *val = *(PyObject **)addr;
-                    if (val == NULL) continue;
-                    if (mpack_encode_cstr(self, mp->name, strlen(mp->name)) < 0) goto cleanup;
-                    if (mpack_encode(self, val) < 0) goto cleanup;
+                    if (MS_UNLIKELY(val == NULL)) continue;
+                    if (MS_UNLIKELY(*mp->name == '_')) continue;
+                    if (MS_UNLIKELY(mpack_encode_cstr(self, mp->name, strlen(mp->name)) < 0)) goto cleanup;
+                    if (MS_UNLIKELY(mpack_encode(self, val) < 0)) goto cleanup;
                     size++;
                 }
             }
         }
         type = type->tp_base;
     }
-    if (size != max_size) {
+    if (MS_UNLIKELY(size != max_size)) {
         /* Some fields were NULL, need to adjust header. We write the header
          * using the width type of `max_size`, but the value of `size`. */
         char *header_loc = self->output_buffer_raw + header_offset;
@@ -9927,14 +9933,16 @@ json_encode_object(EncoderState *self, PyObject *obj)
         PyObject *key, *val;
         Py_ssize_t pos = 0;
         while (PyDict_Next(dict, &pos, &key, &val)) {
-            if (!PyUnicode_CheckExact(key)) {
-                PyErr_SetString(PyExc_TypeError, "dict keys must be strings");
-                goto cleanup;
+            if (MS_LIKELY(PyUnicode_CheckExact(key))) {
+                Py_ssize_t key_len;
+                const char* key_buf = unicode_str_and_size(key, &key_len);
+                if (MS_UNLIKELY(key_buf == NULL)) goto cleanup;
+                if (MS_UNLIKELY(*key_buf == '_')) continue;
+                if (MS_UNLIKELY(json_encode_cstr(self, key_buf, key_len) < 0)) goto cleanup;
+                if (MS_UNLIKELY(ms_write(self, ":", 1) < 0)) goto cleanup;
+                if (MS_UNLIKELY(json_encode(self, val) < 0)) goto cleanup;
+                if (MS_UNLIKELY(ms_write(self, ",", 1) < 0)) goto cleanup;
             }
-            if (json_encode_str_nocheck(self, key) < 0) goto cleanup;
-            if (ms_write(self, ":", 1) < 0) goto cleanup;
-            if (json_encode(self, val) < 0) goto cleanup;
-            if (ms_write(self, ",", 1) < 0) goto cleanup;
         }
     }
     /* Then encode everything in slots */
@@ -9944,14 +9952,15 @@ json_encode_object(EncoderState *self, PyObject *obj)
         if (n) {
             PyMemberDef *mp = MS_PyHeapType_GET_MEMBERS((PyHeapTypeObject *)type);
             for (Py_ssize_t i = 0; i < n; i++, mp++) {
-                if (mp->type == T_OBJECT_EX && !(mp->flags & READONLY)) {
+                if (MS_LIKELY(mp->type == T_OBJECT_EX && !(mp->flags & READONLY))) {
                     char *addr = (char *)obj + mp->offset;
                     PyObject *val = *(PyObject **)addr;
-                    if (val == NULL) continue;
-                    if (json_encode_cstr(self, mp->name, strlen(mp->name)) < 0) goto cleanup;
-                    if (ms_write(self, ":", 1) < 0) goto cleanup;
-                    if (json_encode(self, val) < 0) goto cleanup;
-                    if (ms_write(self, ",", 1) < 0) goto cleanup;
+                    if (MS_UNLIKELY(val == NULL)) continue;
+                    if (MS_UNLIKELY(*mp->name == '_')) continue;
+                    if (MS_UNLIKELY(json_encode_cstr(self, mp->name, strlen(mp->name)) < 0)) goto cleanup;
+                    if (MS_UNLIKELY(ms_write(self, ":", 1) < 0)) goto cleanup;
+                    if (MS_UNLIKELY(json_encode(self, val) < 0)) goto cleanup;
+                    if (MS_UNLIKELY(ms_write(self, ",", 1) < 0)) goto cleanup;
                 }
             }
         }
