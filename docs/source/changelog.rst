@@ -3,6 +3,25 @@ Changelog
 
 .. currentmodule:: msgspec
 
+Version 0.10.0 (2022-12-07)
+---------------------------
+
+- Add ``forbid_unknown_fields`` configuration option to `Struct` types (:pr:`210`)
+- **BREAKING**: Encode all `enum` types by value, rather than name (:pr:`211`)
+- Fix a bug in the JSON encoder when base64 encoding binary objects (:pr:`217`)
+- Add support for encoding/decoding `dataclasses` (:pr:`218`)
+- Add support for encoding/decoding `datetime.date` objects (:pr:`221`)
+- Add support for encoding/decoding `uuid.UUID` objects (:pr:`222`)
+- **BREAKING**: support encoding/decoding `datetime.datetime` values without
+  timezones by default (:pr:`224`).
+- Add a ``tz`` :doc:`constraint <constraints>` to require aware or naive
+  datetime/time objects when decoding (:pr:`224`).
+- Add support for encoding/decoding `datetime.time` objects (:pr:`225`)
+- Add a `msgspec.json.format` utility for efficiently pretty-printing already
+  encoded JSON documents (:pr:`226`).
+- Support decoding JSON from strings instead of just bytes-like objects
+  (:pr:`229`)
+
 Version 0.9.1 (2022-10-27)
 --------------------------
 
@@ -71,9 +90,9 @@ Version 0.7.0 (2022-06-20)
 - Fix ARM support and publish ARM wheels for Linux and Mac (:pr:`104`).
 - Reduce published wheel sizes by stripping debug symbols (:pr:`113`).
 - Fix a memory leak in ``Struct.__reduce__`` (:pr:`117`).
-- Rename ``nogc`` struct option to ``gc`` (a breaking change). To disable GC on
-  a Struct instance you now want to specify ``gc=False`` instead of
-  ``nogc=True`` (:pr:`124`).
+- **BREAKING**: Rename ``nogc`` struct option to ``gc``. To disable GC on a
+  Struct instance you now want to specify ``gc=False`` instead of ``nogc=True``
+  (:pr:`124`).
 
 
 Version 0.6.0 (2022-04-06)
@@ -119,8 +138,7 @@ Version 0.5.0 (2022-03-09)
   and call ``decoder.decode`` multiple times, but for struct types the overhead
   of calling the top-level function is decreased significantly (:pr:`77`,
   :pr:`88`).
-- Rename the Struct option ``asarray`` to ``array_like`` (a breaking change)
-  (:pr:`85`).
+- **BREAKING**: Rename the Struct option ``asarray`` to ``array_like`` (:pr:`85`).
 
 
 Version 0.4.2 (2022-02-28)
