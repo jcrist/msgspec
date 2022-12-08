@@ -249,6 +249,26 @@
         <article role="main">
           <section id="changelog">
 <h1>Changelog<a class="headerlink" href="#changelog" title="Permalink to this heading">#</a></h1>
+<section id="version-0-10-0-2022-12-07">
+<h2>Version 0.10.0 (2022-12-07)<a class="headerlink" href="#version-0-10-0-2022-12-07" title="Permalink to this heading">#</a></h2>
+<ul class="simple">
+<li><p>Add <code class="docutils literal notranslate"><span class="pre">forbid_unknown_fields</span></code> configuration option to <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code></a> types (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/210">PR #210</a>)</p></li>
+<li><p><strong>BREAKING</strong>: Encode all <a class="reference external" href="https://docs.python.org/3/library/enum.html#module-enum" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enum</span></code></a> types by value, rather than name (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/211">PR #211</a>)</p></li>
+<li><p>Fix a bug in the JSON encoder when base64 encoding binary objects (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/217">PR #217</a>)</p></li>
+<li><p>Add support for encoding/decoding <a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#module-dataclasses" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses</span></code></a> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/218">PR #218</a>)</p></li>
+<li><p>Add support for encoding/decoding <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.date" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.date</span></code></a> objects (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/221">PR #221</a>)</p></li>
+<li><p>Add support for encoding/decoding <a class="reference external" href="https://docs.python.org/3/library/uuid.html#uuid.UUID" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">uuid.UUID</span></code></a> objects (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/222">PR #222</a>)</p></li>
+<li><p><strong>BREAKING</strong>: support encoding/decoding <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.datetime" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.datetime</span></code></a> values without
+timezones by default (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/224">PR #224</a>).</p></li>
+<li><p>Add a <code class="docutils literal notranslate"><span class="pre">tz</span></code> <a class="reference internal" href="constraints.html"><span class="doc">constraint</span></a> to require aware or naive
+datetime/time objects when decoding (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/224">PR #224</a>).</p></li>
+<li><p>Add support for encoding/decoding <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.time" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.time</span></code></a> objects (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/225">PR #225</a>)</p></li>
+<li><p>Add a <a class="reference internal" href="api.html#msgspec.json.format" title="msgspec.json.format"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.json.format</span></code></a> utility for efficiently pretty-printing already
+encoded JSON documents (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/226">PR #226</a>).</p></li>
+<li><p>Support decoding JSON from strings instead of just bytes-like objects
+(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/229">PR #229</a>)</p></li>
+</ul>
+</section>
 <section id="version-0-9-1-2022-10-27">
 <h2>Version 0.9.1 (2022-10-27)<a class="headerlink" href="#version-0-9-1-2022-10-27" title="Permalink to this heading">#</a></h2>
 <ul class="simple">
@@ -318,9 +338,9 @@ runtime (<a class="reference external" href="https://github.com/jcrist/msgspec/p
 <li><p>Fix ARM support and publish ARM wheels for Linux and Mac (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/104">PR #104</a>).</p></li>
 <li><p>Reduce published wheel sizes by stripping debug symbols (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/113">PR #113</a>).</p></li>
 <li><p>Fix a memory leak in <code class="docutils literal notranslate"><span class="pre">Struct.__reduce__</span></code> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/117">PR #117</a>).</p></li>
-<li><p>Rename <code class="docutils literal notranslate"><span class="pre">nogc</span></code> struct option to <code class="docutils literal notranslate"><span class="pre">gc</span></code> (a breaking change). To disable GC on
-a Struct instance you now want to specify <code class="docutils literal notranslate"><span class="pre">gc=False</span></code> instead of
-<code class="docutils literal notranslate"><span class="pre">nogc=True</span></code> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/124">PR #124</a>).</p></li>
+<li><p><strong>BREAKING</strong>: Rename <code class="docutils literal notranslate"><span class="pre">nogc</span></code> struct option to <code class="docutils literal notranslate"><span class="pre">gc</span></code>. To disable GC on a
+Struct instance you now want to specify <code class="docutils literal notranslate"><span class="pre">gc=False</span></code> instead of <code class="docutils literal notranslate"><span class="pre">nogc=True</span></code>
+(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/124">PR #124</a>).</p></li>
 </ul>
 </section>
 <section id="version-0-6-0-2022-04-06">
@@ -360,8 +380,7 @@ with <code class="docutils literal notranslate"><span class="pre">type=SomeStruc
 and call <code class="docutils literal notranslate"><span class="pre">decoder.decode</span></code> multiple times, but for struct types the overhead
 of calling the top-level function is decreased significantly (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/77">PR #77</a>,
 <a class="reference external" href="https://github.com/jcrist/msgspec/pull/88">PR #88</a>).</p></li>
-<li><p>Rename the Struct option <code class="docutils literal notranslate"><span class="pre">asarray</span></code> to <code class="docutils literal notranslate"><span class="pre">array_like</span></code> (a breaking change)
-(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/85">PR #85</a>).</p></li>
+<li><p><strong>BREAKING</strong>: Rename the Struct option <code class="docutils literal notranslate"><span class="pre">asarray</span></code> to <code class="docutils literal notranslate"><span class="pre">array_like</span></code> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/85">PR #85</a>).</p></li>
 </ul>
 </section>
 <section id="version-0-4-2-2022-02-28">
@@ -503,6 +522,7 @@ faster decoding.</p></li>
           <div class="toc-tree">
             <ul>
 <li><a class="reference internal" href="#">Changelog</a><ul>
+<li><a class="reference internal" href="#version-0-10-0-2022-12-07">Version 0.10.0 (2022-12-07)</a></li>
 <li><a class="reference internal" href="#version-0-9-1-2022-10-27">Version 0.9.1 (2022-10-27)</a></li>
 <li><a class="reference internal" href="#version-0-9-0-2022-09-13">Version 0.9.0 (2022-09-13)</a></li>
 <li><a class="reference internal" href="#version-0-8-0-2022-08-01">Version 0.8.0 (2022-08-01)</a></li>
