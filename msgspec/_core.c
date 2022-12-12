@@ -5722,78 +5722,111 @@ Struct_fill_in_defaults(StructMetaObject *st_type, PyObject *obj, PathNode *path
 
 static PyObject *
 Struct_vectorcall(PyTypeObject *cls, PyObject *const *args, size_t nargsf, PyObject *kwnames) {
-    PyObject *self, *fields, *defaults, *field, *val;
-    Py_ssize_t nargs, nkwargs, nfields, ndefaults, npos, i;
-    bool is_gc, should_untrack;
+    Py_ssize_t nargs = PyVectorcall_NARGS(nargsf);
+    Py_ssize_t nkwargs = (kwnames == NULL) ? 0 : PyTuple_GET_SIZE(kwnames);
 
-    self = Struct_alloc(cls);
-    if (self == NULL)
+    StructMetaObject *st_type = (StructMetaObject *)cls;
+    PyObject *fields = st_type->struct_fields;
+    Py_ssize_t nfields = PyTuple_GET_SIZE(fields);
+    PyObject *defaults = st_type->struct_defaults;
+    Py_ssize_t ndefaults = PyTuple_GET_SIZE(defaults);
+    Py_ssize_t npos = nfields - ndefaults;
+
+    if (MS_UNLIKELY(nargs > nfields)) {
+        PyErr_SetString(PyExc_TypeError, "Extra positional arguments provided");
         return NULL;
-
-    fields = StructMeta_GET_FIELDS(Py_TYPE(self));
-    defaults = StructMeta_GET_DEFAULTS(Py_TYPE(self));
-
-    nargs = PyVectorcall_NARGS(nargsf);
-    nkwargs = (kwnames == NULL) ? 0 : PyTuple_GET_SIZE(kwnames);
-    ndefaults = PyTuple_GET_SIZE(defaults);
-    nfields = PyTuple_GET_SIZE(fields);
-    npos = nfields - ndefaults;
-
-    if (nargs > nfields) {
-        PyErr_SetString(
-            PyExc_TypeError,
-            "Extra positional arguments provided"
-        );
-        goto error;
     }
 
-    is_gc = MS_TYPE_IS_GC(cls);
-    should_untrack = is_gc;
+    bool is_gc = MS_TYPE_IS_GC(cls);
+    bool should_untrack = is_gc;
 
-    for (i = 0; i < nfields; i++) {
-        field = PyTuple_GET_ITEM(fields, i);
-        val = (nkwargs == 0) ? NULL : find_keyword(kwnames, args + nargs, field);
-        if (val != NULL) {
-            if (i < nargs) {
-                PyErr_Format(
-                    PyExc_TypeError,
-                    "Argument '%U' given by name and position",
-                    field
-                );
-                goto error;
-            }
-            Py_INCREF(val);
-            nkwargs -= 1;
-        }
-        else if (i < nargs) {
-            val = args[i];
-            Py_INCREF(val);
-        }
-        else if (i < npos) {
-            PyErr_Format(
-                PyExc_TypeError,
-                "Missing required argument '%U'",
-                field
-            );
-            goto error;
-        }
-        else {
-            val = maybe_deepcopy_default(PyTuple_GET_ITEM(defaults, i - npos));
-            if (val == NULL)
-                goto error;
-        }
-        Struct_set_index(self, i, val);
+    PyObject *self = Struct_alloc(cls);
+    if (self == NULL) return NULL;
+
+    /* First, process all positional arguments */
+    for (Py_ssize_t i = 0; i < nargs; i++) {
+        PyObject *val = args[i];
+        char *addr = (char *)self + st_type->struct_offsets[i];
+        Py_INCREF(val);
+        *(PyObject **)addr = val;
         if (should_untrack) {
             should_untrack = !MS_OBJ_IS_GC(val);
         }
     }
-    if (nkwargs > 0) {
-        PyErr_SetString(
-            PyExc_TypeError,
-            "Extra keyword arguments provided"
-        );
+
+    /* Next, process all kwargs */
+    for (Py_ssize_t i = 0; i < nkwargs; i++) {
+        char *addr;
+        PyObject *val;
+        Py_ssize_t field_index;
+        PyObject *kwname = PyTuple_GET_ITEM(kwnames, i);
+
+        /* Since keyword names are interned, first loop with pointer
+         * comparisons only. */
+        for (field_index = nargs; field_index < nfields; field_index++) {
+            PyObject *field = PyTuple_GET_ITEM(fields, field_index);
+            if (MS_LIKELY(kwname == field)) goto kw_found;
+        }
+
+        /* Fast path failed. It's more likely that this is an invalid kwarg
+         * than that the kwname wasn't interned. Loop from 0 this time to also
+         * check for parameters passed both as arg and kwarg */
+        for (field_index = 0; field_index < nfields; field_index++) {
+            PyObject *field = PyTuple_GET_ITEM(fields, field_index);
+            if (_PyUnicode_EQ(kwname, field)) {
+                if (MS_UNLIKELY(field_index < nargs)) {
+                    PyErr_Format(
+                        PyExc_TypeError,
+                        "Argument '%U' given by name and position",
+                        kwname
+                    );
+                    goto error;
+                }
+                goto kw_found;
+            }
+        }
+
+        /* Unknown keyword */
+        PyErr_SetString(PyExc_TypeError, "Extra keyword arguments provided");
         goto error;
+
+kw_found:
+        val = args[i + nargs];
+        addr = (char *)self + st_type->struct_offsets[field_index];
+        Py_INCREF(val);
+        *(PyObject **)addr = val;
+        if (should_untrack) {
+            should_untrack = !MS_OBJ_IS_GC(val);
+        }
     }
+
+    /* Finally, fill in missing defaults */
+    if (nargs + nkwargs < nfields) {
+        for (Py_ssize_t field_index = nargs; field_index < nfields; field_index++) {
+            char *addr = (char *)self + st_type->struct_offsets[field_index];
+            if (MS_LIKELY(*(PyObject **)addr == NULL)) {
+                if (MS_LIKELY(field_index >= npos)) {
+                    PyObject *val = maybe_deepcopy_default(
+                        PyTuple_GET_ITEM(defaults, field_index - npos)
+                    );
+                    if (val == NULL) goto error;
+                    *(PyObject **)addr = val;
+                    if (should_untrack) {
+                        should_untrack = !MS_OBJ_IS_GC(val);
+                    }
+                }
+                else {
+                    PyErr_Format(
+                        PyExc_TypeError,
+                        "Missing required argument '%U'",
+                        PyTuple_GET_ITEM(fields, field_index)
+                    );
+                    goto error;
+                }
+            }
+        }
+    }
+
     if (is_gc && !should_untrack)
         PyObject_GC_Track(self);
     return self;
