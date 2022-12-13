@@ -1798,19 +1798,35 @@ class TestDict:
         x2 = msgspec.json.decode(s)
         assert x == x2
 
-    def test_decode_typed_dict_wrong_element_type(self):
+    def test_decode_dict_wrong_element_type(self):
         dec = msgspec.json.Decoder(Dict[str, int])
         with pytest.raises(
             msgspec.ValidationError, match=r"Expected `int`, got `str` - at `\$\[...\]`"
         ):
             dec.decode(b'{"a": "bad"}')
 
-    def test_decode_typed_dict_literal_key(self):
+    def test_decode_dict_literal_key(self):
         dec = msgspec.json.Decoder(Dict[Literal["a", "b"], int])
         assert dec.decode(b'{"a": 1, "b": 2}') == {"a": 1, "b": 2}
 
         with pytest.raises(msgspec.ValidationError, match="Invalid enum value 'c'"):
             dec.decode(b'{"a": 1, "c": 2}')
+
+    def test_decode_dict_key_constraints(self):
+        try:
+            from typing import Annotated
+        except ImportError:
+            pytest.skip("Annotated types not available")
+
+        dec = msgspec.json.Decoder(
+            Dict[Annotated[str, msgspec.Meta(min_length=3)], int]
+        )
+        assert dec.decode(b'{"abc": 1, "def": 2}') == {"abc": 1, "def": 2}
+
+        with pytest.raises(
+            msgspec.ValidationError, match="Expected `str` of length >= 3"
+        ):
+            dec.decode(b'{"a": 1}')
 
     @pytest.mark.parametrize("length", [3, 32, 33])
     def test_decode_dict_string_cache(self, length):
