@@ -11121,10 +11121,8 @@ mpack_decode_namedtuple(
         PyTuple_SET_ITEM(res, i, item);
     }
     for (Py_ssize_t i = size; i < nfields; i++) {
-        PyObject *item = maybe_deepcopy_default(
-            PyTuple_GET_ITEM(info->defaults, i - nrequired)
-        );
-        if (item == NULL) goto error;
+        PyObject *item = PyTuple_GET_ITEM(info->defaults, i - nrequired);
+        Py_INCREF(item);
         PyTuple_SET_ITEM(res, i, item);
     }
     Py_LeaveRecursiveCall();
@@ -13324,10 +13322,8 @@ json_decode_namedtuple(JSONDecoderState *self, TypeNode *type, PathNode *path) {
 
     /* Fill in defaults */
     for (; i < nfields; i++) {
-        PyObject *item = maybe_deepcopy_default(
-            PyTuple_GET_ITEM(info->defaults, i - nrequired)
-        );
-        if (item == NULL) goto error;
+        PyObject *item = PyTuple_GET_ITEM(info->defaults, i - nrequired);
+        Py_INCREF(item);
         PyTuple_SET_ITEM(out, i, item);
     }
 
