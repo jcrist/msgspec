@@ -284,7 +284,7 @@ class TestStructParameterOrdering:
 
         assert Test.__struct_fields__ == ("b", "a")
         assert Test.__struct_defaults__ == ()
-        assert Test.__match_args__ == ("b", "a")
+        assert Test.__match_args__ == ()
         assert Test.__slots__ == ("a", "b")
 
     def test_kw_only_mixed(self):
@@ -296,7 +296,7 @@ class TestStructParameterOrdering:
 
         assert Test.__struct_fields__ == ("b", "a", "c", "d")
         assert Test.__struct_defaults__ == (0, nodefault, 1)
-        assert Test.__match_args__ == ("b", "a", "c", "d")
+        assert Test.__match_args__ == ()
         assert Test.__slots__ == ("a", "b", "c", "d")
 
     def test_kw_only_positional_base_class(self):
@@ -314,12 +314,12 @@ class TestStructParameterOrdering:
 
         assert S1.__struct_fields__ == ("d", "c", "b", "a")
         assert S1.__struct_defaults__ == ()
-        assert S1.__match_args__ == ("d", "c", "b", "a")
+        assert S1.__match_args__ == ("d", "c")
         assert S1.__slots__ == ("c", "d")
 
         assert S2.__struct_fields__ == ("d", "c", "b", "a")
         assert S2.__struct_defaults__ == (1, nodefault, nodefault)
-        assert S2.__match_args__ == ("d", "c", "b", "a")
+        assert S2.__match_args__ == ("d", "c")
         assert S2.__slots__ == ("c", "d")
 
     def test_kw_only_base_class(self):
@@ -333,7 +333,7 @@ class TestStructParameterOrdering:
 
         assert S1.__struct_fields__ == ("d", "c", "b", "a")
         assert S1.__struct_defaults__ == (2, 1, nodefault)
-        assert S1.__match_args__ == ("d", "c", "b", "a")
+        assert S1.__match_args__ == ("d", "c")
         assert S1.__slots__ == ("c", "d")
 
     def test_kw_only_subclass(self):
@@ -347,7 +347,7 @@ class TestStructParameterOrdering:
 
         assert S1.__struct_fields__ == ("b", "a", "d", "c")
         assert S1.__struct_defaults__ == ()
-        assert S1.__match_args__ == ("b", "a", "d", "c")
+        assert S1.__match_args__ == ("b", "a")
         assert S1.__slots__ == ("c", "d")
 
     def test_kw_only_defaults_subclass(self):
@@ -361,7 +361,7 @@ class TestStructParameterOrdering:
 
         assert S1.__struct_fields__ == ("b", "a", "d", "c")
         assert S1.__struct_defaults__ == (0, nodefault, 1)
-        assert S1.__match_args__ == ("b", "a", "d", "c")
+        assert S1.__match_args__ == ("b", "a")
         assert S1.__slots__ == ("c", "d")
 
     def test_kw_only_overrides(self):
@@ -375,7 +375,7 @@ class TestStructParameterOrdering:
 
         assert S1.__struct_fields__ == ("a", "b", "c")
         assert S1.__struct_defaults__ == (2, nodefault, 3)
-        assert S1.__match_args__ == ("a", "b", "c")
+        assert S1.__match_args__ == ("a",)
         assert S1.__slots__ == ("c",)
 
     def test_kw_only_overridden(self):
@@ -389,7 +389,7 @@ class TestStructParameterOrdering:
 
         assert S1.__struct_fields__ == ("b", "c", "a")
         assert S1.__struct_defaults__ == (3, 2)
-        assert S1.__match_args__ == ("b", "c", "a")
+        assert S1.__match_args__ == ("b", "c")
         assert S1.__slots__ == ("c",)
 
 
