@@ -91,6 +91,85 @@ for converting a struct to a dict.
     {"x": 1.0, "y": 2.0}
 
 
+Field Ordering
+--------------
+
+When defining a new struct type, fields are stored in the order they're defined
+(keyword-only fields excluded, more on this later). This is nice for
+readability since the generated ``__init__`` matches the field order.
+
+.. code-block:: python
+
+    class Example(msgspec.Struct):
+        a: str
+        b: int = 0
+
+The generated ``__init__()`` for ``User`` looks like:
+
+.. code-block:: python
+
+    def __init__(self, a: str, b: int = 0):
+
+One consequence of this is that you can't put fields without defaults after
+fields with defaults, since the Python VM doesn't allow keyword arguments
+before positional arguments. The following struct definition will error:
+
+.. code-block:: python
+
+   >>> class Invalid(msgspec.Struct):
+   ...     a: str = ""
+   ...     b: int  # oop, no default!
+   Traceback (most recent call last):
+     File "<stdin>", line 1, in <module>
+   TypeError: Required field 'b' cannot follow optional fields. Either reorder
+   the struct fields, or set `kw_only=True` in the struct definition.
+
+Thankfully the error message includes some solutions:
+
+- Reorder the struct fields, putting all required fields before all optional
+  fields.
+
+- Set ``kw_only=True`` in the struct definition. This option makes all fields
+  defined on the struct `keyword-only parameters`_.
+
+Keyword-only parameters have no such restriction; required and optional
+parameters can be mixed in any order.
+
+.. code-block:: python
+
+   >>> class Example(msgspec.Struct, kw_only=True):
+   ...     a: str = ""
+   ...     b: int  # this is fine with kw_only=True
+
+   >>> Example(a="example", b=123)
+   Example(a='example', b=123)
+
+Note that the ``kw_only`` setting only affects fields defined on that class,
+*not* those defined on base or subclasses. This means you can define
+keyword-only parameters on a base class then add positional parameters in a
+subclass. All keyword-only parameters are reordered to go after all positional
+fields.
+
+.. code-block:: python
+
+   >>> class Base(msgspec.Struct, kw_only=True):
+   ...     a: str = ""
+   ...     b: int
+
+   >>> class Subclass(Base):
+   ...     c: float
+   ...     d: bytes = b""
+
+The generated ``__init__()`` for ``Subclass`` looks like:
+
+.. code-block:: python
+
+    def __init__(self, c: float, d: bytes = b"", * a: str, b: int = 0):
+
+The field ordering rules for ``Struct`` types are identical to those for
+`dataclasses`, see the `dataclasses docs <dataclasses>`_ for more information.
+
+
 Type Validation
 ---------------
 
@@ -738,3 +817,4 @@ collected (leading to a memory leak).
 .. _cyclic garbage collector: https://devguide.python.org/garbage_collector/
 .. _tagged unions: https://en.wikipedia.org/wiki/Tagged_union
 .. _rich: https://rich.readthedocs.io/en/stable/pretty.html
+.. _keyword-only parameters: https://docs.python.org/3/glossary.html#term-parameter
