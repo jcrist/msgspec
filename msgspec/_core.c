@@ -1787,7 +1787,7 @@ static PyMethodDef nodefault_methods[] = {
 };
 
 PyTypeObject NoDefault_Type = {
-    PyVarObject_HEAD_INIT(&PyType_Type, 0)
+    PyVarObject_HEAD_INIT(NULL, 0)
     .tp_name = "msgspec._core.NoDefault",
     .tp_repr = nodefault_repr,
     .tp_flags = Py_TPFLAGS_DEFAULT,
