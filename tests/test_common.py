@@ -1299,7 +1299,7 @@ class TestTypedDict:
     def test_type_errors_not_json(self, msgpack_first, wrap):
         class Ex(TypedDict):
             a: int
-            b: Dict[int, int]
+            b: Dict[float, int]
 
         if wrap:
             typ = TypedDict("Test", {"x": Ex})
@@ -1315,7 +1315,7 @@ class TestTypedDict:
                 msg = {"x": msg}
             assert dec.decode(msgspec.msgpack.encode(msg)) == msg
 
-        with pytest.raises(TypeError, match="JSON doesn't support"):
+        with pytest.raises(TypeError, match="Only dicts with `str` or `int` keys"):
             msgspec.json.Decoder(typ)
 
         if msgpack_first:
@@ -1352,7 +1352,7 @@ class TestTypedDict:
         class Ex(TypedDict):
             a: int
             b: Union[Ex, None]
-            c: Dict[int, int]
+            c: Dict[float, int]
         """
         with temp_module(source) as mod:
             if msgpack_first:
@@ -1362,7 +1362,7 @@ class TestTypedDict:
                 msg = {"a": 1, "b": None, "c": {1: 2}}
                 assert dec.decode(msgspec.msgpack.encode(msg)) == msg
 
-            with pytest.raises(TypeError, match="JSON doesn't support"):
+            with pytest.raises(TypeError, match="Only dicts with `str` or `int` keys"):
                 msgspec.json.Decoder(mod.Ex)
 
             if msgpack_first:
@@ -1517,7 +1517,7 @@ class TestNamedTuple:
     def test_type_errors_not_json(self, msgpack_first, wrap):
         class Ex(NamedTuple):
             a: int
-            b: Dict[int, int]
+            b: Dict[float, int]
 
         if wrap:
             typ = TypedDict("Test", {"x": Ex})
@@ -1533,7 +1533,7 @@ class TestNamedTuple:
                 msg = {"x": msg}
             assert dec.decode(msgspec.msgpack.encode(msg)) == msg
 
-        with pytest.raises(TypeError, match="JSON doesn't support"):
+        with pytest.raises(TypeError, match="Only dicts with `str` or `int` keys"):
             msgspec.json.Decoder(typ)
 
         if msgpack_first:
@@ -1570,7 +1570,7 @@ class TestNamedTuple:
         class Ex(NamedTuple):
             a: int
             b: Union[Ex, None]
-            c: Dict[int, int]
+            c: Dict[float, int]
         """
         with temp_module(source) as mod:
             if msgpack_first:
@@ -1580,7 +1580,7 @@ class TestNamedTuple:
                 msg = mod.Ex(1, None, {1: 2})
                 assert dec.decode(msgspec.msgpack.encode(msg)) == msg
 
-            with pytest.raises(TypeError, match="JSON doesn't support"):
+            with pytest.raises(TypeError, match="Only dicts with `str` or `int` keys"):
                 msgspec.json.Decoder(mod.Ex)
 
             if msgpack_first:
@@ -1793,7 +1793,7 @@ class TestDataclass:
         @dataclass
         class Ex:
             a: int
-            b: Dict[int, int]
+            b: Dict[float, int]
 
         if wrap:
             typ = TypedDict("Test", {"x": Ex})
@@ -1809,7 +1809,7 @@ class TestDataclass:
                 msg = {"x": msg}
             assert dec.decode(msgspec.msgpack.encode(msg)) == msg
 
-        with pytest.raises(TypeError, match="JSON doesn't support"):
+        with pytest.raises(TypeError, match="Only dicts with `str` or `int` keys"):
             msgspec.json.Decoder(typ)
 
         if msgpack_first:
@@ -1850,7 +1850,7 @@ class TestDataclass:
         class Ex:
             a: int
             b: Union[Ex, None]
-            c: Dict[int, int]
+            c: Dict[float, int]
         """
         with temp_module(source) as mod:
             if msgpack_first:
@@ -1860,7 +1860,7 @@ class TestDataclass:
                 msg = mod.Ex(a=1, b=None, c={1: 2})
                 assert dec.decode(msgspec.msgpack.encode(msg)) == msg
 
-            with pytest.raises(TypeError, match="JSON doesn't support"):
+            with pytest.raises(TypeError, match="Only dicts with `str` or `int` keys"):
                 msgspec.json.Decoder(mod.Ex)
 
             if msgpack_first:

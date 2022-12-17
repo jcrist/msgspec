@@ -35,6 +35,11 @@ from utils import temp_module
 UTC = datetime.timezone.utc
 
 
+class FruitInt(enum.IntEnum):
+    APPLE = -1
+    BANANA = 2
+
+
 class FruitStr(enum.Enum):
     APPLE = "apple"
     BANANA = "banana"
@@ -89,11 +94,11 @@ class TestInvalidJSONTypes:
 
     def test_invalid_type_dict_non_str_key(self):
         with pytest.raises(TypeError, match="not supported"):
-            msgspec.json.Decoder(Dict[int, int])
+            msgspec.json.Decoder(Dict[float, int])
 
     def test_invalid_type_in_collection(self):
         with pytest.raises(TypeError, match="not supported"):
-            msgspec.json.Decoder(List[Union[int, Dict[int, int]]])
+            msgspec.json.Decoder(List[Union[int, Dict[float, int]]])
 
         with pytest.raises(TypeError, match="not supported"):
             msgspec.json.Decoder(List[Dict[str, Union[int, str, bytes]]])
@@ -102,7 +107,7 @@ class TestInvalidJSONTypes:
     def test_invalid_dict_type_in_struct(self, preinit):
         class Test(msgspec.Struct):
             a: int
-            b: Dict[int, str]
+            b: Dict[float, str]
             c: str
 
         if preinit:
@@ -145,7 +150,7 @@ class TestInvalidJSONTypes:
         from typing import List, Dict
 
         class Inner(msgspec.Struct):
-            a: List[Dict[int, int]]
+            a: List[Dict[float, int]]
             b: int
 
         class Outer(msgspec.Struct):
@@ -181,7 +186,7 @@ class TestInvalidJSONTypes:
             y: Optional[C]
 
         class C(msgspec.Struct):
-            x: Optional[Dict[int, int]]
+            x: Optional[Dict[float, int]]
             y: Optional[A]
         """
 
@@ -473,7 +478,7 @@ class TestDecodeFunction:
 
     def test_decode_type_struct_not_json_compatible(self):
         class Test(msgspec.Struct):
-            x: Dict[int, str]
+            x: Dict[float, str]
 
         with pytest.raises(TypeError, match="not supported"):
             msgspec.json.decode(b'{"x": {1: "two"}}', type=Test)
@@ -1770,9 +1775,11 @@ class TestNamedTuple:
 
 
 class TestDict:
-    def test_encode_dict_raises_non_string_keys(self):
-        with pytest.raises(TypeError, match="dict keys must be strings"):
-            msgspec.json.encode({"a": 1, 2: "bad"})
+    def test_encode_dict_raises_non_string_or_int_keys(self):
+        with pytest.raises(
+            TypeError, match="Only dicts with `str` or `int` keys are supported"
+        ):
+            msgspec.json.encode({"a": 1, 2.5: "bad"})
 
     @pytest.mark.parametrize("x", [{}, {"a": 1}, {"a": 1, "b": 2}])
     def test_roundtrip_dict(self, x):
@@ -1812,7 +1819,19 @@ class TestDict:
         with pytest.raises(msgspec.ValidationError, match="Invalid enum value 'c'"):
             dec.decode(b'{"a": 1, "c": 2}')
 
-    def test_decode_dict_key_constraints(self):
+    def test_decode_dict_enum_key(self):
+        dec = msgspec.json.Decoder(Dict[FruitStr, int])
+        assert dec.decode(b'{"apple": 1, "banana": 2}') == {
+            FruitStr.APPLE: 1,
+            FruitStr.BANANA: 2,
+        }
+
+        with pytest.raises(
+            msgspec.ValidationError, match="Invalid enum value 'carrot'"
+        ):
+            dec.decode(b'{"apple": 1, "carrot": 2}')
+
+    def test_decode_dict_str_key_constraints(self):
         try:
             from typing import Annotated
         except ImportError:
@@ -1847,6 +1866,82 @@ class TestDict:
         res = msgspec.json.decode(msgspec.json.encode(msg))
         ids = {id(k) for d in res for k in d.keys()}
         assert len(ids) == 3
+
+    def test_decode_dict_int_literal_key(self):
+        dec = msgspec.json.Decoder(Dict[Literal[-1, 2], int])
+        assert dec.decode(b'{"-1": 10, "2": 20}') == {-1: 10, 2: 20}
+
+        with pytest.raises(msgspec.ValidationError, match="Invalid enum value 3"):
+            dec.decode(b'{"-1": 10, "3": 20}')
+
+    def test_decode_dict_int_enum_key(self):
+        dec = msgspec.json.Decoder(Dict[FruitInt, int])
+        assert dec.decode(b'{"-1": 10, "2": 20}') == {
+            FruitInt.APPLE: 10,
+            FruitInt.BANANA: 20,
+        }
+
+        with pytest.raises(msgspec.ValidationError, match="Invalid enum value 3"):
+            dec.decode(b'{"-1": 1, "3": 2}')
+
+    @pytest.mark.parametrize("x", [-(2**63), 2**64 - 1])
+    def test_encode_dict_int_key(self, x):
+        msg = {-(2**63): "a", 0: "b", 2**64 - 1: "c"}
+        s = msgspec.json.encode(msg)
+        assert s == b'{"-9223372036854775808":"a","0":"b","18446744073709551615":"c"}'
+
+        for x in [-(2**63) - 1, 2**64]:
+            with pytest.raises(OverflowError):
+                msgspec.json.encode({x: "a"})
+
+    def test_decode_dict_int_key(self):
+        msg = {}
+        sol = {}
+        values = itertools.count()
+
+        for ndigits in range(21):
+            if ndigits == 0:
+                s = "0"
+            else:
+                s = "".join(itertools.islice(itertools.cycle("123456789"), ndigits))
+            key = int(s)
+            msg[s] = sol[key] = next(values)
+            if 0 < ndigits < 20:
+                msg["-" + s] = sol[-key] = next(values)
+
+        buf = msgspec.json.encode(msg)
+        res = msgspec.json.decode(buf, type=Dict[int, int])
+        assert res == sol
+
+    def test_decode_dict_int_key_19_digit_overflow_boundary(self):
+        sol = {2**63 - 1: "a", 2**63: "b", 2**63 + 1: "c"}
+        buf = msgspec.json.encode(sol)
+        res = msgspec.json.decode(buf, type=Dict[int, str])
+        assert res == sol
+
+    @pytest.mark.parametrize("s", ['""', '"-"', '"a"', '"-a"', '"01"', '"1a"'])
+    def test_decode_dict_int_key_malformed(self, s):
+        bad = ("{%s: 1}" % s).encode("utf-8")
+        with pytest.raises(msgspec.ValidationError, match="Invalid integer string"):
+            msgspec.json.decode(bad, type=Dict[int, int])
+
+    @pytest.mark.parametrize("x", [-(2**63) - 1, 2**64, 2**65])
+    def test_decode_dict_int_out_of_range(self, x):
+        bad = ('{"%d": 1}' % x).encode("utf-8")
+        with pytest.raises(msgspec.ValidationError, match="Integer value out of range"):
+            msgspec.json.decode(bad, type=Dict[int, int])
+
+    def test_decode_dict_int_key_constraints(self):
+        try:
+            from typing import Annotated
+        except ImportError:
+            pytest.skip("Annotated types not available")
+
+        dec = msgspec.json.Decoder(Dict[Annotated[int, msgspec.Meta(ge=3)], int])
+        assert dec.decode(b'{"4": 1, "5": 2}') == {4: 1, 5: 2}
+
+        with pytest.raises(msgspec.ValidationError, match="Expected `int` >= 3"):
+            dec.decode(b'{"2": 1}')
 
     @pytest.mark.parametrize(
         "s, error",
@@ -2391,7 +2486,7 @@ class TestStructUnion:
             a: int
 
         class Test2(msgspec.Struct, tag=tags[1]):
-            b: Dict[int, int]
+            b: Dict[float, int]
 
         typ = Union[Test1, Test2]
         if wrap:
@@ -2400,7 +2495,9 @@ class TestStructUnion:
         if preinit:
             msgspec.msgpack.Decoder(typ)
 
-        with pytest.raises(TypeError, match="JSON doesn't support dicts with"):
+        with pytest.raises(
+            TypeError, match="Only dicts with `str` or `int` keys are supported"
+        ):
             msgspec.json.Decoder(typ)
 
 
