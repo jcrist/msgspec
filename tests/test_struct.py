@@ -644,6 +644,11 @@ class Point(Struct):
     y: int
 
 
+class PointKWOnly(Struct, kw_only=True):
+    x: int
+    y: int
+
+
 @pytest.mark.parametrize(
     "default",
     [(Point(1, 2),), [Point(1, 2)], {"testing": Point(1, 2)}],
@@ -931,22 +936,28 @@ class TestStructGC:
             gc.collect()
 
 
-class MyStruct(Struct):
-    x: int
-    y: int
-    z: str = "default"
+@pytest.mark.parametrize("kw_only", [False, True])
+def test_struct_pickle(kw_only):
+    cls = PointKWOnly if kw_only else Point
+    a = cls(x=1, y=2)
+    b = cls(x=3, y=4)
 
+    assert pickle.loads(pickle.dumps(a)) == a
+    assert pickle.loads(pickle.dumps(b)) == b
 
-def test_structs_are_pickleable():
-    t = MyStruct(1, 2, "hello")
-    t2 = MyStruct(3, 4)
-
-    assert pickle.loads(pickle.dumps(t)) == t
-    assert pickle.loads(pickle.dumps(t2)) == t2
+    del a.x
+    with pytest.raises(AttributeError, match="Struct field 'x' is unset"):
+        pickle.dumps(a)
 
 
 def test_struct_handles_missing_attributes():
     """If an attribute is unset, raise an AttributeError appropriately"""
+
+    class MyStruct(Struct):
+        x: int
+        y: int
+        z: str = "default"
+
     t = MyStruct(1, 2)
     del t.y
     t2 = MyStruct(1, 2)
@@ -964,9 +975,6 @@ def test_struct_handles_missing_attributes():
 
     with pytest.raises(AttributeError, match=match):
         t2 == t
-
-    with pytest.raises(AttributeError, match=match):
-        pickle.dumps(t)
 
 
 @pytest.mark.parametrize(

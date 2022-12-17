@@ -91,6 +91,11 @@ def get_dataclass_info(cls):
     return tuple(required), tuple(defaults), hasattr(cls, "__post_init__")
 
 
+def rebuild(cls, kwargs):
+    """Used to unpickle Structs with keyword-only fields"""
+    return cls(**kwargs)
+
+
 def schema(type: Any) -> Dict[str, Any]:
     """Generate a JSON Schema for a given type.
 
