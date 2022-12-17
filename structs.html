@@ -330,6 +330,70 @@ for converting a struct to a dict.</p>
 <span class="go">{&quot;x&quot;: 1.0, &quot;y&quot;: 2.0}</span>
 </pre></div>
 </div>
+<section id="field-ordering">
+<h2>Field Ordering<a class="headerlink" href="#field-ordering" title="Permalink to this heading">#</a></h2>
+<p>When defining a new struct type, fields are stored in the order they’re defined
+(keyword-only fields excluded, more on this later). This is nice for
+readability since the generated <code class="docutils literal notranslate"><span class="pre">__init__</span></code> matches the field order.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">Example</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
+    <span class="n">a</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">b</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+</pre></div>
+</div>
+<p>The generated <code class="docutils literal notranslate"><span class="pre">__init__()</span></code> for <code class="docutils literal notranslate"><span class="pre">User</span></code> looks like:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">a</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">):</span>
+</pre></div>
+</div>
+<p>One consequence of this is that you can’t put fields without defaults after
+fields with defaults, since the Python VM doesn’t allow keyword arguments
+before positional arguments. The following struct definition will error:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">Invalid</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="n">a</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+<span class="gp">... </span>    <span class="n">b</span><span class="p">:</span> <span class="nb">int</span>  <span class="c1"># oop, no default!</span>
+<span class="gt">Traceback (most recent call last):</span>
+  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+<span class="gr">TypeError</span>: <span class="n">Required field &#39;b&#39; cannot follow optional fields. Either reorder</span>
+<span class="go">the struct fields, or set `kw_only=True` in the struct definition.</span>
+</pre></div>
+</div>
+<p>Thankfully the error message includes some solutions:</p>
+<ul class="simple">
+<li><p>Reorder the struct fields, putting all required fields before all optional
+fields.</p></li>
+<li><p>Set <code class="docutils literal notranslate"><span class="pre">kw_only=True</span></code> in the struct definition. This option makes all fields
+defined on the struct <a class="reference external" href="https://docs.python.org/3/glossary.html#term-parameter">keyword-only parameters</a>.</p></li>
+</ul>
+<p>Keyword-only parameters have no such restriction; required and optional
+parameters can be mixed in any order.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">Example</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">kw_only</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="n">a</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+<span class="gp">... </span>    <span class="n">b</span><span class="p">:</span> <span class="nb">int</span>  <span class="c1"># this is fine with kw_only=True</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">Example</span><span class="p">(</span><span class="n">a</span><span class="o">=</span><span class="s2">&quot;example&quot;</span><span class="p">,</span> <span class="n">b</span><span class="o">=</span><span class="mi">123</span><span class="p">)</span>
+<span class="go">Example(a=&#39;example&#39;, b=123)</span>
+</pre></div>
+</div>
+<p>Note that the <code class="docutils literal notranslate"><span class="pre">kw_only</span></code> setting only affects fields defined on that class,
+<em>not</em> those defined on base or subclasses. This means you can define
+keyword-only parameters on a base class then add positional parameters in a
+subclass. All keyword-only parameters are reordered to go after all positional
+fields.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">Base</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">kw_only</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="n">a</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+<span class="gp">... </span>    <span class="n">b</span><span class="p">:</span> <span class="nb">int</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">Subclass</span><span class="p">(</span><span class="n">Base</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="n">c</span><span class="p">:</span> <span class="nb">float</span>
+<span class="gp">... </span>    <span class="n">d</span><span class="p">:</span> <span class="nb">bytes</span> <span class="o">=</span> <span class="sa">b</span><span class="s2">&quot;&quot;</span>
+</pre></div>
+</div>
+<p>The generated <code class="docutils literal notranslate"><span class="pre">__init__()</span></code> for <code class="docutils literal notranslate"><span class="pre">Subclass</span></code> looks like:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">c</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">d</span><span class="p">:</span> <span class="nb">bytes</span> <span class="o">=</span> <span class="sa">b</span><span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="o">*</span> <span class="n">a</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">):</span>
+</pre></div>
+</div>
+<p>The field ordering rules for <code class="docutils literal notranslate"><span class="pre">Struct</span></code> types are identical to those for
+<a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#module-dataclasses" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses</span></code></a>, see the <a class="reference external" href="dataclasses">dataclasses docs</a> for more information.</p>
+</section>
 <section id="type-validation">
 <h2>Type Validation<a class="headerlink" href="#type-validation" title="Permalink to this heading">#</a></h2>
 <p>Unlike some other libraries (e.g. <a class="reference external" href="https://pydantic-docs.helpmanual.io/">pydantic</a>), the type annotations on a
@@ -953,6 +1017,7 @@ collected (leading to a memory leak).</p>
           <div class="toc-tree">
             <ul>
 <li><a class="reference internal" href="#">Structs</a><ul>
+<li><a class="reference internal" href="#field-ordering">Field Ordering</a></li>
 <li><a class="reference internal" href="#type-validation">Type Validation</a></li>
 <li><a class="reference internal" href="#pattern-matching">Pattern Matching</a></li>
 <li><a class="reference internal" href="#equality-and-order">Equality and Order</a></li>
