@@ -31,6 +31,40 @@ def check_struct() -> None:
     reveal_type(t.y)  # assert "str" in typ
 
 
+def check_struct_kw_only() -> None:
+    class Test(msgspec.Struct, kw_only=True):
+        x: int
+        y: str
+
+    t = Test(y="foo", x=1)
+
+
+def check_struct_kw_only_base_class() -> None:
+    class Base(msgspec.Struct, kw_only=True):
+        d: bytes
+        c: str = "default"
+
+    class Test(Base):
+        a: int
+        b: list[int] = []
+
+    Test(1, d=b"foo")
+    Test(1, [1, 2, 3], d=b"foo", c="test")
+
+
+def check_struct_kw_only_subclass() -> None:
+    class Base(msgspec.Struct):
+        d: bytes
+        c: str = "default"
+
+    class Test(Base, kw_only=True):
+        a: int
+        b: list[int] = []
+
+    Test(b"foo", a=1)
+    Test(b"foo", "test", a=1, b=[1, 2, 3])
+
+
 def check_struct_omit_defaults() -> None:
     class Test(msgspec.Struct, omit_defaults=True):
         x: int
@@ -270,6 +304,7 @@ def check_defstruct_config_options() -> None:
         frozen=True,
         order=True,
         eq=True,
+        kw_only=True,
         array_like=True,
         gc=False,
         tag="mytag",
