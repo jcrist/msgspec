@@ -555,9 +555,12 @@ Dict subclasses (`collections.OrderedDict`, for example) are also supported for
 encoding only - to decode into a ``dict`` subclass you'll need to implement a
 ``dec_hook`` (see :doc:`extending`).
 
-Note that JSON only supports string keys, while MessagePack supports any
-hashable for the key type. An error is raised during decoding if the keys or
-values don't match their respective types (if specified).
+JSON only supports `str`, `Literal`, `Enum`, `int`, and `IntEnum` key types
+(integers are encoded as strings). MessagePack supports any hashable for the
+key type.
+
+An error is raised during decoding if the keys or values don't match their
+respective types (if specified).
 
 .. code-block:: python
 

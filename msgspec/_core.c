@@ -2940,12 +2940,16 @@ typenode_from_collect_state(TypeNodeCollectState *state, bool err_not_json, bool
         /* Check that JSON dict keys are strings */
         if (
             temp->types
-            & ~(MS_TYPE_ANY | MS_TYPE_STR | MS_TYPE_STRLITERAL | MS_STR_CONSTRS)
+            & ~(
+                MS_TYPE_ANY |
+                MS_TYPE_STR | MS_TYPE_ENUM | MS_TYPE_STRLITERAL | MS_STR_CONSTRS |
+                MS_TYPE_INT | MS_TYPE_INTENUM | MS_TYPE_INTLITERAL | MS_INT_CONSTRS
+            )
         ) {
             if (err_not_json) {
                 PyErr_Format(
                     PyExc_TypeError,
-                    "JSON doesn't support dicts with non-string keys "
+                    "Only dicts with `str` or `int` keys are supported for JSON "
                     "- type `%R` is not supported",
                     state->context
                 );
@@ -9789,6 +9793,13 @@ json_encode_long(EncoderState *self, PyObject *obj) {
 }
 
 static int
+json_encode_long_as_str(EncoderState *self, PyObject *obj) {
+    if (ms_write(self, "\"", 1) < 0) return -1;
+    if (json_encode_long(self, obj) < 0) return -1;
+    return ms_write(self, "\"", 1);
+}
+
+static int
 json_encode_float(EncoderState *self, PyObject *obj) {
     char buf[24];
     double x = PyFloat_AS_DOUBLE(obj);
@@ -10137,11 +10148,19 @@ json_encode_dict(EncoderState *self, PyObject *obj)
     if (ms_write(self, "{", 1) < 0) return -1;
     if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
     while (PyDict_Next(obj, &pos, &key, &val)) {
-        if (!PyUnicode_CheckExact(key)) {
-            PyErr_SetString(PyExc_TypeError, "dict keys must be strings");
+        if (MS_LIKELY(PyUnicode_CheckExact(key))) {
+            if (json_encode_str(self, key) < 0) goto cleanup;
+        }
+        else if (PyLong_CheckExact(key)) {
+            if (json_encode_long_as_str(self, key) < 0) goto cleanup;
+        }
+        else {
+            PyErr_SetString(
+                PyExc_TypeError,
+                "Only dicts with `str` or `int` keys are supported for JSON"
+            );
             goto cleanup;
         }
-        if (json_encode_str(self, key) < 0) goto cleanup;
         if (ms_write(self, ":", 1) < 0) goto cleanup;
         if (json_encode(self, val) < 0) goto cleanup;
         if (ms_write(self, ",", 1) < 0) goto cleanup;
@@ -13144,6 +13163,89 @@ invalid:
 }
 
 static PyObject *
+json_decode_int_from_str(
+    const char *p, Py_ssize_t size, TypeNode *type, PathNode *path
+) {
+    uint64_t mantissa = 0;
+    bool is_negative = false, out_of_range = false;
+    const char *end = p + size;
+
+    if (size == 0) goto error;
+
+    char c = *p;
+    if (c == '-') {
+        p++;
+        is_negative = true;
+        if (p == end) goto error;
+        c = *p;
+    }
+
+    if (MS_UNLIKELY(c == '0')) {
+        /* Value is either 0 or invalid */
+        p++;
+        if (p == end) goto done;
+        goto error;
+    }
+
+    /* We can read the first 19 digits safely into a uint64 without checking
+     * for overflow. */
+    size_t remaining = end - p;
+    const char *safe_end = p + Py_MIN(19, remaining);
+    while (p < safe_end) {
+        c = *p;
+        if (!is_digit(c)) goto end_digits;
+        p++;
+        mantissa = mantissa * 10 + (uint64_t)(c - '0');
+    }
+    if (MS_UNLIKELY(remaining > 19)) {
+        /* Reading a 20th digit may or may not cause overflow. Any additional
+         * digits definitely will. Read the 20th digit (and check for a 21st),
+         * erroring upon overflow. */
+        c = *p;
+        if (MS_UNLIKELY(is_digit(c))) {
+            p++;
+            uint64_t mantissa2 = mantissa * 10 + (uint64_t)(c - '0');
+            out_of_range = (
+                (mantissa2 < mantissa) ||
+                ((mantissa2 - (uint64_t)(c - '0')) / 10) != mantissa ||
+                (p != end)
+            );
+            if (out_of_range) goto error;
+            mantissa = mantissa2;
+        }
+    }
+
+end_digits:
+    /* There must be at least one digit */
+    if (MS_UNLIKELY(mantissa == 0)) goto error;
+
+    /* Check for trailing characters */
+    if (p != end) goto error;
+
+done:
+    if (MS_UNLIKELY(is_negative)) {
+        if (MS_UNLIKELY(mantissa > 1ull << 63)) {
+            out_of_range = true;
+            goto error;
+        }
+        if (MS_LIKELY(type->types & MS_TYPE_INT)) {
+            return ms_decode_int(-1 * (int64_t)mantissa, type, path);
+        }
+        return ms_decode_int_enum_or_literal_int64(-1 * (int64_t)mantissa, type, path);
+    }
+    if (MS_LIKELY(type->types & MS_TYPE_INT)) {
+        return ms_decode_uint(mantissa, type, path);
+    }
+    return ms_decode_int_enum_or_literal_uint64(mantissa, type, path);
+
+error:
+    return ms_error_with_path(
+        out_of_range ? "Integer value out of range%U" : "Invalid integer string%U",
+        path
+    );
+}
+
+static PyObject *
 json_decode_string(JSONDecoderState *self, TypeNode *type, PathNode *path) {
     if (
         MS_LIKELY(
@@ -13192,23 +13294,27 @@ json_decode_string(JSONDecoderState *self, TypeNode *type, PathNode *path) {
 }
 
 static PyObject *
-json_decode_string_key(JSONDecoderState *self, TypeNode *type, PathNode *path) {
+json_decode_dict_key(JSONDecoderState *self, TypeNode *type, PathNode *path) {
     bool is_ascii = true;
-    bool is_enum = type->types & (MS_TYPE_ENUM | MS_TYPE_STRLITERAL);
-    bool has_constrs = type->types & MS_STR_CONSTRS;
+    bool is_str_enum_or_literal = type->types & (MS_TYPE_ENUM | MS_TYPE_STRLITERAL);
+    bool is_integer = type->types & (MS_TYPE_INT | MS_TYPE_INTENUM | MS_TYPE_INTLITERAL);
+    bool has_str_constrs = type->types & MS_STR_CONSTRS;
     char *view = NULL;
     Py_ssize_t size;
 
     size = json_decode_string_view(self, &view, &is_ascii);
     if (size < 0) return NULL;
 
-    if (MS_UNLIKELY(is_enum)) {
+    if (MS_UNLIKELY(is_str_enum_or_literal)) {
         return ms_decode_str_enum_or_literal(view, size, type, path);
     }
-    else if (MS_UNLIKELY(!is_ascii || has_constrs)) {
+    else if (MS_UNLIKELY(!is_ascii || has_str_constrs)) {
         return ms_check_str_constraints(
             PyUnicode_DecodeUTF8(view, size, NULL), type, path
         );
+    }
+    else if (MS_UNLIKELY(is_integer)) {
+        return json_decode_int_from_str(view, size, type, path);
     }
 
     if (MS_LIKELY(size > 0 && size <= STRING_CACHE_MAX_STRING_LENGTH)) {
@@ -13988,7 +14094,7 @@ json_decode_dict(
 
         /* Parse a string key */
         if (c == '"') {
-            key = json_decode_string_key(self, key_type, &key_path);
+            key = json_decode_dict_key(self, key_type, &key_path);
             if (key == NULL) goto error;
         }
         else if (c == '}') {
