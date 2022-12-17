@@ -357,6 +357,7 @@ typedef struct {
     PyObject *get_type_hints;
     PyObject *get_typeddict_hints;
     PyObject *get_dataclass_info;
+    PyObject *rebuild;
 #if PY_VERSION_HEX >= 0x030a00f0
     PyObject *types_uniontype;
 #endif
@@ -6208,22 +6209,34 @@ error:
 static PyObject *
 Struct_reduce(PyObject *self, PyObject *args)
 {
-    Py_ssize_t i, nfields;
-    PyObject *values, *val, *out = NULL;
+    PyObject *values = NULL, *out = NULL;
+    StructMetaObject *st_type = (StructMetaObject *)(Py_TYPE(self));
+    Py_ssize_t nfields = PyTuple_GET_SIZE(st_type->struct_fields);
 
-    nfields = StructMeta_GET_NFIELDS(Py_TYPE(self));
-    values = PyTuple_New(nfields);
-    if (values == NULL)
-        return NULL;
-    for (i = 0; i < nfields; i++) {
-        val = Struct_get_index(self, i);
-        if (val == NULL)
-            goto error;
-        Py_INCREF(val);
-        PyTuple_SET_ITEM(values, i, val);
+    if (st_type->nkwonly) {
+        MsgspecState *mod = msgspec_get_global_state();
+        values = PyDict_New();
+        if (values == NULL) return NULL;
+        for (Py_ssize_t i = 0; i < nfields; i++) {
+            PyObject *field = PyTuple_GET_ITEM(st_type->struct_fields, i);
+            PyObject *val = Struct_get_index(self, i);
+            if (val == NULL) goto cleanup;
+            if (PyDict_SetItem(values, field, val) < 0) goto cleanup;
+        }
+        out = Py_BuildValue("O(OO)", mod->rebuild, Py_TYPE(self), values);
     }
-    out = PyTuple_Pack(2, Py_TYPE(self), values);
-error:
+    else {
+        values = PyTuple_New(nfields);
+        if (values == NULL) return NULL;
+        for (Py_ssize_t i = 0; i < nfields; i++) {
+            PyObject *val = Struct_get_index(self, i);
+            if (val == NULL) goto cleanup;
+            Py_INCREF(val);
+            PyTuple_SET_ITEM(values, i, val);
+        }
+        out = PyTuple_Pack(2, Py_TYPE(self), values);
+    }
+cleanup:
     Py_DECREF(values);
     return out;
 }
@@ -15512,6 +15525,7 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->get_type_hints);
     Py_CLEAR(st->get_typeddict_hints);
     Py_CLEAR(st->get_dataclass_info);
+    Py_CLEAR(st->rebuild);
 #if PY_VERSION_HEX >= 0x030a00f0
     Py_CLEAR(st->types_uniontype);
 #endif
@@ -15594,6 +15608,7 @@ msgspec_traverse(PyObject *m, visitproc visit, void *arg)
     Py_VISIT(st->get_type_hints);
     Py_VISIT(st->get_typeddict_hints);
     Py_VISIT(st->get_dataclass_info);
+    Py_VISIT(st->rebuild);
 #if PY_VERSION_HEX >= 0x030a00f0
     Py_VISIT(st->types_uniontype);
 #endif
@@ -15783,6 +15798,7 @@ PyInit__core(void)
     SET_REF(get_typeddict_hints, "get_typeddict_hints");
     SET_REF(get_dataclass_info, "get_dataclass_info");
     SET_REF(typing_annotated_alias, "_AnnotatedAlias");
+    SET_REF(rebuild, "rebuild");
     Py_DECREF(temp_module);
 
 #if PY_VERSION_HEX >= 0x030a00f0
