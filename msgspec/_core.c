@@ -1751,6 +1751,55 @@ static PyTypeObject Meta_Type = {
 };
 
 /*************************************************************************
+ * nodefault singleton                                                   *
+ *************************************************************************/
+
+PyObject _NoDefault_Object;
+#define NODEFAULT &_NoDefault_Object
+
+static PyObject *
+nodefault_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
+{
+    if (PyTuple_GET_SIZE(args) || (kwargs && PyDict_GET_SIZE(kwargs))) {
+        PyErr_SetString(PyExc_TypeError, "NoDefault takes no arguments");
+        return NULL;
+    }
+    Py_INCREF(NODEFAULT);
+    return NODEFAULT;
+}
+
+static PyObject *
+nodefault_repr(PyObject *op)
+{
+    return PyUnicode_FromString("nodefault");
+}
+
+static PyObject *
+nodefault_reduce(PyObject *op, PyObject *args)
+{
+    return PyUnicode_FromString("nodefault");
+}
+
+static PyMethodDef nodefault_methods[] = {
+    {"__reduce__", nodefault_reduce, METH_NOARGS, NULL},
+    {NULL, NULL}
+};
+
+PyTypeObject NoDefault_Type = {
+    PyVarObject_HEAD_INIT(&PyType_Type, 0)
+    .tp_name = "msgspec._core.NoDefault",
+    .tp_repr = nodefault_repr,
+    .tp_flags = Py_TPFLAGS_DEFAULT,
+    .tp_methods = nodefault_methods,
+    .tp_new = nodefault_new,
+    .tp_dealloc = 0,
+    .tp_itemsize = 0,
+    .tp_basicsize = 0
+};
+
+PyObject _NoDefault_Object = {1, &NoDefault_Type};
+
+/*************************************************************************
  * Struct, PathNode, and TypeNode Types                                  *
  *************************************************************************/
 
@@ -1944,6 +1993,8 @@ typedef struct {
     PyHeapTypeObject base;
     PyObject *struct_fields;
     PyObject *struct_defaults;
+    Py_ssize_t nkwonly;
+    Py_ssize_t n_trailing_defaults;
     Py_ssize_t *struct_offsets;
     PyObject *struct_encode_fields;
     TypeNode **struct_types;
@@ -4569,79 +4620,342 @@ rename_mapping(PyObject *rename, PyObject *field) {
     return NULL;
 }
 
+typedef struct {
+    /* Temporary state. All owned references. */
+    PyObject *defaults_lk;
+    PyObject *offsets_lk;
+    PyObject *kwonly_fields;
+    PyObject *slots;
+    PyObject *namespace;
+    /* Output values. All owned references. */
+    PyObject *fields;
+    PyObject *encode_fields;
+    PyObject *defaults;
+    PyObject *tag;
+    PyObject *tag_field;
+    PyObject *tag_value;
+    Py_ssize_t *offsets;
+    Py_ssize_t nkwonly;
+    Py_ssize_t n_trailing_defaults;
+    /* Configuration values. All borrowed references. */
+    PyObject *name;
+    PyObject *temp_tag_field;
+    PyObject *temp_tag;
+    PyObject *rename;
+    int omit_defaults;
+    int forbid_unknown_fields;
+    int frozen;
+    int eq;
+    int order;
+    int array_like;
+    int gc;
+    int weakref;
+    bool already_has_weakref;
+} StructMetaInfo;
+
+static int
+structmeta_check_namespace(PyObject *namespace) {
+    static const char *attrs[] = {"__init__", "__new__", "__slots__"};
+    Py_ssize_t nattrs = 3;
+
+    for (Py_ssize_t i = 0; i < nattrs; i++) {
+        if (PyDict_GetItemString(namespace, attrs[i]) != NULL) {
+            PyErr_Format(PyExc_TypeError, "Struct types cannot define %s", attrs[i]);
+            return -1;
+        }
+    }
+    return 0;
+}
+
+static int
+structmeta_collect_base(StructMetaInfo *info, PyObject *base) {
+    if ((PyTypeObject *)base == &StructMixinType) return 0;
+
+    if (!(PyType_Check(base) && (Py_TYPE(base) == &StructMetaType))) {
+        PyErr_SetString(
+            PyExc_TypeError,
+            "All base classes must be subclasses of msgspec.Struct"
+        );
+        return -1;
+    }
+
+    if (((PyTypeObject *)base)->tp_weaklistoffset) {
+        info->already_has_weakref = true;
+    }
+
+    StructMetaObject *st_type = (StructMetaObject *)base;
+
+    /* Inherit config fields */
+    if (st_type->struct_tag_field != NULL) {
+        info->temp_tag_field = st_type->struct_tag_field;
+    }
+    if (st_type->struct_tag != NULL) {
+        info->temp_tag = st_type->struct_tag;
+    }
+    if (st_type->rename != NULL) {
+        info->rename = st_type->rename;
+    }
+    info->frozen = STRUCT_MERGE_OPTIONS(info->frozen, st_type->frozen);
+    info->eq = STRUCT_MERGE_OPTIONS(info->eq, st_type->eq);
+    info->order = STRUCT_MERGE_OPTIONS(info->order, st_type->order);
+    info->array_like = STRUCT_MERGE_OPTIONS(info->array_like, st_type->array_like);
+    info->gc = STRUCT_MERGE_OPTIONS(info->gc, st_type->gc);
+    info->omit_defaults = STRUCT_MERGE_OPTIONS(info->omit_defaults, st_type->omit_defaults);
+    info->forbid_unknown_fields = STRUCT_MERGE_OPTIONS(
+        info->forbid_unknown_fields, st_type->forbid_unknown_fields
+    );
+
+    PyObject *fields = st_type->struct_fields;
+    PyObject *defaults = st_type->struct_defaults;
+    Py_ssize_t *offsets = st_type->struct_offsets;
+    Py_ssize_t nfields = PyTuple_GET_SIZE(fields);
+    Py_ssize_t nkwonly = st_type->nkwonly;
+    Py_ssize_t ndefaults = PyTuple_GET_SIZE(defaults);
+    Py_ssize_t defaults_offset = nfields - ndefaults;
+
+    for (Py_ssize_t i = 0; i < nfields; i++) {
+        PyObject *field = PyTuple_GET_ITEM(fields, i);
+        PyObject *default_val = NODEFAULT;
+        if (i >= defaults_offset) {
+            default_val = PyTuple_GET_ITEM(defaults, i - defaults_offset);
+        }
+        if (PyDict_SetItem(info->defaults_lk, field, default_val) < 0) return -1;
+
+        /* Mark the field as kwonly or not */
+        if (i >= (nfields - nkwonly)) {
+            if (PySet_Add(info->kwonly_fields, field) < 0) return -1;
+        }
+        else {
+            if (PySet_Discard(info->kwonly_fields, field) < 0) return -1;
+        }
+
+        PyObject *offset = PyLong_FromSsize_t(offsets[i]);
+        if (offset == NULL) return -1;
+        bool errored = PyDict_SetItem(info->offsets_lk, field, offset) < 0;
+        Py_DECREF(offset);
+        if (errored) return -1;
+    }
+    return 0;
+}
+
+static int
+structmeta_collect_fields(StructMetaInfo *info, MsgspecState *mod, bool kwonly) {
+    PyObject *annotations = PyDict_GetItemString(
+        info->namespace, "__annotations__"
+    );
+    if (annotations == NULL) return 0;
+
+    if (!PyDict_Check(annotations)) {
+        PyErr_SetString(PyExc_TypeError, "__annotations__ must be a dict");
+        return -1;
+    }
+
+    PyObject *field;
+    Py_ssize_t i = 0;
+    while (PyDict_Next(annotations, &i, &field, NULL)) {
+        if (!PyUnicode_CheckExact(field)) {
+            PyErr_SetString(
+                PyExc_TypeError, "__annotations__ keys must be strings"
+            );
+            return -1;
+        }
+
+        if (PyUnicode_Compare(field, mod->str___weakref__) == 0) {
+            PyErr_SetString(
+                PyExc_TypeError, "Cannot have a struct field named '__weakref__'"
+            );
+            return -1;
+        }
+
+        /* If the field is new, add it to slots */
+        if (PyDict_GetItem(info->defaults_lk, field) == NULL) {
+            if (PyList_Append(info->slots, field) < 0) return -1;
+        }
+
+        if (kwonly) {
+            if (PySet_Add(info->kwonly_fields, field) < 0) return -1;
+        }
+        else {
+            if (PySet_Discard(info->kwonly_fields, field) < 0) return -1;
+        }
+
+        PyObject *default_val = PyDict_GetItem(info->namespace, field);
+        if (default_val == NULL) {
+            default_val = NODEFAULT;
+        }
+        else {
+            if (dict_discard(info->namespace, field) < 0) return -1;
+        }
+        if (PyDict_SetItem(info->defaults_lk, field, default_val) < 0) return -1;
+    }
+    return 0;
+}
+
+static int
+structmeta_construct_fields(StructMetaInfo *info, MsgspecState *mod) {
+    Py_ssize_t nfields = PyDict_GET_SIZE(info->defaults_lk);
+    Py_ssize_t nkwonly = PySet_GET_SIZE(info->kwonly_fields);
+    Py_ssize_t field_index = 0;
+
+    info->fields = PyTuple_New(nfields);
+    if (info->fields == NULL) return -1;
+    info->defaults = PyList_New(0);
+
+    /* First pass - handle all non-kwonly fields. */
+    PyObject *field, *default_val;
+    Py_ssize_t pos = 0;
+    while (PyDict_Next(info->defaults_lk, &pos, &field, &default_val)) {
+        int kwonly = PySet_Contains(info->kwonly_fields, field);
+        if (kwonly < 0) return -1;
+        if (kwonly) continue;
+
+        Py_INCREF(field);
+        PyTuple_SET_ITEM(info->fields, field_index, field);
+
+        if (default_val == NODEFAULT) {
+            if (PyList_GET_SIZE(info->defaults)) {
+                PyErr_Format(
+                    PyExc_TypeError,
+                    "Required field '%U' cannot follow optional fields. Either "
+                    "reorder the struct fields, or set `kw_only=True` in the "
+                    "struct definition.",
+                    field
+                );
+                return -1;
+            }
+        }
+        else {
+            if (PyList_Append(info->defaults, default_val) < 0) return -1;
+        }
+        field_index++;
+    }
+    /* Next handle any kw_only fields */
+    if (nkwonly) {
+        PyObject *field, *default_val;
+        Py_ssize_t pos = 0;
+        while (PyDict_Next(info->defaults_lk, &pos, &field, &default_val)) {
+            int kwonly = PySet_Contains(info->kwonly_fields, field);
+            if (kwonly < 0) return -1;
+            if (!kwonly) continue;
+
+            Py_INCREF(field);
+            PyTuple_SET_ITEM(info->fields, field_index, field);
+            if (PyList_GET_SIZE(info->defaults) || default_val != NODEFAULT) {
+                if (PyList_Append(info->defaults, default_val) < 0) return -1;
+            }
+            field_index++;
+        }
+    }
+
+    /* Convert defaults list to tuple */
+    PyObject *temp_defaults = PyList_AsTuple(info->defaults);
+    Py_DECREF(info->defaults);
+    info->defaults = temp_defaults;
+    if (info->defaults == NULL) return -1;
+
+    /* Compute n_trailing_defaults */
+    info->nkwonly = nkwonly;
+    info->n_trailing_defaults = 0;
+    for (Py_ssize_t i = PyTuple_GET_SIZE(info->defaults) - 1; i >= 0; i--) {
+        if (PyTuple_GET_ITEM(info->defaults, i) == NODEFAULT) break;
+        info->n_trailing_defaults++;
+    }
+
+    if (info->weakref == OPT_TRUE && !info->already_has_weakref) {
+        if (PyList_Append(info->slots, mod->str___weakref__) < 0) return -1;
+    }
+    else if (info->weakref == OPT_FALSE && info->already_has_weakref) {
+        PyErr_SetString(
+            PyExc_ValueError,
+            "Cannot set `weakref=False` if base class already has `weakref=True`"
+        );
+        return -1;
+    }
+
+    if (PyList_Sort(info->slots) < 0) return -1;
+
+    PyObject *slots = PyList_AsTuple(info->slots);
+    if (slots == NULL) return -1;
+    int out = PyDict_SetItemString(info->namespace, "__slots__", slots);
+    Py_DECREF(slots);
+    return out;
+}
+
+
 static int json_str_requires_escaping(PyObject *);
 
-static PyObject *
-StructMeta_rename_fields(PyObject *fields, PyObject *rename)
+static int
+structmeta_construct_encode_fields(StructMetaInfo *info)
 {
-    if (rename == NULL) {
+    if (info->rename == NULL) {
         /* Nothing to do, use original field tuple */
-        Py_INCREF(fields);
-        return fields;
+        Py_INCREF(info->fields);
+        info->encode_fields = info->fields;
+        return 0;
     }
 
     PyObject* (*method)(PyObject *, PyObject *);
-    if (PyUnicode_CheckExact(rename)) {
-        if (PyUnicode_CompareWithASCIIString(rename, "lower") == 0) {
+    if (PyUnicode_CheckExact(info->rename)) {
+        if (PyUnicode_CompareWithASCIIString(info->rename, "lower") == 0) {
             method = &rename_lower;
         }
-        else if (PyUnicode_CompareWithASCIIString(rename, "upper") == 0) {
+        else if (PyUnicode_CompareWithASCIIString(info->rename, "upper") == 0) {
             method = &rename_upper;
         }
-        else if (PyUnicode_CompareWithASCIIString(rename, "camel") == 0) {
+        else if (PyUnicode_CompareWithASCIIString(info->rename, "camel") == 0) {
             method = &rename_camel;
         }
-        else if (PyUnicode_CompareWithASCIIString(rename, "pascal") == 0) {
+        else if (PyUnicode_CompareWithASCIIString(info->rename, "pascal") == 0) {
             method = &rename_pascal;
         }
-        else if (PyUnicode_CompareWithASCIIString(rename, "kebab") == 0) {
+        else if (PyUnicode_CompareWithASCIIString(info->rename, "kebab") == 0) {
             method = &rename_kebab;
         }
         else {
-            PyErr_Format(PyExc_ValueError, "rename='%U' is unsupported", rename);
-            return NULL;
+            PyErr_Format(PyExc_ValueError, "rename='%U' is unsupported", info->rename);
+            return -1;
         }
     }
-    else if (PyCallable_Check(rename)) {
+    else if (PyCallable_Check(info->rename)) {
         method = &rename_callable;
     }
-    else if (PyMapping_Check(rename)) {
+    else if (PyMapping_Check(info->rename)) {
         method = &rename_mapping;
     }
     else {
         PyErr_SetString(PyExc_TypeError, "`rename` must be a str, callable, or mapping");
-        return NULL;
+        return -1;
     }
 
-    PyObject *out_set = NULL;
-    PyObject *out = PyTuple_New(PyTuple_GET_SIZE(fields));
-    if (out == NULL) return NULL;
-    for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(fields); i++) {
-        PyObject *temp = method(rename, PyTuple_GET_ITEM(fields, i));
-        if (temp == NULL) goto error;
-        PyTuple_SET_ITEM(out, i, temp);
+    info->encode_fields = PyTuple_New(PyTuple_GET_SIZE(info->fields));
+    if (info->encode_fields == NULL) return -1;
+    for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(info->fields); i++) {
+        PyObject *temp = method(info->rename, PyTuple_GET_ITEM(info->fields, i));
+        if (temp == NULL) return -1;
+        PyTuple_SET_ITEM(info->encode_fields, i, temp);
     }
 
     /* Ensure that renamed fields don't collide */
-    out_set = PySet_New(out);
-    if (out_set == NULL) goto error;
-    if (PySet_GET_SIZE(out_set) != PyTuple_GET_SIZE(out)) {
+    PyObject *fields_set = PySet_New(info->encode_fields);
+    if (fields_set == NULL) return -1;
+    bool unique = PySet_GET_SIZE(fields_set) == PyTuple_GET_SIZE(info->encode_fields);
+    Py_DECREF(fields_set);
+    if (!unique) {
         PyErr_SetString(
             PyExc_ValueError,
             "Multiple fields rename to the same name, field names "
             "must be unique"
         );
-        goto error;
+        return -1;
     }
-    Py_CLEAR(out_set);
 
     /* Ensure all renamed fields contain characters that don't require quoting
      * in JSON. This isn't strictly required, but usage of such characters is
      * extremely unlikely, and forbidding this allows us to optimize encoding */
-    for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(out); i++) {
-        PyObject *field = PyTuple_GET_ITEM(out, i);
+    for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(info->encode_fields); i++) {
+        PyObject *field = PyTuple_GET_ITEM(info->encode_fields, i);
         Py_ssize_t status = json_str_requires_escaping(field);
-        if (status == -1) goto error;
+        if (status == -1) return -1;
         if (status == 1) {
             PyErr_Format(
                 PyExc_ValueError,
@@ -4649,341 +4963,210 @@ StructMeta_rename_fields(PyObject *fields, PyObject *rename)
                 "('\\u0000' to '\\u001F') - '%U' is invalid",
                 field
             );
-            goto error;
+            return -1;
+        }
+    }
+    return 0;
+}
+
+static int
+structmeta_construct_tag(StructMetaInfo *info, MsgspecState *mod) {
+    if (info->temp_tag == Py_False) return 0;
+    if (info->temp_tag == NULL && info->temp_tag_field == NULL) return 0;
+
+    Py_XINCREF(info->temp_tag);
+    info->tag = info->temp_tag;
+
+    /* Determine the tag value */
+    if (info->temp_tag == NULL || info->temp_tag == Py_True) {
+        Py_INCREF(info->name);
+        info->tag_value = info->name;
+    }
+    else {
+        if (PyCallable_Check(info->temp_tag)) {
+            info->tag_value = CALL_ONE_ARG(info->temp_tag, info->name);
+            if (info->tag_value == NULL) return -1;
+        }
+        else {
+            Py_INCREF(info->temp_tag);
+            info->tag_value = info->temp_tag;
+        }
+        if (PyLong_CheckExact(info->tag_value)) {
+            int64_t val = PyLong_AsLongLong(info->tag_value);
+            if (val == -1 && PyErr_Occurred()) {
+                PyErr_SetString(
+                    PyExc_ValueError,
+                    "Integer `tag` values must be within [-2**63, 2**63 - 1]"
+                );
+                return -1;
+            }
+        }
+        else if (!PyUnicode_CheckExact(info->tag_value)) {
+            PyErr_SetString(PyExc_TypeError, "`tag` must be a `str` or an `int`");
+            return -1;
         }
     }
 
-    return out;
-error:
-    Py_XDECREF(out);
-    Py_XDECREF(out_set);
-    return NULL;
+    /* Next determine the tag_field to use. */
+    if (info->temp_tag_field == NULL) {
+        info->tag_field = mod->str_type;
+        Py_INCREF(info->tag_field);
+    }
+    else if (PyUnicode_CheckExact(info->temp_tag_field)) {
+        info->tag_field = info->temp_tag_field;
+        Py_INCREF(info->tag_field);
+    }
+    else {
+        PyErr_SetString(PyExc_TypeError, "`tag_field` must be a `str`");
+        return -1;
+    }
+    int contains = PySequence_Contains(info->encode_fields, info->tag_field);
+    if (contains < 0) return -1;
+    if (contains) {
+        PyErr_Format(
+            PyExc_ValueError,
+            "`tag_field='%U' conflicts with an existing field of that name",
+            info->tag_field
+        );
+        return -1;
+    }
+    return 0;
 }
+
+static int
+structmeta_construct_offsets(StructMetaInfo *info, StructMetaObject *cls) {
+    PyMemberDef *mp = MS_PyHeapType_GET_MEMBERS(cls);
+    for (Py_ssize_t i = 0; i < Py_SIZE(cls); i++, mp++) {
+        PyObject *offset = PyLong_FromSsize_t(mp->offset);
+        if (offset == NULL) return -1;
+        bool errored = PyDict_SetItemString(info->offsets_lk, mp->name, offset) < 0;
+        Py_DECREF(offset);
+        if (errored) return -1;
+    }
+
+    info->offsets = PyMem_New(Py_ssize_t, PyTuple_GET_SIZE(info->fields));
+    if (info->offsets == NULL) return -1;
+
+    for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(info->fields); i++) {
+        PyObject *field = PyTuple_GET_ITEM(info->fields, i);
+        PyObject *offset = PyDict_GetItem(info->offsets_lk, field);
+        if (offset == NULL) {
+            PyErr_Format(PyExc_RuntimeError, "Failed to get offset for %R", field);
+            return -1;
+        }
+        info->offsets[i] = PyLong_AsSsize_t(offset);
+    }
+    return 0;
+}
+
 
 static PyObject *
 StructMeta_new_inner(
     PyTypeObject *type, PyObject *name, PyObject *bases, PyObject *namespace,
     PyObject *arg_tag_field, PyObject *arg_tag, PyObject *arg_rename,
     int arg_omit_defaults, int arg_forbid_unknown_fields,
-    int arg_frozen, int arg_eq, int arg_order,
+    int arg_frozen, int arg_eq, int arg_order, bool arg_kw_only,
     int arg_array_like, int arg_gc, int arg_weakref
 ) {
     StructMetaObject *cls = NULL;
-    PyObject *arg_fields = NULL, *kwarg_fields = NULL, *new_dict = NULL, *new_args = NULL;
-    PyObject *fields = NULL, *defaults = NULL, *offsets_lk = NULL, *offset = NULL, *slots = NULL, *slots_list = NULL;
-    PyObject *base, *base_fields, *base_defaults, *annotations;
-    PyObject *default_val, *field;
-    Py_ssize_t nfields, ndefaults, i, j, k;
-    Py_ssize_t *offsets = NULL, *base_offsets;
-    PyObject *rename = NULL, *encode_fields = NULL;
-    PyObject *tag_field_temp = NULL, *tag_temp = NULL;
-    PyObject *tag = NULL, *tag_field = NULL,  *tag_value = NULL;
-    int omit_defaults = -1, forbid_unknown_fields = -1, frozen = -1, eq = -1, order = -1, array_like = -1, gc = -1;
-    bool already_has_weakref = false;
     MsgspecState *mod = msgspec_get_global_state();
+    bool ok = false;
 
-    if (PyDict_GetItemString(namespace, "__init__") != NULL) {
-        PyErr_SetString(PyExc_TypeError, "Struct types cannot define __init__");
-        return NULL;
+    if (structmeta_check_namespace(namespace) < 0) return NULL;
+
+    StructMetaInfo info = {
+        .defaults_lk = NULL,
+        .offsets_lk = NULL,
+        .kwonly_fields = NULL,
+        .slots = NULL,
+        .namespace = NULL,
+        .fields = NULL,
+        .encode_fields = NULL,
+        .defaults = NULL,
+        .tag = NULL,
+        .tag_field = NULL,
+        .tag_value = NULL,
+        .offsets = NULL,
+        .nkwonly = 0,
+        .n_trailing_defaults = 0,
+        .name = name,
+        .temp_tag_field = NULL,
+        .temp_tag = NULL,
+        .rename = NULL,
+        .omit_defaults = -1,
+        .forbid_unknown_fields = -1,
+        .frozen = -1,
+        .eq = -1,
+        .order = -1,
+        .array_like = -1,
+        .gc = -1,
+        .weakref = arg_weakref,
+        .already_has_weakref = false,
+    };
+
+    info.defaults_lk = PyDict_New();
+    if (info.defaults_lk == NULL) goto cleanup;
+    info.offsets_lk = PyDict_New();
+    if (info.offsets_lk == NULL) goto cleanup;
+    info.kwonly_fields = PySet_New(NULL);
+    if (info.kwonly_fields == NULL) goto cleanup;
+    info.namespace = PyDict_Copy(namespace);
+    if (info.namespace == NULL) goto cleanup;
+    info.slots = PyList_New(0);
+    if (info.slots == NULL) goto cleanup;
+
+    /* Extract info from base classes in reverse MRO order */
+    for (Py_ssize_t i = PyTuple_GET_SIZE(bases) - 1; i >= 0; i--) {
+        PyObject *base = PyTuple_GET_ITEM(bases, i);
+        if (structmeta_collect_base(&info, base) < 0) goto cleanup;
     }
-    if (PyDict_GetItemString(namespace, "__new__") != NULL) {
-        PyErr_SetString(PyExc_TypeError, "Struct types cannot define __new__");
-        return NULL;
+
+    /* Process configuration options */
+    if (arg_tag != NULL && arg_tag != Py_None) {
+        info.temp_tag = arg_tag;
     }
-    if (PyDict_GetItemString(namespace, "__slots__") != NULL) {
-        PyErr_SetString(PyExc_TypeError, "Struct types cannot define __slots__");
-        return NULL;
+    if (arg_tag_field != NULL && arg_tag_field != Py_None) {
+        info.temp_tag_field = arg_tag_field;
     }
-
-    arg_fields = PyDict_New();
-    if (arg_fields == NULL)
-        goto error;
-    kwarg_fields = PyDict_New();
-    if (kwarg_fields == NULL)
-        goto error;
-    offsets_lk = PyDict_New();
-    if (offsets_lk == NULL)
-        goto error;
-
-    for (i = PyTuple_GET_SIZE(bases) - 1; i >= 0; i--) {
-        base = PyTuple_GET_ITEM(bases, i);
-        if ((PyTypeObject *)base == &StructMixinType) {
-            continue;
-        }
-
-        if (!(PyType_Check(base) && (Py_TYPE(base) == &StructMetaType))) {
-            PyErr_SetString(
-                PyExc_TypeError,
-                "All base classes must be subclasses of msgspec.Struct"
-            );
-            goto error;
-        }
-
-        if (((PyTypeObject *)base)->tp_weaklistoffset) {
-            already_has_weakref = true;
-        }
-
-        /* Inherit config fields */
-        PyObject *base_tag_field = ((StructMetaObject *)base)->struct_tag_field;
-        if (base_tag_field != NULL) {
-            tag_field_temp = base_tag_field;
-        }
-        PyObject *base_tag = ((StructMetaObject *)base)->struct_tag;
-        if (base_tag != NULL) {
-            tag_temp = base_tag;
-        }
-        PyObject *base_rename = ((StructMetaObject *)base)->rename;
-        if (base_rename != NULL) {
-            rename = base_rename;
-        }
-        frozen = STRUCT_MERGE_OPTIONS(frozen, ((StructMetaObject *)base)->frozen);
-        eq = STRUCT_MERGE_OPTIONS(eq, ((StructMetaObject *)base)->eq);
-        order = STRUCT_MERGE_OPTIONS(order, ((StructMetaObject *)base)->order);
-        array_like = STRUCT_MERGE_OPTIONS(array_like, ((StructMetaObject *)base)->array_like);
-        gc = STRUCT_MERGE_OPTIONS(gc, ((StructMetaObject *)base)->gc);
-        omit_defaults = STRUCT_MERGE_OPTIONS(
-            omit_defaults, ((StructMetaObject *)base)->omit_defaults
-        );
-        forbid_unknown_fields = STRUCT_MERGE_OPTIONS(
-            forbid_unknown_fields,
-            ((StructMetaObject *)base)->forbid_unknown_fields
-        );
-        base_fields = StructMeta_GET_FIELDS(base);
-        base_defaults = StructMeta_GET_DEFAULTS(base);
-        base_offsets = StructMeta_GET_OFFSETS(base);
-        nfields = PyTuple_GET_SIZE(base_fields);
-        ndefaults = PyTuple_GET_SIZE(base_defaults);
-        for (j = 0; j < nfields; j++) {
-            field = PyTuple_GET_ITEM(base_fields, j);
-            if (j < (nfields - ndefaults)) {
-                if (PyDict_SetItem(arg_fields, field, Py_None) < 0)
-                    goto error;
-                if (dict_discard(kwarg_fields, field) < 0)
-                    goto error;
-            }
-            else {
-                default_val = PyTuple_GET_ITEM(base_defaults, (j + ndefaults - nfields));
-                if (PyDict_SetItem(kwarg_fields, field, default_val) < 0)
-                    goto error;
-                if (dict_discard(arg_fields, field) < 0)
-                    goto error;
-            }
-            offset = PyLong_FromSsize_t(base_offsets[j]);
-            if (offset == NULL)
-                goto error;
-            if (PyDict_SetItem(offsets_lk, field, offset) < 0)
-                goto error;
-            Py_DECREF(offset);
-        }
+    if (arg_rename != NULL) {
+        info.rename = arg_rename == Py_None ? NULL : arg_rename;
     }
-    if (arg_tag != NULL && arg_tag != Py_None) { tag_temp = arg_tag; }
-    if (arg_tag_field != NULL && arg_tag_field != Py_None) { tag_field_temp = arg_tag_field; }
-    if (arg_rename != NULL ) { rename = arg_rename == Py_None ? NULL : arg_rename; }
-    frozen = STRUCT_MERGE_OPTIONS(frozen, arg_frozen);
-    eq = STRUCT_MERGE_OPTIONS(eq, arg_eq);
-    order = STRUCT_MERGE_OPTIONS(order, arg_order);
-    array_like = STRUCT_MERGE_OPTIONS(array_like, arg_array_like);
-    gc = STRUCT_MERGE_OPTIONS(gc, arg_gc);
-    omit_defaults = STRUCT_MERGE_OPTIONS(omit_defaults, arg_omit_defaults);
-    forbid_unknown_fields = STRUCT_MERGE_OPTIONS(forbid_unknown_fields, arg_forbid_unknown_fields);
+    info.frozen = STRUCT_MERGE_OPTIONS(info.frozen, arg_frozen);
+    info.eq = STRUCT_MERGE_OPTIONS(info.eq, arg_eq);
+    info.order = STRUCT_MERGE_OPTIONS(info.order, arg_order);
+    info.array_like = STRUCT_MERGE_OPTIONS(info.array_like, arg_array_like);
+    info.gc = STRUCT_MERGE_OPTIONS(info.gc, arg_gc);
+    info.omit_defaults = STRUCT_MERGE_OPTIONS(info.omit_defaults, arg_omit_defaults);
+    info.forbid_unknown_fields = STRUCT_MERGE_OPTIONS(info.forbid_unknown_fields, arg_forbid_unknown_fields);
 
-    if (eq == OPT_FALSE && order == OPT_TRUE) {
+    if (info.eq == OPT_FALSE && info.order == OPT_TRUE) {
         PyErr_SetString(PyExc_ValueError, "eq must be true if order is true");
-        goto error;
+        goto cleanup;
     }
 
-    new_dict = PyDict_Copy(namespace);
-    if (new_dict == NULL)
-        goto error;
-    slots_list = PyList_New(0);
-    if (slots_list == NULL)
-        goto error;
+    /* Collect new fields and defaults */
+    if (structmeta_collect_fields(&info, mod, arg_kw_only) < 0) goto cleanup;
 
-    annotations = PyDict_GetItemString(namespace, "__annotations__");
-    if (annotations != NULL) {
-        if (!PyDict_Check(annotations)) {
-            PyErr_SetString(PyExc_TypeError, "__annotations__ must be a dict");
-            goto error;
-        }
+    /* Construct fields and defaults */
+    if (structmeta_construct_fields(&info, mod) < 0) goto cleanup;
 
-        i = 0;
-        while (PyDict_Next(annotations, &i, &field, NULL)) {
-            if (!PyUnicode_CheckExact(field)) {
-                PyErr_SetString(
-                    PyExc_TypeError,
-                    "__annotations__ keys must be strings"
-                );
-                goto error;
-            }
+    /* Construct encode_fields */
+    if (structmeta_construct_encode_fields(&info) < 0) goto cleanup;
 
-            if (PyUnicode_Compare(field, mod->str___weakref__) == 0) {
-                PyErr_SetString(
-                    PyExc_TypeError,
-                    "Cannot have a struct field named '__weakref__'"
-                );
-                goto error;
-            }
+    /* Construct tag, tag_field, & tag_value */
+    if (structmeta_construct_tag(&info, mod) < 0) goto cleanup;
 
-            /* If the field is new, add it to slots */
-            if (PyDict_GetItem(arg_fields, field) == NULL && PyDict_GetItem(kwarg_fields, field) == NULL) {
-                if (PyList_Append(slots_list, field) < 0)
-                    goto error;
-            }
+    /* Construct type */
+    PyObject *args = Py_BuildValue("(OOO)", name, bases, info.namespace);
+    if (args == NULL) goto cleanup;
+    cls = (StructMetaObject *) PyType_Type.tp_new(type, args, NULL);
+    Py_CLEAR(args);
+    if (cls == NULL) goto cleanup;
 
-            default_val = PyDict_GetItem(new_dict, field);
-            if (default_val != NULL) {
-                if (dict_discard(arg_fields, field) < 0)
-                    goto error;
-                if (PyDict_SetItem(kwarg_fields, field, default_val) < 0)
-                    goto error;
-                if (dict_discard(new_dict, field) < 0)
-                    goto error;
-            }
-            else {
-                if (dict_discard(kwarg_fields, field) < 0)
-                    goto error;
-                if (PyDict_SetItem(arg_fields, field, Py_None) < 0)
-                    goto error;
-            }
-        }
-    }
-
-    fields = PyTuple_New(PyDict_GET_SIZE(arg_fields) + PyDict_GET_SIZE(kwarg_fields));
-    if (fields == NULL)
-        goto error;
-    defaults = PyTuple_New(PyDict_GET_SIZE(kwarg_fields));
-    if (defaults == NULL)
-        goto error;
-
-    i = 0;
-    j = 0;
-    while (PyDict_Next(arg_fields, &i, &field, NULL)) {
-        Py_INCREF(field);
-        PyTuple_SET_ITEM(fields, j, field);
-        j++;
-    }
-    i = 0;
-    k = 0;
-    while (PyDict_Next(kwarg_fields, &i, &field, &default_val)) {
-        Py_INCREF(field);
-        PyTuple_SET_ITEM(fields, j, field);
-        Py_INCREF(default_val);
-        PyTuple_SET_ITEM(defaults, k, default_val);
-        j++;
-        k++;
-    }
-    Py_CLEAR(arg_fields);
-    Py_CLEAR(kwarg_fields);
-
-    if (arg_weakref == OPT_TRUE && !already_has_weakref) {
-        if (PyList_Append(slots_list, mod->str___weakref__) < 0) goto error;
-    }
-    else if (arg_weakref == OPT_FALSE && already_has_weakref) {
-        PyErr_SetString(
-            PyExc_ValueError,
-            "Cannot set `weakref=False` if base class already has `weakref=True`"
-        );
-        goto error;
-    }
-
-    if (PyList_Sort(slots_list) < 0)
-        goto error;
-
-    slots = PyList_AsTuple(slots_list);
-    if (slots == NULL)
-        goto error;
-    Py_CLEAR(slots_list);
-
-    if (PyDict_SetItemString(new_dict, "__slots__", slots) < 0)
-        goto error;
-    Py_CLEAR(slots);
-
-    /* Handle renaming fields for encoding/decoding. */
-    encode_fields = StructMeta_rename_fields(fields, rename);
-    if (encode_fields == NULL) goto error;
-
-    /* If tag is False, then tagging is explicitly disabled */
-    if (tag_temp != Py_False && (tag_temp != NULL || tag_field_temp != NULL)) {
-        /* This block populates `tag` / `tag_field` / `tag_value`
-         *
-         * These variables hold *new* (incref'd) references to their objects,
-         * previously all references were only borrowed. Using a new variable
-         * makes cleanup on error easier, since we only want to cleanup new
-         * references.
-         */
-
-        /* First xincref and stash the `tag` arg, which will later be set on
-         * the class. */
-        Py_XINCREF(tag_temp);
-        tag = tag_temp;
-
-        /* Next determine the tag value
-         * Note: `None` was already normalized to NULL */
-        if (tag_temp == NULL || tag_temp == Py_True) {
-            Py_INCREF(name);
-            tag_value = name;
-        }
-        else {
-            if (PyCallable_Check(tag_temp)) {
-                tag_value = CALL_ONE_ARG(tag_temp, name);
-                if (tag_value == NULL) goto error;
-            }
-            else {
-                Py_INCREF(tag_temp);
-                tag_value = tag_temp;
-            }
-            if (PyLong_CheckExact(tag_value)) {
-                int64_t val = PyLong_AsLongLong(tag_value);
-                if (val == -1 && PyErr_Occurred()) {
-                    PyErr_SetString(
-                        PyExc_ValueError,
-                        "Integer `tag` values must be within [-2**63, 2**63 - 1]"
-                    );
-                    goto error;
-                }
-            }
-            else if (!PyUnicode_CheckExact(tag_value)) {
-                PyErr_SetString(PyExc_TypeError, "`tag` must be a `str` or an `int`");
-                goto error;
-            }
-        }
-
-        /* Next determine the tag_field to use.
-         * Note: `None` was already normalized to NULL */
-        if (tag_field_temp == NULL) {
-            tag_field = mod->str_type;
-            Py_INCREF(tag_field);
-        }
-        else if (PyUnicode_CheckExact(tag_field_temp)) {
-            tag_field = tag_field_temp;
-            Py_INCREF(tag_field);
-        }
-        else {
-            PyErr_SetString(PyExc_TypeError, "`tag_field` must be a `str`");
-            goto error;
-        }
-        int contains = PySequence_Contains(encode_fields, tag_field);
-        if (contains < 0) goto error;
-        if (contains) {
-            PyErr_Format(
-                PyExc_ValueError,
-                "`tag_field='%U' conflicts with an existing field of that name",
-                tag_field
-            );
-            goto error;
-        }
-    }
-
-    new_args = Py_BuildValue("(OOO)", name, bases, new_dict);
-    if (new_args == NULL)
-        goto error;
-
-    cls = (StructMetaObject *) PyType_Type.tp_new(type, new_args, NULL);
-    if (cls == NULL)
-        goto error;
+    /* Fill in type methods */
     ((PyTypeObject *)cls)->tp_vectorcall = (vectorcallfunc)Struct_vectorcall;
     ((PyTypeObject *)cls)->tp_dealloc = Struct_dealloc;
-    if (gc == OPT_FALSE) {
+    if (info.gc == OPT_FALSE) {
         ((PyTypeObject *)cls)->tp_flags &= ~Py_TPFLAGS_HAVE_GC;
         ((PyTypeObject *)cls)->tp_free = &PyObject_Free;
     }
@@ -4991,76 +5174,69 @@ StructMeta_new_inner(
         ((PyTypeObject *)cls)->tp_flags |= Py_TPFLAGS_HAVE_GC;
         ((PyTypeObject *)cls)->tp_free = &PyObject_GC_Del;
     }
-    if (frozen == OPT_TRUE) {
+    if (info.frozen == OPT_TRUE) {
         ((PyTypeObject *)cls)->tp_setattro = &Struct_setattro_frozen;
     }
-    else if (gc == OPT_FALSE) {
+    else if (info.gc == OPT_FALSE) {
         ((PyTypeObject *)cls)->tp_setattro = &PyObject_GenericSetAttr;
     }
     else {
         ((PyTypeObject *)cls)->tp_setattro = &Struct_setattro_default;
     }
 
-    Py_CLEAR(new_args);
+    /* Fill in struct offsets */
+    if (structmeta_construct_offsets(&info, cls) < 0) goto cleanup;
 
-    PyMemberDef *mp = MS_PyHeapType_GET_MEMBERS(cls);
-    for (i = 0; i < Py_SIZE(cls); i++, mp++) {
-        offset = PyLong_FromSsize_t(mp->offset);
-        if (offset == NULL)
-            goto error;
-        if (PyDict_SetItemString(offsets_lk, mp->name, offset) < 0)
-            goto error;
-    }
-    offsets = PyMem_New(Py_ssize_t, PyTuple_GET_SIZE(fields));
-    if (offsets == NULL)
-        goto error;
-    for (i = 0; i < PyTuple_GET_SIZE(fields); i++) {
-        field = PyTuple_GET_ITEM(fields, i);
-        offset = PyDict_GetItem(offsets_lk, field);
-        if (offset == NULL) {
-            PyErr_Format(PyExc_RuntimeError, "Failed to get offset for %R", field);
-            goto error;
+    Py_INCREF(info.fields);
+    cls->struct_fields = info.fields;
+    Py_INCREF(info.defaults);
+    cls->struct_defaults = info.defaults;
+    cls->nkwonly = info.nkwonly;
+    cls->n_trailing_defaults = info.n_trailing_defaults;
+    cls->struct_offsets = info.offsets;
+    Py_INCREF(info.encode_fields);
+    cls->struct_encode_fields = info.encode_fields;
+    Py_XINCREF(info.tag);
+    cls->struct_tag = info.tag;
+    Py_XINCREF(info.tag_field);
+    cls->struct_tag_field = info.tag_field;
+    Py_XINCREF(info.tag_value);
+    cls->struct_tag_value = info.tag_value;
+    Py_XINCREF(info.rename);
+    cls->rename = info.rename;
+    cls->frozen = info.frozen;
+    cls->eq = info.eq;
+    cls->order = info.order;
+    cls->array_like = info.array_like;
+    cls->gc = info.gc;
+    cls->omit_defaults = info.omit_defaults;
+    cls->forbid_unknown_fields = info.forbid_unknown_fields;
+
+    ok = true;
+
+cleanup:
+    /* Temporary structures */
+    Py_XDECREF(info.defaults_lk);
+    Py_XDECREF(info.offsets_lk);
+    Py_XDECREF(info.kwonly_fields);
+    Py_XDECREF(info.slots);
+    Py_XDECREF(info.namespace);
+    /* Constructed outputs */
+    Py_XDECREF(info.fields);
+    Py_XDECREF(info.encode_fields);
+    Py_XDECREF(info.defaults);
+    Py_XDECREF(info.tag);
+    Py_XDECREF(info.tag_field);
+    Py_XDECREF(info.tag_value);
+    if (!ok) {
+        if (info.offsets != NULL) {
+            PyMem_Free(info.offsets);
         }
-        offsets[i] = PyLong_AsSsize_t(offset);
+        Py_XDECREF(cls);
+        return NULL;
     }
-    Py_CLEAR(offsets_lk);
-
-    cls->struct_fields = fields;
-    cls->struct_defaults = defaults;
-    cls->struct_offsets = offsets;
-    cls->struct_encode_fields = encode_fields;
-    cls->struct_tag = tag;
-    cls->struct_tag_field = tag_field;
-    cls->struct_tag_value = tag_value;
-    Py_XINCREF(rename);
-    cls->rename = rename;
-    cls->frozen = frozen;
-    cls->eq = eq;
-    cls->order = order;
-    cls->array_like = array_like;
-    cls->gc = gc;
-    cls->omit_defaults = omit_defaults;
-    cls->forbid_unknown_fields = forbid_unknown_fields;
     return (PyObject *) cls;
-error:
-    Py_XDECREF(arg_fields);
-    Py_XDECREF(kwarg_fields);
-    Py_XDECREF(fields);
-    Py_XDECREF(defaults);
-    Py_XDECREF(new_dict);
-    Py_XDECREF(slots_list);
-    Py_XDECREF(new_args);
-    Py_XDECREF(offsets_lk);
-    Py_XDECREF(offset);
-    Py_XDECREF(encode_fields);
-    Py_XDECREF(tag);
-    Py_XDECREF(tag_field);
-    Py_XDECREF(tag_value);
-    if (offsets != NULL)
-        PyMem_Free(offsets);
-    return NULL;
 }
-
 
 static PyObject *
 StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
@@ -5070,23 +5246,24 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
     int arg_omit_defaults = -1, arg_forbid_unknown_fields = -1;
     int arg_frozen = -1, arg_eq = -1, arg_order = -1;
     int arg_array_like = -1, arg_gc = -1, arg_weakref = -1;
+    bool arg_kw_only = false;
 
     static char *kwlist[] = {
         "name", "bases", "dict",
         "tag_field", "tag", "rename",
         "omit_defaults", "forbid_unknown_fields",
-        "frozen", "eq", "order",
+        "frozen", "eq", "order", "kw_only",
         "array_like", "gc", "weakref",
         NULL
     };
 
     /* Parse arguments: (name, bases, dict) */
     if (!PyArg_ParseTupleAndKeywords(
-            args, kwargs, "UO!O!|$OOOpppppppp:StructMeta.__new__", kwlist,
+            args, kwargs, "UO!O!|$OOOppppppppp:StructMeta.__new__", kwlist,
             &name, &PyTuple_Type, &bases, &PyDict_Type, &namespace,
             &arg_tag_field, &arg_tag, &arg_rename,
             &arg_omit_defaults, &arg_forbid_unknown_fields,
-            &arg_frozen, &arg_eq, &arg_order,
+            &arg_frozen, &arg_eq, &arg_order, &arg_kw_only,
             &arg_array_like, &arg_gc, &arg_weakref
         )
     )
@@ -5096,7 +5273,7 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
         type, name, bases, namespace,
         arg_tag_field, arg_tag, arg_rename,
         arg_omit_defaults, arg_forbid_unknown_fields,
-        arg_frozen, arg_eq, arg_order,
+        arg_frozen, arg_eq, arg_order, arg_kw_only,
         arg_array_like, arg_gc, arg_weakref
     );
 }
@@ -5106,7 +5283,7 @@ PyDoc_STRVAR(msgspec_defstruct__doc__,
 "defstruct(name, fields, *, bases=(), module=None, namespace=None, "
 "tag_field=None, tag=None, rename=None, omit_defaults=False, "
 "forbid_unknown_fields=False, frozen=False, eq=True, order=False, "
-"array_like=False, gc=True, weakref=False)\n"
+"kw_only=False, array_like=False, gc=True, weakref=False)\n"
 "--\n"
 "\n"
 "Dynamically define a new Struct class.\n"
@@ -5144,23 +5321,24 @@ msgspec_defstruct(PyObject *self, PyObject *args, PyObject *kwargs)
     int arg_omit_defaults = -1, arg_forbid_unknown_fields = -1;
     int arg_frozen = -1, arg_eq = -1, arg_order = -1;
     int arg_array_like = -1, arg_gc = -1, arg_weakref = -1;
+    bool arg_kw_only = false;
 
     static char *kwlist[] = {
         "name", "fields", "bases", "module", "namespace",
         "tag_field", "tag", "rename",
         "omit_defaults", "forbid_unknown_fields",
-        "frozen", "eq", "order",
+        "frozen", "eq", "order", "kw_only",
         "array_like", "gc", "weakref",
         NULL
     };
 
     /* Parse arguments: (name, bases, dict) */
     if (!PyArg_ParseTupleAndKeywords(
-            args, kwargs, "UO|$O!UO!OOOpppppppp:defstruct", kwlist,
+            args, kwargs, "UO|$O!UO!OOOppppppppp:defstruct", kwlist,
             &name, &fields, &PyTuple_Type, &bases, &module, &PyDict_Type, &namespace,
             &arg_tag_field, &arg_tag, &arg_rename,
             &arg_omit_defaults, &arg_forbid_unknown_fields,
-            &arg_frozen, &arg_eq, &arg_order,
+            &arg_frozen, &arg_eq, &arg_order, &arg_kw_only,
             &arg_array_like, &arg_gc, &arg_weakref)
     )
         return NULL;
@@ -5227,7 +5405,7 @@ msgspec_defstruct(PyObject *self, PyObject *args, PyObject *kwargs)
         &StructMetaType, name, bases, namespace,
         arg_tag_field, arg_tag, arg_rename,
         arg_omit_defaults, arg_forbid_unknown_fields,
-        arg_frozen, arg_eq, arg_order,
+        arg_frozen, arg_eq, arg_order, arg_kw_only,
         arg_array_like, arg_gc, arg_weakref
     );
 
@@ -5443,57 +5621,50 @@ StructMeta_forbid_unknown_fields(StructMetaObject *self, void *closure)
 static PyObject*
 StructMeta_signature(StructMetaObject *self, void *closure)
 {
-    Py_ssize_t nfields, ndefaults, npos, i;
+    Py_ssize_t nfields, ndefaults, npos, nkwonly, i;
     MsgspecState *st;
     PyObject *res = NULL;
     PyObject *inspect = NULL;
     PyObject *parameter_cls = NULL;
     PyObject *parameter_empty = NULL;
-    PyObject *parameter_kind = NULL;
+    PyObject *kind_positional = NULL;
+    PyObject *kind_kw_only = NULL;
     PyObject *signature_cls = NULL;
     PyObject *annotations = NULL;
     PyObject *parameters = NULL;
     PyObject *temp_args = NULL, *temp_kwargs = NULL;
-    PyObject *field, *default_val, *parameter, *annotation;
+    PyObject *field, *kind, *default_val, *parameter, *annotation;
 
     st = msgspec_get_global_state();
 
     nfields = PyTuple_GET_SIZE(self->struct_fields);
     ndefaults = PyTuple_GET_SIZE(self->struct_defaults);
     npos = nfields - ndefaults;
+    nkwonly = self->nkwonly;
 
     inspect = PyImport_ImportModule("inspect");
-    if (inspect == NULL)
-        goto cleanup;
+    if (inspect == NULL) goto cleanup;
     parameter_cls = PyObject_GetAttrString(inspect, "Parameter");
-    if (parameter_cls == NULL)
-        goto cleanup;
+    if (parameter_cls == NULL) goto cleanup;
     parameter_empty = PyObject_GetAttrString(parameter_cls, "empty");
-    if (parameter_empty == NULL)
-        goto cleanup;
-    parameter_kind = PyObject_GetAttrString(parameter_cls, "POSITIONAL_OR_KEYWORD");
-    if (parameter_kind == NULL)
-        goto cleanup;
+    if (parameter_empty == NULL) goto cleanup;
+    kind_positional = PyObject_GetAttrString(parameter_cls, "POSITIONAL_OR_KEYWORD");
+    if (kind_positional == NULL) goto cleanup;
+    kind_kw_only = PyObject_GetAttrString(parameter_cls, "KEYWORD_ONLY");
+    if (kind_kw_only == NULL) goto cleanup;
     signature_cls = PyObject_GetAttrString(inspect, "Signature");
-    if (signature_cls == NULL)
-        goto cleanup;
+    if (signature_cls == NULL) goto cleanup;
 
     annotations = CALL_ONE_ARG(st->get_type_hints, (PyObject *)self);
-    if (annotations == NULL)
-        goto cleanup;
+    if (annotations == NULL) goto cleanup;
 
     parameters = PyList_New(nfields);
-    if (parameters == NULL)
-        return NULL;
+    if (parameters == NULL) return NULL;
 
     temp_args = PyTuple_New(0);
-    if (temp_args == NULL)
-        goto cleanup;
+    if (temp_args == NULL) goto cleanup;
     temp_kwargs = PyDict_New();
-    if (temp_kwargs == NULL)
-        goto cleanup;
-    if (PyDict_SetItemString(temp_kwargs, "kind", parameter_kind) < 0)
-        goto cleanup;
+    if (temp_kwargs == NULL) goto cleanup;
 
     for (i = 0; i < nfields; i++) {
         field = PyTuple_GET_ITEM(self->struct_fields, i);
@@ -5501,20 +5672,25 @@ StructMeta_signature(StructMetaObject *self, void *closure)
             default_val = parameter_empty;
         } else {
             default_val = PyTuple_GET_ITEM(self->struct_defaults, i - npos);
+            if (default_val == NODEFAULT) {
+                default_val = parameter_empty;
+            }
+        }
+        if (i < (nfields - nkwonly)) {
+            kind = kind_positional;
+        } else {
+            kind = kind_kw_only;
         }
         annotation = PyDict_GetItem(annotations, field);
         if (annotation == NULL) {
             annotation = parameter_empty;
         }
-        if (PyDict_SetItemString(temp_kwargs, "name", field) < 0)
-            goto cleanup;
-        if (PyDict_SetItemString(temp_kwargs, "default", default_val) < 0)
-            goto cleanup;
-        if (PyDict_SetItemString(temp_kwargs, "annotation", annotation) < 0)
-            goto cleanup;
+        if (PyDict_SetItemString(temp_kwargs, "name", field) < 0) goto cleanup;
+        if (PyDict_SetItemString(temp_kwargs, "kind", kind) < 0) goto cleanup;
+        if (PyDict_SetItemString(temp_kwargs, "default", default_val) < 0) goto cleanup;
+        if (PyDict_SetItemString(temp_kwargs, "annotation", annotation) < 0) goto cleanup;
         parameter = PyObject_Call(parameter_cls, temp_args, temp_kwargs);
-        if (parameter == NULL)
-            goto cleanup;
+        if (parameter == NULL) goto cleanup;
         PyList_SET_ITEM(parameters, i, parameter);
     }
     res = CALL_ONE_ARG(signature_cls, parameters);
@@ -5522,7 +5698,8 @@ cleanup:
     Py_XDECREF(inspect);
     Py_XDECREF(parameter_cls);
     Py_XDECREF(parameter_empty);
-    Py_XDECREF(parameter_kind);
+    Py_XDECREF(kind_positional);
+    Py_XDECREF(kind_kw_only);
     Py_XDECREF(signature_cls);
     Py_XDECREF(annotations);
     Py_XDECREF(parameters);
@@ -5697,30 +5874,31 @@ Struct_fill_in_defaults(StructMetaObject *st_type, PyObject *obj, PathNode *path
     for (i = 0; i < nfields; i++) {
         PyObject *val = Struct_get_index_noerror(obj, i);
         if (val == NULL) {
-            if (i < (nfields - ndefaults)) {
-                ms_raise_validation_error(
-                    path,
-                    "Object missing required field `%U`%U",
-                    PyTuple_GET_ITEM(st_type->struct_encode_fields, i)
-                );
-                return -1;
-            }
-            else {
-                /* Fill in default */
-                val = maybe_deepcopy_default(
-                    PyTuple_GET_ITEM(st_type->struct_defaults, i - (nfields - ndefaults))
-                );
-                if (val == NULL) return -1;
-                Struct_set_index(obj, i, val);
-            }
+            if (MS_UNLIKELY(i < (nfields - ndefaults))) goto missing_required;
+            val = PyTuple_GET_ITEM(
+                st_type->struct_defaults, i - (nfields - ndefaults)
+            );
+            if (MS_UNLIKELY(val == NODEFAULT)) goto missing_required;
+            val = maybe_deepcopy_default(val);
+            if (MS_UNLIKELY(val == NULL)) return -1;
+            Struct_set_index(obj, i, val);
         }
         if (should_untrack) {
             should_untrack = !MS_OBJ_IS_GC(val);
         }
     }
+
     if (is_gc && !should_untrack)
         PyObject_GC_Track(obj);
     return 0;
+
+missing_required:
+    ms_raise_validation_error(
+        path,
+        "Object missing required field `%U`%U",
+        PyTuple_GET_ITEM(st_type->struct_encode_fields, i)
+    );
+    return -1;
 }
 
 static PyObject *
@@ -5733,9 +5911,10 @@ Struct_vectorcall(PyTypeObject *cls, PyObject *const *args, size_t nargsf, PyObj
     Py_ssize_t nfields = PyTuple_GET_SIZE(fields);
     PyObject *defaults = st_type->struct_defaults;
     Py_ssize_t ndefaults = PyTuple_GET_SIZE(defaults);
+    Py_ssize_t nkwonly = st_type->nkwonly;
     Py_ssize_t npos = nfields - ndefaults;
 
-    if (MS_UNLIKELY(nargs > nfields)) {
+    if (MS_UNLIKELY(nargs > (nfields - nkwonly))) {
         PyErr_SetString(PyExc_TypeError, "Extra positional arguments provided");
         return NULL;
     }
@@ -5809,23 +5988,23 @@ kw_found:
             char *addr = (char *)self + st_type->struct_offsets[field_index];
             if (MS_LIKELY(*(PyObject **)addr == NULL)) {
                 if (MS_LIKELY(field_index >= npos)) {
-                    PyObject *val = maybe_deepcopy_default(
-                        PyTuple_GET_ITEM(defaults, field_index - npos)
-                    );
-                    if (val == NULL) goto error;
-                    *(PyObject **)addr = val;
-                    if (should_untrack) {
-                        should_untrack = !MS_OBJ_IS_GC(val);
+                    PyObject *val = PyTuple_GET_ITEM(defaults, field_index - npos);
+                    if (MS_LIKELY(val != NODEFAULT)) {
+                        val = maybe_deepcopy_default(val);
+                        if (MS_UNLIKELY(val == NULL)) goto error;
+                        *(PyObject **)addr = val;
+                        if (should_untrack) {
+                            should_untrack = !MS_OBJ_IS_GC(val);
+                        }
+                        continue;
                     }
                 }
-                else {
-                    PyErr_Format(
-                        PyExc_TypeError,
-                        "Missing required argument '%U'",
-                        PyTuple_GET_ITEM(fields, field_index)
-                    );
-                    goto error;
-                }
+                PyErr_Format(
+                    PyExc_TypeError,
+                    "Missing required argument '%U'",
+                    PyTuple_GET_ITEM(fields, field_index)
+                );
+                goto error;
             }
         }
     }
@@ -6137,6 +6316,9 @@ PyDoc_STRVAR(Struct__doc__,
 "eq: bool, default True\n"
 "   If True (the default), an ``__eq__`` method will be generated for this\n"
 "   type. Set to False to compare based on instance identity alone.\n"
+"kw_only: bool, default False\n"
+"   If True, all fields will be treated as keyword-only arguments in the\n"
+"   generated ``__init__`` method. Default is False.\n"
 "omit_defaults: bool, default False\n"
 "   Whether fields should be omitted from encoding if the corresponding value\n"
 "   is the default for that field. Enabling this may reduce message size, and\n"
@@ -11214,7 +11396,7 @@ mpack_decode_struct_array_inner(
     DecoderState *self, Py_ssize_t size, bool tag_already_read,
     StructMetaObject *st_type, PathNode *path, bool is_key
 ) {
-    Py_ssize_t i, nfields, ndefaults, npos;
+    Py_ssize_t i, nfields, ndefaults, nrequired, npos;
     PyObject *res, *val = NULL;
     bool is_gc, should_untrack;
     bool tagged = st_type->struct_tag_value != NULL;
@@ -11222,13 +11404,14 @@ mpack_decode_struct_array_inner(
 
     nfields = PyTuple_GET_SIZE(st_type->struct_encode_fields);
     ndefaults = PyTuple_GET_SIZE(st_type->struct_defaults);
+    nrequired = tagged + nfields - st_type->n_trailing_defaults;
     npos = nfields - ndefaults;
 
-    if (size < npos + tagged) {
+    if (size < nrequired) {
         ms_raise_validation_error(
             path,
             "Expected `array` of at least length %zd, got %zd%U",
-            npos + tagged,
+            nrequired,
             size
         );
         return NULL;
@@ -13356,7 +13539,7 @@ json_decode_struct_array_inner(
     JSONDecoderState *self, StructMetaObject *st_type, PathNode *path,
     Py_ssize_t starting_index
 ) {
-    Py_ssize_t nfields, ndefaults, npos, i = 0;
+    Py_ssize_t nfields, ndefaults, nrequired, npos, i = 0;
     PyObject *out, *item = NULL;
     unsigned char c;
     bool is_gc, should_untrack;
@@ -13368,6 +13551,7 @@ json_decode_struct_array_inner(
 
     nfields = PyTuple_GET_SIZE(st_type->struct_encode_fields);
     ndefaults = PyTuple_GET_SIZE(st_type->struct_defaults);
+    nrequired = nfields - st_type->n_trailing_defaults;
     npos = nfields - ndefaults;
     is_gc = MS_TYPE_IS_GC(st_type);
     should_untrack = is_gc;
@@ -13429,11 +13613,11 @@ json_decode_struct_array_inner(
     }
 
     /* Check for missing required fields */
-    if (i < npos) {
+    if (i < nrequired) {
         ms_raise_validation_error(
             path,
             "Expected `array` of at least length %zd, got %zd%U",
-            npos + starting_index,
+            nrequired + starting_index,
             i + starting_index
         );
         goto error;
@@ -15433,6 +15617,8 @@ PyInit__core(void)
     }
 
     StructMetaType.tp_base = &PyType_Type;
+    if (PyType_Ready(&NoDefault_Type) < 0)
+        return NULL;
     if (PyType_Ready(&IntLookup_Type) < 0)
         return NULL;
     if (PyType_Ready(&StrLookup_Type) < 0)
@@ -15486,6 +15672,7 @@ PyInit__core(void)
     Py_INCREF(&JSONEncoder_Type);
     if (PyModule_AddObject(m, "JSONEncoder", (PyObject *)&JSONEncoder_Type) < 0)
         return NULL;
+    Py_INCREF(&JSONDecoder_Type);
     if (PyModule_AddObject(m, "JSONDecoder", (PyObject *)&JSONDecoder_Type) < 0)
         return NULL;
 
@@ -15493,6 +15680,11 @@ PyInit__core(void)
 
     /* Initialize GC counter */
     st->gc_cycle = 0;
+
+    /* Add nodefault singleton */
+    Py_INCREF(NODEFAULT);
+    if (PyModule_AddObject(m, "nodefault", NODEFAULT) < 0)
+        return NULL;
 
     /* Initialize the Struct Type */
     st->StructType = PyObject_CallFunction(

@@ -2,18 +2,19 @@ import copy
 import datetime
 import enum
 import gc
-import inspect
 import operator
 import pickle
 import sys
 import weakref
 from contextlib import contextmanager
+from inspect import Signature, Parameter
 from typing import Any, Optional
 
 import pytest
 
 import msgspec
 from msgspec import Struct, defstruct
+from msgspec._core import nodefault
 
 
 @contextmanager
@@ -132,7 +133,7 @@ def test_struct_errors_nicely_if_used_in_init_subclass():
             for field in [
                 "__struct_fields__",
                 "__struct_encode_fields__",
-                "__struct_fields__",
+                "__match_args__",
                 "__struct_defaults__",
             ]:
                 with pytest.raises(AttributeError):
@@ -159,285 +160,367 @@ def test_struct_errors_nicely_if_used_in_init_subclass():
     assert ran
 
 
-def test_structmeta_no_args():
-    class Test(Struct):
-        pass
+class TestStructParameterOrdering:
+    """Tests for parsing parameter types & defaults from one or more class
+    definitions."""
 
-    assert Test.__struct_fields__ == ()
-    assert Test.__struct_defaults__ == ()
-    assert Test.__match_args__ == ()
-    assert Test.__slots__ == ()
+    def test_no_args(self):
+        class Test(Struct):
+            pass
 
-    sig = inspect.Signature(parameters=[])
-    assert Test.__signature__ == sig
+        assert Test.__struct_fields__ == ()
+        assert Test.__struct_defaults__ == ()
+        assert Test.__match_args__ == ()
+        assert Test.__slots__ == ()
 
+    def test_all_positional(self):
+        class Test(Struct):
+            y: float
+            x: int
 
-def test_structmeta_positional_only():
-    class Test(Struct):
-        y: float
-        x: int
+        assert Test.__struct_fields__ == ("y", "x")
+        assert Test.__struct_defaults__ == ()
+        assert Test.__match_args__ == ("y", "x")
+        assert Test.__slots__ == ("x", "y")
 
-    assert Test.__struct_fields__ == ("y", "x")
-    assert Test.__struct_defaults__ == ()
-    assert Test.__match_args__ == ("y", "x")
-    assert Test.__slots__ == ("x", "y")
+    def test_all_positional_with_defaults(self):
+        class Test(Struct):
+            y: int = 1
+            x: float = 2.0
 
-    sig = inspect.Signature(
-        parameters=[
-            inspect.Parameter(
-                "y", inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=float
-            ),
-            inspect.Parameter(
-                "x", inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=int
-            ),
-        ]
-    )
-    assert Test.__signature__ == sig
+        assert Test.__struct_fields__ == ("y", "x")
+        assert Test.__struct_defaults__ == (1, 2.0)
+        assert Test.__match_args__ == ("y", "x")
+        assert Test.__slots__ == ("x", "y")
 
+    def test_subclass_no_change(self):
+        class Test(Struct):
+            y: float
+            x: int
 
-def test_structmeta_positional_and_keyword():
-    class Test(Struct):
-        c: int
-        d: int = 1
-        b: float
-        a: float = 2.0
+        class Test2(Test):
+            pass
 
-    assert Test.__struct_fields__ == ("c", "b", "d", "a")
-    assert Test.__struct_defaults__ == (1, 2.0)
-    assert Test.__match_args__ == ("c", "b", "d", "a")
-    assert Test.__slots__ == ("a", "b", "c", "d")
+        assert Test2.__struct_fields__ == ("y", "x")
+        assert Test2.__struct_defaults__ == ()
+        assert Test2.__match_args__ == ("y", "x")
+        assert Test2.__slots__ == ()
 
-    sig = inspect.Signature(
-        parameters=[
-            inspect.Parameter(
-                "c", inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=int
-            ),
-            inspect.Parameter(
-                "b", inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=float
-            ),
-            inspect.Parameter(
-                "d", inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=int, default=1
-            ),
-            inspect.Parameter(
-                "a",
-                inspect.Parameter.POSITIONAL_OR_KEYWORD,
-                annotation=float,
-                default=2.0,
-            ),
-        ]
-    )
-    assert Test.__signature__ == sig
+    def test_subclass_extends(self):
+        class Test(Struct):
+            c: int
+            b: float
+            d: int = 1
+            a: float = 2.0
 
+        class Test2(Test):
+            e: str = "3.0"
+            f: float = 4.0
 
-def test_structmeta_keyword_only():
-    class Test(Struct):
-        y: int = 1
-        x: float = 2.0
+        assert Test2.__struct_fields__ == ("c", "b", "d", "a", "e", "f")
+        assert Test2.__struct_defaults__ == (1, 2.0, "3.0", 4.0)
+        assert Test2.__match_args__ == ("c", "b", "d", "a", "e", "f")
+        assert Test2.__slots__ == ("e", "f")
 
-    assert Test.__struct_fields__ == ("y", "x")
-    assert Test.__struct_defaults__ == (1, 2.0)
-    assert Test.__match_args__ == ("y", "x")
-    assert Test.__slots__ == ("x", "y")
+    def test_subclass_overrides(self):
+        class Test(Struct):
+            c: int
+            b: int
+            d: int = 1
+            a: float = 2.0
 
-    sig = inspect.Signature(
-        parameters=[
-            inspect.Parameter(
-                "y", inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=int, default=1
-            ),
-            inspect.Parameter(
-                "x",
-                inspect.Parameter.POSITIONAL_OR_KEYWORD,
-                annotation=float,
-                default=2.0,
-            ),
-        ]
-    )
-    assert Test.__signature__ == sig
+        class Test2(Test):
+            b: float = 3  # switch to keyword, change type
+            d: int = 4  # change default
+            e: float = 5.0  # new
 
+        assert Test2.__struct_fields__ == ("c", "b", "d", "a", "e")
+        assert Test2.__struct_defaults__ == (3, 4, 2.0, 5.0)
+        assert Test2.__match_args__ == ("c", "b", "d", "a", "e")
+        assert Test2.__slots__ == ("e",)
 
-def test_structmeta_subclass_no_change():
-    class Test(Struct):
-        y: float
-        x: int
+    def test_subclass_with_mixin(self):
+        class A(Struct):
+            b: int
+            a: float = 1.0
 
-    class Test2(Test):
-        pass
+        class Mixin(Struct):
+            pass
 
-    assert Test2.__struct_fields__ == ("y", "x")
-    assert Test2.__struct_defaults__ == ()
-    assert Test2.__match_args__ == ("y", "x")
-    assert Test2.__slots__ == ()
+        class B(A, Mixin):
+            a: float = 2.0
 
-    sig = inspect.Signature(
-        parameters=[
-            inspect.Parameter(
-                "y", inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=float
-            ),
-            inspect.Parameter(
-                "x", inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=int
-            ),
-        ]
-    )
-    assert Test2.__signature__ == sig
+        assert B.__struct_fields__ == ("b", "a")
+        assert B.__struct_defaults__ == (2.0,)
+        assert B.__match_args__ == ("b", "a")
+        assert B.__slots__ == ()
 
-    assert as_tuple(Test2(1, 2)) == (1, 2)
-    assert as_tuple(Test2(y=1, x=2)) == (1, 2)
+    def test_positional_after_keyword_errors(self):
+        with pytest.raises(TypeError) as rec:
 
+            class Test(Struct):
+                a: int
+                b: int = 1
+                c: float
 
-def test_structmeta_subclass_extends():
-    class Test(Struct):
-        c: int
-        d: int = 1
-        b: float
-        a: float = 2.0
+        assert "Required field 'c' cannot follow optional fields" in str(rec.value)
 
-    class Test2(Test):
-        e: str
-        f: float = 3.0
+    def test_positional_after_keyword_subclass_errors(self):
+        class Base(Struct):
+            a: int
+            b: int = 1
 
-    assert Test2.__struct_fields__ == ("c", "b", "e", "d", "a", "f")
-    assert Test2.__struct_defaults__ == (1, 2.0, 3.0)
-    assert Test2.__match_args__ == ("c", "b", "e", "d", "a", "f")
-    assert Test2.__slots__ == ("e", "f")
+        with pytest.raises(TypeError) as rec:
 
-    sig = inspect.Signature(
-        parameters=[
-            inspect.Parameter(
-                "c", inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=int
-            ),
-            inspect.Parameter(
-                "b", inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=float
-            ),
-            inspect.Parameter(
-                "e", inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=str
-            ),
-            inspect.Parameter(
-                "d", inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=int, default=1
-            ),
-            inspect.Parameter(
-                "a",
-                inspect.Parameter.POSITIONAL_OR_KEYWORD,
-                annotation=float,
-                default=2.0,
-            ),
-            inspect.Parameter(
-                "f",
-                inspect.Parameter.POSITIONAL_OR_KEYWORD,
-                annotation=float,
-                default=3.0,
-            ),
-        ]
-    )
-    assert Test2.__signature__ == sig
+            class Test(Base):
+                c: float
 
-    assert as_tuple(Test2(1, 2, 3, 4, 5, 6)) == (1, 2, 3, 4, 5, 6)
-    assert as_tuple(Test2(4, 5, 6)) == (4, 5, 6, 1, 2.0, 3.0)
+        assert "Required field 'c' cannot follow optional fields" in str(rec.value)
 
+    def test_kw_only_positional(self):
+        class Test(Struct, kw_only=True):
+            b: int
+            a: int
 
-def test_structmeta_subclass_overrides():
-    class Test(Struct):
-        c: int
-        d: int = 1
-        b: float
-        a: float = 2.0
+        assert Test.__struct_fields__ == ("b", "a")
+        assert Test.__struct_defaults__ == ()
+        assert Test.__match_args__ == ("b", "a")
+        assert Test.__slots__ == ("a", "b")
 
-    class Test2(Test):
-        d: int = 2  # change default
-        c: int = 3  # switch to keyword
-        a: float  # switch to positional
+    def test_kw_only_mixed(self):
+        class Test(Struct, kw_only=True):
+            b: int
+            a: int = 0
+            c: int
+            d: int = 1
 
-    assert Test2.__struct_fields__ == ("b", "a", "d", "c")
-    assert Test2.__struct_defaults__ == (2, 3)
-    assert Test2.__match_args__ == ("b", "a", "d", "c")
-    assert Test2.__slots__ == ()
+        assert Test.__struct_fields__ == ("b", "a", "c", "d")
+        assert Test.__struct_defaults__ == (0, nodefault, 1)
+        assert Test.__match_args__ == ("b", "a", "c", "d")
+        assert Test.__slots__ == ("a", "b", "c", "d")
 
-    sig = inspect.Signature(
-        parameters=[
-            inspect.Parameter(
-                "b", inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=float
-            ),
-            inspect.Parameter(
-                "a", inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=float
-            ),
-            inspect.Parameter(
-                "d", inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=int, default=2
-            ),
-            inspect.Parameter(
-                "c", inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=int, default=3
-            ),
-        ]
-    )
-    assert Test2.__signature__ == sig
+    def test_kw_only_positional_base_class(self):
+        class Base(Struct, kw_only=True):
+            b: int
+            a: int
 
-    assert as_tuple(Test2(1, 2, 3, 4)) == (1, 2, 3, 4)
-    assert as_tuple(Test2(4, 5)) == (4, 5, 2, 3)
+        class S1(Base):
+            d: int
+            c: int
 
+        class S2(Base):
+            d: int
+            c: int = 1
 
-def test_structmeta_subclass_mixin_struct_base():
-    class A(Struct):
-        b: int
-        a: float = 1.0
+        assert S1.__struct_fields__ == ("d", "c", "b", "a")
+        assert S1.__struct_defaults__ == ()
+        assert S1.__match_args__ == ("d", "c", "b", "a")
+        assert S1.__slots__ == ("c", "d")
 
-    class Mixin(Struct):
-        def as_dict(self):
-            return {f: getattr(self, f) for f in self.__struct_fields__}
+        assert S2.__struct_fields__ == ("d", "c", "b", "a")
+        assert S2.__struct_defaults__ == (1, nodefault, nodefault)
+        assert S2.__match_args__ == ("d", "c", "b", "a")
+        assert S2.__slots__ == ("c", "d")
 
-    class B(A, Mixin):
-        a: float = 2.0
+    def test_kw_only_base_class(self):
+        class Base(Struct, kw_only=True):
+            b: int = 1
+            a: int
 
-    assert B.__struct_fields__ == ("b", "a")
-    assert B.__struct_defaults__ == (2.0,)
-    assert B.__match_args__ == ("b", "a")
-    assert B.__slots__ == ()
+        class S1(Base):
+            d: int
+            c: int = 2
 
-    sig = inspect.Signature(
-        parameters=[
-            inspect.Parameter(
-                "b", inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=int
-            ),
-            inspect.Parameter(
-                "a",
-                inspect.Parameter.POSITIONAL_OR_KEYWORD,
-                annotation=float,
-                default=2.0,
-            ),
-        ]
-    )
-    assert B.__signature__ == sig
+        assert S1.__struct_fields__ == ("d", "c", "b", "a")
+        assert S1.__struct_defaults__ == (2, 1, nodefault)
+        assert S1.__match_args__ == ("d", "c", "b", "a")
+        assert S1.__slots__ == ("c", "d")
 
-    b = B(1)
-    assert b.as_dict() == {"b": 1, "a": 2.0}
+    def test_kw_only_subclass(self):
+        class Base(Struct):
+            b: int
+            a: int
+
+        class S1(Base, kw_only=True):
+            d: int
+            c: int
+
+        assert S1.__struct_fields__ == ("b", "a", "d", "c")
+        assert S1.__struct_defaults__ == ()
+        assert S1.__match_args__ == ("b", "a", "d", "c")
+        assert S1.__slots__ == ("c", "d")
+
+    def test_kw_only_defaults_subclass(self):
+        class Base(Struct):
+            b: int
+            a: int = 0
+
+        class S1(Base, kw_only=True):
+            d: int
+            c: int = 1
+
+        assert S1.__struct_fields__ == ("b", "a", "d", "c")
+        assert S1.__struct_defaults__ == (0, nodefault, 1)
+        assert S1.__match_args__ == ("b", "a", "d", "c")
+        assert S1.__slots__ == ("c", "d")
+
+    def test_kw_only_overrides(self):
+        class Base(Struct):
+            b: int
+            a: int = 2
+
+        class S1(Base, kw_only=True):
+            b: int
+            c: int = 3
+
+        assert S1.__struct_fields__ == ("a", "b", "c")
+        assert S1.__struct_defaults__ == (2, nodefault, 3)
+        assert S1.__match_args__ == ("a", "b", "c")
+        assert S1.__slots__ == ("c",)
+
+    def test_kw_only_overridden(self):
+        class Base(Struct, kw_only=True):
+            b: int
+            a: int = 2
+
+        class S1(Base):
+            b: int
+            c: int = 3
+
+        assert S1.__struct_fields__ == ("b", "c", "a")
+        assert S1.__struct_defaults__ == (3, 2)
+        assert S1.__match_args__ == ("b", "c", "a")
+        assert S1.__slots__ == ("c",)
 
 
-def test_struct_init():
-    class Test(Struct):
-        a: int
-        b: float
-        c: int = 3
-        d: float = 4.0
+class TestStructInit:
+    def test_init_positional(self):
+        class Test(Struct):
+            a: int
+            b: float
+            c: int = 3
+            d: float = 4.0
 
-    assert as_tuple(Test(1, 2.0)) == (1, 2.0, 3, 4.0)
-    assert as_tuple(Test(1, b=2.0)) == (1, 2.0, 3, 4.0)
-    assert as_tuple(Test(a=1, b=2.0)) == (1, 2.0, 3, 4.0)
-    assert as_tuple(Test(1, b=2.0, c=5)) == (1, 2.0, 5, 4.0)
-    assert as_tuple(Test(1, b=2.0, d=5.0)) == (1, 2.0, 3, 5.0)
-    assert as_tuple(Test(1, 2.0, 5)) == (1, 2.0, 5, 4.0)
-    assert as_tuple(Test(1, 2.0, 5, 6.0)) == (1, 2.0, 5, 6.0)
+        assert as_tuple(Test(1, 2.0)) == (1, 2.0, 3, 4.0)
+        assert as_tuple(Test(1, b=2.0)) == (1, 2.0, 3, 4.0)
+        assert as_tuple(Test(a=1, b=2.0)) == (1, 2.0, 3, 4.0)
+        assert as_tuple(Test(1, b=2.0, c=5)) == (1, 2.0, 5, 4.0)
+        assert as_tuple(Test(1, b=2.0, d=5.0)) == (1, 2.0, 3, 5.0)
+        assert as_tuple(Test(1, 2.0, 5)) == (1, 2.0, 5, 4.0)
+        assert as_tuple(Test(1, 2.0, 5, 6.0)) == (1, 2.0, 5, 6.0)
 
-    with pytest.raises(TypeError, match="Missing required argument 'a'"):
-        Test()
+        with pytest.raises(TypeError, match="Missing required argument 'a'"):
+            Test()
 
-    with pytest.raises(TypeError, match="Missing required argument 'b'"):
-        Test(1)
+        with pytest.raises(TypeError, match="Missing required argument 'b'"):
+            Test(1)
 
-    with pytest.raises(TypeError, match="Extra positional arguments provided"):
-        Test(1, 2, 3, 4, 5)
+        with pytest.raises(TypeError, match="Extra positional arguments provided"):
+            Test(1, 2, 3, 4, 5)
 
-    with pytest.raises(TypeError, match="Argument 'a' given by name and position"):
-        Test(1, 2, a=3)
+        with pytest.raises(TypeError, match="Argument 'a' given by name and position"):
+            Test(1, 2, a=3)
 
-    with pytest.raises(TypeError, match="Extra keyword arguments provided"):
-        Test(1, 2, e=5)
+        with pytest.raises(TypeError, match="Extra keyword arguments provided"):
+            Test(1, 2, e=5)
+
+    def test_init_kw_only(self):
+        class Test(Struct, kw_only=True):
+            a: int
+            b: float = 2.0
+            c: int = 3
+
+        assert as_tuple(Test(a=1)) == (1, 2.0, 3)
+        assert as_tuple(Test(a=1, b=4.0)) == (1, 4.0, 3)
+        assert as_tuple(Test(a=1, c=4)) == (1, 2.0, 4)
+        assert as_tuple(Test(a=1, b=4.0, c=5)) == (1, 4.0, 5)
+
+        with pytest.raises(TypeError, match="Missing required argument 'a'"):
+            Test()
+
+        with pytest.raises(TypeError, match="Extra positional arguments provided"):
+            Test(1)
+
+        with pytest.raises(TypeError, match="Extra keyword arguments provided"):
+            Test(a=1, e=5)
+
+    def test_init_kw_only_mixed(self):
+        class Base(Struct, kw_only=True):
+            c: int = 3
+            d: float = 4.0
+
+        class Test(Base):
+            a: int
+            b: float = 2.0
+
+        assert as_tuple(Test(1)) == (1, 2.0, 3, 4.0)
+        assert as_tuple(Test(1, 5.0)) == (1, 5.0, 3, 4.0)
+        assert as_tuple(Test(a=1)) == (1, 2.0, 3, 4.0)
+        assert as_tuple(Test(a=1, b=5.0)) == (1, 5.0, 3, 4.0)
+        assert as_tuple(Test(1, c=5)) == (1, 2.0, 5, 4.0)
+
+        with pytest.raises(TypeError, match="Missing required argument 'a'"):
+            Test()
+
+        with pytest.raises(TypeError, match="Argument 'a' given by name and position"):
+            Test(1, b=3.0, c=4, a=3)
+
+        with pytest.raises(TypeError, match="Extra positional arguments provided"):
+            Test(1, 5.0, 3)
+
+        with pytest.raises(TypeError, match="Extra keyword arguments provided"):
+            Test(1, e=5)
+
+
+class TestSignature:
+    def test_signature_no_args(self):
+        class Test(Struct):
+            pass
+
+        sig = Signature(parameters=[])
+        assert Test.__signature__ == sig
+
+    def test_signature_positional(self):
+        class Test(Struct):
+            b: float
+            a: int = 1
+
+        sig = Signature(
+            parameters=[
+                Parameter("b", Parameter.POSITIONAL_OR_KEYWORD, annotation=float),
+                Parameter(
+                    "a",
+                    Parameter.POSITIONAL_OR_KEYWORD,
+                    default=1,
+                    annotation=int,
+                ),
+            ]
+        )
+        assert Test.__signature__ == sig
+
+    def test_signature_kw_only(self):
+        class Base(Struct, kw_only=True):
+            c: float
+            d: int = 2
+
+        class Test(Base):
+            b: float
+            a: int = 1
+
+        sig = Signature(
+            parameters=[
+                Parameter("b", Parameter.POSITIONAL_OR_KEYWORD, annotation=float),
+                Parameter(
+                    "a",
+                    Parameter.POSITIONAL_OR_KEYWORD,
+                    default=1,
+                    annotation=int,
+                ),
+                Parameter("c", Parameter.KEYWORD_ONLY, annotation=float),
+                Parameter("d", Parameter.KEYWORD_ONLY, default=2, annotation=int),
+            ]
+        )
+        assert Test.__signature__ == sig
 
 
 def test_struct_repr():
@@ -1448,12 +1531,12 @@ class TestDefStruct:
 
     def test_defstruct_bases(self):
         class Base(Struct):
-            z: int = 0
+            z: int
 
         Point = defstruct("Point", ["x", "y"], bases=(Base,))
         assert issubclass(Point, Base)
         assert issubclass(Point, Struct)
-        assert as_tuple(Point(1, 2)) == (1, 2, 0)
+        assert as_tuple(Point(1, 2, 0)) == (1, 2, 0)
         assert as_tuple(Point(1, 2, 3)) == (1, 2, 3)
 
     def test_defstruct_module(self):
@@ -1466,6 +1549,13 @@ class TestDefStruct:
         )
         t = Test(1, 2)
         assert t.add() == 3
+
+    def test_defstruct_kw_only(self):
+        Test = defstruct("Test", ["x", "y"], kw_only=True)
+        t = Test(x=1, y=2)
+        assert t.x == 1 and t.y == 2
+        with pytest.raises(TypeError, match="Extra positional arguments"):
+            Test(1, 2)
 
     @pytest.mark.parametrize(
         "option, default",

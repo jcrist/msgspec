@@ -1192,6 +1192,72 @@ class TestStructRename:
         assert "Object missing required field `Y`" == str(rec.value)
 
 
+class TestStructKeywordOnly:
+    def test_keyword_only_object(self, proto):
+        class Test(msgspec.Struct, kw_only=True):
+            a: int
+            b: int = 2
+            c: int
+            d: int = 4
+
+        sol = Test(a=1, b=2, c=3, d=4)
+        msg = proto.encode({"a": 1, "b": 2, "c": 3, "d": 4})
+        res = proto.decode(msg, type=Test)
+        assert res == sol
+
+        msg = proto.encode({"a": 1, "c": 3})
+        res = proto.decode(msg, type=Test)
+        assert res == sol
+
+        sol = Test(a=1, b=3, c=5)
+        msg = proto.encode({"a": 1, "b": 3, "c": 5})
+        res = proto.decode(msg, type=Test)
+        assert res == sol
+
+        msg = proto.encode({"a": 1, "b": 2})
+        with pytest.raises(
+            msgspec.ValidationError,
+            match="missing required field `c`",
+        ):
+            proto.decode(msg, type=Test)
+
+        msg = proto.encode({"c": 1, "b": 2})
+        with pytest.raises(
+            msgspec.ValidationError,
+            match="missing required field `a`",
+        ):
+            proto.decode(msg, type=Test)
+
+    def test_keyword_only_array(self, proto):
+        class Test(msgspec.Struct, kw_only=True, array_like=True):
+            a: int
+            b: int = 2
+            c: int
+            d: int = 4
+
+        msg = proto.encode([5, 6, 7, 8])
+        res = proto.decode(msg, type=Test)
+        assert res == Test(a=5, b=6, c=7, d=8)
+
+        msg = proto.encode([5, 6, 7])
+        res = proto.decode(msg, type=Test)
+        assert res == Test(a=5, b=6, c=7, d=4)
+
+        msg = proto.encode([5, 6])
+        with pytest.raises(
+            msgspec.ValidationError,
+            match="Expected `array` of at least length 3, got 2",
+        ):
+            proto.decode(msg, type=Test)
+
+        msg = proto.encode([])
+        with pytest.raises(
+            msgspec.ValidationError,
+            match="Expected `array` of at least length 3, got 0",
+        ):
+            proto.decode(msg, type=Test)
+
+
 class TestTypedDict:
     def test_type_cached(self, proto):
         class Ex(TypedDict):
