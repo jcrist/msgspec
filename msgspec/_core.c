@@ -1993,14 +1993,15 @@ typedef struct {
     PyHeapTypeObject base;
     PyObject *struct_fields;
     PyObject *struct_defaults;
-    Py_ssize_t nkwonly;
-    Py_ssize_t n_trailing_defaults;
     Py_ssize_t *struct_offsets;
     PyObject *struct_encode_fields;
     TypeNode **struct_types;
+    Py_ssize_t nkwonly;
+    Py_ssize_t n_trailing_defaults;
     PyObject *struct_tag_field;  /* str or NULL */
     PyObject *struct_tag_value;  /* str or NULL */
     PyObject *struct_tag;        /* True, str, or NULL */
+    PyObject *match_args;
     PyObject *rename;
     bool json_compatible;
     bool traversing;
@@ -4631,6 +4632,7 @@ typedef struct {
     PyObject *fields;
     PyObject *encode_fields;
     PyObject *defaults;
+    PyObject *match_args;
     PyObject *tag;
     PyObject *tag_field;
     PyObject *tag_value;
@@ -4861,6 +4863,11 @@ structmeta_construct_fields(StructMetaInfo *info, MsgspecState *mod) {
         info->n_trailing_defaults++;
     }
 
+    /* Construct __match_args__ */
+    info->match_args = PyTuple_GetSlice(info->fields, 0, nfields - nkwonly);
+    if (info->match_args == NULL) return -1;
+
+    /* Construct __slots__ */
     if (info->weakref == OPT_TRUE && !info->already_has_weakref) {
         if (PyList_Append(info->slots, mod->str___weakref__) < 0) return -1;
     }
@@ -5083,6 +5090,7 @@ StructMeta_new_inner(
         .fields = NULL,
         .encode_fields = NULL,
         .defaults = NULL,
+        .match_args = NULL,
         .tag = NULL,
         .tag_field = NULL,
         .tag_value = NULL,
@@ -5187,15 +5195,17 @@ StructMeta_new_inner(
     /* Fill in struct offsets */
     if (structmeta_construct_offsets(&info, cls) < 0) goto cleanup;
 
+    cls->nkwonly = info.nkwonly;
+    cls->n_trailing_defaults = info.n_trailing_defaults;
+    cls->struct_offsets = info.offsets;
     Py_INCREF(info.fields);
     cls->struct_fields = info.fields;
     Py_INCREF(info.defaults);
     cls->struct_defaults = info.defaults;
-    cls->nkwonly = info.nkwonly;
-    cls->n_trailing_defaults = info.n_trailing_defaults;
-    cls->struct_offsets = info.offsets;
     Py_INCREF(info.encode_fields);
     cls->struct_encode_fields = info.encode_fields;
+    Py_INCREF(info.match_args);
+    cls->match_args = info.match_args;
     Py_XINCREF(info.tag);
     cls->struct_tag = info.tag;
     Py_XINCREF(info.tag_field);
@@ -5225,6 +5235,7 @@ cleanup:
     Py_XDECREF(info.fields);
     Py_XDECREF(info.encode_fields);
     Py_XDECREF(info.defaults);
+    Py_XDECREF(info.match_args);
     Py_XDECREF(info.tag);
     Py_XDECREF(info.tag_field);
     Py_XDECREF(info.tag_value);
@@ -5714,7 +5725,7 @@ static PyMemberDef StructMeta_members[] = {
     {"__struct_encode_fields__", T_OBJECT_EX, offsetof(StructMetaObject, struct_encode_fields), READONLY, "Struct encoded field names"},
     {"__struct_tag_field__", T_OBJECT, offsetof(StructMetaObject, struct_tag_field), READONLY, "Struct tag field"},
     {"__struct_tag__", T_OBJECT, offsetof(StructMetaObject, struct_tag_value), READONLY, "Struct tag value"},
-    {"__match_args__", T_OBJECT_EX, offsetof(StructMetaObject, struct_fields), READONLY, "Positional match args"},
+    {"__match_args__", T_OBJECT_EX, offsetof(StructMetaObject, match_args), READONLY, "Positional match args"},
     {NULL},
 };
 
