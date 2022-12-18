@@ -410,6 +410,64 @@ def test_struct_array_tagged():
     }
 
 
+def test_struct_keyword_only():
+    class Base(msgspec.Struct, kw_only=True):
+        x: int = 1
+        y: int
+        z: int = 2
+
+    class Test(Base):
+        a: int
+        b: int = 0
+
+    assert msgspec.json.schema(Test) == {
+        "$ref": "#/$defs/Test",
+        "$defs": {
+            "Test": {
+                "title": "Test",
+                "type": "object",
+                "properties": {
+                    "a": {"type": "integer"},
+                    "b": {"type": "integer", "default": 0},
+                    "x": {"type": "integer", "default": 1},
+                    "y": {"type": "integer"},
+                    "z": {"type": "integer", "default": 2},
+                },
+                "required": ["a", "y"],
+            }
+        },
+    }
+
+
+def test_struct_array_keyword_only():
+    class Base(msgspec.Struct, kw_only=True, array_like=True):
+        x: int = 1
+        y: int
+        z: int = 2
+
+    class Test(Base):
+        a: int
+        b: int = 0
+
+    assert msgspec.json.schema(Test) == {
+        "$ref": "#/$defs/Test",
+        "$defs": {
+            "Test": {
+                "title": "Test",
+                "type": "array",
+                "prefixItems": [
+                    {"type": "integer"},
+                    {"type": "integer", "default": 0},
+                    {"type": "integer", "default": 1},
+                    {"type": "integer"},
+                    {"type": "integer", "default": 2},
+                ],
+                "minItems": 4,
+            }
+        },
+    }
+
+
 def test_typing_namedtuple():
     class Example(NamedTuple):
         """An example docstring"""
