@@ -231,9 +231,6 @@ def has_nondefault_docstring(t):
     return True
 
 
-UNSET = type("Unset", (), {"__repr__": lambda s: "UNSET"})()
-
-
 def origin_args_metadata(t):
     from ._core import Meta
 
@@ -414,8 +411,10 @@ class SchemaBuilder:
                     schema["minProperties"] = meta.min_length
         return schema, extra
 
-    def _type_to_schema(self, typ, *, default=UNSET, check_ref=True):
-        from ._core import Raw, Ext
+    def _type_to_schema(self, typ, *, check_ref=True, **kwargs):
+        from ._core import Raw, Ext, nodefault
+
+        default = kwargs.get("default", nodefault)
 
         t, args, metadata = origin_args_metadata(typ)
         schema, extra = self._process_metadata(t, metadata)
@@ -424,7 +423,7 @@ class SchemaBuilder:
             schema["$ref"] = self.ref_template.format(name=name)
             return merge_json(schema, extra)
 
-        if default is not UNSET:
+        if default is not nodefault:
             schema["default"] = roundtrip_json(default)
 
         if t in (Any, Raw):
@@ -533,21 +532,26 @@ class SchemaBuilder:
                 names.append(t.__struct_tag_field__)
                 fields.append({"enum": [t.__struct_tag__]})
 
-            n_required = len(t.__struct_fields__) - len(t.__struct_defaults__)
-            required.extend(t.__struct_encode_fields__[:n_required])
+            npos = len(t.__struct_fields__) - len(t.__struct_defaults__)
             names.extend(t.__struct_encode_fields__)
-            fields.extend(
-                self._type_to_schema(hints[f], default=d)
-                for f, ef, d in zip(
-                    t.__struct_fields__,
-                    t.__struct_encode_fields__,
-                    (UNSET,) * n_required + t.__struct_defaults__,
-                )
-            )
+            for name, encode_name, default in zip(
+                t.__struct_fields__,
+                t.__struct_encode_fields__,
+                (nodefault,) * npos + t.__struct_defaults__,
+            ):
+                fields.append(self._type_to_schema(hints[name], default=default))
+                if default is nodefault:
+                    required.append(encode_name)
             if t.array_like:
+                try:
+                    n_trailing_defaults = list(reversed(t.__struct_defaults__)).index(
+                        nodefault
+                    )
+                except ValueError:
+                    n_trailing_defaults = len(t.__struct_defaults__)
                 schema["type"] = "array"
                 schema["prefixItems"] = fields
-                schema["minItems"] = len(required)
+                schema["minItems"] = len(fields) - n_trailing_defaults
                 if t.forbid_unknown_fields:
                     schema["maxItems"] = len(t.__struct_fields__)
             else:
@@ -587,7 +591,7 @@ class SchemaBuilder:
                 if field.default is MISSING:
                     if field.default_factory is MISSING:
                         required.append(field.name)
-                    default = UNSET
+                    default = nodefault
                 else:
                     default = field.default
 
@@ -604,7 +608,7 @@ class SchemaBuilder:
             hints = self._get_type_hints(t)
             fields = [
                 self._type_to_schema(
-                    hints.get(f, Any), default=t._field_defaults.get(f, UNSET)
+                    hints.get(f, Any), default=t._field_defaults.get(f, nodefault)
                 )
                 for f in t._fields
             ]
