@@ -3,6 +3,28 @@ Changelog
 
 .. currentmodule:: msgspec
 
+Version 0.11.0 (2022-12-19)
+---------------------------
+
+- Improve performance of constructors for `Struct` types when using keyword
+  arguments (:pr:`237`).
+- Support :doc:`constraints` on dict keys for JSON (:pr:`239`).
+- Add support for keyword-only arguments in `Struct` types, matching the
+  behavior of ``kw_only`` for `dataclasses` (:pr:`242`).
+- **BREAKING**: Change the parameter ordering rules used by `Struct` types to
+  match the behavior of `dataclasses`. For most users this change shouldn't
+  break anything. However, if your struct definitions have required fields
+  after optional fields, you'll now get an error on import. This error can be
+  fixed by either:
+
+  - Reordering your fields so all required fields are before all optional
+    fields
+  - Using keyword-only parameters (by passing the ``kw_only=True`` option).
+  
+  See :ref:`struct-field-ordering` for more information (:pr:`242`).
+- Support encoding/decoding dictionaries with integer keys for JSON (:pr:`243`).
+
+
 Version 0.10.1 (2022-12-08)
 ---------------------------
 
