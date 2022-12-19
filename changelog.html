@@ -249,6 +249,29 @@
         <article role="main">
           <section id="changelog">
 <h1>Changelog<a class="headerlink" href="#changelog" title="Permalink to this heading">#</a></h1>
+<section id="version-0-11-0-2022-12-19">
+<h2>Version 0.11.0 (2022-12-19)<a class="headerlink" href="#version-0-11-0-2022-12-19" title="Permalink to this heading">#</a></h2>
+<ul>
+<li><p>Improve performance of constructors for <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code></a> types when using keyword
+arguments (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/237">PR #237</a>).</p></li>
+<li><p>Support <a class="reference internal" href="constraints.html"><span class="doc">Constraints</span></a> on dict keys for JSON (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/239">PR #239</a>).</p></li>
+<li><p>Add support for keyword-only arguments in <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code></a> types, matching the
+behavior of <code class="docutils literal notranslate"><span class="pre">kw_only</span></code> for <a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#module-dataclasses" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses</span></code></a> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/242">PR #242</a>).</p></li>
+<li><p><strong>BREAKING</strong>: Change the parameter ordering rules used by <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code></a> types to
+match the behavior of <a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#module-dataclasses" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses</span></code></a>. For most users this change shouldn’t
+break anything. However, if your struct definitions have required fields
+after optional fields, you’ll now get an error on import. This error can be
+fixed by either:</p>
+<ul class="simple">
+<li><p>Reordering your fields so all required fields are before all optional
+fields</p></li>
+<li><p>Using keyword-only parameters (by passing the <code class="docutils literal notranslate"><span class="pre">kw_only=True</span></code> option).</p></li>
+</ul>
+<p>See <a class="reference internal" href="structs.html#struct-field-ordering"><span class="std std-ref">Field Ordering</span></a> for more information (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/242">PR #242</a>).</p>
+</li>
+<li><p>Support encoding/decoding dictionaries with integer keys for JSON (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/243">PR #243</a>).</p></li>
+</ul>
+</section>
 <section id="version-0-10-1-2022-12-08">
 <h2>Version 0.10.1 (2022-12-08)<a class="headerlink" href="#version-0-10-1-2022-12-08" title="Permalink to this heading">#</a></h2>
 <ul class="simple">
@@ -529,6 +552,7 @@ faster decoding.</p></li>
           <div class="toc-tree">
             <ul>
 <li><a class="reference internal" href="#">Changelog</a><ul>
+<li><a class="reference internal" href="#version-0-11-0-2022-12-19">Version 0.11.0 (2022-12-19)</a></li>
 <li><a class="reference internal" href="#version-0-10-1-2022-12-08">Version 0.10.1 (2022-12-08)</a></li>
 <li><a class="reference internal" href="#version-0-10-0-2022-12-07">Version 0.10.0 (2022-12-07)</a></li>
 <li><a class="reference internal" href="#version-0-9-1-2022-10-27">Version 0.9.1 (2022-10-27)</a></li>
