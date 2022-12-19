@@ -91,6 +91,8 @@ for converting a struct to a dict.
     {"x": 1.0, "y": 2.0}
 
 
+.. _struct-field-ordering:
+
 Field Ordering
 --------------
 
