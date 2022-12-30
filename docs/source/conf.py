@@ -71,8 +71,8 @@ napoleon_google_docstring = False
 napoleon_custom_sections = [("Configuration", "params_style")]
 default_role = "obj"
 extlinks = {
-    "issue": ("https://github.com/jcrist/msgspec/issues/%s", "Issue #"),
-    "pr": ("https://github.com/jcrist/msgspec/pull/%s", "PR #"),
+    "issue": ("https://github.com/jcrist/msgspec/issues/%s", "Issue #%s"),
+    "pr": ("https://github.com/jcrist/msgspec/pull/%s", "PR #%s"),
 }
 copybutton_prompt_text = r">>> |\.\.\. |\$ |In \[\d*\]: | {2,5}\.\.\.: "
 copybutton_prompt_is_regexp = True
