@@ -128,9 +128,11 @@ Most combinations of the following types are supported (see
 - `enum.Enum` subclasses
 - `enum.IntEnum` subclasses
 - `msgspec.Struct` subclasses
-- `list` subclasses (encoding only)
 - `dict` subclasses (encoding only)
+- `list` subclasses (encoding only)
 - `tuple` subclasses (encoding only)
+- `set` subclasses (encoding only)
+- `frozenset` subclasses (encoding only)
 - Custom types (see :doc:`extending`)
 
 To specify the expected type, you can pass it to ``decode``, or when creating a
@@ -211,6 +213,9 @@ Supported Types
 
 Here we document how msgspec maps Python objects to/from the JSON_/MessagePack_
 protocols.
+
+Note that except where explicitly stated, subclasses of these types are not
+supported by default (see :doc:`extending` for how to add support yourself).
 
 ``None``
 ~~~~~~~~
@@ -479,8 +484,8 @@ timezone-naive by specifying a ``tz`` constraint (see
 MessagePack.  An error is raised if the elements don't match the specified
 element type (if provided).
 
-``list`` subclasses are also supported for encoding only - to decode into a
-``list`` subclass you'll need to implement a ``dec_hook`` (see
+Subclasses of these types are also supported for encoding only. To decode into
+a ``list`` subclass you'll need to implement a ``dec_hook`` (see
 :doc:`extending`).
 
 .. code-block:: python
@@ -552,7 +557,7 @@ already using them elsewhere, or if you have downstream code that requires a
 Dicts encode/decode as JSON objects/MessagePack maps.
 
 Dict subclasses (`collections.OrderedDict`, for example) are also supported for
-encoding only - to decode into a ``dict`` subclass you'll need to implement a
+encoding only. To decode into a ``dict`` subclass you'll need to implement a
 ``dec_hook`` (see :doc:`extending`).
 
 JSON only supports `str`, `Literal`, `Enum`, `int`, and `IntEnum` key types
