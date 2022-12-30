@@ -119,19 +119,13 @@ class TestEncodeSubclasses:
         for msg in [{}, {"a": 1, "b": 2}]:
             assert proto.encode(subclass(msg)) == proto.encode(msg)
 
-    def test_encode_list_subclass(self, proto):
-        class subclass(list):
+    @pytest.mark.parametrize("cls", [list, tuple, set, frozenset])
+    def test_encode_sequence_subclass(self, cls, proto):
+        class subclass(cls):
             pass
 
         for msg in [[], [1, 2]]:
-            assert proto.encode(subclass(msg)) == proto.encode(msg)
-
-    def test_encode_tuple_subclass(self, proto):
-        class subclass(tuple):
-            pass
-
-        for msg in [(), (1, 2)]:
-            assert proto.encode(subclass(msg)) == proto.encode(msg)
+            assert proto.encode(subclass(msg)) == proto.encode(cls(msg))
 
 
 class TestIntEnum:

@@ -9599,9 +9599,6 @@ mpack_encode(EncoderState *self, PyObject *obj)
     else if (type == &PyMemoryView_Type) {
         return mpack_encode_memoryview(self, obj);
     }
-    else if (type == &PySet_Type || type == &PyFrozenSet_Type) {
-        return mpack_encode_set(self, obj);
-    }
     else if (PyTuple_Check(obj)) {
         return mpack_encode_tuple(self, obj);
     }
@@ -9625,6 +9622,9 @@ mpack_encode(EncoderState *self, PyObject *obj)
     }
     else if (type == (PyTypeObject *)(self->mod->UUIDType)) {
         return mpack_encode_uuid(self, obj);
+    }
+    else if (PyAnySet_Check(obj)) {
+        return mpack_encode_set(self, obj);
     }
     else if (PyDict_Contains(type->tp_dict, self->mod->str___dataclass_fields__)) {
         return mpack_encode_object(self, obj);
@@ -10413,9 +10413,6 @@ json_encode(EncoderState *self, PyObject *obj)
     else if (PyTuple_Check(obj)) {
         return json_encode_tuple(self, obj);
     }
-    else if (type == &PySet_Type || type == &PyFrozenSet_Type) {
-        return json_encode_set(self, obj);
-    }
     else if (PyDict_Check(obj)) {
         return json_encode_dict(self, obj);
     }
@@ -10448,6 +10445,9 @@ json_encode(EncoderState *self, PyObject *obj)
     }
     else if (type == (PyTypeObject *)(self->mod->UUIDType)) {
         return json_encode_uuid(self, obj);
+    }
+    else if (PyAnySet_Check(obj)) {
+        return json_encode_set(self, obj);
     }
     else if (PyDict_Contains(type->tp_dict, self->mod->str___dataclass_fields__)) {
         return json_encode_object(self, obj);
