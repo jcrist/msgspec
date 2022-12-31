@@ -18,6 +18,7 @@ from typing import (
     Tuple,
     TypedDict,
     Union,
+    NewType,
 )
 
 import pytest
@@ -2351,3 +2352,23 @@ class TestUUID:
         msg = proto.encode(uuid_str)
         with pytest.raises(msgspec.ValidationError, match="Invalid UUID"):
             proto.decode(msg, type=uuid.UUID)
+
+
+class TestNewType:
+    def test_decode_newtype(self, proto):
+        UserId = NewType("UserId", int)
+        dec = proto.Decoder(UserId)
+        assert dec.decode(proto.encode(1)) == 1
+
+    def test_decode_newtype_constraints(self, proto):
+        try:
+            from typing import Annotated
+        except ImportError:
+            pytest.skip("Annotated types not available")
+        UserId = NewType("UserId", int)
+
+        dec = proto.Decoder(Annotated[UserId, msgspec.Meta(ge=0)])
+        assert dec.decode(proto.encode(1)) == 1
+
+        with pytest.raises(msgspec.ValidationError):
+            dec.decode(proto.encode(-1))
