@@ -120,6 +120,7 @@ Most combinations of the following types are supported (see
 - `typing.Optional`
 - `typing.Union`
 - `typing.Literal`
+- `typing.NewType`
 - `typing.NamedTuple` / `collections.namedtuple`
 - `typing.TypedDict`
 - `dataclasses.dataclass` types
@@ -835,6 +836,29 @@ values, or doesn't match any of their component types.
       File "<stdin>", line 1, in <module>
     msgspec.ValidationError: Expected `int`, got `str`
 
+``NewType``
+~~~~~~~~~~~
+
+`typing.NewType` types are treated identically to their base type. Their
+support here is purely to aid static analysis tools like mypy_ or pyright_.
+
+.. code-block:: python
+
+    >>> from typing import NewType
+
+    >>> UserId = NewType("UserId", int)
+
+    >>> msgspec.json.encode(UserId(1234))
+    b'1234'
+
+    >>> msgspec.json.decode(b'1234', type=UserId)
+    1234
+
+    >>> msgspec.json.decode(b'"oops"', type=UserId)
+    Traceback (most recent call last):
+      File "<stdin>", line 1, in <module>
+    msgspec.ValidationError: Expected `int`, got `str`
+
 ``Union`` /  ``Optional``
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -1107,3 +1131,5 @@ efficiently skipped without decoding.
 .. _dataclasses: https://docs.python.org/3/library/dataclasses.html
 .. _attrs: https://www.attrs.org/en/stable/index.html
 .. _timezone-aware: https://docs.python.org/3/library/datetime.html#aware-and-naive-objects
+.. _mypy: https://mypy.readthedocs.io
+.. _pyright: https://github.com/microsoft/pyright

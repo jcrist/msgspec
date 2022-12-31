@@ -352,6 +352,7 @@ Most combinations of the following types are supported (see
 <li><p><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.Optional</span></code></a></p></li>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Union" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.Union</span></code></a></p></li>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.Literal</span></code></a></p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.NewType" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.NewType</span></code></a></p></li>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.NamedTuple" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.NamedTuple</span></code></a> / <a class="reference external" href="https://docs.python.org/3/library/collections.html#collections.namedtuple" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collections.namedtuple</span></code></a></p></li>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypedDict" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.TypedDict</span></code></a></p></li>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#dataclasses.dataclass" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses.dataclass</span></code></a> types</p></li>
@@ -996,6 +997,27 @@ values, or doesn’t match any of their component types.</p>
 </pre></div>
 </div>
 </section>
+<section id="newtype">
+<h3><code class="docutils literal notranslate"><span class="pre">NewType</span></code><a class="headerlink" href="#newtype" title="Permalink to this heading">#</a></h3>
+<p><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.NewType" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.NewType</span></code></a> types are treated identically to their base type. Their
+support here is purely to aid static analysis tools like <a class="reference external" href="https://mypy.readthedocs.io">mypy</a> or <a class="reference external" href="https://github.com/microsoft/pyright">pyright</a>.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">NewType</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">UserId</span> <span class="o">=</span> <span class="n">NewType</span><span class="p">(</span><span class="s2">&quot;UserId&quot;</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">UserId</span><span class="p">(</span><span class="mi">1234</span><span class="p">))</span>
+<span class="go">b&#39;1234&#39;</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;1234&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">UserId</span><span class="p">)</span>
+<span class="go">1234</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;&quot;oops&quot;&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">UserId</span><span class="p">)</span>
+<span class="gt">Traceback (most recent call last):</span>
+  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+<span class="gr">msgspec.ValidationError</span>: <span class="n">Expected `int`, got `str`</span>
+</pre></div>
+</div>
+</section>
 <section id="union-optional">
 <h3><code class="docutils literal notranslate"><span class="pre">Union</span></code> /  <code class="docutils literal notranslate"><span class="pre">Optional</span></code><a class="headerlink" href="#union-optional" title="Permalink to this heading">#</a></h3>
 <p>Type unions are supported, with a few restrictions. These restrictions are in
@@ -1319,6 +1341,7 @@ efficiently skipped without decoding.</p>
 <li><a class="reference internal" href="#struct"><code class="docutils literal notranslate"><span class="pre">Struct</span></code></a></li>
 <li><a class="reference internal" href="#enum-intenum"><code class="docutils literal notranslate"><span class="pre">Enum</span></code> / <code class="docutils literal notranslate"><span class="pre">IntEnum</span></code></a></li>
 <li><a class="reference internal" href="#literal"><code class="docutils literal notranslate"><span class="pre">Literal</span></code></a></li>
+<li><a class="reference internal" href="#newtype"><code class="docutils literal notranslate"><span class="pre">NewType</span></code></a></li>
 <li><a class="reference internal" href="#union-optional"><code class="docutils literal notranslate"><span class="pre">Union</span></code> /  <code class="docutils literal notranslate"><span class="pre">Optional</span></code></a></li>
 <li><a class="reference internal" href="#raw"><code class="docutils literal notranslate"><span class="pre">Raw</span></code></a></li>
 <li><a class="reference internal" href="#any"><code class="docutils literal notranslate"><span class="pre">Any</span></code></a></li>
