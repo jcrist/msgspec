@@ -252,6 +252,10 @@ def origin_args_metadata(t):
     else:
         args = None
 
+    # Strip out NewType types
+    while hasattr(t, "__supertype__"):
+        t = t.__supertype__
+
     return t, args, metadata
 
 

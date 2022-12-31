@@ -17,6 +17,7 @@ from typing import (
     Tuple,
     TypedDict,
     Union,
+    NewType,
 )
 
 import pytest
@@ -162,6 +163,15 @@ def test_uuid():
     assert msgspec.json.schema(uuid.UUID) == {
         "type": "string",
         "format": "uuid",
+    }
+
+
+def test_newtype():
+    UserId = NewType("UserId", str)
+    assert msgspec.json.schema(UserId) == {"type": "string"}
+    assert msgspec.json.schema(Annotated[UserId, Meta(max_length=10)]) == {
+        "type": "string",
+        "maxLength": 10,
     }
 
 
