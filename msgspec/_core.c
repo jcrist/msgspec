@@ -341,6 +341,7 @@ typedef struct {
     PyObject *str__field_defaults;
     PyObject *str___dataclass_fields__;
     PyObject *str___post_init__;
+    PyObject *str___supertype__;
     PyObject *str_int;
     PyObject *str_is_safe;
     PyObject *UUIDType;
@@ -3926,6 +3927,17 @@ typenode_collect_type_full(
     if (PyType_Check(obj)
         && PyObject_HasAttr(obj, state->mod->str___dataclass_fields__)) {
         return typenode_collect_dataclass(state, obj);
+    }
+
+    /* Check if NewType through duck-typing */
+    PyObject *supertype = PyObject_GetAttr(obj, state->mod->str___supertype__);
+    if (supertype != NULL) {
+        int out = typenode_collect_type_full(state, supertype, kind);
+        Py_DECREF(supertype);
+        return out;
+    }
+    else {
+        PyErr_Clear();
     }
 
     /* Attempt to extract __origin__/__args__ from the obj as a typing object */
@@ -15615,6 +15627,7 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->str__field_defaults);
     Py_CLEAR(st->str___dataclass_fields__);
     Py_CLEAR(st->str___post_init__);
+    Py_CLEAR(st->str___supertype__);
     Py_CLEAR(st->str_int);
     Py_CLEAR(st->str_is_safe);
     Py_CLEAR(st->UUIDType);
@@ -15985,6 +15998,7 @@ PyInit__core(void)
     CACHED_STRING(str__field_defaults, "_field_defaults");
     CACHED_STRING(str___dataclass_fields__, "__dataclass_fields__");
     CACHED_STRING(str___post_init__, "__post_init__");
+    CACHED_STRING(str___supertype__, "__supertype__");
     CACHED_STRING(str_int, "int");
     CACHED_STRING(str_is_safe, "is_safe");
 
