@@ -5,7 +5,7 @@
     <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Structs" href="structs.html" /><link rel="prev" title="msgspec" href="index.html" />
 
-    <!-- Generated with Sphinx 5.3.0 and Furo 2022.12.07 -->
+    <!-- Generated with Sphinx 6.0.0 and Furo 2022.12.07 -->
         <title>Usage</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=91d0f0d1c444bdcb17a68e833c7a53903343c195" />
@@ -360,9 +360,11 @@ Most combinations of the following types are supported (see
 <li><p><a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.Enum" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enum.Enum</span></code></a> subclasses</p></li>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.IntEnum" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enum.IntEnum</span></code></a> subclasses</p></li>
 <li><p><a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> subclasses</p></li>
-<li><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">list</span></code></a> subclasses (encoding only)</p></li>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a> subclasses (encoding only)</p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">list</span></code></a> subclasses (encoding only)</p></li>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tuple</span></code></a> subclasses (encoding only)</p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#set" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set</span></code></a> subclasses (encoding only)</p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#frozenset" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">frozenset</span></code></a> subclasses (encoding only)</p></li>
 <li><p>Custom types (see <a class="reference internal" href="extending.html"><span class="doc">Extending</span></a>)</p></li>
 </ul>
 <p>To specify the expected type, you can pass it to <code class="docutils literal notranslate"><span class="pre">decode</span></code>, or when creating a
@@ -433,6 +435,8 @@ floating point numbers.</p>
 <span id="id1"></span><h2>Supported Types<a class="headerlink" href="#supported-types" title="Permalink to this heading">#</a></h2>
 <p>Here we document how msgspec maps Python objects to/from the <a class="reference external" href="https://json.org">JSON</a>/<a class="reference external" href="https://msgpack.org">MessagePack</a>
 protocols.</p>
+<p>Note that except where explicitly stated, subclasses of these types are not
+supported by default (see <a class="reference internal" href="extending.html"><span class="doc">Extending</span></a> for how to add support yourself).</p>
 <section id="none">
 <h3><code class="docutils literal notranslate"><span class="pre">None</span></code><a class="headerlink" href="#none" title="Permalink to this heading">#</a></h3>
 <p><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a> maps to <code class="docutils literal notranslate"><span class="pre">null</span></code> in JSON/<code class="docutils literal notranslate"><span class="pre">nil</span></code> in MessagePack.</p>
@@ -672,8 +676,8 @@ timezone-naive by specifying a <code class="docutils literal notranslate"><span 
 <p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">list</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tuple</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#set" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set</span></code></a>, and <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#frozenset" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">frozenset</span></code></a> objects map to arrays in both JSON and
 MessagePack.  An error is raised if the elements don’t match the specified
 element type (if provided).</p>
-<p><code class="docutils literal notranslate"><span class="pre">list</span></code> subclasses are also supported for encoding only - to decode into a
-<code class="docutils literal notranslate"><span class="pre">list</span></code> subclass you’ll need to implement a <code class="docutils literal notranslate"><span class="pre">dec_hook</span></code> (see
+<p>Subclasses of these types are also supported for encoding only. To decode into
+a <code class="docutils literal notranslate"><span class="pre">list</span></code> subclass you’ll need to implement a <code class="docutils literal notranslate"><span class="pre">dec_hook</span></code> (see
 <a class="reference internal" href="extending.html"><span class="doc">Extending</span></a>).</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">])</span>
 <span class="go">b&#39;[1,2,3]&#39;</span>
@@ -738,7 +742,7 @@ already using them elsewhere, or if you have downstream code that requires a
 <h3><code class="docutils literal notranslate"><span class="pre">dict</span></code><a class="headerlink" href="#dict" title="Permalink to this heading">#</a></h3>
 <p>Dicts encode/decode as JSON objects/MessagePack maps.</p>
 <p>Dict subclasses (<a class="reference external" href="https://docs.python.org/3/library/collections.html#collections.OrderedDict" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collections.OrderedDict</span></code></a>, for example) are also supported for
-encoding only - to decode into a <code class="docutils literal notranslate"><span class="pre">dict</span></code> subclass you’ll need to implement a
+encoding only. To decode into a <code class="docutils literal notranslate"><span class="pre">dict</span></code> subclass you’ll need to implement a
 <code class="docutils literal notranslate"><span class="pre">dec_hook</span></code> (see <a class="reference internal" href="extending.html"><span class="doc">Extending</span></a>).</p>
 <p>JSON only supports <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">str</span></code></a>, <code class="xref py py-obj docutils literal notranslate"><span class="pre">Literal</span></code>, <code class="xref py py-obj docutils literal notranslate"><span class="pre">Enum</span></code>, <a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">int</span></code></a>, and <code class="xref py py-obj docutils literal notranslate"><span class="pre">IntEnum</span></code> key types
 (integers are encoded as strings). MessagePack supports any hashable for the
@@ -1333,9 +1337,6 @@ efficiently skipped without decoding.</p>
     </aside>
   </div>
 </div><script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
-    <script src="_static/jquery.js"></script>
-    <script src="_static/underscore.js"></script>
-    <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
     <script src="_static/doctools.js"></script>
     <script src="_static/sphinx_highlight.js"></script>
     <script src="_static/scripts/furo.js"></script>
