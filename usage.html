@@ -357,7 +357,7 @@ Most combinations of the following types are supported (see
 <li><p><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypedDict" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.TypedDict</span></code></a></p></li>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#dataclasses.dataclass" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses.dataclass</span></code></a> types</p></li>
 <li><p><a class="reference internal" href="api.html#msgspec.msgpack.Ext" title="msgspec.msgpack.Ext"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.msgpack.Ext</span></code></a></p></li>
-<li><p><a class="reference internal" href="api.html#msgspec.Raw" title="msgspec.Raw"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Raw</span></code></a></p></li>
+<li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Raw</span></code></p></li>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.Enum" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enum.Enum</span></code></a> subclasses</p></li>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.IntEnum" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enum.IntEnum</span></code></a> subclasses</p></li>
 <li><p><a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> subclasses</p></li>
@@ -392,7 +392,7 @@ Most combinations of the following types are supported (see
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Decode a list of users from JSON</span>
 <span class="go">.... decoder.decode(</span>
-<span class="gp">... </span>    <span class="sa">b</span><span class="sd">&quot;&quot;&quot;[</span>
+<span class="gp">... </span><span class="w">    </span><span class="sa">b</span><span class="sd">&quot;&quot;&quot;[</span>
 <span class="gp">... </span><span class="sd">      {&quot;name&quot;: &quot;bob&quot;, &quot;email&quot;: &quot;bob@company.com&quot;},</span>
 <span class="gp">... </span><span class="sd">      {&quot;name&quot;: &quot;carol&quot;, &quot;groups&quot;: [&quot;admin&quot;]}</span>
 <span class="gp">... </span><span class="sd">    ]&quot;&quot;&quot;</span>
@@ -403,7 +403,7 @@ Most combinations of the following types are supported (see
 </div>
 <p>If a message doesn’t match the expected type, an error is raised.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">decoder</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span>
-<span class="gp">... </span>    <span class="sa">b</span><span class="sd">&quot;&quot;&quot;[</span>
+<span class="gp">... </span><span class="w">    </span><span class="sa">b</span><span class="sd">&quot;&quot;&quot;[</span>
 <span class="gp">... </span><span class="sd">      {&quot;name&quot;: &quot;darla&quot;, &quot;email&quot;: &quot;darla@company.com&quot;},</span>
 <span class="gp">... </span><span class="sd">      {&quot;name&quot;: &quot;eric&quot;, &quot;groups&quot;: [&quot;admin&quot;, 123]}</span>
 <span class="gp">... </span><span class="sd">    ]&quot;&quot;&quot;</span>
@@ -667,7 +667,7 @@ timezone-naive by specifying a <code class="docutils literal notranslate"><span 
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;&quot;oops&quot;&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">uuid</span><span class="o">.</span><span class="n">UUID</span><span class="p">)</span>
 <span class="gt">Traceback (most recent call last):</span>
-    <span class="n">File</span> <span class="s2">&quot;&lt;stdin&gt;&quot;</span><span class="p">,</span> <span class="n">line</span> <span class="mi">1</span><span class="p">,</span> <span class="ow">in</span> <span class="o">&lt;</span><span class="n">module</span><span class="o">&gt;</span>
+<span class="w">    </span><span class="n">File</span> <span class="s2">&quot;&lt;stdin&gt;&quot;</span><span class="p">,</span> <span class="n">line</span> <span class="mi">1</span><span class="p">,</span> <span class="ow">in</span> <span class="o">&lt;</span><span class="n">module</span><span class="o">&gt;</span>
 <span class="gr">msgspec.ValidationError</span>: <span class="n">Invalid UUID</span>
 </pre></div>
 </div>
@@ -1061,10 +1061,10 @@ multiple struct types are only supported through <a class="reference internal" h
 </section>
 <section id="raw">
 <h3><code class="docutils literal notranslate"><span class="pre">Raw</span></code><a class="headerlink" href="#raw" title="Permalink to this heading">#</a></h3>
-<p><a class="reference internal" href="api.html#msgspec.Raw" title="msgspec.Raw"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Raw</span></code></a> is a buffer-like type containing an already encoded messages.
+<p><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Raw</span></code> is a buffer-like type containing an already encoded messages.
 They have two common uses:</p>
 <p><strong>1. Avoiding unnecessary encoding cost</strong></p>
-<p>Wrapping an already encoded buffer in <a class="reference internal" href="api.html#msgspec.Raw" title="msgspec.Raw"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Raw</span></code></a> lets the encoder avoid
+<p>Wrapping an already encoded buffer in <code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Raw</span></code> lets the encoder avoid
 re-encoding the message, instead it will simply be copied to the output buffer.
 This can be useful when part of a message already exists in an encoded format
 (e.g. reading JSON bytes from a database and returning them as part of a larger
@@ -1087,7 +1087,7 @@ message).</p>
 <p>Sometimes the type of a serialized value depends on the value of other fields
 in a message. <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> provides an optimized version of one common pattern
 (<a class="reference internal" href="structs.html#struct-tagged-unions"><span class="std std-ref">Tagged Unions</span></a>), but if you need to do something more complicated
-you may find using <a class="reference internal" href="api.html#msgspec.Raw" title="msgspec.Raw"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Raw</span></code></a> useful here.</p>
+you may find using <code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Raw</span></code> useful here.</p>
 <p>For example, here we demonstrate how to decode a message where the type of one
 field (<code class="docutils literal notranslate"><span class="pre">point</span></code>) depends on the value of another (<code class="docutils literal notranslate"><span class="pre">dimensions</span></code>).</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">msgspec</span>
@@ -1111,7 +1111,7 @@ field (<code class="docutils literal notranslate"><span class="pre">point</span>
 <span class="gp">... </span>    <span class="n">point</span><span class="p">:</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">Raw</span>  <span class="c1"># use msgspec.Raw to delay decoding the point field</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="k">def</span> <span class="nf">decode_point</span><span class="p">(</span><span class="n">msg</span><span class="p">:</span> <span class="nb">bytes</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Union</span><span class="p">[</span><span class="n">Point1D</span><span class="p">,</span> <span class="n">Point2D</span><span class="p">,</span> <span class="n">Point3D</span><span class="p">]:</span>
-<span class="gp">... </span>    <span class="sd">&quot;&quot;&quot;A function for efficiently decoding the `point` field&quot;&quot;&quot;</span>
+<span class="gp">... </span><span class="w">    </span><span class="sd">&quot;&quot;&quot;A function for efficiently decoding the `point` field&quot;&quot;&quot;</span>
 <span class="gp">... </span>    <span class="c1"># First decode the outer `Model` struct. Decoding of the `point`</span>
 <span class="gp">... </span>    <span class="c1"># field is delayed, with the composite bytes stored as a `Raw` object</span>
 <span class="gp">... </span>    <span class="c1"># on `point`.</span>
@@ -1213,7 +1213,7 @@ must be appended to the end (and have defaults).</p></li>
 <span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Set</span><span class="p">,</span> <span class="n">Optional</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">User</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
-<span class="gp">... </span>    <span class="sd">&quot;&quot;&quot;A struct representing a user&quot;&quot;&quot;</span>
+<span class="gp">... </span><span class="w">    </span><span class="sd">&quot;&quot;&quot;A struct representing a user&quot;&quot;&quot;</span>
 <span class="gp">... </span>    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
 <span class="gp">... </span>    <span class="n">groups</span><span class="p">:</span> <span class="n">Set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
 <span class="gp">... </span>    <span class="n">email</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
@@ -1224,7 +1224,7 @@ that wouldn’t break clients/servers still using the prior definition. To
 accomplish this, we add <code class="docutils literal notranslate"><span class="pre">phone</span></code> as an _optional_ field (defaulting to
 <code class="docutils literal notranslate"><span class="pre">None</span></code>), at the end of the struct.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">User2</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
-<span class="gp">... </span>    <span class="sd">&quot;&quot;&quot;An updated version of the User struct, now with a phone number&quot;&quot;&quot;</span>
+<span class="gp">... </span><span class="w">    </span><span class="sd">&quot;&quot;&quot;An updated version of the User struct, now with a phone number&quot;&quot;&quot;</span>
 <span class="gp">... </span>    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
 <span class="gp">... </span>    <span class="n">groups</span><span class="p">:</span> <span class="n">Set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
 <span class="gp">... </span>    <span class="n">email</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>

@@ -426,40 +426,6 @@ to a maximum length of 32 characters.</p>
 </section>
 <section id="raw">
 <h2>Raw<a class="headerlink" href="#raw" title="Permalink to this heading">#</a></h2>
-<dl class="py class">
-<dt class="sig sig-object py" id="msgspec.Raw">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">msgspec.</span></span><span class="sig-name descname"><span class="pre">Raw</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">msg</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">/</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.Raw" title="Permalink to this definition">#</a></dt>
-<dd><p>A buffer containing an encoded message.</p>
-<p>Raw objects have two common uses:</p>
-<ul class="simple">
-<li><p>During decoding. Fields annotated with the <code class="docutils literal notranslate"><span class="pre">Raw</span></code> type won’t be decoded
-immediately, but will instead return a <code class="docutils literal notranslate"><span class="pre">Raw</span></code> object with a view into the
-original message where that field is encoded. This is useful for decoding
-fields whose type may only be inferred after decoding other fields.</p></li>
-<li><p>During encoding. Raw objects wrap pre-encoded messages. These can be added
-as components of larger messages without having to pay the cost of decoding
-and re-encoding them.</p></li>
-</ul>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>msg</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.11)"><em>bytes</em></a><em>, </em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytearray" title="(in Python v3.11)"><em>bytearray</em></a><em>, or </em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#memoryview" title="(in Python v3.11)"><em>memoryview</em></a><em>, </em><em>optional</em>) – A byte buffer containing an encoded message. One of bytes, bytearray,
-memoryview, or any object that implements the buffer protocol. If not
-present, defaults to a zero-length bytes object (<code class="docutils literal notranslate"><span class="pre">b</span></code>).</p>
-</dd>
-</dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="msgspec.Raw.copy">
-<span class="sig-name descname"><span class="pre">copy</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.Raw.copy" title="Permalink to this definition">#</a></dt>
-<dd><p>Copy a Raw object.</p>
-<p>If the raw message is backed by a memoryview into a larger buffer (as happens
-during decoding), the message is copied and the reference to the larger buffer
-released. This may be useful to reduce memory usage if a Raw object created
-during decoding will be kept in memory for a while rather than immediately
-decoded and dropped.</p>
-</dd></dl>
-
-</dd></dl>
-
 </section>
 <section id="json">
 <h2>JSON<a class="headerlink" href="#json" title="Permalink to this heading">#</a></h2>
@@ -993,13 +959,7 @@ OpenAPI schema.</p></li>
 <li><a class="reference internal" href="#msgspec.Meta"><code class="docutils literal notranslate"><span class="pre">Meta</span></code></a></li>
 </ul>
 </li>
-<li><a class="reference internal" href="#raw">Raw</a><ul>
-<li><a class="reference internal" href="#msgspec.Raw"><code class="docutils literal notranslate"><span class="pre">Raw</span></code></a><ul>
-<li><a class="reference internal" href="#msgspec.Raw.copy"><code class="docutils literal notranslate"><span class="pre">Raw.copy()</span></code></a></li>
-</ul>
-</li>
-</ul>
-</li>
+<li><a class="reference internal" href="#raw">Raw</a></li>
 <li><a class="reference internal" href="#json">JSON</a><ul>
 <li><a class="reference internal" href="#msgspec.json.Encoder"><code class="docutils literal notranslate"><span class="pre">Encoder</span></code></a><ul>
 <li><a class="reference internal" href="#msgspec.json.Encoder.encode"><code class="docutils literal notranslate"><span class="pre">Encoder.encode()</span></code></a></li>

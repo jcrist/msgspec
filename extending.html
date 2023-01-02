@@ -261,18 +261,18 @@ back into custom types.</p></li>
 </ul>
 <p>These should have the following signatures:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">enc_hook</span><span class="p">(</span><span class="n">obj</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
-    <span class="sd">&quot;&quot;&quot;Given an object that msgspec doesn&#39;t know how to serialize by</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Given an object that msgspec doesn&#39;t know how to serialize by</span>
 <span class="sd">    default, convert it into an object that it does know how to</span>
 <span class="sd">    serialize&quot;&quot;&quot;</span>
     <span class="k">pass</span>
 
 <span class="k">def</span> <span class="nf">dec_hook</span><span class="p">(</span><span class="nb">type</span><span class="p">:</span> <span class="n">Type</span><span class="p">,</span> <span class="n">obj</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
-    <span class="sd">&quot;&quot;&quot;Given a type in a schema, convert ``obj`` (composed of natively</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Given a type in a schema, convert ``obj`` (composed of natively</span>
 <span class="sd">    supported objects) into an object of type ``type``&quot;&quot;&quot;</span>
     <span class="k">pass</span>
 
 <span class="k">def</span> <span class="nf">ext_hook</span><span class="p">(</span><span class="n">code</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="nb">memoryview</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
-    <span class="sd">&quot;&quot;&quot;MessagePack only. Given an extension type code and data buffer,</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;MessagePack only. Given an extension type code and data buffer,</span>
 <span class="sd">    deserialize whatever custom object the extension type represents&quot;&quot;&quot;</span>
     <span class="k">pass</span>
 </pre></div>

@@ -258,7 +258,7 @@ annotations</a>, providing ergonomic (and performant!) schema validation.</p>
 <span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">msgspec</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">User</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
-<span class="gp">... </span>    <span class="sd">&quot;&quot;&quot;A new type describing a User&quot;&quot;&quot;</span>
+<span class="gp">... </span><span class="w">    </span><span class="sd">&quot;&quot;&quot;A new type describing a User&quot;&quot;&quot;</span>
 <span class="gp">... </span>    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
 <span class="gp">... </span>    <span class="n">groups</span><span class="p">:</span> <span class="n">Set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
 <span class="gp">... </span>    <span class="n">email</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
@@ -356,11 +356,11 @@ more on your application code.</p>
 <p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> can be installed via <code class="docutils literal notranslate"><span class="pre">pip</span></code> or <code class="docutils literal notranslate"><span class="pre">conda</span></code>. Note that Python &gt;= 3.8
 is required.</p>
 <p><strong>pip</strong></p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>pip install msgspec
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>msgspec
 </pre></div>
 </div>
 <p><strong>conda</strong></p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>conda install msgspec -c conda-forge
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>install<span class="w"> </span>msgspec<span class="w"> </span>-c<span class="w"> </span>conda-forge
 </pre></div>
 </div>
 <div class="toctree-wrapper compound">

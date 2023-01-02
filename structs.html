@@ -263,7 +263,7 @@ required field and two optional fields.</p>
 <span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Set</span><span class="p">,</span> <span class="n">Optional</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">User</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
-<span class="gp">... </span>    <span class="sd">&quot;&quot;&quot;A struct describing a user&quot;&quot;&quot;</span>
+<span class="gp">... </span><span class="w">    </span><span class="sd">&quot;&quot;&quot;A struct describing a user&quot;&quot;&quot;</span>
 <span class="gp">... </span>    <span class="n">name</span> <span class="p">:</span> <span class="nb">str</span>
 <span class="gp">... </span>    <span class="n">email</span> <span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="gp">... </span>    <span class="n">groups</span> <span class="p">:</span> <span class="n">Set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
@@ -316,7 +316,7 @@ definition, but other methods can be overridden or added as needed.</p>
 tuple of the fields in argument order ) if you need them. Here we add a method
 for converting a struct to a dict.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">Point</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
-<span class="gp">... </span>    <span class="sd">&quot;&quot;&quot;A point in 2D space&quot;&quot;&quot;</span>
+<span class="gp">... </span><span class="w">    </span><span class="sd">&quot;&quot;&quot;A point in 2D space&quot;&quot;&quot;</span>
 <span class="gp">... </span>    <span class="n">x</span> <span class="p">:</span> <span class="nb">float</span>
 <span class="gp">... </span>    <span class="n">y</span> <span class="p">:</span> <span class="nb">float</span>
 <span class="gp">...</span>
@@ -502,7 +502,7 @@ equal to is itself.</p>
 adds a <code class="docutils literal notranslate"><span class="pre">__hash__</span></code> method to the class definition. Note that for the
 <code class="docutils literal notranslate"><span class="pre">__hash__</span></code> to work, all fields on the struct must also be hashable.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">Point</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
-<span class="gp">... </span>    <span class="sd">&quot;&quot;&quot;This struct is immutable &amp; hashable&quot;&quot;&quot;</span>
+<span class="gp">... </span><span class="w">    </span><span class="sd">&quot;&quot;&quot;This struct is immutable &amp; hashable&quot;&quot;&quot;</span>
 <span class="gp">... </span>    <span class="n">x</span><span class="p">:</span> <span class="nb">float</span>
 <span class="gp">... </span>    <span class="n">y</span><span class="p">:</span> <span class="nb">float</span>
 <span class="gp">...</span>
@@ -514,7 +514,7 @@ adds a <code class="docutils literal notranslate"><span class="pre">__hash__</sp
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">p</span><span class="o">.</span><span class="n">x</span> <span class="o">=</span> <span class="mf">2.0</span>  <span class="c1"># frozen structs cannot be modified after creation</span>
 <span class="gt">Traceback (most recent call last):</span>
-    <span class="o">...</span>
+<span class="w">    </span><span class="o">...</span>
 <span class="gr">AttributeError</span>: <span class="n">immutable type: &#39;Point&#39;</span>
 </pre></div>
 </div>
@@ -702,7 +702,7 @@ improves encoding and decoding performance (since there’s less work to do).</p
 situations a default value may still be encoded. For the curious, the current
 detection logic is as follows:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">def</span> <span class="nf">matches_default</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">default</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
-<span class="gp">... </span>    <span class="sd">&quot;&quot;&quot;Whether a value matches the default for a field&quot;&quot;&quot;</span>
+<span class="gp">... </span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether a value matches the default for a field&quot;&quot;&quot;</span>
 <span class="gp">... </span>    <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="n">default</span><span class="p">:</span>
 <span class="gp">... </span>        <span class="k">return</span> <span class="kc">True</span>
 <span class="gp">... </span>    <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">type</span><span class="p">(</span><span class="n">default</span><span class="p">):</span>
@@ -776,7 +776,7 @@ code will still refer to them using their original names.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">msgspec</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">Example</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">rename</span><span class="o">=</span><span class="s2">&quot;camel&quot;</span><span class="p">):</span>
-<span class="gp">... </span>    <span class="sd">&quot;&quot;&quot;A struct with fields renamed using camelCase&quot;&quot;&quot;</span>
+<span class="gp">... </span><span class="w">    </span><span class="sd">&quot;&quot;&quot;A struct with fields renamed using camelCase&quot;&quot;&quot;</span>
 <span class="gp">... </span>    <span class="n">field_one</span><span class="p">:</span> <span class="nb">int</span>
 <span class="gp">... </span>    <span class="n">field_two</span><span class="p">:</span> <span class="nb">str</span>
 
