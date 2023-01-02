@@ -73,6 +73,45 @@ JSON Schema
 
 .. autofunction:: schema_components
 
+Inspect
+-------
+
+.. currentmodule:: msgspec.inspect
+
+.. autofunction:: type_info
+.. autofunction:: multi_type_info
+.. autoclass:: Type
+.. autoclass:: Metadata
+.. autoclass:: AnyType
+.. autoclass:: NoneType
+.. autoclass:: BoolType
+.. autoclass:: IntType
+.. autoclass:: FloatType
+.. autoclass:: StrType
+.. autoclass:: BytesType
+.. autoclass:: ByteArrayType
+.. autoclass:: DateTimeType
+.. autoclass:: TimeType
+.. autoclass:: DateType
+.. autoclass:: UUIDType
+.. autoclass:: ExtType
+.. autoclass:: EnumType
+.. autoclass:: LiteralType
+.. autoclass:: CustomType
+.. autoclass:: UnionType
+.. autoclass:: ListType
+.. autoclass:: SetType
+.. autoclass:: FrozenSetType
+.. autoclass:: VarTupleType
+.. autoclass:: TupleType
+.. autoclass:: DictType
+.. autoclass:: Field
+.. autoclass:: TypedDictType
+.. autoclass:: NamedTupleType
+.. autoclass:: DataclassType
+.. autoclass:: StructType
+.. autodata:: UNSET
+
 
 Exceptions
 ----------

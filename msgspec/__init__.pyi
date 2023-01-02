@@ -136,5 +136,6 @@ class ValidationError(DecodeError): ...
 
 from . import msgpack
 from . import json
+from . import inspect
 
 __version__: str

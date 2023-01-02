@@ -10,6 +10,7 @@ from ._core import (
 )
 from . import msgpack
 from . import json
+from . import inspect
 
 from ._version import get_versions
 
