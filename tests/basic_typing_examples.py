@@ -623,6 +623,23 @@ def check_json_format() -> None:
 
 
 ##########################################################
+# msgspec.inspect                                        #
+##########################################################
+
+def check_type_info() -> None:
+    o = msgspec.inspect.type_info(List[int])
+    reveal_type(o)  # assert "Type" in typ
+
+
+def check_multi_type_info() -> None:
+    o = msgspec.inspect.multi_type_info([int, float])
+    reveal_type(o)  # assert "Type" in typ and "tuple" in typ.lower()
+
+    o2 = msgspec.inspect.multi_type_info((int, float))
+    reveal_type(o2)  # assert "Type" in typ and "tuple" in typ.lower()
+
+
+##########################################################
 # JSON Schema                                            #
 ##########################################################
 
