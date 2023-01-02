@@ -378,6 +378,7 @@ def check_raw_constructor() -> None:
     r2 = msgspec.Raw(b"test")
     r3 = msgspec.Raw(bytearray(b"test"))
     r4 = msgspec.Raw(memoryview(b"test"))
+    r2 = msgspec.Raw("test")
 
 
 def check_raw_copy() -> None:

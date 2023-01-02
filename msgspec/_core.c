@@ -1012,7 +1012,7 @@ typedef struct Raw {
     PyObject *base;
     char *buf;
     Py_ssize_t len;
-    bool wraps_bytes;
+    bool is_view;
 } Raw;
 
 static PyObject *
@@ -1024,7 +1024,14 @@ Raw_New(PyObject *msg) {
         out->base = msg;
         out->buf = PyBytes_AS_STRING(msg);
         out->len = PyBytes_GET_SIZE(msg);
-        out->wraps_bytes = true;
+        out->is_view = false;
+    }
+    else if (PyUnicode_CheckExact(msg)) {
+        out->base = msg;
+        out->buf = (char *)unicode_str_and_size(msg, &out->len);
+        if (out->buf == NULL) return NULL;
+        Py_INCREF(msg);
+        out->is_view = false;
     }
     else {
         Py_buffer buffer;
@@ -1035,13 +1042,13 @@ Raw_New(PyObject *msg) {
         out->base = buffer.obj;
         out->buf = buffer.buf;
         out->len = buffer.len;
-        out->wraps_bytes = false;
+        out->is_view = true;
     }
     return (PyObject *)out;
 }
 
 PyDoc_STRVAR(Raw__doc__,
-"Raw(msg=None, /)\n"
+"Raw(msg=b"", /)\n"
 "--\n"
 "\n"
 "A buffer containing an encoded message.\n"
@@ -1058,10 +1065,10 @@ PyDoc_STRVAR(Raw__doc__,
 "\n"
 "Parameters\n"
 "----------\n"
-"msg : bytes, bytearray, or memoryview, optional\n"
-"    A byte buffer containing an encoded message. One of bytes, bytearray,\n"
-"    memoryview, or any object that implements the buffer protocol. If not\n"
-"    present, defaults to a zero-length bytes object (``b""``)."
+"msg : bytes, bytearray, memoryview, or str, optional\n"
+"    A buffer containing an encoded message. One of bytes, bytearray, memoryview,\n"
+"    str, or any object that implements the buffer protocol. If not present,\n"
+"    defaults to a zero-length bytes object (``b""``)."
 );
 static PyObject *
 Raw_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
@@ -1103,7 +1110,7 @@ static void
 Raw_dealloc(Raw *self)
 {
     if (self->base != NULL) {
-        if (self->wraps_bytes) {
+        if (!self->is_view) {
             Py_DECREF(self->base);
         }
         else {
@@ -1130,7 +1137,7 @@ Raw_FromView(PyObject *buffer_obj, char *data, Py_ssize_t len) {
     out->base = buffer.obj;
     out->buf = data;
     out->len = len;
-    out->wraps_bytes = false;
+    out->is_view = true;
     return (PyObject *)out;
 }
 
@@ -1179,7 +1186,7 @@ static PySequenceMethods Raw_as_sequence = {
 static PyObject *
 Raw_reduce(Raw *self, PyObject *unused)
 {
-    if (self->wraps_bytes) {
+    if (!self->is_view) {
         return Py_BuildValue("O(O)", &Raw_Type, self->base);
     }
     return Py_BuildValue("O(y#)", &Raw_Type, self->buf, self->len);
@@ -1200,7 +1207,7 @@ PyDoc_STRVAR(Raw_copy__doc__,
 static PyObject *
 Raw_copy(Raw *self, PyObject *unused)
 {
-    if (self->wraps_bytes) {
+    if (!self->is_view) {
         Py_INCREF(self);
         return (PyObject *)self;
     }

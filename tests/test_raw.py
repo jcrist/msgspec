@@ -14,9 +14,10 @@ def test_raw_noargs():
     assert not r
 
 
-@pytest.mark.parametrize("type", [bytes, bytearray, memoryview])
+@pytest.mark.parametrize("type", [bytes, bytearray, memoryview, str])
 def test_raw_constructor(type):
-    r = msgspec.Raw(type(b"test"))
+    msg = "test" if type is str else type(b"test")
+    r = msgspec.Raw(msg)
     assert bytes(r) == b"test"
     assert len(r) == 4
     assert r
@@ -24,7 +25,7 @@ def test_raw_constructor(type):
 
 def test_raw_constructor_errors():
     with pytest.raises(TypeError):
-        msgspec.Raw("test")
+        msgspec.Raw(1)
 
     with pytest.raises(TypeError):
         msgspec.Raw(msg=b"test")
@@ -68,13 +69,23 @@ def test_raw_copy():
     assert ref() is None
 
 
-def test_raw_pickle():
+def test_raw_pickle_bytes():
     orig_buffer = b"test"
     r = msgspec.Raw(orig_buffer)
     o = r.__reduce__()
     assert o == (msgspec.Raw, (b"test",))
     assert o[1][0] is orig_buffer
 
+
+def test_raw_pickle_str():
+    orig_buffer = "test"
+    r = msgspec.Raw(orig_buffer)
+    o = r.__reduce__()
+    assert o == (msgspec.Raw, ("test",))
+    assert o[1][0] is orig_buffer
+
+
+def test_raw_pickle_view():
     r = msgspec.Raw(memoryview(b"test")[:3])
     o = r.__reduce__()
     assert o == (msgspec.Raw, (b"tes",))
