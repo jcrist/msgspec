@@ -5,4 +5,4 @@ from ._core import (
     json_decode as decode,
     json_format as format,
 )
-from ._utils import schema, schema_components
+from ._json_schema import schema, schema_components

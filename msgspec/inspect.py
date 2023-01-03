@@ -1,9 +1,28 @@
 from __future__ import annotations
 
+import datetime
+import enum
+import uuid
 from collections.abc import Iterable
-from typing import Any, Union, Tuple
+from typing import (
+    Any,
+    Union,
+    Literal,
+    List,
+    Tuple,
+    Dict,
+    Set,
+    FrozenSet,
+    Type as typing_Type,
+)
 
-from ._core import Struct
+try:
+    from types import UnionType as types_UnionType
+except Exception:
+    types_UnionType = None  # type: ignore
+
+from ._core import Struct, Raw, Ext, Meta, nodefault, json_encode, json_decode  # type: ignore
+from ._utils import _AnnotatedAlias, get_type_hints  # type: ignore
 
 
 __all__ = (
@@ -41,6 +60,10 @@ __all__ = (
     "StructType",
     "UNSET",
 )
+
+
+def __dir__():
+    return __all__
 
 
 class _UnsetSingleton:
@@ -242,7 +265,7 @@ class EnumType(Type):
         The corresponding `enum.Enum` type.
     """
 
-    cls: type
+    cls: typing_Type[enum.Enum]
 
 
 class LiteralType(Type):
@@ -282,13 +305,13 @@ class UnionType(Type):
     types: Tuple[Type, ...]
 
 
-class _ArrayType(Type):
+class SequenceType(Type):
     item_type: Type
     min_length: Union[int, None] = None
     max_length: Union[int, None] = None
 
 
-class ListType(_ArrayType):
+class ListType(SequenceType):
     """A type corresponding to a `list`.
 
     Parameters
@@ -304,7 +327,7 @@ class ListType(_ArrayType):
     """
 
 
-class VarTupleType(_ArrayType):
+class VarTupleType(SequenceType):
     """A type corresponding to a variadic `tuple`.
 
     Parameters
@@ -320,7 +343,7 @@ class VarTupleType(_ArrayType):
     """
 
 
-class SetType(_ArrayType):
+class SetType(SequenceType):
     """A type corresponding to a `set`.
 
     Parameters
@@ -336,7 +359,7 @@ class SetType(_ArrayType):
     """
 
 
-class FrozenSetType(_ArrayType):
+class FrozenSetType(SequenceType):
     """A type corresponding to a `frozenset`.
 
     Parameters
@@ -423,10 +446,13 @@ class TypedDictType(Type):
 
     Parameters
     ----------
+    cls: type
+        The corresponding TypedDict type.
     fields: Tuple[Field, ...]
         A tuple of fields in the TypedDict.
     """
 
+    cls: type
     fields: Tuple[Field, ...]
 
 
@@ -480,7 +506,7 @@ class StructType(Type):
         ``True`` any unknown fields will result in an error.
     """
 
-    cls: type
+    cls: typing_Type[Struct]
     fields: Tuple[Field, ...]
     tag_field: Union[str, None] = None
     tag: Union[str, int, None] = None
@@ -488,23 +514,29 @@ class StructType(Type):
     forbid_unknown_fields: bool = False
 
 
-def multi_type_info(types: Iterable[Any]) -> Tuple[Type, ...]:
+def multi_type_info(
+    types: Iterable[Any], *, protocol: Literal[None, "msgpack", "json"] = None
+) -> tuple[Type, ...]:
     """Get information about multiple msgspec-compatible types.
 
     Parameters
     ----------
     types: an iterable of types
         The types to get info about.
+    protocol: {None, "msgpack", "json"}, optional
+        Not all types are supported by all protocols. If provided, msgspec will
+        check that the provided types are compatible with the specified
+        protocol. The default (`None`) only checks that the types are supported
+        by msgspec.
 
     Returns
     -------
-    Tuple[Type, ...]
+    tuple[Type, ...]
     """
-    # TODO
-    return tuple(AnyType() for t in types)
+    return _Translator(types, protocol).run()
 
 
-def type_info(type: Any) -> Type:
+def type_info(type: Any, *, protocol: Literal[None, "msgpack", "json"] = None) -> Type:
     """Get information about a msgspec-compatible type.
 
     Note that if you need to inspect multiple types it's more efficient to call
@@ -515,9 +547,335 @@ def type_info(type: Any) -> Type:
     ----------
     type: type
         The type to get info about.
+    protocol: {None, "msgpack", "json"}, optional
+        Not all types are supported by all protocols. If provided, msgspec will
+        check that the provided types are compatible with the specified
+        protocol. The default (`None`) only checks that the types are supported
+        by msgspec.
 
     Returns
     -------
     Type
     """
-    return multi_type_info([type])[0]
+    return multi_type_info([type], protocol=protocol)[0]
+
+
+# Implementation details
+def _origin_args_metadata(t):
+    if type(t) is _AnnotatedAlias:
+        metadata = tuple(m for m in t.__metadata__ if type(m) is Meta)
+        t = t.__origin__
+    else:
+        metadata = ()
+
+    if type(t) is types_UnionType:
+        args = t.__args__
+        t = Union
+    elif t in (List, Tuple, Set, FrozenSet, Dict):
+        t = t.__origin__
+        args = None
+    elif hasattr(t, "__origin__"):
+        args = getattr(t, "__args__", None)
+        t = t.__origin__
+    else:
+        args = None
+
+    # Strip out NewType types
+    while hasattr(t, "__supertype__"):
+        t = t.__supertype__
+
+    return t, args, metadata
+
+
+def _is_struct(t):
+    return type(t) is type(Struct)
+
+
+def _is_enum(t):
+    return type(t) is enum.EnumMeta
+
+
+def _is_dataclass(t):
+    return hasattr(t, "__dataclass_fields__")
+
+
+def _is_typeddict(t):
+    try:
+        return issubclass(t, dict) and hasattr(t, "__total__")
+    except TypeError:
+        return False
+
+
+def _is_namedtuple(t):
+    try:
+        return issubclass(t, tuple) and hasattr(t, "_fields")
+    except TypeError:
+        return False
+
+
+def _roundtrip_json(d):
+    return json_decode(json_encode(d))
+
+
+def _merge_json(a, b):
+    if b:
+        a = a.copy()
+        for key, b_val in b.items():
+            if key in a:
+                a_val = a[key]
+                if isinstance(a_val, dict) and isinstance(b_val, dict):
+                    a[key] = _merge_json(a_val, b_val)
+                elif isinstance(a_val, (list, tuple)) and isinstance(
+                    b_val, (list, tuple)
+                ):
+                    a[key] = list(a_val) + list(b_val)
+                else:
+                    a[key] = b_val
+            else:
+                a[key] = b_val
+    return a
+
+
+class _Translator:
+    def __init__(self, types, protocol):
+        self.types = tuple(types)
+        self.protocol = protocol
+        self.type_hints = {}
+        self.cache = {}
+
+    def _get_type_hints(self, t):
+        """A cached version of `get_type_hints`"""
+        try:
+            return self.type_hints[t]
+        except KeyError:
+            out = self.type_hints[t] = get_type_hints(t)
+            return out
+
+    def run(self):
+        # First construct a decoder to validate the types are valid
+        if self.protocol in (None, "msgpack"):
+            from ._core import MsgpackDecoder as Decoder
+        elif self.protocol == "json":
+            from ._core import JSONDecoder as Decoder
+        else:
+            raise ValueError("protocol must be one of None, 'msgpack', 'json'")
+
+        Decoder(Tuple[self.types])
+
+        return tuple(self.translate(t) for t in self.types)
+
+    def translate(self, typ):
+        t, args, metadata = _origin_args_metadata(typ)
+
+        # Extract and merge components of any `Meta` annotations
+        constrs = {}
+        extra_json_schema = {}
+        temp = {}
+        for meta in metadata:
+            for attr in (
+                "ge",
+                "gt",
+                "le",
+                "lt",
+                "multiple_of",
+                "pattern",
+                "min_length",
+                "max_length",
+                "tz",
+            ):
+                if (val := getattr(meta, attr)) is not None:
+                    constrs[attr] = val
+            for attr in ("title", "description", "examples"):
+                if (val := getattr(meta, attr)) is not None:
+                    extra_json_schema[attr] = val
+            if meta.extra_json_schema is not None:
+                temp = _merge_json(temp, _roundtrip_json(meta.extra_json_schema))
+        extra_json_schema.update(temp)
+
+        out = self._translate_inner(t, args, **constrs)
+        if extra_json_schema:
+            # If `extra_json_schema` is present, wrap the output type in a
+            # Metadata wrapper node
+            return Metadata(out, extra_json_schema)
+        return out
+
+    def _translate_inner(
+        self,
+        t,
+        args,
+        ge=None,
+        gt=None,
+        le=None,
+        lt=None,
+        multiple_of=None,
+        pattern=None,
+        min_length=None,
+        max_length=None,
+        tz=None,
+    ):
+        if t in (Any, Raw):
+            return AnyType()
+        elif t is None or t is type(None):
+            return NoneType()
+        elif t is bool:
+            return BoolType()
+        elif t is int:
+            return IntType(ge=ge, gt=gt, le=le, lt=lt, multiple_of=multiple_of)
+        elif t is float:
+            return FloatType(ge=ge, gt=gt, le=le, lt=lt, multiple_of=multiple_of)
+        elif t is str:
+            return StrType(
+                min_length=min_length, max_length=max_length, pattern=pattern
+            )
+        elif t is bytes:
+            return BytesType(min_length=min_length, max_length=max_length)
+        elif t is bytearray:
+            return ByteArrayType(min_length=min_length, max_length=max_length)
+        elif t is datetime.datetime:
+            return DateTimeType(tz=tz)
+        elif t is datetime.time:
+            return TimeType(tz=tz)
+        elif t is datetime.date:
+            return DateType()
+        elif t is uuid.UUID:
+            return UUIDType()
+        elif t is Ext:
+            return ExtType()
+        elif t is list:
+            return ListType(
+                self.translate(args[0]) if args else AnyType(),
+                min_length=min_length,
+                max_length=max_length,
+            )
+        elif t is set:
+            return SetType(
+                self.translate(args[0]) if args else AnyType(),
+                min_length=min_length,
+                max_length=max_length,
+            )
+        elif t is frozenset:
+            return FrozenSetType(
+                self.translate(args[0]) if args else AnyType(),
+                min_length=min_length,
+                max_length=max_length,
+            )
+        elif t is tuple:
+            # Handle an annoying compatibility issue:
+            # - Tuple[()] has args == ((),)
+            # - tuple[()] has args == ()
+            if args == ((),):
+                args = ()
+            if args is None:
+                return VarTupleType(
+                    AnyType(), min_length=min_length, max_length=max_length
+                )
+            elif len(args) == 2 and args[-1] is ...:
+                return VarTupleType(
+                    self.translate(args[0]),
+                    min_length=min_length,
+                    max_length=max_length,
+                )
+            else:
+                return TupleType(tuple(self.translate(a) for a in args))
+        elif t is dict:
+            return DictType(
+                self.translate(args[0]) if args else AnyType(),
+                self.translate(args[1]) if args else AnyType(),
+                min_length=min_length,
+                max_length=max_length,
+            )
+        elif t is Union:
+            return UnionType(tuple(self.translate(a) for a in args))
+        elif t is Literal:
+            return LiteralType(tuple(sorted(args)))
+        elif _is_enum(t):
+            return EnumType(t)
+        elif _is_struct(t):
+            if t in self.cache:
+                return self.cache[t]
+            self.cache[t] = out = StructType(
+                t,
+                (),
+                tag_field=t.__struct_tag_field__,
+                tag=t.__struct_tag__,
+                array_like=t.array_like,
+                forbid_unknown_fields=t.forbid_unknown_fields,
+            )
+
+            hints = self._get_type_hints(t)
+            npos = len(t.__struct_fields__) - len(t.__struct_defaults__)
+            out.fields = tuple(
+                Field(
+                    name=name,
+                    encode_name=encode_name,
+                    type=self.translate(hints[name]),
+                    required=default is nodefault,
+                    default=UNSET if default is nodefault else default,
+                )
+                for name, encode_name, default in zip(
+                    t.__struct_fields__,
+                    t.__struct_encode_fields__,
+                    (nodefault,) * npos + t.__struct_defaults__,
+                )
+            )
+            return out
+        elif _is_typeddict(t):
+            if t in self.cache:
+                return self.cache[t]
+            self.cache[t] = out = TypedDictType(t, ())
+            hints = self._get_type_hints(t)
+            if hasattr(t, "__required_keys__"):
+                required = set(t.__required_keys__)
+            elif t.__total__:
+                required = set(hints)
+            else:
+                required = set()
+            out.fields = tuple(
+                Field(
+                    name=name,
+                    encode_name=name,
+                    type=self.translate(field_type),
+                    required=name in required,
+                )
+                for name, field_type in sorted(hints.items())
+            )
+            return out
+        elif _is_dataclass(t):
+            from dataclasses import MISSING, fields
+
+            if t in self.cache:
+                return self.cache[t]
+            self.cache[t] = out = DataclassType(t, ())
+            hints = self._get_type_hints(t)
+            out.fields = tuple(
+                Field(
+                    name=f.name,
+                    encode_name=f.name,
+                    type=self.translate(hints[f.name]),
+                    required=f.default is MISSING and f.default_factory is MISSING,
+                    default=UNSET if f.default is MISSING else f.default,
+                    default_factory=(
+                        UNSET if f.default_factory is MISSING else f.default_factory
+                    ),
+                )
+                for f in fields(t)
+            )
+            return out
+        elif _is_namedtuple(t):
+            if t in self.cache:
+                return self.cache[t]
+            self.cache[t] = out = NamedTupleType(t, ())
+            hints = self._get_type_hints(t)
+            out.fields = tuple(
+                Field(
+                    name=name,
+                    encode_name=name,
+                    type=self.translate(hints.get(name, Any)),
+                    required=name not in t._field_defaults,
+                    default=t._field_defaults.get(name, UNSET),
+                )
+                for name in t._fields
+            )
+            return out
+        else:
+            return CustomType(t)
