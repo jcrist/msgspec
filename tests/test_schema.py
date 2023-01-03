@@ -24,7 +24,7 @@ import pytest
 
 import msgspec
 from msgspec import Meta
-from msgspec._utils import merge_json
+from msgspec.inspect import _merge_json
 
 from utils import temp_module
 
@@ -54,7 +54,7 @@ except ImportError:
 def test_merge_json(a, b, sol):
     a_orig = deepcopy(a)
     b_orig = deepcopy(b)
-    res = merge_json(a, b)
+    res = _merge_json(a, b)
     assert res == sol
     assert a == a_orig
     assert b == b_orig
