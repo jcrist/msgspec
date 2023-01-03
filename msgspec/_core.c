@@ -1048,7 +1048,7 @@ Raw_New(PyObject *msg) {
 }
 
 PyDoc_STRVAR(Raw__doc__,
-"Raw(msg=b"", /)\n"
+"Raw(msg="", /)\n"
 "--\n"
 "\n"
 "A buffer containing an encoded message.\n"
@@ -1065,10 +1065,10 @@ PyDoc_STRVAR(Raw__doc__,
 "\n"
 "Parameters\n"
 "----------\n"
-"msg : bytes, bytearray, memoryview, or str, optional\n"
+"msg: bytes, bytearray, memoryview, or str, optional\n"
 "    A buffer containing an encoded message. One of bytes, bytearray, memoryview,\n"
 "    str, or any object that implements the buffer protocol. If not present,\n"
-"    defaults to a zero-length bytes object (``b""``)."
+"    defaults to an empty buffer."
 );
 static PyObject *
 Raw_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
