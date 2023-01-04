@@ -107,7 +107,7 @@ def _collect_component_types(type_infos: Iterable[mi.Type]) -> dict[Any, mi.Type
             components[t.cls] = t
         elif isinstance(t, mi.Metadata):
             collect(t.type)
-        elif isinstance(t, mi.SequenceType):
+        elif isinstance(t, mi.CollectionType):
             collect(t.item_type)
         elif isinstance(t, mi.TupleType):
             for st in t.item_types:
@@ -184,7 +184,7 @@ def _to_schema(
             schema["$ref"] = ref_template.format(name=name)
             return schema
 
-    if isinstance(t, mi.AnyType):
+    if isinstance(t, (mi.AnyType, mi.RawType)):
         pass
     elif isinstance(t, mi.NoneType):
         schema["type"] = "null"
@@ -233,7 +233,7 @@ def _to_schema(
     elif isinstance(t, mi.UUIDType):
         schema["type"] = "string"
         schema["format"] = "uuid"
-    elif isinstance(t, mi.SequenceType):
+    elif isinstance(t, mi.CollectionType):
         schema["type"] = "array"
         if not isinstance(t.item_type, mi.AnyType):
             schema["items"] = _to_schema(t.item_type, name_map, ref_template)

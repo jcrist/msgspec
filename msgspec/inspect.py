@@ -19,7 +19,7 @@ from typing import (
 try:
     from types import UnionType as types_UnionType
 except Exception:
-    types_UnionType = None  # type: ignore
+    types_UnionType = type("UnionType", (), {})
 
 from ._core import Struct, Raw, Ext, Meta, nodefault, json_encode, json_decode  # type: ignore
 from ._utils import _AnnotatedAlias, get_type_hints  # type: ignore
@@ -43,10 +43,12 @@ __all__ = (
     "DateType",
     "UUIDType",
     "ExtType",
+    "RawType",
     "EnumType",
     "LiteralType",
     "CustomType",
     "UnionType",
+    "CollectionType",
     "ListType",
     "SetType",
     "FrozenSetType",
@@ -256,6 +258,10 @@ class ExtType(Type):
     """A type corresponding to `msgspec.msgpack.Ext`."""
 
 
+class RawType(Type):
+    """A type corresponding to `msgspec.Raw`."""
+
+
 class EnumType(Type):
     """A type corresponding to an `enum.Enum` type.
 
@@ -305,13 +311,30 @@ class UnionType(Type):
     types: Tuple[Type, ...]
 
 
-class SequenceType(Type):
+class CollectionType(Type):
+    """A collection type.
+
+    This is the base type shared by collection types like `ListType`,
+    `SetType`, etc.
+
+    Parameters
+    ----------
+    item_type: Type
+        The item type.
+    min_length: int, optional
+        If set, an instance of this type must have length greater than or equal
+        to ``min_length``.
+    max_length: int, optional
+        If set, an instance of this type must have length less than or equal
+        to ``max_length``.
+    """
+
     item_type: Type
     min_length: Union[int, None] = None
     max_length: Union[int, None] = None
 
 
-class ListType(SequenceType):
+class ListType(CollectionType):
     """A type corresponding to a `list`.
 
     Parameters
@@ -327,7 +350,7 @@ class ListType(SequenceType):
     """
 
 
-class VarTupleType(SequenceType):
+class VarTupleType(CollectionType):
     """A type corresponding to a variadic `tuple`.
 
     Parameters
@@ -343,7 +366,7 @@ class VarTupleType(SequenceType):
     """
 
 
-class SetType(SequenceType):
+class SetType(CollectionType):
     """A type corresponding to a `set`.
 
     Parameters
@@ -359,7 +382,7 @@ class SetType(SequenceType):
     """
 
 
-class FrozenSetType(SequenceType):
+class FrozenSetType(CollectionType):
     """A type corresponding to a `frozenset`.
 
     Parameters
@@ -713,7 +736,7 @@ class _Translator:
         max_length=None,
         tz=None,
     ):
-        if t in (Any, Raw):
+        if t is Any:
             return AnyType()
         elif t is None or t is type(None):
             return NoneType()
@@ -739,6 +762,8 @@ class _Translator:
             return DateType()
         elif t is uuid.UUID:
             return UUIDType()
+        elif t is Raw:
+            return RawType()
         elif t is Ext:
             return ExtType()
         elif t is list:
