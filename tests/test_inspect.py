@@ -501,6 +501,16 @@ def test_metadata():
         mi.IntType(), {"title": "c", "description": "b", "examples": [1, 2]}
     )
 
+    typ = Annotated[
+        int,
+        Meta(extra={"a": 1, "b": 2}),
+        Meta(extra={"a": 3, "c": 4}),
+    ]
+
+    assert mi.type_info(typ) == mi.Metadata(
+        mi.IntType(), extra={"a": 3, "b": 2, "c": 4}
+    )
+
 
 @pytest.mark.parametrize("protocol", [None, "msgpack", "json"])
 def test_type_info_protocol(protocol):

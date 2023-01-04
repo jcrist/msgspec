@@ -113,6 +113,7 @@ class Meta:
         description: Union[str, None] = None,
         examples: Union[list, None] = None,
         extra_json_schema: Union[dict, None] = None,
+        extra: Union[dict, None] = None,
     ): ...
     gt: Final[Union[int, float, None]]
     ge: Final[Union[int, float, None]]
@@ -127,6 +128,7 @@ class Meta:
     description: Final[Union[str, None]]
     examples: Final[Union[list, None]]
     extra_json_schema: Final[Union[dict, None]]
+    extra: Final[Union[dict, None]]
     def __rich_repr__(self) -> Iterable[Tuple[str, Any]]: ...
 
 class MsgspecError(Exception): ...

@@ -59,6 +59,7 @@ FIELDS = {
     "description": "example description",
     "examples": ["example 1", "example 2"],
     "extra_json_schema": {"foo": "bar"},
+    "extra": {"fizz": "buzz"},
 }
 
 
@@ -219,7 +220,7 @@ class TestMetaObject:
         with pytest.raises(TypeError, match=f"`{field}` must be a list, got str"):
             Meta(**{field: "bad"})
 
-    @pytest.mark.parametrize("field", ["extra_json_schema"])
+    @pytest.mark.parametrize("field", ["extra_json_schema", "extra"])
     def test_dict_fields(self, field):
         Meta(**{field: {"good": "stuff"}})
         with pytest.raises(TypeError, match=f"`{field}` must be a dict, got str"):

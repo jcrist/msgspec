@@ -96,10 +96,13 @@ class Metadata(Type):
     extra_json_schema: dict, optional
         A dict of extra fields to set for the subtype when generating a
         json-schema.
+    extra: dict, optional
+        A dict of extra user-defined metadata attached to the subtype.
     """
 
     type: Type
     extra_json_schema: Union[dict, None] = None
+    extra: Union[dict, None] = None
 
 
 class AnyType(Type):
@@ -727,7 +730,7 @@ class _Translator:
         # Extract and merge components of any `Meta` annotations
         constrs = {}
         extra_json_schema = {}
-        temp = {}
+        extra = {}
         for meta in metadata:
             for attr in (
                 "ge",
@@ -746,14 +749,19 @@ class _Translator:
                 if (val := getattr(meta, attr)) is not None:
                     extra_json_schema[attr] = val
             if meta.extra_json_schema is not None:
-                temp = _merge_json(temp, _roundtrip_json(meta.extra_json_schema))
-        extra_json_schema.update(temp)
+                extra_json_schema = _merge_json(
+                    extra_json_schema, _roundtrip_json(meta.extra_json_schema)
+                )
+            if meta.extra is not None:
+                extra.update(meta.extra)
 
         out = self._translate_inner(t, args, **constrs)
-        if extra_json_schema:
-            # If `extra_json_schema` is present, wrap the output type in a
-            # Metadata wrapper node
-            return Metadata(out, extra_json_schema)
+        if extra_json_schema or extra:
+            # If extra metadata is present, wrap the output type in a Metadata
+            # wrapper object
+            return Metadata(
+                out, extra_json_schema=extra_json_schema or None, extra=extra or None
+            )
         return out
 
     def _translate_inner(
