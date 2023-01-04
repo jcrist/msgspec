@@ -555,6 +555,19 @@ def multi_type_info(
     Returns
     -------
     tuple[Type, ...]
+
+    Examples
+    --------
+    >>> msgspec.inspect.type_info([int, float, list[str]])
+    (
+        IntType(gt=None, ge=None, lt=None, le=None, multiple_of=None),
+        FloatType(gt=None, ge=None, lt=None, le=None, multiple_of=None),
+        ListType(
+            item_type=StrType(min_length=None, max_length=None, pattern=None),
+            min_length=None,
+            max_length=None
+        )
+    )
     """
     return _Translator(types, protocol).run()
 
@@ -579,6 +592,21 @@ def type_info(type: Any, *, protocol: Literal[None, "msgpack", "json"] = None) -
     Returns
     -------
     Type
+
+    Examples
+    --------
+    >>> msgspec.inspect.type_info(bool)
+    BoolType()
+
+    >>> msgspec.inspect.type_info(int)
+    IntType(gt=None, ge=None, lt=None, le=None, multiple_of=None)
+
+    >>> msgspec.inspect.type_info(list[int])
+    ListType(
+        item_type=IntType(gt=None, ge=None, lt=None, le=None, multiple_of=None),
+        min_length=None,
+        max_length=None
+    )
     """
     return multi_type_info([type], protocol=protocol)[0]
 

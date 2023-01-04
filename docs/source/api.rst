@@ -73,6 +73,9 @@ JSON Schema
 
 .. autofunction:: schema_components
 
+
+.. _inspect-api:
+
 Inspect
 -------
 

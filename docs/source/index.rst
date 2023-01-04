@@ -164,6 +164,7 @@ is required.
     :caption: Advanced
 
     extending.rst
+    inspect.rst
     perf-tips.rst
 
 .. toctree::
