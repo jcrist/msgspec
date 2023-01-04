@@ -244,6 +244,9 @@ def test_union(use_union_operator):
     sol = mi.UnionType((mi.IntType(), mi.StrType()))
     assert mi.type_info(typ) == sol
 
+    assert not sol.includes_none
+    assert mi.type_info(Union[int, None]).includes_none
+
 
 def test_int_literal():
     assert mi.type_info(Literal[3, 1, 2]) == mi.LiteralType((1, 2, 3))
