@@ -95,10 +95,12 @@ Inspect
 .. autoclass:: DateType
 .. autoclass:: UUIDType
 .. autoclass:: ExtType
+.. autoclass:: RawType
 .. autoclass:: EnumType
 .. autoclass:: LiteralType
 .. autoclass:: CustomType
 .. autoclass:: UnionType
+.. autoclass:: CollectionType
 .. autoclass:: ListType
 .. autoclass:: SetType
 .. autoclass:: FrozenSetType

@@ -3,7 +3,6 @@ import datetime
 import decimal
 import uuid
 from base64 import b64encode
-from copy import deepcopy
 from collections import namedtuple
 from dataclasses import dataclass, field
 from typing import (
@@ -24,7 +23,6 @@ import pytest
 
 import msgspec
 from msgspec import Meta
-from msgspec.inspect import _merge_json
 
 from utils import temp_module
 
@@ -35,29 +33,6 @@ except ImportError:
         from typing_extensions import Annotated
     except ImportError:
         pytestmark = pytest.mark.skip("Annotated types not available")
-
-
-@pytest.mark.parametrize(
-    "a,b,sol",
-    [
-        (
-            {"a": {"b": {"c": 1}}},
-            {"a": {"b": {"d": 2}}},
-            {"a": {"b": {"c": 1, "d": 2}}},
-        ),
-        ({"a": {"b": {"c": 1}}}, {"a": {"b": 2}}, {"a": {"b": 2}}),
-        ({"a": [1, 2]}, {"a": [3, 4]}, {"a": [1, 2, 3, 4]}),
-        ({"a": {"b": 1}}, {"a2": 3}, {"a": {"b": 1}, "a2": 3}),
-        ({"a": 1}, {}, {"a": 1}),
-    ],
-)
-def test_merge_json(a, b, sol):
-    a_orig = deepcopy(a)
-    b_orig = deepcopy(b)
-    res = _merge_json(a, b)
-    assert res == sol
-    assert a == a_orig
-    assert b == b_orig
 
 
 def type_index(typ, args):

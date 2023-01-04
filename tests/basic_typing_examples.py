@@ -626,17 +626,46 @@ def check_json_format() -> None:
 # msgspec.inspect                                        #
 ##########################################################
 
-def check_type_info() -> None:
+def check_inspect_type_info() -> None:
     o = msgspec.inspect.type_info(List[int])
     reveal_type(o)  # assert "Type" in typ
 
+    msgspec.inspect.type_info(int, protocol=None)
+    msgspec.inspect.type_info(int, protocol="msgpack")
+    msgspec.inspect.type_info(int, protocol="json")
 
-def check_multi_type_info() -> None:
+
+def check_inspect_multi_type_info() -> None:
     o = msgspec.inspect.multi_type_info([int, float])
     reveal_type(o)  # assert "Type" in typ and "tuple" in typ.lower()
 
     o2 = msgspec.inspect.multi_type_info((int, float))
     reveal_type(o2)  # assert "Type" in typ and "tuple" in typ.lower()
+
+    msgspec.inspect.multi_type_info([int], protocol=None)
+    msgspec.inspect.multi_type_info([int], protocol="msgpack")
+    msgspec.inspect.multi_type_info([int], protocol="json")
+
+
+def max_depth(t: msgspec.inspect.Type, depth: int = 0) -> int:
+    # This isn't actually a complete max_depth implementation
+    if isinstance(t, msgspec.inspect.CollectionType):
+        return max_depth(t.item_type, depth + 1)
+    elif isinstance(t, msgspec.inspect.DictType):
+        return max(
+            max_depth(t.key_type, depth + 1),
+            max_depth(t.value_type, depth + 1)
+        )
+    elif isinstance(t, msgspec.inspect.TupleType):
+        return max(max_depth(a, depth + 1) for a in t.item_types)
+    else:
+        return depth
+
+
+def check_consume_inspect_types() -> None:
+    t = msgspec.inspect.type_info(List[int])
+    o = max_depth(t)
+    reveal_type(o)  # assert "int" in typ.lower()
 
 
 ##########################################################
