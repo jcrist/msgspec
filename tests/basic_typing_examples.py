@@ -337,6 +337,7 @@ def check_meta_constructor() -> None:
         msgspec.Meta(examples=val5)
     for val6 in [{"foo": "bar"}, None]:
         msgspec.Meta(extra_json_schema=val6)
+        msgspec.Meta(extra=val6)
 
 
 def check_meta_attributes() -> None:
@@ -354,6 +355,7 @@ def check_meta_attributes() -> None:
     print(c.description)
     print(c.examples)
     print(c.extra_json_schema)
+    print(c.extra)
 
 
 def check_meta_equal() -> None:
