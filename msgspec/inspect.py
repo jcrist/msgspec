@@ -310,6 +310,11 @@ class UnionType(Type):
 
     types: Tuple[Type, ...]
 
+    @property
+    def includes_none(self) -> bool:
+        """A helper for checking whether ``None`` is included in this union."""
+        return any(isinstance(t, NoneType) for t in self.types)
+
 
 class CollectionType(Type):
     """A collection type.

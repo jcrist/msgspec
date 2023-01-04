@@ -103,6 +103,7 @@ Inspect
 .. autoclass:: LiteralType
 .. autoclass:: CustomType
 .. autoclass:: UnionType
+    :members:
 .. autoclass:: CollectionType
 .. autoclass:: ListType
 .. autoclass:: SetType

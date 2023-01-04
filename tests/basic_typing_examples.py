@@ -667,6 +667,11 @@ def check_consume_inspect_types() -> None:
     o = max_depth(t)
     reveal_type(o)  # assert "int" in typ.lower()
 
+    t = msgspec.inspect.UnionType(
+        (msgspec.inspect.IntType(), msgspec.inspect.NoneType())
+    )
+    reveal_type(t.includes_none)  # assert "bool" in typ.lower()
+
 
 ##########################################################
 # JSON Schema                                            #
