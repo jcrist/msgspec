@@ -650,13 +650,16 @@ def check_inspect_multi_type_info() -> None:
 def max_depth(t: msgspec.inspect.Type, depth: int = 0) -> int:
     # This isn't actually a complete max_depth implementation
     if isinstance(t, msgspec.inspect.CollectionType):
+        reveal_type(t.item_type)  # assert "Type" in typ
         return max_depth(t.item_type, depth + 1)
     elif isinstance(t, msgspec.inspect.DictType):
+        reveal_type(t.key_type)  # assert "Type" in typ
         return max(
             max_depth(t.key_type, depth + 1),
             max_depth(t.value_type, depth + 1)
         )
     elif isinstance(t, msgspec.inspect.TupleType):
+        reveal_type(t.item_types)  # assert "Type" in typ and "tuple" in typ.lower()
         return max(max_depth(a, depth + 1) for a in t.item_types)
     else:
         return depth

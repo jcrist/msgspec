@@ -17,12 +17,13 @@ from typing import (
 )
 
 try:
-    from types import UnionType as types_UnionType
+    from types import UnionType as _types_UnionType
 except Exception:
-    types_UnionType = type("UnionType", (), {})
+    _types_UnionType = type("UnionType", (), {})
 
-from ._core import Struct, Raw, Ext, Meta, nodefault, json_encode, json_decode  # type: ignore
-from ._utils import _AnnotatedAlias, get_type_hints  # type: ignore
+import msgspec
+from ._core import nodefault as _nodefault
+from ._utils import _AnnotatedAlias, get_type_hints as _get_type_hints
 
 
 __all__ = (
@@ -81,7 +82,7 @@ class _UnsetSingleton:
 UNSET = _UnsetSingleton()
 
 
-class Type(Struct):
+class Type(msgspec.Struct):
     """The base Type."""
 
 
@@ -438,7 +439,7 @@ class DictType(Type):
     max_length: Union[int, None] = None
 
 
-class Field(Struct):
+class Field(msgspec.Struct):
     """A record describing a field in an object-like type.
 
     Parameters
@@ -534,7 +535,7 @@ class StructType(Type):
         ``True`` any unknown fields will result in an error.
     """
 
-    cls: typing_Type[Struct]
+    cls: typing_Type[msgspec.Struct]
     fields: Tuple[Field, ...]
     tag_field: Union[str, None] = None
     tag: Union[str, int, None] = None
@@ -619,12 +620,12 @@ def type_info(type: Any, *, protocol: Literal[None, "msgpack", "json"] = None) -
 # Implementation details
 def _origin_args_metadata(t):
     if type(t) is _AnnotatedAlias:
-        metadata = tuple(m for m in t.__metadata__ if type(m) is Meta)
+        metadata = tuple(m for m in t.__metadata__ if type(m) is msgspec.Meta)
         t = t.__origin__
     else:
         metadata = ()
 
-    if type(t) is types_UnionType:
+    if type(t) is _types_UnionType:
         args = t.__args__
         t = Union
     elif t in (List, Tuple, Set, FrozenSet, Dict):
@@ -644,7 +645,7 @@ def _origin_args_metadata(t):
 
 
 def _is_struct(t):
-    return type(t) is type(Struct)
+    return type(t) is type(msgspec.Struct)
 
 
 def _is_enum(t):
@@ -670,7 +671,7 @@ def _is_namedtuple(t):
 
 
 def _roundtrip_json(d):
-    return json_decode(json_encode(d))
+    return msgspec.json.decode(msgspec.json.encode(d))
 
 
 def _merge_json(a, b):
@@ -704,7 +705,7 @@ class _Translator:
         try:
             return self.type_hints[t]
         except KeyError:
-            out = self.type_hints[t] = get_type_hints(t)
+            out = self.type_hints[t] = _get_type_hints(t)
             return out
 
     def run(self):
@@ -795,9 +796,9 @@ class _Translator:
             return DateType()
         elif t is uuid.UUID:
             return UUIDType()
-        elif t is Raw:
+        elif t is msgspec.Raw:
             return RawType()
-        elif t is Ext:
+        elif t is msgspec.msgpack.Ext:
             return ExtType()
         elif t is list:
             return ListType(
@@ -867,13 +868,13 @@ class _Translator:
                     name=name,
                     encode_name=encode_name,
                     type=self.translate(hints[name]),
-                    required=default is nodefault,
-                    default=UNSET if default is nodefault else default,
+                    required=default is _nodefault,
+                    default=UNSET if default is _nodefault else default,
                 )
                 for name, encode_name, default in zip(
                     t.__struct_fields__,
                     t.__struct_encode_fields__,
-                    (nodefault,) * npos + t.__struct_defaults__,
+                    (_nodefault,) * npos + t.__struct_defaults__,
                 )
             )
             return out
