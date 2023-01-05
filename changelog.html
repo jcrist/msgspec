@@ -250,6 +250,21 @@
         <article role="main">
           <section id="changelog">
 <h1>Changelog<a class="headerlink" href="#changelog" title="Permalink to this heading">#</a></h1>
+<section id="version-0-12-0-2023-01-05">
+<h2>Version 0.12.0 (2023-01-05)<a class="headerlink" href="#version-0-12-0-2023-01-05" title="Permalink to this heading">#</a></h2>
+<ul class="simple">
+<li><p>Support encoding <code class="docutils literal notranslate"><span class="pre">set</span></code> and <code class="docutils literal notranslate"><span class="pre">frozenset</span></code> subclasses (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/249">PR #249</a>).</p></li>
+<li><p>Support encoding/decoding <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.NewType" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.NewType</span></code></a> types (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/251">PR #251</a>).</p></li>
+<li><p>Allow creating a <a class="reference internal" href="api.html#msgspec.Raw" title="msgspec.Raw"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Raw</span></code></a> object from a <code class="docutils literal notranslate"><span class="pre">str</span></code> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/252">PR #252</a>).</p></li>
+<li><p>Add new experimental <code class="docutils literal notranslate"><span class="pre">msgspec.inspect</span></code> module for inspecting type
+annotations. This is intended to be used for building downstream tooling
+based on msgspec-compatible types. See <a class="reference internal" href="inspect.html"><span class="doc">the docs</span></a> for more
+information (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/253">PR #253</a>).</p></li>
+<li><p>Add new <code class="docutils literal notranslate"><span class="pre">extra</span></code> field to <a class="reference internal" href="api.html#msgspec.Meta" title="msgspec.Meta"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Meta</span></code></a>, for storing arbitrary user-defined
+metadata (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/255">PR #255</a>).</p></li>
+<li><p>Improved performance for JSON encoding strings (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/256">PR #256</a>).</p></li>
+</ul>
+</section>
 <section id="version-0-11-0-2022-12-19">
 <h2>Version 0.11.0 (2022-12-19)<a class="headerlink" href="#version-0-11-0-2022-12-19" title="Permalink to this heading">#</a></h2>
 <ul>
@@ -553,6 +568,7 @@ faster decoding.</p></li>
           <div class="toc-tree">
             <ul>
 <li><a class="reference internal" href="#">Changelog</a><ul>
+<li><a class="reference internal" href="#version-0-12-0-2023-01-05">Version 0.12.0 (2023-01-05)</a></li>
 <li><a class="reference internal" href="#version-0-11-0-2022-12-19">Version 0.11.0 (2022-12-19)</a></li>
 <li><a class="reference internal" href="#version-0-10-1-2022-12-08">Version 0.10.1 (2022-12-08)</a></li>
 <li><a class="reference internal" href="#version-0-10-0-2022-12-07">Version 0.10.0 (2022-12-07)</a></li>
