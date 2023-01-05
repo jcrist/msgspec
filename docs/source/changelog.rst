@@ -3,6 +3,20 @@ Changelog
 
 .. currentmodule:: msgspec
 
+Version 0.12.0 (2023-01-05)
+---------------------------
+
+- Support encoding ``set`` and ``frozenset`` subclasses (:pr:`249`).
+- Support encoding/decoding `typing.NewType` types (:pr:`251`).
+- Allow creating a `msgspec.Raw` object from a ``str`` (:pr:`252`).
+- Add new experimental ``msgspec.inspect`` module for inspecting type
+  annotations. This is intended to be used for building downstream tooling
+  based on msgspec-compatible types. See :doc:`the docs <inspect>` for more
+  information (:pr:`253`).
+- Add new ``extra`` field to `msgspec.Meta`, for storing arbitrary user-defined
+  metadata (:pr:`255`).
+- Improved performance for JSON encoding strings (:pr:`256`).
+
 Version 0.11.0 (2022-12-19)
 ---------------------------
 
@@ -23,7 +37,6 @@ Version 0.11.0 (2022-12-19)
   
   See :ref:`struct-field-ordering` for more information (:pr:`242`).
 - Support encoding/decoding dictionaries with integer keys for JSON (:pr:`243`).
-
 
 Version 0.10.1 (2022-12-08)
 ---------------------------
