@@ -70,13 +70,23 @@ ms_popcount(uint64_t i) {                            \
     PyByteArray_AS_STRING(obj)[size] = '\0'; \
     } while (0);
 
-/* XXX: Optimized `PyUnicode_AsUTF8AndSize`, fastpath for ascii strings. */
+/* XXX: Optimized `PyUnicode_AsUTF8AndSize` for strs that we know have
+ * a cached unicode representation. */
 static inline const char *
-unicode_str_and_size(PyObject *str, Py_ssize_t *size) {
+unicode_str_and_size_nocheck(PyObject *str, Py_ssize_t *size) {
     if (MS_LIKELY(PyUnicode_IS_COMPACT_ASCII(str))) {
         *size = ((PyASCIIObject *)str)->length;
         return (char *)(((PyASCIIObject *)str) + 1);
     }
+    *size = ((PyCompactUnicodeObject *)str)->utf8_length;
+    return ((PyCompactUnicodeObject *)str)->utf8;
+}
+
+/* XXX: Optimized `PyUnicode_AsUTF8AndSize` */
+static inline const char *
+unicode_str_and_size(PyObject *str, Py_ssize_t *size) {
+    const char *out = unicode_str_and_size_nocheck(str, size);
+    if (MS_LIKELY(out != NULL)) return out;
     return PyUnicode_AsUTF8AndSize(str, size);
 }
 
@@ -482,6 +492,7 @@ static bool
 strbuilder_extend_unicode(strbuilder *self, PyObject *obj) {
     Py_ssize_t size;
     const char* buf = unicode_str_and_size(obj, &size);
+    if (buf == NULL) return false;
     return strbuilder_extend(self, buf, size);
 }
 
@@ -847,7 +858,7 @@ _StrLookup_lookup(StrLookup *self, const char *key, Py_ssize_t size)
         StrLookupEntry *entry = &table[i];
         if (entry->value == NULL) return entry;
         Py_ssize_t entry_size;
-        const char *entry_key = unicode_str_and_size(entry->key, &entry_size);
+        const char *entry_key = unicode_str_and_size_nocheck(entry->key, &entry_size);
         if (entry_size == size && memcmp(entry_key, key, size) == 0) return entry;
         /* Collision, perturb and try again */
         perturb >>= 5;
@@ -4487,7 +4498,7 @@ StructMeta_get_field_index(
     Py_ssize_t nfields, field_size, i, offset = *pos;
     nfields = PyTuple_GET_SIZE(self->struct_encode_fields);
     for (i = offset; i < nfields; i++) {
-        field = unicode_str_and_size(
+        field = unicode_str_and_size_nocheck(
             PyTuple_GET_ITEM(self->struct_encode_fields, i), &field_size
         );
         if (key_size == field_size && memcmp(key, field, key_size) == 0) {
@@ -4496,7 +4507,7 @@ StructMeta_get_field_index(
         }
     }
     for (i = 0; i < offset; i++) {
-        field = unicode_str_and_size(
+        field = unicode_str_and_size_nocheck(
             PyTuple_GET_ITEM(self->struct_encode_fields, i), &field_size
         );
         if (key_size == field_size && memcmp(key, field, key_size) == 0) {
@@ -4508,7 +4519,7 @@ StructMeta_get_field_index(
     if (MS_UNLIKELY(self->struct_tag_field != NULL)) {
         Py_ssize_t tag_field_size;
         const char *tag_field;
-        tag_field = unicode_str_and_size(self->struct_tag_field, &tag_field_size);
+        tag_field = unicode_str_and_size_nocheck(self->struct_tag_field, &tag_field_size);
         if (key_size == tag_field_size && memcmp(key, tag_field, key_size) == 0) {
             return -2;
         }
@@ -6617,7 +6628,7 @@ TypedDictInfo_lookup_key(
     Py_ssize_t nfields, field_size, i, offset = *pos;
     nfields = Py_SIZE(self);
     for (i = offset; i < nfields; i++) {
-        field = unicode_str_and_size(self->fields[i].key, &field_size);
+        field = unicode_str_and_size_nocheck(self->fields[i].key, &field_size);
         if (key_size == field_size && memcmp(key, field, key_size) == 0) {
             *pos = i < (nfields - 1) ? (i + 1) : 0;
             *type = self->fields[i].type;
@@ -6625,7 +6636,7 @@ TypedDictInfo_lookup_key(
         }
     }
     for (i = 0; i < offset; i++) {
-        field = unicode_str_and_size(self->fields[i].key, &field_size);
+        field = unicode_str_and_size_nocheck(self->fields[i].key, &field_size);
         if (key_size == field_size && memcmp(key, field, key_size) == 0) {
             *pos = i + 1;
             *type = self->fields[i].type;
@@ -6850,7 +6861,7 @@ DataclassInfo_lookup_key(
     Py_ssize_t nfields, field_size, i, offset = *pos;
     nfields = Py_SIZE(self);
     for (i = offset; i < nfields; i++) {
-        field = unicode_str_and_size(self->fields[i].key, &field_size);
+        field = unicode_str_and_size_nocheck(self->fields[i].key, &field_size);
         if (key_size == field_size && memcmp(key, field, key_size) == 0) {
             *pos = i < (nfields - 1) ? (i + 1) : 0;
             *type = self->fields[i].type;
@@ -6858,7 +6869,7 @@ DataclassInfo_lookup_key(
         }
     }
     for (i = 0; i < offset; i++) {
-        field = unicode_str_and_size(self->fields[i].key, &field_size);
+        field = unicode_str_and_size_nocheck(self->fields[i].key, &field_size);
         if (key_size == field_size && memcmp(key, field, key_size) == 0) {
             *pos = i + 1;
             *type = self->fields[i].type;
@@ -9861,8 +9872,7 @@ json_encode_cstr(EncoderState *self, const char *str, Py_ssize_t size) {
 static inline int
 json_encode_str_nocheck(EncoderState *self, PyObject *obj) {
     Py_ssize_t len;
-    const char* buf = unicode_str_and_size(obj, &len);
-    if (buf == NULL) return -1;
+    const char* buf = unicode_str_and_size_nocheck(obj, &len);
     return json_encode_cstr(self, buf, len);
 }
 
@@ -11410,7 +11420,7 @@ mpack_ensure_tag_matches(
 
         /* Check that tag matches expected tag value */
         Py_ssize_t expected_size;
-        const char *expected_str = unicode_str_and_size(
+        const char *expected_str = unicode_str_and_size_nocheck(
             expected_tag, &expected_size
         );
         if (tag_size != expected_size || memcmp(tag, expected_str, expected_size) != 0) {
@@ -11899,7 +11909,7 @@ mpack_decode_struct_union(
     Lookup *lookup = TypeNode_get_struct_union(type);
     PathNode key_path = {path, PATH_KEY, NULL};
     Py_ssize_t tag_field_size;
-    const char *tag_field = unicode_str_and_size(
+    const char *tag_field = unicode_str_and_size_nocheck(
         Lookup_tag_field(lookup), &tag_field_size
     );
 
@@ -13966,7 +13976,7 @@ json_ensure_tag_matches(
 
         /* Check that tag matches expected tag value */
         Py_ssize_t expected_size;
-        const char *expected_str = unicode_str_and_size(
+        const char *expected_str = unicode_str_and_size_nocheck(
             expected_tag, &expected_size
         );
         if (tag_size != expected_size || memcmp(tag, expected_str, expected_size) != 0) {
@@ -14490,7 +14500,7 @@ json_decode_struct_union(
     Lookup *lookup = TypeNode_get_struct_union(type);
     PathNode tag_path = {path, PATH_STR, Lookup_tag_field(lookup)};
     Py_ssize_t tag_field_size;
-    const char *tag_field = unicode_str_and_size(
+    const char *tag_field = unicode_str_and_size_nocheck(
         Lookup_tag_field(lookup), &tag_field_size
     );
 
