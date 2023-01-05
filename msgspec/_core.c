@@ -9896,10 +9896,24 @@ static const char escape_table[256] = {
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 };
 
+static int
+json_str_requires_escaping(PyObject *obj) {
+    Py_ssize_t i, len;
+    const char* buf = unicode_str_and_size(obj, &len);
+    if (buf == NULL) return -1;
+    for (i = 0; i < len; i++) {
+        char escape = escape_table[(uint8_t)buf[i]];
+        if (escape != 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 /* GCC generates better code if the uncommon path in the str encoding loop is
  * pulled out into a separate function. Clang generates the same code either
  * way. */
-static int
+static MS_NOINLINE int
 json_write_str_fragment(
     EncoderState *self, const char *buf, Py_ssize_t start, Py_ssize_t i, char c, char escape
 ) {
@@ -9918,20 +9932,6 @@ json_write_str_fragment(
         if (MS_UNLIKELY(ms_write(self, escaped, 2) < 0)) return -1;
     }
     return i + 1;
-}
-
-static int
-json_str_requires_escaping(PyObject *obj) {
-    Py_ssize_t i, len;
-    const char* buf = unicode_str_and_size(obj, &len);
-    if (buf == NULL) return -1;
-    for (i = 0; i < len; i++) {
-        char escape = escape_table[(uint8_t)buf[i]];
-        if (escape != 0) {
-            return 1;
-        }
-    }
-    return 0;
 }
 
 static int
