@@ -13357,7 +13357,10 @@ json_decode_dict_key(JSONDecoderState *self, TypeNode *type, PathNode *path) {
         return json_decode_int_from_str(view, size, type, path);
     }
 
-    if (MS_LIKELY(size > 0 && size <= STRING_CACHE_MAX_STRING_LENGTH)) {
+    /* Don't cache the empty string */
+    if (MS_UNLIKELY(size == 0)) return PyUnicode_New(0, 127);
+
+    if (MS_LIKELY(size <= STRING_CACHE_MAX_STRING_LENGTH)) {
         uint32_t hash = murmur2(view, size);
         uint32_t index = hash % STRING_CACHE_SIZE;
         PyObject *existing = string_cache[index];
@@ -13369,20 +13372,22 @@ json_decode_dict_key(JSONDecoderState *self, TypeNode *type, PathNode *path) {
                 Py_INCREF(existing);
                 return existing;
             }
-            Py_DECREF(existing);
         }
 
         /* Create a new ASCII str object */
         PyObject *new = PyUnicode_New(size, 127);
+        if (MS_UNLIKELY(new == NULL)) return NULL;
         memcpy(((PyASCIIObject *)new) + 1, view, size);
 
         /* Swap out the str in the cache */
+        Py_XDECREF(existing);
         Py_INCREF(new);
         string_cache[index] = new;
         return new;
     }
     /* Create a new ASCII str object */
     PyObject *new = PyUnicode_New(size, 127);
+    if (MS_UNLIKELY(new == NULL)) return NULL;
     memcpy(((PyASCIIObject *)new) + 1, view, size);
     return new;
 }
