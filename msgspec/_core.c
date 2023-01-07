@@ -90,6 +90,11 @@ unicode_str_and_size(PyObject *str, Py_ssize_t *size) {
     return PyUnicode_AsUTF8AndSize(str, size);
 }
 
+static MS_INLINE char *
+ascii_get_buffer(PyObject *str) {
+    return (char *)(((PyASCIIObject *)str) + 1);
+}
+
 /* Fill in view.buf & view.len from either a Unicode or buffer-compatible
  * object. */
 static int
@@ -8316,7 +8321,7 @@ ms_read_fixint(const char *buf, int width, int *out) {
 
 /* Requires 10 bytes of scratch space */
 static void
-ms_encode_date(EncoderState *self, PyObject *obj, char *out)
+ms_encode_date(PyObject *obj, char *out)
 {
     uint32_t year = PyDateTime_GET_YEAR(obj);
     uint8_t month = PyDateTime_GET_MONTH(obj);
@@ -8332,7 +8337,7 @@ ms_encode_date(EncoderState *self, PyObject *obj, char *out)
 /* Requires 21 bytes of scratch space */
 static int
 ms_encode_time_parts(
-    EncoderState *self, PyObject *obj,
+    MsgspecState *mod, PyObject *obj,
     uint8_t hour, uint8_t minute, uint8_t second, uint32_t microsecond,
     PyObject *tzinfo, char *out, int out_offset
 ) {
@@ -8351,7 +8356,7 @@ ms_encode_time_parts(
         int32_t offset_days = 0, offset_secs = 0;
 
         if (tzinfo != PyDateTime_TimeZone_UTC) {
-            PyObject *offset = CALL_METHOD_ONE_ARG(tzinfo, self->mod->str_utcoffset, Py_None);
+            PyObject *offset = CALL_METHOD_ONE_ARG(tzinfo, mod->str_utcoffset, Py_None);
             if (offset == NULL) return -1;
             if (PyDelta_Check(offset)) {
                 offset_days = PyDateTime_DELTA_GET_DAYS(offset);
@@ -8410,7 +8415,7 @@ ms_encode_time_parts(
  *
  * Returns +nbytes if successful, -1 on failure */
 static int
-ms_encode_time(EncoderState *self, PyObject *obj, char *out)
+ms_encode_time(MsgspecState *mod, PyObject *obj, char *out)
 {
     uint8_t hour = PyDateTime_TIME_GET_HOUR(obj);
     uint8_t minute = PyDateTime_TIME_GET_MINUTE(obj);
@@ -8418,7 +8423,7 @@ ms_encode_time(EncoderState *self, PyObject *obj, char *out)
     uint32_t microsecond = PyDateTime_TIME_GET_MICROSECOND(obj);
     PyObject *tzinfo = MS_TIME_GET_TZINFO(obj);
     return ms_encode_time_parts(
-        self, obj, hour, minute, second, microsecond, tzinfo, out, 0
+        mod, obj, hour, minute, second, microsecond, tzinfo, out, 0
     );
 }
 
@@ -8426,17 +8431,17 @@ ms_encode_time(EncoderState *self, PyObject *obj, char *out)
  *
  * Returns +nbytes if successful, -1 on failure */
 static int
-ms_encode_datetime(EncoderState *self, PyObject *obj, char *out)
+ms_encode_datetime(MsgspecState *mod, PyObject *obj, char *out)
 {
     uint8_t hour = PyDateTime_DATE_GET_HOUR(obj);
     uint8_t minute = PyDateTime_DATE_GET_MINUTE(obj);
     uint8_t second = PyDateTime_DATE_GET_SECOND(obj);
     uint32_t microsecond = PyDateTime_DATE_GET_MICROSECOND(obj);
     PyObject *tzinfo = MS_DATE_GET_TZINFO(obj);
-    ms_encode_date(self, obj, out);
+    ms_encode_date(obj, out);
     out[10] = 'T';
     return ms_encode_time_parts(
-        self, obj, hour, minute, second, microsecond, tzinfo, out, 11
+        mod, obj, hour, minute, second, microsecond, tzinfo, out, 11
     );
 }
 
@@ -8714,13 +8719,54 @@ invalid:
 }
 
 /*************************************************************************
+ * Base64 Encoder                                                        *
+ *************************************************************************/
+
+static Py_ssize_t
+ms_encode_base64_size(MsgspecState *mod, Py_ssize_t input_size) {
+    if (input_size >= (1LL << 32)) {
+        PyErr_SetString(
+            mod->EncodeError,
+            "Can't encode bytes-like objects longer than 2**32 - 1"
+        );
+        return -1;
+    }
+    /* ceil(4/3 * input_size) */
+    return 4 * ((input_size + 2) / 3);
+}
+
+static void
+ms_encode_base64(const char *input, Py_ssize_t input_size, char *out) {
+    int nbits = 0;
+    unsigned int charbuf = 0;
+    for (; input_size > 0; input_size--, input++) {
+        charbuf = (charbuf << 8) | (unsigned char)(*input);
+        nbits += 8;
+        while (nbits >= 6) {
+            unsigned char ind = (charbuf >> (nbits - 6)) & 0x3f;
+            nbits -= 6;
+            *out++ = base64_encode_table[ind];
+        }
+    }
+    if (nbits == 2) {
+        *out++ = base64_encode_table[(charbuf & 3) << 4];
+        *out++ = '=';
+        *out++ = '=';
+    }
+    else if (nbits == 4) {
+        *out++ = base64_encode_table[(charbuf & 0xf) << 2];
+        *out++ = '=';
+    }
+}
+
+/*************************************************************************
  * UUID Utilities                                                        *
  *************************************************************************/
 
 static int
-ms_encode_uuid(EncoderState *self, PyObject *obj, char *out) {
+ms_encode_uuid(MsgspecState *mod, PyObject *obj, char *out) {
     int status = -1;
-    PyObject *int128 = PyObject_GetAttr(obj, self->mod->str_int);
+    PyObject *int128 = PyObject_GetAttr(obj, mod->str_int);
     if (int128 == NULL) return -1;
     if (MS_UNLIKELY(!PyLong_CheckExact(int128))) {
         PyErr_SetString(PyExc_TypeError, "uuid.int must be an int");
@@ -9532,7 +9578,7 @@ static int
 mpack_encode_uuid(EncoderState *self, PyObject *obj)
 {
     char buf[36];
-    if (ms_encode_uuid(self, obj, buf) < 0) return -1;
+    if (ms_encode_uuid(self->mod, obj, buf) < 0) return -1;
     return mpack_encode_cstr(self, buf, 36);
 }
 
@@ -9540,7 +9586,7 @@ static int
 mpack_encode_date(EncoderState *self, PyObject *obj)
 {
     char buf[10];
-    ms_encode_date(self, obj, buf);
+    ms_encode_date(obj, buf);
     return mpack_encode_cstr(self, buf, 10);
 }
 
@@ -9548,7 +9594,7 @@ static int
 mpack_encode_time(EncoderState *self, PyObject *obj)
 {
     char buf[21];
-    int size = ms_encode_time(self, obj, buf);
+    int size = ms_encode_time(self->mod, obj, buf);
     if (size < 0) return -1;
     return mpack_encode_cstr(self, buf, size);
 }
@@ -9562,7 +9608,7 @@ mpack_encode_datetime(EncoderState *self, PyObject *obj)
 
     if (tzinfo == Py_None) {
         char buf[32];
-        int size = ms_encode_datetime(self, obj, buf);
+        int size = ms_encode_datetime(self->mod, obj, buf);
         if (size < 0) return -1;
         return mpack_encode_cstr(self, buf, size);
     }
@@ -9962,49 +10008,19 @@ json_encode_str(EncoderState *self, PyObject *obj) {
 
 static int
 json_encode_bin(EncoderState *self, const char* buf, Py_ssize_t len) {
-    char *out;
-    int nbits = 0;
-    unsigned int charbuf = 0;
-    Py_ssize_t encoded_len;
-
-    if (len >= (1LL << 32)) {
-        PyErr_SetString(
-            self->mod->EncodeError,
-            "Can't encode bytes-like objects longer than 2**32 - 1"
-        );
-        return -1;
-    }
-
     /* Preallocate the buffer (ceil(4/3 * len) + 2) */
-    encoded_len = 4 * ((len + 2) / 3) + 2;
-    if (ms_ensure_space(self, encoded_len) < 0) return -1;
+    Py_ssize_t encoded_len = ms_encode_base64_size(self->mod, len);
+    if (encoded_len < 0) return -1;
+    if (ms_ensure_space(self, encoded_len + 2) < 0) return -1;
 
     /* Write to the buffer directly */
-    out = self->output_buffer_raw + self->output_len;
+    char *out = self->output_buffer_raw + self->output_len;
 
     *out++ = '"';
-
-    for (; len > 0; len--, buf++) {
-        charbuf = (charbuf << 8) | (unsigned char)(*buf);
-        nbits += 8;
-        while (nbits >= 6) {
-            unsigned char ind = (charbuf >> (nbits - 6)) & 0x3f;
-            nbits -= 6;
-            *out++ = base64_encode_table[ind];
-        }
-    }
-    if (nbits == 2) {
-        *out++ = base64_encode_table[(charbuf & 3) << 4];
-        *out++ = '=';
-        *out++ = '=';
-    }
-    else if (nbits == 4) {
-        *out++ = base64_encode_table[(charbuf & 0xf) << 2];
-        *out++ = '=';
-    }
+    ms_encode_base64(buf, len, out);
+    out += encoded_len;
     *out++ = '"';
-
-    self->output_len += encoded_len;
+    self->output_len += encoded_len + 2;
     return 0;
 }
 
@@ -10079,7 +10095,7 @@ json_encode_uuid(EncoderState *self, PyObject *obj)
     char buf[38];
     buf[0] = '"';
     buf[37] = '"';
-    if (ms_encode_uuid(self, obj, buf + 1) < 0) return -1;
+    if (ms_encode_uuid(self->mod, obj, buf + 1) < 0) return -1;
     return ms_write(self, buf, 38);
 }
 
@@ -10089,7 +10105,7 @@ json_encode_date(EncoderState *self, PyObject *obj)
     char buf[12];
     buf[0] = '"';
     buf[11] = '"';
-    ms_encode_date(self, obj, buf + 1);
+    ms_encode_date(obj, buf + 1);
     return ms_write(self, buf, 12);
 }
 
@@ -10098,7 +10114,7 @@ json_encode_time(EncoderState *self, PyObject *obj)
 {
     char buf[23];
     buf[0] = '"';
-    int size = ms_encode_time(self, obj, buf + 1);
+    int size = ms_encode_time(self->mod, obj, buf + 1);
     if (size < 0) return -1;
     buf[size + 1] = '"';
     return ms_write(self, buf, size + 2);
@@ -10109,7 +10125,7 @@ json_encode_datetime(EncoderState *self, PyObject *obj)
 {
     char buf[34];
     buf[0] = '"';
-    int size = ms_encode_datetime(self, obj, buf + 1);
+    int size = ms_encode_datetime(self->mod, obj, buf + 1);
     if (size < 0) return -1;
     buf[size + 1] = '"';
     return ms_write(self, buf, size + 2);
@@ -11682,7 +11698,7 @@ mpack_decode_key(DecoderState *self, TypeNode *type, PathNode *path) {
 
         if (MS_LIKELY(existing != NULL)) {
             Py_ssize_t e_size = ((PyASCIIObject *)existing)->length;
-            char *e_str = (char *)(((PyASCIIObject *)existing) + 1);
+            char *e_str = ascii_get_buffer(existing);
             if (MS_LIKELY(size == e_size && memcmp(str, e_str, size) == 0)) {
                 Py_INCREF(existing);
                 return existing;
@@ -13314,7 +13330,7 @@ json_decode_string(JSONDecoderState *self, TypeNode *type, PathNode *path) {
             PyObject *out;
             if (MS_LIKELY(is_ascii)) {
                 out = PyUnicode_New(size, 127);
-                memcpy(((PyASCIIObject *)out) + 1, view, size);
+                memcpy(ascii_get_buffer(out), view, size);
             }
             else {
                 out = PyUnicode_DecodeUTF8(view, size, NULL);
@@ -13377,7 +13393,7 @@ json_decode_dict_key(JSONDecoderState *self, TypeNode *type, PathNode *path) {
 
         if (MS_LIKELY(existing != NULL)) {
             Py_ssize_t e_size = ((PyASCIIObject *)existing)->length;
-            char *e_str = (char *)(((PyASCIIObject *)existing) + 1);
+            char *e_str = ascii_get_buffer(existing);
             if (MS_LIKELY(size == e_size && memcmp(view, e_str, size) == 0)) {
                 Py_INCREF(existing);
                 return existing;
@@ -13387,7 +13403,7 @@ json_decode_dict_key(JSONDecoderState *self, TypeNode *type, PathNode *path) {
         /* Create a new ASCII str object */
         PyObject *new = PyUnicode_New(size, 127);
         if (MS_UNLIKELY(new == NULL)) return NULL;
-        memcpy(((PyASCIIObject *)new) + 1, view, size);
+        memcpy(ascii_get_buffer(new), view, size);
 
         /* Swap out the str in the cache */
         Py_XDECREF(existing);
@@ -13398,7 +13414,7 @@ json_decode_dict_key(JSONDecoderState *self, TypeNode *type, PathNode *path) {
     /* Create a new ASCII str object */
     PyObject *new = PyUnicode_New(size, 127);
     if (MS_UNLIKELY(new == NULL)) return NULL;
-    memcpy(((PyASCIIObject *)new) + 1, view, size);
+    memcpy(ascii_get_buffer(new), view, size);
     return new;
 }
 
@@ -15609,6 +15625,544 @@ msgspec_json_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyO
     return res;
 }
 
+/*************************************************************************
+ * to_builtins                                                           *
+ *************************************************************************/
+
+#define MS_PASSTHROUGH_BYTES      (1ull << 0)
+#define MS_PASSTHROUGH_BYTEARRAY  (1ull << 1)
+#define MS_PASSTHROUGH_MEMORYVIEW (1ull << 2)
+#define MS_PASSTHROUGH_DATETIME   (1ull << 3)
+#define MS_PASSTHROUGH_DATE       (1ull << 4)
+#define MS_PASSTHROUGH_TIME       (1ull << 5)
+#define MS_PASSTHROUGH_UUID       (1ull << 6)
+
+typedef struct {
+    MsgspecState *mod;
+    PyObject *enc_hook;
+    bool str_keys;
+    uint32_t passthrough;
+} ToBuiltinsState;
+
+static PyObject * to_builtins(ToBuiltinsState *, PyObject *, bool);
+
+static PyObject *
+to_builtins_enum(ToBuiltinsState *self, PyObject *obj)
+{
+    PyObject *value = PyObject_GetAttr(obj, self->mod->str__value_);
+    if (value == NULL) return NULL;
+    if (PyLong_CheckExact(value) || PyUnicode_CheckExact(value)) {
+        return value;
+    }
+    Py_DECREF(value);
+    PyErr_SetString(
+        self->mod->EncodeError,
+        "Only enums with int or str values are supported"
+    );
+    return NULL;
+}
+
+static PyObject *
+to_builtins_binary(ToBuiltinsState *self, const char *buf, Py_ssize_t size) {
+    Py_ssize_t output_size = ms_encode_base64_size(self->mod, size);
+    if (output_size < 0) return NULL;
+    PyObject *out = PyUnicode_New(output_size, 127);
+    if (out == NULL) return NULL;
+    ms_encode_base64(buf, size, ascii_get_buffer(out));
+    return out;
+}
+
+static PyObject *
+to_builtins_datetime(ToBuiltinsState *self, PyObject *obj) {
+    char buf[32];
+    int size = ms_encode_datetime(self->mod, obj, buf);
+    if (size < 0) return NULL;
+    PyObject *out = PyUnicode_New(size, 127);
+    memcpy(ascii_get_buffer(out), buf, size);
+    return out;
+}
+
+static PyObject *
+to_builtins_date(ToBuiltinsState *self, PyObject *obj) {
+    PyObject *out = PyUnicode_New(10, 127);
+    if (out == NULL) return NULL;
+    ms_encode_date(obj, ascii_get_buffer(out));
+    return out;
+}
+
+static PyObject *
+to_builtins_time(ToBuiltinsState *self, PyObject *obj) {
+    char buf[21];
+    int size = ms_encode_time(self->mod, obj, buf);
+    if (size < 0) return NULL;
+    PyObject *out = PyUnicode_New(size, 127);
+    memcpy(ascii_get_buffer(out), buf, size);
+    return out;
+}
+
+static PyObject *
+to_builtins_uuid(ToBuiltinsState *self, PyObject *obj) {
+    PyObject *out = PyUnicode_New(36, 127);
+    if (out == NULL) return NULL;
+    if (ms_encode_uuid(self->mod, obj, ascii_get_buffer(out)) < 0) {
+        Py_CLEAR(out);
+    }
+    return out;
+}
+
+static PyObject *
+to_builtins_list(ToBuiltinsState *self, PyObject *obj) {
+    if (Py_EnterRecursiveCall(" while serializing an object")) return NULL;
+
+    Py_ssize_t size = PyList_GET_SIZE(obj);
+    PyObject *out = PyList_New(size);
+    if (out == NULL) goto cleanup;
+    for (Py_ssize_t i = 0; i < size; i++) {
+        PyObject *item = PyList_GET_ITEM(obj, i);
+        PyObject *new = to_builtins(self, item, false);
+        if (new == NULL) {
+            Py_CLEAR(out);
+            goto cleanup;
+        }
+        PyList_SET_ITEM(out, i, new);
+    }
+
+cleanup:
+    Py_LeaveRecursiveCall();
+    return out;
+}
+
+static PyObject *
+to_builtins_tuple(ToBuiltinsState *self, PyObject *obj, bool is_key) {
+    if (Py_EnterRecursiveCall(" while serializing an object")) return NULL;
+
+    Py_ssize_t size = PyTuple_GET_SIZE(obj);
+    PyObject *out = PyTuple_New(size);
+    if (out == NULL) goto cleanup;
+    for (Py_ssize_t i = 0; i < size; i++) {
+        PyObject *item = PyTuple_GET_ITEM(obj, i);
+        PyObject *new = to_builtins(self, item, is_key);
+        if (new == NULL) {
+            Py_CLEAR(out);
+            goto cleanup;
+        }
+        PyTuple_SET_ITEM(out, i, new);
+    }
+cleanup:
+    Py_LeaveRecursiveCall();
+    return out;
+}
+
+static PyObject *
+to_builtins_set(ToBuiltinsState *self, PyObject *obj, bool is_key) {
+    if (Py_EnterRecursiveCall(" while serializing an object")) return NULL;
+
+    Py_ssize_t size = PySet_GET_SIZE(obj);
+    Py_hash_t hash;
+    PyObject *item, *out;
+
+    out = is_key ? PyTuple_New(size) : PyList_New(size);
+    if (out == NULL) goto cleanup;
+
+    Py_ssize_t i = 0, pos = 0;
+    while (_PySet_NextEntry(obj, &pos, &item, &hash)) {
+        PyObject *new = to_builtins(self, item, is_key);
+        if (new == NULL) {
+            Py_CLEAR(out);
+            goto cleanup;
+        }
+        if (is_key) {
+            PyTuple_SET_ITEM(out, i, new);
+        }
+        else {
+            PyList_SET_ITEM(out, i, new);
+        }
+        i++;
+    }
+cleanup:
+    Py_LeaveRecursiveCall();
+    return out;
+}
+
+static PyObject *
+to_builtins_dict(ToBuiltinsState *self, PyObject *obj) {
+    if (Py_EnterRecursiveCall(" while serializing an object")) return NULL;
+
+    PyObject *new_key = NULL, *new_val = NULL, *key, *val;
+    bool ok = false;
+    PyObject *out = PyDict_New();
+    if (out == NULL) goto cleanup;
+
+    Py_ssize_t pos = 0;
+    while (PyDict_Next(obj, &pos, &key, &val)) {
+        new_key = to_builtins(self, key, true);
+        if (new_key == NULL) goto cleanup;
+        if (self->str_keys) {
+            if (PyLong_CheckExact(new_key)) {
+                PyObject *temp = PyObject_Str(new_key);
+                if (temp == NULL) goto cleanup;
+                Py_DECREF(new_key);
+                new_key = temp;
+            }
+            else if (!PyUnicode_CheckExact(new_key)) {
+                PyErr_SetString(
+                    PyExc_TypeError,
+                    "Only dicts with `str` or `int` keys are supported"
+                );
+                goto cleanup;
+            }
+        }
+        new_val = to_builtins(self, val, false);
+        if (new_val == NULL) goto cleanup;
+        if (PyDict_SetItem(out, new_key, new_val) < 0) goto cleanup;
+        Py_CLEAR(new_key);
+        Py_CLEAR(new_val);
+    }
+    ok = true;
+
+cleanup:
+    Py_LeaveRecursiveCall();
+    if (!ok) {
+        Py_CLEAR(out);
+        Py_XDECREF(new_key);
+        Py_XDECREF(new_val);
+    }
+    return out;
+}
+
+static PyObject *
+to_builtins_struct(ToBuiltinsState *self, PyObject *obj, bool is_key) {
+    if (Py_EnterRecursiveCall(" while serializing an object")) return NULL;
+
+    bool ok = false;
+    PyObject *out = NULL;
+    StructMetaObject *struct_type = (StructMetaObject *)Py_TYPE(obj);
+    PyObject *tag_field = struct_type->struct_tag_field;
+    PyObject *tag_value = struct_type->struct_tag_value;
+    PyObject *fields = struct_type->struct_encode_fields;
+    Py_ssize_t nfields = PyTuple_GET_SIZE(fields);
+
+    if (struct_type->array_like == OPT_TRUE) {
+        Py_ssize_t tagged = (tag_value != NULL);
+        Py_ssize_t size = nfields + tagged;
+        if (is_key) {
+            out = PyTuple_New(size);
+        }
+        else {
+            out = PyList_New(size);
+        }
+        if (out == NULL) goto cleanup;
+
+        if (tagged) {
+            Py_INCREF(tag_value);
+            if (is_key) {
+                PyTuple_SET_ITEM(out, 0, tag_value);
+            }
+            else {
+                PyList_SET_ITEM(out, 0, tag_value);
+            }
+        }
+        for (Py_ssize_t i = 0; i < nfields; i++) {
+            PyObject *val = Struct_get_index(obj, i);
+            if (val == NULL) goto cleanup;
+            PyObject *val2 = to_builtins(self, val, is_key);
+            if (val2 == NULL) goto cleanup;
+            Py_INCREF(val2);
+            if (is_key) {
+                PyTuple_SET_ITEM(out, i + tagged, val2);
+            }
+            else {
+                PyList_SET_ITEM(out, i + tagged, val2);
+            }
+        }
+    }
+    else {
+        out = PyDict_New();
+        if (out == NULL) goto cleanup;
+        if (tag_value != NULL) {
+            if (PyDict_SetItem(out, tag_field, tag_value) < 0) goto cleanup;
+        }
+        for (Py_ssize_t i = 0; i < nfields; i++) {
+            PyObject *key = PyTuple_GET_ITEM(fields, i);
+            PyObject *val = Struct_get_index(obj, i);
+            if (val == NULL) goto cleanup;
+            PyObject *val2 = to_builtins(self, val, false);
+            if (val2 == NULL) goto cleanup;
+            int status = PyDict_SetItem(out, key, val2);
+            Py_DECREF(val2);
+            if (status < 0) goto cleanup;
+        }
+    }
+    ok = true;
+
+cleanup:
+    Py_LeaveRecursiveCall();
+    if (!ok) {
+        Py_CLEAR(out);
+    }
+    return out;
+}
+
+static PyObject*
+to_builtins_object(ToBuiltinsState *self, PyObject *obj) {
+    bool ok = false;
+    PyObject *dict = NULL, *out = NULL;
+
+    if (Py_EnterRecursiveCall(" while serializing an object")) return NULL;
+
+    out = PyDict_New();
+    if (out == NULL) goto cleanup;
+
+    /* First encode everything in `__dict__` */
+    dict = PyObject_GenericGetDict(obj, NULL);
+    if (MS_UNLIKELY(dict == NULL)) {
+        PyErr_Clear();
+    }
+    else {
+        PyObject *key, *val;
+        Py_ssize_t pos = 0;
+        while (PyDict_Next(dict, &pos, &key, &val)) {
+            if (MS_LIKELY(PyUnicode_CheckExact(key))) {
+                Py_ssize_t key_len;
+                const char* key_buf = unicode_str_and_size(key, &key_len);
+                if (MS_UNLIKELY(key_buf == NULL)) goto cleanup;
+                if (MS_UNLIKELY(*key_buf == '_')) continue;
+
+                PyObject *val2 = to_builtins(self, val, false);
+                if (val2 == NULL) goto cleanup;
+                int status = PyDict_SetItem(out, key, val2);
+                Py_DECREF(val2);
+                if (status < 0) goto cleanup;
+            }
+        }
+    }
+    /* Then encode everything in slots */
+    PyTypeObject *type = Py_TYPE(obj);
+    while (type != NULL) {
+        Py_ssize_t n = Py_SIZE(type);
+        if (n) {
+            PyMemberDef *mp = MS_PyHeapType_GET_MEMBERS((PyHeapTypeObject *)type);
+            for (Py_ssize_t i = 0; i < n; i++, mp++) {
+                if (MS_LIKELY(mp->type == T_OBJECT_EX && !(mp->flags & READONLY))) {
+                    char *addr = (char *)obj + mp->offset;
+                    PyObject *val = *(PyObject **)addr;
+                    if (MS_UNLIKELY(val == NULL)) continue;
+                    if (MS_UNLIKELY(*mp->name == '_')) continue;
+
+                    PyObject *key = PyUnicode_InternFromString(mp->name);
+                    if (key == NULL) goto cleanup;
+
+                    int status = -1;
+                    PyObject *val2 = to_builtins(self, val, false);
+                    if (val2 != NULL) {
+                        status = PyDict_SetItem(out, key, val2);
+                    }
+                    Py_DECREF(key);
+                    Py_DECREF(val2);
+                    if (status < 0) goto cleanup;
+                }
+            }
+        }
+        type = type->tp_base;
+    }
+    ok = true;
+
+cleanup:
+    Py_XDECREF(dict);
+    Py_LeaveRecursiveCall();
+    if (!ok) {
+        Py_CLEAR(out);
+    }
+    return out;
+}
+
+static PyObject *
+to_builtins(ToBuiltinsState *self, PyObject *obj, bool is_key) {
+    PyTypeObject *type = Py_TYPE(obj);
+
+    if (
+        obj == Py_None ||
+        obj == Py_True ||
+        obj == Py_False ||
+        type == &PyLong_Type ||
+        type == &PyFloat_Type ||
+        type == &PyUnicode_Type
+    ) {
+        goto passthrough;
+    }
+    else if (type == &PyBytes_Type) {
+        if (self->passthrough & MS_PASSTHROUGH_BYTES) goto passthrough;
+        return to_builtins_binary(
+            self, PyBytes_AS_STRING(obj), PyBytes_GET_SIZE(obj)
+        );
+    }
+    else if (type == &PyByteArray_Type) {
+        if (self->passthrough & MS_PASSTHROUGH_BYTEARRAY) goto passthrough;
+        return to_builtins_binary(
+            self, PyByteArray_AS_STRING(obj), PyByteArray_GET_SIZE(obj)
+        );
+    }
+    else if (type == &PyMemoryView_Type) {
+        if (self->passthrough & MS_PASSTHROUGH_MEMORYVIEW) goto passthrough;
+        PyObject *out;
+        Py_buffer buffer;
+        if (PyObject_GetBuffer(obj, &buffer, PyBUF_CONTIG_RO) < 0) return NULL;
+        out = to_builtins_binary(self, buffer.buf, buffer.len);
+        PyBuffer_Release(&buffer);
+        return out;
+    }
+    else if (type == PyDateTimeAPI->DateTimeType) {
+        if (self->passthrough & MS_PASSTHROUGH_DATETIME) goto passthrough;
+        return to_builtins_datetime(self, obj);
+    }
+    else if (type == PyDateTimeAPI->DateType) {
+        if (self->passthrough & MS_PASSTHROUGH_DATE) goto passthrough;
+        return to_builtins_date(self, obj);
+    }
+    else if (type == PyDateTimeAPI->TimeType) {
+        if (self->passthrough & MS_PASSTHROUGH_TIME) goto passthrough;
+        return to_builtins_time(self, obj);
+    }
+    else if (type == (PyTypeObject *)(self->mod->UUIDType)) {
+        if (self->passthrough & MS_PASSTHROUGH_UUID) goto passthrough;
+        return to_builtins_uuid(self, obj);
+    }
+    else if (PyList_Check(obj)) {
+        return to_builtins_list(self, obj);
+    }
+    else if (PyTuple_Check(obj)) {
+        return to_builtins_tuple(self, obj, is_key);
+    }
+    else if (PyDict_Check(obj)) {
+        return to_builtins_dict(self, obj);
+    }
+    else if (Py_TYPE(type) == &StructMetaType) {
+        return to_builtins_struct(self, obj, is_key);
+    }
+    else if (Py_TYPE(type) == self->mod->EnumMetaType) {
+        return to_builtins_enum(self, obj);
+    }
+    else if (PyAnySet_Check(obj)) {
+        return to_builtins_set(self, obj, is_key);
+    }
+    else if (PyDict_Contains(type->tp_dict, self->mod->str___dataclass_fields__)) {
+        return to_builtins_object(self, obj);
+    }
+    else if (self->enc_hook != NULL) {
+        PyObject *out = NULL;
+        PyObject *temp;
+        temp = CALL_ONE_ARG(self->enc_hook, obj);
+        if (temp == NULL) return NULL;
+        if (!Py_EnterRecursiveCall(" while serializing an object")) {
+            out = to_builtins(self, temp, is_key);
+            Py_LeaveRecursiveCall();
+        }
+        Py_DECREF(temp);
+        return out;
+    }
+    else {
+        ms_encode_err_type_unsupported(type);
+        return NULL;
+    }
+
+passthrough:
+    Py_INCREF(obj);
+    return obj;
+}
+
+PyDoc_STRVAR(msgspec_to_builtins__doc__,
+"to_builtins(obj, *, str_keys=False, passthrough=None, enc_hook=None)\n"
+"--\n"
+"\n"
+"Convert a complex object to one composed only of simpler builtin types\n"
+"commonly supported by Python serialization libraries. This is mainly\n"
+"useful for adding msgspec support for other protocols.\n"
+"\n"
+"Parameters\n"
+"----------\n"
+"obj: Any\n"
+"    The object to convert.\n"
+"passthrough: Iterable[type], optional\n"
+"    An iterable of types to passthrough unchanged.\n"
+"str_keys: bool, optional\n"
+"    Whether to convert all object keys to strings. Default is False.\n"
+"enc_hook : callable, optional\n"
+"    A callable to call for objects that aren't supported msgspec types. Takes the\n"
+"    unsupported object and should return a supported object, or raise a TypeError.\n"
+"\n"
+"Returns\n"
+"-------\n"
+"Any\n"
+"    The converted object.\n"
+);
+static PyObject*
+msgspec_to_builtins(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+    PyObject *obj = NULL, *passthrough = NULL, *enc_hook = NULL;
+    int str_keys = false;
+    ToBuiltinsState state;
+
+    static char *kwlist[] = {"obj", "passthrough", "str_keys", "enc_hook", NULL};
+
+    /* Parse arguments */
+    if (!PyArg_ParseTupleAndKeywords(
+        args, kwargs, "O|$OpO", kwlist, &obj, &passthrough, &str_keys, &enc_hook
+    )) {
+        return NULL;
+    }
+
+    state.mod = msgspec_get_global_state();
+    state.str_keys = str_keys;
+    state.passthrough = 0;
+
+    if (enc_hook == Py_None) {
+        enc_hook = NULL;
+    }
+    else if (enc_hook != NULL && !PyCallable_Check(enc_hook)) {
+        PyErr_SetString(PyExc_TypeError, "enc_hook must be callable");
+        return NULL;
+    }
+    state.enc_hook = enc_hook;
+
+    if (passthrough != NULL && passthrough != Py_None) {
+        PyObject *seq = PySequence_Fast(
+            passthrough, "passthrough must be an iterable of types"
+        );
+        if (seq == NULL) return NULL;
+        Py_ssize_t size = PySequence_Fast_GET_SIZE(seq);
+        for (Py_ssize_t i = 0; i < size; i++) {
+            PyObject *type = PySequence_Fast_GET_ITEM(seq, i);
+            if (type == (PyObject *)(&PyBytes_Type)) {
+                state.passthrough |= MS_PASSTHROUGH_BYTES;
+            }
+            else if (type == (PyObject *)(&PyByteArray_Type)) {
+                state.passthrough |= MS_PASSTHROUGH_BYTEARRAY;
+            }
+            else if (type == (PyObject *)(&PyMemoryView_Type)) {
+                state.passthrough |= MS_PASSTHROUGH_MEMORYVIEW;
+            }
+            else if (type == (PyObject *)(PyDateTimeAPI->DateTimeType)) {
+                state.passthrough |= MS_PASSTHROUGH_DATETIME;
+            }
+            else if (type == (PyObject *)(PyDateTimeAPI->DateType)) {
+                state.passthrough |= MS_PASSTHROUGH_DATE;
+            }
+            else if (type == (PyObject *)(PyDateTimeAPI->TimeType)) {
+                state.passthrough |= MS_PASSTHROUGH_TIME;
+            }
+            else if (type == state.mod->UUIDType) {
+                state.passthrough |= MS_PASSTHROUGH_UUID;
+            }
+            else {
+                PyErr_Format(PyExc_TypeError, "Cannot passthrough type %R", type);
+                return NULL;
+            }
+        }
+    }
+
+    return to_builtins(&state, obj, false);
+}
+
 
 /*************************************************************************
  * Module Setup                                                          *
@@ -15638,6 +16192,10 @@ static struct PyMethodDef msgspec_methods[] = {
     {
         "json_format", (PyCFunction) msgspec_json_format, METH_VARARGS | METH_KEYWORDS,
         msgspec_json_format__doc__,
+    },
+    {
+        "to_builtins", (PyCFunction) msgspec_to_builtins, METH_VARARGS | METH_KEYWORDS,
+        msgspec_to_builtins__doc__,
     },
     {NULL, NULL} /* sentinel */
 };
