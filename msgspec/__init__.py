@@ -3,6 +3,7 @@ from ._core import (
     defstruct,
     Raw,
     Meta,
+    to_builtins,
     MsgspecError,
     EncodeError,
     DecodeError,
