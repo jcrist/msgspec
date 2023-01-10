@@ -15840,7 +15840,10 @@ to_builtins_struct(ToBuiltinsState *self, PyObject *obj, bool is_key) {
     PyObject *tag_field = struct_type->struct_tag_field;
     PyObject *tag_value = struct_type->struct_tag_value;
     PyObject *fields = struct_type->struct_encode_fields;
+    PyObject *defaults = struct_type->struct_defaults;
     Py_ssize_t nfields = PyTuple_GET_SIZE(fields);
+    Py_ssize_t npos = nfields - PyTuple_GET_SIZE(defaults);
+    bool omit_defaults = struct_type->omit_defaults == OPT_TRUE;
 
     if (struct_type->array_like == OPT_TRUE) {
         Py_ssize_t tagged = (tag_value != NULL);
@@ -15886,11 +15889,17 @@ to_builtins_struct(ToBuiltinsState *self, PyObject *obj, bool is_key) {
             PyObject *key = PyTuple_GET_ITEM(fields, i);
             PyObject *val = Struct_get_index(obj, i);
             if (val == NULL) goto cleanup;
-            PyObject *val2 = to_builtins(self, val, false);
-            if (val2 == NULL) goto cleanup;
-            int status = PyDict_SetItem(out, key, val2);
-            Py_DECREF(val2);
-            if (status < 0) goto cleanup;
+            if (
+                !omit_defaults ||
+                i < npos ||
+                !is_default(val, PyTuple_GET_ITEM(defaults, i - npos))
+            ) {
+                PyObject *val2 = to_builtins(self, val, false);
+                if (val2 == NULL) goto cleanup;
+                int status = PyDict_SetItem(out, key, val2);
+                Py_DECREF(val2);
+                if (status < 0) goto cleanup;
+            }
         }
     }
     ok = true;
@@ -15956,9 +15965,9 @@ to_builtins_object(ToBuiltinsState *self, PyObject *obj) {
                     PyObject *val2 = to_builtins(self, val, false);
                     if (val2 != NULL) {
                         status = PyDict_SetItem(out, key, val2);
+                        Py_DECREF(val2);
                     }
                     Py_DECREF(key);
-                    Py_DECREF(val2);
                     if (status < 0) goto cleanup;
                 }
             }
@@ -15982,8 +15991,7 @@ to_builtins(ToBuiltinsState *self, PyObject *obj, bool is_key) {
 
     if (
         obj == Py_None ||
-        obj == Py_True ||
-        obj == Py_False ||
+        type == &PyBool_Type ||
         type == &PyLong_Type ||
         type == &PyFloat_Type ||
         type == &PyUnicode_Type
