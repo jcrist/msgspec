@@ -22,7 +22,7 @@ except Exception:
     _types_UnionType = type("UnionType", (), {})
 
 import msgspec
-from ._core import nodefault as _nodefault
+from ._core import nodefault as _nodefault, to_builtins
 from ._utils import _AnnotatedAlias, get_type_hints as _get_type_hints
 
 
@@ -673,10 +673,6 @@ def _is_namedtuple(t):
         return False
 
 
-def _roundtrip_json(d):
-    return msgspec.json.decode(msgspec.json.encode(d))
-
-
 def _merge_json(a, b):
     if b:
         a = a.copy()
@@ -750,7 +746,8 @@ class _Translator:
                     extra_json_schema[attr] = val
             if meta.extra_json_schema is not None:
                 extra_json_schema = _merge_json(
-                    extra_json_schema, _roundtrip_json(meta.extra_json_schema)
+                    extra_json_schema,
+                    to_builtins(meta.extra_json_schema, str_keys=True),
                 )
             if meta.extra is not None:
                 extra.update(meta.extra)
