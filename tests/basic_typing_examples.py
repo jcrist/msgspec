@@ -698,3 +698,14 @@ def check_json_schema_components_full() -> None:
     s, c = msgspec.json.schema_components([List[int]], ref_template="#/definitions/{name}")
     reveal_type(s)  # assert ("dict" in typ.lower()) and ("tuple" in typ.lower())
     reveal_type(c)  # assert ("dict" in typ.lower())
+
+
+##########################################################
+# Converters                                             #
+##########################################################
+
+def check_to_builtins() -> None:
+    msgspec.to_builtins(1)
+    msgspec.to_builtins({1: 2}, str_keys=False)
+    msgspec.to_builtins(b"test", passthrough=(bytes, bytearray, memoryview))
+    msgspec.to_builtins([1, 2, 3], enc_hook=lambda x: None)
