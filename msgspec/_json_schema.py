@@ -4,7 +4,7 @@ import re
 from collections.abc import Iterable
 from typing import Any
 
-from . import inspect as mi
+from . import to_builtins, inspect as mi
 
 
 __all__ = ("schema", "schema_components")
@@ -321,7 +321,7 @@ def _to_schema(
             if field.required:
                 required.append(field.encode_name)
             elif field.default is not mi.UNSET:
-                field_schema["default"] = mi._roundtrip_json(field.default)
+                field_schema["default"] = to_builtins(field.default, str_keys=True)
             names.append(field.encode_name)
             fields.append(field_schema)
 
@@ -353,7 +353,7 @@ def _to_schema(
             if field.required:
                 required.append(field.encode_name)
             elif field.default is not mi.UNSET:
-                field_schema["default"] = mi._roundtrip_json(field.default)
+                field_schema["default"] = to_builtins(field.default, str_keys=True)
             names.append(field.encode_name)
             fields.append(field_schema)
         if isinstance(t, mi.NamedTupleType):
