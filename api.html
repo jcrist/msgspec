@@ -5,7 +5,7 @@
     <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Benchmarks" href="benchmarks.html" /><link rel="prev" title="Conda Repodata" href="examples/conda-repodata.html" />
 
-    <!-- Generated with Sphinx 6.1.1 and Furo 2022.12.07 -->
+    <!-- Generated with Sphinx 6.1.2 and Furo 2022.12.07 -->
         <title>API Docs</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=91d0f0d1c444bdcb17a68e833c7a53903343c195" />
@@ -892,8 +892,58 @@ OpenAPI schema.</p></li>
 </dd></dl>
 
 </section>
+<section id="converters">
+<span id="inspect-api"></span><h2>Converters<a class="headerlink" href="#converters" title="Permalink to this heading">#</a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="msgspec.to_builtins">
+<span class="sig-prename descclassname"><span class="pre">msgspec.</span></span><span class="sig-name descname"><span class="pre">to_builtins</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">obj</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">str_keys</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">passthrough</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">enc_hook</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.to_builtins" title="Permalink to this definition">#</a></dt>
+<dd><p>Convert a complex object to one composed only of simpler builtin types
+commonly supported by Python serialization libraries. This is mainly
+useful for adding msgspec support for other protocols.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>obj</strong> (<em>Any</em>) – The object to convert.</p></li>
+<li><p><strong>passthrough</strong> (<em>Iterable</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/functions.html#type" title="(in Python v3.11)"><em>type</em></a><em>]</em><em>, </em><em>optional</em>) – An iterable of types to passthrough unchanged. Currently only supports
+<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytes</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytearray" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytearray</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#memoryview" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">memoryview</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.datetime" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.datetime</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.time" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.time</span></code></a>,
+<a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.date" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.date</span></code></a>, and <a class="reference external" href="https://docs.python.org/3/library/uuid.html#uuid.UUID" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">uuid.UUID</span></code></a>.</p></li>
+<li><p><strong>str_keys</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.11)"><em>bool</em></a><em>, </em><em>optional</em>) – Whether to convert all object keys to strings. Default is False.</p></li>
+<li><p><strong>enc_hook</strong> (<em>callable</em><em>, </em><em>optional</em>) – A callable to call for objects that aren’t supported msgspec types. Takes the
+unsupported object and should return a supported object, or raise a TypeError.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The converted object.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Any</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">msgspec</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">Example</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="n">x</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span>
+<span class="gp">... </span>    <span class="n">y</span><span class="p">:</span> <span class="nb">bytes</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span> <span class="o">=</span> <span class="n">Example</span><span class="p">({</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">},</span> <span class="sa">b</span><span class="s1">&#39;</span><span class="se">\x01\x02</span><span class="s1">&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Convert the message to a simpler set of builtin types. Note that by default
+all bytes-like objects are base64-encoded and converted to strings.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">to_builtins</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+<span class="go">{&#39;x&#39;: [1, 2, 3], &#39;y&#39;: &#39;AQI=&#39;}</span>
+</pre></div>
+</div>
+<p>If the downstream code supports binary objects natively, you can
+disable conversion by passing in the types to <code class="docutils literal notranslate"><span class="pre">passthrough</span></code>.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">to_builtins</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="n">passthrough</span><span class="o">=</span><span class="p">(</span><span class="nb">bytes</span><span class="p">,</span> <span class="nb">bytearray</span><span class="p">,</span> <span class="nb">memoryview</span><span class="p">))</span>
+<span class="go">{&#39;x&#39;: [1, 2, 3], &#39;y&#39;: b&#39;\x01\x02&#39;}</span>
+</pre></div>
+</div>
+</dd></dl>
+
+</section>
 <section id="inspect">
-<span id="inspect-api"></span><h2>Inspect<a class="headerlink" href="#inspect" title="Permalink to this heading">#</a></h2>
+<h2>Inspect<a class="headerlink" href="#inspect" title="Permalink to this heading">#</a></h2>
 <dl class="py function">
 <dt class="sig sig-object py" id="msgspec.inspect.type_info">
 <span class="sig-prename descclassname"><span class="pre">msgspec.inspect.</span></span><span class="sig-name descname"><span class="pre">type_info</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">type</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.11)"><span class="pre">Any</span></a></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">protocol</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.11)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="pre">None</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'msgpack'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'json'</span></span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.11)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#msgspec.inspect.Type" title="msgspec.inspect.Type"><span class="pre">Type</span></a></span></span><a class="headerlink" href="#msgspec.inspect.type_info" title="Permalink to this definition">#</a></dt>
@@ -1547,6 +1597,10 @@ optional fields may exist with no default value.</p></li>
 <li><a class="reference internal" href="#json-schema">JSON Schema</a><ul>
 <li><a class="reference internal" href="#msgspec.json.schema"><code class="docutils literal notranslate"><span class="pre">schema()</span></code></a></li>
 <li><a class="reference internal" href="#msgspec.json.schema_components"><code class="docutils literal notranslate"><span class="pre">schema_components()</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#converters">Converters</a><ul>
+<li><a class="reference internal" href="#msgspec.to_builtins"><code class="docutils literal notranslate"><span class="pre">to_builtins()</span></code></a></li>
 </ul>
 </li>
 <li><a class="reference internal" href="#inspect">Inspect</a><ul>

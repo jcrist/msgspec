@@ -76,6 +76,13 @@ JSON Schema
 
 .. _inspect-api:
 
+Converters
+----------
+
+.. currentmodule:: msgspec
+
+.. autofunction:: to_builtins
+
 Inspect
 -------
 
