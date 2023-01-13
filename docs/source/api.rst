@@ -11,6 +11,8 @@ Struct
 
 .. autofunction:: defstruct
 
+.. autofunction:: replace
+
 
 Meta
 ----

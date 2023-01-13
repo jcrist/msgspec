@@ -6266,6 +6266,114 @@ error:
     return NULL;
 }
 
+PyDoc_STRVAR(msgspec_replace__doc__,
+"replace(struct, / **changes)\n"
+"--\n"
+"\n"
+"Create a new struct instance of the same type as ``struct``, replacing fields\n"
+"with values from ``**changes``.\n"
+"\n"
+"Parameters\n"
+"----------\n"
+"struct: Struct\n"
+"    The original struct instance.\n"
+"**changes:\n"
+"    Fields and values that should be replaced in the new struct instance.\n"
+"\n"
+"Returns\n"
+"-------\n"
+"new_struct: Struct\n"
+"   A new struct instance of the same type as ``struct``.\n"
+"\n"
+"Examples\n"
+"--------\n"
+">>> class Point(msgspec.Struct):\n"
+"...     x: int\n"
+"...     y: int\n"
+">>> obj = Point(x=1, y=2)\n"
+">>> msgspec.replace(obj, x=3)\n"
+"Point(x=3, y=2)\n"
+"\n"
+"See Also\n"
+"--------\n"
+"dataclasses.replace"
+);
+static PyObject*
+msgspec_replace(PyObject *self, PyObject *const *args, Py_ssize_t nargsf, PyObject *kwnames)
+{
+    Py_ssize_t nargs = PyVectorcall_NARGS(nargsf);
+    Py_ssize_t nkwargs = (kwnames == NULL) ? 0 : PyTuple_GET_SIZE(kwnames);
+
+    if (!check_positional_nargs(nargs, 1, 1)) return NULL;
+    PyObject *obj = args[0];
+    if (Py_TYPE(Py_TYPE(obj)) != &StructMetaType) {
+        PyErr_SetString(PyExc_TypeError, "`struct` must be a `msgspec.Struct`");
+        return NULL;
+    }
+
+    StructMetaObject *struct_type = (StructMetaObject *)Py_TYPE(obj);
+    PyObject *fields = struct_type->struct_fields;
+    Py_ssize_t nfields = PyTuple_GET_SIZE(fields);
+    bool is_gc = MS_TYPE_IS_GC(struct_type);
+    bool should_untrack = is_gc;
+
+    PyObject *out = Struct_alloc((PyTypeObject *)struct_type);
+    if (out == NULL) return NULL;
+
+    for (Py_ssize_t i = 0; i < nkwargs; i++) {
+        PyObject *val;
+        Py_ssize_t field_index;
+        PyObject *kwname = PyTuple_GET_ITEM(kwnames, i);
+
+        /* Since keyword names are interned, first loop with pointer
+         * comparisons only. */
+        for (field_index = 0; field_index < nfields; field_index++) {
+            PyObject *field = PyTuple_GET_ITEM(fields, field_index);
+            if (MS_LIKELY(kwname == field)) goto kw_found;
+        }
+        for (field_index = 0; field_index < nfields; field_index++) {
+            PyObject *field = PyTuple_GET_ITEM(fields, field_index);
+            if (_PyUnicode_EQ(kwname, field)) goto kw_found;
+        }
+
+        /* Unknown keyword */
+        PyErr_Format(
+            PyExc_TypeError, "`%.200s` has no field '%U'",
+            ((PyTypeObject *)struct_type)->tp_name, kwname
+        );
+        goto error;
+
+    kw_found:
+        val = args[i + 1];
+        Py_INCREF(val);
+        Struct_set_index(out, field_index, val);
+        if (should_untrack) {
+            should_untrack = !MS_OBJ_IS_GC(val);
+        }
+    }
+
+    for (Py_ssize_t i = 0; i < nfields; i++) {
+        if (Struct_get_index_noerror(out, i) == NULL) {
+            PyObject *val = Struct_get_index(obj, i);
+            if (val == NULL) goto error;
+            if (should_untrack) {
+                should_untrack = !MS_OBJ_IS_GC(val);
+            }
+            Py_INCREF(val);
+            Struct_set_index(out, i, val);
+        }
+    }
+
+    if (is_gc && !should_untrack) {
+        PyObject_GC_Track(out);
+    }
+    return out;
+
+error:
+    Py_DECREF(out);
+    return NULL;
+}
+
 static PyObject *
 Struct_reduce(PyObject *self, PyObject *args)
 {
@@ -14468,6 +14576,7 @@ json_decode_struct_map_inner(
             TypeNode *type = st_type->struct_types[field_index];
             val = json_decode(self, type, &field_path);
             if (val == NULL) goto error;
+            Py_INCREF(val);
             Struct_set_index(out, field_index, val);
         }
         else if (MS_UNLIKELY(field_index == -2)) {
@@ -16198,6 +16307,10 @@ msgspec_to_builtins(PyObject *self, PyObject *args, PyObject *kwargs)
  *************************************************************************/
 
 static struct PyMethodDef msgspec_methods[] = {
+    {
+        "replace", (PyCFunction) msgspec_replace, METH_FASTCALL | METH_KEYWORDS,
+        msgspec_replace__doc__,
+    },
     {
         "defstruct", (PyCFunction) msgspec_defstruct, METH_VARARGS | METH_KEYWORDS,
         msgspec_defstruct__doc__,

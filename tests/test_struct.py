@@ -8,12 +8,12 @@ import sys
 import weakref
 from contextlib import contextmanager
 from inspect import Signature, Parameter
-from typing import Any, Optional
+from typing import Any, Optional, List
 
 import pytest
 
 import msgspec
-from msgspec import Struct, defstruct
+from msgspec import Struct, defstruct, replace
 from msgspec._core import nodefault
 
 
@@ -1606,3 +1606,97 @@ class TestDefStruct:
         Test = defstruct("Test", ["my_field"], rename="camel")
         assert Test.__struct_fields__ == ("my_field",)
         assert Test.__struct_encode_fields__ == ("myField",)
+
+
+class TestReplace:
+    def test_replace_no_kwargs(self):
+        p = Point(1, 2)
+        assert replace(p) == p
+
+    def test_replace_kwargs(self):
+        p = Point(1, 2)
+        assert replace(p, x=3) == Point(3, 2)
+        assert replace(p, y=4) == Point(1, 4)
+        assert replace(p, x=3, y=4) == Point(3, 4)
+
+    def test_replace_unknown_field(self):
+        p = Point(1, 2)
+        with pytest.raises(TypeError, match="`Point` has no field 'oops'"):
+            replace(p, oops=3)
+
+    def test_replace_not_a_struct(self):
+        with pytest.raises(TypeError, match="`struct` must be a `msgspec.Struct`"):
+            replace(1, x=2)
+
+    def test_replace_errors_unset_fields(self):
+        p = Point(1, 2)
+        del p.x
+
+        with pytest.raises(AttributeError, match="Struct field 'x' is unset"):
+            replace(p)
+
+        with pytest.raises(AttributeError, match="Struct field 'x' is unset"):
+            replace(p, y=1)
+
+        assert replace(p, x=3) == Point(3, 2)
+
+    def test_replace_frozen(self):
+        class Test(msgspec.Struct, frozen=True):
+            x: int
+            y: int
+
+        assert replace(Test(1, 2), x=3) == Test(3, 2)
+
+    def test_replace_gc_delayed_tracking(self):
+        class Test(msgspec.Struct):
+            x: int
+            y: Optional[List[int]]
+
+        obj = Test(1, None)
+        assert not gc.is_tracked(replace(obj))
+        assert not gc.is_tracked(replace(obj, x=10))
+        assert not gc.is_tracked(replace(obj, y=None))
+        assert gc.is_tracked(replace(obj, y=[1, 2, 3]))
+
+        obj = Test(1, [1, 2, 3])
+        assert gc.is_tracked(replace(obj))
+        assert gc.is_tracked(replace(obj, x=1))
+        assert not gc.is_tracked(replace(obj, y=None))
+
+    def test_replace_gc_false(self):
+        class Test(msgspec.Struct, gc=False):
+            x: int
+            y: List[int]
+
+        res = replace(Test(1, [1, 2]), x=3)
+        assert res == Test(3, [1, 2])
+        assert not gc.is_tracked(res)
+
+    def test_replace_reference_counts(self):
+        class Test(msgspec.Struct):
+            x: Any
+            y: int
+
+        x = object()
+        t = Test(x, 1)
+
+        x_count = sys.getrefcount(x)
+
+        t2 = replace(t)
+        assert sys.getrefcount(x) == x_count + 1
+        del t2
+
+        t2 = replace(t, x=None)
+        assert sys.getrefcount(x) == x_count
+        del t2
+
+        t2 = replace(t, y=2)
+        assert sys.getrefcount(x) == x_count + 1
+        del t2
+
+        x2 = object()
+        x2_count = sys.getrefcount(x2)
+        t2 = replace(t, x=x2)
+        assert sys.getrefcount(x) == x_count
+        assert sys.getrefcount(x2) == x2_count + 1
+        del t2
