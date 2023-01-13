@@ -5,7 +5,7 @@
     <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Benchmarks" href="benchmarks.html" /><link rel="prev" title="Conda Repodata" href="examples/conda-repodata.html" />
 
-    <!-- Generated with Sphinx 6.1.2 and Furo 2022.12.07 -->
+    <!-- Generated with Sphinx 6.1.3 and Furo 2022.12.07 -->
         <title>API Docs</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=91d0f0d1c444bdcb17a68e833c7a53903343c195" />
@@ -365,6 +365,40 @@ information.</p></li>
 <div class="admonition seealso">
 <p class="admonition-title">See also</p>
 <p><a class="reference internal" href="#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code></a></p>
+</div>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="msgspec.replace">
+<span class="sig-prename descclassname"><span class="pre">msgspec.</span></span><span class="sig-name descname"><span class="pre">replace</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">struct</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">/</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">changes</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.replace" title="Permalink to this definition">#</a></dt>
+<dd><p>Create a new struct instance of the same type as <code class="docutils literal notranslate"><span class="pre">struct</span></code>, replacing fields
+with values from <code class="docutils literal notranslate"><span class="pre">**changes</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>struct</strong> (<a class="reference internal" href="#msgspec.Struct" title="msgspec.Struct"><em>Struct</em></a>) – The original struct instance.</p></li>
+<li><p><strong>**changes</strong> – Fields and values that should be replaced in the new struct instance.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>new_struct</strong> – A new struct instance of the same type as <code class="docutils literal notranslate"><span class="pre">struct</span></code>.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#msgspec.Struct" title="msgspec.Struct">Struct</a></p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">Point</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="n">x</span><span class="p">:</span> <span class="nb">int</span>
+<span class="gp">... </span>    <span class="n">y</span><span class="p">:</span> <span class="nb">int</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">obj</span> <span class="o">=</span> <span class="n">Point</span><span class="p">(</span><span class="n">x</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">x</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+<span class="go">Point(x=3, y=2)</span>
+</pre></div>
+</div>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<p><a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#dataclasses.replace" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses.replace</span></code></a></p>
 </div>
 </dd></dl>
 
@@ -1547,6 +1581,7 @@ optional fields may exist with no default value.</p></li>
 <li><a class="reference internal" href="#struct">Struct</a><ul>
 <li><a class="reference internal" href="#msgspec.Struct"><code class="docutils literal notranslate"><span class="pre">Struct</span></code></a></li>
 <li><a class="reference internal" href="#msgspec.defstruct"><code class="docutils literal notranslate"><span class="pre">defstruct()</span></code></a></li>
+<li><a class="reference internal" href="#msgspec.replace"><code class="docutils literal notranslate"><span class="pre">replace()</span></code></a></li>
 </ul>
 </li>
 <li><a class="reference internal" href="#meta">Meta</a><ul>
