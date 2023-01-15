@@ -722,5 +722,5 @@ def check_json_schema_components_full() -> None:
 def check_to_builtins() -> None:
     msgspec.to_builtins(1)
     msgspec.to_builtins({1: 2}, str_keys=False)
-    msgspec.to_builtins(b"test", passthrough=(bytes, bytearray, memoryview))
+    msgspec.to_builtins(b"test", builtin_types=(bytes, bytearray, memoryview))
     msgspec.to_builtins([1, 2, 3], enc_hook=lambda x: None)

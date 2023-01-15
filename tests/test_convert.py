@@ -55,12 +55,14 @@ class TestToBuiltins:
         with pytest.raises(TypeError):
             to_builtins()
 
-        with pytest.raises(TypeError, match="passthrough must be an iterable of types"):
-            to_builtins([1], passthrough=1)
+        with pytest.raises(
+            TypeError, match="builtin_types must be an iterable of types"
+        ):
+            to_builtins([1], builtin_types=1)
 
         with pytest.raises(TypeError) as rec:
-            to_builtins([1], passthrough=(int,))
-        assert "Cannot passthrough type" in str(rec.value)
+            to_builtins([1], builtin_types=(int,))
+        assert "Cannot treat" in str(rec.value)
         assert "int" in str(rec.value)
 
         with pytest.raises(TypeError, match="enc_hook must be callable"):
@@ -124,9 +126,9 @@ class TestToBuiltins:
         assert res == sol
 
     @pytest.mark.parametrize("typ", [bytes, bytearray, memoryview])
-    def test_binary_passthrough(self, typ):
+    def test_binary_builtin_types(self, typ):
         msg = typ(b"\x01\x02\x03")
-        res = to_builtins(msg, passthrough=(typ,))
+        res = to_builtins(msg, builtin_types=(typ,))
         assert res is msg
 
     @pytest.mark.parametrize("tzinfo", [None, datetime.timezone.utc])
@@ -137,9 +139,9 @@ class TestToBuiltins:
         sol = msg.isoformat().replace("+00:00", "Z")
         assert res == sol
 
-    def test_datetime_passthrough(self):
+    def test_datetime_builtin_types(self):
         msg = datetime.datetime.now()
-        res = to_builtins(msg, passthrough=(datetime.datetime,))
+        res = to_builtins(msg, builtin_types=(datetime.datetime,))
         assert res is msg
 
     def test_date(self):
@@ -148,9 +150,9 @@ class TestToBuiltins:
         sol = msg.isoformat()
         assert res == sol
 
-    def test_date_passthrough(self):
+    def test_date_builtin_types(self):
         msg = datetime.date.today()
-        res = to_builtins(msg, passthrough=(datetime.date,))
+        res = to_builtins(msg, builtin_types=(datetime.date,))
         assert res is msg
 
     @pytest.mark.parametrize("tzinfo", [None, datetime.timezone.utc])
@@ -161,18 +163,18 @@ class TestToBuiltins:
         sol = msg.isoformat().replace("+00:00", "Z")
         assert res == sol
 
-    def test_time_passthrough(self):
+    def test_time_builtin_types(self):
         msg = datetime.datetime.now().time()
-        res = to_builtins(msg, passthrough=(datetime.time,))
+        res = to_builtins(msg, builtin_types=(datetime.time,))
         assert res is msg
 
     def test_uuid(self):
         msg = uuid.uuid4()
         assert to_builtins(msg) == str(msg)
 
-    def test_uuid_passthrough(self):
+    def test_uuid_builtin_types(self):
         msg = uuid.uuid4()
-        res = to_builtins(msg, passthrough=(uuid.UUID,))
+        res = to_builtins(msg, builtin_types=(uuid.UUID,))
         assert res is msg
 
     def test_intenum(self):
