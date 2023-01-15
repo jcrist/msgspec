@@ -3174,6 +3174,7 @@ typenode_collect_check_invariants(
     if (ms_popcount(
             state->types & (
                 MS_TYPE_STR | MS_TYPE_STRLITERAL | MS_TYPE_ENUM |
+                MS_TYPE_BYTES | MS_TYPE_BYTEARRAY |
                 MS_TYPE_DATETIME | MS_TYPE_DATE | MS_TYPE_TIME | MS_TYPE_UUID
             )
         ) > 1
@@ -3181,35 +3182,11 @@ typenode_collect_check_invariants(
         PyErr_Format(
             PyExc_TypeError,
             "Type unions may not contain more than one str-like type (`str`, "
-            "`Enum`, `Literal[str values]`, `datetime`, `date`, `time`, `uuid`) - "
-            "type `%R` is not supported",
+            "`Enum`, `Literal[str values]`, `datetime`, `date`, `time`, `uuid`, "
+            "`bytes`, `bytearray`) - type `%R` is not supported",
             state->context
         );
         return -1;
-    }
-
-    /* JSON serializes more types as strings, ensure they don't conflict in a union */
-    if (
-        ms_popcount(
-            state->types & (
-                MS_TYPE_STR | MS_TYPE_STRLITERAL | MS_TYPE_ENUM |
-                MS_TYPE_BYTES | MS_TYPE_BYTEARRAY |
-                MS_TYPE_DATETIME | MS_TYPE_DATE | MS_TYPE_TIME | MS_TYPE_UUID
-            )
-        ) > 1
-    ) {
-        if (err_not_json) {
-            PyErr_Format(
-                PyExc_TypeError,
-                "JSON type unions may not contain more than one str-like type "
-                "(`str`, `Enum`, `Literal[str values]`, `datetime`, `date`, "
-                "`time`, `uuid`, `bytes`, `bytearray`) - type `%R` is not supported",
-                state->context
-            );
-            return -1;
-        }
-        if (json_compatible != NULL)
-            *json_compatible = false;
     }
     return 0;
 }

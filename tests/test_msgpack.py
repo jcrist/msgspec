@@ -1189,10 +1189,9 @@ class TestTypedDecoder:
         [
             ([int, float], [1, 2.5]),
             (
-                [bytes, msgspec.msgpack.Ext, int, str],
-                [b"test", msgspec.msgpack.Ext(1, b"two"), 1, "two"],
+                [float, msgspec.msgpack.Ext, int, str],
+                [1.5, msgspec.msgpack.Ext(1, b"two"), 1, "two"],
             ),
-            ([str, bytearray], ["three", bytearray(b"four")]),
             ([bool, None, float, str], [True, None, 1.5, "test"]),
         ],
     )
