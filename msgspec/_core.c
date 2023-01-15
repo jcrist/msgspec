@@ -4255,7 +4255,7 @@ ms_invalid_cuint_value(uint64_t val, PathNode *path) {
 }
 
 static MS_NOINLINE PyObject *
-ms_error_unknown_field(char *key, Py_ssize_t key_size, PathNode *path) {
+ms_error_unknown_field(const char *key, Py_ssize_t key_size, PathNode *path) {
     PyObject *field = PyUnicode_FromStringAndSize(key, key_size);
     if (field == NULL) return NULL;
     ms_raise_validation_error(
@@ -7809,6 +7809,29 @@ ms_decode_int_enum_or_literal_uint64(uint64_t val, TypeNode *type, PathNode *pat
 }
 
 static MS_NOINLINE PyObject *
+ms_decode_int_enum_or_literal_pyint(PyObject *obj, TypeNode *type, PathNode *path) {
+    uint64_t x;
+    bool neg, overflow;
+    PyObject *out = NULL;
+    IntLookup *lookup = TypeNode_get_int_enum_or_literal(type);
+    overflow = fast_long_extract_parts(obj, &neg, &x);
+    if (!overflow) {
+        if (neg) {
+            out = IntLookup_GetInt64(lookup, -(int64_t)x);
+        }
+        else {
+            out = IntLookup_GetUInt64(lookup, x);
+        }
+    }
+    if (out == NULL) {
+        ms_raise_validation_error(path, "Invalid enum value %R%U", obj);
+        return NULL;
+    }
+    Py_INCREF(out);
+    return out;
+}
+
+static MS_NOINLINE PyObject *
 ms_decode_custom(PyObject *obj, PyObject *dec_hook, TypeNode* type, PathNode *path) {
     PyObject *custom_cls = NULL, *custom_obj, *out = NULL;
     int status;
@@ -7936,6 +7959,56 @@ ms_decode_uint(uint64_t x, TypeNode *type, PathNode *path) {
 }
 
 static MS_NOINLINE PyObject *
+ms_decode_constr_pyint(PyObject *obj, TypeNode *type, PathNode *path) {
+    uint64_t ux;
+    bool neg, overflow;
+    overflow = fast_long_extract_parts(obj, &neg, &ux);
+    if (overflow) {
+        return ms_error_with_path("Integer is out of range%U", path);
+    }
+    if (type->types & MS_CONSTR_INT_MIN) {
+        int64_t c = TypeNode_get_constr_int_min(type);
+        bool ok = (
+            neg ? ((-(int64_t)ux) >= c) :
+            ((c < 0) || (ux >= (uint64_t)c))
+        );
+        if (MS_UNLIKELY(!ok)) {
+            return _err_int_constraint("Expected `int` >= %lld%U", c, path);
+        }
+    }
+    if (type->types & MS_CONSTR_INT_MAX) {
+        int64_t c = TypeNode_get_constr_int_max(type);
+        bool ok = (
+            neg ? ((-(int64_t)ux) <= c) :
+            ((c >= 0) && (ux <= (uint64_t)c))
+        );
+        if (MS_UNLIKELY(!ok)) {
+            return _err_int_constraint("Expected `int` <= %lld%U", c, path);
+        }
+    }
+    if (MS_UNLIKELY(type->types & MS_CONSTR_INT_MULTIPLE_OF)) {
+        int64_t c = TypeNode_get_constr_int_multiple_of(type);
+        bool ok = (ux % c) == 0;
+        if (MS_UNLIKELY(!ok)) {
+            return _err_int_constraint(
+                "Expected `int` that's a multiple of %lld%U", c, path
+            );
+        }
+    }
+    Py_INCREF(obj);
+    return obj;
+}
+
+static MS_INLINE PyObject *
+ms_decode_pyint(PyObject *obj, TypeNode *type, PathNode *path) {
+    if (MS_UNLIKELY(type->types & MS_INT_CONSTRS)) {
+        return ms_decode_constr_pyint(obj, type, path);
+    }
+    Py_INCREF(obj);
+    return obj;
+}
+
+static MS_NOINLINE PyObject *
 _err_float_constraint(
     const char *msg, int offset, double c, PathNode *path
 ) {
@@ -7953,19 +8026,20 @@ _err_float_constraint(
     return NULL;
 }
 
-static MS_NOINLINE PyObject *
-ms_decode_constr_float(double x, TypeNode *type, PathNode *path) {
+static MS_INLINE bool
+ms_passes_float_constraints_inline(double x, TypeNode *type, PathNode *path) {
     if (type->types & (MS_CONSTR_FLOAT_GE | MS_CONSTR_FLOAT_GT)) {
         double c = TypeNode_get_constr_float_min(type);
         bool ok = x >= c;
         if (MS_UNLIKELY(!ok)) {
             bool eq = type->types & MS_CONSTR_FLOAT_GE;
-            return _err_float_constraint(
+            _err_float_constraint(
                 eq ? ">=" : ">",
                 eq ? 0 : -1,
                 c,
                 path
             );
+            return false;
         }
     }
     if (type->types & (MS_CONSTR_FLOAT_LE | MS_CONSTR_FLOAT_LT)) {
@@ -7973,23 +8047,31 @@ ms_decode_constr_float(double x, TypeNode *type, PathNode *path) {
         bool ok = x <= c;
         if (MS_UNLIKELY(!ok)) {
             bool eq = type->types & MS_CONSTR_FLOAT_LE;
-            return _err_float_constraint(
+            _err_float_constraint(
                 eq ? "<=" : "<",
                 eq ? 0 : 1,
                 c,
                 path
             );
+            return false;
         }
     }
     if (MS_UNLIKELY(type->types & MS_CONSTR_FLOAT_MULTIPLE_OF)) {
         double c = TypeNode_get_constr_float_multiple_of(type);
         bool ok = x == 0 || fmod(x, c) == 0.0;
         if (MS_UNLIKELY(!ok)) {
-            return _err_float_constraint(
+            _err_float_constraint(
                 "that's a multiple of", 0, c, path
             );
+            return false;
         }
     }
+    return true;
+}
+
+static MS_NOINLINE PyObject *
+ms_decode_constr_float(double x, TypeNode *type, PathNode *path) {
+    if (!ms_passes_float_constraints_inline(x, type, path)) return NULL;
     return PyFloat_FromDouble(x);
 }
 
@@ -7999,6 +8081,23 @@ ms_decode_float(double x, TypeNode *type, PathNode *path) {
         return ms_decode_constr_float(x, type, path);
     }
     return PyFloat_FromDouble(x);
+}
+
+static MS_NOINLINE PyObject *
+ms_decode_constr_pyfloat(PyObject *obj, TypeNode *type, PathNode *path) {
+    double x = PyFloat_AS_DOUBLE(obj);
+    if (!ms_passes_float_constraints_inline(x, type, path)) return NULL;
+    Py_INCREF(obj);
+    return obj;
+}
+
+static MS_INLINE PyObject *
+ms_decode_pyfloat(PyObject *obj, TypeNode *type, PathNode *path) {
+    if (MS_UNLIKELY(type->types & MS_FLOAT_CONSTRS)) {
+        return ms_decode_constr_pyfloat(obj, type, path);
+    }
+    Py_INCREF(obj);
+    return obj;
 }
 
 static MS_NOINLINE bool
@@ -13251,8 +13350,7 @@ static const uint8_t base64_decode_table[] = {
 
 static PyObject *
 json_decode_binary(
-    JSONDecoderState *self, const char *buffer, Py_ssize_t size,
-    TypeNode *type, PathNode *path
+    const char *buffer, Py_ssize_t size, TypeNode *type, PathNode *path
 ) {
     PyObject *out = NULL;
     char *bin_buffer;
@@ -13435,7 +13533,7 @@ json_decode_string(JSONDecoderState *self, TypeNode *type, PathNode *path) {
             return ms_decode_uuid(view, size, path);
         }
         else if (MS_UNLIKELY(type->types & (MS_TYPE_BYTES | MS_TYPE_BYTEARRAY))) {
-            return json_decode_binary(self, view, size, type, path);
+            return json_decode_binary(view, size, type, path);
         }
         else {
             return ms_decode_str_enum_or_literal(view, size, type, path);
@@ -16164,6 +16262,49 @@ builtin:
     return obj;
 }
 
+static int
+ms_process_builtin_types(MsgspecState *mod, PyObject *builtin_types, uint32_t *mask) {
+    if (builtin_types != NULL && builtin_types != Py_None) {
+        PyObject *seq = PySequence_Fast(
+            builtin_types, "builtin_types must be an iterable of types"
+        );
+        if (seq == NULL) return -1;
+        Py_ssize_t size = PySequence_Fast_GET_SIZE(seq);
+        for (Py_ssize_t i = 0; i < size; i++) {
+            PyObject *type = PySequence_Fast_GET_ITEM(seq, i);
+            if (type == (PyObject *)(&PyBytes_Type)) {
+                *mask |= MS_BUILTIN_BYTES;
+            }
+            else if (type == (PyObject *)(&PyByteArray_Type)) {
+                *mask |= MS_BUILTIN_BYTEARRAY;
+            }
+            else if (type == (PyObject *)(&PyMemoryView_Type)) {
+                *mask |= MS_BUILTIN_MEMORYVIEW;
+            }
+            else if (type == (PyObject *)(PyDateTimeAPI->DateTimeType)) {
+                *mask |= MS_BUILTIN_DATETIME;
+            }
+            else if (type == (PyObject *)(PyDateTimeAPI->DateType)) {
+                *mask |= MS_BUILTIN_DATE;
+            }
+            else if (type == (PyObject *)(PyDateTimeAPI->TimeType)) {
+                *mask |= MS_BUILTIN_TIME;
+            }
+            else if (type == mod->UUIDType) {
+                *mask |= MS_BUILTIN_UUID;
+            }
+            else {
+                PyErr_Format(PyExc_TypeError, "Cannot treat %R as a builtin type", type);
+                Py_DECREF(seq);
+                return -1;
+            }
+        }
+        Py_DECREF(seq);
+    }
+    return 0;
+}
+
+
 PyDoc_STRVAR(msgspec_to_builtins__doc__,
 "to_builtins(obj, *, str_keys=False, builtin_types=None, enc_hook=None)\n"
 "--\n"
@@ -16191,6 +16332,7 @@ PyDoc_STRVAR(msgspec_to_builtins__doc__,
 "-------\n"
 "Any\n"
 "    The converted object.\n"
+"\n"
 "Examples\n"
 "--------\n"
 ">>> import msgspec\n"
@@ -16210,6 +16352,10 @@ PyDoc_STRVAR(msgspec_to_builtins__doc__,
 "\n"
 ">>> msgspec.to_builtins(msg, builtin_types=(bytes, bytearray, memoryview))\n"
 "{'x': [1, 2, 3], 'y': b'\\x01\\x02'}\n"
+"\n"
+"See Also\n"
+"--------\n"
+"from_builtins"
 );
 static PyObject*
 msgspec_to_builtins(PyObject *self, PyObject *args, PyObject *kwargs)
@@ -16239,44 +16385,1016 @@ msgspec_to_builtins(PyObject *self, PyObject *args, PyObject *kwargs)
         return NULL;
     }
     state.enc_hook = enc_hook;
+    if (ms_process_builtin_types(state.mod, builtin_types, &(state.builtin_types)) < 0) return NULL;
 
-    if (builtin_types != NULL && builtin_types != Py_None) {
-        PyObject *seq = PySequence_Fast(
-            builtin_types, "builtin_types must be an iterable of types"
+    return to_builtins(&state, obj, false);
+}
+
+/*************************************************************************
+ * from_builtins                                                           *
+ *************************************************************************/
+
+typedef struct {
+    MsgspecState *mod;
+    PyObject *dec_hook;
+    bool str_keys;
+    uint32_t builtin_types;
+} FromBuiltinsState;
+
+static PyObject * from_builtins(FromBuiltinsState *, PyObject *, TypeNode *, PathNode *);
+
+static PyObject *
+from_builtins_int(
+    FromBuiltinsState *self, PyObject *obj, TypeNode *type, PathNode *path
+) {
+    if (type->types & (MS_TYPE_ANY | MS_TYPE_INT)) {
+        return ms_decode_pyint(obj, type, path);
+    }
+    else if (type->types & (MS_TYPE_INTENUM | MS_TYPE_INTLITERAL)) {
+        return ms_decode_int_enum_or_literal_pyint(obj, type, path);
+    }
+    else if (type->types & MS_TYPE_FLOAT) {
+        return ms_decode_float(PyLong_AsDouble(obj), type, path);
+    }
+    return ms_validation_error("int", type, path);
+}
+
+static PyObject *
+from_builtins_float(
+    FromBuiltinsState *self, PyObject *obj, TypeNode *type, PathNode *path
+) {
+    if (type->types & (MS_TYPE_ANY | MS_TYPE_FLOAT)) {
+        return ms_decode_pyfloat(obj, type, path);
+    }
+    return ms_validation_error("float", type, path);
+}
+
+static PyObject *
+from_builtins_bool(
+    FromBuiltinsState *self, PyObject *obj, TypeNode *type, PathNode *path
+) {
+    if (type->types & (MS_TYPE_ANY | MS_TYPE_BOOL)) {
+        Py_INCREF(obj);
+        return obj;
+    }
+    return ms_validation_error("bool", type, path);
+}
+
+static PyObject *
+from_builtins_none(
+    FromBuiltinsState *self, PyObject *obj, TypeNode *type, PathNode *path
+) {
+    if (type->types & (MS_TYPE_ANY | MS_TYPE_NONE)) {
+        Py_INCREF(obj);
+        return obj;
+    }
+    return ms_validation_error("null", type, path);
+}
+
+static PyObject *
+from_builtins_str(
+    FromBuiltinsState *self, PyObject *obj, bool is_key, TypeNode *type, PathNode *path
+) {
+    if (type->types & (MS_TYPE_ANY | MS_TYPE_STR)) {
+        Py_INCREF(obj);
+        return ms_check_str_constraints(obj, type, path);
+    }
+    else {
+        Py_ssize_t size;
+        const char* view = unicode_str_and_size(obj, &size);
+        if (view == NULL) return NULL;
+        if (type->types & (MS_TYPE_ENUM | MS_TYPE_STRLITERAL)) {
+            return ms_decode_str_enum_or_literal(view, size, type, path);
+        }
+        else if (
+            (type->types & MS_TYPE_DATETIME)
+            && !(self->builtin_types & MS_BUILTIN_DATETIME)
+        ) {
+            return ms_decode_datetime(view, size, type, path);
+        }
+        else if (
+            (type->types & MS_TYPE_DATE)
+            && !(self->builtin_types & MS_BUILTIN_DATE)
+        ) {
+            return ms_decode_date(view, size, path);
+        }
+        else if (
+            (type->types & MS_TYPE_TIME)
+            && !(self->builtin_types & MS_BUILTIN_TIME)
+        ) {
+            return ms_decode_time(view, size, type, path);
+        }
+        else if (
+            (type->types & MS_TYPE_UUID)
+            && !(self->builtin_types & MS_BUILTIN_UUID)
+        ) {
+            return ms_decode_uuid(view, size, path);
+        }
+        else if (
+            (type->types & MS_TYPE_BYTES)
+            && !(self->builtin_types & MS_BUILTIN_BYTES)
+        ) {
+            return json_decode_binary(view, size, type, path);
+        }
+        else if (
+            (type->types & MS_TYPE_BYTEARRAY)
+            && !(self->builtin_types & MS_BUILTIN_BYTEARRAY)
+        ) {
+            return json_decode_binary(view, size, type, path);
+        }
+        else if (is_key && self->str_keys && (type->types & MS_TYPE_INT)) {
+            return json_decode_int_from_str(view, size, type, path);
+        }
+    }
+    return ms_validation_error("str", type, path);
+}
+
+static PyObject *
+from_builtins_bytes(
+    FromBuiltinsState *self, PyObject *obj, TypeNode *type, PathNode *path
+) {
+    if (type->types & (MS_TYPE_BYTES | MS_TYPE_BYTEARRAY)) {
+        if (!ms_passes_bytes_constraints(PyBytes_GET_SIZE(obj), type, path)) {
+            return NULL;
+        }
+        if (type->types & MS_TYPE_BYTES) {
+            Py_INCREF(obj);
+            return obj;
+        }
+        return PyByteArray_FromObject(obj);
+    }
+    return ms_validation_error("bytes", type, path);
+}
+
+static PyObject *
+from_builtins_bytearray(
+    FromBuiltinsState *self, PyObject *obj, TypeNode *type, PathNode *path
+) {
+    if (type->types & (MS_TYPE_BYTES | MS_TYPE_BYTEARRAY)) {
+        if (!ms_passes_bytes_constraints(PyByteArray_GET_SIZE(obj), type, path)) {
+            return NULL;
+        }
+        if (type->types & MS_TYPE_BYTEARRAY) {
+            Py_INCREF(obj);
+            return obj;
+        }
+        return PyBytes_FromObject(obj);
+    }
+    return ms_validation_error("bytes", type, path);
+}
+
+static PyObject *
+from_builtins_datetime(
+    FromBuiltinsState *self, PyObject *obj, TypeNode *type, PathNode *path
+) {
+    if (type->types & MS_TYPE_DATETIME) {
+        PyObject *tz = MS_DATE_GET_TZINFO(obj);
+        if (!ms_passes_tz_constraint(tz, type, path)) return NULL;
+        Py_INCREF(obj);
+        return obj;
+    }
+    return ms_validation_error("datetime", type, path);
+}
+
+static PyObject *
+from_builtins_date(
+    FromBuiltinsState *self, PyObject *obj, TypeNode *type, PathNode *path
+) {
+    if (type->types & MS_TYPE_DATE) {
+        Py_INCREF(obj);
+        return obj;
+    }
+    return ms_validation_error("date", type, path);
+}
+
+static PyObject *
+from_builtins_time(
+    FromBuiltinsState *self, PyObject *obj, TypeNode *type, PathNode *path
+) {
+    if (type->types & MS_TYPE_TIME) {
+        PyObject *tz = MS_TIME_GET_TZINFO(obj);
+        if (!ms_passes_tz_constraint(tz, type, path)) return NULL;
+        Py_INCREF(obj);
+        return obj;
+    }
+    return ms_validation_error("time", type, path);
+}
+
+static PyObject *
+from_builtins_uuid(
+    FromBuiltinsState *self, PyObject *obj, TypeNode *type, PathNode *path
+) {
+    if (type->types & MS_TYPE_UUID) {
+        Py_INCREF(obj);
+        return obj;
+    }
+    return ms_validation_error("uuid", type, path);
+}
+
+static PyObject *
+from_builtins_list(
+    FromBuiltinsState *self, PyObject **items, Py_ssize_t size,
+    TypeNode *item_type, PathNode *path
+) {
+    PyObject *out = PyList_New(size);
+    if (out == NULL) return NULL;
+    if (size == 0) return out;
+
+    if (Py_EnterRecursiveCall(" while deserializing an object")) {
+        Py_DECREF(out);
+        return NULL; /* cpylint-ignore */
+    }
+    for (Py_ssize_t i = 0; i < size; i++) {
+        PathNode item_path = {path, i};
+        PyObject *val = from_builtins(self, items[i], item_type, &item_path);
+        if (val == NULL) {
+            Py_CLEAR(out);
+            break;
+        }
+        PyList_SET_ITEM(out, i, val);
+    }
+    Py_LeaveRecursiveCall();
+    return out;
+}
+
+static PyObject *
+from_builtins_set(
+    FromBuiltinsState *self, PyObject **items, Py_ssize_t size,
+    bool mutable, TypeNode *item_type, PathNode *path
+) {
+    PyObject *out = mutable ? PySet_New(NULL) : PyFrozenSet_New(NULL);
+    if (out == NULL) return NULL;
+    if (size == 0) return out;
+
+    if (Py_EnterRecursiveCall(" while deserializing an object")) {
+        Py_DECREF(out);
+        return NULL; /* cpylint-ignore */
+    }
+    for (Py_ssize_t i = 0; i < size; i++) {
+        PathNode item_path = {path, i};
+        PyObject *val = from_builtins(self, items[i], item_type, &item_path);
+        if (MS_UNLIKELY(val == NULL || PySet_Add(out, val) < 0)) {
+            Py_XDECREF(val);
+            Py_CLEAR(out);
+            break;
+        }
+        Py_DECREF(val);
+    }
+    Py_LeaveRecursiveCall();
+    return out;
+}
+
+static PyObject *
+from_builtins_vartuple(
+    FromBuiltinsState *self, PyObject **items, Py_ssize_t size,
+    TypeNode *item_type, PathNode *path
+) {
+    PyObject *out = PyTuple_New(size);
+    if (out == NULL) return NULL;
+    if (size == 0) return out;
+
+    if (Py_EnterRecursiveCall(" while deserializing an object")) {
+        Py_DECREF(out);
+        return NULL; /* cpylint-ignore */
+    }
+    for (Py_ssize_t i = 0; i < size; i++) {
+        PathNode item_path = {path, i};
+        PyObject *val = from_builtins(self, items[i], item_type, &item_path);
+        if (val == NULL) {
+            Py_CLEAR(out);
+            break;
+        }
+        PyTuple_SET_ITEM(out, i, val);
+    }
+    Py_LeaveRecursiveCall();
+    return out;
+}
+
+static PyObject *
+from_builtins_fixtuple(
+    FromBuiltinsState *self, PyObject **items, Py_ssize_t size,
+    TypeNode *type, PathNode *path
+) {
+    Py_ssize_t fixtuple_size, offset;
+    TypeNode_get_fixtuple(type, &offset, &fixtuple_size);
+
+    if (size != fixtuple_size) {
+        /* tuple is the incorrect size, raise and return */
+        ms_raise_validation_error(
+            path,
+            "Expected `array` of length %zd, got %zd%U",
+            fixtuple_size,
+            size
         );
-        if (seq == NULL) return NULL;
-        Py_ssize_t size = PySequence_Fast_GET_SIZE(seq);
-        for (Py_ssize_t i = 0; i < size; i++) {
-            PyObject *type = PySequence_Fast_GET_ITEM(seq, i);
-            if (type == (PyObject *)(&PyBytes_Type)) {
-                state.builtin_types |= MS_BUILTIN_BYTES;
-            }
-            else if (type == (PyObject *)(&PyByteArray_Type)) {
-                state.builtin_types |= MS_BUILTIN_BYTEARRAY;
-            }
-            else if (type == (PyObject *)(&PyMemoryView_Type)) {
-                state.builtin_types |= MS_BUILTIN_MEMORYVIEW;
-            }
-            else if (type == (PyObject *)(PyDateTimeAPI->DateTimeType)) {
-                state.builtin_types |= MS_BUILTIN_DATETIME;
-            }
-            else if (type == (PyObject *)(PyDateTimeAPI->DateType)) {
-                state.builtin_types |= MS_BUILTIN_DATE;
-            }
-            else if (type == (PyObject *)(PyDateTimeAPI->TimeType)) {
-                state.builtin_types |= MS_BUILTIN_TIME;
-            }
-            else if (type == state.mod->UUIDType) {
-                state.builtin_types |= MS_BUILTIN_UUID;
-            }
-            else {
-                PyErr_Format(PyExc_TypeError, "Cannot treat %R as a builtin type", type);
+        return NULL;
+    }
+
+    PyObject *out = PyTuple_New(size);
+    if (out == NULL) return NULL;
+    if (size == 0) return out;
+
+    if (Py_EnterRecursiveCall(" while deserializing an object")) {
+        Py_DECREF(out);
+        return NULL; /* cpylint-ignore */
+    }
+
+    for (Py_ssize_t i = 0; i < fixtuple_size; i++) {
+        PathNode item_path = {path, i};
+        PyObject *val = from_builtins(
+            self, items[i], type->details[offset + i].pointer, &item_path
+        );
+        if (MS_UNLIKELY(val == NULL)) {
+            Py_CLEAR(out);
+            break;
+        }
+        PyTuple_SET_ITEM(out, i, val);
+    }
+    Py_LeaveRecursiveCall();
+    return out;
+}
+
+static PyObject *
+from_builtins_namedtuple(
+    FromBuiltinsState *self, PyObject **items, Py_ssize_t size,
+    TypeNode *type, PathNode *path
+) {
+    NamedTupleInfo *info = TypeNode_get_namedtuple_info(type);
+    Py_ssize_t nfields = Py_SIZE(info);
+    Py_ssize_t ndefaults = info->defaults == NULL ? 0 : PyTuple_GET_SIZE(info->defaults);
+    Py_ssize_t nrequired = nfields - ndefaults;
+
+    if (size < nrequired || nfields < size) {
+        /* tuple is the incorrect size, raise and return */
+        if (ndefaults == 0) {
+            ms_raise_validation_error(
+                path,
+                "Expected `array` of length %zd, got %zd%U",
+                nfields,
+                size
+            );
+        }
+        else {
+            ms_raise_validation_error(
+                path,
+                "Expected `array` of length %zd to %zd, got %zd%U",
+                nrequired,
+                nfields,
+                size
+            );
+        }
+        return NULL;
+    }
+    if (Py_EnterRecursiveCall(" while deserializing an object")) return NULL;
+
+    PyTypeObject *nt_type = (PyTypeObject *)(info->class);
+    PyObject *out = nt_type->tp_alloc(nt_type, nfields);
+    if (out == NULL) goto error;
+    for (Py_ssize_t i = 0; i < nfields; i++) {
+        PyTuple_SET_ITEM(out, i, NULL);
+    }
+    for (Py_ssize_t i = 0; i < size; i++) {
+        PathNode item_path = {path, i};
+        PyObject *item = from_builtins(self, items[i], info->types[i], &item_path);
+        if (MS_UNLIKELY(item == NULL)) goto error;
+        PyTuple_SET_ITEM(out, i, item);
+    }
+    for (Py_ssize_t i = size; i < nfields; i++) {
+        PyObject *item = PyTuple_GET_ITEM(info->defaults, i - nrequired);
+        Py_INCREF(item);
+        PyTuple_SET_ITEM(out, i, item);
+    }
+    Py_LeaveRecursiveCall();
+    return out;
+error:
+    Py_LeaveRecursiveCall();
+    Py_DECREF(out);
+    return NULL;
+}
+
+static bool
+from_builtins_tag_matches(
+    FromBuiltinsState *self, PyObject *tag, PyObject *expected_tag, PathNode *path
+) {
+    if (PyUnicode_CheckExact(expected_tag)) {
+        if (!PyUnicode_CheckExact(tag)) goto wrong_type;
+    }
+    else if (!PyLong_CheckExact(tag)) {
+        goto wrong_type;
+    }
+    int status = PyObject_RichCompareBool(tag, expected_tag, Py_EQ);
+    if (status == 1) return true;
+    if (status == 0) {
+        ms_raise_validation_error(path, "Invalid value %R%U", tag);
+    }
+    return false;
+wrong_type:
+    const char *expected = PyUnicode_CheckExact(expected_tag) ? "str" : "int";
+    ms_raise_validation_error(
+        path, "Expected `%s`, got `%s`%U", expected, Py_TYPE(tag)->tp_name
+    );
+    return false;
+}
+
+static StructMetaObject *
+from_builtins_lookup_tag(
+    FromBuiltinsState *self, Lookup *lookup, PyObject *tag, PathNode *path
+) {
+    StructMetaObject *out = NULL;
+    if (Lookup_IsStrLookup(lookup)) {
+        if (!PyUnicode_CheckExact(tag)) goto wrong_type;
+        Py_ssize_t size;
+        const char *buf = unicode_str_and_size(tag, &size);
+        if (buf == NULL) return NULL;
+        out = (StructMetaObject *)StrLookup_Get((StrLookup *)lookup, buf, size);
+    }
+    else {
+        if (!PyLong_CheckExact(tag)) goto wrong_type;
+        uint64_t ux;
+        bool neg, overflow;
+        overflow = fast_long_extract_parts(tag, &neg, &ux);
+        if (overflow) goto invalid_value;
+        if (neg) {
+            out = (StructMetaObject *)IntLookup_GetInt64((IntLookup *)lookup, -(int64_t)ux);
+        }
+        else {
+            out = (StructMetaObject *)IntLookup_GetUInt64((IntLookup *)lookup, ux);
+        }
+    }
+    if (out != NULL) return out;
+invalid_value:
+    ms_raise_validation_error(path, "Invalid value %R%U", tag);
+    return NULL;
+wrong_type:
+    const char *expected = Lookup_IsStrLookup(lookup) ? "str" : "int";
+    ms_raise_validation_error(
+        path, "Expected `%s`, got `%s`%U", expected, Py_TYPE(tag)->tp_name
+    );
+    return NULL;
+}
+
+static PyObject *
+from_builtins_struct_array_inner(
+    FromBuiltinsState *self, PyObject **items, Py_ssize_t size,
+    bool tag_already_read, StructMetaObject *st_type, PathNode *path
+) {
+    PathNode item_path = {path, 0};
+    bool tagged = st_type->struct_tag_value != NULL;
+    Py_ssize_t nfields = PyTuple_GET_SIZE(st_type->struct_encode_fields);
+    Py_ssize_t ndefaults = PyTuple_GET_SIZE(st_type->struct_defaults);
+    Py_ssize_t nrequired = tagged + nfields - st_type->n_trailing_defaults;
+    Py_ssize_t npos = nfields - ndefaults;
+
+    if (size < nrequired) {
+        ms_raise_validation_error(
+            path,
+            "Expected `array` of at least length %zd, got %zd%U",
+            nrequired,
+            size
+        );
+        return NULL;
+    }
+
+    if (tagged) {
+        if (!tag_already_read) {
+            if (
+                !from_builtins_tag_matches(
+                    self, items[item_path.index], st_type->struct_tag_value, &item_path
+                )
+            ) {
                 return NULL;
             }
         }
+        size--;
+        item_path.index++;
     }
 
-    return to_builtins(&state, obj, false);
+    if (Py_EnterRecursiveCall(" while deserializing an object")) return NULL;
+
+    PyObject *out = Struct_alloc((PyTypeObject *)(st_type));
+    if (out == NULL) goto error;
+
+    bool is_gc = MS_TYPE_IS_GC(st_type);
+    bool should_untrack = is_gc;
+
+    for (Py_ssize_t i = 0; i < nfields; i++) {
+        PyObject *val;
+        if (size > 0) {
+            val = from_builtins(
+                self, items[item_path.index], st_type->struct_types[i], &item_path
+            );
+            if (MS_UNLIKELY(val == NULL)) goto error;
+            size--;
+            item_path.index++;
+        }
+        else {
+            val = maybe_deepcopy_default(
+                PyTuple_GET_ITEM(st_type->struct_defaults, i - npos)
+            );
+            if (val == NULL) goto error;
+        }
+        Struct_set_index(out, i, val);
+        if (should_untrack) {
+            should_untrack = !MS_OBJ_IS_GC(val);
+        }
+    }
+    if (MS_UNLIKELY(size > 0)) {
+        if (MS_UNLIKELY(st_type->forbid_unknown_fields == OPT_TRUE)) {
+            ms_raise_validation_error(
+                path,
+                "Expected `array` of at most length %zd, got %zd%U",
+                nfields,
+                nfields + size
+            );
+            goto error;
+        }
+    }
+    Py_LeaveRecursiveCall();
+    if (is_gc && !should_untrack)
+        PyObject_GC_Track(out);
+    return out;
+error:
+    Py_LeaveRecursiveCall();
+    Py_XDECREF(out);
+    return NULL;
+}
+
+static PyObject *
+from_builtins_struct_array(
+    FromBuiltinsState *self, PyObject **items, Py_ssize_t size,
+    TypeNode *type, PathNode *path
+) {
+    return from_builtins_struct_array_inner(
+        self, items, size, false, TypeNode_get_struct(type), path
+    );
+}
+
+static PyObject *
+from_builtins_struct_array_union(
+    FromBuiltinsState *self, PyObject **items, Py_ssize_t size,
+    TypeNode *type, PathNode *path
+) {
+    Lookup *lookup = TypeNode_get_struct_union(type);
+    if (size == 0) {
+        return ms_error_with_path(
+            "Expected `array` of at least length 1, got 0%U", path
+        );
+    }
+
+    PathNode tag_path = {path, 0};
+    StructMetaObject *struct_type = from_builtins_lookup_tag(
+        self, lookup, items[0], &tag_path
+    );
+    if (struct_type == NULL) return NULL;
+    return from_builtins_struct_array_inner(self, items, size, true, struct_type, path);
+}
+
+static PyObject *
+from_builtins_array(
+    FromBuiltinsState *self, PyObject *obj, TypeNode *type, PathNode *path
+) {
+    PyObject **items = PySequence_Fast_ITEMS(obj);
+    Py_ssize_t size = PySequence_Fast_GET_SIZE(obj);
+
+    if (!ms_passes_array_constraints(size, type, path)) return NULL;
+
+    if (type->types & MS_TYPE_ANY) {
+        TypeNode type_any = {MS_TYPE_ANY};
+        return from_builtins_list(self, items, size, &type_any, path);
+    }
+    else if (type->types & MS_TYPE_LIST) {
+        return from_builtins_list(self, items, size, TypeNode_get_array(type), path);
+    }
+    else if (type->types & (MS_TYPE_SET | MS_TYPE_FROZENSET)) {
+        return from_builtins_set(
+            self, items, size,
+            (type->types & MS_TYPE_SET), TypeNode_get_array(type), path
+        );
+    }
+    else if (type->types & MS_TYPE_VARTUPLE) {
+        return from_builtins_vartuple(self, items, size, TypeNode_get_array(type), path);
+    }
+    else if (type->types & MS_TYPE_FIXTUPLE) {
+        return from_builtins_fixtuple(self, items, size, type, path);
+    }
+    else if (type->types & MS_TYPE_NAMEDTUPLE) {
+        return from_builtins_namedtuple(self, items, size, type, path);
+    }
+    else if (type->types & MS_TYPE_STRUCT_ARRAY) {
+        return from_builtins_struct_array(self, items, size, type, path);
+    }
+    else if (type->types & MS_TYPE_STRUCT_ARRAY_UNION) {
+        return from_builtins_struct_array_union(self, items, size, type, path);
+    }
+    return ms_validation_error("array", type, path);
+}
+
+static PyObject *
+from_builtins_dict(
+    FromBuiltinsState *self, PyObject *obj,
+    TypeNode *key_type, TypeNode *val_type, PathNode *path
+) {
+    PathNode key_path = {path, PATH_KEY, NULL};
+    PathNode val_path = {path, PATH_ELLIPSIS, NULL};
+
+    PyObject *out = PyDict_New();
+    if (out == NULL) return NULL;
+    if (PyDict_GET_SIZE(obj) == 0) return out;
+
+    if (Py_EnterRecursiveCall(" while deserializing an object")) {
+        Py_DECREF(out);
+        return NULL; /* cpylint-ignore */
+    }
+    PyObject *key_obj = NULL, *val_obj = NULL;
+    Py_ssize_t pos = 0;
+    while (PyDict_Next(obj, &pos, &key_obj, &val_obj)) {
+        PyObject *key;
+        if (PyUnicode_CheckExact(key_obj)) {
+            key = from_builtins_str(self, key_obj, true, key_type, &key_path);
+        }
+        else {
+            key = from_builtins(self, key_obj, key_type, &key_path);
+        }
+        if (MS_UNLIKELY(key == NULL)) goto error;
+        PyObject *val = from_builtins(self, val_obj, val_type, &val_path);
+        if (MS_UNLIKELY(val == NULL)) {
+            Py_DECREF(key);
+            goto error;
+        }
+        int status = PyDict_SetItem(out, key, val);
+        Py_DECREF(key);
+        Py_DECREF(val);
+        if (status < 0) goto error;
+    }
+    Py_LeaveRecursiveCall();
+    return out;
+error:
+    Py_LeaveRecursiveCall();
+    Py_DECREF(out);
+    return NULL;
+}
+
+static PyObject *
+from_builtins_struct(
+    FromBuiltinsState *self, PyObject *obj, StructMetaObject *struct_type, PathNode *path
+) {
+    if (Py_EnterRecursiveCall(" while deserializing an object")) return NULL;
+
+    PyObject *out = Struct_alloc((PyTypeObject *)(struct_type));
+    if (out == NULL) goto error;
+
+    Py_ssize_t pos = 0, pos_obj = 0;
+    PyObject *key_obj, *val_obj;
+    while (PyDict_Next(obj, &pos_obj, &key_obj, &val_obj)) {
+        if (!PyUnicode_CheckExact(key_obj)) continue;
+
+        Py_ssize_t key_size;
+        const char *key = unicode_str_and_size(key_obj, &key_size);
+        if (key == NULL) goto error;
+
+        Py_ssize_t field_index = StructMeta_get_field_index(struct_type, key, key_size, &pos);
+        if (field_index < 0) {
+            if (MS_UNLIKELY(field_index == -2)) {
+                PathNode tag_path = {path, PATH_STR, struct_type->struct_tag_field};
+                if (
+                    !from_builtins_tag_matches(
+                        self, val_obj, struct_type->struct_tag_value, &tag_path
+                    )
+                ) {
+                    goto error;
+                }
+            }
+            else {
+                /* Unknown field */
+                if (MS_UNLIKELY(struct_type->forbid_unknown_fields == OPT_TRUE)) {
+                    ms_error_unknown_field(key, key_size, path);
+                    goto error;
+                }
+            }
+        }
+        else {
+            PathNode field_path = {path, field_index, (PyObject *)struct_type};
+            PyObject *val = from_builtins(
+                self, val_obj, struct_type->struct_types[field_index], &field_path
+            );
+            if (val == NULL) goto error;
+            Struct_set_index(out, field_index, val);
+        }
+    }
+
+    if (Struct_fill_in_defaults(struct_type, out, path) < 0) goto error;
+    Py_LeaveRecursiveCall();
+    return out;
+error:
+    Py_LeaveRecursiveCall();
+    Py_XDECREF(out);
+    return NULL;
+}
+
+static PyObject *
+from_builtins_struct_union(
+    FromBuiltinsState *self, PyObject *obj, TypeNode *type, PathNode *path
+) {
+    Lookup *lookup = TypeNode_get_struct_union(type);
+    PyObject *tag_field = Lookup_tag_field(lookup);
+
+    PyObject *key_obj, *val_obj;
+    Py_ssize_t pos_obj;
+    while (PyDict_Next(obj, &pos_obj, &key_obj, &val_obj)) {
+        if (!PyUnicode_CheckExact(key_obj)) continue;
+        if (_PyUnicode_EQ(key_obj, tag_field)) {
+            /* Decode and lookup tag */
+            PathNode tag_path = {path, PATH_STR, tag_field};
+            StructMetaObject *struct_type = from_builtins_lookup_tag(
+                self, lookup, val_obj, &tag_path
+            );
+            if (struct_type == NULL) return NULL;
+            return from_builtins_struct(self, obj, struct_type, path);
+        }
+    }
+
+    ms_raise_validation_error(
+        path,
+        "Object missing required field `%U`%U",
+        tag_field
+    );
+    return NULL;
+}
+
+static PyObject *
+from_builtins_typeddict(
+    FromBuiltinsState *self, PyObject *obj, TypeNode *type, PathNode *path
+) {
+    if (Py_EnterRecursiveCall(" while deserializing an object")) return NULL;
+
+    PyObject *out = PyDict_New();
+    if (out == NULL) goto error;
+
+    TypedDictInfo *info = TypeNode_get_typeddict_info(type);
+    Py_ssize_t nrequired = 0, pos = 0, pos_obj = 0;
+    PyObject *key_obj, *val_obj;
+    while (PyDict_Next(obj, &pos_obj, &key_obj, &val_obj)) {
+        if (!PyUnicode_CheckExact(key_obj)) continue;
+
+        Py_ssize_t key_size;
+        const char *key = unicode_str_and_size(key_obj, &key_size);
+        if (key == NULL) goto error;
+
+        TypeNode *field_type;
+        PyObject *field = TypedDictInfo_lookup_key(
+            info, key, key_size, &field_type, &pos
+        );
+        if (field != NULL) {
+            PathNode field_path = {path, PATH_STR, field};
+            PyObject *val = from_builtins(self, val_obj, field_type, &field_path);
+            if (val == NULL) goto error;
+            /* We want to keep a count of required fields we've decoded. Since
+             * duplicates can occur, we stash the current dict size, then only
+             * increment if the dict size has changed _and_ the field is
+             * required. */
+            Py_ssize_t cur_size = PyDict_GET_SIZE(out);
+            int status = PyDict_SetItem(out, field, val);
+            Py_DECREF(val);
+            if (status < 0) goto error;
+            if ((PyDict_GET_SIZE(out) != cur_size) && (field_type->types & MS_EXTRA_FLAG)) {
+                nrequired++;
+            }
+        }
+    }
+    if (nrequired < info->nrequired) {
+        /* A required field is missing, determine which one and raise */
+        TypedDictInfo_error_missing(info, out, path);
+        goto error;
+    }
+    Py_LeaveRecursiveCall();
+    return out;
+error:
+    Py_LeaveRecursiveCall();
+    Py_XDECREF(out);
+    return NULL;
+}
+
+static PyObject *
+from_builtins_dataclass(
+    FromBuiltinsState *self, PyObject *obj, TypeNode *type, PathNode *path
+) {
+    if (Py_EnterRecursiveCall(" while deserializing an object")) return NULL;
+
+    DataclassInfo *info = TypeNode_get_dataclass_info(type);
+
+    PyTypeObject *dataclass_type = (PyTypeObject *)(info->class);
+    PyObject *out = dataclass_type->tp_alloc(dataclass_type, 0);
+    if (out == NULL) goto error;
+
+    Py_ssize_t pos = 0, pos_obj = 0;
+    PyObject *key_obj = NULL, *val_obj = NULL;
+    while (PyDict_Next(obj, &pos_obj, &key_obj, &val_obj)) {
+        if (!PyUnicode_CheckExact(key_obj)) continue;
+        Py_ssize_t key_size;
+        const char *key = unicode_str_and_size(key_obj, &key_size);
+        if (MS_UNLIKELY(key == NULL)) goto error;
+
+        TypeNode *field_type;
+        PyObject *field = DataclassInfo_lookup_key(
+            info, key, key_size, &field_type, &pos
+        );
+        if (field != NULL) {
+            PathNode field_path = {path, PATH_STR, field};
+            PyObject *val = from_builtins(self, val_obj, field_type, &field_path);
+            if (val == NULL) goto error;
+            int status = PyObject_SetAttr(out, field, val);
+            Py_DECREF(val);
+            if (status < 0) goto error;
+        }
+    }
+    if (DataclassInfo_post_decode(info, out, path) < 0) goto error;
+    Py_LeaveRecursiveCall();
+    return out;
+error:
+    Py_LeaveRecursiveCall();
+    Py_XDECREF(out);
+    return NULL;
+}
+
+static PyObject *
+from_builtins_object(
+    FromBuiltinsState *self, PyObject *obj, TypeNode *type, PathNode *path
+) {
+    if (type->types & (MS_TYPE_DICT | MS_TYPE_ANY)) {
+        Py_ssize_t size = PyDict_GET_SIZE(obj);
+        if (!ms_passes_map_constraints(size, type, path)) return NULL;
+        TypeNode *key_type, *val_type;
+        TypeNode type_any = {MS_TYPE_ANY};
+        if (type->types & MS_TYPE_ANY) {
+            key_type = &type_any;
+            val_type = &type_any;
+        }
+        else {
+            TypeNode_get_dict(type, &key_type, &val_type);
+        }
+        return from_builtins_dict(self, obj, key_type, val_type, path);
+    }
+    else if (type->types & MS_TYPE_STRUCT) {
+        StructMetaObject *struct_type = TypeNode_get_struct(type);
+        return from_builtins_struct(self, obj, struct_type, path);
+    }
+    else if (type->types & MS_TYPE_STRUCT_UNION) {
+        return from_builtins_struct_union(self, obj, type, path);
+    }
+    else if (type->types & MS_TYPE_TYPEDDICT) {
+        return from_builtins_typeddict(self, obj, type, path);
+    }
+    else if (type->types & MS_TYPE_DATACLASS) {
+        return from_builtins_dataclass(self, obj, type, path);
+    }
+    return ms_validation_error("object", type, path);
+}
+
+static PyObject *
+from_builtins(
+    FromBuiltinsState *self, PyObject *obj, TypeNode *type, PathNode *path
+) {
+    PyObject *out = NULL;
+    PyTypeObject *pytype = Py_TYPE(obj);
+    if (obj == Py_None) {
+        out = from_builtins_none(self, obj, type, path);
+    }
+    else if (pytype == &PyLong_Type) {
+        out = from_builtins_int(self, obj, type, path);
+    }
+    else if (pytype == &PyFloat_Type) {
+        out = from_builtins_float(self, obj, type, path);
+    }
+    else if (pytype == &PyBool_Type) {
+        out = from_builtins_bool(self, obj, type, path);
+    }
+    else if (pytype == &PyUnicode_Type) {
+        out = from_builtins_str(self, obj, false, type, path);
+    }
+    else if (pytype == &PyBytes_Type) {
+        out = from_builtins_bytes(self, obj, type, path);
+    }
+    else if (pytype == &PyByteArray_Type) {
+        out = from_builtins_bytearray(self, obj, type, path);
+    }
+    else if (pytype == PyDateTimeAPI->DateTimeType) {
+        out = from_builtins_datetime(self, obj, type, path);
+    }
+    else if (pytype == PyDateTimeAPI->DateType) {
+        out = from_builtins_date(self, obj, type, path);
+    }
+    else if (pytype == PyDateTimeAPI->TimeType) {
+        out = from_builtins_time(self, obj, type, path);
+    }
+    else if (pytype == (PyTypeObject *)self->mod->UUIDType) {
+        out = from_builtins_uuid(self, obj, type, path);
+    }
+    else if (pytype == &PyList_Type || pytype == &PyTuple_Type) {
+        out = from_builtins_array(self, obj, type, path);
+    }
+    else if (pytype == &PyDict_Type) {
+        out = from_builtins_object(self, obj, type, path);
+    }
+    else {
+        PyErr_Format(
+            PyExc_TypeError,
+            "from_builtins doesn't support objects of type '%.200s'",
+            pytype->tp_name
+        );
+        return NULL;
+    }
+
+    if (MS_UNLIKELY(type->types & (MS_TYPE_CUSTOM | MS_TYPE_CUSTOM_GENERIC))) {
+        return ms_decode_custom(out, self->dec_hook, type, path);
+    }
+    return out;
+}
+
+PyDoc_STRVAR(msgspec_from_builtins__doc__,
+"from_builtins(obj, type, *, str_keys=False, builtin_types=None, dec_hook=None)\n"
+"--\n"
+"\n"
+"Construct a complex object from one composed only of simpler builtin types\n"
+"commonly supported by Python serialization libraries. This is mainly\n"
+"useful for adding msgspec support for other protocols.\n"
+"\n"
+"Parameters\n"
+"----------\n"
+"obj: Any\n"
+"    The object to convert.\n"
+"type: Type\n"
+"    A Python type (in type annotation form) to convert the object to.\n"
+"builtin_types: Iterable[type], optional\n"
+"    An iterable of types to treat as additional builtin types. These types will\n"
+"    be passed through ``to_builtins`` unchanged. Currently only supports\n"
+"    `bytes`, `bytearray`, `memoryview`, `datetime.datetime`, `datetime.time`,\n"
+"    `datetime.date`, and `uuid.UUID`.\n"
+"str_keys: bool, optional\n"
+"    Whether to convert all object keys to strings. Default is False.\n"
+"dec_hook: callable, optional\n"
+"    An optional callback for handling decoding custom types. Should have the\n"
+"    signature ``dec_hook(type: Type, obj: Any) -> Any``, where ``type`` is the\n"
+"    expected message type, and ``obj`` is the decoded representation composed\n"
+"    of only basic MessagePack types. This hook should transform ``obj`` into\n"
+"    type ``type``, or raise a ``TypeError`` if unsupported.\n"
+"\n"
+"Returns\n"
+"-------\n"
+"Any\n"
+"    The converted object.\n"
+"\n"
+"Examples\n"
+"--------\n"
+">>> import msgspec\n"
+">>> class Example(msgspec.Struct):\n"
+"...     x: set[int]\n"
+"...     y: bytes\n"
+">>> msg = {'x': [1, 2, 3], 'y': 'AQI='}\n"
+"\n"
+"Construct the message from a simpler set of builtin types.\n"
+"\n"
+">>> msgspec.from_builtins(msg, Example)\n"
+"Example({1, 2, 3}, b'\\x01\\x02')\n"
+"\n"
+"See Also\n"
+"--------\n"
+"to_builtins"
+);
+static PyObject*
+msgspec_from_builtins(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+    PyObject *obj = NULL, *pytype = NULL, *builtin_types = NULL, *dec_hook = NULL;
+    int str_keys = false;
+    FromBuiltinsState state;
+
+    static char *kwlist[] = {"obj", "type", "builtin_types", "str_keys", "dec_hook", NULL};
+
+    /* Parse arguments */
+    if (!PyArg_ParseTupleAndKeywords(
+        args, kwargs, "OO|$OpO", kwlist, &obj, &pytype, &builtin_types, &str_keys, &dec_hook
+    )) {
+        return NULL;
+    }
+
+    state.mod = msgspec_get_global_state();
+    state.builtin_types = 0;
+    state.str_keys = str_keys;
+
+    if (dec_hook == Py_None) {
+        dec_hook = NULL;
+    }
+    else if (dec_hook != NULL && !PyCallable_Check(dec_hook)) {
+        PyErr_SetString(PyExc_TypeError, "dec_hook must be callable");
+        return NULL;
+    }
+    state.dec_hook = dec_hook;
+    if (ms_process_builtin_types(state.mod, builtin_types, &(state.builtin_types)) < 0) return NULL;
+
+    TypeNode *type = TypeNode_Convert(pytype, str_keys, NULL);
+    if (type == NULL) return NULL;
+
+    PyObject *out = from_builtins(&state, obj, type, NULL);
+    TypeNode_Free(type);
+    return out;
 }
 
 
@@ -16316,6 +17434,10 @@ static struct PyMethodDef msgspec_methods[] = {
     {
         "to_builtins", (PyCFunction) msgspec_to_builtins, METH_VARARGS | METH_KEYWORDS,
         msgspec_to_builtins__doc__,
+    },
+    {
+        "from_builtins", (PyCFunction) msgspec_from_builtins, METH_VARARGS | METH_KEYWORDS,
+        msgspec_from_builtins__doc__,
     },
     {NULL, NULL} /* sentinel */
 };

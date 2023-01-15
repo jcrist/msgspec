@@ -85,6 +85,8 @@ Converters
 
 .. autofunction:: to_builtins
 
+.. autofunction:: from_builtins
+
 Inspect
 -------
 
