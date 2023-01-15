@@ -5,6 +5,7 @@ from ._core import (
     Raw,
     Meta,
     to_builtins,
+    from_builtins,
     MsgspecError,
     EncodeError,
     DecodeError,
