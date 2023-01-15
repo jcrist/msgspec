@@ -138,7 +138,7 @@ def to_builtins(
     obj: Any,
     *,
     str_keys: bool = False,
-    passthrough: Union[Iterable[Type], None] = None,
+    builtin_types: Union[Iterable[Type], None] = None,
     enc_hook: Optional[Callable[[Any], Any]] = None,
 ) -> Any: ...
 

@@ -15715,19 +15715,19 @@ msgspec_json_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyO
  * to_builtins                                                           *
  *************************************************************************/
 
-#define MS_PASSTHROUGH_BYTES      (1ull << 0)
-#define MS_PASSTHROUGH_BYTEARRAY  (1ull << 1)
-#define MS_PASSTHROUGH_MEMORYVIEW (1ull << 2)
-#define MS_PASSTHROUGH_DATETIME   (1ull << 3)
-#define MS_PASSTHROUGH_DATE       (1ull << 4)
-#define MS_PASSTHROUGH_TIME       (1ull << 5)
-#define MS_PASSTHROUGH_UUID       (1ull << 6)
+#define MS_BUILTIN_BYTES      (1ull << 0)
+#define MS_BUILTIN_BYTEARRAY  (1ull << 1)
+#define MS_BUILTIN_MEMORYVIEW (1ull << 2)
+#define MS_BUILTIN_DATETIME   (1ull << 3)
+#define MS_BUILTIN_DATE       (1ull << 4)
+#define MS_BUILTIN_TIME       (1ull << 5)
+#define MS_BUILTIN_UUID       (1ull << 6)
 
 typedef struct {
     MsgspecState *mod;
     PyObject *enc_hook;
     bool str_keys;
-    uint32_t passthrough;
+    uint32_t builtin_types;
 } ToBuiltinsState;
 
 static PyObject * to_builtins(ToBuiltinsState *, PyObject *, bool);
@@ -16082,22 +16082,22 @@ to_builtins(ToBuiltinsState *self, PyObject *obj, bool is_key) {
         type == &PyFloat_Type ||
         type == &PyUnicode_Type
     ) {
-        goto passthrough;
+        goto builtin;
     }
     else if (type == &PyBytes_Type) {
-        if (self->passthrough & MS_PASSTHROUGH_BYTES) goto passthrough;
+        if (self->builtin_types & MS_BUILTIN_BYTES) goto builtin;
         return to_builtins_binary(
             self, PyBytes_AS_STRING(obj), PyBytes_GET_SIZE(obj)
         );
     }
     else if (type == &PyByteArray_Type) {
-        if (self->passthrough & MS_PASSTHROUGH_BYTEARRAY) goto passthrough;
+        if (self->builtin_types & MS_BUILTIN_BYTEARRAY) goto builtin;
         return to_builtins_binary(
             self, PyByteArray_AS_STRING(obj), PyByteArray_GET_SIZE(obj)
         );
     }
     else if (type == &PyMemoryView_Type) {
-        if (self->passthrough & MS_PASSTHROUGH_MEMORYVIEW) goto passthrough;
+        if (self->builtin_types & MS_BUILTIN_MEMORYVIEW) goto builtin;
         PyObject *out;
         Py_buffer buffer;
         if (PyObject_GetBuffer(obj, &buffer, PyBUF_CONTIG_RO) < 0) return NULL;
@@ -16106,19 +16106,19 @@ to_builtins(ToBuiltinsState *self, PyObject *obj, bool is_key) {
         return out;
     }
     else if (type == PyDateTimeAPI->DateTimeType) {
-        if (self->passthrough & MS_PASSTHROUGH_DATETIME) goto passthrough;
+        if (self->builtin_types & MS_BUILTIN_DATETIME) goto builtin;
         return to_builtins_datetime(self, obj);
     }
     else if (type == PyDateTimeAPI->DateType) {
-        if (self->passthrough & MS_PASSTHROUGH_DATE) goto passthrough;
+        if (self->builtin_types & MS_BUILTIN_DATE) goto builtin;
         return to_builtins_date(self, obj);
     }
     else if (type == PyDateTimeAPI->TimeType) {
-        if (self->passthrough & MS_PASSTHROUGH_TIME) goto passthrough;
+        if (self->builtin_types & MS_BUILTIN_TIME) goto builtin;
         return to_builtins_time(self, obj);
     }
     else if (type == (PyTypeObject *)(self->mod->UUIDType)) {
-        if (self->passthrough & MS_PASSTHROUGH_UUID) goto passthrough;
+        if (self->builtin_types & MS_BUILTIN_UUID) goto builtin;
         return to_builtins_uuid(self, obj);
     }
     else if (PyList_Check(obj)) {
@@ -16159,13 +16159,13 @@ to_builtins(ToBuiltinsState *self, PyObject *obj, bool is_key) {
         return NULL;
     }
 
-passthrough:
+builtin:
     Py_INCREF(obj);
     return obj;
 }
 
 PyDoc_STRVAR(msgspec_to_builtins__doc__,
-"to_builtins(obj, *, str_keys=False, passthrough=None, enc_hook=None)\n"
+"to_builtins(obj, *, str_keys=False, builtin_types=None, enc_hook=None)\n"
 "--\n"
 "\n"
 "Convert a complex object to one composed only of simpler builtin types\n"
@@ -16176,8 +16176,9 @@ PyDoc_STRVAR(msgspec_to_builtins__doc__,
 "----------\n"
 "obj: Any\n"
 "    The object to convert.\n"
-"passthrough: Iterable[type], optional\n"
-"    An iterable of types to passthrough unchanged. Currently only supports\n"
+"builtin_types: Iterable[type], optional\n"
+"    An iterable of types to treat as additional builtin types. These types will\n"
+"    be passed through ``to_builtins`` unchanged. Currently only supports\n"
 "    `bytes`, `bytearray`, `memoryview`, `datetime.datetime`, `datetime.time`,\n"
 "    `datetime.date`, and `uuid.UUID`.\n"
 "str_keys: bool, optional\n"
@@ -16205,30 +16206,30 @@ PyDoc_STRVAR(msgspec_to_builtins__doc__,
 "{'x': [1, 2, 3], 'y': 'AQI='}\n"
 "\n"
 "If the downstream code supports binary objects natively, you can\n"
-"disable conversion by passing in the types to ``passthrough``.\n"
+"disable conversion by passing in the types to ``builtin_types``.\n"
 "\n"
-">>> msgspec.to_builtins(msg, passthrough=(bytes, bytearray, memoryview))\n"
+">>> msgspec.to_builtins(msg, builtin_types=(bytes, bytearray, memoryview))\n"
 "{'x': [1, 2, 3], 'y': b'\\x01\\x02'}\n"
 );
 static PyObject*
 msgspec_to_builtins(PyObject *self, PyObject *args, PyObject *kwargs)
 {
-    PyObject *obj = NULL, *passthrough = NULL, *enc_hook = NULL;
+    PyObject *obj = NULL, *builtin_types = NULL, *enc_hook = NULL;
     int str_keys = false;
     ToBuiltinsState state;
 
-    static char *kwlist[] = {"obj", "passthrough", "str_keys", "enc_hook", NULL};
+    static char *kwlist[] = {"obj", "builtin_types", "str_keys", "enc_hook", NULL};
 
     /* Parse arguments */
     if (!PyArg_ParseTupleAndKeywords(
-        args, kwargs, "O|$OpO", kwlist, &obj, &passthrough, &str_keys, &enc_hook
+        args, kwargs, "O|$OpO", kwlist, &obj, &builtin_types, &str_keys, &enc_hook
     )) {
         return NULL;
     }
 
     state.mod = msgspec_get_global_state();
     state.str_keys = str_keys;
-    state.passthrough = 0;
+    state.builtin_types = 0;
 
     if (enc_hook == Py_None) {
         enc_hook = NULL;
@@ -16239,37 +16240,37 @@ msgspec_to_builtins(PyObject *self, PyObject *args, PyObject *kwargs)
     }
     state.enc_hook = enc_hook;
 
-    if (passthrough != NULL && passthrough != Py_None) {
+    if (builtin_types != NULL && builtin_types != Py_None) {
         PyObject *seq = PySequence_Fast(
-            passthrough, "passthrough must be an iterable of types"
+            builtin_types, "builtin_types must be an iterable of types"
         );
         if (seq == NULL) return NULL;
         Py_ssize_t size = PySequence_Fast_GET_SIZE(seq);
         for (Py_ssize_t i = 0; i < size; i++) {
             PyObject *type = PySequence_Fast_GET_ITEM(seq, i);
             if (type == (PyObject *)(&PyBytes_Type)) {
-                state.passthrough |= MS_PASSTHROUGH_BYTES;
+                state.builtin_types |= MS_BUILTIN_BYTES;
             }
             else if (type == (PyObject *)(&PyByteArray_Type)) {
-                state.passthrough |= MS_PASSTHROUGH_BYTEARRAY;
+                state.builtin_types |= MS_BUILTIN_BYTEARRAY;
             }
             else if (type == (PyObject *)(&PyMemoryView_Type)) {
-                state.passthrough |= MS_PASSTHROUGH_MEMORYVIEW;
+                state.builtin_types |= MS_BUILTIN_MEMORYVIEW;
             }
             else if (type == (PyObject *)(PyDateTimeAPI->DateTimeType)) {
-                state.passthrough |= MS_PASSTHROUGH_DATETIME;
+                state.builtin_types |= MS_BUILTIN_DATETIME;
             }
             else if (type == (PyObject *)(PyDateTimeAPI->DateType)) {
-                state.passthrough |= MS_PASSTHROUGH_DATE;
+                state.builtin_types |= MS_BUILTIN_DATE;
             }
             else if (type == (PyObject *)(PyDateTimeAPI->TimeType)) {
-                state.passthrough |= MS_PASSTHROUGH_TIME;
+                state.builtin_types |= MS_BUILTIN_TIME;
             }
             else if (type == state.mod->UUIDType) {
-                state.passthrough |= MS_PASSTHROUGH_UUID;
+                state.builtin_types |= MS_BUILTIN_UUID;
             }
             else {
-                PyErr_Format(PyExc_TypeError, "Cannot passthrough type %R", type);
+                PyErr_Format(PyExc_TypeError, "Cannot treat %R as a builtin type", type);
                 return NULL;
             }
         }
