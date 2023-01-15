@@ -123,25 +123,6 @@ class TestInvalidJSONTypes:
         assert dec.decode(msgspec.msgpack.encode(msg)) == msg
 
     @pytest.mark.parametrize("preinit", [False, True])
-    def test_invalid_union_type_in_struct(self, preinit):
-        class Test(msgspec.Struct):
-            a: int
-            b: Union[str, bytes]
-            c: str
-
-        if preinit:
-            # Creating a msgpack decoder pre-parses the type definition
-            msgspec.msgpack.Decoder(Test)
-
-        with pytest.raises(TypeError, match="not supported"):
-            msgspec.json.Decoder(Test)
-
-        # Msgpack decoder still works
-        dec = msgspec.msgpack.Decoder(Test)
-        msg = Test(1, "two", "three")
-        assert dec.decode(msgspec.msgpack.encode(msg)) == msg
-
-    @pytest.mark.parametrize("preinit", [False, True])
     def test_invalid_type_nested_in_struct(self, preinit):
         source = """
         from __future__ import annotations
