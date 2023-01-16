@@ -724,3 +724,19 @@ def check_to_builtins() -> None:
     msgspec.to_builtins({1: 2}, str_keys=False)
     msgspec.to_builtins(b"test", builtin_types=(bytes, bytearray, memoryview))
     msgspec.to_builtins([1, 2, 3], enc_hook=lambda x: None)
+
+def check_from_builtins() -> None:
+    o1 = msgspec.from_builtins(1, int)
+    reveal_type(o1)  # assert "int" in typ.lower()
+
+    o2 = msgspec.from_builtins([1, 2], List[float])
+    reveal_type(o2)  # assert "list" in typ.lower()
+
+    o3 = msgspec.from_builtins(1, int, str_keys=False)
+    reveal_type(o3)  # assert "int" in typ.lower()
+
+    o4 = msgspec.from_builtins(1, int, builtin_types=(bytes, bytearray, memoryview))
+    reveal_type(o4)  # assert "int" in typ.lower()
+
+    o5 = msgspec.from_builtins(1, int, dec_hook=lambda typ, x: None)
+    reveal_type(o5)  # assert "int" in typ.lower()

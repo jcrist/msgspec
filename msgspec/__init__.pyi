@@ -142,6 +142,27 @@ def to_builtins(
     enc_hook: Optional[Callable[[Any], Any]] = None,
 ) -> Any: ...
 
+T = TypeVar("T")
+
+@overload
+def from_builtins(
+    obj: Any,
+    type: Type[T],
+    *,
+    str_keys: bool = False,
+    builtin_types: Union[Iterable[Type], None] = None,
+    dec_hook: Optional[Callable[[Type, Any], Any]] = None,
+) -> T: ...
+@overload
+def from_builtins(
+    obj: Any,
+    type: Any,
+    *,
+    str_keys: bool = False,
+    builtin_types: Union[Iterable[Type], None] = None,
+    dec_hook: Optional[Callable[[Type, Any], Any]] = None,
+) -> Any: ...
+
 class MsgspecError(Exception): ...
 class EncodeError(MsgspecError): ...
 class DecodeError(MsgspecError): ...
