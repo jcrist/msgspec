@@ -16788,9 +16788,11 @@ from_builtins_tag_matches(
     }
     return false;
 wrong_type:
-    const char *expected = PyUnicode_CheckExact(expected_tag) ? "str" : "int";
     ms_raise_validation_error(
-        path, "Expected `%s`, got `%s`%U", expected, Py_TYPE(tag)->tp_name
+        path,
+        "Expected `%s`, got `%s`%U",
+        (PyUnicode_CheckExact(expected_tag) ? "str" : "int"),
+        Py_TYPE(tag)->tp_name
     );
     return false;
 }
@@ -16825,9 +16827,11 @@ invalid_value:
     ms_raise_validation_error(path, "Invalid value %R%U", tag);
     return NULL;
 wrong_type:
-    const char *expected = Lookup_IsStrLookup(lookup) ? "str" : "int";
     ms_raise_validation_error(
-        path, "Expected `%s`, got `%s`%U", expected, Py_TYPE(tag)->tp_name
+        path,
+        "Expected `%s`, got `%s`%U",
+        (Lookup_IsStrLookup(lookup) ? "str" : "int"),
+        Py_TYPE(tag)->tp_name
     );
     return NULL;
 }
