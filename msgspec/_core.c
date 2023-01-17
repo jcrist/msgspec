@@ -7958,14 +7958,8 @@ ms_decode_uint(uint64_t x, TypeNode *type, PathNode *path) {
     return PyLong_FromUnsignedLongLong(x);
 }
 
-static MS_NOINLINE PyObject *
-ms_decode_constr_pyint(PyObject *obj, TypeNode *type, PathNode *path) {
-    uint64_t ux;
-    bool neg, overflow;
-    overflow = fast_long_extract_parts(obj, &neg, &ux);
-    if (overflow) {
-        return ms_error_with_path("Integer is out of range%U", path);
-    }
+static MS_NOINLINE bool
+ms_passes_int_constraints(uint64_t ux, bool neg, TypeNode *type, PathNode *path) {
     if (type->types & MS_CONSTR_INT_MIN) {
         int64_t c = TypeNode_get_constr_int_min(type);
         bool ok = (
@@ -7973,7 +7967,8 @@ ms_decode_constr_pyint(PyObject *obj, TypeNode *type, PathNode *path) {
             ((c < 0) || (ux >= (uint64_t)c))
         );
         if (MS_UNLIKELY(!ok)) {
-            return _err_int_constraint("Expected `int` >= %lld%U", c, path);
+            _err_int_constraint("Expected `int` >= %lld%U", c, path);
+            return false;
         }
     }
     if (type->types & MS_CONSTR_INT_MAX) {
@@ -7983,26 +7978,33 @@ ms_decode_constr_pyint(PyObject *obj, TypeNode *type, PathNode *path) {
             ((c >= 0) && (ux <= (uint64_t)c))
         );
         if (MS_UNLIKELY(!ok)) {
-            return _err_int_constraint("Expected `int` <= %lld%U", c, path);
+            _err_int_constraint("Expected `int` <= %lld%U", c, path);
+            return false;
         }
     }
     if (MS_UNLIKELY(type->types & MS_CONSTR_INT_MULTIPLE_OF)) {
         int64_t c = TypeNode_get_constr_int_multiple_of(type);
         bool ok = (ux % c) == 0;
         if (MS_UNLIKELY(!ok)) {
-            return _err_int_constraint(
+            _err_int_constraint(
                 "Expected `int` that's a multiple of %lld%U", c, path
             );
+            return false;
         }
     }
-    Py_INCREF(obj);
-    return obj;
+    return true;
 }
 
 static MS_INLINE PyObject *
 ms_decode_pyint(PyObject *obj, TypeNode *type, PathNode *path) {
+    uint64_t ux;
+    bool neg, overflow;
+    overflow = fast_long_extract_parts(obj, &neg, &ux);
+    if (MS_UNLIKELY(overflow)) {
+        return ms_error_with_path("Integer is out of range%U", path);
+    }
     if (MS_UNLIKELY(type->types & MS_INT_CONSTRS)) {
-        return ms_decode_constr_pyint(obj, type, path);
+        if (!ms_passes_int_constraints(ux, neg, type, path)) return NULL;
     }
     Py_INCREF(obj);
     return obj;
