@@ -1310,7 +1310,9 @@ class TestTypedDict:
                 msg = {"x": msg}
             assert dec.decode(msgspec.msgpack.encode(msg)) == msg
 
-        with pytest.raises(TypeError, match="Only dicts with `str` or `int` keys"):
+        with pytest.raises(
+            TypeError, match="Only dicts with str-like or int-like keys"
+        ):
             msgspec.json.Decoder(typ)
 
         if msgpack_first:
@@ -1357,7 +1359,9 @@ class TestTypedDict:
                 msg = {"a": 1, "b": None, "c": {1: 2}}
                 assert dec.decode(msgspec.msgpack.encode(msg)) == msg
 
-            with pytest.raises(TypeError, match="Only dicts with `str` or `int` keys"):
+            with pytest.raises(
+                TypeError, match="Only dicts with str-like or int-like keys"
+            ):
                 msgspec.json.Decoder(mod.Ex)
 
             if msgpack_first:
@@ -1528,7 +1532,9 @@ class TestNamedTuple:
                 msg = {"x": msg}
             assert dec.decode(msgspec.msgpack.encode(msg)) == msg
 
-        with pytest.raises(TypeError, match="Only dicts with `str` or `int` keys"):
+        with pytest.raises(
+            TypeError, match="Only dicts with str-like or int-like keys"
+        ):
             msgspec.json.Decoder(typ)
 
         if msgpack_first:
@@ -1575,7 +1581,9 @@ class TestNamedTuple:
                 msg = mod.Ex(1, None, {1: 2})
                 assert dec.decode(msgspec.msgpack.encode(msg)) == msg
 
-            with pytest.raises(TypeError, match="Only dicts with `str` or `int` keys"):
+            with pytest.raises(
+                TypeError, match="Only dicts with str-like or int-like keys"
+            ):
                 msgspec.json.Decoder(mod.Ex)
 
             if msgpack_first:
@@ -1625,8 +1633,8 @@ class TestNamedTuple:
         dec = proto.Decoder(Example)
         for args in [(1, 2), (1, 2, 3), (1, 2, 3, 4), (1, 2, 3, 4, 5)]:
             msg = Example(*args)
-        res = dec.decode(proto.encode(msg))
-        assert res == msg
+            res = dec.decode(proto.encode(msg))
+            assert res == msg
 
         suffix = ", got 1" if proto is msgspec.msgpack else ""
         with pytest.raises(msgspec.ValidationError, match=f"length 2 to 5{suffix}"):
@@ -1804,7 +1812,9 @@ class TestDataclass:
                 msg = {"x": msg}
             assert dec.decode(msgspec.msgpack.encode(msg)) == msg
 
-        with pytest.raises(TypeError, match="Only dicts with `str` or `int` keys"):
+        with pytest.raises(
+            TypeError, match="Only dicts with str-like or int-like keys"
+        ):
             msgspec.json.Decoder(typ)
 
         if msgpack_first:
@@ -1855,7 +1865,9 @@ class TestDataclass:
                 msg = mod.Ex(a=1, b=None, c={1: 2})
                 assert dec.decode(msgspec.msgpack.encode(msg)) == msg
 
-            with pytest.raises(TypeError, match="Only dicts with `str` or `int` keys"):
+            with pytest.raises(
+                TypeError, match="Only dicts with str-like or int-like keys"
+            ):
                 msgspec.json.Decoder(mod.Ex)
 
             if msgpack_first:
@@ -1951,8 +1963,8 @@ class TestDataclass:
         dec = proto.Decoder(Example)
         for args in [(1, 2), (1, 2, 3), (1, 2, 3, 4), (1, 2, 3, 4, 5)]:
             msg = Example(*args)
-        res = dec.decode(proto.encode(msg))
-        assert res == msg
+            res = dec.decode(proto.encode(msg))
+            assert res == msg
 
         # Missing fields error
         with pytest.raises(msgspec.ValidationError, match="missing required field `a`"):

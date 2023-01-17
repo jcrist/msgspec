@@ -2994,7 +2994,7 @@ typenode_from_collect_state(TypeNodeCollectState *state, bool err_not_json, bool
             if (err_not_json) {
                 PyErr_Format(
                     PyExc_TypeError,
-                    "Only dicts with `str` or `int` keys are supported for JSON "
+                    "Only dicts with str-like or int-like keys are supported "
                     "- type `%R` is not supported",
                     state->context
                 );
@@ -8001,7 +8001,7 @@ ms_decode_pyint(PyObject *obj, TypeNode *type, PathNode *path) {
     bool neg, overflow;
     overflow = fast_long_extract_parts(obj, &neg, &ux);
     if (MS_UNLIKELY(overflow)) {
-        return ms_error_with_path("Integer is out of range%U", path);
+        return ms_error_with_path("Integer value out of range%U", path);
     }
     if (MS_UNLIKELY(type->types & MS_INT_CONSTRS)) {
         if (!ms_passes_int_constraints(ux, neg, type, path)) return NULL;
@@ -10409,7 +10409,7 @@ json_encode_dict(EncoderState *self, PyObject *obj)
         else {
             PyErr_SetString(
                 PyExc_TypeError,
-                "Only dicts with `str` or `int` keys are supported for JSON"
+                "Only dicts with `str` or `int` keys are supported"
             );
             goto cleanup;
         }
@@ -16504,7 +16504,11 @@ from_builtins_str(
         ) {
             return json_decode_binary(view, size, type, path);
         }
-        else if (is_key && self->str_keys && (type->types & MS_TYPE_INT)) {
+        else if (
+            is_key &&
+            self->str_keys &&
+            (type->types & (MS_TYPE_INT | MS_TYPE_INTENUM | MS_TYPE_INTLITERAL))
+        ) {
             return json_decode_int_from_str(view, size, type, path);
         }
     }
@@ -17039,6 +17043,15 @@ error:
     return NULL;
 }
 
+static bool
+from_builtins_is_str_key(PyObject *key, PathNode *path) {
+    if (PyUnicode_CheckExact(key)) return true;
+    PathNode key_path = {path, PATH_KEY, NULL};
+    ms_error_with_path("Expected `str`%U", &key_path);
+    return false;
+}
+
+
 static PyObject *
 from_builtins_struct(
     FromBuiltinsState *self, PyObject *obj, StructMetaObject *struct_type, PathNode *path
@@ -17051,7 +17064,7 @@ from_builtins_struct(
     Py_ssize_t pos = 0, pos_obj = 0;
     PyObject *key_obj, *val_obj;
     while (PyDict_Next(obj, &pos_obj, &key_obj, &val_obj)) {
-        if (!PyUnicode_CheckExact(key_obj)) continue;
+        if (!from_builtins_is_str_key(key_obj, path)) goto error;
 
         Py_ssize_t key_size;
         const char *key = unicode_str_and_size(key_obj, &key_size);
@@ -17104,9 +17117,9 @@ from_builtins_struct_union(
     PyObject *tag_field = Lookup_tag_field(lookup);
 
     PyObject *key_obj, *val_obj;
-    Py_ssize_t pos_obj;
+    Py_ssize_t pos_obj = 0;
     while (PyDict_Next(obj, &pos_obj, &key_obj, &val_obj)) {
-        if (!PyUnicode_CheckExact(key_obj)) continue;
+        if (!from_builtins_is_str_key(key_obj, path)) return NULL;
         if (_PyUnicode_EQ(key_obj, tag_field)) {
             /* Decode and lookup tag */
             PathNode tag_path = {path, PATH_STR, tag_field};
@@ -17139,7 +17152,7 @@ from_builtins_typeddict(
     Py_ssize_t nrequired = 0, pos = 0, pos_obj = 0;
     PyObject *key_obj, *val_obj;
     while (PyDict_Next(obj, &pos_obj, &key_obj, &val_obj)) {
-        if (!PyUnicode_CheckExact(key_obj)) continue;
+        if (!from_builtins_is_str_key(key_obj, path)) goto error;
 
         Py_ssize_t key_size;
         const char *key = unicode_str_and_size(key_obj, &key_size);
@@ -17150,20 +17163,13 @@ from_builtins_typeddict(
             info, key, key_size, &field_type, &pos
         );
         if (field != NULL) {
+            if (field_type->types & MS_EXTRA_FLAG) nrequired++;
             PathNode field_path = {path, PATH_STR, field};
             PyObject *val = from_builtins(self, val_obj, field_type, &field_path);
             if (val == NULL) goto error;
-            /* We want to keep a count of required fields we've decoded. Since
-             * duplicates can occur, we stash the current dict size, then only
-             * increment if the dict size has changed _and_ the field is
-             * required. */
-            Py_ssize_t cur_size = PyDict_GET_SIZE(out);
             int status = PyDict_SetItem(out, field, val);
             Py_DECREF(val);
             if (status < 0) goto error;
-            if ((PyDict_GET_SIZE(out) != cur_size) && (field_type->types & MS_EXTRA_FLAG)) {
-                nrequired++;
-            }
         }
     }
     if (nrequired < info->nrequired) {
@@ -17194,7 +17200,7 @@ from_builtins_dataclass(
     Py_ssize_t pos = 0, pos_obj = 0;
     PyObject *key_obj = NULL, *val_obj = NULL;
     while (PyDict_Next(obj, &pos_obj, &key_obj, &val_obj)) {
-        if (!PyUnicode_CheckExact(key_obj)) continue;
+        if (!from_builtins_is_str_key(key_obj, path)) goto error;
         Py_ssize_t key_size;
         const char *key = unicode_str_and_size(key_obj, &key_size);
         if (MS_UNLIKELY(key == NULL)) goto error;
