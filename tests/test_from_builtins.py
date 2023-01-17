@@ -2,7 +2,7 @@ import datetime
 import enum
 import uuid
 from base64 import b64encode
-from typing import Any, Literal
+from typing import Any, Literal, List, Tuple, Set, FrozenSet
 
 import pytest
 
@@ -414,3 +414,92 @@ class TestLiteral:
             from_builtins(-3, typ)
         with pytest.raises(ValidationError, match="Expected `int`, got `str`"):
             from_builtins("A", typ)
+
+
+class TestSequences:
+    def test_any_sequence(self):
+        assert from_builtins((1, 2, 3), Any) == [1, 2, 3]
+
+    @pytest.mark.parametrize("in_type", [list, tuple])
+    @pytest.mark.parametrize("out_type", [list, tuple, set, frozenset])
+    def test_empty_sequence(self, in_type, out_type):
+        assert from_builtins(in_type(), out_type) == out_type()
+
+    @pytest.mark.parametrize("in_type", [list, tuple])
+    @pytest.mark.parametrize(
+        "out_type_annot",
+        [(list, List), (tuple, Tuple), (set, Set), (frozenset, FrozenSet)],
+    )
+    @pytest.mark.parametrize("item_annot", [None, int])
+    def test_sequence(self, in_type, out_type_annot, item_annot):
+        out_type, out_annot = out_type_annot
+        if item_annot is not None:
+            if out_annot is Tuple:
+                out_annot = out_annot[item_annot, ...]
+            else:
+                out_annot = out_annot[item_annot]
+        res = from_builtins(in_type([1, 2]), out_annot)
+        sol = out_type([1, 2])
+        assert res == sol
+        assert isinstance(res, out_type)
+
+    @pytest.mark.parametrize("in_type", [list, tuple])
+    @pytest.mark.parametrize(
+        "out_annot", [List[int], Tuple[int, ...], Set[int], FrozenSet[int]]
+    )
+    def test_sequence_wrong_item_type(self, in_type, out_annot):
+        with pytest.raises(
+            ValidationError, match=r"Expected `int`, got `str` - at `\$\[1\]`"
+        ):
+            assert from_builtins(in_type([1, "bad"]), out_annot)
+
+    @pytest.mark.parametrize("out_type", [list, tuple, set, frozenset])
+    def test_sequence_wrong_type(self, out_type):
+        with pytest.raises(ValidationError, match=r"Expected `array`, got `int`"):
+            assert from_builtins(1, out_type)
+
+    @pytest.mark.parametrize("out_type", [list, tuple, set, frozenset])
+    def test_sequence_cyclic_recursion(self, out_type):
+        msg = [1, 2]
+        msg.append(msg)
+        with pytest.raises(RecursionError):
+            assert from_builtins(msg, out_type)
+
+    @pytest.mark.parametrize("out_type", [list, tuple, set, frozenset])
+    @uses_annotated
+    def test_sequence_constrs(self, out_type):
+        class Ex(Struct):
+            x: Annotated[out_type, Meta(min_length=2, max_length=4)]
+
+        for n in [2, 4]:
+            x = out_type(range(n))
+            assert from_builtins({"x": list(range(n))}, Ex).x == x
+
+        for n in [1, 5]:
+            x = out_type(range(n))
+            with pytest.raises(ValidationError):
+                from_builtins({"x": list(range(n))}, Ex)
+
+    def test_fixtuple_any(self):
+        typ = Tuple[Any, Any, Any]
+        sol = (1, "two", False)
+        res = from_builtins([1, "two", False], typ)
+        assert res == sol
+
+        with pytest.raises(ValidationError, match="Expected `array`, got `int`"):
+            from_builtins(1, typ)
+
+        with pytest.raises(ValidationError, match="Expected `array` of length 3"):
+            from_builtins((1, "two"), typ)
+
+    def test_fixtuple_typed(self):
+        typ = Tuple[int, str, bool]
+        sol = (1, "two", False)
+        res = from_builtins([1, "two", False], typ)
+        assert res == sol
+
+        with pytest.raises(ValidationError, match="Expected `bool`"):
+            from_builtins([1, "two", "three"], typ)
+
+        with pytest.raises(ValidationError, match="Expected `array` of length 3"):
+            from_builtins((1, "two"), typ)
