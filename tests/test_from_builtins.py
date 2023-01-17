@@ -41,11 +41,27 @@ UTC = datetime.timezone.utc
 
 
 @contextmanager
-def approx_max_call_depth(n):
-    cur_depth = len(inspect.stack())
+def max_call_depth(n):
+    cur_depth = len(inspect.stack(0))
     orig = sys.getrecursionlimit()
     try:
-        sys.setrecursionlimit(cur_depth + n + 5)
+        # Our measure of the current stack depth can be off by a bit. Trying to
+        # set a recursionlimit < the current depth will raise a RecursionError.
+        # We just try again with a slightly higher limit, bailing after an
+        # unreasonable amount of adjustments.
+        #
+        # Note that python 3.8 also has a minimum recursion limit of 64, so
+        # there's some additional fiddliness there.
+        for i in range(64):
+            try:
+                sys.setrecursionlimit(cur_depth + i + n)
+                break
+            except RecursionError:
+                pass
+        else:
+            raise ValueError(
+                "Failed to set low recursion limit, something is wrong here"
+            )
         yield
     finally:
         sys.setrecursionlimit(orig)
@@ -535,27 +551,28 @@ class TestSequences:
 
     @pytest.mark.parametrize("kind", ["list", "tuple", "fixtuple", "set"])
     def test_sequence_cyclic_recursion(self, kind):
+        depth = 50
         if kind == "list":
             typ = List[int]
-            for _ in range(15):
+            for _ in range(depth):
                 typ = List[typ]
         elif kind == "tuple":
             typ = Tuple[int, ...]
-            for _ in range(15):
+            for _ in range(depth):
                 typ = Tuple[typ, ...]
         elif kind == "fixtuple":
             typ = Tuple[int]
-            for _ in range(15):
+            for _ in range(depth):
                 typ = Tuple[typ]
         elif kind == "set":
             typ = FrozenSet[int]
-            for _ in range(15):
+            for _ in range(depth):
                 typ = FrozenSet[typ]
 
         msg = []
         msg.append(msg)
-        with approx_max_call_depth(5):
-            with pytest.raises(RecursionError):
+        with pytest.raises(RecursionError):
+            with max_call_depth(5):
                 assert from_builtins(msg, typ)
 
     @pytest.mark.parametrize("out_type", [list, tuple, set, frozenset])
@@ -737,13 +754,14 @@ class TestDict:
             from_builtins({1.5: 1}, Dict[float, int], str_keys=True)
 
     def test_dict_cyclic_recursion(self):
+        depth = 50
         typ = Dict[str, int]
-        for _ in range(15):
+        for _ in range(depth):
             typ = Dict[str, typ]
         msg = {}
         msg["x"] = msg
-        with approx_max_call_depth(5):
-            with pytest.raises(RecursionError):
+        with pytest.raises(RecursionError):
+            with max_call_depth(5):
                 assert from_builtins(msg, typ)
 
     @uses_annotated
