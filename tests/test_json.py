@@ -2477,7 +2477,7 @@ class TestStructUnion:
             msgspec.msgpack.Decoder(typ)
 
         with pytest.raises(
-            TypeError, match="Only dicts with `str` or `int` keys are supported"
+            TypeError, match="Only dicts with str-like or int-like keys are supported"
         ):
             msgspec.json.Decoder(typ)
 
