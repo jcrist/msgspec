@@ -71,7 +71,7 @@ class TestToBuiltins:
     def test_to_builtins_enc_hook_explicit_none(self):
         assert to_builtins(1, enc_hook=None) == 1
 
-    @pytest.mark.parametrize("case", [1, 2, 3, 4])
+    @pytest.mark.parametrize("case", [1, 2, 3, 4, 5])
     def test_to_builtins_recursive(self, case):
         if case == 1:
             o = []
