@@ -869,19 +869,25 @@ value.
 
 Union restrictions are as follows:
 
-- Unions may contain at most one of `int` / `enum.IntEnum`
+- Unions may contain at most type that encodes to an integer (`int`,
+  `enum.IntEnum`)
 
-- Unions may contain at most one of `str` / `enum.Enum`. `msgspec.json.Decoder`
-  extends this requirement to also include `datetime` / `bytes` / `bytearray`.
+- Unions may contain at most one type that encodes to a string (`str`,
+  `enum.Enum`, `bytes`, `bytearray`, `datetime.datetime`, `datetime.date`,
+  `datetime.time`, `uuid.UUID`). Note that this restriction is fixable with
+  some work, if this is a feature you need please `open an issue
+  <https://github.com/jcrist/msgspec/issues>`__.
+
+- Unions may contain at most one type that encodes to an object (`dict`,
+  `typing.TypedDict`, `dataclasses.dataclass`, `Struct` with
+  ``array_like=False``)
+
+- Unions may contain at most one type that encodes to an array (`list`,
+  `tuple`, `set`, `frozenset`, `typing.NamedTuple`, `Struct` with
+  ``array_like=True``).
 
 - Unions may contain at most one *untagged* `Struct` type. Unions containing
   multiple struct types are only supported through :ref:`struct-tagged-unions`.
-
-- Unions may contain at most one of `dict` / `typing.TypedDict` /
-  `dataclasses.dataclass` / `Struct` (with ``array_like=False``)
-
-- Unions may contain at most one of `list` / `tuple` / `set` / `frozenset` /
-  `typing.NamedTuple` / `Struct` (with ``array_like=True``).
 
 - Unions with custom types are unsupported beyond optionality (i.e.
   ``Optional[CustomType]``)
