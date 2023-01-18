@@ -52,6 +52,7 @@ setup(
     ],
     extras_require={
         "yaml": ["pyyaml"],
+        "toml": ['tomli ; python_version < "3.11"', "tomli_w"],
     },
     license="BSD",
     packages=["msgspec"],

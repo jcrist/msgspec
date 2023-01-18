@@ -171,6 +171,7 @@ class ValidationError(DecodeError): ...
 from . import msgpack
 from . import json
 from . import yaml
+from . import toml
 from . import inspect
 
 __version__: str
