@@ -638,6 +638,47 @@ def check_json_format() -> None:
     reveal_type(msgspec.json.format("test"))  # assert "str" in typ
     reveal_type(msgspec.json.format("test", indent=4))  # assert "str" in typ
 
+##########################################################
+# YAML                                                   #
+##########################################################
+
+def check_yaml_encode() -> None:
+    b = msgspec.yaml.encode([1, 2, 3])
+
+    reveal_type(b)  # assert "bytes" in typ
+
+
+def check_yaml_decode_any() -> None:
+    o = msgspec.yaml.decode(b"[1, 2, 3]")
+    reveal_type(o)  # assert "Any" in typ
+
+
+def check_yaml_decode_typed() -> None:
+    o = msgspec.yaml.decode(b"[1, 2, 3]", type=List[int])
+    reveal_type(o)  # assert "list" in typ.lower() and "int" in typ
+
+
+def check_yaml_decode_typed_union() -> None:
+    o: Union[int, str] = msgspec.yaml.decode(b"1", type=Union[int, str])
+    reveal_type(o)  # assert "int" in typ and "str" in typ
+
+
+def check_yaml_decode_from_str() -> None:
+    msgspec.yaml.decode("[1, 2, 3]")
+    o = msgspec.yaml.decode("[1, 2, 3]", type=List[int])
+    reveal_type(o)  # assert "list" in typ.lower() and "int" in typ
+
+
+def check_yaml_encode_enc_hook() -> None:
+    msgspec.yaml.encode(object(), enc_hook=lambda x: None)
+
+
+def check_yaml_decode_dec_hook() -> None:
+    def dec_hook(typ: Type, obj: Any) -> Any:
+        return typ(obj)
+
+    msgspec.yaml.decode(b"test", dec_hook=dec_hook)
+
 
 ##########################################################
 # msgspec.inspect                                        #

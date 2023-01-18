@@ -20,6 +20,7 @@ Meta
 .. autoclass:: Meta
     :members:
 
+
 Raw
 ---
 
@@ -66,6 +67,16 @@ MessagePack
 .. autofunction:: decode
 
 
+YAML
+----
+
+.. currentmodule:: msgspec.yaml
+
+.. autofunction:: encode
+
+.. autofunction:: decode
+
+
 JSON Schema
 -----------
 
@@ -78,6 +89,7 @@ JSON Schema
 
 .. _inspect-api:
 
+
 Converters
 ----------
 
@@ -86,6 +98,7 @@ Converters
 .. autofunction:: to_builtins
 
 .. autofunction:: from_builtins
+
 
 Inspect
 -------
