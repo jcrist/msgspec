@@ -41,7 +41,7 @@ setup(
         "Issue Tracker": "https://github.com/jcrist/msgspec/issues",
     },
     description="A fast and friendly JSON/MessagePack library, with optional schema validation",
-    keywords="JSON msgpack Messagepack serialization schema",
+    keywords="JSON msgpack Messagepack YAML serialization schema",
     classifiers=[
         "License :: OSI Approved :: BSD License",
         "Development Status :: 4 - Beta",
@@ -50,6 +50,9 @@ setup(
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
     ],
+    extras_require={
+        "yaml": ["pyyaml"],
+    },
     license="BSD",
     packages=["msgspec"],
     package_data={"msgspec": ["py.typed", "*.pyi"]},
