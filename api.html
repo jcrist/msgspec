@@ -930,6 +930,67 @@ into type <code class="docutils literal notranslate"><span class="pre">type</spa
 </dd></dl>
 
 </section>
+<section id="toml">
+<h2>TOML<a class="headerlink" href="#toml" title="Permalink to this heading">#</a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="msgspec.toml.encode">
+<span class="sig-prename descclassname"><span class="pre">msgspec.toml.</span></span><span class="sig-name descname"><span class="pre">encode</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">obj</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">enc_hook</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.toml.encode" title="Permalink to this definition">#</a></dt>
+<dd><p>Serialize an object as TOML.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>obj</strong> (<em>Any</em>) – The object to serialize.</p></li>
+<li><p><strong>enc_hook</strong> (<em>callable</em><em>, </em><em>optional</em>) – A callable to call for objects that aren’t supported msgspec types.
+Takes the unsupported object and should return a supported object, or
+raise a TypeError.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>data</strong> – The serialized object.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.11)">bytes</a></p>
+</dd>
+</dl>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<p><a class="reference internal" href="#msgspec.toml.decode" title="msgspec.toml.decode"><code class="xref py py-obj docutils literal notranslate"><span class="pre">decode</span></code></a></p>
+</div>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="msgspec.toml.decode">
+<span class="sig-prename descclassname"><span class="pre">msgspec.toml.</span></span><span class="sig-name descname"><span class="pre">decode</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">buf</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">typing.Any</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dec_hook</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.toml.decode" title="Permalink to this definition">#</a></dt>
+<dd><p>Deserialize an object from TOML.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>buf</strong> (<em>bytes-like</em><em> or </em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.11)"><em>str</em></a>) – The message to decode.</p></li>
+<li><p><strong>type</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#type" title="(in Python v3.11)"><em>type</em></a><em>, </em><em>optional</em>) – A Python type (in type annotation form) to decode the object as. If
+provided, the message will be type checked and decoded as the specified
+type. Defaults to <code class="xref py py-obj docutils literal notranslate"><span class="pre">Any</span></code>, in which case the message will be decoded
+using the default TOML types.</p></li>
+<li><p><strong>dec_hook</strong> (<em>callable</em><em>, </em><em>optional</em>) – An optional callback for handling decoding custom types. Should have
+the signature <code class="docutils literal notranslate"><span class="pre">dec_hook(type:</span> <span class="pre">Type,</span> <span class="pre">obj:</span> <span class="pre">Any)</span> <span class="pre">-&gt;</span> <span class="pre">Any</span></code>, where <code class="docutils literal notranslate"><span class="pre">type</span></code>
+is the expected message type, and <code class="docutils literal notranslate"><span class="pre">obj</span></code> is the decoded representation
+composed of only basic TOML types. This hook should transform <code class="docutils literal notranslate"><span class="pre">obj</span></code>
+into type <code class="docutils literal notranslate"><span class="pre">type</span></code>, or raise a <code class="docutils literal notranslate"><span class="pre">TypeError</span></code> if unsupported.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>obj</strong> – The deserialized object.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Any</p>
+</dd>
+</dl>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<p><a class="reference internal" href="#msgspec.toml.encode" title="msgspec.toml.encode"><code class="xref py py-obj docutils literal notranslate"><span class="pre">encode</span></code></a></p>
+</div>
+</dd></dl>
+
+</section>
 <section id="json-schema">
 <h2>JSON Schema<a class="headerlink" href="#json-schema" title="Permalink to this heading">#</a></h2>
 <dl class="py function">
@@ -1756,6 +1817,11 @@ optional fields may exist with no default value.</p></li>
 <li><a class="reference internal" href="#yaml">YAML</a><ul>
 <li><a class="reference internal" href="#msgspec.yaml.encode"><code class="docutils literal notranslate"><span class="pre">encode()</span></code></a></li>
 <li><a class="reference internal" href="#msgspec.yaml.decode"><code class="docutils literal notranslate"><span class="pre">decode()</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#toml">TOML</a><ul>
+<li><a class="reference internal" href="#msgspec.toml.encode"><code class="docutils literal notranslate"><span class="pre">encode()</span></code></a></li>
+<li><a class="reference internal" href="#msgspec.toml.decode"><code class="docutils literal notranslate"><span class="pre">decode()</span></code></a></li>
 </ul>
 </li>
 <li><a class="reference internal" href="#json-schema">JSON Schema</a><ul>
