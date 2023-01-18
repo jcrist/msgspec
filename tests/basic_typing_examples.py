@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import datetime
 import pickle
-from typing import List, Any, Type, Union
+from typing import List, Dict, Any, Type, Union
 import msgspec
 
 def check___version__() -> None:
@@ -678,6 +678,42 @@ def check_yaml_decode_dec_hook() -> None:
         return typ(obj)
 
     msgspec.yaml.decode(b"test", dec_hook=dec_hook)
+
+##########################################################
+# TOML                                                   #
+##########################################################
+
+def check_toml_encode() -> None:
+    b = msgspec.toml.encode({"a": 1})
+
+    reveal_type(b)  # assert "bytes" in typ
+
+
+def check_toml_decode_any() -> None:
+    o = msgspec.toml.decode(b"a = 1")
+    reveal_type(o)  # assert "Any" in typ
+
+
+def check_toml_decode_typed() -> None:
+    o = msgspec.toml.decode(b"a = 1", type=Dict[str, int])
+    reveal_type(o)  # assert "dict" in typ.lower() and "int" in typ
+
+
+def check_toml_decode_from_str() -> None:
+    msgspec.toml.decode("a = 1")
+    o = msgspec.toml.decode("a = 1", type=Dict[str, int])
+    reveal_type(o)  # assert "dict" in typ.lower() and "int" in typ
+
+
+def check_toml_encode_enc_hook() -> None:
+    msgspec.toml.encode(object(), enc_hook=lambda x: None)
+
+
+def check_toml_decode_dec_hook() -> None:
+    def dec_hook(typ: Type, obj: Any) -> Any:
+        return typ(obj)
+
+    msgspec.toml.decode(b"a = 1", dec_hook=dec_hook)
 
 
 ##########################################################

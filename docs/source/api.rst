@@ -77,6 +77,16 @@ YAML
 .. autofunction:: decode
 
 
+TOML
+----
+
+.. currentmodule:: msgspec.toml
+
+.. autofunction:: encode
+
+.. autofunction:: decode
+
+
 JSON Schema
 -----------
 
