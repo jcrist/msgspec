@@ -622,6 +622,10 @@ def type_info(type: Any, *, protocol: Literal[None, "msgpack", "json"] = None) -
 
 # Implementation details
 def _origin_args_metadata(t):
+    # Strip out NewType types
+    while hasattr(t, "__supertype__"):
+        t = t.__supertype__
+
     if type(t) is _AnnotatedAlias:
         metadata = tuple(m for m in t.__metadata__ if type(m) is msgspec.Meta)
         t = t.__origin__
@@ -639,10 +643,6 @@ def _origin_args_metadata(t):
         t = t.__origin__
     else:
         args = None
-
-    # Strip out NewType types
-    while hasattr(t, "__supertype__"):
-        t = t.__supertype__
 
     return t, args, metadata
 
