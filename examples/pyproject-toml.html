@@ -1,0 +1,492 @@
+<!doctype html>
+<html class="no-js" lang="en">
+  <head><meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+<link rel="index" title="Index" href="../genindex.html" /><link rel="search" title="Search" href="../search.html" /><link rel="next" title="API Docs" href="../api.html" /><link rel="prev" title="Conda Repodata" href="conda-repodata.html" />
+
+    <!-- Generated with Sphinx 6.1.3 and Furo 2022.12.07 -->
+        <title>Parsing pyproject.toml</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/furo.css?digest=91d0f0d1c444bdcb17a68e833c7a53903343c195" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/furo-extensions.css?digest=30d1aed668e5c3a91c3e3bf6a60b675221979f0e" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #f8f8f8;
+  --color-code-foreground: black;
+  --color-brand-primary: black;
+  --color-brand-content: #024bb0;
+  --color-foreground-muted: #808080;
+  --color-highlight-on-target: inherit;
+  --color-highlighted-background: #ffffcc;
+  --color-sidebar-link-text: black;
+  --color-sidebar-link-text--top-level: black;
+  --color-link: #024bb0;
+  --color-link--hover: #024bb0;
+  --color-link-underline: transparent;
+  --color-link-underline--hover: #024bb0;
+  
+  }
+  @media not print {
+    body[data-theme="dark"] {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  --color-brand-primary: #ffffff;
+  --color-brand-content: #5192d2;
+  --color-highlight-on-target: inherit;
+  --color-highlighted-background: #333300;
+  --color-sidebar-link-text: #ffffffcc;
+  --color-sidebar-link-text--top-level: #ffffffcc;
+  --color-link: #5192d2;
+  --color-link--hover: #5192d2;
+  --color-link-underline: transparent;
+  --color-link-underline--hover: #5192d2;
+  
+    }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) {
+        --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  --color-brand-primary: #ffffff;
+  --color-brand-content: #5192d2;
+  --color-highlight-on-target: inherit;
+  --color-highlighted-background: #333300;
+  --color-sidebar-link-text: #ffffffcc;
+  --color-sidebar-link-text--top-level: #ffffffcc;
+  --color-link: #5192d2;
+  --color-link--hover: #5192d2;
+  --color-link-underline: transparent;
+  --color-link-underline--hover: #5192d2;
+  
+      }
+    }
+  }
+</style></head>
+  <body>
+    
+    <script>
+      document.body.dataset.theme = localStorage.getItem("theme") || "auto";
+    </script>
+    
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 1024 1024">
+      <path d="M408 442h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8zm-8 204c0 4.4 3.6 8 8 8h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56zm504-486H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm0 632H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zM115.4 518.9L271.7 642c5.8 4.6 14.4.5 14.4-6.9V388.9c0-7.4-8.5-11.5-14.4-6.9L115.4 505.1a8.74 8.74 0 0 0 0 13.8z"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-half" viewBox="0 0 24 24">
+    <title>Auto light/dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-shadow">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M13 12h5" />
+      <path d="M13 15h4" />
+      <path d="M13 18h1" />
+      <path d="M13 9h4" />
+      <path d="M13 6h1" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc">
+<label class="overlay sidebar-overlay" for="__navigation">
+  <div class="visually-hidden">Hide navigation sidebar</div>
+</label>
+<label class="overlay toc-overlay" for="__toc">
+  <div class="visually-hidden">Hide table of contents sidebar</div>
+</label>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <div class="visually-hidden">Toggle site navigation sidebar</div>
+        <i class="icon"><svg><use href="#svg-menu"></use></svg></i>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="../index.html"><div class="brand">msgspec</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle">
+          <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+          <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon no-toc" for="__toc">
+        <div class="visually-hidden">Toggle table of contents sidebar</div>
+        <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand" href="../index.html">
+  
+  <div class="sidebar-logo-container">
+    <img class="sidebar-logo only-light" src="../_static/msgspec-logo-light.svg" alt="Light Logo"/>
+    <img class="sidebar-logo only-dark" src="../_static/msgspec-logo-dark.svg" alt="Dark Logo"/>
+  </div>
+  
+  
+</a><form class="sidebar-search-container" method="get" action="../search.html" role="search">
+  <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../usage.html">Usage</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../structs.html">Structs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../constraints.html">Constraints</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../jsonschema.html">JSON Schema</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Advanced</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../extending.html">Extending</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../inspect.html">Inspecting Types</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../perf-tips.html">Performance Tips</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul class="current">
+<li class="toctree-l1 current has-children"><a class="reference internal" href="index.html">Examples</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="geojson.html">GeoJSON</a></li>
+<li class="toctree-l2"><a class="reference internal" href="asyncio-kv.html">Asyncio TCP Key-Value Server</a></li>
+<li class="toctree-l2"><a class="reference internal" href="conda-repodata.html">Conda Repodata</a></li>
+<li class="toctree-l2 current current-page"><a class="current reference internal" href="#">Parsing <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../api.html">API Docs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../benchmarks.html">Benchmarks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../changelog.html">Changelog</a></li>
+</ul>
+
+</div>
+</div>
+
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <div class="article-container">
+        <a href="#" class="back-to-top muted-link">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+          </svg>
+          <span>Back to top</span>
+        </a>
+        <div class="content-icon-container">
+          
+<div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle">
+              <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+              <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon no-toc" for="__toc">
+            <div class="visually-hidden">Toggle table of contents sidebar</div>
+            <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+          </label>
+        </div>
+        <article role="main">
+          <section id="parsing-pyproject-toml">
+<h1>Parsing <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code><a class="headerlink" href="#parsing-pyproject-toml" title="Permalink to this heading">#</a></h1>
+<p><a class="reference external" href="https://peps.python.org/pep-0518/">PEP 518</a> defined a new <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code> configuration file Python projects
+can use for configuring:</p>
+<ul class="simple">
+<li><p>Metadata (name, version, …)</p></li>
+<li><p>Dependencies</p></li>
+<li><p>Build systems</p></li>
+<li><p>Additional development tools (<a class="reference external" href="https://black.readthedocs.io">black</a>, <a class="reference external" href="https://mypy.readthedocs.io">mypy</a>, <a class="reference external" href="https://docs.pytest.org">pytest</a>, … all support
+<code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code> files for configuration).</p></li>
+</ul>
+<p>The format was defined in a series of Python Enhancement Proposals (PEPs),
+which also serve as the main documentation for the file schema.</p>
+<ul class="simple">
+<li><p><a class="reference external" href="https://peps.python.org/pep-0517/">PEP 517</a>: A build-system independent format for source trees</p></li>
+<li><p><a class="reference external" href="https://peps.python.org/pep-0518/">PEP 518</a>: Specifying minimum build system requirements for Python projects</p></li>
+<li><p><a class="reference external" href="https://peps.python.org/pep-0621/">PEP 621</a>: Storing project metadata in pyproject.toml</p></li>
+</ul>
+<p>Here we define a msgspec schema for parsing and validating a <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code>
+file. This includes full schema definitions for all fields in the
+<code class="docutils literal notranslate"><span class="pre">build-system</span></code> and <code class="docutils literal notranslate"><span class="pre">project</span></code> tables, as well as an untyped table under
+<code class="docutils literal notranslate"><span class="pre">tool</span></code>.</p>
+<p>The full example source can be found <a class="reference external" href="https://github.com/jcrist/msgspec/blob/main/examples/pyproject-toml">here</a>.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Any</span>
+
+<span class="kn">import</span> <span class="nn">msgspec</span>
+
+
+<span class="k">class</span> <span class="nc">Base</span><span class="p">(</span>
+    <span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span>
+    <span class="n">omit_defaults</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">forbid_unknown_fields</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">rename</span><span class="o">=</span><span class="s2">&quot;kebab&quot;</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;A base class holding some common settings.</span>
+
+<span class="sd">    - We set ``omit_defaults = True`` to omit any fields containing only their</span>
+<span class="sd">      default value from the output when encoding.</span>
+<span class="sd">    - We set ``forbid_unknown_fields = True`` to error nicely if an unknown</span>
+<span class="sd">      field is present in the input TOML. This helps catch typo errors early,</span>
+<span class="sd">      and is also required per PEP 621.</span>
+<span class="sd">    - We set ``rename = &quot;kebab&quot;`` to rename all fields to use kebab case when</span>
+<span class="sd">      encoding/decoding, as this is the convention used in pyproject.toml. For</span>
+<span class="sd">      example, this will rename ``requires_python`` to ``requires-python``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">pass</span>
+
+
+<span class="k">class</span> <span class="nc">BuildSystem</span><span class="p">(</span><span class="n">Base</span><span class="p">):</span>
+    <span class="n">requires</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">build_backend</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">backend_path</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+
+
+<span class="k">class</span> <span class="nc">Readme</span><span class="p">(</span><span class="n">Base</span><span class="p">):</span>
+    <span class="n">file</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">text</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">content_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
+
+<span class="k">class</span> <span class="nc">License</span><span class="p">(</span><span class="n">Base</span><span class="p">):</span>
+    <span class="n">file</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">text</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
+
+<span class="k">class</span> <span class="nc">Contributor</span><span class="p">(</span><span class="n">Base</span><span class="p">):</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">email</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
+
+<span class="k">class</span> <span class="nc">Project</span><span class="p">(</span><span class="n">Base</span><span class="p">):</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">version</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">description</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">readme</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Readme</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">license</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">License</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">authors</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Contributor</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">maintainers</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Contributor</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">keywords</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">classifiers</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">urls</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">requires_python</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">dependencies</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">optional_dependencies</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">scripts</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">gui_scripts</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">entry_points</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">dynamic</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+
+
+<span class="k">class</span> <span class="nc">PyProject</span><span class="p">(</span><span class="n">Base</span><span class="p">):</span>
+    <span class="n">build_system</span><span class="p">:</span> <span class="n">BuildSystem</span> <span class="o">=</span> <span class="n">BuildSystem</span><span class="p">()</span>
+    <span class="n">project</span><span class="p">:</span> <span class="n">Project</span> <span class="o">=</span> <span class="n">Project</span><span class="p">()</span>
+    <span class="n">tool</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
+
+
+<span class="k">def</span> <span class="nf">decode</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="nb">bytes</span> <span class="o">|</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">PyProject</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Decode a ``pyproject.toml`` file from TOML&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">toml</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">PyProject</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">encode</span><span class="p">(</span><span class="n">msg</span><span class="p">:</span> <span class="n">PyProject</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bytes</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Encode a ``PyProject`` object to TOML&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">toml</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Here we use it to load the <a class="reference external" href="https://github.com/encode/starlette/blob/master/pyproject.toml">pyproject.toml for Starlette</a>:</p>
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="gp">In [1]: </span><span class="kn">import</span> <span class="nn">pyproject</span>
+
+<span class="gp">In [2]: </span><span class="kn">import</span> <span class="nn">urllib.request</span>
+
+<span class="gp">In [3]: </span><span class="n">url</span> <span class="o">=</span> <span class="s2">&quot;https://raw.githubusercontent.com/encode/starlette/master/pyproject.toml&quot;</span>
+
+<span class="gp">In [4]: </span><span class="k">with</span> <span class="n">urllib</span><span class="o">.</span><span class="n">request</span><span class="o">.</span><span class="n">urlopen</span><span class="p">(</span><span class="n">url</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+<span class="gp">   ...: </span>    <span class="n">data</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
+
+<span class="gp">In [5]: </span><span class="n">result</span> <span class="o">=</span> <span class="n">pyproject</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>  <span class="c1"># decode the pyproject.toml</span>
+
+<span class="gp">In [6]: </span><span class="n">result</span><span class="o">.</span><span class="n">build_system</span>
+<span class="gh">Out[6]: </span><span class="go">BuildSystem(requires=[&#39;hatchling&#39;], build_backend=&#39;hatchling.build&#39;, backend_path=[])</span>
+
+<span class="gp">In [7]: </span><span class="n">result</span><span class="o">.</span><span class="n">project</span><span class="o">.</span><span class="n">name</span>
+<span class="gh">Out[7]: </span><span class="go">&#39;starlette&#39;</span>
+</pre></div>
+</div>
+<p>Note that this only validates that fields are of the proper type. It doesn’t
+check:</p>
+<ul class="simple">
+<li><p>Whether strings like URLs or <a class="reference external" href="https://packaging.python.org/en/latest/specifications/dependency-specifiers/">dependency specifiers</a> are valid. Some of
+these could be handled using msgspec’s existing <a class="reference internal" href="../constraints.html"><span class="doc">Constraints</span></a> system,
+but not all of them.</p></li>
+<li><p>Mutually exclusive field restrictions (for example, you can’t set both
+<code class="docutils literal notranslate"><span class="pre">project.license.file</span></code> and <code class="docutils literal notranslate"><span class="pre">project.license.text</span></code>). <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> currently
+has no way of declaring these restrictions.</p></li>
+</ul>
+<p>Even with these caveats, the schemas here are still useful:</p>
+<ul class="simple">
+<li><p>Since <code class="docutils literal notranslate"><span class="pre">forbid_unknown_fields=True</span></code> is configured, any extra fields will
+raise a nice error message. This is very useful for catching typos in
+configuration files, as the misspelled field names won’t be silently ignored.</p></li>
+<li><p>Type errors for fields will also be caught, with a nice error raised.</p></li>
+<li><p>Any downstream consumers of <code class="docutils literal notranslate"><span class="pre">decode</span></code> have a nice high-level object to work
+with, complete with type annotations. This plays well with tab-completion and
+tools like <a class="reference external" href="https://mypy.readthedocs.io">mypy</a> or <a class="reference external" href="https://github.com/microsoft/pyright">pyright</a>, improving usability.</p></li>
+</ul>
+<p>For example, here’s an invalid <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code>.</p>
+<div class="highlight-toml notranslate"><div class="highlight"><pre><span></span><span class="k">[build-system]</span>
+<span class="n">requires</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;hatchling&quot;</span>
+<span class="n">build-backend</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;hatchling.build&quot;</span>
+
+<span class="k">[project]</span>
+<span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;myproject&quot;</span>
+<span class="n">version</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;0.1.0&quot;</span>
+<span class="n">description</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;a super great library&quot;</span>
+<span class="n">authors</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="p">{</span><span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;alice shmalice&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">email</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;alice@company.com&quot;</span><span class="p">}</span>
+<span class="p">]</span>
+</pre></div>
+</div>
+<p>Can you spot the error? Using the schemas defined above, <code class="docutils literal notranslate"><span class="pre">msgpspec</span></code> can
+detect schema issues like this, and raise a nice error message. In this case
+the issue is that <code class="docutils literal notranslate"><span class="pre">build-system.requires</span></code> should be an array of strings, not
+a single string:</p>
+<div class="highlight-ipython notranslate"><div class="highlight"><pre><span></span><span class="gp">In [1]: </span><span class="kn">import</span> <span class="nn">pyproject</span>
+
+<span class="gp">In [2]: </span><span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">&quot;pyproject.toml&quot;</span><span class="p">,</span> <span class="s2">&quot;rb&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+<span class="gp">   ...: </span>    <span class="n">invalid</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
+
+<span class="gp">In [3]: </span><span class="n">pyproject</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">invalid</span><span class="p">)</span>
+<span class="gt">---------------------------------------------------------------------------</span>
+<span class="ne">ValidationError</span><span class="g g-Whitespace">                           </span>Traceback (most recent call last)
+<span class="n">Cell</span> <span class="n">In</span> <span class="p">[</span><span class="mi">3</span><span class="p">],</span> <span class="n">line</span> <span class="mi">1</span>
+<span class="ne">----&gt; </span><span class="mi">1</span> <span class="n">pyproject</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">invalid</span><span class="p">)</span>
+<span class="ne">ValidationError</span>: Expected `array`, got `str` - at `$.build-system.requires`
+</pre></div>
+</div>
+</section>
+
+        </article>
+      </div>
+      <footer>
+        
+        <div class="related-pages">
+          <a class="next-page" href="../api.html">
+              <div class="page-info">
+                <div class="context">
+                  <span>Next</span>
+                </div>
+                <div class="title">API Docs</div>
+              </div>
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+            </a>
+          <a class="prev-page" href="conda-repodata.html">
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+              <div class="page-info">
+                <div class="context">
+                  <span>Previous</span>
+                </div>
+                
+                <div class="title">Conda Repodata</div>
+                
+              </div>
+            </a>
+        </div>
+        <div class="bottom-of-page">
+          <div class="left-details">
+            <div class="copyright">
+                Copyright &#169; 2022, Jim Crist-Harif
+            </div>
+            Made with <a href="https://www.sphinx-doc.org/">Sphinx</a> and <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
+            
+            <a href="https://github.com/pradyunsg/furo">Furo</a>
+            
+          </div>
+          <div class="right-details">
+            <div class="icons">
+              <a class="muted-link " href="https://github.com/jcrist/msgspec" aria-label="GitHub"><svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 16 16">
+  <path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"></path>
+</svg></a>
+              
+            </div>
+          </div>
+        </div>
+        
+      </footer>
+    </div>
+    <aside class="toc-drawer no-toc">
+      
+      
+      
+    </aside>
+  </div>
+</div><script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+    <script src="../_static/doctools.js"></script>
+    <script src="../_static/sphinx_highlight.js"></script>
+    <script src="../_static/scripts/furo.js"></script>
+    <script src="../_static/clipboard.min.js"></script>
+    <script src="../_static/copybutton.js"></script>
+    </body>
+</html>
