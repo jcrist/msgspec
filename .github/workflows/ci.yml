@@ -8,6 +8,8 @@ on:
     paths-ignore:
       - "docs/**"
       - "benchmarks/**"
+      - "examples/**"
+      - ".github/**"
       - "README.rst"
   release:
     types: [published]
