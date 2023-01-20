@@ -2812,7 +2812,7 @@ typenode_collect_constraints(
     return 0;
 }
 
-static int typenode_collect_type_full(TypeNodeCollectState*, PyObject*, enum constraint_kind *);
+static int typenode_collect_type(TypeNodeCollectState*, PyObject*);
 
 static TypeNode *
 typenode_from_collect_state(TypeNodeCollectState *state, bool err_not_json, bool *json_compatible) {
@@ -3259,7 +3259,7 @@ typenode_collect_enum(TypeNodeCollectState *state, PyObject *obj) {
 }
 
 static int
-typenode_collect_dict(TypeNodeCollectState *state, PyObject *obj, PyObject *key, PyObject *val) {
+typenode_collect_dict(TypeNodeCollectState *state, PyObject *key, PyObject *val) {
     if (state->dict_key_obj != NULL) {
         return typenode_collect_err_unique(state, "dict");
     }
@@ -3296,33 +3296,23 @@ typenode_collect_custom(TypeNodeCollectState *state, uint64_t type, PyObject *ob
 }
 
 static int
-typenode_collect_annotated(TypeNodeCollectState *state, PyObject *obj) {
-    PyObject *origin = NULL, *metadata = NULL;
-    int status = -1;
-
-    origin = PyObject_GetAttr(obj, state->mod->str___origin__);
-    if (origin == NULL) goto cleanup;
-    metadata = PyObject_GetAttr(obj, state->mod->str___metadata__);
-    if (metadata == NULL) goto cleanup;
-
-    Constraints constraints = {0};
-
-    for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(metadata); i++) {
-        PyObject *annot = PyTuple_GET_ITEM(metadata, i);
-        if (Py_TYPE(annot) == &Meta_Type) {
-            if (constraints_update(&constraints, (Meta *)annot, obj) < 0) goto cleanup;
-        }
+typenode_collect_struct(TypeNodeCollectState *state, PyObject *obj) {
+    if (state->struct_obj == NULL && state->structs_set == NULL) {
+        /* First struct found, store it directly */
+        Py_INCREF(obj);
+        state->struct_obj = obj;
     }
-    enum constraint_kind kind;
-    if (typenode_collect_type_full(state, origin, &kind) < 0) goto cleanup;
-    if (typenode_collect_constraints(state, &constraints, kind, obj) < 0) goto cleanup;
-
-    status = 0;
-
-cleanup:
-    Py_XDECREF(origin);
-    Py_XDECREF(metadata);
-    return status;
+    else {
+        if (state->structs_set == NULL) {
+            /* Second struct found, create a set and move the existing struct there */
+            state->structs_set = PyFrozenSet_New(NULL);
+            if (state->structs_set == NULL) return -1;
+            if (PySet_Add(state->structs_set, state->struct_obj) < 0) return -1;
+            Py_CLEAR(state->struct_obj);
+        }
+        if (PySet_Add(state->structs_set, obj) < 0) return -1;
+    }
+    return 0;
 }
 
 static int
@@ -3778,244 +3768,250 @@ typenode_collect_clear_state(TypeNodeCollectState *state) {
     Py_CLEAR(state->c_str_regex);
 }
 
-static int
-typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
-    enum constraint_kind kind;
-    return typenode_collect_type_full(state, obj, &kind);
+/* This decomposes an input type `obj`, stripping out any "wrapper" types
+ * (Annotated/NewType). It returns the following components:
+ *
+ * - `t` (return value): the first "concrete" type found in the type tree.
+ * - `origin`: `__origin__` on `t` (if present), with a few normalizations
+ *   applied to work around differences in type spelling (List vs list) and
+ *   python version.
+ * - `args`: `__args__` on `t` (if present)
+ * - `constraints`: Any constraints from `Meta` objects annotated on the type
+ */
+static PyObject *
+typenode_origin_args_metadata(
+    TypeNodeCollectState *state, PyObject *obj,
+    PyObject **out_origin, PyObject **out_args, Constraints *constraints
+) {
+    PyObject *origin = NULL, *args = NULL;
+    PyObject *t = obj;
+    Py_INCREF(t);
+
+    /* First strip out meta "wrapper" types (Annotated, NewType) */
+    while (true) {
+        if (Py_TYPE(t) == (PyTypeObject *)(state->mod->typing_annotated_alias)) {
+            /* Handle Annotated */
+            PyObject *origin = PyObject_GetAttr(t, state->mod->str___origin__);
+            if (origin == NULL) {
+                Py_CLEAR(t);
+                return NULL;
+            }
+
+            PyObject *metadata = PyObject_GetAttr(t, state->mod->str___metadata__);
+            if (metadata == NULL) {
+                Py_DECREF(origin);
+                Py_DECREF(t);
+                return NULL;
+            }
+
+            for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(metadata); i++) {
+                PyObject *annot = PyTuple_GET_ITEM(metadata, i);
+                if (Py_TYPE(annot) == &Meta_Type) {
+                    if (constraints_update(constraints, (Meta *)annot, obj) < 0) {
+                        Py_DECREF(metadata);
+                        Py_DECREF(origin);
+                        Py_DECREF(t);
+                        return NULL;
+                    }
+                }
+            }
+            Py_DECREF(metadata);
+            Py_DECREF(t);
+            t = origin;
+        }
+        else {
+            /* Handle NewType */
+            PyObject *supertype = PyObject_GetAttr(t, state->mod->str___supertype__);
+            if (supertype != NULL) {
+                Py_DECREF(t);
+                t = supertype;
+            }
+            else {
+                PyErr_Clear();
+                break;
+            }
+        }
+    }
+
+    /* At this point `t` is a concrete type. Next check for generic types,
+     * extracting `__origin__` and `__args__`. This lets us normalize how
+     * we check for collection types later */
+    if (t == (PyObject *)(&PyList_Type) || t == state->mod->typing_list) {
+        origin = (PyObject *)(&PyList_Type);
+        Py_INCREF(origin);
+    }
+    else if (t == (PyObject *)(&PyTuple_Type) || t == state->mod->typing_tuple) {
+        origin = (PyObject *)(&PyTuple_Type);
+        Py_INCREF(origin);
+    }
+    else if (t == (PyObject *)(&PySet_Type) || t == state->mod->typing_set) {
+        origin = (PyObject *)(&PySet_Type);
+        Py_INCREF(origin);
+    }
+    else if (t == (PyObject *)(&PyFrozenSet_Type) || t == state->mod->typing_frozenset) {
+        origin = (PyObject *)(&PyFrozenSet_Type);
+        Py_INCREF(origin);
+    }
+    else if (t == (PyObject *)(&PyDict_Type) || t == state->mod->typing_dict) {
+        origin = (PyObject *)(&PyDict_Type);
+        Py_INCREF(origin);
+    }
+    #if PY_VERSION_HEX >= 0x030a00f0
+    else if (Py_TYPE(t) == (PyTypeObject *)(state->mod->types_uniontype)) {
+        args = PyObject_GetAttr(t, state->mod->str___args__);
+        if (args == NULL) {
+            Py_DECREF(t);
+            return NULL;
+        }
+        origin = state->mod->typing_union;
+        Py_INCREF(origin);
+    }
+    #endif
+    else {
+        origin = PyObject_GetAttr(t, state->mod->str___origin__);
+        if (origin == NULL) {
+            /* Not a generic */
+            PyErr_Clear();
+        }
+        else {
+            args = PyObject_GetAttr(t, state->mod->str___args__);
+            if (args == NULL) {
+                /* Custom non-parametrized generics won't have __args__ set.
+                 * Ignore __args__ error */
+                PyErr_Clear();
+            }
+            else {
+                if (!PyTuple_Check(args)) {
+                    PyErr_SetString(PyExc_TypeError, "__args__ must be a tuple");
+                    Py_DECREF(t);
+                    Py_DECREF(origin);
+                    Py_DECREF(args);
+                    return NULL;
+                }
+            }
+        }
+    }
+
+    *out_origin = origin;
+    *out_args = args;
+    return t;
 }
 
 static int
-typenode_collect_type_full(
-    TypeNodeCollectState *state, PyObject *obj, enum constraint_kind *kind
-) {
-    int out = -1;
-    PyObject *origin = NULL, *args = NULL;
-    *kind = CK_OTHER;
+typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
+    int out = 0;
+    PyObject *t = NULL, *origin = NULL, *args = NULL;
+    Constraints constraints = {0};
+    enum constraint_kind kind = CK_OTHER;
 
     /* If `Any` type already encountered, nothing to do */
     if (state->types & MS_TYPE_ANY) return 0;
-    if (obj == state->mod->typing_any) {
+
+    t = typenode_origin_args_metadata(state, obj, &origin, &args, &constraints);
+    if (t == NULL) return -1;
+
+    if (t == state->mod->typing_any) {
         /* Any takes precedence, drop all existing and update type flags */
         typenode_collect_clear_state(state);
         state->types = MS_TYPE_ANY;
-        return 0;
     }
-
-    /* Handle Scalar types */
-    if (obj == Py_None || obj == NONE_TYPE) {
+    else if (t == Py_None || t == NONE_TYPE) {
         state->types |= MS_TYPE_NONE;
-        return 0;
     }
-    else if (obj == (PyObject *)(&PyBool_Type)) {
+    else if (t == (PyObject *)(&PyBool_Type)) {
         state->types |= MS_TYPE_BOOL;
-        return 0;
     }
-    else if (obj == (PyObject *)(&PyLong_Type)) {
+    else if (t == (PyObject *)(&PyLong_Type)) {
         state->types |= MS_TYPE_INT;
-        *kind = CK_INT;
-        return 0;
+        kind = CK_INT;
     }
-    else if (obj == (PyObject *)(&PyFloat_Type)) {
+    else if (t == (PyObject *)(&PyFloat_Type)) {
         state->types |= MS_TYPE_FLOAT;
-        *kind = CK_FLOAT;
-        return 0;
+        kind = CK_FLOAT;
     }
-    else if (obj == (PyObject *)(&PyUnicode_Type)) {
+    else if (t == (PyObject *)(&PyUnicode_Type)) {
         state->types |= MS_TYPE_STR;
-        *kind = CK_STR;
-        return 0;
+        kind = CK_STR;
     }
-    else if (obj == (PyObject *)(&PyBytes_Type)) {
+    else if (t == (PyObject *)(&PyBytes_Type)) {
         state->types |= MS_TYPE_BYTES;
-        *kind = CK_BYTES;
-        return 0;
+        kind = CK_BYTES;
     }
-    else if (obj == (PyObject *)(&PyByteArray_Type)) {
+    else if (t == (PyObject *)(&PyByteArray_Type)) {
         state->types |= MS_TYPE_BYTEARRAY;
-        *kind = CK_BYTES;
-        return 0;
+        kind = CK_BYTES;
     }
-    else if (obj == (PyObject *)(PyDateTimeAPI->DateTimeType)) {
+    else if (t == (PyObject *)(PyDateTimeAPI->DateTimeType)) {
         state->types |= MS_TYPE_DATETIME;
-        *kind = CK_TIME;
-        return 0;
+        kind = CK_TIME;
     }
-    else if (obj == (PyObject *)(PyDateTimeAPI->TimeType)) {
+    else if (t == (PyObject *)(PyDateTimeAPI->TimeType)) {
         state->types |= MS_TYPE_TIME;
-        *kind = CK_TIME;
-        return 0;
+        kind = CK_TIME;
     }
-    else if (obj == (PyObject *)(PyDateTimeAPI->DateType)) {
+    else if (t == (PyObject *)(PyDateTimeAPI->DateType)) {
         state->types |= MS_TYPE_DATE;
-        return 0;
     }
-    else if (obj == state->mod->UUIDType) {
+    else if (t == state->mod->UUIDType) {
         state->types |= MS_TYPE_UUID;
-        return 0;
     }
-    else if (obj == (PyObject *)(&Ext_Type)) {
+    else if (t == (PyObject *)(&Ext_Type)) {
         state->types |= MS_TYPE_EXT;
-        return 0;
     }
-    else if (obj == (PyObject *)(&Raw_Type)) {
+    else if (t == (PyObject *)(&Raw_Type)) {
         /* Raw is marked with a typecode of 0, nothing to do */
-        return 0;
     }
-
-    /* Struct types */
-    if (Py_TYPE(obj) == &StructMetaType) {
-        if (state->struct_obj == NULL && state->structs_set == NULL) {
-            /* First struct found, store it directly */
-            Py_INCREF(obj);
-            state->struct_obj = obj;
-        }
-        else {
-            if (state->structs_set == NULL) {
-                /* Second struct found, create a set and move the existing struct there */
-                state->structs_set = PyFrozenSet_New(NULL);
-                if (state->structs_set == NULL) return -1;
-                if (PySet_Add(state->structs_set, state->struct_obj) < 0) return -1;
-                Py_CLEAR(state->struct_obj);
-            }
-            if (PySet_Add(state->structs_set, obj) < 0) return -1;
-        }
-        return 0;
+    else if (Py_TYPE(t) == &StructMetaType) {
+        out = typenode_collect_struct(state, t);
     }
-
-    /* Enum types */
-    if (Py_TYPE(obj) == state->mod->EnumMetaType) {
-        return typenode_collect_enum(state, obj);
+    else if (Py_TYPE(t) == state->mod->EnumMetaType) {
+        out = typenode_collect_enum(state, t);
     }
-
-    /* Generic collections can be spelled a few different ways, so the below
-     * logic is a bit split up as we discover what type of thing `obj` is. */
-    if (obj == (PyObject*)(&PyDict_Type) || obj == state->mod->typing_dict) {
-        *kind = CK_MAP;
-        return typenode_collect_dict(state, obj, state->mod->typing_any, state->mod->typing_any);
-    }
-    else if (obj == (PyObject*)(&PyList_Type) || obj == state->mod->typing_list) {
-        *kind = CK_ARRAY;
-        return typenode_collect_array(state, MS_TYPE_LIST, state->mod->typing_any);
-    }
-    else if (obj == (PyObject*)(&PySet_Type) || obj == state->mod->typing_set) {
-        *kind = CK_ARRAY;
-        return typenode_collect_array(state, MS_TYPE_SET, state->mod->typing_any);
-    }
-    else if (obj == (PyObject*)(&PyFrozenSet_Type) || obj == state->mod->typing_frozenset) {
-        *kind = CK_ARRAY;
-        return typenode_collect_array(state, MS_TYPE_FROZENSET, state->mod->typing_any);
-    }
-    else if (obj == (PyObject*)(&PyTuple_Type) || obj == state->mod->typing_tuple) {
-        *kind = CK_ARRAY;
-        return typenode_collect_array(state, MS_TYPE_VARTUPLE, state->mod->typing_any);
-    }
-
-    /* Python 3.10+ types.UnionType (e.g. int | None). It's annoying that this
-     * defines `__args__` but not `__origin__`, so isn't backwards compatible
-     * with logic for typing.Union. */
-    #if PY_VERSION_HEX >= 0x030a00f0
-    if (Py_TYPE(obj) == (PyTypeObject *)(state->mod->types_uniontype)) {
-        args = PyObject_GetAttr(obj, state->mod->str___args__);
-        if (args == NULL) goto done;
-        for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(args); i++) {
-            out = typenode_collect_type(state, PyTuple_GET_ITEM(args, i));
-            if (out < 0) break;
-        }
-        goto done;
-    }
-    #endif
-
-    /* Annotated types */
-    if (Py_TYPE(obj) == (PyTypeObject *)(state->mod->typing_annotated_alias)) {
-        return typenode_collect_annotated(state, obj);
-    }
-
-    /* Check if obj is a TypedDict through duck-typing */
-    if (PyType_Check(obj)
-        && PyType_IsSubtype((PyTypeObject *)obj, &PyDict_Type)
-        && PyObject_HasAttr(obj, state->mod->str___total__)) {
-        return typenode_collect_typeddict(state, obj);
-    }
-
-    /* Check if namedtuple through duck-typing */
-    if (PyType_Check(obj)
-        && PyType_IsSubtype((PyTypeObject *)obj, &PyTuple_Type)
-        && PyObject_HasAttr(obj, state->mod->str__fields)) {
-        return typenode_collect_namedtuple(state, obj);
-    }
-
-    /* Check if dataclass through duck-typing */
-    if (PyType_Check(obj)
-        && PyObject_HasAttr(obj, state->mod->str___dataclass_fields__)) {
-        return typenode_collect_dataclass(state, obj);
-    }
-
-    /* Check if NewType through duck-typing */
-    PyObject *supertype = PyObject_GetAttr(obj, state->mod->str___supertype__);
-    if (supertype != NULL) {
-        int out = typenode_collect_type_full(state, supertype, kind);
-        Py_DECREF(supertype);
-        return out;
-    }
-    else {
-        PyErr_Clear();
-    }
-
-    /* Attempt to extract __origin__/__args__ from the obj as a typing object */
-    if ((origin = PyObject_GetAttr(obj, state->mod->str___origin__)) == NULL ||
-            (args = PyObject_GetAttr(obj, state->mod->str___args__)) == NULL) {
-        /* Not a parametrized generic, must be a custom type */
-        PyErr_Clear();
-        if (!PyType_Check(origin != NULL ? origin : obj)) goto invalid;
-        out = typenode_collect_custom(
-            state,
-            origin != NULL ? MS_TYPE_CUSTOM_GENERIC : MS_TYPE_CUSTOM,
-            obj
-        );
-        goto done;
-    }
-
-    /* __args__ must be a tuple */
-    if (!PyTuple_Check(args)) {
-        PyErr_SetString(PyExc_TypeError, "__args__ must be a tuple");
-        goto done;
-    }
-
-    if (origin == (PyObject*)(&PyDict_Type)) {
-        if (PyTuple_GET_SIZE(args) != 2) goto invalid;
-        *kind = CK_MAP;
+    else if (origin == (PyObject*)(&PyDict_Type)) {
+        kind = CK_MAP;
+        if (args != NULL && PyTuple_GET_SIZE(args) != 2) goto invalid;
         out = typenode_collect_dict(
-            state, obj, PyTuple_GET_ITEM(args, 0), PyTuple_GET_ITEM(args, 1)
+            state,
+            (args == NULL) ? state->mod->typing_any : PyTuple_GET_ITEM(args, 0),
+            (args == NULL) ? state->mod->typing_any : PyTuple_GET_ITEM(args, 1)
         );
-        goto done;
     }
     else if (origin == (PyObject*)(&PyList_Type)) {
-        if (PyTuple_GET_SIZE(args) != 1) goto invalid;
-        *kind = CK_ARRAY;
+        kind = CK_ARRAY;
+        if (args != NULL && PyTuple_GET_SIZE(args) != 1) goto invalid;
         out = typenode_collect_array(
-            state, MS_TYPE_LIST, PyTuple_GET_ITEM(args, 0)
+            state,
+            MS_TYPE_LIST,
+            (args == NULL) ? state->mod->typing_any : PyTuple_GET_ITEM(args, 0)
         );
-        goto done;
     }
     else if (origin == (PyObject*)(&PySet_Type)) {
-        if (PyTuple_GET_SIZE(args) != 1) goto invalid;
-        *kind = CK_ARRAY;
+        kind = CK_ARRAY;
+        if (args != NULL && PyTuple_GET_SIZE(args) != 1) goto invalid;
         out = typenode_collect_array(
-            state, MS_TYPE_SET, PyTuple_GET_ITEM(args, 0)
+            state,
+            MS_TYPE_SET,
+            (args == NULL) ? state->mod->typing_any : PyTuple_GET_ITEM(args, 0)
         );
-        goto done;
     }
     else if (origin == (PyObject*)(&PyFrozenSet_Type)) {
-        if (PyTuple_GET_SIZE(args) != 1) goto invalid;
-        *kind = CK_ARRAY;
+        kind = CK_ARRAY;
+        if (args != NULL && PyTuple_GET_SIZE(args) != 1) goto invalid;
         out = typenode_collect_array(
-            state, MS_TYPE_FROZENSET, PyTuple_GET_ITEM(args, 0)
+            state,
+            MS_TYPE_FROZENSET,
+            (args == NULL) ? state->mod->typing_any : PyTuple_GET_ITEM(args, 0)
         );
-        goto done;
     }
     else if (origin == (PyObject*)(&PyTuple_Type)) {
-        if (PyTuple_GET_SIZE(args) == 2 && PyTuple_GET_ITEM(args, 1) == Py_Ellipsis) {
-            *kind = CK_ARRAY;
+        if (args == NULL) {
+            kind = CK_ARRAY;
+            out = typenode_collect_array(
+                state, MS_TYPE_VARTUPLE, state->mod->typing_any
+            );
+        }
+        else if (PyTuple_GET_SIZE(args) == 2 && PyTuple_GET_ITEM(args, 1) == Py_Ellipsis) {
+            kind = CK_ARRAY;
             out = typenode_collect_array(
                 state, MS_TYPE_VARTUPLE, PyTuple_GET_ITEM(args, 0)
             );
@@ -4036,37 +4032,61 @@ typenode_collect_type_full(
         else {
             out = typenode_collect_array(state, MS_TYPE_FIXTUPLE, args);
         }
-        goto done;
     }
     else if (origin == state->mod->typing_union) {
         for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(args); i++) {
             out = typenode_collect_type(state, PyTuple_GET_ITEM(args, i));
             if (out < 0) break;
         }
-        goto done;
     }
     else if (origin == state->mod->typing_literal) {
         if (state->literals == NULL) {
             state->literals = PyList_New(0);
             if (state->literals == NULL) goto done;
         }
-        out = PyList_Append(state->literals, obj);
-        goto done;
+        out = PyList_Append(state->literals, t);
+    }
+    else if (PyType_Check(t)
+        && PyType_IsSubtype((PyTypeObject *)t, &PyDict_Type)
+        && PyObject_HasAttr(t, state->mod->str___total__)) {
+        out = typenode_collect_typeddict(state, t);
+    }
+    else if (PyType_Check(t)
+        && PyType_IsSubtype((PyTypeObject *)t, &PyTuple_Type)
+        && PyObject_HasAttr(t, state->mod->str__fields)) {
+        out = typenode_collect_namedtuple(state, t);
+    }
+    else if (PyType_Check(t)
+        && PyObject_HasAttr(t, state->mod->str___dataclass_fields__)) {
+        out = typenode_collect_dataclass(state, t);
     }
     else {
-        if (!PyType_Check(origin)) goto invalid;
-        /* A parametrized type, but not one we natively support. */
-        out = typenode_collect_custom(state, MS_TYPE_CUSTOM_GENERIC, obj);
-        goto done;
+        if (origin != NULL) {
+            if (!PyType_Check(origin)) goto invalid;
+        }
+        else {
+            if (!PyType_Check(t)) goto invalid;
+        }
+        out = typenode_collect_custom(
+            state,
+            (origin != NULL) ? MS_TYPE_CUSTOM_GENERIC : MS_TYPE_CUSTOM,
+            t
+        );
     }
 
-invalid:
-    PyErr_Format(PyExc_TypeError, "Type '%R' is not supported", obj);
-
 done:
+    Py_XDECREF(t);
     Py_XDECREF(origin);
     Py_XDECREF(args);
+    if (out == 0) {
+        out = typenode_collect_constraints(state, &constraints, kind, obj);
+    }
     return out;
+
+invalid:
+    PyErr_Format(PyExc_TypeError, "Type '%R' is not supported", t);
+    out = -1;
+    goto done;
 }
 
 static TypeNode *

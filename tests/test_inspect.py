@@ -166,6 +166,20 @@ def test_newtype():
         max_length=10
     )
 
+    # Annotated in NewType
+    UserId = NewType("UserId", Annotated[str, Meta(max_length=10)])
+    assert mi.type_info(UserId) == mi.StrType(max_length=10)
+    assert mi.type_info(Annotated[UserId, Meta(min_length=2)]) == mi.StrType(
+        min_length=2, max_length=10
+    )
+
+    # NewType in NewType
+    UserId2 = NewType("UserId2", UserId)
+    assert mi.type_info(UserId2) == mi.StrType(max_length=10)
+    assert mi.type_info(Annotated[UserId2, Meta(min_length=2)]) == mi.StrType(
+        min_length=2, max_length=10
+    )
+
 
 def test_custom():
     assert mi.type_info(decimal.Decimal) == mi.CustomType(decimal.Decimal)

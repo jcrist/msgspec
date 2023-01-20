@@ -622,29 +622,31 @@ def type_info(type: Any, *, protocol: Literal[None, "msgpack", "json"] = None) -
 
 # Implementation details
 def _origin_args_metadata(t):
-    # Strip out NewType types
-    while hasattr(t, "__supertype__"):
-        t = t.__supertype__
-
-    if type(t) is _AnnotatedAlias:
-        metadata = tuple(m for m in t.__metadata__ if type(m) is msgspec.Meta)
-        t = t.__origin__
-    else:
-        metadata = ()
+    # Strip Annotated and NewType wrappers until we hit a concrete base type
+    metadata = []
+    while True:
+        supertype = getattr(t, "__supertype__", None)
+        if supertype is not None:
+            t = supertype
+        elif type(t) is _AnnotatedAlias:
+            metadata.extend(m for m in t.__metadata__ if type(m) is msgspec.Meta)
+            t = t.__origin__
+        else:
+            break
 
     if type(t) is _types_UnionType:
         args = t.__args__
         t = Union
     elif t in (List, Tuple, Set, FrozenSet, Dict):
-        t = t.__origin__
         args = None
+        t = t.__origin__
     elif hasattr(t, "__origin__"):
         args = getattr(t, "__args__", None)
         t = t.__origin__
     else:
         args = None
 
-    return t, args, metadata
+    return t, args, tuple(metadata)
 
 
 def _is_struct(t):
