@@ -2369,18 +2369,41 @@ class TestUUID:
 class TestNewType:
     def test_decode_newtype(self, proto):
         UserId = NewType("UserId", int)
-        dec = proto.Decoder(UserId)
-        assert dec.decode(proto.encode(1)) == 1
+        assert proto.decode(proto.encode(1), type=UserId) == 1
 
-    def test_decode_newtype_constraints(self, proto):
-        try:
-            from typing import Annotated
-        except ImportError:
-            pytest.skip("Annotated types not available")
+        with pytest.raises(msgspec.ValidationError):
+            proto.decode(proto.encode("bad"), type=UserId)
+
+        # Nested NewId works
+        UserId2 = NewType("UserId2", UserId)
+        assert proto.decode(proto.encode(1), type=UserId2) == 1
+
+        with pytest.raises(msgspec.ValidationError):
+            proto.decode(proto.encode("bad"), type=UserId2)
+
+    def test_decode_annotated_newtype(self, proto, Annotated):
         UserId = NewType("UserId", int)
-
         dec = proto.Decoder(Annotated[UserId, msgspec.Meta(ge=0)])
         assert dec.decode(proto.encode(1)) == 1
 
         with pytest.raises(msgspec.ValidationError):
             dec.decode(proto.encode(-1))
+
+    def test_decode_newtype_annotated(self, proto, Annotated):
+        UserId = NewType("UserId", Annotated[int, msgspec.Meta(ge=0)])
+        dec = proto.Decoder(UserId)
+        assert dec.decode(proto.encode(1)) == 1
+
+        with pytest.raises(msgspec.ValidationError):
+            dec.decode(proto.encode(-1))
+
+    def test_decode_annotated_newtype_annotated(self, proto, Annotated):
+        UserId = Annotated[
+            NewType("UserId", Annotated[int, msgspec.Meta(ge=0)]), msgspec.Meta(le=10)
+        ]
+        dec = proto.Decoder(UserId)
+        assert dec.decode(proto.encode(1)) == 1
+
+        for bad in [-1, 11]:
+            with pytest.raises(msgspec.ValidationError):
+                dec.decode(proto.encode(bad))
