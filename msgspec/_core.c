@@ -379,7 +379,6 @@ typedef struct {
 #endif
     PyObject *astimezone;
     PyObject *re_compile;
-    PyObject *deepcopy;
     uint8_t gc_cycle;
 } MsgspecState;
 
@@ -1844,6 +1843,106 @@ PyTypeObject NoDefault_Type = {
 };
 
 PyObject _NoDefault_Object = {1, &NoDefault_Type};
+
+/*************************************************************************
+ * Factory                                                               *
+ *************************************************************************/
+
+static PyTypeObject Factory_Type;
+
+typedef struct {
+    PyObject_HEAD
+    PyObject *factory;
+} Factory;
+
+static PyObject *
+Factory_New(PyObject *factory) {
+    if (!PyCallable_Check(factory)) {
+        PyErr_SetString(PyExc_TypeError, "default_factory must be callable");
+        return NULL;
+    }
+
+    Factory *out = (Factory *)Factory_Type.tp_alloc(&Factory_Type, 0);
+    if (out == NULL) return NULL;
+
+    Py_INCREF(factory);
+    out->factory = factory;
+    return (PyObject *)out;
+}
+
+static PyObject *
+Factory_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
+    Py_ssize_t nkwargs = (kwargs == NULL) ? 0 : PyDict_GET_SIZE(kwargs);
+    Py_ssize_t nargs = PyTuple_GET_SIZE(args);
+    if (nkwargs != 0) {
+        PyErr_SetString(PyExc_TypeError, "Factory takes no keyword arguments");
+        return NULL;
+    }
+    else if (nargs != 1) {
+        PyErr_Format(
+            PyExc_TypeError,
+            "Factory expected 1 argument, got %zd",
+            nargs
+        );
+        return NULL;
+    }
+    else {
+        return Factory_New(PyTuple_GET_ITEM(args, 0));
+    }
+}
+
+static PyObject *
+Factory_Call(PyObject *self) {
+    PyObject *factory = ((Factory *)(self))->factory;
+    /* Inline two common factory types */
+    if (factory == (PyObject *)(&PyList_Type)) {
+        return PyList_New(0);
+    }
+    else if (factory == (PyObject *)(&PyDict_Type)) {
+        return PyDict_New();
+    }
+    return CALL_NO_ARGS(factory);
+}
+
+static int
+Factory_traverse(Factory *self, visitproc visit, void *arg)
+{
+    Py_VISIT(self->factory);
+    return 0;
+}
+
+static int
+Factory_clear(Factory *self)
+{
+    Py_CLEAR(self->factory);
+    return 0;
+}
+
+static void
+Factory_dealloc(Factory *self)
+{
+    PyObject_GC_UnTrack(self);
+    Factory_clear(self);
+    Py_TYPE(self)->tp_free((PyObject *)self);
+}
+
+static PyMemberDef Factory_members[] = {
+    {"factory", T_OBJECT_EX, offsetof(Factory, factory), READONLY, "The factory function"},
+    {NULL},
+};
+
+static PyTypeObject Factory_Type = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "msgspec._core.Factory",
+    .tp_basicsize = sizeof(Factory),
+    .tp_itemsize = 0,
+    .tp_new = Factory_new,
+    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
+    .tp_clear = (inquiry)Factory_clear,
+    .tp_traverse = (traverseproc)Factory_traverse,
+    .tp_dealloc = (destructor) Factory_dealloc,
+    .tp_members = Factory_members,
+};
 
 /*************************************************************************
  * Struct, PathNode, and TypeNode Types                                  *
@@ -4799,6 +4898,74 @@ structmeta_collect_base(StructMetaInfo *info, PyObject *base) {
 }
 
 static int
+structmeta_process_default(StructMetaInfo *info, PyObject *field) {
+    PyObject *obj = PyDict_GetItem(info->namespace, field);
+    if (obj == NULL) {
+        return PyDict_SetItem(info->defaults_lk, field, NODEFAULT);
+    }
+
+    PyObject* default_val = NULL;
+    PyTypeObject *type = Py_TYPE(obj);
+    if (type == &PyDict_Type) {
+        if (PyDict_GET_SIZE(obj) != 0) goto error_nonempty;
+        default_val = Factory_New((PyObject*)(&PyDict_Type));
+        if (default_val == NULL) return -1;
+    }
+    else if (type == &PyList_Type) {
+        if (PyList_GET_SIZE(obj) != 0) goto error_nonempty;
+        default_val = Factory_New((PyObject*)(&PyList_Type));
+        if (default_val == NULL) return -1;
+    }
+    else if (type == &PySet_Type) {
+        if (PySet_GET_SIZE(obj) != 0) goto error_nonempty;
+        default_val = Factory_New((PyObject*)(&PySet_Type));
+        if (default_val == NULL) return -1;
+    }
+    else if (type == &PyByteArray_Type) {
+        if (PyByteArray_GET_SIZE(obj) != 0) goto error_nonempty;
+        default_val = Factory_New((PyObject*)(&PyByteArray_Type));
+        if (default_val == NULL) return -1;
+    }
+    else if (
+        (Py_TYPE(type) == &StructMetaType) &&
+        ((StructMetaObject *)type)->frozen != OPT_TRUE
+    ) {
+        goto error_mutable_struct;
+    }
+    else {
+        Py_INCREF(obj);
+        default_val = obj;
+    }
+
+    if (dict_discard(info->namespace, field) < 0) {
+        Py_DECREF(default_val);
+        return -1;
+    }
+    int status = PyDict_SetItem(info->defaults_lk, field, default_val);
+    Py_DECREF(default_val);
+    return status;
+
+error_nonempty:
+    PyErr_Format(
+        PyExc_TypeError,
+        "Using a non-empty mutable collection (%R) as a default value is unsafe. "
+        "Instead configure a `default_factory` for this field.",
+        obj
+    );
+    return -1;
+
+error_mutable_struct:
+    PyErr_Format(
+        PyExc_TypeError,
+        "Using a mutable struct object (%R) as a default value is unsafe. "
+        "Either configure a `default_factory` for this field, or set "
+        "`frozen=True` on `%.200s`",
+        obj, type->tp_name
+    );
+    return -1;
+}
+
+static int
 structmeta_collect_fields(StructMetaInfo *info, MsgspecState *mod, bool kwonly) {
     PyObject *annotations = PyDict_GetItemString(
         info->namespace, "__annotations__"
@@ -4839,14 +5006,7 @@ structmeta_collect_fields(StructMetaInfo *info, MsgspecState *mod, bool kwonly) 
             if (PySet_Discard(info->kwonly_fields, field) < 0) return -1;
         }
 
-        PyObject *default_val = PyDict_GetItem(info->namespace, field);
-        if (default_val == NULL) {
-            default_val = NODEFAULT;
-        }
-        else {
-            if (dict_discard(info->namespace, field) < 0) return -1;
-        }
-        if (PyDict_SetItem(info->defaults_lk, field, default_val) < 0) return -1;
+        if (structmeta_process_default(info, field) < 0) return -1;
     }
     return 0;
 }
@@ -5817,80 +5977,25 @@ static PyTypeObject StructMetaType = {
 
 
 static PyObject *
-maybe_deepcopy_default(PyObject *obj) {
+get_default(PyObject *obj) {
     PyTypeObject *type = Py_TYPE(obj);
-
-    /* Known non-collection or recursively immutable types */
-    if (obj == Py_None || type == &PyBool_Type ||
-        type == &PyLong_Type || type == &PyFloat_Type ||
-        type == &PyBytes_Type || type == &PyUnicode_Type ||
-        type == &PyByteArray_Type || type == &PyFrozenSet_Type ||
-        type == &Raw_Type || type == &Ext_Type
-    ) {
-        Py_INCREF(obj);
-        return obj;
+    if (type == &Factory_Type) {
+        return Factory_Call(obj);
     }
-    else if (type == &PyTuple_Type && (PyTuple_GET_SIZE(obj) == 0)) {
-        Py_INCREF(obj);
-        return obj;
-    }
-    else if (type == PyDateTimeAPI->DateTimeType ||
-             type == PyDateTimeAPI->DeltaType ||
-             type == PyDateTimeAPI->DateType ||
-             type == PyDateTimeAPI->TimeType
-    ) {
-        Py_INCREF(obj);
-        return obj;
-    }
-
-    /* Fast paths for known empty collections */
-    if (type == &PyDict_Type && PyDict_GET_SIZE(obj) == 0) {
-        return PyDict_New();
-    }
-    else if (type == &PyList_Type && PyList_GET_SIZE(obj) == 0) {
-        return PyList_New(0);
-    }
-    else if (type == &PySet_Type && PySet_GET_SIZE(obj) == 0) {
-        return PySet_New(NULL);
-    }
-
-    /* Frozen structs are immutable and can be used without copying */
-    if ((Py_TYPE(type) == &StructMetaType) && ((StructMetaObject *)type)->frozen == OPT_TRUE) {
-        Py_INCREF(obj);
-        return obj;
-    }
-
-    MsgspecState *mod = msgspec_get_global_state();
-    if (Py_TYPE(type) == mod->EnumMetaType) {
-        Py_INCREF(obj);
-        return obj;
-    }
-
-    /* More complicated, invoke full deepcopy */
-    return CALL_ONE_ARG(mod->deepcopy, obj);
+    Py_INCREF(obj);
+    return obj;
 }
 
 static MS_INLINE bool
 is_default(PyObject *x, PyObject *d) {
     if (x == d) return true;
-    PyTypeObject *x_type = Py_TYPE(x);
-    PyTypeObject *d_type = Py_TYPE(d);
-    if (x_type != d_type) return false;
-    if (
-        d_type == &PyList_Type
-        && PyList_GET_SIZE(x) == 0
-        && PyList_GET_SIZE(d) == 0
-    ) return true;
-    if (
-        d_type == &PyDict_Type
-        && PyDict_GET_SIZE(x) == 0
-        && PyDict_GET_SIZE(d) == 0
-    ) return true;
-    if (
-        d_type == &PySet_Type
-        && PySet_GET_SIZE(x) == 0
-        && PySet_GET_SIZE(d) == 0
-    ) return true;
+    if (Py_TYPE(d) == &Factory_Type) {
+        PyTypeObject *factory = (PyTypeObject *)(((Factory *)d)->factory);
+        if (Py_TYPE(x) != factory) return false;
+        if (factory == &PyList_Type && PyList_GET_SIZE(x) == 0) return true;
+        if (factory == &PyDict_Type && PyDict_GET_SIZE(x) == 0) return true;
+        if (factory == &PySet_Type && PySet_GET_SIZE(x) == 0) return true;
+    }
     return false;
 }
 
@@ -5948,7 +6053,7 @@ Struct_fill_in_defaults(StructMetaObject *st_type, PyObject *obj, PathNode *path
                 st_type->struct_defaults, i - (nfields - ndefaults)
             );
             if (MS_UNLIKELY(val == NODEFAULT)) goto missing_required;
-            val = maybe_deepcopy_default(val);
+            val = get_default(val);
             if (MS_UNLIKELY(val == NULL)) return -1;
             Struct_set_index(obj, i, val);
         }
@@ -6059,7 +6164,7 @@ kw_found:
                 if (MS_LIKELY(field_index >= npos)) {
                     PyObject *val = PyTuple_GET_ITEM(defaults, field_index - npos);
                     if (MS_LIKELY(val != NODEFAULT)) {
-                        val = maybe_deepcopy_default(val);
+                        val = get_default(val);
                         if (MS_UNLIKELY(val == NULL)) goto error;
                         *(PyObject **)addr = val;
                         if (should_untrack) {
@@ -11758,7 +11863,7 @@ mpack_decode_struct_array_inner(
             item_path.index++;
         }
         else {
-            val = maybe_deepcopy_default(
+            val = get_default(
                 PyTuple_GET_ITEM(st_type->struct_defaults, i - npos)
             );
             if (val == NULL)
@@ -14030,7 +14135,7 @@ json_decode_struct_array_inner(
     }
     /* Fill in missing fields with defaults */
     for (; i < nfields; i++) {
-        item = maybe_deepcopy_default(
+        item = get_default(
             PyTuple_GET_ITEM(st_type->struct_defaults, i - npos)
         );
         if (item == NULL) goto error;
@@ -16918,7 +17023,7 @@ from_builtins_struct_array_inner(
             item_path.index++;
         }
         else {
-            val = maybe_deepcopy_default(
+            val = get_default(
                 PyTuple_GET_ITEM(st_type->struct_defaults, i - npos)
             );
             if (val == NULL) goto error;
@@ -17532,7 +17637,6 @@ msgspec_clear(PyObject *m)
 #endif
     Py_CLEAR(st->astimezone);
     Py_CLEAR(st->re_compile);
-    Py_CLEAR(st->deepcopy);
     return 0;
 }
 
@@ -17615,7 +17719,6 @@ msgspec_traverse(PyObject *m, visitproc visit, void *arg)
 #endif
     Py_VISIT(st->astimezone);
     Py_VISIT(st->re_compile);
-    Py_VISIT(st->deepcopy);
     return 0;
 }
 
@@ -17645,6 +17748,8 @@ PyInit__core(void)
 
     StructMetaType.tp_base = &PyType_Type;
     if (PyType_Ready(&NoDefault_Type) < 0)
+        return NULL;
+    if (PyType_Ready(&Factory_Type) < 0)
         return NULL;
     if (PyType_Ready(&IntLookup_Type) < 0)
         return NULL;
@@ -17681,6 +17786,9 @@ PyInit__core(void)
         return NULL;
 
     /* Add types */
+    Py_INCREF(&Factory_Type);
+    if (PyModule_AddObject(m, "Factory", (PyObject *)&Factory_Type) < 0)
+        return NULL;
     Py_INCREF(&Meta_Type);
     if (PyModule_AddObject(m, "Meta", (PyObject *)&Meta_Type) < 0)
         return NULL;
@@ -17851,13 +17959,6 @@ PyInit__core(void)
     st->re_compile = PyObject_GetAttrString(temp_module, "compile");
     Py_DECREF(temp_module);
     if (st->re_compile == NULL) return NULL;
-
-    /* Get the copy.deepcopy function */
-    temp_module = PyImport_ImportModule("copy");
-    if (temp_module == NULL) return NULL;
-    st->deepcopy = PyObject_GetAttrString(temp_module, "deepcopy");
-    Py_DECREF(temp_module);
-    if (st->deepcopy == NULL) return NULL;
 
     /* Initialize cached constant strings */
 #define CACHED_STRING(attr, str) \

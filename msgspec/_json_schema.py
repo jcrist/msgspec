@@ -322,6 +322,8 @@ def _to_schema(
                 required.append(field.encode_name)
             elif field.default is not mi.UNSET:
                 field_schema["default"] = to_builtins(field.default, str_keys=True)
+            elif field.default_factory in (list, dict, set, bytearray):
+                field_schema["default"] = field.default_factory()
             names.append(field.encode_name)
             fields.append(field_schema)
 

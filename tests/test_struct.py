@@ -609,7 +609,6 @@ class FrozenPoint(Struct, frozen=True):
         1.5 + 2.32j,
         b"test",
         "test",
-        bytearray(b"test"),
         (),
         frozenset(),
         frozenset((1, (2, 3, 4), 5)),
@@ -649,24 +648,28 @@ class PointKWOnly(Struct, kw_only=True):
     y: int
 
 
-@pytest.mark.parametrize(
-    "default",
-    [(Point(1, 2),), [Point(1, 2)], {"testing": Point(1, 2)}],
-)
-def test_struct_mutable_defaults_deep_copy(default):
+@pytest.mark.parametrize("default", [[], {}, set(), bytearray()])
+def test_struct_empty_mutable_defaults_work(default):
     class Test(Struct):
         value: object = default
 
-    t = Test()
-    assert t.value == default
-    assert t.value is not default
-    if isinstance(default, dict):
-        lr_iter = zip(t.value.values(), default.values())
-    else:
-        lr_iter = zip(t.value, default)
-    for x, y in lr_iter:
-        assert x == y
-        assert x is not y
+    x = Test().value
+    x == default
+    assert x is not default
+
+
+@pytest.mark.parametrize(
+    "default",
+    [Point(1, 2), [1], {"a": "b"}, {1, 2}, bytearray(b"test")],
+)
+def test_struct_nonempty_mutable_defaults_error(default):
+    with pytest.raises(TypeError) as rec:
+
+        class Test(Struct):
+            value: object = default
+
+    assert "as a default value is unsafe" in str(rec.value)
+    assert repr(default) in str(rec.value)
 
 
 def test_struct_reference_counting():

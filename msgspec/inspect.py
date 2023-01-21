@@ -22,7 +22,7 @@ except Exception:
     _types_UnionType = type("UnionType", (), {})
 
 import msgspec
-from ._core import nodefault as _nodefault, to_builtins
+from ._core import nodefault as _nodefault, Factory as _Factory, to_builtins
 from ._utils import _AnnotatedAlias, get_type_hints as _get_type_hints
 
 
@@ -870,20 +870,35 @@ class _Translator:
 
             hints = self._get_type_hints(t)
             npos = len(t.__struct_fields__) - len(t.__struct_defaults__)
-            out.fields = tuple(
-                Field(
+            fields = []
+            for name, encode_name, default_obj in zip(
+                t.__struct_fields__,
+                t.__struct_encode_fields__,
+                (_nodefault,) * npos + t.__struct_defaults__,
+            ):
+                if default_obj is _nodefault:
+                    required = True
+                    default = default_factory = UNSET
+                elif isinstance(default_obj, _Factory):
+                    required = False
+                    default = UNSET
+                    default_factory = default_obj.factory
+                else:
+                    required = False
+                    default = default_obj
+                    default_factory = UNSET
+
+                field = Field(
                     name=name,
                     encode_name=encode_name,
                     type=self.translate(hints[name]),
-                    required=default is _nodefault,
-                    default=UNSET if default is _nodefault else default,
+                    required=required,
+                    default=default,
+                    default_factory=default_factory,
                 )
-                for name, encode_name, default in zip(
-                    t.__struct_fields__,
-                    t.__struct_encode_fields__,
-                    (_nodefault,) * npos + t.__struct_defaults__,
-                )
-            )
+                fields.append(field)
+
+            out.fields = tuple(fields)
             return out
         elif _is_typeddict(t):
             if t in self.cache:
