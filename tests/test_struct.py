@@ -421,7 +421,7 @@ class TestStructInit:
         with pytest.raises(TypeError, match="Argument 'a' given by name and position"):
             Test(1, 2, a=3)
 
-        with pytest.raises(TypeError, match="Extra keyword arguments provided"):
+        with pytest.raises(TypeError, match="Unexpected keyword argument 'e'"):
             Test(1, 2, e=5)
 
     def test_init_kw_only(self):
@@ -441,7 +441,7 @@ class TestStructInit:
         with pytest.raises(TypeError, match="Extra positional arguments provided"):
             Test(1)
 
-        with pytest.raises(TypeError, match="Extra keyword arguments provided"):
+        with pytest.raises(TypeError, match="Unexpected keyword argument 'e'"):
             Test(a=1, e=5)
 
     def test_init_kw_only_mixed(self):
@@ -468,7 +468,7 @@ class TestStructInit:
         with pytest.raises(TypeError, match="Extra positional arguments provided"):
             Test(1, 5.0, 3)
 
-        with pytest.raises(TypeError, match="Extra keyword arguments provided"):
+        with pytest.raises(TypeError, match="Unexpected keyword argument 'e'"):
             Test(1, e=5)
 
 

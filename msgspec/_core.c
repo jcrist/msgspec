@@ -6038,7 +6038,7 @@ Struct_vectorcall(PyTypeObject *cls, PyObject *const *args, size_t nargsf, PyObj
         }
 
         /* Unknown keyword */
-        PyErr_SetString(PyExc_TypeError, "Extra keyword arguments provided");
+        PyErr_Format(PyExc_TypeError, "Unexpected keyword argument '%U'", kwname);
         goto error;
 
 kw_found:
