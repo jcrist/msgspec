@@ -66,11 +66,6 @@ def test_merge_json(a, b, sol):
     assert b == b_orig
 
 
-def test_unset():
-    assert repr(mi.UNSET) == "UNSET"
-    assert mi.UNSET.__reduce__() == "UNSET"
-
-
 def test_inspect_module_dir():
     assert mi.__dir__() == mi.__all__
 

@@ -36,6 +36,21 @@ def as_tuple(x):
     return tuple(getattr(x, f) for f in x.__struct_fields__)
 
 
+@pytest.mark.parametrize(
+    "obj, str_obj", [(msgspec.UNSET, "UNSET"), (nodefault, "nodefault")]
+)
+def test_singletons(obj, str_obj):
+    assert str(obj) == str_obj
+    assert pickle.loads(pickle.dumps(obj)) is obj
+
+    cls = type(obj)
+    assert cls() is obj
+    with pytest.raises(TypeError):
+        cls(1)
+    with pytest.raises(TypeError):
+        cls(foo=1)
+
+
 def test_struct_class_attributes():
     assert Struct.__struct_fields__ == ()
     assert Struct.__struct_encode_fields__ == ()

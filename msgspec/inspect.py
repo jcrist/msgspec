@@ -22,7 +22,12 @@ except Exception:
     _types_UnionType = type("UnionType", (), {})
 
 import msgspec
-from ._core import nodefault as _nodefault, Factory as _Factory, to_builtins
+from msgspec import UNSET
+from ._core import (
+    nodefault as _nodefault,
+    Factory as _Factory,
+    to_builtins as _to_builtins,
+)
 from ._utils import _AnnotatedAlias, get_type_hints as _get_type_hints
 
 
@@ -67,19 +72,6 @@ __all__ = (
 
 def __dir__():
     return __all__
-
-
-class _UnsetSingleton:
-    """A singleton indicating a value is unset"""
-
-    def __repr__(self):
-        return "UNSET"
-
-    def __reduce__(self):
-        return "UNSET"
-
-
-UNSET = _UnsetSingleton()
 
 
 class Type(msgspec.Struct):
@@ -749,7 +741,7 @@ class _Translator:
             if meta.extra_json_schema is not None:
                 extra_json_schema = _merge_json(
                     extra_json_schema,
-                    to_builtins(meta.extra_json_schema, str_keys=True),
+                    _to_builtins(meta.extra_json_schema, str_keys=True),
                 )
             if meta.extra is not None:
                 extra.update(meta.extra)
