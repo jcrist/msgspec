@@ -6770,8 +6770,6 @@ PyDoc_STRVAR(Struct__doc__,
 "\n"
 "Fields are defined using type annotations. Fields may optionally have\n"
 "default values, which result in keyword parameters to the constructor.\n"
-"Note that mutable default values are deepcopied in the constructor to\n"
-"prevent accidental sharing.\n"
 "\n"
 "Structs automatically define ``__init__``, ``__eq__``, ``__repr__``, and\n"
 "``__copy__`` methods. Additional methods can be defined on the class as\n"

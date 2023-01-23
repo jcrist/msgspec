@@ -67,8 +67,8 @@ class Project(Base):
 
 
 class PyProject(Base):
-    build_system: BuildSystem = BuildSystem()
-    project: Project = Project()
+    build_system: BuildSystem | None = None
+    project: Project | None = None
     tool: dict[str, dict[str, Any]] = {}
 
 
