@@ -1845,6 +1845,62 @@ PyTypeObject NoDefault_Type = {
 PyObject _NoDefault_Object = {1, &NoDefault_Type};
 
 /*************************************************************************
+ * UNSET singleton                                                       *
+ *************************************************************************/
+
+PyObject _Unset_Object;
+#define UNSET &_Unset_Object
+
+PyDoc_STRVAR(Unset__doc__,
+"Unset()\n"
+"--\n"
+"\n"
+"A singleton indicating a value is unset."
+);
+static PyObject *
+unset_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
+{
+    if (PyTuple_GET_SIZE(args) || (kwargs && PyDict_GET_SIZE(kwargs))) {
+        PyErr_SetString(PyExc_TypeError, "Unset takes no arguments");
+        return NULL;
+    }
+    Py_INCREF(UNSET);
+    return UNSET;
+}
+
+static PyObject *
+unset_repr(PyObject *op)
+{
+    return PyUnicode_FromString("UNSET");
+}
+
+static PyObject *
+unset_reduce(PyObject *op, PyObject *args)
+{
+    return PyUnicode_FromString("UNSET");
+}
+
+static PyMethodDef unset_methods[] = {
+    {"__reduce__", unset_reduce, METH_NOARGS, NULL},
+    {NULL, NULL}
+};
+
+PyTypeObject Unset_Type = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "msgspec._core.Unset",
+    .tp_doc = Unset__doc__,
+    .tp_repr = unset_repr,
+    .tp_flags = Py_TPFLAGS_DEFAULT,
+    .tp_methods = unset_methods,
+    .tp_new = unset_new,
+    .tp_dealloc = 0,
+    .tp_itemsize = 0,
+    .tp_basicsize = 0
+};
+
+PyObject _Unset_Object = {1, &Unset_Type};
+
+/*************************************************************************
  * Factory                                                               *
  *************************************************************************/
 
@@ -17749,6 +17805,8 @@ PyInit__core(void)
     StructMetaType.tp_base = &PyType_Type;
     if (PyType_Ready(&NoDefault_Type) < 0)
         return NULL;
+    if (PyType_Ready(&Unset_Type) < 0)
+        return NULL;
     if (PyType_Ready(&Factory_Type) < 0)
         return NULL;
     if (PyType_Ready(&IntLookup_Type) < 0)
@@ -17819,6 +17877,11 @@ PyInit__core(void)
     /* Add nodefault singleton */
     Py_INCREF(NODEFAULT);
     if (PyModule_AddObject(m, "nodefault", NODEFAULT) < 0)
+        return NULL;
+
+    /* Add UNSET singleton */
+    Py_INCREF(UNSET);
+    if (PyModule_AddObject(m, "UNSET", UNSET) < 0)
         return NULL;
 
     /* Initialize the Struct Type */

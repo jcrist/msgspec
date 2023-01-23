@@ -2,6 +2,7 @@ from ._core import (
     Struct,
     replace,
     defstruct,
+    UNSET,
     Raw,
     Meta,
     to_builtins,

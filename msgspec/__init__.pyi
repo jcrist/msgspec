@@ -15,6 +15,11 @@ from typing import (
     overload,
 )
 
+class _Unset:
+    pass
+
+UNSET = _Unset()
+
 # Use `__dataclass_transform__` to catch more errors under pyright. Since we don't expose
 # the underlying metaclass, hide it under an underscore name. See
 # https://github.com/microsoft/pyright/blob/main/specs/dataclass_transforms.md

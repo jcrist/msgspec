@@ -16,6 +16,13 @@ def check_exceptions() -> None:
     reveal_type(msgspec.DecodeError)  # assert "Any" not in typ
     reveal_type(msgspec.ValidationError)  # assert "Any" not in typ
 
+
+def check_unset() -> None:
+    reveal_type(msgspec.UNSET)  # assert "Any" not in typ
+    str(msgspec.UNSET)
+    pickle.dumps(msgspec.UNSET)
+
+
 ##########################################################
 # Structs                                                #
 ##########################################################
