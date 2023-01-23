@@ -38,6 +38,17 @@ def check_struct() -> None:
     reveal_type(t.y)  # assert "str" in typ
 
 
+def check_struct_field() -> None:
+    class Test(msgspec.Struct):
+        a: int
+        x: int = msgspec.field(default=1)
+        y: List[int] = msgspec.field(default_factory=lambda: [1, 2, 3])
+
+    Test(1)
+    Test(1, 2)
+    Test(1, 2, [3])
+
+
 def check_struct_kw_only() -> None:
     class Test(msgspec.Struct, kw_only=True):
         x: int

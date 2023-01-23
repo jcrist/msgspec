@@ -1253,6 +1253,34 @@ class TestStructKeywordOnly:
             proto.decode(msg, type=Test)
 
 
+class TestStructDefaults:
+    def test_struct_defaults(self, proto):
+        class Test(msgspec.Struct):
+            a: int = 1
+            b: list = []
+            c: int = msgspec.field(default=2)
+            d: dict = msgspec.field(default_factory=dict)
+
+        sol = Test()
+
+        res = proto.decode(proto.encode(sol), type=Test)
+        assert res == sol
+
+        res = proto.decode(proto.encode({}), type=Test)
+        assert res == sol
+
+    def test_struct_default_factory_errors(self, proto):
+        def bad():
+            raise ValueError("Oh no!")
+
+        class Test(msgspec.Struct):
+            a: int = msgspec.field(default_factory=bad)
+
+        msg = proto.encode({})
+        with pytest.raises(Exception, match="Oh no!"):
+            proto.decode(msg, type=Test)
+
+
 class TestTypedDict:
     def test_type_cached(self, proto):
         class Ex(TypedDict):

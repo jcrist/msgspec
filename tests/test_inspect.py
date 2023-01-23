@@ -291,9 +291,13 @@ def test_enum():
     ],
 )
 def test_struct(kw):
+    def factory():
+        return "foo"
+
     class Example(msgspec.Struct, **kw):
         x: int
         y: int = 0
+        z: int = msgspec.field(default_factory=factory)
 
     sol = mi.StructType(
         cls=Example,
@@ -301,6 +305,13 @@ def test_struct(kw):
             mi.Field(name="x", encode_name="x", type=mi.IntType()),
             mi.Field(
                 name="y", encode_name="y", type=mi.IntType(), required=False, default=0
+            ),
+            mi.Field(
+                name="z",
+                encode_name="z",
+                type=mi.IntType(),
+                required=False,
+                default_factory=factory,
             ),
         ),
         **kw

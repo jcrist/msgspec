@@ -13,7 +13,7 @@ from typing import Any, Optional, List
 import pytest
 
 import msgspec
-from msgspec import Struct, defstruct, replace
+from msgspec import Struct, field, defstruct, replace
 from msgspec._core import nodefault
 
 
@@ -49,6 +49,26 @@ def test_singletons(obj, str_obj):
         cls(1)
     with pytest.raises(TypeError):
         cls(foo=1)
+
+
+def test_field():
+    f1 = msgspec.field()
+    assert f1.default is msgspec.UNSET
+    assert f1.default_factory is msgspec.UNSET
+
+    f2 = msgspec.field(default=1)
+    assert f2.default == 1
+    assert f2.default_factory is msgspec.UNSET
+
+    f3 = msgspec.field(default_factory=int)
+    assert f3.default is msgspec.UNSET
+    assert f3.default_factory is int
+
+    with pytest.raises(TypeError, match="Cannot set both"):
+        msgspec.field(default=1, default_factory=int)
+
+    with pytest.raises(TypeError, match="must be callable"):
+        msgspec.field(default_factory=1)
 
 
 def test_struct_class_attributes():
@@ -145,14 +165,14 @@ def test_struct_errors_nicely_if_used_in_init_subclass():
     class Test(Struct):
         def __init_subclass__(cls):
             # Class attributes aren't yet defined, error nicely
-            for field in [
+            for attr in [
                 "__struct_fields__",
                 "__struct_encode_fields__",
                 "__match_args__",
                 "__struct_defaults__",
             ]:
                 with pytest.raises(AttributeError):
-                    getattr(cls, field)
+                    getattr(cls, attr)
 
             # Init doesn't work
             with pytest.raises(Exception):
@@ -685,6 +705,32 @@ def test_struct_nonempty_mutable_defaults_error(default):
 
     assert "as a default value is unsafe" in str(rec.value)
     assert repr(default) in str(rec.value)
+
+
+def test_struct_defaults_from_field():
+    default = []
+
+    class Test(Struct):
+        x: int = field(default=1)
+        y: int = field(default_factory=lambda: 2)
+        z: list[int] = field(default=default)
+
+    t = Test()
+    assert t.x == 1
+    assert t.y == 2
+    assert t.z == []
+    assert t.z is not default
+
+
+def test_struct_default_factory_errors():
+    def bad():
+        raise ValueError("Oh no")
+
+    class Test(Struct):
+        x: int = field(default_factory=bad)
+
+    with pytest.raises(ValueError):
+        Test()
 
 
 def test_struct_reference_counting():

@@ -1429,7 +1429,6 @@ Meta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
     PyObject *extra_json_schema = NULL, *extra = NULL;
     PyObject *regex = NULL;
 
-    /* Parse arguments: (name, bases, dict) */
     if (!PyArg_ParseTupleAndKeywords(
             args, kwargs, "|$OOOOOOOOOOOOOO:Meta.__new__", kwlist,
             &gt, &ge, &lt, &le, &multiple_of,
@@ -1960,6 +1959,12 @@ Factory_Call(PyObject *self) {
     return CALL_NO_ARGS(factory);
 }
 
+static PyObject *
+Factory_repr(PyObject *op)
+{
+    return PyUnicode_FromString("<factory>");
+}
+
 static int
 Factory_traverse(Factory *self, visitproc visit, void *arg)
 {
@@ -1993,11 +1998,114 @@ static PyTypeObject Factory_Type = {
     .tp_basicsize = sizeof(Factory),
     .tp_itemsize = 0,
     .tp_new = Factory_new,
+    .tp_repr = Factory_repr,
     .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
     .tp_clear = (inquiry)Factory_clear,
     .tp_traverse = (traverseproc)Factory_traverse,
     .tp_dealloc = (destructor) Factory_dealloc,
     .tp_members = Factory_members,
+};
+
+/*************************************************************************
+ * Field                                                                 *
+ *************************************************************************/
+
+static PyTypeObject Field_Type;
+
+typedef struct {
+    PyObject_HEAD
+    PyObject *default_value;
+    PyObject *default_factory;
+} Field;
+
+PyDoc_STRVAR(Field__doc__,
+"Configuration for a Struct field.\n"
+"\n"
+"Parameters\n"
+"----------\n"
+"default : Any, optional\n"
+"    A default value to use for this field.\n"
+"default_factory : callable, optional\n"
+"    A zero-argument function called to generate a new default value\n"
+"    per-instance, rather than using a constant value as in ``default``."
+);
+static PyObject *
+Field_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
+    static char *kwlist[] = {"default", "default_factory", NULL};
+    PyObject *default_value = UNSET, *default_factory = UNSET;
+
+    if (
+        !PyArg_ParseTupleAndKeywords(
+            args, kwargs, "|$OO", kwlist,
+            &default_value, &default_factory
+        )
+    ) {
+        return NULL;
+    }
+    if (default_value != UNSET && default_factory != UNSET) {
+        PyErr_SetString(
+            PyExc_TypeError, "Cannot set both `default` and `default_factory`"
+        );
+        return NULL;
+    }
+    if (default_factory != UNSET) {
+        if (!PyCallable_Check(default_factory)) {
+            PyErr_SetString(PyExc_TypeError, "default_factory must be callable");
+            return NULL;
+        }
+    }
+
+    Field *self = (Field *)Field_Type.tp_alloc(&Field_Type, 0);
+    if (self == NULL) return NULL;
+    Py_INCREF(default_value);
+    self->default_value = default_value;
+    Py_INCREF(default_factory);
+    self->default_factory = default_factory;
+    return (PyObject *)self;
+}
+
+static int
+Field_traverse(Field *self, visitproc visit, void *arg)
+{
+    Py_VISIT(self->default_value);
+    Py_VISIT(self->default_factory);
+    return 0;
+}
+
+static int
+Field_clear(Field *self)
+{
+    Py_CLEAR(self->default_value);
+    Py_CLEAR(self->default_factory);
+    return 0;
+}
+
+static void
+Field_dealloc(Field *self)
+{
+    PyObject_GC_UnTrack(self);
+    Field_clear(self);
+    Py_TYPE(self)->tp_free((PyObject *)self);
+}
+
+static PyMemberDef Field_members[] = {
+    {"default", T_OBJECT_EX, offsetof(Field, default_value), READONLY, "The default value, or UNSET if unset"},
+    {"default_factory", T_OBJECT_EX, offsetof(Field, default_factory), READONLY, "The default_factory, or UNSET if unset"},
+    {NULL},
+};
+
+static PyTypeObject Field_Type = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "msgspec._core.Field",
+    .tp_doc = Field__doc__,
+    .tp_basicsize = sizeof(Field),
+    .tp_itemsize = 0,
+    .tp_new = Field_new,
+    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
+    .tp_clear = (inquiry)Field_clear,
+    .tp_traverse = (traverseproc)Field_traverse,
+    .tp_dealloc = (destructor) Field_dealloc,
+    .tp_members = Field_members,
 };
 
 /*************************************************************************
@@ -4962,6 +5070,24 @@ structmeta_process_default(StructMetaInfo *info, PyObject *field) {
 
     PyObject* default_val = NULL;
     PyTypeObject *type = Py_TYPE(obj);
+
+    if (type == &Field_Type) {
+        Field *f = (Field *)obj;
+        if (f->default_value != UNSET) {
+            obj = f->default_value;
+            type = Py_TYPE(obj);
+        }
+        else if (f->default_factory != UNSET) {
+            default_val = Factory_New(f->default_factory);
+            if (default_val == NULL) return -1;
+            goto done;
+        }
+        else {
+            if (PyDict_SetItem(info->defaults_lk, field, NODEFAULT) < 0) return -1;
+            goto done;
+        }
+    }
+
     if (type == &PyDict_Type) {
         if (PyDict_GET_SIZE(obj) != 0) goto error_nonempty;
         default_val = Factory_New((PyObject*)(&PyDict_Type));
@@ -4993,6 +5119,7 @@ structmeta_process_default(StructMetaInfo *info, PyObject *field) {
         default_val = obj;
     }
 
+done:
     if (dict_discard(info->namespace, field) < 0) {
         Py_DECREF(default_val);
         return -1;
@@ -17809,6 +17936,8 @@ PyInit__core(void)
         return NULL;
     if (PyType_Ready(&Factory_Type) < 0)
         return NULL;
+    if (PyType_Ready(&Field_Type) < 0)
+        return NULL;
     if (PyType_Ready(&IntLookup_Type) < 0)
         return NULL;
     if (PyType_Ready(&StrLookup_Type) < 0)
@@ -17846,6 +17975,8 @@ PyInit__core(void)
     /* Add types */
     Py_INCREF(&Factory_Type);
     if (PyModule_AddObject(m, "Factory", (PyObject *)&Factory_Type) < 0)
+        return NULL;
+    if (PyModule_AddObject(m, "Field", (PyObject *)&Field_Type) < 0)
         return NULL;
     Py_INCREF(&Meta_Type);
     if (PyModule_AddObject(m, "Meta", (PyObject *)&Meta_Type) < 0)

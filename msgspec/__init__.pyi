@@ -15,26 +15,33 @@ from typing import (
     overload,
 )
 
+T = TypeVar("T")
+
 class _Unset:
     pass
 
 UNSET = _Unset()
+
+@overload
+def field(*, default: T) -> T: ...
+@overload
+def field(*, default_factory: Callable[[], T]) -> T: ...
+@overload
+def field() -> Any: ...
 
 # Use `__dataclass_transform__` to catch more errors under pyright. Since we don't expose
 # the underlying metaclass, hide it under an underscore name. See
 # https://github.com/microsoft/pyright/blob/main/specs/dataclass_transforms.md
 # for more information.
 
-_T = TypeVar("_T")
-
 def __dataclass_transform__(
     *,
     eq_default: bool = True,
     order_default: bool = False,
     kw_only_default: bool = False,
-    field_descriptors: Tuple[Union[type, Callable[..., Any]], ...] = (()),
-) -> Callable[[_T], _T]: ...
-@__dataclass_transform__()
+    field_specifiers: Tuple[Union[type, Callable[..., Any]], ...] = (),
+) -> Callable[[T], T]: ...
+@__dataclass_transform__(field_specifiers=(field,))
 class __StructMeta(type):
     def __new__(
         cls: Type[type], name: str, bases: tuple, classdict: dict
@@ -146,9 +153,6 @@ def to_builtins(
     builtin_types: Union[Iterable[Type], None] = None,
     enc_hook: Optional[Callable[[Any], Any]] = None,
 ) -> Any: ...
-
-T = TypeVar("T")
-
 @overload
 def from_builtins(
     obj: Any,

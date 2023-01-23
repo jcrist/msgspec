@@ -1,4 +1,5 @@
 from ._core import (
+    Field as _Field,
     Struct,
     replace,
     defstruct,
@@ -17,6 +18,22 @@ from . import json
 from . import yaml
 from . import toml
 from . import inspect
+
+
+def field(*, default=UNSET, default_factory=UNSET):
+    """
+    Configuration for a Struct field.
+
+    Parameters
+    ----------
+    default : Any, optional
+        A default value to use for this field.
+    default_factory : callable, optional
+        A zero-argument function called to generate a new default value
+        per-instance, rather than using a constant value as in ``default``.
+    """
+    return _Field(default=default, default_factory=default_factory)
+
 
 from ._version import get_versions
 
