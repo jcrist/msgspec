@@ -9,6 +9,8 @@ Struct
 .. autoclass:: Struct
     :members:
 
+.. autofunction:: field
+
 .. autofunction:: defstruct
 
 .. autofunction:: replace

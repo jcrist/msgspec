@@ -341,8 +341,8 @@ file. This includes full schema definitions for all fields in the
 
 
 <span class="k">class</span> <span class="nc">PyProject</span><span class="p">(</span><span class="n">Base</span><span class="p">):</span>
-    <span class="n">build_system</span><span class="p">:</span> <span class="n">BuildSystem</span> <span class="o">=</span> <span class="n">BuildSystem</span><span class="p">()</span>
-    <span class="n">project</span><span class="p">:</span> <span class="n">Project</span> <span class="o">=</span> <span class="n">Project</span><span class="p">()</span>
+    <span class="n">build_system</span><span class="p">:</span> <span class="n">BuildSystem</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">project</span><span class="p">:</span> <span class="n">Project</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">tool</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
 
 

@@ -276,8 +276,7 @@ required field and two optional fields.</p>
 <li><p><code class="docutils literal notranslate"><span class="pre">email</span></code> is an <em>optional</em> field expecting a <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">str</span></code></a> or <a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a>, defaulting to
 <a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a> if no value is provided.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">groups</span></code> is an <em>optional</em> field expecting a <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#set" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set</span></code></a> of <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">str</span></code></a>. If no value is
-provided, it defaults to the empty set (note that mutable default values are
-deep-copied before use).</p></li>
+provided, it defaults to the empty set.</p></li>
 </ul>
 <p>Struct types automatically generate a few methods based on the provided type
 annotations:</p>
@@ -332,6 +331,55 @@ for converting a struct to a dict.</p>
 <span class="go">{&quot;x&quot;: 1.0, &quot;y&quot;: 2.0}</span>
 </pre></div>
 </div>
+<section id="default-values">
+<h2>Default Values<a class="headerlink" href="#default-values" title="Permalink to this heading">#</a></h2>
+<p>Struct fields may be given default values, which are used if no value is
+provided to <code class="docutils literal notranslate"><span class="pre">__init__</span></code>, or when decoding a message. Default values are
+configured as part of a Struct definition by assigning them after a field’s
+type annotation.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">msgspec</span> <span class="kn">import</span> <span class="n">Struct</span><span class="p">,</span> <span class="n">field</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">uuid</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">Example</span><span class="p">(</span><span class="n">Struct</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="n">a</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="gp">... </span>    <span class="n">b</span><span class="p">:</span> <span class="n">uuid</span><span class="o">.</span><span class="n">UUID</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">uuid</span><span class="o">.</span><span class="n">uuid4</span><span class="p">)</span>
+<span class="gp">... </span>    <span class="n">c</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">Example</span><span class="p">()</span>
+<span class="go">Example(a=1, b=UUID(&#39;f63219d5-e9ca-4ae8-afd0-cba30e84222d&#39;), c=[])</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">Example</span><span class="p">(</span><span class="n">a</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+<span class="go">Example(a=2, b=UUID(&#39;319a6c0f-2841-4439-8bc8-2c1daf7d77a2&#39;), c=[])</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">Example</span><span class="p">()</span><span class="o">.</span><span class="n">c</span> <span class="ow">is</span> <span class="n">Example</span><span class="p">()</span><span class="o">.</span><span class="n">c</span>  <span class="c1"># new list instance used each time</span>
+<span class="go">False</span>
+</pre></div>
+</div>
+<p>Default values may be one of 3 kinds:</p>
+<ul class="simple">
+<li><p>A “static” default value. Here the same default value is used for all
+instances. These are specified by assigning the default value itself as part
+of the field definition (as in <code class="docutils literal notranslate"><span class="pre">a</span></code> above). Most default values will be of
+this variety.</p></li>
+<li><p>A “dynamic” default value. Here a new default value is used for all
+instances. These are specified using the <a class="reference internal" href="api.html#msgspec.field" title="msgspec.field"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.field</span></code></a> function, and
+passing in a <code class="docutils literal notranslate"><span class="pre">default_factory</span></code> used to create a new default value per
+instance( as in <code class="docutils literal notranslate"><span class="pre">b</span></code> above). These are mainly useful for occasions where you
+need dynamic defaults, or when a default value is a mutable object that you
+don’t want to share between all instances of the struct (a <a class="reference external" href="https://docs.python-guide.org/writing/gotchas/#mutable-default-arguments">common gotcha</a>
+in Python).</p></li>
+<li><p>Builtin <em>empty</em> mutable collections (<code class="docutils literal notranslate"><span class="pre">[]</span></code>, <code class="docutils literal notranslate"><span class="pre">{}</span></code>, <code class="docutils literal notranslate"><span class="pre">set()</span></code>, and
+<code class="docutils literal notranslate"><span class="pre">bytearray()</span></code>) may be used as default values (as in <code class="docutils literal notranslate"><span class="pre">c</span></code> above). Since
+defaults of these types are so common, they’re these are “syntactic sugar”
+for specifying the corresponding <code class="docutils literal notranslate"><span class="pre">default_factory</span></code> (to avoid accidental
+sharing of mutable values). A default of <code class="docutils literal notranslate"><span class="pre">[]</span></code> is identical to a default of
+<code class="docutils literal notranslate"><span class="pre">field(default_factory=list)</span></code>, with a new list instance used each time.
+Specifying a non-empty mutable collection (e.g. <code class="docutils literal notranslate"><span class="pre">[1,</span> <span class="pre">2,</span> <span class="pre">3]</span></code>) as a default
+value will cause the struct definition to error (you should manually define a
+<code class="docutils literal notranslate"><span class="pre">default_factory</span></code> in this case).</p></li>
+</ul>
+</section>
 <section id="field-ordering">
 <span id="struct-field-ordering"></span><h2>Field Ordering<a class="headerlink" href="#field-ordering" title="Permalink to this heading">#</a></h2>
 <p>When defining a new struct type, fields are stored in the order they’re defined
@@ -1019,6 +1067,7 @@ collected (leading to a memory leak).</p>
           <div class="toc-tree">
             <ul>
 <li><a class="reference internal" href="#">Structs</a><ul>
+<li><a class="reference internal" href="#default-values">Default Values</a></li>
 <li><a class="reference internal" href="#field-ordering">Field Ordering</a></li>
 <li><a class="reference internal" href="#type-validation">Type Validation</a></li>
 <li><a class="reference internal" href="#pattern-matching">Pattern Matching</a></li>

@@ -30,8 +30,7 @@ required field and two optional fields.
   `None` if no value is provided.
 
 - ``groups`` is an *optional* field expecting a `set` of `str`. If no value is
-  provided, it defaults to the empty set (note that mutable default values are
-  deep-copied before use).
+  provided, it defaults to the empty set.
 
 Struct types automatically generate a few methods based on the provided type
 annotations:
@@ -90,6 +89,60 @@ for converting a struct to a dict.
     >>> p.to_dict()
     {"x": 1.0, "y": 2.0}
 
+
+Default Values
+--------------
+
+Struct fields may be given default values, which are used if no value is
+provided to ``__init__``, or when decoding a message. Default values are
+configured as part of a Struct definition by assigning them after a field's
+type annotation.
+
+.. code-block:: python
+
+    >>> from msgspec import Struct, field
+
+    >>> import uuid
+
+    >>> class Example(Struct):
+    ...     a: int = 1
+    ...     b: uuid.UUID = field(default_factory=uuid.uuid4)
+    ...     c: list[int] = []
+
+    >>> Example()
+    Example(a=1, b=UUID('f63219d5-e9ca-4ae8-afd0-cba30e84222d'), c=[])
+
+    >>> Example(a=2)
+    Example(a=2, b=UUID('319a6c0f-2841-4439-8bc8-2c1daf7d77a2'), c=[])
+
+    >>> Example().c is Example().c  # new list instance used each time
+    False
+
+Default values may be one of 3 kinds:
+
+- A "static" default value. Here the same default value is used for all
+  instances. These are specified by assigning the default value itself as part
+  of the field definition (as in ``a`` above). Most default values will be of
+  this variety.
+
+- A "dynamic" default value. Here a new default value is used for all
+  instances. These are specified using the `msgspec.field` function, and
+  passing in a ``default_factory`` used to create a new default value per
+  instance( as in ``b`` above). These are mainly useful for occasions where you
+  need dynamic defaults, or when a default value is a mutable object that you
+  don't want to share between all instances of the struct (a `common gotcha
+  <https://docs.python-guide.org/writing/gotchas/#mutable-default-arguments>`_
+  in Python).
+
+- Builtin *empty* mutable collections (``[]``, ``{}``, ``set()``, and
+  ``bytearray()``) may be used as default values (as in ``c`` above). Since
+  defaults of these types are so common, they're these are "syntactic sugar"
+  for specifying the corresponding ``default_factory`` (to avoid accidental
+  sharing of mutable values). A default of ``[]`` is identical to a default of
+  ``field(default_factory=list)``, with a new list instance used each time.
+  Specifying a non-empty mutable collection (e.g. ``[1, 2, 3]``) as a default
+  value will cause the struct definition to error (you should manually define a
+  ``default_factory`` in this case).
 
 .. _struct-field-ordering:
 
