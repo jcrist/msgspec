@@ -713,7 +713,7 @@ def test_struct_defaults_from_field():
     class Test(Struct):
         x: int = field(default=1)
         y: int = field(default_factory=lambda: 2)
-        z: list[int] = field(default=default)
+        z: List[int] = field(default=default)
 
     t = Test()
     assert t.x == 1
