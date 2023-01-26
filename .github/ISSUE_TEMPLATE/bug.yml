@@ -1,0 +1,24 @@
+name: 🪲 Bug Report
+description: Report a bug or unexpected behavior in msgspec
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for taking the time to fill out a bug report!
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: |
+        Describe the bug. What happened? What did you expect to happen?
+
+        When possible, please also include a [minimal, complete, verifiable
+        example](https://stackoverflow.com/help/minimal-reproducible-example).
+        Ideally this should be code that can be run without modification to
+        demonstrate the problem.
+
+        When including errors and tracebacks, please include the _full
+        traceback_ as well as the code that generated the error (or at least
+        the line that caused it).
+    validations:
+      required: true
