@@ -9,12 +9,14 @@ body:
     id: description
     attributes:
       label: Description
-      description: |
+      description: >
         Describe the feature. What problems does it solve?
+
 
         If the feature is to related to a problem, please describe in detail
         your use case. What would this new feature help you do that you
         couldn't do before? Why is this useful?
+
 
         When relevant, please also include example code making use of your
         proposed feature. How would you use this feature? What would code using
