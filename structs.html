@@ -452,6 +452,35 @@ fields.</p>
 <p>The field ordering rules for <code class="docutils literal notranslate"><span class="pre">Struct</span></code> types are identical to those for
 <a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#module-dataclasses" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses</span></code></a>, see the <a class="reference external" href="dataclasses">dataclasses docs</a> for more information.</p>
 </section>
+<section id="class-variables">
+<h2>Class Variables<a class="headerlink" href="#class-variables" title="Permalink to this heading">#</a></h2>
+<p>Like <a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#module-dataclasses" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses</span></code></a>, <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> types will exclude any attribute
+annotations wrapped in <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.ClassVar" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.ClassVar</span></code></a> from their fields.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">msgspec</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">ClassVar</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">Example</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="n">x</span><span class="p">:</span> <span class="nb">int</span>
+<span class="gp">... </span>    <span class="n">a_class_variable</span><span class="p">:</span> <span class="n">ClassVar</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mi">2</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">Example</span><span class="o">.</span><span class="n">a_class_variable</span>
+<span class="go">2</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">Example</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>  <span class="c1"># only `x` is counted as a field</span>
+<span class="go">Example(x=1)</span>
+</pre></div>
+</div>
+<p>Note that if using <a class="reference external" href="https://peps.python.org/pep-0563/">PEP 563</a> “postponed evaluation of annotations” (e.g.
+<code class="docutils literal notranslate"><span class="pre">from</span> <span class="pre">__future__</span> <span class="pre">import</span> <span class="pre">annotations</span></code>) only the following spellings will work:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">ClassVar</span></code> or <code class="docutils literal notranslate"><span class="pre">ClassVar[&lt;type&gt;]</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">typing.ClassVar</span></code> or <code class="docutils literal notranslate"><span class="pre">typing.ClassVar[&lt;type&gt;]</span></code></p></li>
+</ul>
+<p>Importing <code class="docutils literal notranslate"><span class="pre">ClassVar</span></code> or <code class="docutils literal notranslate"><span class="pre">typing</span></code> under an aliased name (e.g. <code class="docutils literal notranslate"><span class="pre">import</span>
+<span class="pre">typing</span> <span class="pre">as</span> <span class="pre">typ</span></code> or <code class="docutils literal notranslate"><span class="pre">from</span> <span class="pre">typing</span> <span class="pre">import</span> <span class="pre">ClassVar</span> <span class="pre">as</span> <span class="pre">CV</span></code>) will not be properly
+detected.</p>
+</section>
 <section id="type-validation">
 <h2>Type Validation<a class="headerlink" href="#type-validation" title="Permalink to this heading">#</a></h2>
 <p>Unlike some other libraries (e.g. <a class="reference external" href="https://pydantic-docs.helpmanual.io/">pydantic</a>), the type annotations on a
@@ -489,7 +518,7 @@ decode a message into a type validated <a class="reference internal" href="api.h
 <section id="pattern-matching">
 <h2>Pattern Matching<a class="headerlink" href="#pattern-matching" title="Permalink to this heading">#</a></h2>
 <p>If using Python 3.10+, <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> types can be used in <a class="reference external" href="https://docs.python.org/3/reference/compound_stmts.html#the-match-statement">pattern matching</a>
-blocks. Replicating an example from <a class="reference external" href="https://www.python.org/dev/peps/pep-0636/">PEP 636</a>:</p>
+blocks. Replicating an example from <a class="reference external" href="https://peps.python.org/pep-0636/">PEP 636</a>:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># NOTE: this example requires Python 3.10+</span>
 <span class="o">&gt;&gt;&gt;</span> <span class="kn">import</span> <span class="nn">msgspec</span>
 
@@ -1077,6 +1106,7 @@ collected (leading to a memory leak).</p>
 <li><a class="reference internal" href="#">Structs</a><ul>
 <li><a class="reference internal" href="#default-values">Default Values</a></li>
 <li><a class="reference internal" href="#field-ordering">Field Ordering</a></li>
+<li><a class="reference internal" href="#class-variables">Class Variables</a></li>
 <li><a class="reference internal" href="#type-validation">Type Validation</a></li>
 <li><a class="reference internal" href="#pattern-matching">Pattern Matching</a></li>
 <li><a class="reference internal" href="#equality-and-order">Equality and Order</a></li>

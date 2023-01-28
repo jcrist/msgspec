@@ -224,6 +224,37 @@ The generated ``__init__()`` for ``Subclass`` looks like:
 The field ordering rules for ``Struct`` types are identical to those for
 `dataclasses`, see the `dataclasses docs <dataclasses>`_ for more information.
 
+Class Variables
+---------------
+
+Like `dataclasses`, `msgspec.Struct` types will exclude any attribute
+annotations wrapped in `typing.ClassVar` from their fields.
+
+.. code-block:: python
+
+   >>> import msgspec
+
+   >>> from typing import ClassVar
+
+   >>> class Example(msgspec.Struct):
+   ...     x: int
+   ...     a_class_variable: ClassVar[int] = 2
+
+   >>> Example.a_class_variable
+   2
+
+   >>> Example(1)  # only `x` is counted as a field
+   Example(x=1)
+
+Note that if using `PEP 563`_ "postponed evaluation of annotations" (e.g.
+``from __future__ import annotations``) only the following spellings will work:
+
+- ``ClassVar`` or ``ClassVar[<type>]``
+- ``typing.ClassVar`` or ``typing.ClassVar[<type>]``
+
+Importing ``ClassVar`` or ``typing`` under an aliased name (e.g. ``import
+typing as typ`` or ``from typing import ClassVar as CV``) will not be properly
+detected.
 
 Type Validation
 ---------------
@@ -862,7 +893,8 @@ collected (leading to a memory leak).
 
 .. _type annotations: https://docs.python.org/3/library/typing.html
 .. _pattern matching: https://docs.python.org/3/reference/compound_stmts.html#the-match-statement
-.. _PEP 636: https://www.python.org/dev/peps/pep-0636/
+.. _PEP 636: https://peps.python.org/pep-0636/
+.. _PEP 563: https://peps.python.org/pep-0563/
 .. _dataclasses: https://docs.python.org/3/library/dataclasses.html
 .. _attrs: https://www.attrs.org/en/stable/index.html
 .. _pydantic: https://pydantic-docs.helpmanual.io/
