@@ -593,7 +593,7 @@ Forbidding Unknown Fields
 
 By default ``msgspec`` will skip unknown fields encountered when decoding into
 ``Struct`` types. This is normally desired, as it allows for
-:ref:`schema-evolution` and more flexible decoding.
+:doc:`schema-evolution` and more flexible decoding.
 
 One downside is that typos may go unnoticed when decoding ``Struct`` types with
 optional fields. For example:
