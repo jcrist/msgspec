@@ -3,25 +3,24 @@ msgspec
 
 |github| |pypi| |conda| |codecov|
 
-``msgspec`` is a *fast* and *friendly* serialization library for Python,
-supporting both JSON_ and MessagePack_. It integrates well with Python's `type
-annotations`_, providing ergonomic (and performant!) schema validation.
+``msgspec`` is *fast* and *friendly* serialization library for Python, with
+builtin support for JSON_, MessagePack_, YAML_, and TOML_. It integrates well
+with Python's `type annotations`_, providing ergonomic (and performant!) schema
+validation.
 
 **Define** your message schemas using standard Python type annotations.
 
 .. code-block:: python
-
-    >>> from typing import Optional, Set
 
     >>> import msgspec
 
     >>> class User(msgspec.Struct):
     ...     """A new type describing a User"""
     ...     name: str
-    ...     groups: Set[str] = set()
-    ...     email: Optional[str] = None
+    ...     groups: set[str] = set()
+    ...     email: str | None = None
 
-**Encode** messages as JSON_ or MessagePack_.
+**Encode** messages as JSON, or one of the many other supported protocols.
 
 .. code-block:: python
 
@@ -35,7 +34,7 @@ annotations`_, providing ergonomic (and performant!) schema validation.
     >>> msg
     b'{"name":"alice","groups":["admin","engineering"],"email":null}'
 
-**Decode** messages back into Python types (with optional schema validation).
+**Decode** messages back into Python objects, with optional schema validation.
 
 .. code-block:: python
 
@@ -49,8 +48,8 @@ annotations`_, providing ergonomic (and performant!) schema validation.
 
 ``msgspec`` is designed to be as performant as possible, while retaining some
 of the nicities of validation libraries like pydantic_. For supported types,
-encoding/decoding a message with ``msgspec`` can be *~2-40x faster* than
-alternative libraries.
+encoding/decoding a message with ``msgspec`` can be `~2-40x faster than
+alternative libraries <benchmarks>`__.
 
 .. image:: https://github.com/jcrist/msgspec/raw/main/docs/source/_static/bench-1.svg
     :target: https://jcristharif.com/msgspec/benchmarks.html
@@ -68,6 +67,7 @@ New BSD. See the
 .. _JSON: https://json.org
 .. _MessagePack: https://msgpack.org
 .. _pydantic: https://pydantic-docs.helpmanual.io/
+.. _benchmarks: https://jcristharif.com/msgspec/benchmarks.html
 
 .. |github| image:: https://github.com/jcrist/msgspec/actions/workflows/ci.yml/badge.svg
    :target: https://github.com/jcrist/msgspec/actions/workflows/ci.yml
