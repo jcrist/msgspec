@@ -63,6 +63,7 @@ extensions = [
     "sphinx.ext.extlinks",
     "sphinx.ext.intersphinx",
     "sphinx_copybutton",
+    "sphinx_design",
     "IPython.sphinxext.ipython_console_highlighting",
 ]
 intersphinx_mapping = {"python": ("https://docs.python.org/3", None)}

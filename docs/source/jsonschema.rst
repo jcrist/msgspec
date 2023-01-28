@@ -2,7 +2,7 @@ JSON Schema
 ===========
 
 ``msgspec`` provides a few utilities for generating `JSON Schema`_
-specifications from msgspec-compatible :ref:`types <supported-types>` and
+specifications from msgspec-compatible :doc:`types <supported-types>` and
 :doc:`constraints <constraints>`.
 
 - `msgspec.json.schema`: generates a complete JSON Schema for a single type.

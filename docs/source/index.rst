@@ -1,25 +1,24 @@
 msgspec
 =======
 
-``msgspec`` is a *fast* and *friendly* serialization library for Python,
-supporting both JSON_ and MessagePack_. It integrates well with Python's `type
-annotations`_, providing ergonomic (and performant!) schema validation.
+``msgspec`` is *fast* and *friendly* serialization library for Python, with
+builtin support for JSON_, MessagePack_, YAML_, and TOML_. It integrates well
+with Python's `type annotations`_, providing ergonomic (and performant!) schema
+validation.
 
 **Define** your message schemas using standard Python type annotations.
 
 .. code-block:: python
-
-    >>> from typing import Optional, Set
 
     >>> import msgspec
 
     >>> class User(msgspec.Struct):
     ...     """A new type describing a User"""
     ...     name: str
-    ...     groups: Set[str] = set()
-    ...     email: Optional[str] = None
+    ...     groups: set[str] = set()
+    ...     email: str | None = None
 
-**Encode** messages as JSON or MessagePack.
+**Encode** messages as JSON, or one of the many other supported protocols.
 
 .. code-block:: python
 
@@ -33,7 +32,7 @@ annotations`_, providing ergonomic (and performant!) schema validation.
     >>> msg
     b'{"name":"alice","groups":["admin","engineering"],"email":null}'
 
-**Decode** messages back into Python types (with optional schema validation).
+**Decode** messages back into Python objects, with optional schema validation.
 
 .. code-block:: python
 
@@ -47,103 +46,59 @@ annotations`_, providing ergonomic (and performant!) schema validation.
 
 ``msgspec`` is designed to be as performant as possible, while retaining some
 of the nicities of validation libraries like pydantic_. For supported types,
-encoding/decoding a message with ``msgspec`` can be *~2-40x faster* than
-alternative libraries.
+encoding/decoding a message with ``msgspec`` can be :doc:`~2-40x faster than
+alternative libraries <benchmarks>`.
 
 Highlights
 ----------
 
-- ``msgspec`` is **fast**. :doc:`benchmarks` show it's among the fastest
-  serialization methods for Python, outperforming all other JSON/MessagePack
+- ``msgspec`` is **fast**. It :doc:`benchmarks <benchmarks>` as the fastest
+  serialization library for Python, outperforming all other JSON/MessagePack
   libraries compared.
 - ``msgspec`` is **friendly**. Through use of Python's type annotations,
-  messages are :ref:`validated <typed-deserialization>` during deserialization
+  messages are :ref:`validated <typed-decoding>` during deserialization
   in a declaritive way. ``msgspec`` also works well with other type-checking
   tooling like mypy_ and pyright_, providing excellent editor integration.
 - ``msgspec`` is **flexible**. It natively supports a wide range of Python
   builtin types. Support for additional types can also be added through
   :doc:`extensions <extending>`.
-- ``msgspec`` is **lightweight**. It has no dependencies, and the binary size
-  is :ref:`a fraction of that of comparable libraries <benchmark-library-size>`.
+- ``msgspec`` is **lightweight**. It has no required dependencies, and the
+  binary size is :ref:`a fraction of that of comparable libraries
+  <benchmark-library-size>`.
 - ``msgspec`` is **correct**. The encoders/decoders implemented are strictly
-  compliant with the JSON and MessagePack specifications, providing stronger
-  guarantees of compatibility with other systems.
+  compliant with their respective specifications, providing stronger guarantees
+  of compatibility with other systems.
 
+Used By
+-------
 
-Why msgspec?
-------------
+``msgspec`` is used by many organizations and `open source projects
+<https://github.com/jcrist/msgspec/network/dependents>`__, here we highlight a
+few:
 
-If you're writing a networked application, you'll need some agreed upon
-protocol that your clients and servers can use to communicate. JSON is a decent
-choice here (though there are many other options). It's ubiquitous, and Python
-has many libraries for parsing it into builtin types (``json``, ``ujson``,
-``orjson``, ...).
+.. grid:: 2 2 4 4
 
-*However, servers don't just parse JSON, they also need to do something with
-it*.
+    .. grid-item-card:: Pioreactor
+        :link: https://pioreactor.com/
 
-``msgspec`` goes above and beyond other Python JSON libraries to help with the
-following:
+        .. image:: _static/pioreactor.png
 
-- **Validation**
+    .. grid-item-card:: NautilusTrader
+        :link: https://nautilustrader.io/
 
-  If a field is missing from a request or has the wrong type, you probably want
-  to raise a nice error message rather than just throwing a 500 error.
+        .. image:: _static/nautilus-trader.png
 
-  ``msgspec`` lets you describe your schema via type annotations, and will
-  efficiently :ref:`validate <typed-deserialization>` messages against this
-  schema while decoding.
+    .. grid-item-card:: Starlite
+        :link: https://starlite-api.github.io/starlite/latest/
 
-  It also integrates well with static analysis tools like mypy_ and pyright_,
-  helping you avoid whole classes of runtime errors.
-
-- **Application Logic**
-
-  What your application actually does! While builtin types like dicts are
-  fine for writing application logic, they aren't as ergonomic as custom
-  classes (no attribute access, poor type checking, ...).
-
-  ``msgspec`` supports a :ref:`wide variety of types <supported-types>`, letting
-  you decouple the objects your application logic uses from those that JSON
-  natively supports.
-
-- **Future Flexibility**
-
-  Application needs change; you'll want to make sure your clients/servers won't
-  break if the JSON schema evolves over time.
-
-  To handle this, ``msgspec`` supports :ref:`"schema evolution"
-  <schema-evolution>`. Messages can be sent between clients with different
-  schemas without error, allowing systems to evolve over time.
-
-While there are other tools in this space, ``msgspec`` should be an :doc:`order
-of magnitude faster <benchmarks>` than other options. We also hope that it's
-quick to learn and friendly to use, letting you focus less on serialization and
-more on your application code.
-
-
-Installation
-------------
-
-``msgspec`` can be installed via ``pip`` or ``conda``. Note that Python >= 3.8
-is required.
-
-**pip**
-
-.. code-block:: shell
-
-    pip install msgspec
-
-**conda**
-
-.. code-block:: shell
-
-    conda install msgspec -c conda-forge
+        .. image:: _static/starlite.png
 
 
 .. _type annotations: https://docs.python.org/3/library/typing.html
 .. _JSON: https://json.org
 .. _MessagePack: https://msgpack.org
+.. _YAML: https://yaml.org
+.. _TOML: https://toml.io
 .. _pydantic: https://pydantic-docs.helpmanual.io/
 .. _mypy: https://mypy.readthedocs.io
 .. _pyright: https://github.com/microsoft/pyright
@@ -151,12 +106,22 @@ is required.
 .. toctree::
     :hidden:
     :maxdepth: 2
+    :caption: Overview
+
+    why.rst
+    install.rst
+
+.. toctree::
+    :hidden:
+    :maxdepth: 2
     :caption: User Guide
 
     usage.rst
+    supported-types.rst
     structs.rst
     constraints.rst
     jsonschema.rst
+    schema-evolution.rst
 
 .. toctree::
     :hidden:
