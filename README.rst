@@ -49,7 +49,7 @@ validation.
 ``msgspec`` is designed to be as performant as possible, while retaining some
 of the nicities of validation libraries like pydantic_. For supported types,
 encoding/decoding a message with ``msgspec`` can be `~2-40x faster than
-alternative libraries <benchmarks>`_.
+alternative libraries <https://jcristharif.com/msgspec/benchmarks.html>`__.
 
 .. image:: https://github.com/jcrist/msgspec/raw/main/docs/source/_static/bench-1.svg
     :target: https://jcristharif.com/msgspec/benchmarks.html
@@ -66,8 +66,9 @@ New BSD. See the
 .. _type annotations: https://docs.python.org/3/library/typing.html
 .. _JSON: https://json.org
 .. _MessagePack: https://msgpack.org
+.. _YAML: https://yaml.org
+.. _TOML: https://toml.io
 .. _pydantic: https://pydantic-docs.helpmanual.io/
-.. _benchmarks: https://jcristharif.com/msgspec/benchmarks.html
 
 .. |github| image:: https://github.com/jcrist/msgspec/actions/workflows/ci.yml/badge.svg
    :target: https://github.com/jcrist/msgspec/actions/workflows/ci.yml
