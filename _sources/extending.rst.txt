@@ -1,14 +1,14 @@
 Extending
 =========
 
-To allow encoding/decoding types other than those :ref:`natively supported
+To allow encoding/decoding types other than those :doc:`natively supported
 <supported-types>`, ``msgspec`` provides a few callbacks to
 ``Encoder``/``Decoder``.
 
 - ``enc_hook``, for transforming custom types into values
-  that ``msgspec``:ref:`natively supports <supported-types>`.
+  that ``msgspec``:doc:`natively supports <supported-types>`.
 - ``dec_hook``, for converting natively supported types back into
-  a custom type when using :ref:`typed deserialization <typed-deserialization>`.
+  a custom type when using :ref:`typed decoding <typed-decoding>`.
 - ``ext_hook`` (MessagePack only), for converting `MessagePack extensions`_
   back into custom types.
 
@@ -53,9 +53,8 @@ serialized. This process is then reversed during decoding.
 
     custom type -> native types -> encoded message -> native types -> custom type
 
-This means that :ref:`typed deserialization <typed-deserialization>` is
-required to roundtrip a message, since no custom type info is sent as part of
-the message.
+This means that :ref:`typed decoding <typed-decoding>` is required to roundtrip
+a message, since no custom type info is sent as part of the message.
 
 This method works best for types that are similar to a natively supported type
 (e.g. a `collections.deque` is similar to a `list`).  This can be accomplished
@@ -64,8 +63,7 @@ by defining two callback functions:
 - ``enc_hook`` in ``Encoder``, for transforming custom types into values
   that ``msgspec`` already knows how to serialize.
 - ``dec_hook`` in ``Decoder``, for converting natively supported types back
-  into a custom type when using :ref:`typed deserialization
-  <typed-deserialization>`.
+  into a custom type when using :ref:`typed decoding <typed-decoding>`.
 
 Here we define ``enc_hook`` and ``dec_hook`` callbacks to convert
 `decimal.Decimal` objects to/from strings, which are then natively handled by

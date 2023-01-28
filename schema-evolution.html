@@ -2,10 +2,12 @@
 <html class="no-js" lang="en">
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
-    <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="#" /><link rel="search" title="Search" href="search.html" />
+    <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Extending" href="extending.html" /><link rel="prev" title="JSON Schema" href="jsonschema.html" />
 
-    <!-- Generated with Sphinx 5.3.0 and Furo 2022.12.07 --><title>Index - </title>
-<link rel="stylesheet" type="text/css" href="_static/pygments.css" />
+    <!-- Generated with Sphinx 5.3.0 and Furo 2022.12.07 -->
+        <title>Schema Evolution</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=91d0f0d1c444bdcb17a68e833c7a53903343c195" />
     <link rel="stylesheet" type="text/css" href="_static/copybutton.css" />
     <link rel="stylesheet" type="text/css" href="_static/design-style.4045f2051d55cab465a707391d5b2007.min.css" />
@@ -195,13 +197,13 @@
 <li class="toctree-l1"><a class="reference internal" href="install.html">Installation</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
-<ul>
+<ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="usage.html">Usage</a></li>
 <li class="toctree-l1"><a class="reference internal" href="supported-types.html">Supported Types</a></li>
 <li class="toctree-l1"><a class="reference internal" href="structs.html">Structs</a></li>
 <li class="toctree-l1"><a class="reference internal" href="constraints.html">Constraints</a></li>
 <li class="toctree-l1"><a class="reference internal" href="jsonschema.html">JSON Schema</a></li>
-<li class="toctree-l1"><a class="reference internal" href="schema-evolution.html">Schema Evolution</a></li>
+<li class="toctree-l1 current current-page"><a class="current reference internal" href="#">Schema Evolution</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Advanced</span></p>
 <ul>
@@ -240,7 +242,8 @@
           <span>Back to top</span>
         </a>
         <div class="content-icon-container">
-          <div class="theme-toggle-container theme-toggle-content">
+          
+<div class="theme-toggle-container theme-toggle-content">
             <button class="theme-toggle">
               <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
               <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
@@ -254,323 +257,101 @@
           </label>
         </div>
         <article role="main">
-          
-<section class="genindex-section">
-  <h1 id="index">Index</h1>
-  <div class="genindex-jumpbox"><a href="#A"><strong>A</strong></a> | <a href="#B"><strong>B</strong></a> | <a href="#C"><strong>C</strong></a> | <a href="#D"><strong>D</strong></a> | <a href="#E"><strong>E</strong></a> | <a href="#F"><strong>F</strong></a> | <a href="#I"><strong>I</strong></a> | <a href="#L"><strong>L</strong></a> | <a href="#M"><strong>M</strong></a> | <a href="#N"><strong>N</strong></a> | <a href="#R"><strong>R</strong></a> | <a href="#S"><strong>S</strong></a> | <a href="#T"><strong>T</strong></a> | <a href="#U"><strong>U</strong></a> | <a href="#V"><strong>V</strong></a></div>
+          <section id="schema-evolution">
+<h1>Schema Evolution<a class="headerlink" href="#schema-evolution" title="Permalink to this heading">#</a></h1>
+<p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> includes support for “schema evolution”, meaning that:</p>
+<ul class="simple">
+<li><p>Messages serialized with an older version of a schema will be deserializable
+using a newer version of the schema.</p></li>
+<li><p>Messages serialized with a newer version of the schema will be deserializable
+using an older version of the schema.</p></li>
+</ul>
+<p>This can be useful if, for example, you have clients and servers with
+mismatched versions.</p>
+<p>For schema evolution to work smoothly, you need to follow a few guidelines:</p>
+<ol class="arabic simple">
+<li><p>Any new fields on a <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> must specify default values.</p></li>
+<li><p>Structs with <code class="docutils literal notranslate"><span class="pre">array_like=True</span></code> must not reorder fields, and any new fields
+must be appended to the end (and have defaults).</p></li>
+<li><p>Don’t change the type annotations for existing messages or fields.</p></li>
+<li><p>Don’t change the type codes or implementations for any defined
+<a class="reference internal" href="extending.html#defining-extensions"><span class="std std-ref">extensions</span></a> (MessagePack only).</p></li>
+</ol>
+<p>For example, suppose we had a <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> type representing a user:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">msgpsec</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Set</span><span class="p">,</span> <span class="n">Optional</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">User</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
+<span class="gp">... </span><span class="w">    </span><span class="sd">&quot;&quot;&quot;A struct representing a user&quot;&quot;&quot;</span>
+<span class="gp">... </span>    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+<span class="gp">... </span>    <span class="n">groups</span><span class="p">:</span> <span class="n">Set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+<span class="gp">... </span>    <span class="n">email</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+</pre></div>
+</div>
+<p>Then suppose we wanted to add a new <code class="docutils literal notranslate"><span class="pre">phone</span></code> field to this struct in a way
+that wouldn’t break clients/servers still using the prior definition. To
+accomplish this, we add <code class="docutils literal notranslate"><span class="pre">phone</span></code> as an _optional_ field (defaulting to
+<code class="docutils literal notranslate"><span class="pre">None</span></code>), at the end of the struct.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">User2</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
+<span class="gp">... </span><span class="w">    </span><span class="sd">&quot;&quot;&quot;An updated version of the User struct, now with a phone number&quot;&quot;&quot;</span>
+<span class="gp">... </span>    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+<span class="gp">... </span>    <span class="n">groups</span><span class="p">:</span> <span class="n">Set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+<span class="gp">... </span>    <span class="n">email</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="gp">... </span>    <span class="n">phone</span> <span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+</pre></div>
+</div>
+<p>Messages serialized using the new and old schemas can still be exchanged
+without error. If an old message is deserialized using the new schema, the
+missing fields all have default values that will be used. Likewise, if a new
+message is deserialized with the old schema the unknown new fields will be
+efficiently skipped without decoding.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">old_dec</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">Decoder</span><span class="p">(</span><span class="n">User</span><span class="p">)</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">new_dec</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">Decoder</span><span class="p">(</span><span class="n">User2</span><span class="p">)</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">new_msg</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">User2</span><span class="p">(</span><span class="s2">&quot;bob&quot;</span><span class="p">,</span> <span class="n">groups</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;finance&quot;</span><span class="p">},</span> <span class="n">phone</span><span class="o">=</span><span class="s2">&quot;512-867-5309&quot;</span><span class="p">)</span>
+<span class="gp">... </span><span class="p">)</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">old_dec</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">new_msg</span><span class="p">)</span>  <span class="c1"># deserializing a new msg with an older decoder</span>
+<span class="go">User(name=&#39;bob&#39;, groups={&#39;finance&#39;}, email=None)</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">old_msg</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">User</span><span class="p">(</span><span class="s2">&quot;alice&quot;</span><span class="p">,</span> <span class="n">groups</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;admin&quot;</span><span class="p">,</span> <span class="s2">&quot;engineering&quot;</span><span class="p">})</span>
+<span class="gp">... </span><span class="p">)</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">new_dec</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">old_msg</span><span class="p">)</span> <span class="c1"># deserializing an old msg with a new decoder</span>
+<span class="go">User2(name=&quot;alice&quot;, groups={&quot;admin&quot;, &quot;engineering&quot;}, email=None, phone=None)</span>
+</pre></div>
+</div>
 </section>
-<section id="A" class="genindex-section">
-  <h2>A</h2>
-  <table style="width: 100%" class="indextable genindextable"><tr>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.inspect.AnyType">AnyType (class in msgspec.inspect)</a>
-</li>
-    </ul></td>
-  </tr></table>
-</section>
-
-<section id="B" class="genindex-section">
-  <h2>B</h2>
-  <table style="width: 100%" class="indextable genindextable"><tr>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.inspect.BoolType">BoolType (class in msgspec.inspect)</a>
-</li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.inspect.ByteArrayType">ByteArrayType (class in msgspec.inspect)</a>
-</li>
-        <li><a href="api.html#msgspec.inspect.BytesType">BytesType (class in msgspec.inspect)</a>
-</li>
-    </ul></td>
-  </tr></table>
-</section>
-
-<section id="C" class="genindex-section">
-  <h2>C</h2>
-  <table style="width: 100%" class="indextable genindextable"><tr>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.msgpack.Ext.code">code (msgspec.msgpack.Ext attribute)</a>
-</li>
-        <li><a href="api.html#msgspec.inspect.CollectionType">CollectionType (class in msgspec.inspect)</a>
-</li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.Raw.copy">copy() (msgspec.Raw method)</a>
-</li>
-        <li><a href="api.html#msgspec.inspect.CustomType">CustomType (class in msgspec.inspect)</a>
-</li>
-    </ul></td>
-  </tr></table>
-</section>
-
-<section id="D" class="genindex-section">
-  <h2>D</h2>
-  <table style="width: 100%" class="indextable genindextable"><tr>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.msgpack.Ext.data">data (msgspec.msgpack.Ext attribute)</a>
-</li>
-        <li><a href="api.html#msgspec.inspect.DataclassType">DataclassType (class in msgspec.inspect)</a>
-</li>
-        <li><a href="api.html#msgspec.inspect.DateTimeType">DateTimeType (class in msgspec.inspect)</a>
-</li>
-        <li><a href="api.html#msgspec.inspect.DateType">DateType (class in msgspec.inspect)</a>
-</li>
-        <li><a href="api.html#msgspec.json.decode">decode() (in module msgspec.json)</a>
-
-        <ul>
-          <li><a href="api.html#msgspec.msgpack.decode">(in module msgspec.msgpack)</a>
-</li>
-          <li><a href="api.html#msgspec.toml.decode">(in module msgspec.toml)</a>
-</li>
-          <li><a href="api.html#msgspec.yaml.decode">(in module msgspec.yaml)</a>
-</li>
-          <li><a href="api.html#msgspec.json.Decoder.decode">(msgspec.json.Decoder method)</a>
-</li>
-          <li><a href="api.html#msgspec.msgpack.Decoder.decode">(msgspec.msgpack.Decoder method)</a>
-</li>
-        </ul></li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.DecodeError">DecodeError</a>
-</li>
-        <li><a href="api.html#msgspec.json.Decoder">Decoder (class in msgspec.json)</a>
-
-        <ul>
-          <li><a href="api.html#msgspec.msgpack.Decoder">(class in msgspec.msgpack)</a>
-</li>
-        </ul></li>
-        <li><a href="api.html#msgspec.defstruct">defstruct() (in module msgspec)</a>
-</li>
-        <li><a href="api.html#msgspec.inspect.DictType">DictType (class in msgspec.inspect)</a>
-</li>
-    </ul></td>
-  </tr></table>
-</section>
-
-<section id="E" class="genindex-section">
-  <h2>E</h2>
-  <table style="width: 100%" class="indextable genindextable"><tr>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.json.encode">encode() (in module msgspec.json)</a>
-
-        <ul>
-          <li><a href="api.html#msgspec.msgpack.encode">(in module msgspec.msgpack)</a>
-</li>
-          <li><a href="api.html#msgspec.toml.encode">(in module msgspec.toml)</a>
-</li>
-          <li><a href="api.html#msgspec.yaml.encode">(in module msgspec.yaml)</a>
-</li>
-          <li><a href="api.html#msgspec.json.Encoder.encode">(msgspec.json.Encoder method)</a>
-</li>
-          <li><a href="api.html#msgspec.msgpack.Encoder.encode">(msgspec.msgpack.Encoder method)</a>
-</li>
-        </ul></li>
-        <li><a href="api.html#msgspec.json.Encoder.encode_into">encode_into() (msgspec.json.Encoder method)</a>
-
-        <ul>
-          <li><a href="api.html#msgspec.msgpack.Encoder.encode_into">(msgspec.msgpack.Encoder method)</a>
-</li>
-        </ul></li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.EncodeError">EncodeError</a>
-</li>
-        <li><a href="api.html#msgspec.json.Encoder">Encoder (class in msgspec.json)</a>
-
-        <ul>
-          <li><a href="api.html#msgspec.msgpack.Encoder">(class in msgspec.msgpack)</a>
-</li>
-        </ul></li>
-        <li><a href="api.html#msgspec.inspect.EnumType">EnumType (class in msgspec.inspect)</a>
-</li>
-        <li><a href="api.html#msgspec.msgpack.Ext">Ext (class in msgspec.msgpack)</a>
-</li>
-        <li><a href="api.html#msgspec.inspect.ExtType">ExtType (class in msgspec.inspect)</a>
-</li>
-    </ul></td>
-  </tr></table>
-</section>
-
-<section id="F" class="genindex-section">
-  <h2>F</h2>
-  <table style="width: 100%" class="indextable genindextable"><tr>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.inspect.Field">Field (class in msgspec.inspect)</a>
-</li>
-        <li><a href="api.html#msgspec.field">field() (in module msgspec)</a>
-</li>
-        <li><a href="api.html#msgspec.inspect.FloatType">FloatType (class in msgspec.inspect)</a>
-</li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.json.format">format() (in module msgspec.json)</a>
-</li>
-        <li><a href="api.html#msgspec.from_builtins">from_builtins() (in module msgspec)</a>
-</li>
-        <li><a href="api.html#msgspec.inspect.FrozenSetType">FrozenSetType (class in msgspec.inspect)</a>
-</li>
-    </ul></td>
-  </tr></table>
-</section>
-
-<section id="I" class="genindex-section">
-  <h2>I</h2>
-  <table style="width: 100%" class="indextable genindextable"><tr>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.inspect.UnionType.includes_none">includes_none (msgspec.inspect.UnionType property)</a>
-</li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.inspect.IntType">IntType (class in msgspec.inspect)</a>
-</li>
-    </ul></td>
-  </tr></table>
-</section>
-
-<section id="L" class="genindex-section">
-  <h2>L</h2>
-  <table style="width: 100%" class="indextable genindextable"><tr>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.inspect.ListType">ListType (class in msgspec.inspect)</a>
-</li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.inspect.LiteralType">LiteralType (class in msgspec.inspect)</a>
-</li>
-    </ul></td>
-  </tr></table>
-</section>
-
-<section id="M" class="genindex-section">
-  <h2>M</h2>
-  <table style="width: 100%" class="indextable genindextable"><tr>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.Meta">Meta (class in msgspec)</a>
-</li>
-        <li><a href="api.html#msgspec.inspect.Metadata">Metadata (class in msgspec.inspect)</a>
-</li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.MsgspecError">MsgspecError</a>
-</li>
-        <li><a href="api.html#msgspec.inspect.multi_type_info">multi_type_info() (in module msgspec.inspect)</a>
-</li>
-    </ul></td>
-  </tr></table>
-</section>
-
-<section id="N" class="genindex-section">
-  <h2>N</h2>
-  <table style="width: 100%" class="indextable genindextable"><tr>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.inspect.NamedTupleType">NamedTupleType (class in msgspec.inspect)</a>
-</li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.inspect.NoneType">NoneType (class in msgspec.inspect)</a>
-</li>
-    </ul></td>
-  </tr></table>
-</section>
-
-<section id="R" class="genindex-section">
-  <h2>R</h2>
-  <table style="width: 100%" class="indextable genindextable"><tr>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.Raw">Raw (class in msgspec)</a>
-</li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.inspect.RawType">RawType (class in msgspec.inspect)</a>
-</li>
-        <li><a href="api.html#msgspec.replace">replace() (in module msgspec)</a>
-</li>
-    </ul></td>
-  </tr></table>
-</section>
-
-<section id="S" class="genindex-section">
-  <h2>S</h2>
-  <table style="width: 100%" class="indextable genindextable"><tr>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.json.schema">schema() (in module msgspec.json)</a>
-</li>
-        <li><a href="api.html#msgspec.json.schema_components">schema_components() (in module msgspec.json)</a>
-</li>
-        <li><a href="api.html#msgspec.inspect.SetType">SetType (class in msgspec.inspect)</a>
-</li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.inspect.StrType">StrType (class in msgspec.inspect)</a>
-</li>
-        <li><a href="api.html#msgspec.Struct">Struct (class in msgspec)</a>
-</li>
-        <li><a href="api.html#msgspec.inspect.StructType">StructType (class in msgspec.inspect)</a>
-</li>
-    </ul></td>
-  </tr></table>
-</section>
-
-<section id="T" class="genindex-section">
-  <h2>T</h2>
-  <table style="width: 100%" class="indextable genindextable"><tr>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.inspect.TimeType">TimeType (class in msgspec.inspect)</a>
-</li>
-        <li><a href="api.html#msgspec.to_builtins">to_builtins() (in module msgspec)</a>
-</li>
-        <li><a href="api.html#msgspec.inspect.TupleType">TupleType (class in msgspec.inspect)</a>
-</li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.inspect.Type">Type (class in msgspec.inspect)</a>
-</li>
-        <li><a href="api.html#msgspec.inspect.type_info">type_info() (in module msgspec.inspect)</a>
-</li>
-        <li><a href="api.html#msgspec.inspect.TypedDictType">TypedDictType (class in msgspec.inspect)</a>
-</li>
-    </ul></td>
-  </tr></table>
-</section>
-
-<section id="U" class="genindex-section">
-  <h2>U</h2>
-  <table style="width: 100%" class="indextable genindextable"><tr>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.inspect.UnionType">UnionType (class in msgspec.inspect)</a>
-</li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.inspect.UNSET">UNSET (in module msgspec.inspect)</a>
-</li>
-        <li><a href="api.html#msgspec.inspect.UUIDType">UUIDType (class in msgspec.inspect)</a>
-</li>
-    </ul></td>
-  </tr></table>
-</section>
-
-<section id="V" class="genindex-section">
-  <h2>V</h2>
-  <table style="width: 100%" class="indextable genindextable"><tr>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.ValidationError">ValidationError</a>
-</li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.inspect.VarTupleType">VarTupleType (class in msgspec.inspect)</a>
-</li>
-    </ul></td>
-  </tr></table>
-</section>
-
 
         </article>
       </div>
       <footer>
         
         <div class="related-pages">
-          
-          
+          <a class="next-page" href="extending.html">
+              <div class="page-info">
+                <div class="context">
+                  <span>Next</span>
+                </div>
+                <div class="title">Extending</div>
+              </div>
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+            </a>
+          <a class="prev-page" href="jsonschema.html">
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+              <div class="page-info">
+                <div class="context">
+                  <span>Previous</span>
+                </div>
+                
+                <div class="title">JSON Schema</div>
+                
+              </div>
+            </a>
         </div>
         <div class="bottom-of-page">
           <div class="left-details">

@@ -2,10 +2,12 @@
 <html class="no-js" lang="en">
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
-    <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="#" /><link rel="search" title="Search" href="search.html" />
+    <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Installation" href="install.html" /><link rel="prev" title="msgspec" href="index.html" />
 
-    <!-- Generated with Sphinx 5.3.0 and Furo 2022.12.07 --><title>Index - </title>
-<link rel="stylesheet" type="text/css" href="_static/pygments.css" />
+    <!-- Generated with Sphinx 5.3.0 and Furo 2022.12.07 -->
+        <title>Why msgspec?</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=91d0f0d1c444bdcb17a68e833c7a53903343c195" />
     <link rel="stylesheet" type="text/css" href="_static/copybutton.css" />
     <link rel="stylesheet" type="text/css" href="_static/design-style.4045f2051d55cab465a707391d5b2007.min.css" />
@@ -190,8 +192,8 @@
 </form>
 <div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
   <p class="caption" role="heading"><span class="caption-text">Overview</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="why.html">Why msgspec?</a></li>
+<ul class="current">
+<li class="toctree-l1 current current-page"><a class="current reference internal" href="#">Why msgspec?</a></li>
 <li class="toctree-l1"><a class="reference internal" href="install.html">Installation</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
@@ -240,7 +242,8 @@
           <span>Back to top</span>
         </a>
         <div class="content-icon-container">
-          <div class="theme-toggle-container theme-toggle-content">
+          
+<div class="theme-toggle-container theme-toggle-content">
             <button class="theme-toggle">
               <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
               <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
@@ -254,323 +257,73 @@
           </label>
         </div>
         <article role="main">
-          
-<section class="genindex-section">
-  <h1 id="index">Index</h1>
-  <div class="genindex-jumpbox"><a href="#A"><strong>A</strong></a> | <a href="#B"><strong>B</strong></a> | <a href="#C"><strong>C</strong></a> | <a href="#D"><strong>D</strong></a> | <a href="#E"><strong>E</strong></a> | <a href="#F"><strong>F</strong></a> | <a href="#I"><strong>I</strong></a> | <a href="#L"><strong>L</strong></a> | <a href="#M"><strong>M</strong></a> | <a href="#N"><strong>N</strong></a> | <a href="#R"><strong>R</strong></a> | <a href="#S"><strong>S</strong></a> | <a href="#T"><strong>T</strong></a> | <a href="#U"><strong>U</strong></a> | <a href="#V"><strong>V</strong></a></div>
+          <section id="why-msgspec">
+<h1>Why msgspec?<a class="headerlink" href="#why-msgspec" title="Permalink to this heading">#</a></h1>
+<p>If you’re writing a networked application, you’ll need some agreed upon
+protocol that your clients and servers can use to communicate. JSON is a decent
+choice here (though there are many other options). It’s ubiquitous, and Python
+has many libraries for parsing it into builtin types (<code class="docutils literal notranslate"><span class="pre">json</span></code>, <code class="docutils literal notranslate"><span class="pre">ujson</span></code>,
+<code class="docutils literal notranslate"><span class="pre">orjson</span></code>, …).</p>
+<p><em>However, servers don’t just parse JSON, they also need to do something with
+it</em>.</p>
+<p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> goes above and beyond other Python JSON libraries to help with the
+following:</p>
+<ul>
+<li><p><strong>Validation</strong></p>
+<p>If a field is missing from a request or has the wrong type, you probably want
+to raise a nice error message rather than just throwing a 500 error.</p>
+<p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> lets you describe your schema via type annotations, and will
+efficiently <a class="reference internal" href="usage.html#typed-decoding"><span class="std std-ref">validate</span></a> messages against this
+schema while decoding.</p>
+<p>It also integrates well with static analysis tools like <a class="reference external" href="https://mypy.readthedocs.io">mypy</a> and <a class="reference external" href="https://github.com/microsoft/pyright">pyright</a>,
+helping you avoid whole classes of runtime errors.</p>
+</li>
+<li><p><strong>Application Logic</strong></p>
+<p>What your application actually does! While builtin types like dicts are
+fine for writing application logic, they aren’t as ergonomic as custom
+classes (no attribute access, poor type checking, …).</p>
+<p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> supports a <a class="reference internal" href="supported-types.html"><span class="doc">wide variety of types</span></a>,
+letting you decouple the objects your application logic uses from those that
+JSON natively supports.</p>
+</li>
+<li><p><strong>Future Flexibility</strong></p>
+<p>Application needs change; you’ll want to make sure your clients/servers won’t
+break if the JSON schema evolves over time.</p>
+<p>To handle this, <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> supports <a class="reference internal" href="schema-evolution.html"><span class="doc">“schema evolution”</span></a>. Messages can be sent between clients with different
+schemas without error, allowing systems to evolve over time.</p>
+</li>
+</ul>
+<p>While there are other tools in this space, <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> should be an <a class="reference internal" href="benchmarks.html"><span class="doc">order
+of magnitude faster</span></a> than other options. We also hope that it’s
+quick to learn and friendly to use, letting you focus less on serialization and
+more on your application code.</p>
 </section>
-<section id="A" class="genindex-section">
-  <h2>A</h2>
-  <table style="width: 100%" class="indextable genindextable"><tr>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.inspect.AnyType">AnyType (class in msgspec.inspect)</a>
-</li>
-    </ul></td>
-  </tr></table>
-</section>
-
-<section id="B" class="genindex-section">
-  <h2>B</h2>
-  <table style="width: 100%" class="indextable genindextable"><tr>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.inspect.BoolType">BoolType (class in msgspec.inspect)</a>
-</li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.inspect.ByteArrayType">ByteArrayType (class in msgspec.inspect)</a>
-</li>
-        <li><a href="api.html#msgspec.inspect.BytesType">BytesType (class in msgspec.inspect)</a>
-</li>
-    </ul></td>
-  </tr></table>
-</section>
-
-<section id="C" class="genindex-section">
-  <h2>C</h2>
-  <table style="width: 100%" class="indextable genindextable"><tr>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.msgpack.Ext.code">code (msgspec.msgpack.Ext attribute)</a>
-</li>
-        <li><a href="api.html#msgspec.inspect.CollectionType">CollectionType (class in msgspec.inspect)</a>
-</li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.Raw.copy">copy() (msgspec.Raw method)</a>
-</li>
-        <li><a href="api.html#msgspec.inspect.CustomType">CustomType (class in msgspec.inspect)</a>
-</li>
-    </ul></td>
-  </tr></table>
-</section>
-
-<section id="D" class="genindex-section">
-  <h2>D</h2>
-  <table style="width: 100%" class="indextable genindextable"><tr>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.msgpack.Ext.data">data (msgspec.msgpack.Ext attribute)</a>
-</li>
-        <li><a href="api.html#msgspec.inspect.DataclassType">DataclassType (class in msgspec.inspect)</a>
-</li>
-        <li><a href="api.html#msgspec.inspect.DateTimeType">DateTimeType (class in msgspec.inspect)</a>
-</li>
-        <li><a href="api.html#msgspec.inspect.DateType">DateType (class in msgspec.inspect)</a>
-</li>
-        <li><a href="api.html#msgspec.json.decode">decode() (in module msgspec.json)</a>
-
-        <ul>
-          <li><a href="api.html#msgspec.msgpack.decode">(in module msgspec.msgpack)</a>
-</li>
-          <li><a href="api.html#msgspec.toml.decode">(in module msgspec.toml)</a>
-</li>
-          <li><a href="api.html#msgspec.yaml.decode">(in module msgspec.yaml)</a>
-</li>
-          <li><a href="api.html#msgspec.json.Decoder.decode">(msgspec.json.Decoder method)</a>
-</li>
-          <li><a href="api.html#msgspec.msgpack.Decoder.decode">(msgspec.msgpack.Decoder method)</a>
-</li>
-        </ul></li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.DecodeError">DecodeError</a>
-</li>
-        <li><a href="api.html#msgspec.json.Decoder">Decoder (class in msgspec.json)</a>
-
-        <ul>
-          <li><a href="api.html#msgspec.msgpack.Decoder">(class in msgspec.msgpack)</a>
-</li>
-        </ul></li>
-        <li><a href="api.html#msgspec.defstruct">defstruct() (in module msgspec)</a>
-</li>
-        <li><a href="api.html#msgspec.inspect.DictType">DictType (class in msgspec.inspect)</a>
-</li>
-    </ul></td>
-  </tr></table>
-</section>
-
-<section id="E" class="genindex-section">
-  <h2>E</h2>
-  <table style="width: 100%" class="indextable genindextable"><tr>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.json.encode">encode() (in module msgspec.json)</a>
-
-        <ul>
-          <li><a href="api.html#msgspec.msgpack.encode">(in module msgspec.msgpack)</a>
-</li>
-          <li><a href="api.html#msgspec.toml.encode">(in module msgspec.toml)</a>
-</li>
-          <li><a href="api.html#msgspec.yaml.encode">(in module msgspec.yaml)</a>
-</li>
-          <li><a href="api.html#msgspec.json.Encoder.encode">(msgspec.json.Encoder method)</a>
-</li>
-          <li><a href="api.html#msgspec.msgpack.Encoder.encode">(msgspec.msgpack.Encoder method)</a>
-</li>
-        </ul></li>
-        <li><a href="api.html#msgspec.json.Encoder.encode_into">encode_into() (msgspec.json.Encoder method)</a>
-
-        <ul>
-          <li><a href="api.html#msgspec.msgpack.Encoder.encode_into">(msgspec.msgpack.Encoder method)</a>
-</li>
-        </ul></li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.EncodeError">EncodeError</a>
-</li>
-        <li><a href="api.html#msgspec.json.Encoder">Encoder (class in msgspec.json)</a>
-
-        <ul>
-          <li><a href="api.html#msgspec.msgpack.Encoder">(class in msgspec.msgpack)</a>
-</li>
-        </ul></li>
-        <li><a href="api.html#msgspec.inspect.EnumType">EnumType (class in msgspec.inspect)</a>
-</li>
-        <li><a href="api.html#msgspec.msgpack.Ext">Ext (class in msgspec.msgpack)</a>
-</li>
-        <li><a href="api.html#msgspec.inspect.ExtType">ExtType (class in msgspec.inspect)</a>
-</li>
-    </ul></td>
-  </tr></table>
-</section>
-
-<section id="F" class="genindex-section">
-  <h2>F</h2>
-  <table style="width: 100%" class="indextable genindextable"><tr>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.inspect.Field">Field (class in msgspec.inspect)</a>
-</li>
-        <li><a href="api.html#msgspec.field">field() (in module msgspec)</a>
-</li>
-        <li><a href="api.html#msgspec.inspect.FloatType">FloatType (class in msgspec.inspect)</a>
-</li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.json.format">format() (in module msgspec.json)</a>
-</li>
-        <li><a href="api.html#msgspec.from_builtins">from_builtins() (in module msgspec)</a>
-</li>
-        <li><a href="api.html#msgspec.inspect.FrozenSetType">FrozenSetType (class in msgspec.inspect)</a>
-</li>
-    </ul></td>
-  </tr></table>
-</section>
-
-<section id="I" class="genindex-section">
-  <h2>I</h2>
-  <table style="width: 100%" class="indextable genindextable"><tr>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.inspect.UnionType.includes_none">includes_none (msgspec.inspect.UnionType property)</a>
-</li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.inspect.IntType">IntType (class in msgspec.inspect)</a>
-</li>
-    </ul></td>
-  </tr></table>
-</section>
-
-<section id="L" class="genindex-section">
-  <h2>L</h2>
-  <table style="width: 100%" class="indextable genindextable"><tr>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.inspect.ListType">ListType (class in msgspec.inspect)</a>
-</li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.inspect.LiteralType">LiteralType (class in msgspec.inspect)</a>
-</li>
-    </ul></td>
-  </tr></table>
-</section>
-
-<section id="M" class="genindex-section">
-  <h2>M</h2>
-  <table style="width: 100%" class="indextable genindextable"><tr>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.Meta">Meta (class in msgspec)</a>
-</li>
-        <li><a href="api.html#msgspec.inspect.Metadata">Metadata (class in msgspec.inspect)</a>
-</li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.MsgspecError">MsgspecError</a>
-</li>
-        <li><a href="api.html#msgspec.inspect.multi_type_info">multi_type_info() (in module msgspec.inspect)</a>
-</li>
-    </ul></td>
-  </tr></table>
-</section>
-
-<section id="N" class="genindex-section">
-  <h2>N</h2>
-  <table style="width: 100%" class="indextable genindextable"><tr>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.inspect.NamedTupleType">NamedTupleType (class in msgspec.inspect)</a>
-</li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.inspect.NoneType">NoneType (class in msgspec.inspect)</a>
-</li>
-    </ul></td>
-  </tr></table>
-</section>
-
-<section id="R" class="genindex-section">
-  <h2>R</h2>
-  <table style="width: 100%" class="indextable genindextable"><tr>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.Raw">Raw (class in msgspec)</a>
-</li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.inspect.RawType">RawType (class in msgspec.inspect)</a>
-</li>
-        <li><a href="api.html#msgspec.replace">replace() (in module msgspec)</a>
-</li>
-    </ul></td>
-  </tr></table>
-</section>
-
-<section id="S" class="genindex-section">
-  <h2>S</h2>
-  <table style="width: 100%" class="indextable genindextable"><tr>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.json.schema">schema() (in module msgspec.json)</a>
-</li>
-        <li><a href="api.html#msgspec.json.schema_components">schema_components() (in module msgspec.json)</a>
-</li>
-        <li><a href="api.html#msgspec.inspect.SetType">SetType (class in msgspec.inspect)</a>
-</li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.inspect.StrType">StrType (class in msgspec.inspect)</a>
-</li>
-        <li><a href="api.html#msgspec.Struct">Struct (class in msgspec)</a>
-</li>
-        <li><a href="api.html#msgspec.inspect.StructType">StructType (class in msgspec.inspect)</a>
-</li>
-    </ul></td>
-  </tr></table>
-</section>
-
-<section id="T" class="genindex-section">
-  <h2>T</h2>
-  <table style="width: 100%" class="indextable genindextable"><tr>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.inspect.TimeType">TimeType (class in msgspec.inspect)</a>
-</li>
-        <li><a href="api.html#msgspec.to_builtins">to_builtins() (in module msgspec)</a>
-</li>
-        <li><a href="api.html#msgspec.inspect.TupleType">TupleType (class in msgspec.inspect)</a>
-</li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.inspect.Type">Type (class in msgspec.inspect)</a>
-</li>
-        <li><a href="api.html#msgspec.inspect.type_info">type_info() (in module msgspec.inspect)</a>
-</li>
-        <li><a href="api.html#msgspec.inspect.TypedDictType">TypedDictType (class in msgspec.inspect)</a>
-</li>
-    </ul></td>
-  </tr></table>
-</section>
-
-<section id="U" class="genindex-section">
-  <h2>U</h2>
-  <table style="width: 100%" class="indextable genindextable"><tr>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.inspect.UnionType">UnionType (class in msgspec.inspect)</a>
-</li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.inspect.UNSET">UNSET (in module msgspec.inspect)</a>
-</li>
-        <li><a href="api.html#msgspec.inspect.UUIDType">UUIDType (class in msgspec.inspect)</a>
-</li>
-    </ul></td>
-  </tr></table>
-</section>
-
-<section id="V" class="genindex-section">
-  <h2>V</h2>
-  <table style="width: 100%" class="indextable genindextable"><tr>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.ValidationError">ValidationError</a>
-</li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api.html#msgspec.inspect.VarTupleType">VarTupleType (class in msgspec.inspect)</a>
-</li>
-    </ul></td>
-  </tr></table>
-</section>
-
 
         </article>
       </div>
       <footer>
         
         <div class="related-pages">
-          
-          
+          <a class="next-page" href="install.html">
+              <div class="page-info">
+                <div class="context">
+                  <span>Next</span>
+                </div>
+                <div class="title">Installation</div>
+              </div>
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+            </a>
+          <a class="prev-page" href="index.html">
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+              <div class="page-info">
+                <div class="context">
+                  <span>Previous</span>
+                </div>
+                
+                <div class="title">Home</div>
+                
+              </div>
+            </a>
         </div>
         <div class="bottom-of-page">
           <div class="left-details">

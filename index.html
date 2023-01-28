@@ -3,13 +3,14 @@
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
     <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
-<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Usage" href="usage.html" />
+<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Why msgspec?" href="why.html" />
 
-    <!-- Generated with Sphinx 6.1.3 and Furo 2022.12.07 -->
+    <!-- Generated with Sphinx 5.3.0 and Furo 2022.12.07 -->
         <title>msgspec</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=91d0f0d1c444bdcb17a68e833c7a53903343c195" />
     <link rel="stylesheet" type="text/css" href="_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="_static/design-style.4045f2051d55cab465a707391d5b2007.min.css" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?digest=30d1aed668e5c3a91c3e3bf6a60b675221979f0e" />
     <link rel="stylesheet" type="text/css" href="_static/custom.css" />
     
@@ -190,12 +191,19 @@
   <input type="hidden" name="area" value="default">
 </form>
 <div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
-  <p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
+  <p class="caption" role="heading"><span class="caption-text">Overview</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="why.html">Why msgspec?</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install.html">Installation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="usage.html">Usage</a></li>
+<li class="toctree-l1"><a class="reference internal" href="supported-types.html">Supported Types</a></li>
 <li class="toctree-l1"><a class="reference internal" href="structs.html">Structs</a></li>
 <li class="toctree-l1"><a class="reference internal" href="constraints.html">Constraints</a></li>
 <li class="toctree-l1"><a class="reference internal" href="jsonschema.html">JSON Schema</a></li>
+<li class="toctree-l1"><a class="reference internal" href="schema-evolution.html">Schema Evolution</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Advanced</span></p>
 <ul>
@@ -251,22 +259,21 @@
         <article role="main">
           <section id="msgspec">
 <h1>msgspec<a class="headerlink" href="#msgspec" title="Permalink to this heading">#</a></h1>
-<p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> is a <em>fast</em> and <em>friendly</em> serialization library for Python,
-supporting both <a class="reference external" href="https://json.org">JSON</a> and <a class="reference external" href="https://msgpack.org">MessagePack</a>. It integrates well with Python’s <a class="reference external" href="https://docs.python.org/3/library/typing.html">type
-annotations</a>, providing ergonomic (and performant!) schema validation.</p>
+<p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> is <em>fast</em> and <em>friendly</em> serialization library for Python, with
+builtin support for <a class="reference external" href="https://json.org">JSON</a>, <a class="reference external" href="https://msgpack.org">MessagePack</a>, <a class="reference external" href="https://yaml.org">YAML</a>, and <a class="reference external" href="https://toml.io">TOML</a>. It integrates well
+with Python’s <a class="reference external" href="https://docs.python.org/3/library/typing.html">type annotations</a>, providing ergonomic (and performant!) schema
+validation.</p>
 <p><strong>Define</strong> your message schemas using standard Python type annotations.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Set</span>
-
-<span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">msgspec</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">msgspec</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">User</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
 <span class="gp">... </span><span class="w">    </span><span class="sd">&quot;&quot;&quot;A new type describing a User&quot;&quot;&quot;</span>
 <span class="gp">... </span>    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
-<span class="gp">... </span>    <span class="n">groups</span><span class="p">:</span> <span class="n">Set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
-<span class="gp">... </span>    <span class="n">email</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="gp">... </span>    <span class="n">groups</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+<span class="gp">... </span>    <span class="n">email</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 </pre></div>
 </div>
-<p><strong>Encode</strong> messages as JSON or MessagePack.</p>
+<p><strong>Encode</strong> messages as JSON, or one of the many other supported protocols.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">alice</span> <span class="o">=</span> <span class="n">User</span><span class="p">(</span><span class="s2">&quot;alice&quot;</span><span class="p">,</span> <span class="n">groups</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;admin&quot;</span><span class="p">,</span> <span class="s2">&quot;engineering&quot;</span><span class="p">})</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">alice</span>
@@ -278,7 +285,7 @@ annotations</a>, providing ergonomic (and performant!) schema validation.</p>
 <span class="go">b&#39;{&quot;name&quot;:&quot;alice&quot;,&quot;groups&quot;:[&quot;admin&quot;,&quot;engineering&quot;],&quot;email&quot;:null}&#39;</span>
 </pre></div>
 </div>
-<p><strong>Decode</strong> messages back into Python types (with optional schema validation).</p>
+<p><strong>Decode</strong> messages back into Python objects, with optional schema validation.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">User</span><span class="p">)</span>
 <span class="go">User(name=&#39;alice&#39;, groups={&quot;admin&quot;, &quot;engineering&quot;}, email=None)</span>
 
@@ -290,80 +297,64 @@ annotations</a>, providing ergonomic (and performant!) schema validation.</p>
 </div>
 <p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> is designed to be as performant as possible, while retaining some
 of the nicities of validation libraries like <a class="reference external" href="https://pydantic-docs.helpmanual.io/">pydantic</a>. For supported types,
-encoding/decoding a message with <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> can be <em>~2-40x faster</em> than
-alternative libraries.</p>
+encoding/decoding a message with <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> can be <a class="reference internal" href="benchmarks.html"><span class="doc">~2-40x faster than
+alternative libraries</span></a>.</p>
 <section id="highlights">
 <h2>Highlights<a class="headerlink" href="#highlights" title="Permalink to this heading">#</a></h2>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> is <strong>fast</strong>. <a class="reference internal" href="benchmarks.html"><span class="doc">Benchmarks</span></a> show it’s among the fastest
-serialization methods for Python, outperforming all other JSON/MessagePack
+<li><p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> is <strong>fast</strong>. It <a class="reference internal" href="benchmarks.html"><span class="doc">benchmarks</span></a> as the fastest
+serialization library for Python, outperforming all other JSON/MessagePack
 libraries compared.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> is <strong>friendly</strong>. Through use of Python’s type annotations,
-messages are <a class="reference internal" href="usage.html#typed-deserialization"><span class="std std-ref">validated</span></a> during deserialization
+messages are <a class="reference internal" href="usage.html#typed-decoding"><span class="std std-ref">validated</span></a> during deserialization
 in a declaritive way. <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> also works well with other type-checking
 tooling like <a class="reference external" href="https://mypy.readthedocs.io">mypy</a> and <a class="reference external" href="https://github.com/microsoft/pyright">pyright</a>, providing excellent editor integration.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> is <strong>flexible</strong>. It natively supports a wide range of Python
 builtin types. Support for additional types can also be added through
 <a class="reference internal" href="extending.html"><span class="doc">extensions</span></a>.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> is <strong>lightweight</strong>. It has no dependencies, and the binary size
-is <a class="reference internal" href="benchmarks.html#benchmark-library-size"><span class="std std-ref">a fraction of that of comparable libraries</span></a>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> is <strong>lightweight</strong>. It has no required dependencies, and the
+binary size is <a class="reference internal" href="benchmarks.html#benchmark-library-size"><span class="std std-ref">a fraction of that of comparable libraries</span></a>.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> is <strong>correct</strong>. The encoders/decoders implemented are strictly
-compliant with the JSON and MessagePack specifications, providing stronger
-guarantees of compatibility with other systems.</p></li>
+compliant with their respective specifications, providing stronger guarantees
+of compatibility with other systems.</p></li>
 </ul>
 </section>
-<section id="why-msgspec">
-<h2>Why msgspec?<a class="headerlink" href="#why-msgspec" title="Permalink to this heading">#</a></h2>
-<p>If you’re writing a networked application, you’ll need some agreed upon
-protocol that your clients and servers can use to communicate. JSON is a decent
-choice here (though there are many other options). It’s ubiquitous, and Python
-has many libraries for parsing it into builtin types (<code class="docutils literal notranslate"><span class="pre">json</span></code>, <code class="docutils literal notranslate"><span class="pre">ujson</span></code>,
-<code class="docutils literal notranslate"><span class="pre">orjson</span></code>, …).</p>
-<p><em>However, servers don’t just parse JSON, they also need to do something with
-it</em>.</p>
-<p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> goes above and beyond other Python JSON libraries to help with the
-following:</p>
-<ul>
-<li><p><strong>Validation</strong></p>
-<p>If a field is missing from a request or has the wrong type, you probably want
-to raise a nice error message rather than just throwing a 500 error.</p>
-<p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> lets you describe your schema via type annotations, and will
-efficiently <a class="reference internal" href="usage.html#typed-deserialization"><span class="std std-ref">validate</span></a> messages against this
-schema while decoding.</p>
-<p>It also integrates well with static analysis tools like <a class="reference external" href="https://mypy.readthedocs.io">mypy</a> and <a class="reference external" href="https://github.com/microsoft/pyright">pyright</a>,
-helping you avoid whole classes of runtime errors.</p>
-</li>
-<li><p><strong>Application Logic</strong></p>
-<p>What your application actually does! While builtin types like dicts are
-fine for writing application logic, they aren’t as ergonomic as custom
-classes (no attribute access, poor type checking, …).</p>
-<p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> supports a <a class="reference internal" href="usage.html#supported-types"><span class="std std-ref">wide variety of types</span></a>, letting
-you decouple the objects your application logic uses from those that JSON
-natively supports.</p>
-</li>
-<li><p><strong>Future Flexibility</strong></p>
-<p>Application needs change; you’ll want to make sure your clients/servers won’t
-break if the JSON schema evolves over time.</p>
-<p>To handle this, <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> supports <a class="reference internal" href="usage.html#schema-evolution"><span class="std std-ref">“schema evolution”</span></a>. Messages can be sent between clients with different
-schemas without error, allowing systems to evolve over time.</p>
-</li>
-</ul>
-<p>While there are other tools in this space, <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> should be an <a class="reference internal" href="benchmarks.html"><span class="doc">order
-of magnitude faster</span></a> than other options. We also hope that it’s
-quick to learn and friendly to use, letting you focus less on serialization and
-more on your application code.</p>
-</section>
-<section id="installation">
-<h2>Installation<a class="headerlink" href="#installation" title="Permalink to this heading">#</a></h2>
-<p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> can be installed via <code class="docutils literal notranslate"><span class="pre">pip</span></code> or <code class="docutils literal notranslate"><span class="pre">conda</span></code>. Note that Python &gt;= 3.8
-is required.</p>
-<p><strong>pip</strong></p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>msgspec
-</pre></div>
+<section id="used-by">
+<h2>Used By<a class="headerlink" href="#used-by" title="Permalink to this heading">#</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> is used by many organizations and <a class="reference external" href="https://github.com/jcrist/msgspec/network/dependents">open source projects</a>, here we highlight a
+few:</p>
+<div class="sd-container-fluid sd-sphinx-override sd-mb-4 docutils">
+<div class="sd-row sd-row-cols-2 sd-row-cols-xs-2 sd-row-cols-sm-2 sd-row-cols-md-4 sd-row-cols-lg-4 docutils">
+<div class="sd-col sd-d-flex-row docutils">
+<div class="sd-card sd-sphinx-override sd-w-100 sd-shadow-sm sd-card-hover docutils">
+<div class="sd-card-body docutils">
+<div class="sd-card-title sd-font-weight-bold docutils">
+Pioreactor</div>
+<img alt="_images/pioreactor.png" src="_images/pioreactor.png" />
 </div>
-<p><strong>conda</strong></p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>install<span class="w"> </span>msgspec<span class="w"> </span>-c<span class="w"> </span>conda-forge
-</pre></div>
+<a class="sd-stretched-link reference external" href="https://pioreactor.com/"></a></div>
+</div>
+<div class="sd-col sd-d-flex-row docutils">
+<div class="sd-card sd-sphinx-override sd-w-100 sd-shadow-sm sd-card-hover docutils">
+<div class="sd-card-body docutils">
+<div class="sd-card-title sd-font-weight-bold docutils">
+NautilusTrader</div>
+<img alt="_images/nautilus-trader.png" src="_images/nautilus-trader.png" />
+</div>
+<a class="sd-stretched-link reference external" href="https://nautilustrader.io/"></a></div>
+</div>
+<div class="sd-col sd-d-flex-row docutils">
+<div class="sd-card sd-sphinx-override sd-w-100 sd-shadow-sm sd-card-hover docutils">
+<div class="sd-card-body docutils">
+<div class="sd-card-title sd-font-weight-bold docutils">
+Starlite</div>
+<img alt="_images/starlite.png" src="_images/starlite.png" />
+</div>
+<a class="sd-stretched-link reference external" href="https://starlite-api.github.io/starlite/latest/"></a></div>
+</div>
+</div>
+</div>
+<div class="toctree-wrapper compound">
 </div>
 <div class="toctree-wrapper compound">
 </div>
@@ -379,12 +370,12 @@ is required.</p>
       <footer>
         
         <div class="related-pages">
-          <a class="next-page" href="usage.html">
+          <a class="next-page" href="why.html">
               <div class="page-info">
                 <div class="context">
                   <span>Next</span>
                 </div>
-                <div class="title">Usage</div>
+                <div class="title">Why msgspec?</div>
               </div>
               <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
             </a>
@@ -426,8 +417,7 @@ is required.</p>
             <ul>
 <li><a class="reference internal" href="#">msgspec</a><ul>
 <li><a class="reference internal" href="#highlights">Highlights</a></li>
-<li><a class="reference internal" href="#why-msgspec">Why msgspec?</a></li>
-<li><a class="reference internal" href="#installation">Installation</a><ul>
+<li><a class="reference internal" href="#used-by">Used By</a><ul>
 </ul>
 </li>
 </ul>
@@ -442,10 +432,14 @@ is required.</p>
     </aside>
   </div>
 </div><script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+    <script src="_static/jquery.js"></script>
+    <script src="_static/underscore.js"></script>
+    <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
     <script src="_static/doctools.js"></script>
     <script src="_static/sphinx_highlight.js"></script>
     <script src="_static/scripts/furo.js"></script>
     <script src="_static/clipboard.min.js"></script>
     <script src="_static/copybutton.js"></script>
+    <script src="_static/design-tabs.js"></script>
     </body>
 </html>

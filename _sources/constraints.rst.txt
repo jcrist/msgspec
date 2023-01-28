@@ -1,7 +1,7 @@
 Constraints
 ===========
 
-When using :ref:`typed-deserialization` ``msgspec`` will ensure decoded
+When using :ref:`typed-decoding` ``msgspec`` will ensure decoded
 messages match the specified types. For example, to decode a list of integers
 from JSON:
 
