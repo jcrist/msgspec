@@ -369,6 +369,8 @@ typedef struct {
     PyObject *typing_union;
     PyObject *typing_any;
     PyObject *typing_literal;
+    PyObject *typing_classvar;
+    PyObject *typing_generic_alias;
     PyObject *typing_annotated_alias;
     PyObject *get_type_hints;
     PyObject *get_typeddict_hints;
@@ -4990,6 +4992,17 @@ structmeta_check_namespace(PyObject *namespace) {
     return 0;
 }
 
+static PyObject *
+structmeta_get_module_ns(StructMetaInfo *info) {
+    PyObject *name = PyDict_GetItemString(info->namespace, "__module__");
+    if (name == NULL) return NULL;
+    PyObject *modules = PySys_GetObject("modules");
+    if (modules == NULL) return NULL;
+    PyObject *mod = PyDict_GetItem(modules, name);
+    if (mod == NULL) return NULL;
+    return PyObject_GetAttrString(mod, "__dict__");
+}
+
 static int
 structmeta_collect_base(StructMetaInfo *info, PyObject *base) {
     if ((PyTypeObject *)base == &StructMixinType) return 0;
@@ -5149,6 +5162,55 @@ error_mutable_struct:
 }
 
 static int
+structmeta_is_classvar(
+    StructMetaInfo *info, MsgspecState *mod, PyObject *ann, PyObject **module_ns
+) {
+    PyTypeObject *ann_type = Py_TYPE(ann);
+    if (ann_type == &PyUnicode_Type) {
+        Py_ssize_t ann_len;
+        const char *ann_buf = unicode_str_and_size(ann, &ann_len);
+        if (ann_len < 8) return 0;
+        if (memcmp(ann_buf, "ClassVar", 8) == 0) {
+            if (ann_len != 8 && ann_buf[8] != '[') return 0;
+            if (*module_ns == NULL) {
+                *module_ns = structmeta_get_module_ns(info);
+            }
+            if (*module_ns == NULL) return 0;
+            PyObject *temp = PyDict_GetItemString(*module_ns, "ClassVar");
+            return temp == mod->typing_classvar;
+        }
+        if (ann_len < 15) return 0;
+        if (memcmp(ann_buf, "typing.ClassVar", 15) == 0) {
+            if (ann_len != 15 && ann_buf[15] != '[') return 0;
+            if (*module_ns == NULL) {
+                *module_ns = structmeta_get_module_ns(info);
+            }
+            if (*module_ns == NULL) return 0;
+            PyObject *temp = PyDict_GetItemString(*module_ns, "typing");
+            if (temp == NULL) return 0;
+            temp = PyObject_GetAttrString(temp, "ClassVar");
+            int status = temp == mod->typing_classvar;
+            Py_DECREF(temp);
+            return status;
+        }
+    }
+    else {
+        if (ann == mod->typing_classvar) {
+            return 1;
+        }
+        else if ((PyObject *)ann_type == mod->typing_generic_alias) {
+            PyObject *temp = PyObject_GetAttr(ann, mod->str___origin__);
+            if (temp == NULL) return -1;
+            int status = temp == mod->typing_classvar;
+            Py_DECREF(temp);
+            return status;
+        }
+        return 0;
+    }
+    return 0;
+}
+
+static int
 structmeta_collect_fields(StructMetaInfo *info, MsgspecState *mod, bool kwonly) {
     PyObject *annotations = PyDict_GetItemString(
         info->namespace, "__annotations__"
@@ -5160,38 +5222,45 @@ structmeta_collect_fields(StructMetaInfo *info, MsgspecState *mod, bool kwonly) 
         return -1;
     }
 
-    PyObject *field;
+    PyObject *module_ns = NULL;
+    PyObject *field, *value;
     Py_ssize_t i = 0;
-    while (PyDict_Next(annotations, &i, &field, NULL)) {
+    while (PyDict_Next(annotations, &i, &field, &value)) {
         if (!PyUnicode_CheckExact(field)) {
             PyErr_SetString(
                 PyExc_TypeError, "__annotations__ keys must be strings"
             );
-            return -1;
+            goto error;
         }
 
         if (PyUnicode_Compare(field, mod->str___weakref__) == 0) {
             PyErr_SetString(
                 PyExc_TypeError, "Cannot have a struct field named '__weakref__'"
             );
-            return -1;
+            goto error;
         }
+        int status = structmeta_is_classvar(info, mod, value, &module_ns);
+        if (status == 1) continue;
+        if (status == -1) goto error;
 
         /* If the field is new, add it to slots */
         if (PyDict_GetItem(info->defaults_lk, field) == NULL) {
-            if (PyList_Append(info->slots, field) < 0) return -1;
+            if (PyList_Append(info->slots, field) < 0) goto error;
         }
 
         if (kwonly) {
-            if (PySet_Add(info->kwonly_fields, field) < 0) return -1;
+            if (PySet_Add(info->kwonly_fields, field) < 0) goto error;
         }
         else {
-            if (PySet_Discard(info->kwonly_fields, field) < 0) return -1;
+            if (PySet_Discard(info->kwonly_fields, field) < 0) goto error;
         }
 
-        if (structmeta_process_default(info, field) < 0) return -1;
+        if (structmeta_process_default(info, field) < 0) goto error;
     }
     return 0;
+error:
+    Py_XDECREF(module_ns);
+    return -1;
 }
 
 static int
@@ -17808,6 +17877,8 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->typing_union);
     Py_CLEAR(st->typing_any);
     Py_CLEAR(st->typing_literal);
+    Py_CLEAR(st->typing_classvar);
+    Py_CLEAR(st->typing_generic_alias);
     Py_CLEAR(st->typing_annotated_alias);
     Py_CLEAR(st->get_type_hints);
     Py_CLEAR(st->get_typeddict_hints);
@@ -17890,6 +17961,8 @@ msgspec_traverse(PyObject *m, visitproc visit, void *arg)
     Py_VISIT(st->typing_union);
     Py_VISIT(st->typing_any);
     Py_VISIT(st->typing_literal);
+    Py_VISIT(st->typing_classvar);
+    Py_VISIT(st->typing_generic_alias);
     Py_VISIT(st->typing_annotated_alias);
     Py_VISIT(st->get_type_hints);
     Py_VISIT(st->get_typeddict_hints);
@@ -18091,6 +18164,8 @@ PyInit__core(void)
     SET_REF(typing_union, "Union");
     SET_REF(typing_any, "Any");
     SET_REF(typing_literal, "Literal");
+    SET_REF(typing_classvar, "ClassVar");
+    SET_REF(typing_generic_alias, "_GenericAlias");
     Py_DECREF(temp_module);
 
     temp_module = PyImport_ImportModule("msgspec._utils");
