@@ -16,6 +16,8 @@ import msgspec
 from msgspec import Struct, field, defstruct, replace
 from msgspec._core import nodefault
 
+from utils import temp_module
+
 
 @contextmanager
 def nogc():
@@ -1764,3 +1766,84 @@ class TestReplace:
         assert sys.getrefcount(x) == x_count
         assert sys.getrefcount(x2) == x2_count + 1
         del t2
+
+
+class TestClassVar:
+    def case1(self):
+        return """
+        from typing import ClassVar
+        from msgspec import Struct
+
+        class Ex(Struct):
+            a: int
+            cv1: ClassVar
+            b: int
+            cv2: ClassVar[int] = 1
+        """
+
+    def case2(self):
+        return """
+        import typing
+        from msgspec import Struct
+
+        class Ex(Struct):
+            a: int
+            cv1: typing.ClassVar
+            b: int
+            cv2: typing.ClassVar[int] = 1
+        """
+
+    def case3(self):
+        return """
+        import typing
+        from msgspec import Struct
+
+        ClassVar = typing.List
+
+        class Ex(Struct):
+            a: ClassVar
+            b: ClassVar[int]
+            cv2: typing.ClassVar[int] = 1
+        """
+
+    def case4(self):
+        return """
+        from typing import ClassVar, List
+        from msgspec import Struct
+
+        class typing:
+            ClassVar = List
+
+        class Ex(Struct):
+            a: typing.ClassVar
+            b: typing.ClassVar[int]
+            cv2: ClassVar[int] = 1
+        """
+
+    def case5(self):
+        """Annotations that start with `ClassVar`/`typing.ClassVar` but don't
+        end there aren't treated as false-positives"""
+        return """
+        from typing import ClassVar, List
+        from msgspec import Struct
+
+        ClassVariable = List
+
+        class typing:
+            ClassVariable = List
+
+        class Ex(Struct):
+            a: typing.ClassVariable
+            b: ClassVariable[int]
+            cv2: ClassVar[int] = 1
+        """
+
+    @pytest.mark.parametrize("case", [1, 2, 3, 4, 5])
+    @pytest.mark.parametrize("future_annotations", [True, False])
+    def test_classvar(self, case, future_annotations):
+        source = getattr(self, f"case{case}")()
+        if future_annotations:
+            source = "        from __future__ import annotations\n" + source
+        with temp_module(source) as mod:
+            assert mod.Ex.__struct_fields__ == ("a", "b")
+            assert mod.Ex.cv2 == 1
