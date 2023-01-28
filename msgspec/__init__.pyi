@@ -182,5 +182,6 @@ from . import json
 from . import yaml
 from . import toml
 from . import inspect
+from . import structs
 
 __version__: str

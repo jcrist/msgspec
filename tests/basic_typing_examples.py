@@ -789,6 +789,20 @@ def check_consume_inspect_types() -> None:
 
 
 ##########################################################
+# msgspec.structs                                        #
+##########################################################
+
+def check_structs_info() -> None:
+    class Point(msgspec.Struct):
+        x: int
+        y: int
+
+    o = msgspec.structs.info(Point)
+    reveal_type(o)  # assert "StructInfo" in typ
+    reveal_type(o.fields[0])  # assert "StructField" in typ
+
+
+##########################################################
 # JSON Schema                                            #
 ##########################################################
 

@@ -18,6 +18,7 @@ from . import json
 from . import yaml
 from . import toml
 from . import inspect
+from . import structs
 
 
 def field(*, default=UNSET, default_factory=UNSET):

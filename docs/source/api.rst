@@ -155,6 +155,16 @@ Inspect
 .. autodata:: UNSET
 
 
+Struct Utilities
+----------------
+
+.. currentmodule:: msgspec.structs
+
+.. autoclass:: StructInfo
+.. autoclass:: StructField
+.. autofunction:: info
+
+
 Exceptions
 ----------
 
