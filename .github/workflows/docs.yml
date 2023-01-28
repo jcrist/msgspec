@@ -22,7 +22,7 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          pip install sphinx furo sphinx-copybutton ipython
+          pip install sphinx furo sphinx-copybutton sphinx-design ipython
 
       - name: Build Docs
         run: |
