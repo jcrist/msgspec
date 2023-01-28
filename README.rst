@@ -49,7 +49,7 @@ validation.
 ``msgspec`` is designed to be as performant as possible, while retaining some
 of the nicities of validation libraries like pydantic_. For supported types,
 encoding/decoding a message with ``msgspec`` can be `~2-40x faster than
-alternative libraries <benchmarks>`__.
+alternative libraries <benchmarks>`_.
 
 .. image:: https://github.com/jcrist/msgspec/raw/main/docs/source/_static/bench-1.svg
     :target: https://jcristharif.com/msgspec/benchmarks.html
