@@ -1,10 +1,25 @@
 msgspec
 =======
 
-``msgspec`` is *fast* and *friendly* serialization library for Python, with
-builtin support for JSON_, MessagePack_, YAML_, and TOML_. It integrates well
-with Python's `type annotations`_, providing ergonomic (and performant!) schema
-validation.
+``msgspec`` is a *fast* and *friendly* serialization library for Python. It
+includes:
+
+- 🚀 **High performance encoders/decoders** for common protocols (JSON_,
+  MessagePack_, YAML_ and TOML_). The JSON and MessagePack implementations
+  regularly :doc:`benchmark <benchmarks>` as the fastest options for Python.
+
+- 📏 **Zero-cost schema validation** using familiar Python `type annotations`_.
+  In :doc:`benchmarks <benchmarks>` ``msgspec`` decodes *and* validates JSON
+  ~2x faster than orjson_ can decode it alone.
+
+- ✨ **A speedy Struct type** for representing structured data. If you already
+  use dataclasses_ or attrs_, :doc:`structs` should feel familiar. However,
+  they're `10-100x <struct-benchmark>`_  faster for common operations.
+
+All of this is included in a :ref:`lightweight library
+<benchmark-library-size>` with no required dependencies.
+
+-----
 
 **Define** your message schemas using standard Python type annotations.
 
@@ -46,7 +61,7 @@ validation.
 
 ``msgspec`` is designed to be as performant as possible, while retaining some
 of the nicities of validation libraries like pydantic_. For supported types,
-encoding/decoding a message with ``msgspec`` can be :doc:`~2-40x faster than
+encoding/decoding a message with ``msgspec`` can be :doc:`~2-80x faster than
 alternative libraries <benchmarks>`.
 
 Highlights
@@ -55,16 +70,20 @@ Highlights
 - ``msgspec`` is **fast**. It :doc:`benchmarks <benchmarks>` as the fastest
   serialization library for Python, outperforming all other JSON/MessagePack
   libraries compared.
+
 - ``msgspec`` is **friendly**. Through use of Python's type annotations,
-  messages are :ref:`validated <typed-decoding>` during deserialization
-  in a declaritive way. ``msgspec`` also works well with other type-checking
-  tooling like mypy_ and pyright_, providing excellent editor integration.
-- ``msgspec`` is **flexible**. It natively supports a wide range of Python
-  builtin types. Support for additional types can also be added through
-  :doc:`extensions <extending>`.
+  messages are :ref:`validated <typed-decoding>` during deserialization in a
+  declaritive way. ``msgspec`` also works well with other type-checking tooling
+  like mypy_ and pyright_, providing excellent editor integration.
+
+- ``msgspec`` is **flexible**. It natively supports a :doc:`wide range of
+  Python builtin types <supported-types>`. Support for additional types can
+  also be added through :doc:`extensions <extending>`.
+
 - ``msgspec`` is **lightweight**. It has no required dependencies, and the
   binary size is :ref:`a fraction of that of comparable libraries
   <benchmark-library-size>`.
+
 - ``msgspec`` is **correct**. The encoders/decoders implemented are strictly
   compliant with their respective specifications, providing stronger guarantees
   of compatibility with other systems.
@@ -99,6 +118,9 @@ few:
 .. _MessagePack: https://msgpack.org
 .. _YAML: https://yaml.org
 .. _TOML: https://toml.io
+.. _attrs: https://www.attrs.org
+.. _dataclasses: https://docs.python.org/3/library/dataclasses.html
+.. _orjson: https://github.com/ijl/orjson
 .. _pydantic: https://pydantic-docs.helpmanual.io/
 .. _mypy: https://mypy.readthedocs.io
 .. _pyright: https://github.com/microsoft/pyright
