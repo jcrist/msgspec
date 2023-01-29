@@ -40,8 +40,10 @@ setup(
         "Source": "https://github.com/jcrist/msgspec/",
         "Issue Tracker": "https://github.com/jcrist/msgspec/issues",
     },
-    description="A fast and friendly JSON/MessagePack library, with optional schema validation",
-    keywords="JSON msgpack Messagepack YAML serialization schema",
+    description=(
+        "A fast and friendly serialization library, with optional schema validation"
+    ),
+    keywords="JSON msgpack MessagePack TOML YAML serialization validation schema",
     classifiers=[
         "License :: OSI Approved :: BSD License",
         "Development Status :: 4 - Beta",
