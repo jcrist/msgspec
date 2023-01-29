@@ -96,8 +96,14 @@ of the nicities of validation libraries like pydantic_. For supported types,
 encoding/decoding a message with ``msgspec`` can be `~2-80x faster than
 alternative libraries <https://jcristharif.com/msgspec/benchmarks.html>`__.
 
-.. image:: https://raw.githubusercontent.com/jcrist/msgspec/main/docs/source/_static/bench-1.svg
-    :target: https://jcristharif.com/msgspec/benchmarks.html
+.. raw:: html
+
+    <p align="center">
+      <a href="https://jcristharif.com/msgspec/benchmarks.html">
+        <img src="https://raw.githubusercontent.com/jcrist/msgspec/main/docs/source/_static/bench-1.svg">
+      </a>
+    </p>
+
 
 See `the documentation <https://jcristharif.com/msgspec/>`__ for more
 information.
