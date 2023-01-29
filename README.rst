@@ -1,22 +1,21 @@
 msgspec
 =======
 
-|github| |pypi| |conda| |codecov|
+|github| |pypi| |conda| |codecov| |license|
 
 ``msgspec`` is a *fast* and *friendly* serialization library for Python. It
 includes:
 
-- 🚀 **High performance encoders/decoders** for common protocols (JSON_,
-  MessagePack_, YAML_ and TOML_). The JSON and MessagePack implementations
+- 🚀 **High performance encoders/decoders** for common protocols (currently
+  JSON, MessagePack, YAML and TOML). The JSON and MessagePack implementations
   regularly benchmark_ as the fastest options for Python.
 
-- 📏 **Zero-cost schema validation** using familiar Python `type annotations`_.
+- 📏 **Zero-cost schema validation** using familiar Python type annotations.
   In benchmarks_ ``msgspec`` decodes *and* validates JSON ~2x faster than
   orjson_ can decode it alone.
 
 - ✨ **A speedy Struct type** for representing structured data. If you already
-  use dataclasses_ or attrs_, :doc:`structs` should feel familiar. However,
-  they're
+  use dataclasses_ or attrs_, structs_ should feel familiar. However, they're
   `10-100x <https://jcristharif.com/msgspec/benchmarks.html#benchmark-structs>`__
   faster for common operations.
 
@@ -66,7 +65,7 @@ with no required dependencies.
 
 ``msgspec`` is designed to be as performant as possible, while retaining some
 of the nicities of validation libraries like pydantic_. For supported types,
-encoding/decoding a message with ``msgspec`` can be `~2-40x faster than
+encoding/decoding a message with ``msgspec`` can be `~2-80x faster than
 alternative libraries <https://jcristharif.com/msgspec/benchmarks.html>`__.
 
 .. image:: https://github.com/jcrist/msgspec/raw/main/docs/source/_static/bench-1.svg
@@ -82,14 +81,11 @@ New BSD. See the
 `License File <https://github.com/jcrist/msgspec/blob/main/LICENSE>`_.
 
 .. _type annotations: https://docs.python.org/3/library/typing.html
-.. _JSON: https://json.org
-.. _MessagePack: https://msgpack.org
-.. _YAML: https://yaml.org
-.. _TOML: https://toml.io
 .. _attrs: https://www.attrs.org
 .. _dataclasses: https://docs.python.org/3/library/dataclasses.html
 .. _orjson: https://github.com/ijl/orjson
 .. _pydantic: https://pydantic-docs.helpmanual.io/
+.. _structs: https://jcristharif.com/msgspec/structs.html
 .. _benchmark: https://jcristharif.com/msgspec/benchmarks.html
 .. _benchmarks: https://jcristharif.com/msgspec/benchmarks.html
 
@@ -101,3 +97,5 @@ New BSD. See the
    :target: https://anaconda.org/conda-forge/msgspec
 .. |codecov| image:: https://codecov.io/gh/jcrist/msgspec/branch/main/graph/badge.svg
    :target: https://codecov.io/gh/jcrist/msgspec
+.. |license| image:: https://img.shields.io/github/license/jcrist/msgspec.svg
+   :target: https://github.com/jcrist/msgspec/blob/main/LICENSE
