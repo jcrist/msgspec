@@ -1,7 +1,35 @@
-msgspec
-=======
+.. raw:: html
 
-|github| |pypi| |conda| |codecov| |license|
+    <p align="center">
+      <a href="https://jcristharif.com/msgspec/">
+        <picture>
+          <source srcset="https://raw.githubusercontent.com/jcrist/msgspec/main/docs/source/_static/msgspec-logo-dark.svg" media="(prefers-color-scheme: dark)">
+          <img src="https://raw.githubusercontent.com/jcrist/msgspec/main/docs/source/_static/msgspec-logo-light.svg" width="30%" alt="msgspec" />
+        </picture>
+      </a>
+    </p>
+
+    <p align="center">
+      <a href="https://github.com/jcrist/msgspec/actions/workflows/ci.yml">
+        <img src="https://github.com/jcrist/msgspec/actions/workflows/ci.yml/badge.svg">
+      </a>
+      <a href="https://jcristharif.com/msgspec/">
+        <img src="https://img.shields.io/badge/docs-latest-blue.svg">
+      </a>
+      <a href="https://github.com/jcrist/msgspec/blob/main/LICENSE">
+        <img src="https://img.shields.io/github/license/jcrist/msgspec.svg">
+      </a>
+      <a href="https://pypi.org/project/msgspec/">
+        <img src="https://img.shields.io/pypi/v/msgspec.svg">
+      </a>
+      <a href="https://anaconda.org/conda-forge/msgspec">
+        <img src="https://img.shields.io/conda/vn/conda-forge/msgspec.svg">
+      </a>
+      <a href="https://codecov.io/gh/jcrist/msgspec">
+        <img src="https://codecov.io/gh/jcrist/msgspec/branch/main/graph/badge.svg">
+      </a>
+    </p>
+
 
 ``msgspec`` is a *fast* and *friendly* serialization library for Python. It
 includes:
@@ -68,7 +96,7 @@ of the nicities of validation libraries like pydantic_. For supported types,
 encoding/decoding a message with ``msgspec`` can be `~2-80x faster than
 alternative libraries <https://jcristharif.com/msgspec/benchmarks.html>`__.
 
-.. image:: https://github.com/jcrist/msgspec/raw/main/docs/source/_static/bench-1.svg
+.. image:: https://raw.githubusercontent.com/jcrist/msgspec/main/docs/source/_static/bench-1.svg
     :target: https://jcristharif.com/msgspec/benchmarks.html
 
 See `the documentation <https://jcristharif.com/msgspec/>`__ for more
@@ -88,14 +116,3 @@ New BSD. See the
 .. _structs: https://jcristharif.com/msgspec/structs.html
 .. _benchmark: https://jcristharif.com/msgspec/benchmarks.html
 .. _benchmarks: https://jcristharif.com/msgspec/benchmarks.html
-
-.. |github| image:: https://github.com/jcrist/msgspec/actions/workflows/ci.yml/badge.svg
-   :target: https://github.com/jcrist/msgspec/actions/workflows/ci.yml
-.. |pypi| image:: https://img.shields.io/pypi/v/msgspec.svg
-   :target: https://pypi.org/project/msgspec/
-.. |conda| image:: https://img.shields.io/conda/vn/conda-forge/msgspec.svg
-   :target: https://anaconda.org/conda-forge/msgspec
-.. |codecov| image:: https://codecov.io/gh/jcrist/msgspec/branch/main/graph/badge.svg
-   :target: https://codecov.io/gh/jcrist/msgspec
-.. |license| image:: https://img.shields.io/github/license/jcrist/msgspec.svg
-   :target: https://github.com/jcrist/msgspec/blob/main/LICENSE
