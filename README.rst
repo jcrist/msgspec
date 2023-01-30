@@ -1,13 +1,13 @@
 .. raw:: html
 
-    <p align="center">
+    <div align="center">
       <a href="https://jcristharif.com/msgspec/">
         <picture>
           <source srcset="https://raw.githubusercontent.com/jcrist/msgspec/main/docs/source/_static/msgspec-logo-dark.svg" media="(prefers-color-scheme: dark)">
-          <img src="https://raw.githubusercontent.com/jcrist/msgspec/main/docs/source/_static/msgspec-logo-light.svg" width="30%" alt="msgspec" />
+          <img src="https://raw.githubusercontent.com/jcrist/msgspec/main/docs/source/_static/msgspec-logo-light.svg" width="35%" alt="msgspec" />
         </picture>
       </a>
-    </p>
+    </div>
 
     <p align="center">
       <a href="https://github.com/jcrist/msgspec/actions/workflows/ci.yml">
@@ -31,14 +31,17 @@
     </p>
 
 
-``msgspec`` is a *fast* and *friendly* serialization library for Python. It
-includes:
+``msgspec`` is a *fast* serialization and validation library, with builtin
+support for JSON_, MessagePack_, YAML_, and TOML_. It features:
 
-- 🚀 **High performance encoders/decoders** for common protocols (currently
-  JSON, MessagePack, YAML and TOML). The JSON and MessagePack implementations
-  regularly benchmark_ as the fastest options for Python.
+- 🚀 **High performance encoders/decoders** for common protocols. The JSON and
+  MessagePack implementations regularly benchmark_ as the fastest options for
+  Python.
 
-- 📏 **Zero-cost schema validation** using familiar Python type annotations.
+- 🎉 **Support for a wide variety of Python types**. Additional types may
+  be supported through extensions_.
+
+- 🔍 **Zero-cost schema validation** using familiar Python type annotations.
   In benchmarks_ ``msgspec`` decodes *and* validates JSON ~2x faster than
   orjson_ can decode it alone.
 
@@ -52,6 +55,10 @@ All of this is included in a `lightweight library
 with no required dependencies.
 
 -----
+
+``msgspec`` may be used for serialization alone, as a faster JSON or
+MessagePack library. For the greatest benefit though, we recommend using
+``msgspec`` to handle the full serialization & validation workflow:
 
 **Define** your message schemas using standard Python type annotations.
 
@@ -114,7 +121,10 @@ LICENSE
 New BSD. See the
 `License File <https://github.com/jcrist/msgspec/blob/main/LICENSE>`_.
 
-.. _type annotations: https://docs.python.org/3/library/typing.html
+.. _JSON: https://json.org
+.. _MessagePack: https://msgpack.org
+.. _YAML: https://yaml.org
+.. _TOML: https://toml.io
 .. _attrs: https://www.attrs.org
 .. _dataclasses: https://docs.python.org/3/library/dataclasses.html
 .. _orjson: https://github.com/ijl/orjson
@@ -122,3 +132,4 @@ New BSD. See the
 .. _structs: https://jcristharif.com/msgspec/structs.html
 .. _benchmark: https://jcristharif.com/msgspec/benchmarks.html
 .. _benchmarks: https://jcristharif.com/msgspec/benchmarks.html
+.. _extensions: https://jcristharif.com/msgspec/extending.html
