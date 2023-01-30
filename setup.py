@@ -41,7 +41,8 @@ setup(
         "Issue Tracker": "https://github.com/jcrist/msgspec/issues",
     },
     description=(
-        "A fast and friendly serialization library, with optional schema validation"
+        "A fast serialization and validation library, with builtin support for "
+        "JSON, MessagePack, YAML, and TOML."
     ),
     keywords="JSON msgpack MessagePack TOML YAML serialization validation schema",
     classifiers=[
