@@ -1,11 +1,11 @@
 import datetime
+import decimal
 import enum
 import gc
 import inspect
 import sys
 import uuid
 from contextlib import contextmanager
-from decimal import Decimal
 from base64 import b64encode
 from dataclasses import dataclass, field
 from typing import Any, Literal, List, Tuple, Set, FrozenSet, NamedTuple, Dict, Union
@@ -120,6 +120,7 @@ class TestFromBuiltins:
             (datetime.time(12, 34), "time"),
             (datetime.date(2022, 1, 2), "date"),
             (uuid.uuid4(), "uuid"),
+            (decimal.Decimal("1.5"), "decimal"),
             ([1], "array"),
             ((1,), "array"),
             ({"a": 1}, "object"),
@@ -457,6 +458,26 @@ class TestUUID:
         msg = str(uuid.uuid4())
         with pytest.raises(ValidationError, match="Expected `uuid`, got `str`"):
             from_builtins(msg, uuid.UUID, builtin_types=(uuid.UUID,))
+
+
+class TestDecimal:
+    def test_decimal_wrong_type(self):
+        with pytest.raises(ValidationError, match="Expected `decimal`, got `float`"):
+            from_builtins(1.5, decimal.Decimal)
+
+    def test_decimal_builtin(self):
+        x = decimal.Decimal("1.5")
+        assert from_builtins(x, decimal.Decimal) is x
+
+    def test_decimal_str(self):
+        sol = decimal.Decimal("1.5")
+        res = from_builtins("1.5", decimal.Decimal)
+        assert res == sol
+        assert type(res) is decimal.Decimal
+
+    def test_decimal_str_disabled(self):
+        with pytest.raises(ValidationError, match="Expected `decimal`, got `str`"):
+            from_builtins("1.5", decimal.Decimal, builtin_types=(decimal.Decimal,))
 
 
 class TestEnum:
@@ -1324,24 +1345,21 @@ class TestStructUnion:
 class TestCustom:
     def test_custom(self):
         def dec_hook(typ, x):
-            assert typ is Decimal
-            assert isinstance(x, str)
-            return Decimal(x)
+            assert typ is complex
+            return complex(*x)
 
-        msg = {"x": "1.5"}
-        sol = {"x": Decimal("1.5")}
-        res = from_builtins(msg, Dict[str, Decimal], dec_hook=dec_hook)
+        msg = {"x": (1, 2)}
+        sol = {"x": complex(1, 2)}
+        res = from_builtins(msg, Dict[str, complex], dec_hook=dec_hook)
         assert res == sol
 
     def test_custom_no_dec_hook(self):
-        with pytest.raises(
-            ValidationError, match="Expected `decimal.Decimal`, got `str`"
-        ):
-            from_builtins({"x": "1.5"}, Dict[str, Decimal])
+        with pytest.raises(ValidationError, match="Expected `complex`, got `str`"):
+            from_builtins({"x": "oh no"}, Dict[str, complex])
 
     def test_custom_dec_hook_errors(self):
         def dec_hook(typ, x):
             raise TypeError("Oops!")
 
         with pytest.raises(TypeError, match="Oops!"):
-            from_builtins({"x": "1.5"}, Dict[str, Decimal], dec_hook=dec_hook)
+            from_builtins({"x": (1, 2)}, Dict[str, complex], dec_hook=dec_hook)

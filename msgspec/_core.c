@@ -361,6 +361,7 @@ typedef struct {
     PyObject *str_is_safe;
     PyObject *UUIDType;
     PyObject *uuid_safeuuid_unknown;
+    PyObject *DecimalType;
     PyObject *typing_list;
     PyObject *typing_set;
     PyObject *typing_frozenset;
@@ -2147,6 +2148,7 @@ static PyTypeObject Field_Type = {
 #define MS_TYPE_TYPEDDICT           (1ull << 30)
 #define MS_TYPE_DATACLASS           (1ull << 31)
 #define MS_TYPE_NAMEDTUPLE          (1ull << 32)
+#define MS_TYPE_DECIMAL             (1ull << 33)
 /* Constraints */
 #define MS_CONSTR_INT_MIN           (1ull << 42)
 #define MS_CONSTR_INT_MAX           (1ull << 43)
@@ -2716,6 +2718,9 @@ typenode_simple_repr(TypeNode *self) {
     }
     if (self->types & MS_TYPE_UUID) {
         if (!strbuilder_extend_literal(&builder, "uuid")) return NULL;
+    }
+    if (self->types & MS_TYPE_DECIMAL) {
+        if (!strbuilder_extend_literal(&builder, "decimal")) return NULL;
     }
     if (self->types & MS_TYPE_EXT) {
         if (!strbuilder_extend_literal(&builder, "ext")) return NULL;
@@ -3440,7 +3445,8 @@ typenode_collect_check_invariants(
             state->types & (
                 MS_TYPE_STR | MS_TYPE_STRLITERAL | MS_TYPE_ENUM |
                 MS_TYPE_BYTES | MS_TYPE_BYTEARRAY |
-                MS_TYPE_DATETIME | MS_TYPE_DATE | MS_TYPE_TIME | MS_TYPE_UUID
+                MS_TYPE_DATETIME | MS_TYPE_DATE | MS_TYPE_TIME |
+                MS_TYPE_UUID | MS_TYPE_DECIMAL
             )
         ) > 1
     ) {
@@ -3448,7 +3454,7 @@ typenode_collect_check_invariants(
             PyExc_TypeError,
             "Type unions may not contain more than one str-like type (`str`, "
             "`Enum`, `Literal[str values]`, `datetime`, `date`, `time`, `uuid`, "
-            "`bytes`, `bytearray`) - type `%R` is not supported",
+            "`decimal`, `bytes`, `bytearray`) - type `%R` is not supported",
             state->context
         );
         return -1;
@@ -4220,6 +4226,9 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
     else if (t == state->mod->UUIDType) {
         state->types |= MS_TYPE_UUID;
     }
+    else if (t == state->mod->DecimalType) {
+        state->types |= MS_TYPE_DECIMAL;
+    }
     else if (t == (PyObject *)(&Ext_Type)) {
         state->types |= MS_TYPE_EXT;
     }
@@ -4509,7 +4518,7 @@ cleanup:
     } while (0)
 
 static MS_NOINLINE PyObject *
-ms_validation_error(char *got, TypeNode *type, PathNode *path) {
+ms_validation_error(const char *got, TypeNode *type, PathNode *path) {
     PyObject *type_repr = typenode_simple_repr(type);
     if (type_repr != NULL) {
         ms_raise_validation_error(path, "Expected `%U`, got `%s`%U", type_repr, got);
@@ -9417,6 +9426,35 @@ invalid:
     return ms_error_with_path("Invalid UUID%U", path);
 }
 
+static PyObject *
+ms_decode_decimal_pyobj(MsgspecState *mod, PyObject *str, PathNode *path) {
+    PyObject *out = CALL_ONE_ARG(mod->DecimalType, str);
+    if (out == NULL) {
+        ms_error_with_path("Invalid decimal string%U", path);
+    }
+    return out;
+}
+
+static PyObject *
+ms_decode_decimal(const char *view, Py_ssize_t size, bool is_ascii, PathNode *path) {
+    PyObject *str;
+
+    if (MS_LIKELY(is_ascii)) {
+        str = PyUnicode_New(size, 127);
+        if (str == NULL) return NULL;
+        memcpy(ascii_get_buffer(str), view, size);
+    }
+    else {
+        str = PyUnicode_DecodeUTF8(view, size, NULL);
+        if (str == NULL) return NULL;
+    }
+    PyObject *out = ms_decode_decimal_pyobj(
+        msgspec_get_global_state(), str, path
+    );
+    Py_DECREF(str);
+    return out;
+}
+
 /*************************************************************************
  * MessagePack Encoder                                                   *
  *************************************************************************/
@@ -10144,6 +10182,16 @@ mpack_encode_uuid(EncoderState *self, PyObject *obj)
 }
 
 static int
+mpack_encode_decimal(EncoderState *self, PyObject *obj)
+{
+    PyObject *str = PyObject_Str(obj);
+    if (str == NULL) return -1;
+    int out = mpack_encode_str(self, str);
+    Py_DECREF(str);
+    return out;
+}
+
+static int
 mpack_encode_date(EncoderState *self, PyObject *obj)
 {
     char buf[10];
@@ -10280,6 +10328,9 @@ mpack_encode(EncoderState *self, PyObject *obj)
     }
     else if (type == (PyTypeObject *)(self->mod->UUIDType)) {
         return mpack_encode_uuid(self, obj);
+    }
+    else if (type == (PyTypeObject *)(self->mod->DecimalType)) {
+        return mpack_encode_decimal(self, obj);
     }
     else if (PyAnySet_Check(obj)) {
         return mpack_encode_set(self, obj);
@@ -10658,6 +10709,16 @@ json_encode_uuid(EncoderState *self, PyObject *obj)
     buf[37] = '"';
     if (ms_encode_uuid(self->mod, obj, buf + 1) < 0) return -1;
     return ms_write(self, buf, 38);
+}
+
+static int
+json_encode_decimal(EncoderState *self, PyObject *obj)
+{
+    PyObject *str = PyObject_Str(obj);
+    if (str == NULL) return -1;
+    int out = json_encode_str(self, str);
+    Py_DECREF(str);
+    return out;
 }
 
 static int
@@ -11072,6 +11133,9 @@ json_encode(EncoderState *self, PyObject *obj)
     }
     else if (type == (PyTypeObject *)(self->mod->UUIDType)) {
         return json_encode_uuid(self, obj);
+    }
+    else if (type == (PyTypeObject *)(self->mod->DecimalType)) {
+        return json_encode_decimal(self, obj);
     }
     else if (PyAnySet_Check(obj)) {
         return json_encode_set(self, obj);
@@ -11751,7 +11815,8 @@ mpack_decode_str(DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *
     if (MS_LIKELY(
             type->types & (
                 MS_TYPE_ANY | MS_TYPE_STR | MS_TYPE_ENUM | MS_TYPE_STRLITERAL |
-                MS_TYPE_DATETIME | MS_TYPE_DATE | MS_TYPE_TIME | MS_TYPE_UUID
+                MS_TYPE_DATETIME | MS_TYPE_DATE | MS_TYPE_TIME |
+                MS_TYPE_UUID | MS_TYPE_DECIMAL
             )
         )
     ) {
@@ -11771,6 +11836,9 @@ mpack_decode_str(DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *
         }
         if (MS_UNLIKELY(type->types & MS_TYPE_UUID)) {
             return ms_decode_uuid(s, size, path);
+        }
+        if (MS_UNLIKELY(type->types & MS_TYPE_DECIMAL)) {
+            return ms_decode_decimal(s, size, false, path);
         }
         return ms_check_str_constraints(
             PyUnicode_DecodeUTF8(s, size, NULL), type, path
@@ -13878,7 +13946,8 @@ json_decode_string(JSONDecoderState *self, TypeNode *type, PathNode *path) {
             type->types & (
                 MS_TYPE_ANY | MS_TYPE_STR | MS_TYPE_ENUM | MS_TYPE_STRLITERAL |
                 MS_TYPE_BYTES | MS_TYPE_BYTEARRAY |
-                MS_TYPE_DATETIME | MS_TYPE_DATE | MS_TYPE_TIME | MS_TYPE_UUID
+                MS_TYPE_DATETIME | MS_TYPE_DATE | MS_TYPE_TIME |
+                MS_TYPE_UUID | MS_TYPE_DECIMAL
             )
         )
     ) {
@@ -13908,6 +13977,9 @@ json_decode_string(JSONDecoderState *self, TypeNode *type, PathNode *path) {
         }
         else if (MS_UNLIKELY(type->types & MS_TYPE_UUID)) {
             return ms_decode_uuid(view, size, path);
+        }
+        else if (MS_UNLIKELY(type->types & MS_TYPE_DECIMAL)) {
+            return ms_decode_decimal(view, size, is_ascii, path);
         }
         else if (MS_UNLIKELY(type->types & (MS_TYPE_BYTES | MS_TYPE_BYTEARRAY))) {
             return json_decode_binary(view, size, type, path);
@@ -16197,6 +16269,7 @@ msgspec_json_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyO
 #define MS_BUILTIN_DATE       (1ull << 4)
 #define MS_BUILTIN_TIME       (1ull << 5)
 #define MS_BUILTIN_UUID       (1ull << 6)
+#define MS_BUILTIN_DECIMAL    (1ull << 7)
 
 typedef struct {
     MsgspecState *mod;
@@ -16269,6 +16342,11 @@ to_builtins_uuid(ToBuiltinsState *self, PyObject *obj) {
         Py_CLEAR(out);
     }
     return out;
+}
+
+static PyObject *
+to_builtins_decimal(ToBuiltinsState *self, PyObject *obj) {
+    return PyObject_Str(obj);
 }
 
 static PyObject *
@@ -16596,6 +16674,10 @@ to_builtins(ToBuiltinsState *self, PyObject *obj, bool is_key) {
         if (self->builtin_types & MS_BUILTIN_UUID) goto builtin;
         return to_builtins_uuid(self, obj);
     }
+    else if (type == (PyTypeObject *)(self->mod->DecimalType)) {
+        if (self->builtin_types & MS_BUILTIN_DECIMAL) goto builtin;
+        return to_builtins_decimal(self, obj);
+    }
     else if (PyList_Check(obj)) {
         return to_builtins_list(self, obj);
     }
@@ -16670,6 +16752,9 @@ ms_process_builtin_types(MsgspecState *mod, PyObject *builtin_types, uint32_t *m
             else if (type == mod->UUIDType) {
                 *mask |= MS_BUILTIN_UUID;
             }
+            else if (type == mod->DecimalType) {
+                *mask |= MS_BUILTIN_DECIMAL;
+            }
             else {
                 PyErr_Format(PyExc_TypeError, "Cannot treat %R as a builtin type", type);
                 Py_DECREF(seq);
@@ -16699,7 +16784,7 @@ PyDoc_STRVAR(msgspec_to_builtins__doc__,
 "    An iterable of types to treat as additional builtin types. These types will\n"
 "    be passed through ``to_builtins`` unchanged. Currently only supports\n"
 "    `bytes`, `bytearray`, `memoryview`, `datetime.datetime`, `datetime.time`,\n"
-"    `datetime.date`, and `uuid.UUID`.\n"
+"    `datetime.date`, `uuid.UUID`, and `decimal.Decimal`.\n"
 "str_keys: bool, optional\n"
 "    Whether to convert all object keys to strings. Default is False.\n"
 "enc_hook : callable, optional\n"
@@ -16869,6 +16954,12 @@ from_builtins_str(
             return ms_decode_uuid(view, size, path);
         }
         else if (
+            (type->types & MS_TYPE_DECIMAL)
+            && !(self->builtin_types & MS_BUILTIN_DECIMAL)
+        ) {
+            return ms_decode_decimal_pyobj(self->mod, obj, path);
+        }
+        else if (
             (type->types & MS_TYPE_BYTES)
             && !(self->builtin_types & MS_BUILTIN_BYTES)
         ) {
@@ -16939,17 +17030,6 @@ from_builtins_datetime(
 }
 
 static PyObject *
-from_builtins_date(
-    FromBuiltinsState *self, PyObject *obj, TypeNode *type, PathNode *path
-) {
-    if (type->types & MS_TYPE_DATE) {
-        Py_INCREF(obj);
-        return obj;
-    }
-    return ms_validation_error("date", type, path);
-}
-
-static PyObject *
 from_builtins_time(
     FromBuiltinsState *self, PyObject *obj, TypeNode *type, PathNode *path
 ) {
@@ -16963,14 +17043,15 @@ from_builtins_time(
 }
 
 static PyObject *
-from_builtins_uuid(
-    FromBuiltinsState *self, PyObject *obj, TypeNode *type, PathNode *path
+from_builtins_immutable(
+    FromBuiltinsState *self, uint64_t mask, const char *expected,
+    PyObject *obj, TypeNode *type, PathNode *path
 ) {
-    if (type->types & MS_TYPE_UUID) {
+    if (type->types & mask) {
         Py_INCREF(obj);
         return obj;
     }
-    return ms_validation_error("uuid", type, path);
+    return ms_validation_error(expected, type, path);
 }
 
 static PyObject *
@@ -17667,14 +17748,17 @@ from_builtins(
     else if (pytype == PyDateTimeAPI->DateTimeType) {
         out = from_builtins_datetime(self, obj, type, path);
     }
-    else if (pytype == PyDateTimeAPI->DateType) {
-        out = from_builtins_date(self, obj, type, path);
-    }
     else if (pytype == PyDateTimeAPI->TimeType) {
         out = from_builtins_time(self, obj, type, path);
     }
+    else if (pytype == PyDateTimeAPI->DateType) {
+        out = from_builtins_immutable(self, MS_TYPE_DATE, "date", obj, type, path);
+    }
     else if (pytype == (PyTypeObject *)self->mod->UUIDType) {
-        out = from_builtins_uuid(self, obj, type, path);
+        out = from_builtins_immutable(self, MS_TYPE_UUID, "uuid", obj, type, path);
+    }
+    else if (pytype == (PyTypeObject *)self->mod->DecimalType) {
+        out = from_builtins_immutable(self, MS_TYPE_DECIMAL, "decimal", obj, type, path);
     }
     else if (pytype == &PyList_Type || pytype == &PyTuple_Type) {
         out = from_builtins_array(self, obj, type, path);
@@ -17718,8 +17802,9 @@ PyDoc_STRVAR(msgspec_from_builtins__doc__,
 "    disabling any coercion to that type provided by `from_builtins`. For\n"
 "    example, passing in ``builtin_types=(datetime,)`` disables the default\n"
 "    ``str`` to ``datetime`` conversion; the wrapped protocol must provide\n"
-"    a ``datetime`` object directly. Currently only supports `bytes`, `bytearray`\n"
-"    `datetime.datetime`, `datetime.time`, `datetime.date`, and `uuid.UUID`.\n"
+"    a ``datetime`` object directly. Currently only supports `bytes`,\n"
+"    `bytearray`, `datetime.datetime`, `datetime.time`, `datetime.date`,\n"
+"    `uuid.UUID`, and `decimal.Decimal`.\n"
 "str_keys: bool, optional\n"
 "    Whether the wrapped protocol only supports string keys. Setting to True\n"
 "    enables a wider set of coercion rules from string to non-string types for\n"
@@ -17869,6 +17954,7 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->str_is_safe);
     Py_CLEAR(st->UUIDType);
     Py_CLEAR(st->uuid_safeuuid_unknown);
+    Py_CLEAR(st->DecimalType);
     Py_CLEAR(st->typing_dict);
     Py_CLEAR(st->typing_list);
     Py_CLEAR(st->typing_set);
@@ -18209,7 +18295,7 @@ PyInit__core(void)
     Py_DECREF(temp_obj);
     if (st->astimezone == NULL) return NULL;
 
-    /* Get uuid.SafeUUID.unknown */
+    /* uuid module imports */
     temp_module = PyImport_ImportModule("uuid");
     if (temp_module == NULL) return NULL;
     st->UUIDType = PyObject_GetAttrString(temp_module, "UUID");
@@ -18219,6 +18305,12 @@ PyInit__core(void)
     st->uuid_safeuuid_unknown = PyObject_GetAttrString(temp_obj, "unknown");
     Py_DECREF(temp_obj);
     if (st->uuid_safeuuid_unknown == NULL) return NULL;
+
+    /* decimal module imports */
+    temp_module = PyImport_ImportModule("decimal");
+    if (temp_module == NULL) return NULL;
+    st->DecimalType = PyObject_GetAttrString(temp_module, "Decimal");
+    if (st->DecimalType == NULL) return NULL;
 
     /* Get the re.compile function */
     temp_module = PyImport_ImportModule("re");

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime
+import decimal
 import enum
 import gc
 import sys
@@ -2435,3 +2436,22 @@ class TestNewType:
         for bad in [-1, 11]:
             with pytest.raises(msgspec.ValidationError):
                 dec.decode(proto.encode(bad))
+
+
+class TestDecimal:
+    def test_encode_decimal(self, proto):
+        d = decimal.Decimal("1.5")
+        s = str(d)
+        assert proto.encode(d) == proto.encode(s)
+
+    def test_decode_decimal(self, proto):
+        d = decimal.Decimal("1.5")
+        msg = proto.encode(d)
+        res = proto.decode(msg, type=decimal.Decimal)
+        assert type(res) is decimal.Decimal
+        assert res == d
+
+    def test_decode_decimal_invalid(self, proto):
+        msg = proto.encode("1..5")
+        with pytest.raises(msgspec.ValidationError, match="Invalid decimal string"):
+            proto.decode(msg, type=decimal.Decimal)
