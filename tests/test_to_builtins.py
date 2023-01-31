@@ -1,5 +1,6 @@
 import base64
 import datetime
+import decimal
 import enum
 import os
 import sys
@@ -175,6 +176,15 @@ class TestToBuiltins:
     def test_uuid_builtin_types(self):
         msg = uuid.uuid4()
         res = to_builtins(msg, builtin_types=(uuid.UUID,))
+        assert res is msg
+
+    def test_decimal(self):
+        msg = decimal.Decimal("1.5")
+        assert to_builtins(msg) == str(msg)
+
+    def test_decimal_builtin_types(self):
+        msg = decimal.Decimal("1.5")
+        res = to_builtins(msg, builtin_types=(decimal.Decimal,))
         assert res is msg
 
     def test_intenum(self):
