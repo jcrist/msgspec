@@ -133,6 +133,7 @@ Inspect
 .. autoclass:: TimeType
 .. autoclass:: DateType
 .. autoclass:: UUIDType
+.. autoclass:: DecimalType
 .. autoclass:: ExtType
 .. autoclass:: RawType
 .. autoclass:: EnumType

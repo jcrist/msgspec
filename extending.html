@@ -315,17 +315,15 @@ that <code class="docutils literal notranslate"><span class="pre">msgspec</span>
 <li><p><code class="docutils literal notranslate"><span class="pre">dec_hook</span></code> in <code class="docutils literal notranslate"><span class="pre">Decoder</span></code>, for converting natively supported types back
 into a custom type when using <a class="reference internal" href="usage.html#typed-decoding"><span class="std std-ref">typed decoding</span></a>.</p></li>
 </ul>
-<p>Here we define <code class="docutils literal notranslate"><span class="pre">enc_hook</span></code> and <code class="docutils literal notranslate"><span class="pre">dec_hook</span></code> callbacks to convert
-<a class="reference external" href="https://docs.python.org/3/library/decimal.html#decimal.Decimal" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">decimal.Decimal</span></code></a> objects to/from strings, which are then natively handled by
-<code class="docutils literal notranslate"><span class="pre">msgspec</span></code>.</p>
+<p>Here we define <code class="docutils literal notranslate"><span class="pre">enc_hook</span></code> and <code class="docutils literal notranslate"><span class="pre">dec_hook</span></code> callbacks to convert <a class="reference external" href="https://docs.python.org/3/library/functions.html#complex" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">complex</span></code></a>
+objects to/from objects, which are then natively handled by <code class="docutils literal notranslate"><span class="pre">msgspec</span></code>.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">msgspec</span>
 <span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Type</span>
-<span class="kn">from</span> <span class="nn">decimal</span> <span class="kn">import</span> <span class="n">Decimal</span>
 
 <span class="k">def</span> <span class="nf">enc_hook</span><span class="p">(</span><span class="n">obj</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
-    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">Decimal</span><span class="p">):</span>
-        <span class="c1"># convert the Decimal to a str</span>
-        <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="nb">complex</span><span class="p">):</span>
+        <span class="c1"># convert the complex to a tuple of real, imag</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">real</span><span class="p">,</span> <span class="n">obj</span><span class="o">.</span><span class="n">imag</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="c1"># Raise a TypeError for other types</span>
         <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Objects of type </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span><span class="si">}</span><span class="s2"> are not supported&quot;</span><span class="p">)</span>
@@ -333,18 +331,19 @@ into a custom type when using <a class="reference internal" href="usage.html#typ
 
 <span class="k">def</span> <span class="nf">dec_hook</span><span class="p">(</span><span class="nb">type</span><span class="p">:</span> <span class="n">Type</span><span class="p">,</span> <span class="n">obj</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
     <span class="c1"># `type` here is the value of the custom type annotation being decoded.</span>
-    <span class="k">if</span> <span class="nb">type</span> <span class="ow">is</span> <span class="n">Decimal</span><span class="p">:</span>
-        <span class="c1"># Convert ``obj`` (which should be a ``str``) to a Decimal</span>
-        <span class="k">return</span> <span class="n">Decimal</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">type</span> <span class="ow">is</span> <span class="nb">complex</span><span class="p">:</span>
+        <span class="c1"># Convert ``obj`` (which should be a ``tuple``) to a complex</span>
+        <span class="n">real</span><span class="p">,</span> <span class="n">imag</span> <span class="o">=</span> <span class="n">obj</span>
+        <span class="k">return</span> <span class="nb">complex</span><span class="p">(</span><span class="n">real</span><span class="p">,</span> <span class="n">imag</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="c1"># Raise a TypeError for other types</span>
         <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Objects of type </span><span class="si">{</span><span class="nb">type</span><span class="si">}</span><span class="s2"> are not supported&quot;</span><span class="p">)</span>
 
 
-<span class="c1"># Define a message that contains a Decimal</span>
+<span class="c1"># Define a message that contains a complex type</span>
 <span class="k">class</span> <span class="nc">MyMessage</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
     <span class="n">field_1</span><span class="p">:</span> <span class="nb">str</span>
-    <span class="n">field_2</span><span class="p">:</span> <span class="n">Decimal</span>
+    <span class="n">field_2</span><span class="p">:</span> <span class="nb">complex</span>
 
 <span class="c1"># Create an encoder and a decoder using the custom callbacks.</span>
 <span class="c1"># Note that typed deserialization is required for successful</span>
@@ -353,10 +352,7 @@ into a custom type when using <a class="reference internal" href="usage.html#typ
 <span class="n">dec</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">Decoder</span><span class="p">(</span><span class="n">MyMessage</span><span class="p">,</span> <span class="n">dec_hook</span><span class="o">=</span><span class="n">dec_hook</span><span class="p">)</span>
 
 <span class="c1"># An example message</span>
-<span class="n">msg</span> <span class="o">=</span> <span class="n">MyMessage</span><span class="p">(</span>
-    <span class="s2">&quot;some string&quot;</span><span class="p">,</span>
-    <span class="n">Decimal</span><span class="p">(</span><span class="s2">&quot;3.1415926535897932384626433832795&quot;</span><span class="p">),</span>
-<span class="p">)</span>
+<span class="n">msg</span> <span class="o">=</span> <span class="n">MyMessage</span><span class="p">(</span><span class="s2">&quot;some string&quot;</span><span class="p">,</span> <span class="nb">complex</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>
 
 <span class="c1"># Encode and decode the message to show that things work</span>
 <span class="n">buf</span> <span class="o">=</span> <span class="n">enc</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
