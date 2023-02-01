@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime
+import decimal
 import enum
 import uuid
 from collections.abc import Iterable
@@ -48,6 +49,7 @@ __all__ = (
     "TimeType",
     "DateType",
     "UUIDType",
+    "DecimalType",
     "ExtType",
     "RawType",
     "EnumType",
@@ -248,6 +250,10 @@ class DateType(Type):
 
 class UUIDType(Type):
     """A type corresponding to `uuid.UUID`."""
+
+
+class DecimalType(Type):
+    """A type corresponding to `decimal.Decimal`."""
 
 
 class ExtType(Type):
@@ -795,6 +801,8 @@ class _Translator:
             return DateType()
         elif t is uuid.UUID:
             return UUIDType()
+        elif t is decimal.Decimal:
+            return DecimalType()
         elif t is msgspec.Raw:
             return RawType()
         elif t is msgspec.msgpack.Ext:
