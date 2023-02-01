@@ -1,6 +1,7 @@
-import enum
 import datetime
 import decimal
+import enum
+import typing
 import uuid
 from base64 import b64encode
 from collections import namedtuple
@@ -207,6 +208,21 @@ def test_dict_any(typ):
 @pytest.mark.parametrize("cls", [dict, Dict])
 def test_dict_typed(cls):
     typ = type_index(cls, (str, int))
+    assert msgspec.json.schema(typ) == {
+        "type": "object",
+        "additionalProperties": {"type": "integer"},
+    }
+
+
+def test_abstract_sequence():
+    # Only testing one here, the main tests are in `test_inspect`
+    typ = typing.Sequence[int]
+    assert msgspec.json.schema(typ) == {"type": "array", "items": {"type": "integer"}}
+
+
+def test_abstract_mapping():
+    # Only testing one here, the main tests are in `test_inspect`
+    typ = typing.MutableMapping[str, int]
     assert msgspec.json.schema(typ) == {
         "type": "object",
         "additionalProperties": {"type": "integer"},

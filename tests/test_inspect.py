@@ -1,6 +1,10 @@
+import abc
+import collections
 import datetime
 import decimal
 import enum
+import sys
+import typing
 import uuid
 from copy import deepcopy
 from collections import namedtuple
@@ -34,6 +38,9 @@ except ImportError:
         from typing_extensions import Annotated
     except ImportError:
         pytestmark = pytest.mark.skip("Annotated types not available")
+
+
+PY39 = sys.version_info[:2] >= (3, 9)
 
 
 def type_index(typ, args):
@@ -242,6 +249,47 @@ def test_dict(typ, kw, has_args):
         typ = Annotated[typ, Meta(**kw)]
     sol = mi.DictType(key_type=key, value_type=val, **kw)
     assert mi.type_info(typ) == sol
+
+
+@pytest.mark.parametrize(
+    "typ",
+    [
+        typing.Collection,
+        typing.MutableSequence,
+        typing.Sequence,
+        collections.abc.Collection,
+        collections.abc.MutableSequence,
+        collections.abc.Sequence,
+        typing.MutableSet,
+        typing.AbstractSet,
+        collections.abc.MutableSet,
+        collections.abc.Set,
+    ],
+)
+def test_abstract_sequence(typ):
+    if "Set" in str(typ):
+        col_type = mi.SetType
+    else:
+        col_type = mi.ListType
+
+    assert mi.type_info(typ) == col_type(mi.AnyType())
+    if PY39 or type(typ) is not abc.ABCMeta:
+        assert mi.type_info(typ[int]) == col_type(mi.IntType())
+
+
+@pytest.mark.parametrize(
+    "typ",
+    [
+        typing.MutableMapping,
+        typing.Mapping,
+        collections.abc.MutableMapping,
+        collections.abc.Mapping,
+    ],
+)
+def test_abstract_mapping(typ):
+    assert mi.type_info(typ) == mi.DictType(mi.AnyType(), mi.AnyType())
+    if PY39 or type(typ) is not abc.ABCMeta:
+        assert mi.type_info(typ[str, int]) == mi.DictType(mi.StrType(), mi.IntType())
 
 
 @pytest.mark.parametrize("use_union_operator", [False, True])
