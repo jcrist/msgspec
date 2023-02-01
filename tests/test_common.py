@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import abc
+import collections
 import datetime
 import decimal
 import enum
 import gc
 import sys
+import typing
 import uuid
 import weakref
 from collections import namedtuple
@@ -30,6 +33,7 @@ from utils import temp_module
 
 UTC = datetime.timezone.utc
 
+PY39 = sys.version_info[:2] >= (3, 9)
 PY310 = sys.version_info[:2] >= (3, 10)
 PY311 = sys.version_info[:2] >= (3, 11)
 
@@ -2455,3 +2459,65 @@ class TestDecimal:
         msg = proto.encode("1..5")
         with pytest.raises(msgspec.ValidationError, match="Invalid decimal string"):
             proto.decode(msg, type=decimal.Decimal)
+
+
+class TestAbstractTypes:
+    @pytest.mark.parametrize(
+        "typ",
+        [
+            typing.Collection,
+            typing.MutableSequence,
+            typing.Sequence,
+            collections.abc.Collection,
+            collections.abc.MutableSequence,
+            collections.abc.Sequence,
+            typing.MutableSet,
+            typing.AbstractSet,
+            collections.abc.MutableSet,
+            collections.abc.Set,
+        ],
+    )
+    def test_abstract_sequence(self, proto, typ):
+        # Hacky, but it works
+        if "Set" in str(typ):
+            sol = {1, 2}
+        else:
+            sol = [1, 2]
+        msg = proto.encode(sol)
+        assert proto.decode(msg, type=typ) == sol
+        with pytest.raises(
+            msgspec.ValidationError, match="Expected `array`, got `str`"
+        ):
+            proto.decode(proto.encode("a"), type=typ)
+
+        if PY39 or type(typ) is not abc.ABCMeta:
+            assert proto.decode(msg, type=typ[int]) == sol
+            with pytest.raises(
+                msgspec.ValidationError, match="Expected `int`, got `str`"
+            ):
+                proto.decode(proto.encode(["a"]), type=typ[int])
+
+    @pytest.mark.parametrize(
+        "typ",
+        [
+            typing.MutableMapping,
+            typing.Mapping,
+            collections.abc.MutableMapping,
+            collections.abc.Mapping,
+        ],
+    )
+    def test_abstract_mapping(self, proto, typ):
+        sol = {"x": 1, "y": 2}
+        msg = proto.encode(sol)
+        assert proto.decode(msg, type=typ) == sol
+        with pytest.raises(
+            msgspec.ValidationError, match="Expected `object`, got `str`"
+        ):
+            proto.decode(proto.encode("a"), type=typ)
+
+        if PY39 or type(typ) is not abc.ABCMeta:
+            assert proto.decode(msg, type=typ[str, int]) == sol
+            with pytest.raises(
+                msgspec.ValidationError, match="Expected `int`, got `str`"
+            ):
+                proto.decode(proto.encode({"a": "b"}), type=typ[str, int])

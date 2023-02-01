@@ -9,11 +9,7 @@ from typing import (
     Any,
     Union,
     Literal,
-    List,
     Tuple,
-    Dict,
-    Set,
-    FrozenSet,
     Type as typing_Type,
 )
 
@@ -29,7 +25,11 @@ from ._core import (
     Factory as _Factory,
     to_builtins as _to_builtins,
 )
-from ._utils import _AnnotatedAlias, get_type_hints as _get_type_hints
+from ._utils import (
+    _CONCRETE_TYPES,
+    _AnnotatedAlias,
+    get_type_hints as _get_type_hints,
+)
 
 
 __all__ = (
@@ -635,15 +635,18 @@ def _origin_args_metadata(t):
     if type(t) is _types_UnionType:
         args = t.__args__
         t = Union
-    elif t in (List, Tuple, Set, FrozenSet, Dict):
-        args = None
-        t = t.__origin__
-    elif hasattr(t, "__origin__"):
-        args = getattr(t, "__args__", None)
-        t = t.__origin__
     else:
-        args = None
-
+        try:
+            t = _CONCRETE_TYPES[t]
+            args = None
+        except Exception:
+            try:
+                origin = t.__origin__
+            except AttributeError:
+                args = None
+            else:
+                args = getattr(t, "__args__", None)
+                t = _CONCRETE_TYPES.get(origin, origin)
     return t, args, tuple(metadata)
 
 

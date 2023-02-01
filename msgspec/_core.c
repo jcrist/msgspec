@@ -362,17 +362,13 @@ typedef struct {
     PyObject *UUIDType;
     PyObject *uuid_safeuuid_unknown;
     PyObject *DecimalType;
-    PyObject *typing_list;
-    PyObject *typing_set;
-    PyObject *typing_frozenset;
-    PyObject *typing_tuple;
-    PyObject *typing_dict;
     PyObject *typing_union;
     PyObject *typing_any;
     PyObject *typing_literal;
     PyObject *typing_classvar;
     PyObject *typing_generic_alias;
     PyObject *typing_annotated_alias;
+    PyObject *concrete_types;
     PyObject *get_type_hints;
     PyObject *get_typeddict_hints;
     PyObject *get_dataclass_info;
@@ -4107,24 +4103,7 @@ typenode_origin_args_metadata(
     /* At this point `t` is a concrete type. Next check for generic types,
      * extracting `__origin__` and `__args__`. This lets us normalize how
      * we check for collection types later */
-    if (t == (PyObject *)(&PyList_Type) || t == state->mod->typing_list) {
-        origin = (PyObject *)(&PyList_Type);
-        Py_INCREF(origin);
-    }
-    else if (t == (PyObject *)(&PyTuple_Type) || t == state->mod->typing_tuple) {
-        origin = (PyObject *)(&PyTuple_Type);
-        Py_INCREF(origin);
-    }
-    else if (t == (PyObject *)(&PySet_Type) || t == state->mod->typing_set) {
-        origin = (PyObject *)(&PySet_Type);
-        Py_INCREF(origin);
-    }
-    else if (t == (PyObject *)(&PyFrozenSet_Type) || t == state->mod->typing_frozenset) {
-        origin = (PyObject *)(&PyFrozenSet_Type);
-        Py_INCREF(origin);
-    }
-    else if (t == (PyObject *)(&PyDict_Type) || t == state->mod->typing_dict) {
-        origin = (PyObject *)(&PyDict_Type);
+    if ((origin = PyDict_GetItem(state->mod->concrete_types, t)) != NULL) {
         Py_INCREF(origin);
     }
     #if PY_VERSION_HEX >= 0x030a00f0
@@ -4145,6 +4124,14 @@ typenode_origin_args_metadata(
             PyErr_Clear();
         }
         else {
+            /* Lookup __origin__ in the mapping, in case it's a supported
+             * abstract type */
+            PyObject *temp = PyDict_GetItem(state->mod->concrete_types, origin);
+            if (temp != NULL) {
+                Py_DECREF(origin);
+                Py_INCREF(temp);
+                origin = temp;
+            }
             args = PyObject_GetAttr(t, state->mod->str___args__);
             if (args == NULL) {
                 /* Custom non-parametrized generics won't have __args__ set.
@@ -17955,17 +17942,13 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->UUIDType);
     Py_CLEAR(st->uuid_safeuuid_unknown);
     Py_CLEAR(st->DecimalType);
-    Py_CLEAR(st->typing_dict);
-    Py_CLEAR(st->typing_list);
-    Py_CLEAR(st->typing_set);
-    Py_CLEAR(st->typing_frozenset);
-    Py_CLEAR(st->typing_tuple);
     Py_CLEAR(st->typing_union);
     Py_CLEAR(st->typing_any);
     Py_CLEAR(st->typing_literal);
     Py_CLEAR(st->typing_classvar);
     Py_CLEAR(st->typing_generic_alias);
     Py_CLEAR(st->typing_annotated_alias);
+    Py_CLEAR(st->concrete_types);
     Py_CLEAR(st->get_type_hints);
     Py_CLEAR(st->get_typeddict_hints);
     Py_CLEAR(st->get_dataclass_info);
@@ -18039,17 +18022,13 @@ msgspec_traverse(PyObject *m, visitproc visit, void *arg)
     Py_VISIT(st->StructType);
     Py_VISIT(st->EnumMetaType);
     Py_VISIT(st->struct_lookup_cache);
-    Py_VISIT(st->typing_dict);
-    Py_VISIT(st->typing_list);
-    Py_VISIT(st->typing_set);
-    Py_VISIT(st->typing_frozenset);
-    Py_VISIT(st->typing_tuple);
     Py_VISIT(st->typing_union);
     Py_VISIT(st->typing_any);
     Py_VISIT(st->typing_literal);
     Py_VISIT(st->typing_classvar);
     Py_VISIT(st->typing_generic_alias);
     Py_VISIT(st->typing_annotated_alias);
+    Py_VISIT(st->concrete_types);
     Py_VISIT(st->get_type_hints);
     Py_VISIT(st->get_typeddict_hints);
     Py_VISIT(st->get_dataclass_info);
@@ -18242,11 +18221,6 @@ PyInit__core(void)
     /* Get all imports from the typing module */
     temp_module = PyImport_ImportModule("typing");
     if (temp_module == NULL) return NULL;
-    SET_REF(typing_list, "List");
-    SET_REF(typing_set, "Set");
-    SET_REF(typing_frozenset, "FrozenSet");
-    SET_REF(typing_tuple, "Tuple");
-    SET_REF(typing_dict, "Dict");
     SET_REF(typing_union, "Union");
     SET_REF(typing_any, "Any");
     SET_REF(typing_literal, "Literal");
@@ -18256,6 +18230,7 @@ PyInit__core(void)
 
     temp_module = PyImport_ImportModule("msgspec._utils");
     if (temp_module == NULL) return NULL;
+    SET_REF(concrete_types, "_CONCRETE_TYPES");
     SET_REF(get_type_hints, "get_type_hints");
     SET_REF(get_typeddict_hints, "get_typeddict_hints");
     SET_REF(get_dataclass_info, "get_dataclass_info");
