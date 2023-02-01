@@ -65,20 +65,18 @@ by defining two callback functions:
 - ``dec_hook`` in ``Decoder``, for converting natively supported types back
   into a custom type when using :ref:`typed decoding <typed-decoding>`.
 
-Here we define ``enc_hook`` and ``dec_hook`` callbacks to convert
-`decimal.Decimal` objects to/from strings, which are then natively handled by
-``msgspec``.
+Here we define ``enc_hook`` and ``dec_hook`` callbacks to convert `complex`
+objects to/from objects, which are then natively handled by ``msgspec``.
 
 .. code-block:: python
 
     import msgspec
     from typing import Any, Type
-    from decimal import Decimal
 
     def enc_hook(obj: Any) -> Any:
-        if isinstance(obj, Decimal):
-            # convert the Decimal to a str
-            return str(obj)
+        if isinstance(obj, complex):
+            # convert the complex to a tuple of real, imag
+            return (obj.real, obj.imag)
         else:
             # Raise a TypeError for other types
             raise TypeError(f"Objects of type {type(obj)} are not supported")
@@ -86,18 +84,19 @@ Here we define ``enc_hook`` and ``dec_hook`` callbacks to convert
 
     def dec_hook(type: Type, obj: Any) -> Any:
         # `type` here is the value of the custom type annotation being decoded.
-        if type is Decimal:
-            # Convert ``obj`` (which should be a ``str``) to a Decimal
-            return Decimal(obj)
+        if type is complex:
+            # Convert ``obj`` (which should be a ``tuple``) to a complex
+            real, imag = obj
+            return complex(real, imag)
         else:
             # Raise a TypeError for other types
             raise TypeError(f"Objects of type {type} are not supported")
 
 
-    # Define a message that contains a Decimal
+    # Define a message that contains a complex type
     class MyMessage(msgspec.Struct):
         field_1: str
-        field_2: Decimal
+        field_2: complex
 
     # Create an encoder and a decoder using the custom callbacks.
     # Note that typed deserialization is required for successful
@@ -106,10 +105,7 @@ Here we define ``enc_hook`` and ``dec_hook`` callbacks to convert
     dec = msgspec.json.Decoder(MyMessage, dec_hook=dec_hook)
 
     # An example message
-    msg = MyMessage(
-        "some string",
-        Decimal("3.1415926535897932384626433832795"),
-    )
+    msg = MyMessage("some string", complex(1, 2))
 
     # Encode and decode the message to show that things work
     buf = enc.encode(msg)

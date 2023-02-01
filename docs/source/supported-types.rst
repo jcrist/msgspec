@@ -20,6 +20,7 @@ Most combinations of the following types are supported (with a few restrictions)
 - `datetime.date`
 - `datetime.time`
 - `uuid.UUID`
+- `decimal.Decimal`
 - `typing.Any`
 - `typing.Optional`
 - `typing.Union`
@@ -317,6 +318,31 @@ timezone-naive by specifying a ``tz`` constraint (see
         File "<stdin>", line 1, in <module>
     msgspec.ValidationError: Invalid UUID
 
+``decimal``
+-----------
+
+`decimal.Decimal` values are serialized as their string representation in all
+protocols. This ensures no precision loss during serialization, as would happen
+with a float representation.
+
+.. code-block:: python
+
+    >>> import decimal
+
+    >>> x = decimal.Decimal("1.2345")
+
+    >>> msg = msgspec.json.encode(x)
+
+    >>> msg
+    b'"1.2345"'
+
+    >>> msgspec.json.decode(msg, type=decimal.Decimal)
+    Decimal('1.2345')
+
+    >>> msgspec.json.decode(b'"oops"', type=decimal.Decimal)
+    Traceback (most recent call last):
+        File "<stdin>", line 1, in <module>
+    msgspec.ValidationError: Invalid decimal string
 
 ``list`` / ``tuple`` / ``set`` / ``frozenset``
 ----------------------------------------------
@@ -714,9 +740,9 @@ Union restrictions are as follows:
 
 - Unions may contain at most one type that encodes to a string (`str`,
   `enum.Enum`, `bytes`, `bytearray`, `datetime.datetime`, `datetime.date`,
-  `datetime.time`, `uuid.UUID`). Note that this restriction is fixable with
-  some work, if this is a feature you need please `open an issue
-  <https://github.com/jcrist/msgspec/issues>`__.
+  `datetime.time`, `uuid.UUID`, `decimal.Decimal`). Note that this restriction
+  is fixable with some work, if this is a feature you need please `open an
+  issue <https://github.com/jcrist/msgspec/issues>`__.
 
 - Unions may contain at most one type that encodes to an object (`dict`,
   `typing.TypedDict`, `dataclasses.dataclass`, `Struct` with
