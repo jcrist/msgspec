@@ -146,6 +146,10 @@ def test_uuid():
     assert mi.type_info(uuid.UUID) == mi.UUIDType()
 
 
+def test_decimal():
+    assert mi.type_info(decimal.Decimal) == mi.DecimalType()
+
+
 def test_raw():
     assert mi.type_info(msgspec.Raw) == mi.RawType()
 
@@ -177,7 +181,7 @@ def test_newtype():
 
 
 def test_custom():
-    assert mi.type_info(decimal.Decimal) == mi.CustomType(decimal.Decimal)
+    assert mi.type_info(complex) == mi.CustomType(complex)
 
 
 @pytest.mark.parametrize(

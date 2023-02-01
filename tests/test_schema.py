@@ -57,12 +57,12 @@ def test_msgpack_ext():
 
 def test_custom():
     with pytest.raises(TypeError, match="Custom types"):
-        assert msgspec.json.schema(decimal.Decimal)
+        assert msgspec.json.schema(complex)
 
-    schema = {"type": "string", "format": "decimal"}
+    schema = {"type": "string", "format": "complex"}
 
     assert (
-        msgspec.json.schema(Annotated[decimal.Decimal, Meta(extra_json_schema=schema)])
+        msgspec.json.schema(Annotated[complex, Meta(extra_json_schema=schema)])
         == schema
     )
 
@@ -138,6 +138,13 @@ def test_uuid():
     assert msgspec.json.schema(uuid.UUID) == {
         "type": "string",
         "format": "uuid",
+    }
+
+
+def test_decimal():
+    assert msgspec.json.schema(decimal.Decimal) == {
+        "type": "string",
+        "format": "decimal",
     }
 
 

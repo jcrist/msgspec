@@ -233,6 +233,9 @@ def _to_schema(
     elif isinstance(t, mi.UUIDType):
         schema["type"] = "string"
         schema["format"] = "uuid"
+    elif isinstance(t, mi.DecimalType):
+        schema["type"] = "string"
+        schema["format"] = "decimal"
     elif isinstance(t, mi.CollectionType):
         schema["type"] = "array"
         if not isinstance(t.item_type, mi.AnyType):
