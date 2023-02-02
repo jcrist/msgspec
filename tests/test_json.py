@@ -1863,11 +1863,14 @@ class TestDict:
             decimal.Decimal("1.5"),
         ],
     )
-    def test_encode_dict_key_types(self, key):
+    def test_roundtrip_dict_key_types(self, key):
         msg = {key: 100}
         sol = msgspec.json.encode(msgspec.to_builtins(msg, str_keys=True))
         res = msgspec.json.encode(msg)
         assert res == sol
+
+        msg2 = msgspec.json.decode(sol, type=Dict[type(key), int])
+        assert msg == msg2
 
     def test_decode_dict_int_enum_key(self):
         dec = msgspec.json.Decoder(Dict[FruitInt, int])

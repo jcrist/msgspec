@@ -407,6 +407,12 @@ ms_err_truncated(void)
     return -1;
 }
 
+static PyObject *
+ms_err_unreachable(void) {
+    PyErr_SetString(PyExc_RuntimeError, "Supposedly unreachable branch hit, please file an issue on GitHub!");
+    return NULL;
+}
+
 /*************************************************************************
  * Utilities                                                             *
  *************************************************************************/
@@ -2243,6 +2249,7 @@ static PyTypeObject Field_Type = {
 #define MS_BYTES_CONSTRS (SLOT_16 | SLOT_17)
 #define MS_ARRAY_CONSTRS (SLOT_18 | SLOT_19)
 #define MS_MAP_CONSTRS (SLOT_20 | SLOT_21)
+#define MS_TIME_CONSTRS (MS_CONSTR_TZ_AWARE | MS_CONSTR_TZ_NAIVE)
 
 typedef union TypeDetail {
     int64_t i64;
@@ -3254,7 +3261,10 @@ typenode_from_collect_state(TypeNodeCollectState *state, bool err_not_json, bool
             & ~(
                 MS_TYPE_ANY |
                 MS_TYPE_STR | MS_TYPE_ENUM | MS_TYPE_STRLITERAL | MS_STR_CONSTRS |
-                MS_TYPE_INT | MS_TYPE_INTENUM | MS_TYPE_INTLITERAL | MS_INT_CONSTRS
+                MS_TYPE_INT | MS_TYPE_INTENUM | MS_TYPE_INTLITERAL | MS_INT_CONSTRS |
+                MS_TYPE_BYTES | MS_BYTES_CONSTRS |
+                MS_TYPE_DATETIME | MS_TYPE_DATE | MS_TYPE_TIME | MS_TIME_CONSTRS |
+                MS_TYPE_UUID | MS_TYPE_DECIMAL
             )
         ) {
             if (err_not_json) {
@@ -14020,61 +14030,87 @@ json_decode_string(JSONDecoderState *self, TypeNode *type, PathNode *path) {
 }
 
 static PyObject *
+json_decode_dict_key_fallback(
+    const char *view, Py_ssize_t size, bool is_ascii, TypeNode *type, PathNode *path
+) {
+    if (type->types & (MS_TYPE_STR | MS_TYPE_ANY)) {
+        PyObject *out;
+        if (is_ascii) {
+            out = PyUnicode_New(size, 127);
+            if (MS_UNLIKELY(out == NULL)) return NULL;
+            memcpy(ascii_get_buffer(out), view, size);
+        }
+        else {
+            out = PyUnicode_DecodeUTF8(view, size, NULL);
+        }
+        return ms_check_str_constraints(out, type, path);
+    }
+    if (type->types & (MS_TYPE_INT | MS_TYPE_INTENUM | MS_TYPE_INTLITERAL)) {
+        return json_decode_int_from_str(view, size, type, path);
+    }
+    else if (type->types & (MS_TYPE_ENUM | MS_TYPE_STRLITERAL)) {
+        return ms_decode_str_enum_or_literal(view, size, type, path);
+    }
+    else if (type->types & MS_TYPE_UUID) {
+        return ms_decode_uuid(view, size, path);
+    }
+    else if (type->types & MS_TYPE_DATETIME) {
+        return ms_decode_datetime(view, size, type, path);
+    }
+    else if (type->types & MS_TYPE_DATE) {
+        return ms_decode_date(view, size, path);
+    }
+    else if (type->types & MS_TYPE_TIME) {
+        return ms_decode_time(view, size, type, path);
+    }
+    else if (type->types & MS_TYPE_DECIMAL) {
+        return ms_decode_decimal(view, size, is_ascii, path);
+    }
+    else if (type->types & MS_TYPE_BYTES) {
+        return json_decode_binary(view, size, type, path);
+    }
+    else {
+        return ms_err_unreachable();
+    }
+}
+
+static PyObject *
 json_decode_dict_key(JSONDecoderState *self, TypeNode *type, PathNode *path) {
     bool is_ascii = true;
-    bool is_str_enum_or_literal = type->types & (MS_TYPE_ENUM | MS_TYPE_STRLITERAL);
-    bool is_integer = type->types & (MS_TYPE_INT | MS_TYPE_INTENUM | MS_TYPE_INTLITERAL);
-    bool has_str_constrs = type->types & MS_STR_CONSTRS;
     char *view = NULL;
     Py_ssize_t size;
+    bool is_str = type->types == MS_TYPE_ANY || type->types == MS_TYPE_STR;
 
     size = json_decode_string_view(self, &view, &is_ascii);
     if (size < 0) return NULL;
 
-    if (MS_UNLIKELY(is_str_enum_or_literal)) {
-        return ms_decode_str_enum_or_literal(view, size, type, path);
-    }
-    else if (MS_UNLIKELY(!is_ascii || has_str_constrs)) {
-        return ms_check_str_constraints(
-            PyUnicode_DecodeUTF8(view, size, NULL), type, path
-        );
-    }
-    else if (MS_UNLIKELY(is_integer)) {
-        return json_decode_int_from_str(view, size, type, path);
+    bool cacheable = is_str && is_ascii && size > 0 && size <= STRING_CACHE_MAX_STRING_LENGTH;
+    if (MS_UNLIKELY(!cacheable)) {
+        return json_decode_dict_key_fallback(view, size, is_ascii, type, path);
     }
 
-    /* Don't cache the empty string */
-    if (MS_UNLIKELY(size == 0)) return PyUnicode_New(0, 127);
+    uint32_t hash = murmur2(view, size);
+    uint32_t index = hash % STRING_CACHE_SIZE;
+    PyObject *existing = string_cache[index];
 
-    if (MS_LIKELY(size <= STRING_CACHE_MAX_STRING_LENGTH)) {
-        uint32_t hash = murmur2(view, size);
-        uint32_t index = hash % STRING_CACHE_SIZE;
-        PyObject *existing = string_cache[index];
-
-        if (MS_LIKELY(existing != NULL)) {
-            Py_ssize_t e_size = ((PyASCIIObject *)existing)->length;
-            char *e_str = ascii_get_buffer(existing);
-            if (MS_LIKELY(size == e_size && memcmp(view, e_str, size) == 0)) {
-                Py_INCREF(existing);
-                return existing;
-            }
+    if (MS_LIKELY(existing != NULL)) {
+        Py_ssize_t e_size = ((PyASCIIObject *)existing)->length;
+        char *e_str = ascii_get_buffer(existing);
+        if (MS_LIKELY(size == e_size && memcmp(view, e_str, size) == 0)) {
+            Py_INCREF(existing);
+            return existing;
         }
-
-        /* Create a new ASCII str object */
-        PyObject *new = PyUnicode_New(size, 127);
-        if (MS_UNLIKELY(new == NULL)) return NULL;
-        memcpy(ascii_get_buffer(new), view, size);
-
-        /* Swap out the str in the cache */
-        Py_XDECREF(existing);
-        Py_INCREF(new);
-        string_cache[index] = new;
-        return new;
     }
+
     /* Create a new ASCII str object */
     PyObject *new = PyUnicode_New(size, 127);
     if (MS_UNLIKELY(new == NULL)) return NULL;
     memcpy(ascii_get_buffer(new), view, size);
+
+    /* Swap out the str in the cache */
+    Py_XDECREF(existing);
+    Py_INCREF(new);
+    string_cache[index] = new;
     return new;
 }
 

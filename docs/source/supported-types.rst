@@ -449,9 +449,9 @@ Dict subclasses (`collections.OrderedDict`, for example) are also supported for
 encoding only. To decode into a ``dict`` subclass you'll need to implement a
 ``dec_hook`` (see :doc:`extending`).
 
-JSON and TOML only support `str`, `Literal`, `Enum`, `int`, and `IntEnum` key
-types (integers are encoded as strings). MessagePack and YAML support any
-hashable for the key type.
+JSON and TOML only support key types that encode as strings or integers (for
+example `str`, `int`, `enum.Enum`, `datetime.datetime`, `uuid.UUID`, ...).
+MessagePack and YAML support any hashable for the key type.
 
 An error is raised during decoding if the keys or values don't match their
 respective types (if specified).
