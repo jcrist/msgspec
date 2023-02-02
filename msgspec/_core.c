@@ -6649,9 +6649,8 @@ PyDoc_STRVAR(msgspec_replace__doc__,
 "dataclasses.replace"
 );
 static PyObject*
-msgspec_replace(PyObject *self, PyObject *const *args, Py_ssize_t nargsf, PyObject *kwnames)
+msgspec_replace(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
 {
-    Py_ssize_t nargs = PyVectorcall_NARGS(nargsf);
     Py_ssize_t nkwargs = (kwnames == NULL) ? 0 : PyTuple_GET_SIZE(kwnames);
 
     if (!check_positional_nargs(nargs, 1, 1)) return NULL;
