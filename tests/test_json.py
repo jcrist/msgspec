@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import datetime
+import decimal
 import enum
 import gc
 import itertools
@@ -9,6 +10,7 @@ import json
 import math
 import string
 import sys
+import uuid
 from dataclasses import dataclass
 from typing import (
     Any,
@@ -1758,7 +1760,7 @@ class TestNamedTuple:
 class TestDict:
     def test_encode_dict_raises_non_string_or_int_keys(self):
         with pytest.raises(
-            TypeError, match="Only dicts with `str` or `int` keys are supported"
+            TypeError, match="Only dicts with str-like or int-like keys are supported"
         ):
             msgspec.json.encode({"a": 1, 2.5: "bad"})
 
@@ -1848,12 +1850,24 @@ class TestDict:
         ids = {id(k) for d in res for k in d.keys()}
         assert len(ids) == 3
 
-    def test_decode_dict_int_literal_key(self):
-        dec = msgspec.json.Decoder(Dict[Literal[-1, 2], int])
-        assert dec.decode(b'{"-1": 10, "2": 20}') == {-1: 10, 2: 20}
-
-        with pytest.raises(msgspec.ValidationError, match="Invalid enum value 3"):
-            dec.decode(b'{"-1": 10, "3": 20}')
+    @pytest.mark.parametrize(
+        "key",
+        [
+            1,
+            FruitInt.APPLE,
+            uuid.uuid4(),
+            datetime.datetime.now(),
+            datetime.date.today(),
+            datetime.datetime.now().time(),
+            b"test",
+            decimal.Decimal("1.5"),
+        ],
+    )
+    def test_encode_dict_key_types(self, key):
+        msg = {key: 100}
+        sol = msgspec.json.encode(msgspec.to_builtins(msg, str_keys=True))
+        res = msgspec.json.encode(msg)
+        assert res == sol
 
     def test_decode_dict_int_enum_key(self):
         dec = msgspec.json.Decoder(Dict[FruitInt, int])
@@ -1923,6 +1937,13 @@ class TestDict:
 
         with pytest.raises(msgspec.ValidationError, match="Expected `int` >= 3"):
             dec.decode(b'{"2": 1}')
+
+    def test_decode_dict_int_literal_key(self):
+        dec = msgspec.json.Decoder(Dict[Literal[-1, 2], int])
+        assert dec.decode(b'{"-1": 10, "2": 20}') == {-1: 10, 2: 20}
+
+        with pytest.raises(msgspec.ValidationError, match="Invalid enum value 3"):
+            dec.decode(b'{"-1": 10, "3": 20}')
 
     @pytest.mark.parametrize(
         "s, error",

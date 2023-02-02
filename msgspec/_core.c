@@ -10661,18 +10661,28 @@ json_encode_raw(EncoderState *self, PyObject *obj)
 }
 
 static int
-json_encode_enum(EncoderState *self, PyObject *obj)
+json_encode_enum(EncoderState *self, PyObject *obj, bool is_key)
 {
-    if (PyLong_Check(obj))
+    if (PyLong_Check(obj)) {
+        if (MS_UNLIKELY(is_key)) {
+            return json_encode_long_as_str(self, obj);
+        }
         return json_encode_long(self, obj);
-    if (PyUnicode_Check(obj))
+    }
+    if (PyUnicode_Check(obj)) {
         return json_encode_str(self, obj);
+    }
 
     int status;
     PyObject *value = PyObject_GetAttr(obj, self->mod->str__value_);
     if (value == NULL) return -1;
     if (PyLong_CheckExact(value)) {
-        status = json_encode_long(self, value);
+        if (MS_UNLIKELY(is_key)) {
+            status = json_encode_long_as_str(self, value);
+        }
+        else {
+            status = json_encode_long(self, value);
+        }
     }
     else if (PyUnicode_CheckExact(value)) {
         status = json_encode_str(self, value);
@@ -10811,6 +10821,44 @@ cleanup:
     return status;
 }
 
+static MS_NOINLINE int
+json_encode_dict_key(EncoderState *self, PyObject *obj) {
+    PyTypeObject *type = Py_TYPE(obj);
+
+    /* PyUnicode_Type is handled inline in json_encode_dict */
+    if (type == &PyLong_Type) {
+        return json_encode_long_as_str(self, obj);
+    }
+    else if (Py_TYPE(type) == self->mod->EnumMetaType) {
+        return json_encode_enum(self, obj, true);
+    }
+    else if (type == (PyTypeObject *)(self->mod->UUIDType)) {
+        return json_encode_uuid(self, obj);
+    }
+    else if (type == PyDateTimeAPI->DateTimeType) {
+        return json_encode_datetime(self, obj);
+    }
+    else if (type == PyDateTimeAPI->DateType) {
+        return json_encode_date(self, obj);
+    }
+    else if (type == PyDateTimeAPI->TimeType) {
+        return json_encode_time(self, obj);
+    }
+    else if (type == &PyBytes_Type) {
+        return json_encode_bytes(self, obj);
+    }
+    else if (type == (PyTypeObject *)(self->mod->DecimalType)) {
+        return json_encode_decimal(self, obj);
+    }
+    else {
+        PyErr_SetString(
+            PyExc_TypeError,
+            "Only dicts with str-like or int-like keys are supported"
+        );
+        return -1;
+    }
+}
+
 static int
 json_encode_dict(EncoderState *self, PyObject *obj)
 {
@@ -10826,15 +10874,8 @@ json_encode_dict(EncoderState *self, PyObject *obj)
         if (MS_LIKELY(PyUnicode_CheckExact(key))) {
             if (json_encode_str(self, key) < 0) goto cleanup;
         }
-        else if (PyLong_CheckExact(key)) {
-            if (json_encode_long_as_str(self, key) < 0) goto cleanup;
-        }
         else {
-            PyErr_SetString(
-                PyExc_TypeError,
-                "Only dicts with `str` or `int` keys are supported"
-            );
-            goto cleanup;
+            if (json_encode_dict_key(self, key) < 0) goto cleanup;
         }
         if (ms_write(self, ":", 1) < 0) goto cleanup;
         if (json_encode(self, val) < 0) goto cleanup;
@@ -11116,7 +11157,7 @@ json_encode(EncoderState *self, PyObject *obj)
         return json_encode_raw(self, obj);
     }
     else if (Py_TYPE(type) == self->mod->EnumMetaType) {
-        return json_encode_enum(self, obj);
+        return json_encode_enum(self, obj, false);
     }
     else if (type == (PyTypeObject *)(self->mod->UUIDType)) {
         return json_encode_uuid(self, obj);
