@@ -10441,6 +10441,7 @@ PyDoc_STRVAR(JSONEncoder__doc__,
 "    The size of the internal static write buffer."
 );
 
+static int json_encode_inline(EncoderState*, PyObject*);
 static int json_encode(EncoderState*, PyObject*);
 
 static MS_INLINE int
@@ -10464,7 +10465,7 @@ json_encode_false(EncoderState *self)
     return ms_write(self, buf, 5);
 }
 
-static int
+static MS_NOINLINE int
 json_encode_long(EncoderState *self, PyObject *obj) {
     char buf[20];
     char *p = &buf[20];
@@ -10504,7 +10505,7 @@ json_encode_long_as_str(EncoderState *self, PyObject *obj) {
     return ms_write(self, "\"", 1);
 }
 
-static int
+static MS_NOINLINE int
 json_encode_float(EncoderState *self, PyObject *obj) {
     char buf[24];
     double x = PyFloat_AS_DOUBLE(obj);
@@ -10588,7 +10589,7 @@ json_write_str_fragment(
     return i + 1;
 }
 
-static int
+static MS_NOINLINE int
 json_encode_str(EncoderState *self, PyObject *obj) {
     Py_ssize_t i, len, start = 0;
     const char* buf = unicode_str_and_size(obj, &len);
@@ -10759,19 +10760,17 @@ json_encode_datetime(EncoderState *self, PyObject *obj)
     return ms_write(self, buf, size + 2);
 }
 
-static int
-json_encode_list(EncoderState *self, PyObject *obj)
+static MS_INLINE int
+json_encode_sequence(EncoderState *self, Py_ssize_t size, PyObject **arr)
 {
-    Py_ssize_t i, len;
     int status = -1;
 
-    len = PyList_GET_SIZE(obj);
-    if (len == 0) return ms_write(self, "[]", 2);
+    if (size == 0) return ms_write(self, "[]", 2);
 
     if (ms_write(self, "[", 1) < 0) return -1;
     if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
-    for (i = 0; i < len; i++) {
-        if (json_encode(self, PyList_GET_ITEM(obj, i)) < 0) goto cleanup;
+    for (Py_ssize_t i = 0; i < size; i++) {
+        if (json_encode_inline(self, *(arr + i)) < 0) goto cleanup;
         if (ms_write(self, ",", 1) < 0) goto cleanup;
     }
     /* Overwrite trailing comma with ] */
@@ -10780,6 +10779,22 @@ json_encode_list(EncoderState *self, PyObject *obj)
 cleanup:
     Py_LeaveRecursiveCall();
     return status;
+}
+
+static MS_NOINLINE int
+json_encode_list(EncoderState *self, PyObject *obj)
+{
+    return json_encode_sequence(
+        self, PyList_GET_SIZE(obj), ((PyListObject *)obj)->ob_item
+    );
+}
+
+static MS_NOINLINE int
+json_encode_tuple(EncoderState *self, PyObject *obj)
+{
+    return json_encode_sequence(
+        self, PyTuple_GET_SIZE(obj), ((PyTupleObject *)obj)->ob_item
+    );
 }
 
 static int
@@ -10796,30 +10811,7 @@ json_encode_set(EncoderState *self, PyObject *obj)
     if (ms_write(self, "[", 1) < 0) return -1;
     if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
     while (_PySet_NextEntry(obj, &ppos, &item, &hash)) {
-        if (json_encode(self, item) < 0) goto cleanup;
-        if (ms_write(self, ",", 1) < 0) goto cleanup;
-    }
-    /* Overwrite trailing comma with ] */
-    *(self->output_buffer_raw + self->output_len - 1) = ']';
-    status = 0;
-cleanup:
-    Py_LeaveRecursiveCall();
-    return status;
-}
-
-static int
-json_encode_tuple(EncoderState *self, PyObject *obj)
-{
-    Py_ssize_t i, len;
-    int status = -1;
-
-    len = PyTuple_GET_SIZE(obj);
-    if (len == 0) return ms_write(self, "[]", 2);
-
-    if (ms_write(self, "[", 1) < 0) return -1;
-    if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
-    for (i = 0; i < len; i++) {
-        if (json_encode(self, PyTuple_GET_ITEM(obj, i)) < 0) goto cleanup;
+        if (json_encode_inline(self, item) < 0) goto cleanup;
         if (ms_write(self, ",", 1) < 0) goto cleanup;
     }
     /* Overwrite trailing comma with ] */
@@ -10868,7 +10860,7 @@ json_encode_dict_key(EncoderState *self, PyObject *obj) {
     }
 }
 
-static int
+static MS_NOINLINE int
 json_encode_dict(EncoderState *self, PyObject *obj)
 {
     PyObject *key, *val;
@@ -10887,7 +10879,7 @@ json_encode_dict(EncoderState *self, PyObject *obj)
             if (json_encode_dict_key(self, key) < 0) goto cleanup;
         }
         if (ms_write(self, ":", 1) < 0) goto cleanup;
-        if (json_encode(self, val) < 0) goto cleanup;
+        if (json_encode_inline(self, val) < 0) goto cleanup;
         if (ms_write(self, ",", 1) < 0) goto cleanup;
     }
     /* Overwrite trailing comma with } */
@@ -10967,6 +10959,19 @@ cleanup:
 }
 
 static int
+json_encode_struct_tag(EncoderState *self, PyObject *obj)
+{
+    PyTypeObject *type = Py_TYPE(obj);
+
+    if (type == &PyUnicode_Type) {
+        return json_encode_str(self, obj);
+    }
+    else {
+        return json_encode_long(self, obj);
+    }
+}
+
+static int
 json_encode_struct_default(
     EncoderState *self, StructMetaObject *struct_type, PyObject *obj
 ) {
@@ -10984,7 +10989,7 @@ json_encode_struct_default(
     if (tag_value != NULL) {
         if (json_encode_str(self, tag_field) < 0) goto cleanup;
         if (ms_write(self, ":", 1) < 0) goto cleanup;
-        if (json_encode(self, tag_value) < 0) goto cleanup;
+        if (json_encode_struct_tag(self, tag_value) < 0) goto cleanup;
         if (ms_write(self, ",", 1) < 0) goto cleanup;
     }
     for (i = 0; i < nfields; i++) {
@@ -11024,7 +11029,7 @@ json_encode_struct_omit_defaults(
     if (tag_value != NULL) {
         if (json_encode_str(self, tag_field) < 0) goto cleanup;
         if (ms_write(self, ":", 1) < 0) goto cleanup;
-        if (json_encode(self, tag_value) < 0) goto cleanup;
+        if (json_encode_struct_tag(self, tag_value) < 0) goto cleanup;
         if (ms_write(self, ",", 1) < 0) goto cleanup;
     }
 
@@ -11076,7 +11081,7 @@ json_encode_struct_array_like(
     if (ms_write(self, "[", 1) < 0) return -1;
     if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
     if (tag_value != NULL) {
-        if (json_encode(self, tag_value) < 0) goto cleanup;
+        if (json_encode_struct_tag(self, tag_value) < 0) goto cleanup;
         if (ms_write(self, ",", 1) < 0) goto cleanup;
     }
     for (Py_ssize_t i = 0; i < nfields; i++) {
@@ -11109,11 +11114,8 @@ json_encode_struct(EncoderState *self, PyObject *obj)
     }
 }
 
-static int
-json_encode(EncoderState *self, PyObject *obj)
-{
-    PyTypeObject *type = Py_TYPE(obj);
-
+static MS_NOINLINE int
+json_encode_uncommon(EncoderState *self, PyTypeObject *type, PyObject *obj) {
     if (obj == Py_None) {
         return json_encode_none(self);
     }
@@ -11123,26 +11125,11 @@ json_encode(EncoderState *self, PyObject *obj)
     else if (obj == Py_False) {
         return json_encode_false(self);
     }
-    else if (type == &PyLong_Type) {
-        return json_encode_long(self, obj);
-    }
-    else if (type == &PyFloat_Type) {
-        return json_encode_float(self, obj);
-    }
-    else if (type == &PyUnicode_Type) {
-        return json_encode_str(self, obj);
-    }
-    else if (PyList_Check(obj)) {
-        return json_encode_list(self, obj);
+    else if (Py_TYPE(type) == &StructMetaType) {
+        return json_encode_struct(self, obj);
     }
     else if (PyTuple_Check(obj)) {
         return json_encode_tuple(self, obj);
-    }
-    else if (PyDict_Check(obj)) {
-        return json_encode_dict(self, obj);
-    }
-    else if (Py_TYPE(type) == &StructMetaType) {
-        return json_encode_struct(self, obj);
     }
     else if (type == PyDateTimeAPI->DateTimeType) {
         return json_encode_datetime(self, obj);
@@ -11194,6 +11181,37 @@ json_encode(EncoderState *self, PyObject *obj)
         return status;
     }
     return ms_encode_err_type_unsupported(type);
+}
+
+static MS_INLINE int
+json_encode_inline(EncoderState *self, PyObject *obj)
+{
+    PyTypeObject *type = Py_TYPE(obj);
+
+    if (type == &PyUnicode_Type) {
+        return json_encode_str(self, obj);
+    }
+    else if (type == &PyLong_Type) {
+        return json_encode_long(self, obj);
+    }
+    else if (type == &PyFloat_Type) {
+        return json_encode_float(self, obj);
+    }
+    else if (PyList_Check(obj)) {
+        return json_encode_list(self, obj);
+    }
+    else if (PyDict_Check(obj)) {
+        return json_encode_dict(self, obj);
+    }
+    else {
+        return json_encode_uncommon(self, type, obj);
+    }
+}
+
+static int
+json_encode(EncoderState *self, PyObject *obj)
+{
+    return json_encode_inline(self, obj);
 }
 
 static PyObject*
