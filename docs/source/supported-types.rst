@@ -4,6 +4,8 @@ Supported Types
 ``msgspec`` uses Python `type annotations`_ to describe the expected types.
 Most combinations of the following types are supported (with a few restrictions):
 
+**Builtin Types**
+
 - `None`
 - `bool`
 - `int`
@@ -16,11 +18,26 @@ Most combinations of the following types are supported (with a few restrictions)
 - `dict` / `typing.Dict`
 - `set` / `typing.Set`
 - `frozenset` / `typing.FrozenSet`
+
+**Msgspec types**
+
+- `msgspec.msgpack.Ext`
+- `msgspec.Raw`
+- `msgspec.Struct` types
+
+**Standard Library Types**
+
 - `datetime.datetime`
 - `datetime.date`
 - `datetime.time`
 - `uuid.UUID`
 - `decimal.Decimal`
+- `enum.Enum` types
+- `enum.IntEnum` types
+- `dataclasses.dataclass` types
+
+**Typing module types**
+
 - `typing.Any`
 - `typing.Optional`
 - `typing.Union`
@@ -28,13 +45,18 @@ Most combinations of the following types are supported (with a few restrictions)
 - `typing.NewType`
 - `typing.NamedTuple` / `collections.namedtuple`
 - `typing.TypedDict`
-- `dataclasses.dataclass` types
-- `msgspec.msgpack.Ext`
-- `msgspec.Raw`
-- `enum.Enum` types
-- `enum.IntEnum` types
-- `msgspec.Struct` types
-- Custom types (see :doc:`extending`)
+
+**Abstract types**
+
+- `collections.abc.Collection` / `typing.Collection`
+- `collections.abc.Sequence` / `typing.Sequence`
+- `collections.abc.MutableSequence` / `typing.MutableSequence`
+- `collections.abc.Set` / `typing.AbstractSet`
+- `collections.abc.MutableSet` / `typing.MutableSet`
+- `collections.abc.Mapping` / `typing.Mapping`
+- `collections.abc.MutableMapping` / `typing.MutableMapping`
+
+Additional types may be supported through :doc:`extensions <extending>`.
 
 Note that except where explicitly stated, subclasses of these types are not
 supported by default (see :doc:`extending` for how to add support yourself).
@@ -724,6 +746,40 @@ support here is purely to aid static analysis tools like mypy_ or pyright_.
     Traceback (most recent call last):
       File "<stdin>", line 1, in <module>
     msgspec.ValidationError: Expected `int`, got `str`
+
+Abstract Types
+--------------
+
+``msgspec`` supports several "abstract" types, decoding them as
+instances of their most common concrete type.
+
+**Decoded as lists**
+
+- `collections.abc.Collection` / `typing.Collection`
+- `collections.abc.Sequence` / `typing.Sequence`
+- `collections.abc.MutableSequence` / `typing.MutableSequence`
+
+**Decoded as sets**
+
+- `collections.abc.Set` / `typing.AbstractSet`
+- `collections.abc.MutableSet` / `typing.MutableSet`
+
+**Decoded as dicts**
+
+- `collections.abc.Mapping` / `typing.Mapping`
+- `collections.abc.MutableMapping` / `typing.MutableMapping`
+
+.. code-block:: python
+
+    >>> from typing import MutableMapping
+
+    >>> msgspec.json.decode(b'{"x": 1}', type=MutableMapping[str, int])
+    {"x": 1}
+
+    >>> msgspec.json.decode(b'{"x": "oops"}', type=MutableMapping[str, int])
+    Traceback (most recent call last):
+      File "<stdin>", line 1, in <module>
+    msgspec.ValidationError: Expected `int`, got `str` - at `$[...]`
 
 ``Union`` /  ``Optional``
 -------------------------
