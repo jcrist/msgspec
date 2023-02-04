@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import msgspec
 
-
 Position = tuple[float, float]
 
 

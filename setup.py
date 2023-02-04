@@ -1,8 +1,9 @@
 import os
 
-import versioneer
 from setuptools import setup
 from setuptools.extension import Extension
+
+import versioneer
 
 SANITIZE = os.environ.get("MSGSPEC_SANITIZE", False)
 COVERAGE = os.environ.get("MSGSPEC_COVERAGE", False)
@@ -27,6 +28,20 @@ ext_modules = [
         extra_link_args=extra_link_args,
     )
 ]
+
+yaml_deps = ["pyyaml"]
+toml_deps = ['tomli ; python_version < "3.11"', "tomli_w"]
+doc_deps = ["sphinx", "furo", "sphinx-copybutton", "sphinx-design", "ipython"]
+test_deps = ["pytest", "mypy", "pyright", "msgpack", *yaml_deps, *toml_deps]
+dev_deps = ["pre-commit", "coverage", "gcovr", *doc_deps, *test_deps]
+
+extras_require = {
+    "yaml": yaml_deps,
+    "toml": toml_deps,
+    "doc": doc_deps,
+    "test": test_deps,
+    "dev": dev_deps,
+}
 
 setup(
     name="msgspec",
@@ -53,10 +68,7 @@ setup(
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
     ],
-    extras_require={
-        "yaml": ["pyyaml"],
-        "toml": ['tomli ; python_version < "3.11"', "tomli_w"],
-    },
+    extras_require=extras_require,
     license="BSD",
     packages=["msgspec"],
     package_data={"msgspec": ["py.typed", "*.pyi"]},

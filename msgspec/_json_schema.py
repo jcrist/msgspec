@@ -4,8 +4,7 @@ import re
 from collections.abc import Iterable
 from typing import Any
 
-from . import to_builtins, inspect as mi
-
+from . import inspect as mi, to_builtins
 
 __all__ = ("schema", "schema_components")
 

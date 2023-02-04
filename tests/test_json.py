@@ -28,11 +28,9 @@ from typing import (
 )
 
 import pytest
-
-import msgspec
-
 from utils import temp_module
 
+import msgspec
 
 UTC = datetime.timezone.utc
 

@@ -5,16 +5,25 @@ import gc
 import inspect
 import sys
 import uuid
-from contextlib import contextmanager
 from base64 import b64encode
+from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Any, Literal, List, Tuple, Set, FrozenSet, NamedTuple, Dict, Union
+from typing import (
+    Any,
+    Dict,
+    FrozenSet,
+    List,
+    Literal,
+    NamedTuple,
+    Set,
+    Tuple,
+    Union,
+)
 
 import pytest
-
-from msgspec import to_builtins, from_builtins, ValidationError, Meta, Struct
-
 from utils import temp_module
+
+from msgspec import Meta, Struct, ValidationError, from_builtins, to_builtins
 
 try:
     from typing import Annotated

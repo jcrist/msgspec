@@ -1,6 +1,6 @@
 """
 This benchmark compares the installed library size for a number of different
-librairies. It does this by downloading the latest Python 3.10 manylinux_2_17
+libraries. It does this by downloading the latest Python 3.10 manylinux_2_17
 x86_64 wheel for the library, decompresses the zipfile, and calculates the
 total size of all files.
 """

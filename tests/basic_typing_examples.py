@@ -3,8 +3,10 @@ from __future__ import annotations
 
 import datetime
 import pickle
-from typing import List, Dict, Any, Type, Union
+from typing import Any, Dict, List, Type, Union
+
 import msgspec
+
 
 def check___version__() -> None:
     reveal_type(msgspec.__version__)  # assert "str" in typ

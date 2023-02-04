@@ -1,12 +1,11 @@
 """This script generates msgspec/atof_consts.h"""
-import os
 import math
+import os
 import textwrap
 
 
 def gen_hpd_tables():
     log2log10 = math.log(2) / math.log(10)
-    powers = []
     shifts = ["0x0000"]
     powers = []
     for i in range(1, 61):

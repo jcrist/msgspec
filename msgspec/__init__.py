@@ -1,16 +1,16 @@
 from ._core import (
-    Field as _Field,
-    Struct,
-    defstruct,
-    UNSET,
-    Raw,
-    Meta,
-    to_builtins,
-    from_builtins,
-    MsgspecError,
-    EncodeError,
     DecodeError,
+    EncodeError,
+    Field as _Field,
+    Meta,
+    MsgspecError,
+    Raw,
+    Struct,
+    UNSET,
     ValidationError,
+    defstruct,
+    from_builtins,
+    to_builtins,
 )
 from . import msgpack
 from . import json

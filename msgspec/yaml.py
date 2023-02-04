@@ -1,18 +1,10 @@
 import datetime as _datetime
-from typing import (
-    Any,
-    Type,
-    TypeVar,
-    Optional,
-    Union,
-    Callable,
-    overload,
-)
+from typing import Any, Callable, Optional, Type, TypeVar, Union, overload
 
 from . import (
-    to_builtins as _to_builtins,
-    from_builtins as _from_builtins,
     DecodeError as _DecodeError,
+    from_builtins as _from_builtins,
+    to_builtins as _to_builtins,
 )
 
 __all__ = ("encode", "decode")

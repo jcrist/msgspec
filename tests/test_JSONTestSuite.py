@@ -2,9 +2,11 @@
 check the correctness of the parsing, only whether a JSON message is
 accepted/rejected appropriately."""
 
-import msgspec
-import pytest
 import itertools
+
+import pytest
+
+import msgspec
 
 valid_cases = [
     b"[1e-2]",

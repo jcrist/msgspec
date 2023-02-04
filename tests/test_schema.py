@@ -13,19 +13,18 @@ from typing import (
     List,
     Literal,
     NamedTuple,
+    NewType,
     Set,
     Tuple,
     TypedDict,
     Union,
-    NewType,
 )
 
 import pytest
+from utils import temp_module
 
 import msgspec
 from msgspec import Meta
-
-from utils import temp_module
 
 try:
     from typing import Annotated

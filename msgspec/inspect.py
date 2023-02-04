@@ -5,13 +5,7 @@ import decimal
 import enum
 import uuid
 from collections.abc import Iterable
-from typing import (
-    Any,
-    Union,
-    Literal,
-    Tuple,
-    Type as typing_Type,
-)
+from typing import Any, Literal, Tuple, Type as typing_Type, Union
 
 try:
     from types import UnionType as _types_UnionType
@@ -20,9 +14,10 @@ except Exception:
 
 import msgspec
 from msgspec import UNSET
+
 from ._core import (
-    nodefault as _nodefault,
     Factory as _Factory,
+    nodefault as _nodefault,
     to_builtins as _to_builtins,
 )
 from ._utils import (
@@ -30,7 +25,6 @@ from ._utils import (
     _AnnotatedAlias,
     get_type_hints as _get_type_hints,
 )
-
 
 __all__ = (
     "type_info",
@@ -528,7 +522,7 @@ class StructType(Type):
     tag_field: str or None, optional
         If set, the field name used for the tag in a tagged union.
     tag: str, int, or None, optional
-        If set, the value used for hte tag in a tagged union.
+        If set, the value used for the tag in a tagged union.
     array_like: bool, optional
         Whether the struct is encoded as an array rather than an object.
     forbid_unknown_fields: bool, optional

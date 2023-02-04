@@ -18341,7 +18341,7 @@ msgspec_traverse(PyObject *m, visitproc visit, void *arg)
      * this should only be called during major GC collections (i.e. rarely).
      *
      * We want to clear the freelist periodically to free up old pages and
-     * reduce fragementation. But we don't want to do it too often, or the
+     * reduce fragmentation. But we don't want to do it too often, or the
      * freelist will rarely be used. Hence clearing the freelist here. This may
      * change in future releases.
      */

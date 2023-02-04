@@ -7,7 +7,6 @@ import os
 
 import pytest
 
-
 MSGSPEC_CORE_PATH = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "msgspec", "_core.c"
 )

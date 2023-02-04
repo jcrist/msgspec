@@ -27,22 +27,18 @@ jobs:
         with:
           python-version: "3.10"
 
-      - name: Install Dependencies
+      - name: Build msgspec and install dependencies
         run: |
-          pip install pytest mypy pyright msgpack pyyaml tomli tomli_w coverage
+          pip install coverage -e ".[test]"
 
-      - name: Build Msgspec
-        run: |
-          pip install -e .
-
-      - name: Run black & flake8
+      - name: Run pre-commit hooks
         uses: pre-commit/action@v3.0.0
 
       - name: mypy
-        run: py.test tests/test_mypy.py
+        run: pytest tests/test_mypy.py
 
       - name: pyright
-        run: py.test tests/test_pyright.py
+        run: pytest tests/test_pyright.py
 
       - name: Rebuild with sanitizers & coverage
         env:

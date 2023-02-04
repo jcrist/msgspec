@@ -11,8 +11,7 @@ from typing import Any, NamedTuple
 
 import pytest
 
-from msgspec import to_builtins, Struct, EncodeError
-
+from msgspec import EncodeError, Struct, to_builtins
 
 PY310 = sys.version_info[:2] >= (3, 10)
 PY311 = sys.version_info[:2] >= (3, 11)

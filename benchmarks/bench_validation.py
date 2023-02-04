@@ -5,12 +5,13 @@ import string
 import timeit
 from typing import List, Optional
 
-import orjson
-import cattrs.preconf.orjson
 import attrs
-import msgspec
-import pydantic
+import cattrs.preconf.orjson
 import marshmallow as mm
+import orjson
+import pydantic
+
+import msgspec
 
 
 def orjson_dumps(x, **kwargs):

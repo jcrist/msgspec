@@ -1,16 +1,16 @@
+from collections.abc import Iterable
 from typing import (
     Any,
-    Type,
-    Tuple,
+    Callable,
     Dict,
-    TypeVar,
     Generic,
     Optional,
+    Tuple,
+    Type,
+    TypeVar,
     Union,
-    Callable,
     overload,
 )
-from collections.abc import Iterable
 
 T = TypeVar("T")
 

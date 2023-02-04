@@ -1,7 +1,7 @@
 import datetime
 import math
 import re
-from typing import Dict, Union, List
+from typing import Dict, List, Union
 
 import pytest
 
@@ -417,7 +417,7 @@ class TestFloatConstraints:
                 dec.decode(proto.encode(Ex(x)))
 
     def test_multiple_of(self, proto):
-        """multipleOf for floats wil always have precisions issues. This check
+        """multipleOf for floats will always have precisions issues. This check
         just ensures that _some_ cases work. See
         https://github.com/json-schema-org/json-schema-spec/issues/312 for more
         info."""

@@ -1,4 +1,13 @@
-from typing import Any, Type, TypeVar, Generic, Optional, Callable, Union, overload
+from typing import (
+    Any,
+    Callable,
+    Generic,
+    Optional,
+    Type,
+    TypeVar,
+    Union,
+    overload,
+)
 
 T = TypeVar("T")
 

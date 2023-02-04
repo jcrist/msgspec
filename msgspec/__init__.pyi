@@ -175,11 +175,6 @@ class EncodeError(MsgspecError): ...
 class DecodeError(MsgspecError): ...
 class ValidationError(DecodeError): ...
 
-from . import msgpack
-from . import json
-from . import yaml
-from . import toml
-from . import inspect
-from . import structs
+from . import inspect, json, msgpack, structs, toml, yaml
 
 __version__: str

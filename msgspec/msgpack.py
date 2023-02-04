@@ -1,7 +1,7 @@
 from ._core import (
-    MsgpackEncoder as Encoder,
-    MsgpackDecoder as Decoder,
-    msgpack_encode as encode,
-    msgpack_decode as decode,
     Ext,
+    MsgpackDecoder as Decoder,
+    MsgpackEncoder as Encoder,
+    msgpack_decode as decode,
+    msgpack_encode as encode,
 )
