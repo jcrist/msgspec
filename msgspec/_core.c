@@ -9507,6 +9507,7 @@ enum mpack_code {
     MP_EXT32 = '\xc9',
 };
 
+static int mpack_encode_inline(EncoderState *self, PyObject *obj);
 static int mpack_encode(EncoderState *self, PyObject *obj);
 
 static int
@@ -9523,7 +9524,7 @@ mpack_encode_bool(EncoderState *self, PyObject *obj)
     return ms_write(self, &op, 1);
 }
 
-static int
+static MS_NOINLINE int
 mpack_encode_long(EncoderState *self, PyObject *obj)
 {
     bool overflow, neg;
@@ -9600,7 +9601,7 @@ mpack_encode_long(EncoderState *self, PyObject *obj)
     }
 }
 
-static int
+static MS_NOINLINE int
 mpack_encode_float(EncoderState *self, PyObject *obj)
 {
     char buf[9];
@@ -9612,7 +9613,7 @@ mpack_encode_float(EncoderState *self, PyObject *obj)
     return ms_write(self, buf, 9);
 }
 
-static inline int
+static MS_NOINLINE int
 mpack_encode_cstr(EncoderState *self, const char *buf, Py_ssize_t len)
 {
     if (buf == NULL) {
@@ -9648,7 +9649,7 @@ mpack_encode_cstr(EncoderState *self, const char *buf, Py_ssize_t len)
     return len > 0 ? ms_write(self, buf, len) : 0;
 }
 
-static int
+static MS_INLINE int
 mpack_encode_str(EncoderState *self, PyObject *obj)
 {
     Py_ssize_t len;
@@ -9755,7 +9756,7 @@ mpack_encode_array_header(EncoderState *self, Py_ssize_t len, const char* typnam
     return 0;
 }
 
-static int
+static MS_NOINLINE int
 mpack_encode_list(EncoderState *self, PyObject *obj)
 {
     Py_ssize_t i, len;
@@ -9768,7 +9769,7 @@ mpack_encode_list(EncoderState *self, PyObject *obj)
         return 0;
     if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
     for (i = 0; i < len; i++) {
-        if (mpack_encode(self, PyList_GET_ITEM(obj, i)) < 0) {
+        if (mpack_encode_inline(self, PyList_GET_ITEM(obj, i)) < 0) {
             status = -1;
             break;
         }
@@ -9792,7 +9793,7 @@ mpack_encode_set(EncoderState *self, PyObject *obj)
         return 0;
     if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
     while (_PySet_NextEntry(obj, &ppos, &item, &hash)) {
-        if (mpack_encode(self, item) < 0) {
+        if (mpack_encode_inline(self, item) < 0) {
             status = -1;
             break;
         }
@@ -9814,7 +9815,7 @@ mpack_encode_tuple(EncoderState *self, PyObject *obj)
         return 0;
     if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
     for (i = 0; i < len; i++) {
-        if (mpack_encode(self, PyTuple_GET_ITEM(obj, i)) < 0) {
+        if (mpack_encode_inline(self, PyTuple_GET_ITEM(obj, i)) < 0) {
             status = -1;
             break;
         }
@@ -9853,25 +9854,23 @@ mpack_encode_map_header(EncoderState *self, Py_ssize_t len, const char* typname)
     return 0;
 }
 
-static int
+static MS_NOINLINE int
 mpack_encode_dict(EncoderState *self, PyObject *obj)
 {
     PyObject *key, *val;
     Py_ssize_t len, pos = 0;
-    int status = 0;
+    int status = -1;
 
     len = PyDict_GET_SIZE(obj);
-    if (mpack_encode_map_header(self, len, "dicts") < 0)
-        return -1;
-    if (len == 0)
-        return 0;
+    if (mpack_encode_map_header(self, len, "dicts") < 0) return -1;
+    if (len == 0) return 0;
     if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
     while (PyDict_Next(obj, &pos, &key, &val)) {
-        if (mpack_encode(self, key) < 0 || mpack_encode(self, val) < 0) {
-            status = -1;
-            break;
-        }
+        if (mpack_encode_inline(self, key) < 0) goto error;
+        if (mpack_encode_inline(self, val) < 0) goto error;
     }
+    status = 0;
+error:
     Py_LeaveRecursiveCall();
     return status;
 }
@@ -10262,35 +10261,17 @@ mpack_encode_datetime(EncoderState *self, PyObject *obj)
     return 0;
 }
 
-static int
-mpack_encode(EncoderState *self, PyObject *obj)
+static MS_NOINLINE int
+mpack_encode_uncommon(EncoderState *self, PyTypeObject *type, PyObject *obj)
 {
     if (obj == Py_None) {
         return mpack_encode_none(self);
     }
-
-    PyTypeObject *type = Py_TYPE(obj);
-
-    if (type == &PyUnicode_Type) {
-        return mpack_encode_str(self, obj);
-    }
-    else if (type == &PyLong_Type) {
-        return mpack_encode_long(self, obj);
-    }
     else if (type == &PyBool_Type) {
         return mpack_encode_bool(self, obj);
     }
-    else if (type == &PyFloat_Type) {
-        return mpack_encode_float(self, obj);
-    }
     else if (Py_TYPE(type) == &StructMetaType) {
         return mpack_encode_struct(self, obj);
-    }
-    else if (PyList_Check(obj)) {
-        return mpack_encode_list(self, obj);
-    }
-    else if (PyDict_Check(obj)) {
-        return mpack_encode_dict(self, obj);
     }
     else if (type == &PyBytes_Type) {
         return mpack_encode_bytes(self, obj);
@@ -10348,6 +10329,36 @@ mpack_encode(EncoderState *self, PyObject *obj)
         return status;
     }
     return ms_encode_err_type_unsupported(type);
+}
+
+static MS_INLINE int
+mpack_encode_inline(EncoderState *self, PyObject *obj)
+{
+    PyTypeObject *type = Py_TYPE(obj);
+
+    if (type == &PyUnicode_Type) {
+        return mpack_encode_str(self, obj);
+    }
+    else if (type == &PyLong_Type) {
+        return mpack_encode_long(self, obj);
+    }
+    else if (type == &PyFloat_Type) {
+        return mpack_encode_float(self, obj);
+    }
+    else if (PyList_Check(obj)) {
+        return mpack_encode_list(self, obj);
+    }
+    else if (PyDict_Check(obj)) {
+        return mpack_encode_dict(self, obj);
+    }
+    else {
+        return mpack_encode_uncommon(self, type, obj);
+    }
+}
+
+static int
+mpack_encode(EncoderState *self, PyObject *obj) {
+    return mpack_encode_inline(self, obj);
 }
 
 static PyObject*
