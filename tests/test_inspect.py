@@ -6,30 +6,29 @@ import enum
 import sys
 import typing
 import uuid
-from copy import deepcopy
 from collections import namedtuple
+from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import (
     Any,
-    NewType,
-    List,
-    Tuple,
-    Set,
-    FrozenSet,
     Dict,
-    Union,
+    FrozenSet,
+    List,
     Literal,
     NamedTuple,
+    NewType,
+    Set,
+    Tuple,
     TypedDict,
+    Union,
 )
 
 import pytest
+from utils import temp_module
 
 import msgspec
 import msgspec.inspect as mi
 from msgspec import Meta
-
-from utils import temp_module
 
 try:
     from typing import Annotated

@@ -1,11 +1,12 @@
 import json
 import time
 
-import msgspec
 import orjson
 import requests
 import simdjson
 import ujson
+
+import msgspec
 
 
 def query_msgspec(data: bytes) -> list[tuple[int, str]]:

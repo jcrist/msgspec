@@ -6,9 +6,10 @@ import timeit
 from typing import List, Optional
 
 import msgpack
-import msgspec
 import orjson
 import ujson
+
+import msgspec
 
 
 class Address(msgspec.Struct, gc=False):

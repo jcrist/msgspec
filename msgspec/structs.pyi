@@ -1,4 +1,4 @@
-from typing import TypeVar, Any
+from typing import Any, TypeVar
 
 from . import Struct
 

@@ -1,7 +1,7 @@
 # Security Policy
 
 If you believe you have found a security-related bug with `msgspec`, **do not
-open a public GitHub issue**. Instead, please email `jcristharif@gmail.com`.
+open a public GitHub issue**. Instead, please email jcristharif@gmail.com.
 
 Please include as much detail as you would for a normal issue in your report.
 In particular, including a minimal reproducible example will help the

@@ -8,7 +8,6 @@ operations:
 
 from time import perf_counter
 
-
 order_template = """
     def __{method}__(self, other):
         if type(self) is not type(other):
@@ -120,7 +119,7 @@ def bench(name, template):
     source = "\n".join(template.format(n=i) for i in range(N_classes))
     code_obj = compile(source, "__main__", "exec")
 
-    # Benchmark definining new types
+    # Benchmark defining new types
     N = 200
     start = perf_counter()
     for _ in range(N):

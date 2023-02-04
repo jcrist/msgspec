@@ -18,18 +18,17 @@ from typing import (
     List,
     Literal,
     NamedTuple,
+    NewType,
     Optional,
     Tuple,
     TypedDict,
     Union,
-    NewType,
 )
 
 import pytest
+from utils import temp_module
 
 import msgspec
-
-from utils import temp_module
 
 UTC = datetime.timezone.utc
 

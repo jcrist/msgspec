@@ -4,7 +4,7 @@ import enum
 import sys
 import uuid
 from decimal import Decimal
-from typing import Dict, List, Tuple, Set, FrozenSet
+from typing import Dict, FrozenSet, List, Set, Tuple
 
 import pytest
 

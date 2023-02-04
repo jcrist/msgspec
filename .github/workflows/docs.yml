@@ -16,13 +16,9 @@ jobs:
         with:
           python-version: 3.8
 
-      - name: Build Msgspec
+      - name: Install msgspec and dependencies
         run: |
-          pip install -e .
-
-      - name: Install Dependencies
-        run: |
-          pip install sphinx furo sphinx-copybutton sphinx-design ipython
+          pip install -e ".[doc]"
 
       - name: Build Docs
         run: |

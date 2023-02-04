@@ -7,17 +7,16 @@ import pickle
 import sys
 import weakref
 from contextlib import contextmanager
-from inspect import Signature, Parameter
-from typing import Any, Optional, List
+from inspect import Parameter, Signature
+from typing import Any, List, Optional
 
 import pytest
+from utils import temp_module
 
 import msgspec
-from msgspec import Struct, field, defstruct
-from msgspec.structs import replace
+from msgspec import Struct, defstruct, field
 from msgspec._core import nodefault
-
-from utils import temp_module
+from msgspec.structs import replace
 
 
 @contextmanager

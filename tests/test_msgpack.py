@@ -9,16 +9,16 @@ import pickle
 import struct
 import sys
 from typing import (
+    Any,
+    Deque,
     Dict,
-    Set,
     FrozenSet,
     List,
-    Tuple,
-    Optional,
-    Any,
-    Union,
-    Deque,
     Literal,
+    Optional,
+    Set,
+    Tuple,
+    Union,
 )
 
 import pytest

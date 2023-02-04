@@ -1,7 +1,8 @@
-import sys
-import requests
-import tempfile
 import subprocess
+import sys
+import tempfile
+
+import requests
 
 TEMPLATE = """
 import resource

@@ -1,6 +1,6 @@
 # type: ignore
-import typing
 import collections
+import typing
 
 try:
     from typing_extensions import _AnnotatedAlias
@@ -16,10 +16,10 @@ except Exception:
     from typing import get_type_hints as _get_type_hints
 
 try:
-    from typing_extensions import Required, NotRequired
+    from typing_extensions import NotRequired, Required
 except Exception:
     try:
-        from typing import Required, NotRequired
+        from typing import NotRequired, Required
     except Exception:
         Required = NotRequired = None
 
@@ -93,7 +93,7 @@ def get_typeddict_hints(obj):
 
 
 def get_dataclass_info(cls):
-    from dataclasses import MISSING, _FIELD_INITVAR, _FIELD
+    from dataclasses import _FIELD, _FIELD_INITVAR, MISSING
 
     required = []
     optional = []
