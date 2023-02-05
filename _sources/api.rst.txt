@@ -1,8 +1,8 @@
 API Docs
 ========
 
-Struct
-------
+Structs
+-------
 
 .. currentmodule:: msgspec
 
@@ -13,8 +13,11 @@ Struct
 
 .. autofunction:: defstruct
 
-.. autofunction:: replace
+.. autofunction:: msgspec.structs.replace
 
+.. autofunction:: msgspec.structs.asdict
+
+.. autofunction:: msgspec.structs.astuple
 
 Meta
 ----

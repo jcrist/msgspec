@@ -259,8 +259,8 @@
         <article role="main">
           <section id="api-docs">
 <h1>API Docs<a class="headerlink" href="#api-docs" title="Permalink to this heading">#</a></h1>
-<section id="struct">
-<h2>Struct<a class="headerlink" href="#struct" title="Permalink to this heading">#</a></h2>
+<section id="structs">
+<h2>Structs<a class="headerlink" href="#structs" title="Permalink to this heading">#</a></h2>
 <dl class="py class">
 <dt class="sig sig-object py" id="msgspec.Struct">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">msgspec.</span></span><span class="sig-name descname"><span class="pre">Struct</span></span><a class="headerlink" href="#msgspec.Struct" title="Permalink to this definition">#</a></dt>
@@ -391,8 +391,8 @@ information.</p></li>
 </dd></dl>
 
 <dl class="py function">
-<dt class="sig sig-object py" id="msgspec.replace">
-<span class="sig-prename descclassname"><span class="pre">msgspec.</span></span><span class="sig-name descname"><span class="pre">replace</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">struct</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">/</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">changes</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.replace" title="Permalink to this definition">#</a></dt>
+<dt class="sig sig-object py" id="msgspec.structs.replace">
+<span class="sig-prename descclassname"><span class="pre">msgspec.structs.</span></span><span class="sig-name descname"><span class="pre">replace</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">struct</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">/</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">changes</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.structs.replace" title="Permalink to this definition">#</a></dt>
 <dd><p>Create a new struct instance of the same type as <code class="docutils literal notranslate"><span class="pre">struct</span></code>, replacing fields
 with values from <code class="docutils literal notranslate"><span class="pre">**changes</span></code>.</p>
 <dl class="field-list simple">
@@ -414,13 +414,67 @@ with values from <code class="docutils literal notranslate"><span class="pre">**
 <span class="gp">... </span>    <span class="n">x</span><span class="p">:</span> <span class="nb">int</span>
 <span class="gp">... </span>    <span class="n">y</span><span class="p">:</span> <span class="nb">int</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">obj</span> <span class="o">=</span> <span class="n">Point</span><span class="p">(</span><span class="n">x</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">x</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">structs</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">x</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
 <span class="go">Point(x=3, y=2)</span>
 </pre></div>
 </div>
 <div class="admonition seealso">
 <p class="admonition-title">See also</p>
 <p><a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#dataclasses.replace" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses.replace</span></code></a></p>
+</div>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="msgspec.structs.asdict">
+<span class="sig-prename descclassname"><span class="pre">msgspec.structs.</span></span><span class="sig-name descname"><span class="pre">asdict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">struct</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.structs.asdict" title="Permalink to this definition">#</a></dt>
+<dd><p>Convert a struct to a dict.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>struct</strong> (<a class="reference internal" href="#msgspec.Struct" title="msgspec.Struct"><em>Struct</em></a>) – The struct instance.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.11)">dict</a></p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">Point</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="n">x</span><span class="p">:</span> <span class="nb">int</span>
+<span class="gp">... </span>    <span class="n">y</span><span class="p">:</span> <span class="nb">int</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">obj</span> <span class="o">=</span> <span class="n">Point</span><span class="p">(</span><span class="n">x</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">structs</span><span class="o">.</span><span class="n">asdict</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span>
+<span class="go">{&#39;x&#39;: 1, &#39;y&#39;: 2}</span>
+</pre></div>
+</div>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<p><a class="reference internal" href="#msgspec.structs.astuple" title="msgspec.structs.astuple"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.structs.astuple</span></code></a>, <a class="reference internal" href="#msgspec.to_builtins" title="msgspec.to_builtins"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.to_builtins</span></code></a></p>
+</div>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="msgspec.structs.astuple">
+<span class="sig-prename descclassname"><span class="pre">msgspec.structs.</span></span><span class="sig-name descname"><span class="pre">astuple</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">struct</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.structs.astuple" title="Permalink to this definition">#</a></dt>
+<dd><p>Convert a struct to a tuple.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>struct</strong> (<a class="reference internal" href="#msgspec.Struct" title="msgspec.Struct"><em>Struct</em></a>) – The struct instance.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.11)">tuple</a></p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">Point</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="n">x</span><span class="p">:</span> <span class="nb">int</span>
+<span class="gp">... </span>    <span class="n">y</span><span class="p">:</span> <span class="nb">int</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">obj</span> <span class="o">=</span> <span class="n">Point</span><span class="p">(</span><span class="n">x</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">structs</span><span class="o">.</span><span class="n">astuple</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span>
+<span class="go">(1, 2)</span>
+</pre></div>
+</div>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<p><a class="reference internal" href="#msgspec.structs.asdict" title="msgspec.structs.asdict"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.structs.asdict</span></code></a>, <a class="reference internal" href="#msgspec.to_builtins" title="msgspec.to_builtins"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.to_builtins</span></code></a></p>
 </div>
 </dd></dl>
 
@@ -1124,7 +1178,7 @@ disable conversion by passing in the types to <code class="docutils literal notr
 </div>
 <div class="admonition seealso">
 <p class="admonition-title">See also</p>
-<p><a class="reference internal" href="#msgspec.from_builtins" title="msgspec.from_builtins"><code class="xref py py-obj docutils literal notranslate"><span class="pre">from_builtins</span></code></a></p>
+<p><a class="reference internal" href="#msgspec.from_builtins" title="msgspec.from_builtins"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.from_builtins</span></code></a>, <a class="reference internal" href="#msgspec.structs.asdict" title="msgspec.structs.asdict"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.structs.asdict</span></code></a>, <a class="reference internal" href="#msgspec.structs.astuple" title="msgspec.structs.astuple"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.structs.astuple</span></code></a></p>
 </div>
 </dd></dl>
 
@@ -1792,11 +1846,13 @@ optional fields may exist with no default value.</p></li>
           <div class="toc-tree">
             <ul>
 <li><a class="reference internal" href="#">API Docs</a><ul>
-<li><a class="reference internal" href="#struct">Struct</a><ul>
+<li><a class="reference internal" href="#structs">Structs</a><ul>
 <li><a class="reference internal" href="#msgspec.Struct"><code class="docutils literal notranslate"><span class="pre">Struct</span></code></a></li>
 <li><a class="reference internal" href="#msgspec.field"><code class="docutils literal notranslate"><span class="pre">field()</span></code></a></li>
 <li><a class="reference internal" href="#msgspec.defstruct"><code class="docutils literal notranslate"><span class="pre">defstruct()</span></code></a></li>
-<li><a class="reference internal" href="#msgspec.replace"><code class="docutils literal notranslate"><span class="pre">replace()</span></code></a></li>
+<li><a class="reference internal" href="#msgspec.structs.replace"><code class="docutils literal notranslate"><span class="pre">replace()</span></code></a></li>
+<li><a class="reference internal" href="#msgspec.structs.asdict"><code class="docutils literal notranslate"><span class="pre">asdict()</span></code></a></li>
+<li><a class="reference internal" href="#msgspec.structs.astuple"><code class="docutils literal notranslate"><span class="pre">astuple()</span></code></a></li>
 </ul>
 </li>
 <li><a class="reference internal" href="#meta">Meta</a><ul>
