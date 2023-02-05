@@ -13,7 +13,8 @@ from typing import Any, Optional, List
 import pytest
 
 import msgspec
-from msgspec import Struct, field, defstruct, replace
+from msgspec import Struct, field, defstruct
+from msgspec.structs import replace
 from msgspec._core import nodefault
 
 from utils import temp_module
