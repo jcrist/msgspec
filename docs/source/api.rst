@@ -15,6 +15,9 @@ Structs
 
 .. autofunction:: msgspec.structs.replace
 
+.. autofunction:: msgspec.structs.asdict
+
+.. autofunction:: msgspec.structs.astuple
 
 Meta
 ----

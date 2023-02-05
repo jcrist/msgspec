@@ -345,6 +345,25 @@ def check_replace() -> None:
     reveal_type(msgspec.structs.replace(struct, x=1))  # assert "Test" in typ
     reveal_type(msgspec.structs.replace(struct, struct=1))  # assert "Test" in typ
 
+
+def check_asdict() -> None:
+    class Test(msgspec.Struct):
+        x: int
+        y: int
+
+    x = Test(1, 2)
+    reveal_type(msgspec.structs.asdict(x))  # assert "dict" in typ
+
+
+def check_astuple() -> None:
+    class Test(msgspec.Struct):
+        x: int
+        y: int
+
+    x = Test(1, 2)
+    reveal_type(msgspec.structs.astuple(x))  # assert "tuple" in typ
+
+
 ##########################################################
 # Meta                                                   #
 ##########################################################

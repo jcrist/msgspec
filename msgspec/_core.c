@@ -6733,6 +6733,121 @@ error:
     return NULL;
 }
 
+PyDoc_STRVAR(struct_asdict__doc__,
+"asdict(struct)\n"
+"--\n"
+"\n"
+"Convert a struct to a dict.\n"
+"\n"
+"Parameters\n"
+"----------\n"
+"struct: Struct\n"
+"    The struct instance.\n"
+"\n"
+"Returns\n"
+"-------\n"
+"dict\n"
+"\n"
+"Examples\n"
+"--------\n"
+">>> class Point(msgspec.Struct):\n"
+"...     x: int\n"
+"...     y: int\n"
+">>> obj = Point(x=1, y=2)\n"
+">>> msgspec.structs.asdict(obj)\n"
+"{'x': 1, 'y': 2}\n"
+"\n"
+"See Also\n"
+"--------\n"
+"msgspec.structs.astuple\n"
+"msgspec.to_builtins"
+);
+static PyObject*
+struct_asdict(PyObject *self, PyObject *const *args, Py_ssize_t nargs)
+{
+    if (!check_positional_nargs(nargs, 1, 1)) return NULL;
+    PyObject *obj = args[0];
+    if (Py_TYPE(Py_TYPE(obj)) != &StructMetaType) {
+        PyErr_SetString(PyExc_TypeError, "`struct` must be a `msgspec.Struct`");
+        return NULL;
+    }
+
+    StructMetaObject *struct_type = (StructMetaObject *)Py_TYPE(obj);
+    PyObject *fields = struct_type->struct_fields;
+    Py_ssize_t nfields = PyTuple_GET_SIZE(fields);
+
+    PyObject *out = PyDict_New();
+    if (out == NULL) return NULL;
+
+    for (Py_ssize_t i = 0; i < nfields; i++) {
+        PyObject *key = PyTuple_GET_ITEM(fields, i);
+        PyObject *val = Struct_get_index(obj, i);
+        if (val == NULL) goto error;
+        if (PyDict_SetItem(out, key, val) < 0) goto error;
+    }
+    return out;
+error:
+    Py_DECREF(out);
+    return NULL;
+}
+
+PyDoc_STRVAR(struct_astuple__doc__,
+"astuple(struct)\n"
+"--\n"
+"\n"
+"Convert a struct to a tuple.\n"
+"\n"
+"Parameters\n"
+"----------\n"
+"struct: Struct\n"
+"    The struct instance.\n"
+"\n"
+"Returns\n"
+"-------\n"
+"tuple\n"
+"\n"
+"Examples\n"
+"--------\n"
+">>> class Point(msgspec.Struct):\n"
+"...     x: int\n"
+"...     y: int\n"
+">>> obj = Point(x=1, y=2)\n"
+">>> msgspec.structs.astuple(obj)\n"
+"(1, 2)\n"
+"\n"
+"See Also\n"
+"--------\n"
+"msgspec.structs.asdict\n"
+"msgspec.to_builtins"
+);
+static PyObject*
+struct_astuple(PyObject *self, PyObject *const *args, Py_ssize_t nargs)
+{
+    if (!check_positional_nargs(nargs, 1, 1)) return NULL;
+    PyObject *obj = args[0];
+    if (Py_TYPE(Py_TYPE(obj)) != &StructMetaType) {
+        PyErr_SetString(PyExc_TypeError, "`struct` must be a `msgspec.Struct`");
+        return NULL;
+    }
+
+    StructMetaObject *struct_type = (StructMetaObject *)Py_TYPE(obj);
+    Py_ssize_t nfields = PyTuple_GET_SIZE(struct_type->struct_fields);
+
+    PyObject *out = PyTuple_New(nfields);
+    if (out == NULL) return NULL;
+
+    for (Py_ssize_t i = 0; i < nfields; i++) {
+        PyObject *val = Struct_get_index(obj, i);
+        if (val == NULL) goto error;
+        Py_INCREF(val);
+        PyTuple_SET_ITEM(out, i, val);
+    }
+    return out;
+error:
+    Py_DECREF(out);
+    return NULL;
+}
+
 static PyObject *
 Struct_reduce(PyObject *self, PyObject *args)
 {
@@ -16910,7 +17025,9 @@ PyDoc_STRVAR(msgspec_to_builtins__doc__,
 "\n"
 "See Also\n"
 "--------\n"
-"from_builtins"
+"msgspec.from_builtins\n"
+"msgspec.structs.asdict\n"
+"msgspec.structs.astuple"
 );
 static PyObject*
 msgspec_to_builtins(PyObject *self, PyObject *args, PyObject *kwargs)
@@ -17977,6 +18094,12 @@ static struct PyMethodDef msgspec_methods[] = {
     {
         "replace", (PyCFunction) struct_replace, METH_FASTCALL | METH_KEYWORDS,
         struct_replace__doc__,
+    },
+    {
+        "asdict", (PyCFunction) struct_asdict, METH_FASTCALL, struct_asdict__doc__,
+    },
+    {
+        "astuple", (PyCFunction) struct_astuple, METH_FASTCALL, struct_astuple__doc__,
     },
     {
         "defstruct", (PyCFunction) msgspec_defstruct, METH_VARARGS | METH_KEYWORDS,
