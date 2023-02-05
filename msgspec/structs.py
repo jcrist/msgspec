@@ -1,1 +1,1 @@
-from ._core import replace
+from ._core import replace, asdict, astuple

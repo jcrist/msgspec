@@ -1769,6 +1769,27 @@ class TestReplace:
         del t2
 
 
+class TestUtils:
+    def test_asdict(self):
+        x = Point(1, 2)
+        assert msgspec.structs.asdict(x) == {"x": 1, "y": 2}
+
+    def test_astuple(self):
+        x = Point(1, 2)
+        assert msgspec.structs.astuple(x) == (1, 2)
+
+    @pytest.mark.parametrize("func", [msgspec.structs.asdict, msgspec.structs.astuple])
+    def test_asdict_errors(self, func):
+        with pytest.raises(TypeError):
+            func(1)
+
+        x = Point(1, 2)
+        del x.y
+
+        with pytest.raises(AttributeError):
+            func(x)
+
+
 class TestClassVar:
     def case1(self):
         return """
