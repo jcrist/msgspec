@@ -6626,7 +6626,7 @@ error:
     return NULL;
 }
 
-PyDoc_STRVAR(msgspec_replace__doc__,
+PyDoc_STRVAR(struct_replace__doc__,
 "replace(struct, / **changes)\n"
 "--\n"
 "\n"
@@ -6651,7 +6651,7 @@ PyDoc_STRVAR(msgspec_replace__doc__,
 "...     x: int\n"
 "...     y: int\n"
 ">>> obj = Point(x=1, y=2)\n"
-">>> msgspec.replace(obj, x=3)\n"
+">>> msgspec.structs.replace(obj, x=3)\n"
 "Point(x=3, y=2)\n"
 "\n"
 "See Also\n"
@@ -6659,7 +6659,7 @@ PyDoc_STRVAR(msgspec_replace__doc__,
 "dataclasses.replace"
 );
 static PyObject*
-msgspec_replace(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
+struct_replace(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
 {
     Py_ssize_t nkwargs = (kwnames == NULL) ? 0 : PyTuple_GET_SIZE(kwnames);
 
@@ -17975,8 +17975,8 @@ msgspec_from_builtins(PyObject *self, PyObject *args, PyObject *kwargs)
 
 static struct PyMethodDef msgspec_methods[] = {
     {
-        "replace", (PyCFunction) msgspec_replace, METH_FASTCALL | METH_KEYWORDS,
-        msgspec_replace__doc__,
+        "replace", (PyCFunction) struct_replace, METH_FASTCALL | METH_KEYWORDS,
+        struct_replace__doc__,
     },
     {
         "defstruct", (PyCFunction) msgspec_defstruct, METH_VARARGS | METH_KEYWORDS,

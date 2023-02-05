@@ -331,7 +331,7 @@ def check_defstruct_config_options() -> None:
     )
 
 ##########################################################
-# replace                                                #
+# msgspec.structs                                        #
 ##########################################################
 
 def check_replace() -> None:
@@ -341,9 +341,9 @@ def check_replace() -> None:
         struct: int
 
     struct = Test(1, 2, 3)
-    reveal_type(msgspec.replace(struct))  # assert "Test" in typ
-    reveal_type(msgspec.replace(struct, x=1))  # assert "Test" in typ
-    reveal_type(msgspec.replace(struct, struct=1))  # assert "Test" in typ
+    reveal_type(msgspec.structs.replace(struct))  # assert "Test" in typ
+    reveal_type(msgspec.structs.replace(struct, x=1))  # assert "Test" in typ
+    reveal_type(msgspec.structs.replace(struct, struct=1))  # assert "Test" in typ
 
 ##########################################################
 # Meta                                                   #

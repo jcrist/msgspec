@@ -73,9 +73,6 @@ class Struct(metaclass=__StructMeta):
     ) -> None: ...
     def __rich_repr__(self) -> Iterable[Tuple[str, Any]]: ...
 
-S = TypeVar("S", bound=Struct, covariant=True)
-
-def replace(struct: S, /, **changes: Any) -> S: ...
 def defstruct(
     name: str,
     fields: Iterable[Union[str, Tuple[str, Type], Tuple[str, Type, Any]]],
@@ -182,5 +179,6 @@ from . import json
 from . import yaml
 from . import toml
 from . import inspect
+from . import structs
 
 __version__: str
