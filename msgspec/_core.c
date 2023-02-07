@@ -18047,8 +18047,8 @@ from_builtins(
 ) {
     PyObject *out = NULL;
     PyTypeObject *pytype = Py_TYPE(obj);
-    if (obj == Py_None) {
-        out = from_builtins_none(self, obj, type, path);
+    if (pytype == &PyUnicode_Type) {
+        out = self->from_builtins_str(self, obj, false, type, path);
     }
     else if (pytype == &PyLong_Type) {
         out = from_builtins_int(self, obj, type, path);
@@ -18056,11 +18056,17 @@ from_builtins(
     else if (pytype == &PyFloat_Type) {
         out = from_builtins_float(self, obj, type, path);
     }
+    else if (pytype == &PyList_Type || pytype == &PyTuple_Type) {
+        out = from_builtins_array(self, obj, type, path);
+    }
+    else if (pytype == &PyDict_Type) {
+        out = from_builtins_object(self, obj, type, path);
+    }
     else if (pytype == &PyBool_Type) {
         out = from_builtins_bool(self, obj, type, path);
     }
-    else if (pytype == &PyUnicode_Type) {
-        out = self->from_builtins_str(self, obj, false, type, path);
+    else if (obj == Py_None) {
+        out = from_builtins_none(self, obj, type, path);
     }
     else if (pytype == &PyBytes_Type) {
         out = from_builtins_bytes(self, obj, type, path);
@@ -18082,12 +18088,6 @@ from_builtins(
     }
     else if (pytype == (PyTypeObject *)self->mod->DecimalType) {
         out = from_builtins_immutable(self, MS_TYPE_DECIMAL, "decimal", obj, type, path);
-    }
-    else if (pytype == &PyList_Type || pytype == &PyTuple_Type) {
-        out = from_builtins_array(self, obj, type, path);
-    }
-    else if (pytype == &PyDict_Type) {
-        out = from_builtins_object(self, obj, type, path);
     }
     else {
         PyErr_Format(
