@@ -14037,21 +14037,25 @@ invalid:
     return ms_error_with_path("Invalid base64 encoded string%U", path);
 }
 
-static PyObject *
-json_decode_int_from_str(
-    const char *p, Py_ssize_t size, TypeNode *type, PathNode *path
+static bool
+json_decode_int_from_str_inner(
+    const char *p, Py_ssize_t size, bool err_invalid,
+    TypeNode *type, PathNode *path, PyObject **out
 ) {
+    /* This function signature has gotten kinda weird due to being shared
+     * between `json_decode` and `from_builtins`. Read the comments below for
+     * more info */
     uint64_t mantissa = 0;
-    bool is_negative = false, out_of_range = false;
+    bool is_negative = false;
     const char *end = p + size;
 
-    if (size == 0) goto error;
+    if (size == 0) goto invalid;
 
     char c = *p;
     if (c == '-') {
         p++;
         is_negative = true;
-        if (p == end) goto error;
+        if (p == end) goto invalid;
         c = *p;
     }
 
@@ -14059,7 +14063,7 @@ json_decode_int_from_str(
         /* Value is either 0 or invalid */
         p++;
         if (p == end) goto done;
-        goto error;
+        goto invalid;
     }
 
     /* We can read the first 19 digits safely into a uint64 without checking
@@ -14080,44 +14084,71 @@ json_decode_int_from_str(
         if (MS_UNLIKELY(is_digit(c))) {
             p++;
             uint64_t mantissa2 = mantissa * 10 + (uint64_t)(c - '0');
-            out_of_range = (
+            bool out_of_range = (
                 (mantissa2 < mantissa) ||
                 ((mantissa2 - (uint64_t)(c - '0')) / 10) != mantissa ||
                 (p != end)
             );
-            if (out_of_range) goto error;
+            if (out_of_range) goto out_of_range;
             mantissa = mantissa2;
         }
     }
 
 end_digits:
     /* There must be at least one digit */
-    if (MS_UNLIKELY(mantissa == 0)) goto error;
+    if (MS_UNLIKELY(mantissa == 0)) goto invalid;
 
     /* Check for trailing characters */
-    if (p != end) goto error;
+    if (p != end) goto invalid;
 
 done:
     if (MS_UNLIKELY(is_negative)) {
         if (MS_UNLIKELY(mantissa > 1ull << 63)) {
-            out_of_range = true;
-            goto error;
+            goto out_of_range;
         }
         if (MS_LIKELY(type->types & MS_TYPE_INT)) {
-            return ms_decode_int(-1 * (int64_t)mantissa, type, path);
+            *out = ms_decode_int(-1 * (int64_t)mantissa, type, path);
+            return true;
         }
-        return ms_decode_int_enum_or_literal_int64(-1 * (int64_t)mantissa, type, path);
+        *out = ms_decode_int_enum_or_literal_int64(-1 * (int64_t)mantissa, type, path);
+        return true;
     }
     if (MS_LIKELY(type->types & MS_TYPE_INT)) {
-        return ms_decode_uint(mantissa, type, path);
+        *out = ms_decode_uint(mantissa, type, path);
+        return true;
     }
-    return ms_decode_int_enum_or_literal_uint64(mantissa, type, path);
+    *out = ms_decode_int_enum_or_literal_uint64(mantissa, type, path);
+    return true;
 
-error:
-    return ms_error_with_path(
-        out_of_range ? "Integer value out of range%U" : "Invalid integer string%U",
-        path
-    );
+out_of_range:
+    *out = NULL;
+    ms_error_with_path("Integer value out of range%U", path);
+    return true;
+
+invalid:
+    /* An `invalid` error occurs when the string is not a valid integer. When
+     * parsing a union of types from a string (in `from_builtins` with
+     * `str_values=True`) we want to avoid raising an `invalid` error here, so
+     * other types in the union can be tried. If the string is a valid integer,
+     * but fails for other reasons (out of range, constraint issues, ...) then
+     * an error is still raised in this function.
+     */
+    if (err_invalid) {
+        *out = NULL;
+        ms_error_with_path("Invalid integer string%U", path);
+        return true;
+    }
+    /* `false` indicates no return value and no error raised */
+    return false;
+}
+
+static PyObject *
+json_decode_int_from_str(
+    const char *p, Py_ssize_t size, TypeNode *type, PathNode *path
+) {
+    PyObject *out;
+    json_decode_int_from_str_inner(p, size, true, type, path, &out);
+    return out;
 }
 
 static PyObject *
@@ -17066,11 +17097,14 @@ msgspec_to_builtins(PyObject *self, PyObject *args, PyObject *kwargs)
  * from_builtins                                                           *
  *************************************************************************/
 
-typedef struct {
+typedef struct FromBuiltinsState {
     MsgspecState *mod;
     PyObject *dec_hook;
-    bool str_keys;
     uint32_t builtin_types;
+    bool str_keys;
+    PyObject* (*from_builtins_str)(
+        struct FromBuiltinsState*, PyObject*, bool, TypeNode*, PathNode*
+    );
 } FromBuiltinsState;
 
 static PyObject * from_builtins(FromBuiltinsState *, PyObject *, TypeNode *, PathNode *);
@@ -17124,72 +17158,152 @@ from_builtins_none(
 }
 
 static PyObject *
-from_builtins_str(
-    FromBuiltinsState *self, PyObject *obj, bool is_key, TypeNode *type, PathNode *path
+from_builtins_str_uncommon(
+    FromBuiltinsState *self, PyObject *obj, const char *view, Py_ssize_t size,
+    bool is_key, TypeNode *type, PathNode *path
+) {
+    if (type->types & (MS_TYPE_ENUM | MS_TYPE_STRLITERAL)) {
+        return ms_decode_str_enum_or_literal(view, size, type, path);
+    }
+    else if (
+        (type->types & MS_TYPE_DATETIME)
+        && !(self->builtin_types & MS_BUILTIN_DATETIME)
+    ) {
+        return ms_decode_datetime(view, size, type, path);
+    }
+    else if (
+        (type->types & MS_TYPE_DATE)
+        && !(self->builtin_types & MS_BUILTIN_DATE)
+    ) {
+        return ms_decode_date(view, size, path);
+    }
+    else if (
+        (type->types & MS_TYPE_TIME)
+        && !(self->builtin_types & MS_BUILTIN_TIME)
+    ) {
+        return ms_decode_time(view, size, type, path);
+    }
+    else if (
+        (type->types & MS_TYPE_UUID)
+        && !(self->builtin_types & MS_BUILTIN_UUID)
+    ) {
+        return ms_decode_uuid(view, size, path);
+    }
+    else if (
+        (type->types & MS_TYPE_DECIMAL)
+        && !(self->builtin_types & MS_BUILTIN_DECIMAL)
+    ) {
+        return ms_decode_decimal_pyobj(self->mod, obj, path);
+    }
+    else if (
+        (type->types & MS_TYPE_BYTES)
+        && !(self->builtin_types & MS_BUILTIN_BYTES)
+    ) {
+        return json_decode_binary(view, size, type, path);
+    }
+    else if (
+        (type->types & MS_TYPE_BYTEARRAY)
+        && !(self->builtin_types & MS_BUILTIN_BYTEARRAY)
+    ) {
+        return json_decode_binary(view, size, type, path);
+    }
+    else if (
+        is_key && self->str_keys && (type->types & (MS_TYPE_INT | MS_TYPE_INTENUM | MS_TYPE_INTLITERAL))
+    ) {
+        return json_decode_int_from_str(view, size, type, path);
+    }
+    return ms_validation_error("str", type, path);
+}
+
+static PyObject *
+from_builtins_str_strict(
+    FromBuiltinsState *self, PyObject *obj,
+    bool is_key, TypeNode *type, PathNode *path
 ) {
     if (type->types & (MS_TYPE_ANY | MS_TYPE_STR)) {
         Py_INCREF(obj);
         return ms_check_str_constraints(obj, type, path);
     }
-    else {
-        Py_ssize_t size;
-        const char* view = unicode_str_and_size(obj, &size);
-        if (view == NULL) return NULL;
-        if (type->types & (MS_TYPE_ENUM | MS_TYPE_STRLITERAL)) {
-            return ms_decode_str_enum_or_literal(view, size, type, path);
-        }
-        else if (
-            (type->types & MS_TYPE_DATETIME)
-            && !(self->builtin_types & MS_BUILTIN_DATETIME)
-        ) {
-            return ms_decode_datetime(view, size, type, path);
-        }
-        else if (
-            (type->types & MS_TYPE_DATE)
-            && !(self->builtin_types & MS_BUILTIN_DATE)
-        ) {
-            return ms_decode_date(view, size, path);
-        }
-        else if (
-            (type->types & MS_TYPE_TIME)
-            && !(self->builtin_types & MS_BUILTIN_TIME)
-        ) {
-            return ms_decode_time(view, size, type, path);
-        }
-        else if (
-            (type->types & MS_TYPE_UUID)
-            && !(self->builtin_types & MS_BUILTIN_UUID)
-        ) {
-            return ms_decode_uuid(view, size, path);
-        }
-        else if (
-            (type->types & MS_TYPE_DECIMAL)
-            && !(self->builtin_types & MS_BUILTIN_DECIMAL)
-        ) {
-            return ms_decode_decimal_pyobj(self->mod, obj, path);
-        }
-        else if (
-            (type->types & MS_TYPE_BYTES)
-            && !(self->builtin_types & MS_BUILTIN_BYTES)
-        ) {
-            return json_decode_binary(view, size, type, path);
-        }
-        else if (
-            (type->types & MS_TYPE_BYTEARRAY)
-            && !(self->builtin_types & MS_BUILTIN_BYTEARRAY)
-        ) {
-            return json_decode_binary(view, size, type, path);
-        }
-        else if (
-            is_key &&
-            self->str_keys &&
-            (type->types & (MS_TYPE_INT | MS_TYPE_INTENUM | MS_TYPE_INTLITERAL))
-        ) {
-            return json_decode_int_from_str(view, size, type, path);
+    Py_ssize_t size;
+    const char* view = unicode_str_and_size(obj, &size);
+    if (view == NULL) return NULL;
+    return from_builtins_str_uncommon(self, obj, view, size, is_key, type, path);
+}
+
+static PyObject *
+from_builtins_str_lax(
+    FromBuiltinsState *self, PyObject *obj,
+    bool is_key, TypeNode *type, PathNode *path
+) {
+    Py_ssize_t size;
+    const char* view = unicode_str_and_size(obj, &size);
+    if (view == NULL) return NULL;
+
+    if (type->types & (MS_TYPE_INT | MS_TYPE_INTENUM | MS_TYPE_INTLITERAL)) {
+        PyObject *out = NULL;
+        if (json_decode_int_from_str_inner(view, size, false, type, path, &out)) {
+            return out;
         }
     }
-    return ms_validation_error("str", type, path);
+
+    if (type->types & MS_TYPE_FLOAT) {
+        PyObject *out = PyFloat_FromString(obj);
+        if (out != NULL) {
+            return ms_decode_pyfloat(out, type, path);
+        }
+        PyErr_Clear();
+    }
+
+    if (type->types & MS_TYPE_BOOL) {
+        if (size == 1) {
+            if (*view == '0') {
+                Py_RETURN_FALSE;
+            }
+            else if (*view == '1') {
+                Py_RETURN_TRUE;
+            }
+        }
+        else if (size == 4) {
+            if (
+                (view[0] == 't' || view[0] == 'T') &&
+                (view[1] == 'r' || view[1] == 'R') &&
+                (view[2] == 'u' || view[2] == 'U') &&
+                (view[3] == 'e' || view[3] == 'E')
+            ) {
+                Py_RETURN_TRUE;
+            }
+        }
+        else if (size == 5) {
+            if (
+                (view[0] == 'f' || view[0] == 'F') &&
+                (view[1] == 'a' || view[1] == 'A') &&
+                (view[2] == 'l' || view[2] == 'L') &&
+                (view[3] == 's' || view[3] == 'S') &&
+                (view[4] == 'e' || view[4] == 'E')
+            ) {
+                Py_RETURN_FALSE;
+            }
+        }
+    }
+
+    if (type->types & MS_TYPE_NONE) {
+        if (size == 4 &&
+            (view[0] == 'n' || view[0] == 'N') &&
+            (view[1] == 'u' || view[1] == 'U') &&
+            (view[2] == 'l' || view[2] == 'L') &&
+            (view[3] == 'l' || view[3] == 'L')
+        ) {
+            Py_RETURN_NONE;
+        }
+    }
+
+    if (type->types & (MS_TYPE_ANY | MS_TYPE_STR)) {
+        Py_INCREF(obj);
+        return ms_check_str_constraints(obj, type, path);
+    }
+    return from_builtins_str_uncommon(self, obj, view, size, false, type, path);
 }
+
 
 static PyObject *
 from_builtins_bytes(
@@ -17685,7 +17799,7 @@ from_builtins_dict(
     while (PyDict_Next(obj, &pos, &key_obj, &val_obj)) {
         PyObject *key;
         if (PyUnicode_CheckExact(key_obj)) {
-            key = from_builtins_str(self, key_obj, true, key_type, &key_path);
+            key = from_builtins_str_strict(self, key_obj, true, key_type, &key_path);
         }
         else {
             key = from_builtins(self, key_obj, key_type, &key_path);
@@ -17946,7 +18060,7 @@ from_builtins(
         out = from_builtins_bool(self, obj, type, path);
     }
     else if (pytype == &PyUnicode_Type) {
-        out = from_builtins_str(self, obj, false, type, path);
+        out = self->from_builtins_str(self, obj, false, type, path);
     }
     else if (pytype == &PyBytes_Type) {
         out = from_builtins_bytes(self, obj, type, path);
@@ -17991,7 +18105,7 @@ from_builtins(
 }
 
 PyDoc_STRVAR(msgspec_from_builtins__doc__,
-"from_builtins(obj, type, *, str_keys=False, builtin_types=None, dec_hook=None)\n"
+"from_builtins(obj, type, *, str_keys=False, str_values=False, builtin_types=None, dec_hook=None)\n"
 "--\n"
 "\n"
 "Construct a complex object from one composed only of simpler builtin types\n"
@@ -18018,6 +18132,10 @@ PyDoc_STRVAR(msgspec_from_builtins__doc__,
 "    Whether the wrapped protocol only supports string keys. Setting to True\n"
 "    enables a wider set of coercion rules from string to non-string types for\n"
 "    dict keys. Default is False.\n"
+"str_values: bool, optional\n"
+"    Whether the wrapped protocol only supports string values. Setting to True\n"
+"    enables a wider set of coercion rules from string to non-string types for\n"
+"    all values. Implies ``str_keys=True``. Default is False.\n"
 "dec_hook: callable, optional\n"
 "    An optional callback for handling decoding custom types. Should have the\n"
 "    signature ``dec_hook(type: Type, obj: Any) -> Any``, where ``type`` is the\n"
@@ -18051,14 +18169,17 @@ static PyObject*
 msgspec_from_builtins(PyObject *self, PyObject *args, PyObject *kwargs)
 {
     PyObject *obj = NULL, *pytype = NULL, *builtin_types = NULL, *dec_hook = NULL;
-    int str_keys = false;
+    int str_keys = false, str_values = false;
     FromBuiltinsState state;
 
-    static char *kwlist[] = {"obj", "type", "builtin_types", "str_keys", "dec_hook", NULL};
+    static char *kwlist[] = {
+        "obj", "type", "builtin_types", "str_keys", "str_values", "dec_hook", NULL
+    };
 
     /* Parse arguments */
     if (!PyArg_ParseTupleAndKeywords(
-        args, kwargs, "OO|$OpO", kwlist, &obj, &pytype, &builtin_types, &str_keys, &dec_hook
+        args, kwargs, "OO|$OppO", kwlist,
+        &obj, &pytype, &builtin_types, &str_keys, &str_values, &dec_hook
     )) {
         return NULL;
     }
@@ -18066,6 +18187,12 @@ msgspec_from_builtins(PyObject *self, PyObject *args, PyObject *kwargs)
     state.mod = msgspec_get_global_state();
     state.builtin_types = 0;
     state.str_keys = str_keys;
+    if (str_values) {
+        state.from_builtins_str = &(from_builtins_str_lax);
+    }
+    else {
+        state.from_builtins_str = &(from_builtins_str_strict);
+    }
 
     if (dec_hook == Py_None) {
         dec_hook = NULL;
