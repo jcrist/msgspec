@@ -80,7 +80,7 @@ Highlights
 
 - ``msgspec`` is **friendly**. Through use of Python's type annotations,
   messages are :ref:`validated <typed-decoding>` during deserialization in a
-  declaritive way. ``msgspec`` also works well with other type-checking tooling
+  declarative way. ``msgspec`` also works well with other type-checking tooling
   like mypy_ and pyright_, providing excellent editor integration.
 
 - ``msgspec`` is **flexible**. It natively supports a :doc:`wide range of

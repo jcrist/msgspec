@@ -312,11 +312,12 @@ indirection costs later on during use. See <a class="reference internal" href=".
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">json</span>
 <span class="kn">import</span> <span class="nn">time</span>
 
-<span class="kn">import</span> <span class="nn">msgspec</span>
 <span class="kn">import</span> <span class="nn">orjson</span>
 <span class="kn">import</span> <span class="nn">requests</span>
 <span class="kn">import</span> <span class="nn">simdjson</span>
 <span class="kn">import</span> <span class="nn">ujson</span>
+
+<span class="kn">import</span> <span class="nn">msgspec</span>
 
 
 <span class="k">def</span> <span class="nf">query_msgspec</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="nb">bytes</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">str</span><span class="p">]]:</span>
