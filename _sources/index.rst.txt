@@ -157,6 +157,7 @@ few:
     :maxdepth: 2
     :caption: Advanced
 
+    converters.rst
     extending.rst
     inspect.rst
     perf-tips.rst
