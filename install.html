@@ -168,7 +168,7 @@
           <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
         </button>
       </div>
-      <label class="toc-overlay-icon toc-header-icon no-toc" for="__toc">
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
         <div class="visually-hidden">Toggle table of contents sidebar</div>
         <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
       </label>
@@ -252,7 +252,7 @@
               <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
             </button>
           </div>
-          <label class="toc-overlay-icon toc-content-icon no-toc" for="__toc">
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
             <div class="visually-hidden">Toggle table of contents sidebar</div>
             <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
           </label>
@@ -270,6 +270,51 @@ is required. The basic install has no required dependencies.</p>
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>install<span class="w"> </span>msgspec<span class="w"> </span>-c<span class="w"> </span>conda-forge
 </pre></div>
 </div>
+<section id="optional-dependencies">
+<h2>Optional Dependencies<a class="headerlink" href="#optional-dependencies" title="Permalink to this heading">#</a></h2>
+<p>Depending on your platform, the base install of <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> may not support
+<a class="reference external" href="https://toml.io">TOML</a> or <a class="reference external" href="https://yaml.org">YAML</a> without additional dependencies.</p>
+<section id="toml">
+<h3>TOML<a class="headerlink" href="#toml" title="Permalink to this heading">#</a></h3>
+<p>The <a class="reference external" href="https://toml.io">TOML</a> protocol requires:</p>
+<ul class="simple">
+<li><p>Python &lt; 3.11: <a class="reference external" href="https://github.com/hukkin/tomli">tomli</a> and <a class="reference external" href="https://github.com/hukkin/tomli-w">tomli_w</a> for reading and writing TOML.</p></li>
+<li><p>Python &gt;= 3.11: <a class="reference external" href="https://github.com/hukkin/tomli-w">tomli_w</a> for writing TOML. Reading TOML is done using
+the standard library’s <a class="reference external" href="https://docs.python.org/3/library/tomllib.html#module-tomllib" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tomllib</span></code></a> and requires no additional dependencies.</p></li>
+</ul>
+<p>You may either install these dependencies manually, or depend on the <code class="docutils literal notranslate"><span class="pre">toml</span></code>
+extra:</p>
+<p><strong>pip</strong></p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;msgspec[toml]&quot;</span>
+</pre></div>
+</div>
+<p><strong>conda</strong></p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>install<span class="w"> </span>msgspec-toml<span class="w"> </span>-c<span class="w"> </span>conda-forge
+</pre></div>
+</div>
+</section>
+<section id="yaml">
+<h3>YAML<a class="headerlink" href="#yaml" title="Permalink to this heading">#</a></h3>
+<p>The <a class="reference external" href="https://yaml.org">YAML</a> protocol requires <a class="reference external" href="https://pyyaml.org/">PyYAML</a> on all platforms. You may either install
+this dependency manually, or depend on the <code class="docutils literal notranslate"><span class="pre">yaml</span></code> extra:</p>
+<p><strong>pip</strong></p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;msgspec[yaml]&quot;</span>
+</pre></div>
+</div>
+<p><strong>conda</strong></p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>install<span class="w"> </span>msgspec-yaml<span class="w"> </span>-c<span class="w"> </span>conda-forge
+</pre></div>
+</div>
+</section>
+</section>
+<section id="installing-from-github">
+<h2>Installing from GitHub<a class="headerlink" href="#installing-from-github" title="Permalink to this heading">#</a></h2>
+<p>If you want wish to use a feature that hasn’t been released yet, you may
+install from the <a class="reference external" href="https://github.com/jcrist/msgspec">development branch on GitHub</a> using <code class="docutils literal notranslate"><span class="pre">pip</span></code>:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>git+https://github.com/jcrist/msgspec.git
+</pre></div>
+</div>
+</section>
 </section>
 
         </article>
@@ -320,8 +365,32 @@ is required. The basic install has no required dependencies.</p>
         
       </footer>
     </div>
-    <aside class="toc-drawer no-toc">
+    <aside class="toc-drawer">
       
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            On this page
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">Installation</a><ul>
+<li><a class="reference internal" href="#optional-dependencies">Optional Dependencies</a><ul>
+<li><a class="reference internal" href="#toml">TOML</a></li>
+<li><a class="reference internal" href="#yaml">YAML</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#installing-from-github">Installing from GitHub</a></li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
       
       
     </aside>
