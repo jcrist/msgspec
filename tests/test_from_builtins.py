@@ -1484,6 +1484,7 @@ class TestStrValues:
             ("x" * 11, "length <= 10"),
         ],
     )
+    @uses_annotated
     def test_str_values_union_invalid_constr(self, msg, err):
         """Ensure that values that parse properly but don't meet the specified
         constraints error with a specific constraint error"""
