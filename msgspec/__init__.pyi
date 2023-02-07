@@ -156,6 +156,7 @@ def from_builtins(
     type: Type[T],
     *,
     str_keys: bool = False,
+    str_values: bool = False,
     builtin_types: Union[Iterable[Type], None] = None,
     dec_hook: Optional[Callable[[Type, Any], Any]] = None,
 ) -> T: ...

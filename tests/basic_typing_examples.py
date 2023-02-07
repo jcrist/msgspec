@@ -849,8 +849,11 @@ def check_from_builtins() -> None:
     o3 = msgspec.from_builtins(1, int, str_keys=False)
     reveal_type(o3)  # assert "int" in typ.lower()
 
-    o4 = msgspec.from_builtins(1, int, builtin_types=(bytes, bytearray, memoryview))
+    o4 = msgspec.from_builtins("1", int, str_keys=True)
     reveal_type(o4)  # assert "int" in typ.lower()
 
-    o5 = msgspec.from_builtins(1, int, dec_hook=lambda typ, x: None)
+    o5 = msgspec.from_builtins(1, int, builtin_types=(bytes, bytearray, memoryview))
     reveal_type(o5)  # assert "int" in typ.lower()
+
+    o6 = msgspec.from_builtins(1, int, dec_hook=lambda typ, x: None)
+    reveal_type(o6)  # assert "int" in typ.lower()
