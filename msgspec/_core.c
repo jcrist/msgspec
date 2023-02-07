@@ -13198,7 +13198,7 @@ msgspec_msgpack_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, 
     }
     state.ext_hook = ext_hook;
 
-    /* Allocated Any & Struct type nodes (simple, common cases) on the stack,
+    /* Allocate Any & Struct type nodes (simple, common cases) on the stack,
      * everything else on the heap */
     state.type = NULL;
     if (type == NULL || type == st->typing_any) {
@@ -16445,7 +16445,7 @@ msgspec_json_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyO
     state.scratch_capacity = 0;
     state.scratch_len = 0;
 
-    /* Allocated Any & Struct type nodes (simple, common cases) on the stack,
+    /* Allocate Any & Struct type nodes (simple, common cases) on the stack,
      * everything else on the heap */
     state.type = NULL;
     if (type == NULL || type == st->typing_any) {
@@ -18204,9 +18204,18 @@ msgspec_from_builtins(PyObject *self, PyObject *args, PyObject *kwargs)
     state.dec_hook = dec_hook;
     if (ms_process_builtin_types(state.mod, builtin_types, &(state.builtin_types)) < 0) return NULL;
 
+    /* Avoid allocating a new TypeNode for struct types */
+    if (Py_TYPE(pytype) == &StructMetaType) {
+        if (StructMeta_prep_types(pytype, str_keys, NULL) < 0) return NULL;
+        bool array_like = ((StructMetaObject *)pytype)->array_like == OPT_TRUE;
+        TypeNodeSimple type;
+        type.types = array_like ? MS_TYPE_STRUCT_ARRAY : MS_TYPE_STRUCT;
+        type.details[0].pointer = pytype;
+        return from_builtins(&state, obj, (TypeNode *)(&type), NULL);
+    }
+
     TypeNode *type = TypeNode_Convert(pytype, str_keys, NULL);
     if (type == NULL) return NULL;
-
     PyObject *out = from_builtins(&state, obj, type, NULL);
     TypeNode_Free(type);
     return out;
