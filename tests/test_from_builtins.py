@@ -40,6 +40,11 @@ uses_annotated = pytest.mark.skipif(Annotated is None, reason="Annotated not ava
 UTC = datetime.timezone.utc
 
 
+def assert_eq(x, y):
+    assert x == y
+    assert type(x) is type(y)
+
+
 @contextmanager
 def max_call_depth(n):
     cur_depth = len(inspect.stack(0))
@@ -152,8 +157,13 @@ class TestBool:
     def test_bool(self, val):
         assert from_builtins(val, Any) is val
         assert from_builtins(val, bool) is val
+
+    def test_bool_invalid(self):
         with pytest.raises(ValidationError, match="Expected `bool`, got `int`"):
             from_builtins(1, bool)
+
+        with pytest.raises(ValidationError, match="Expected `bool`, got `str`"):
+            from_builtins("true", bool)
 
 
 class TestInt:
@@ -1340,6 +1350,159 @@ class TestStructUnion:
         with pytest.raises(ValidationError) as rec:
             roundtrip([unknown, 1, 2, 3], typ)
         assert f"Invalid value {unknown!r} - at `$[0]`" == str(rec.value)
+
+
+class TestStrValues:
+    def test_str_values_none(self):
+        for x in ["null", "Null", "nUll", "nuLl", "nulL"]:
+            assert from_builtins(x, None, str_values=True) is None
+
+        for x in ["xull", "nxll", "nuxl", "nulx"]:
+            with pytest.raises(ValidationError, match="Expected `null`, got `str`"):
+                from_builtins(x, None, str_values=True)
+
+    def test_str_values_bool_true(self):
+        for x in ["1", "true", "True", "tRue", "trUe", "truE"]:
+            assert from_builtins(x, bool, str_values=True) is True
+
+    def test_str_values_bool_false(self):
+        for x in ["0", "false", "False", "fAlse", "faLse", "falSe", "falsE"]:
+            assert from_builtins(x, bool, str_values=True) is False
+
+    def test_str_values_bool_true_invalid(self):
+        for x in ["x", "xx", "xrue", "txue", "trxe", "trux"]:
+            with pytest.raises(ValidationError, match="Expected `bool`, got `str`"):
+                assert from_builtins(x, bool, str_values=True)
+
+    def test_str_values_bool_false_invalid(self):
+        for x in ["x", "xx", "xalse", "fxlse", "faxse", "falxe", "falsx"]:
+            with pytest.raises(ValidationError, match="Expected `bool`, got `str`"):
+                assert from_builtins(x, bool, str_values=True)
+
+    def test_str_values_int(self):
+        for x in ["1", "-1", "123456"]:
+            assert from_builtins(x, int, str_values=True) == int(x)
+
+        for x in ["a", "1a", "1.0", "1.."]:
+            with pytest.raises(ValidationError, match="Expected `int`, got `str`"):
+                from_builtins(x, int, str_values=True)
+
+    @uses_annotated
+    def test_str_values_int_constr(self):
+        typ = Annotated[int, Meta(ge=0)]
+        assert from_builtins("1", typ, str_values=True) == 1
+
+        with pytest.raises(ValidationError):
+            from_builtins("-1", typ, str_values=True)
+
+    def test_str_values_int_enum(self):
+        class Ex(enum.IntEnum):
+            x = 1
+            y = -2
+
+        assert from_builtins("1", Ex, str_values=True) is Ex.x
+        assert from_builtins("-2", Ex, str_values=True) is Ex.y
+        with pytest.raises(ValidationError, match="Invalid enum value 3"):
+            from_builtins("3", Ex, str_values=True)
+        with pytest.raises(ValidationError, match="Expected `int`, got `str`"):
+            from_builtins("A", Ex, str_values=True)
+
+    def test_str_values_int_literal(self):
+        typ = Literal[1, -2]
+        assert from_builtins("1", typ, str_values=True) == 1
+        assert from_builtins("-2", typ, str_values=True) == -2
+        with pytest.raises(ValidationError, match="Invalid enum value 3"):
+            from_builtins("3", typ, str_values=True)
+        with pytest.raises(ValidationError, match="Expected `int`, got `str`"):
+            from_builtins("A", typ, str_values=True)
+
+    def test_str_values_float(self):
+        for x in ["1", "-1", "123456", "1.5", "-1.5", "inf"]:
+            assert from_builtins(x, float, str_values=True) == float(x)
+
+        for x in ["a", "1a", "1.0.0", "1.."]:
+            with pytest.raises(ValidationError, match="Expected `float`, got `str`"):
+                from_builtins(x, float, str_values=True)
+
+    @uses_annotated
+    def test_str_values_float_constr(self):
+        assert (
+            from_builtins("1.5", Annotated[float, Meta(ge=0)], str_values=True) == 1.5
+        )
+
+        with pytest.raises(ValidationError):
+            from_builtins("-1.0", Annotated[float, Meta(ge=0)], str_values=True)
+
+    def test_str_values_str(self):
+        for x in ["1", "1.5", "false", "null"]:
+            assert from_builtins(x, str, str_values=True) == x
+
+    @uses_annotated
+    def test_str_values_str_constr(self):
+        typ = Annotated[str, Meta(max_length=10)]
+        assert from_builtins("xxx", typ, str_values=True) == "xxx"
+
+        with pytest.raises(ValidationError):
+            from_builtins("x" * 20, typ, str_values=True)
+
+    @pytest.mark.parametrize(
+        "msg, sol",
+        [
+            ("1", 1),
+            ("0", 0),
+            ("-1", -1),
+            ("12.5", 12.5),
+            ("inf", float("inf")),
+            ("true", True),
+            ("false", False),
+            ("null", None),
+            ("1a", "1a"),
+            ("falsx", "falsx"),
+            ("nulx", "nulx"),
+        ],
+    )
+    def test_str_values_union_valid(self, msg, sol):
+        typ = Union[int, float, bool, None, str]
+        assert_eq(from_builtins(msg, typ, str_values=True), sol)
+
+    @pytest.mark.parametrize("msg", ["1a", "1.5a", "falsx", "trux", "nulx"])
+    def test_str_values_union_invalid(self, msg):
+        typ = Union[int, float, bool, None]
+        with pytest.raises(
+            ValidationError, match="Expected `int | float | bool | null`"
+        ):
+            from_builtins(msg, typ, str_values=True)
+
+    @pytest.mark.parametrize(
+        "msg, err",
+        [
+            ("-1", "`int` >= 0"),
+            ("184467440737095516100", "out of range"),
+            ("18446744073709551617", "out of range"),
+            ("-9223372036854775809", "out of range"),
+            ("100.5", "`float` <= 100.0"),
+            ("x" * 11, "length <= 10"),
+        ],
+    )
+    def test_str_values_union_invalid_constr(self, msg, err):
+        """Ensure that values that parse properly but don't meet the specified
+        constraints error with a specific constraint error"""
+        typ = Union[
+            Annotated[int, Meta(ge=0)],
+            Annotated[float, Meta(le=100)],
+            Annotated[str, Meta(max_length=10)],
+        ]
+        with pytest.raises(ValidationError, match=err):
+            from_builtins(msg, typ, str_values=True)
+
+    def test_str_values_union_extended(self):
+        typ = Union[int, float, bool, None, datetime.datetime]
+        dt = datetime.datetime.now()
+        assert_eq(from_builtins("1", typ, str_values=True), 1)
+        assert_eq(from_builtins("1.5", typ, str_values=True), 1.5)
+        assert_eq(from_builtins("false", typ, str_values=True), False)
+        assert_eq(from_builtins("null", typ, str_values=True), None)
+        assert_eq(from_builtins(dt.isoformat(), typ, str_values=True), dt)
 
 
 class TestCustom:
