@@ -1,3 +1,4 @@
+import dataclasses
 import gc
 import json
 import random
@@ -7,16 +8,11 @@ from typing import List, Optional
 
 import attrs
 import cattrs.preconf.orjson
-import marshmallow as mm
 import orjson
 import pydantic
+from mashumaro.mixins.orjson import DataClassORJSONMixin
 
 import msgspec
-
-
-def orjson_dumps(x, **kwargs):
-    return orjson.dumps(x, **kwargs).decode()
-
 
 states = [
     "AL",
@@ -159,16 +155,7 @@ def bench_msgspec(n, no_gc):
     dec = msgspec.json.Decoder(PeopleStruct)
 
     def convert(data):
-        people = []
-        for p in data["people"]:
-            addrs = p.pop("addresses", None)
-            people.append(
-                PersonStruct(
-                    addresses=[AddressStruct(**a) for a in addrs] if addrs else None,
-                    **p,
-                )
-            )
-        return PeopleStruct(people=people)
+        return msgspec.from_builtins(data, PeopleStruct)
 
     return bench(enc.encode, dec.decode, n, convert, no_gc=no_gc)
 
@@ -176,6 +163,10 @@ def bench_msgspec(n, no_gc):
 #############################################################################
 #  pydantic                                                                 #
 #############################################################################
+
+
+def orjson_dumps(x, **kwargs):
+    return orjson.dumps(x, **kwargs).decode()
 
 
 class BaseModel(pydantic.BaseModel):
@@ -252,74 +243,47 @@ def bench_cattrs(n, no_gc):
 
 
 #############################################################################
-#  cattrs                                                                   #
+#  mashumaro                                                                #
 #############################################################################
 
 
-class AddressSchema(mm.Schema):
-    street = mm.fields.String(required=True)
-    state = mm.fields.String(required=True)
-    zip = mm.fields.Integer(required=True)
-
-    class Meta:
-        json_module = orjson
-
-    @mm.post_load
-    def create(self, data, **kwargs):
-        return AddressAttrs(**data)
+@dataclasses.dataclass
+class AddressMashumaro(DataClassORJSONMixin):
+    street: str
+    state: str
+    zip: int
 
 
-class PersonSchema(mm.Schema):
-    first = mm.fields.String(required=True)
-    last = mm.fields.String(required=True)
-    age = mm.fields.Integer(required=True)
-    addresses = mm.fields.List(
-        mm.fields.Nested(AddressSchema), allow_none=True, default=None
+@dataclasses.dataclass
+class PersonMashumaro(DataClassORJSONMixin):
+    first: str
+    last: str
+    age: int
+    addresses: Optional[List[AddressMashumaro]] = None
+    telephone: Optional[str] = None
+    email: Optional[str] = None
+
+
+@dataclasses.dataclass
+class PeopleMashumaro(DataClassORJSONMixin):
+    people: List[PersonMashumaro]
+
+
+def bench_mashumaro(n, no_gc):
+    return bench(
+        lambda x: x.to_jsonb(),
+        PeopleMashumaro.from_json,
+        n,
+        PeopleMashumaro.from_dict,
+        no_gc=no_gc,
     )
-    telephone = mm.fields.String(allow_none=True, default=None)
-    email = mm.fields.String(allow_none=True, default=None)
-
-    class Meta:
-        json_module = orjson
-
-    @mm.post_load
-    def create(self, data, **kwargs):
-        return PersonAttrs(**data)
-
-
-class PeopleSchema(mm.Schema):
-    people = mm.fields.List(mm.fields.Nested(PersonSchema))
-
-    class Meta:
-        json_module = orjson
-
-    @mm.post_load
-    def create(self, data, **kwargs):
-        return PeopleAttrs(**data)
-
-
-def bench_marshmallow(n, no_gc):
-    def convert(data):
-        people = []
-        for p in data["people"]:
-            addrs = p.pop("addresses", None)
-            people.append(
-                PersonAttrs(
-                    addresses=[AddressAttrs(**a) for a in addrs] if addrs else None, **p
-                )
-            )
-        return PeopleAttrs(people=people)
-
-    schema = PeopleSchema()
-
-    return bench(schema.dumps, schema.loads, n, convert, no_gc=no_gc)
 
 
 BENCHMARKS = [
     ("msgspec", bench_msgspec),
     ("pydantic", bench_pydantic),
     ("cattrs", bench_cattrs),
-    ("marshmallow", bench_marshmallow),
+    ("mashumaro", bench_mashumaro),
 ]
 
 
