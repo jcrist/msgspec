@@ -119,7 +119,7 @@ and decoding time.
 - msgspec_
 - pydantic_
 - cattrs_
-- marshmallow_
+- mashumaro_
 
 The full benchmark source can be found
 `here <https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_validation.py>`__.
@@ -130,9 +130,9 @@ The full benchmark source can be found
 
 This plot shows the performance benefit of performing type validation during
 message decoding (as done by ``msgspec``) rather than as a secondary step with
-a third-party library like pydantic_. In this benchmark ``msgspec`` is ~8x
-faster than ``cattrs``, ~45x faster than ``pydantic``, and ~80x faster than
-``marshmallow``.
+a third-party library like pydantic_. In this benchmark ``msgspec`` is ~5x
+faster than ``mashumaro``, ~8x faster than ``cattrs``, and ~38x faster than
+``pydantic``.
 
 Validating after decoding is slower for two reasons:
 
@@ -432,7 +432,7 @@ msgpack_, and pydantic_ combined. However, the total installed binary size of
     }
 
     var results = {"1": [["ujson", 6.717021639924496e-07, 7.829359059687704e-07], ["orjson", 2.631088870111853e-07, 4.62388165993616e-07], ["msgpack", 3.223358949762769e-07, 6.897511919960379e-07], ["msgspec msgpack", 1.1219781800173223e-07, 2.1338467899477108e-07], ["msgspec msgpack array-like", 8.444309020414948e-08, 1.779988644993864e-07], ["msgspec json", 1.4419139400706626e-07, 2.535316209832672e-07], ["msgspec json array-like", 1.1690347650437616e-07, 1.9026524299988523e-07]], "1k": [["ujson", 0.001032715715118684, 0.0015374938599416056], ["orjson", 0.00036241704699932595, 0.000918797859980259], ["msgpack", 0.0006078476320253685, 0.0012546482899051625], ["msgspec msgpack", 0.00017605937899497804, 0.0005109944079886191], ["msgspec msgpack array-like", 0.00013544270300189964, 0.0004263007240369916], ["msgspec json", 0.0002518398549873382, 0.0005371352119836957], ["msgspec json array-like", 0.00022411236297921277, 0.00042209100601030514]]}
-    var results_valid = [["msgspec", 0.00024952584999846295, 0.0005602700359886513], ["pydantic", 0.018896686400694307, 0.016377520850801373], ["cattrs", 0.002034737430221867, 0.004708789379801601], ["marshmallow", 0.01409857090038713, 0.052351984195411205]]
+    var results_valid = [["msgspec", 0.00021485256099549588, 0.0006725848500063876], ["pydantic", 0.017149360950133995, 0.01645932930005074], ["cattrs", 0.0019598535149998497, 0.004592695699975593], ["mashumaro", 0.0012480893900283262, 0.00303292415002943]]
     buildPlot('#bench-1', results["1"], "Benchmark - 1 Object");
     buildPlot('#bench-1k', results["1k"], "Benchmark - 1000 Objects");
     buildPlot('#bench-1k-validate', results_valid, "Benchmark - 1000 Objects, With Validation");
@@ -448,6 +448,6 @@ msgpack_, and pydantic_ combined. However, the total installed binary size of
 .. _attrs: https://www.attrs.org
 .. _dataclasses: https://docs.python.org/3/library/dataclasses.html
 .. _pydantic: https://pydantic-docs.helpmanual.io/
-.. _marshmallow: https://marshmallow.readthedocs.io/en/stable/index.html
 .. _cattrs: https://catt.rs/en/latest/
+.. _mashumaro: https://github.com/Fatal1ty/mashumaro
 .. _conda-forge: https://conda-forge.org/
