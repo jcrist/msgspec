@@ -74,10 +74,11 @@ setup(
     package_data={"msgspec": ["py.typed", "*.pyi"]},
     ext_modules=ext_modules,
     long_description=(
-        open("README.rst", encoding="utf-8").read()
-        if os.path.exists("README.rst")
+        open("README.md", encoding="utf-8").read()
+        if os.path.exists("README.md")
         else ""
     ),
+    long_description_content_type="text/markdown",
     python_requires=">=3.8",
     zip_safe=False,
 )
