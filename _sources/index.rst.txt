@@ -167,7 +167,7 @@ few:
     :maxdepth: 2
     :caption: Reference
 
-    examples/index.rst
     api.rst
     benchmarks.rst
+    examples/index.rst
     changelog.rst

@@ -3,6 +3,42 @@ Changelog
 
 .. currentmodule:: msgspec
 
+Version 0.13.0 (2023-02-08)
+---------------------------
+
+- Add `to_builtins` function for converting messages composed of any supported
+  type to ones composed of only simple builtin types commonly supported by
+  Python serialization libraries (:pr:`258`).
+- Add `from_builtins` function for converting and validating messages composed
+  of simple builtin types to ones composed of any type msgspec supports
+  (:pr:`266`, :pr:`302`).
+- Add `msgspec.yaml` module for encoding/decoding YAML (:pr:`267`).
+- Add `msgspec.toml` module for encoding/decoding TOML (:pr:`268`).
+- Add `msgspec.structs.replace` function for creating a copy of an existing
+  `Struct` with some changes applied (:pr:`262`).
+- Add `msgspec.structs.asdict` and `msgspec.structs.astuple` functions for
+  converting a struct instance to a `dict` or `tuple` respectively (:pr:`300`).
+- Support arbitrarily nested `typing.NewType`/`typing.Annotated` types
+  (:pr:`272`).
+- Improve error message for invalid keyword arguments passed to
+  ``Struct.__init__`` (:pr:`273`).
+- Support ``default_factory`` configuration for `Struct` fields (:pr:`274`).
+- **BREAKING**: With the exception of empty builtin collections (``[]``,
+  ``{}``, ``set()``, ``bytearray()``), mutable default values in Struct types
+  are no longer deepcopied when used. If a different mutable default value is
+  needed, please configure a ``default_factory`` instead (:pr:`274`).
+- Improve performance of creating Structs with default parameters (:pr:`274`).
+- Support `typing.ClassVar` annotations of `Struct` types (:pr:`281`).
+- Support encoding/decoding `decimal.Decimal` types (:pr:`288`).
+- Support "abstract" type annotations like
+  `collections.abc.MutableMapping`/`typing.MutableMapping` in decoders
+  (:pr:`290`).
+- Support any string-like or int-like type as a ``dict`` key when encoding or
+  decoding JSON (:pr:`292`).
+- Improved performance encoding large collections in JSON and MessagePack
+  encoders (:pr:`294`, :pr:`298`).
+
+
 Version 0.12.0 (2023-01-05)
 ---------------------------
 
@@ -34,7 +70,7 @@ Version 0.11.0 (2022-12-19)
   - Reordering your fields so all required fields are before all optional
     fields
   - Using keyword-only parameters (by passing the ``kw_only=True`` option).
-  
+
   See :ref:`struct-field-ordering` for more information (:pr:`242`).
 - Support encoding/decoding dictionaries with integer keys for JSON (:pr:`243`).
 

@@ -3,7 +3,7 @@
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
     <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
-<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="prev" title="Benchmarks" href="benchmarks.html" />
+<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="prev" title="Parsing pyproject.toml" href="examples/pyproject-toml.html" />
 
     <!-- Generated with Sphinx 5.3.0 and Furo 2022.12.07 -->
         <title>Changelog</title>
@@ -214,6 +214,8 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Reference</span></p>
 <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="api.html">API Docs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="benchmarks.html">Benchmarks</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="examples/index.html">Examples</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="examples/geojson.html">GeoJSON</a></li>
 <li class="toctree-l2"><a class="reference internal" href="examples/asyncio-kv.html">Asyncio TCP Key-Value Server</a></li>
@@ -221,8 +223,6 @@
 <li class="toctree-l2"><a class="reference internal" href="examples/pyproject-toml.html">Parsing <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="api.html">API Docs</a></li>
-<li class="toctree-l1"><a class="reference internal" href="benchmarks.html">Benchmarks</a></li>
 <li class="toctree-l1 current current-page"><a class="current reference internal" href="#">Changelog</a></li>
 </ul>
 
@@ -260,6 +260,42 @@
         <article role="main">
           <section id="changelog">
 <h1>Changelog<a class="headerlink" href="#changelog" title="Permalink to this heading">#</a></h1>
+<section id="version-0-13-0-2023-02-08">
+<h2>Version 0.13.0 (2023-02-08)<a class="headerlink" href="#version-0-13-0-2023-02-08" title="Permalink to this heading">#</a></h2>
+<ul class="simple">
+<li><p>Add <a class="reference internal" href="api.html#msgspec.to_builtins" title="msgspec.to_builtins"><code class="xref py py-obj docutils literal notranslate"><span class="pre">to_builtins</span></code></a> function for converting messages composed of any supported
+type to ones composed of only simple builtin types commonly supported by
+Python serialization libraries (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/258">PR #258</a>).</p></li>
+<li><p>Add <a class="reference internal" href="api.html#msgspec.from_builtins" title="msgspec.from_builtins"><code class="xref py py-obj docutils literal notranslate"><span class="pre">from_builtins</span></code></a> function for converting and validating messages composed
+of simple builtin types to ones composed of any type msgspec supports
+(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/266">PR #266</a>, <a class="reference external" href="https://github.com/jcrist/msgspec/pull/302">PR #302</a>).</p></li>
+<li><p>Add <code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.yaml</span></code> module for encoding/decoding YAML (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/267">PR #267</a>).</p></li>
+<li><p>Add <code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.toml</span></code> module for encoding/decoding TOML (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/268">PR #268</a>).</p></li>
+<li><p>Add <a class="reference internal" href="api.html#msgspec.structs.replace" title="msgspec.structs.replace"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.structs.replace</span></code></a> function for creating a copy of an existing
+<a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code></a> with some changes applied (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/262">PR #262</a>).</p></li>
+<li><p>Add <a class="reference internal" href="api.html#msgspec.structs.asdict" title="msgspec.structs.asdict"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.structs.asdict</span></code></a> and <a class="reference internal" href="api.html#msgspec.structs.astuple" title="msgspec.structs.astuple"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.structs.astuple</span></code></a> functions for
+converting a struct instance to a <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a> or <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tuple</span></code></a> respectively (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/300">PR #300</a>).</p></li>
+<li><p>Support arbitrarily nested <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.NewType" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.NewType</span></code></a>/<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Annotated" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.Annotated</span></code></a> types
+(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/272">PR #272</a>).</p></li>
+<li><p>Improve error message for invalid keyword arguments passed to
+<code class="docutils literal notranslate"><span class="pre">Struct.__init__</span></code> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/273">PR #273</a>).</p></li>
+<li><p>Support <code class="docutils literal notranslate"><span class="pre">default_factory</span></code> configuration for <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code></a> fields (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/274">PR #274</a>).</p></li>
+<li><p><strong>BREAKING</strong>: With the exception of empty builtin collections (<code class="docutils literal notranslate"><span class="pre">[]</span></code>,
+<code class="docutils literal notranslate"><span class="pre">{}</span></code>, <code class="docutils literal notranslate"><span class="pre">set()</span></code>, <code class="docutils literal notranslate"><span class="pre">bytearray()</span></code>), mutable default values in Struct types
+are no longer deepcopied when used. If a different mutable default value is
+needed, please configure a <code class="docutils literal notranslate"><span class="pre">default_factory</span></code> instead (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/274">PR #274</a>).</p></li>
+<li><p>Improve performance of creating Structs with default parameters (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/274">PR #274</a>).</p></li>
+<li><p>Support <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.ClassVar" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.ClassVar</span></code></a> annotations of <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code></a> types (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/281">PR #281</a>).</p></li>
+<li><p>Support encoding/decoding <a class="reference external" href="https://docs.python.org/3/library/decimal.html#decimal.Decimal" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">decimal.Decimal</span></code></a> types (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/288">PR #288</a>).</p></li>
+<li><p>Support “abstract” type annotations like
+<a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.MutableMapping" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collections.abc.MutableMapping</span></code></a>/<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.MutableMapping" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.MutableMapping</span></code></a> in decoders
+(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/290">PR #290</a>).</p></li>
+<li><p>Support any string-like or int-like type as a <code class="docutils literal notranslate"><span class="pre">dict</span></code> key when encoding or
+decoding JSON (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/292">PR #292</a>).</p></li>
+<li><p>Improved performance encoding large collections in JSON and MessagePack
+encoders (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/294">PR #294</a>, <a class="reference external" href="https://github.com/jcrist/msgspec/pull/298">PR #298</a>).</p></li>
+</ul>
+</section>
 <section id="version-0-12-0-2023-01-05">
 <h2>Version 0.12.0 (2023-01-05)<a class="headerlink" href="#version-0-12-0-2023-01-05" title="Permalink to this heading">#</a></h2>
 <ul class="simple">
@@ -531,14 +567,14 @@ faster decoding.</p></li>
         
         <div class="related-pages">
           
-          <a class="prev-page" href="benchmarks.html">
+          <a class="prev-page" href="examples/pyproject-toml.html">
               <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
               <div class="page-info">
                 <div class="context">
                   <span>Previous</span>
                 </div>
                 
-                <div class="title">Benchmarks</div>
+                <div class="title">Parsing <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code></div>
                 
               </div>
             </a>
@@ -578,6 +614,7 @@ faster decoding.</p></li>
           <div class="toc-tree">
             <ul>
 <li><a class="reference internal" href="#">Changelog</a><ul>
+<li><a class="reference internal" href="#version-0-13-0-2023-02-08">Version 0.13.0 (2023-02-08)</a></li>
 <li><a class="reference internal" href="#version-0-12-0-2023-01-05">Version 0.12.0 (2023-01-05)</a></li>
 <li><a class="reference internal" href="#version-0-11-0-2022-12-19">Version 0.11.0 (2022-12-19)</a></li>
 <li><a class="reference internal" href="#version-0-10-1-2022-12-08">Version 0.10.1 (2022-12-08)</a></li>

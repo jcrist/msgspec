@@ -36,7 +36,7 @@ could add support by wrapping the standard library's `json` module as follows:
 
     In [1]: import json
        ...: from typing import Any
-       ...: 
+       ...:
        ...: import msgspec
 
     In [2]: def encode(obj):
@@ -62,7 +62,7 @@ could add support by wrapping the standard library's `json` module as follows:
     In [9]: decode('{"x": "oops", "y": 2}', type=Point)  # Schema mismatches error
     ---------------------------------------------------------------------------
     ValidationError                           Traceback (most recent call last)
-    Cell In[9], line 1                             
+    Cell In[9], line 1
     ----> 1 decode('{"x": "oops", "y": 2}', type=Point)  # Schema mismatches error
 
     Cell In[3], line 2, in decode(msg, type)
@@ -89,15 +89,14 @@ configuration options:
 - ``enc_hook``/``dec_hook``: the standard keyword arguments used for
   :doc:`extending` msgspec to support additional types.
 
-For example, TOML_:
+Taking a look at another protocol - TOML_. This protocol
 
 - Includes native support for `datetime.datetime`, `datetime.date`, and
   `datetime.time` types.
 - Only supports strings for object keys.
 
-For example, if ``msgspec`` didn't already provide support for ``toml``, you
-could add support by wrapping the standard library's `tomllib` module as
-follows:
+If ``msgspec`` didn't already provide support for ``toml``, you could add
+support by wrapping the standard library's `tomllib` module as follows:
 
 .. code-block:: python
 
@@ -116,8 +115,8 @@ follows:
             dec_hook=dec_hook,
         )
 
-For additional examples you might check out msgspec's internal usage of these
-APIs in:
+``msgspec`` uses these APIs to implement ``toml`` and ``yaml`` support,
+wrapping external serialization libraries:
 
 - ``msgspec.toml`` (`code <https://github.com/jcrist/msgspec/blob/main/msgspec/toml.py>`__)
 

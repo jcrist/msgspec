@@ -214,6 +214,8 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Reference</span></p>
 <ul>
+<li class="toctree-l1"><a class="reference internal" href="api.html">API Docs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="benchmarks.html">Benchmarks</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="examples/index.html">Examples</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="examples/geojson.html">GeoJSON</a></li>
 <li class="toctree-l2"><a class="reference internal" href="examples/asyncio-kv.html">Asyncio TCP Key-Value Server</a></li>
@@ -221,8 +223,6 @@
 <li class="toctree-l2"><a class="reference internal" href="examples/pyproject-toml.html">Parsing <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="api.html">API Docs</a></li>
-<li class="toctree-l1"><a class="reference internal" href="benchmarks.html">Benchmarks</a></li>
 <li class="toctree-l1"><a class="reference internal" href="changelog.html">Changelog</a></li>
 </ul>
 
@@ -330,15 +330,14 @@ URL querystrings, where only string values exist.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">enc_hook</span></code>/<code class="docutils literal notranslate"><span class="pre">dec_hook</span></code>: the standard keyword arguments used for
 <a class="reference internal" href="extending.html"><span class="doc">Extending</span></a> msgspec to support additional types.</p></li>
 </ul>
-<p>For example, <a class="reference external" href="https://toml.io">TOML</a>:</p>
+<p>Taking a look at another protocol - <a class="reference external" href="https://toml.io">TOML</a>. This protocol</p>
 <ul class="simple">
 <li><p>Includes native support for <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.datetime" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.datetime</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.date" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.date</span></code></a>, and
 <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.time" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.time</span></code></a> types.</p></li>
 <li><p>Only supports strings for object keys.</p></li>
 </ul>
-<p>For example, if <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> didn’t already provide support for <code class="docutils literal notranslate"><span class="pre">toml</span></code>, you
-could add support by wrapping the standard library’s <a class="reference external" href="https://docs.python.org/3/library/tomllib.html#module-tomllib" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tomllib</span></code></a> module as
-follows:</p>
+<p>If <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> didn’t already provide support for <code class="docutils literal notranslate"><span class="pre">toml</span></code>, you could add
+support by wrapping the standard library’s <a class="reference external" href="https://docs.python.org/3/library/tomllib.html#module-tomllib" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tomllib</span></code></a> module as follows:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">datetime</span>
 <span class="kn">import</span> <span class="nn">tomllib</span>
 <span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Any</span>
@@ -355,8 +354,8 @@ follows:</p>
     <span class="p">)</span>
 </pre></div>
 </div>
-<p>For additional examples you might check out msgspec’s internal usage of these
-APIs in:</p>
+<p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> uses these APIs to implement <code class="docutils literal notranslate"><span class="pre">toml</span></code> and <code class="docutils literal notranslate"><span class="pre">yaml</span></code> support,
+wrapping external serialization libraries:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">msgspec.toml</span></code> (<a class="reference external" href="https://github.com/jcrist/msgspec/blob/main/msgspec/toml.py">code</a>)</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">msgspec.yaml</span></code> (<a class="reference external" href="https://github.com/jcrist/msgspec/blob/main/msgspec/yaml.py">code</a>)</p></li>
