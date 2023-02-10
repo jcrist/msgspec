@@ -15338,7 +15338,6 @@ json_decode_struct_map_inner(
             TypeNode *type = st_type->struct_types[field_index];
             val = json_decode(self, type, &field_path);
             if (val == NULL) goto error;
-            Py_INCREF(val);
             Struct_set_index(out, field_index, val);
         }
         else if (MS_UNLIKELY(field_index == -2)) {

@@ -2095,6 +2095,9 @@ class TestStruct:
         x = dec.decode(msg)
         assert x == Person("harry", "potter", 13, False)
 
+        # one for struct, one for output of getattr, and one for getrefcount
+        assert sys.getrefcount(x.first) == 3
+
         with pytest.raises(
             msgspec.ValidationError, match="Expected `object`, got `int`"
         ):
