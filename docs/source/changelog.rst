@@ -3,6 +3,12 @@ Changelog
 
 .. currentmodule:: msgspec
 
+Version 0.13.1 (2023-02-09)
+---------------------------
+
+- Fix a memory leak in the JSON decoder introduced in 0.13.0, caused by a
+  reference counting bug when decoding into ``Struct`` types (:pr:`312`).
+
 Version 0.13.0 (2023-02-08)
 ---------------------------
 
