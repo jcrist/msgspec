@@ -1,4 +1,5 @@
 import dataclasses
+import datetime
 import gc
 import json
 import random
@@ -14,58 +15,25 @@ from mashumaro.mixins.orjson import DataClassORJSONMixin
 
 import msgspec
 
+# fmt: off
 states = [
-    "AL",
-    "AK",
-    "AZ",
-    "AR",
-    "CA",
-    "CO",
-    "CT",
-    "DE",
-    "FL",
-    "GA",
-    "HI",
-    "ID",
-    "IL",
-    "IN",
-    "IA",
-    "KS",
-    "KY",
-    "LA",
-    "ME",
-    "MD",
-    "MA",
-    "MI",
-    "MN",
-    "MS",
-    "MO",
-    "MT",
-    "NE",
-    "NV",
-    "NH",
-    "NJ",
-    "NM",
-    "NY",
-    "NC",
-    "ND",
-    "OH",
-    "OK",
-    "OR",
-    "PA",
-    "RI",
-    "SC",
-    "SD",
-    "TN",
-    "TX",
-    "UT",
-    "VT",
-    "VA",
-    "WA",
-    "WV",
-    "WI",
-    "WY",
+    "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI", "ID",
+    "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN", "MS",
+    "MO", "MT", "NE", "NV", "NH", "NJ", "NM", "NY", "NC", "ND", "OH", "OK",
+    "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV",
+    "WI", "WY",
 ]
+# fmt: on
+
+UTC = datetime.timezone.utc
+date_1950 = datetime.datetime(1950, 1, 1, tzinfo=UTC)
+date_2018 = datetime.datetime(2018, 1, 1, tzinfo=UTC)
+date_2023 = datetime.datetime(2023, 1, 1, tzinfo=UTC)
+
+
+def randdt(random, min, max):
+    ts = random.randint(min.timestamp(), max.timestamp())
+    return datetime.datetime.fromtimestamp(ts).replace(tzinfo=UTC)
 
 
 def randstr(random, min=None, max=None):
@@ -74,7 +42,7 @@ def randstr(random, min=None, max=None):
     return "".join(random.choices(string.ascii_letters, k=min))
 
 
-def make_person(rand=random):
+def make_user(rand=random):
     n_addresses = rand.choice([0, 1, 1, 2, 2, 3])
     has_phone = rand.choice([True, True, False])
     has_email = rand.choice([True, True, False])
@@ -88,24 +56,30 @@ def make_person(rand=random):
         for _ in range(n_addresses)
     ]
 
+    created = randdt(rand, date_2018, date_2023)
+    updated = randdt(rand, created, date_2023)
+    birthday = randdt(rand, date_1950, date_2023).date()
+
     return {
         "first": randstr(rand, 3, 15),
         "last": randstr(rand, 3, 15),
-        "age": rand.randint(0, 99),
+        "created": created.isoformat(),
+        "updated": updated.isoformat(),
+        "birthday": birthday.isoformat(),
         "addresses": addresses if addresses else None,
         "telephone": randstr(rand, 9) if has_phone else None,
         "email": randstr(rand, 15, 30) if has_email else None,
     }
 
 
-def make_people(n, seed=42):
+def make_users(n, seed=42):
     rand = random.Random(seed)
-    return {"people": [make_person(rand) for _ in range(n)]}
+    return {"users": [make_user(rand) for _ in range(n)]}
 
 
 def bench(dumps, loads, ndata, convert=None, no_gc=False):
     setup = "" if no_gc else "gc.enable()"
-    data = make_people(ndata)
+    data = make_users(ndata)
     if convert:
         data = convert(data)
     gc.collect()
@@ -137,25 +111,27 @@ class AddressStruct(msgspec.Struct, gc=False):
     zip: int
 
 
-class PersonStruct(msgspec.Struct, gc=False):
+class UserStruct(msgspec.Struct, gc=False):
+    created: datetime.datetime
+    updated: datetime.datetime
     first: str
     last: str
-    age: int
+    birthday: datetime.date
     addresses: Optional[List[AddressStruct]] = None
     telephone: Optional[str] = None
     email: Optional[str] = None
 
 
-class PeopleStruct(msgspec.Struct, gc=False):
-    people: List[PersonStruct]
+class UsersStruct(msgspec.Struct, gc=False):
+    users: List[UserStruct]
 
 
 def bench_msgspec(n, no_gc):
     enc = msgspec.json.Encoder()
-    dec = msgspec.json.Decoder(PeopleStruct)
+    dec = msgspec.json.Decoder(UsersStruct)
 
     def convert(data):
-        return msgspec.from_builtins(data, PeopleStruct)
+        return msgspec.from_builtins(data, UsersStruct)
 
     return bench(enc.encode, dec.decode, n, convert, no_gc=no_gc)
 
@@ -181,25 +157,27 @@ class AddressModel(BaseModel):
     zip: int
 
 
-class PersonModel(BaseModel):
+class UserModel(BaseModel):
+    created: datetime.datetime
+    updated: datetime.datetime
     first: str
     last: str
-    age: int
+    birthday: datetime.date
     addresses: Optional[List[AddressModel]] = None
     telephone: Optional[str] = None
     email: Optional[str] = None
 
 
-class PeopleModel(BaseModel):
-    people: List[PersonModel]
+class UsersModel(BaseModel):
+    users: List[UserModel]
 
 
 def bench_pydantic(n, no_gc):
     return bench(
         lambda p: p.json(),
-        PeopleModel.parse_raw,
+        UsersModel.parse_raw,
         n,
-        lambda data: PeopleModel(**data),
+        lambda data: UsersModel(**data),
         no_gc=no_gc,
     )
 
@@ -217,27 +195,33 @@ class AddressAttrs:
 
 
 @attrs.define
-class PersonAttrs:
+class UserAttrs:
+    created: datetime.datetime
+    updated: datetime.datetime
     first: str
     last: str
-    age: int
+    birthday: datetime.date
     addresses: Optional[List[AddressAttrs]] = None
     telephone: Optional[str] = None
     email: Optional[str] = None
 
 
 @attrs.define
-class PeopleAttrs:
-    people: List[PersonAttrs]
+class UsersAttrs:
+    users: List[UserAttrs]
 
 
 def bench_cattrs(n, no_gc):
     converter = cattrs.preconf.orjson.make_converter()
+    converter.register_unstructure_hook(datetime.date, str)
+    converter.register_structure_hook(
+        datetime.date, lambda s, _: datetime.date.fromisoformat(s)
+    )
     return bench(
         converter.dumps,
-        lambda msg: converter.loads(msg, PeopleAttrs),
+        lambda msg: converter.loads(msg, UsersAttrs),
         n,
-        lambda data: converter.structure(data, PeopleAttrs),
+        lambda data: converter.structure(data, UsersAttrs),
         no_gc=no_gc,
     )
 
@@ -255,26 +239,28 @@ class AddressMashumaro(DataClassORJSONMixin):
 
 
 @dataclasses.dataclass
-class PersonMashumaro(DataClassORJSONMixin):
+class UserMashumaro(DataClassORJSONMixin):
+    created: datetime.datetime
+    updated: datetime.datetime
     first: str
     last: str
-    age: int
+    birthday: datetime.date
     addresses: Optional[List[AddressMashumaro]] = None
     telephone: Optional[str] = None
     email: Optional[str] = None
 
 
 @dataclasses.dataclass
-class PeopleMashumaro(DataClassORJSONMixin):
-    people: List[PersonMashumaro]
+class UsersMashumaro(DataClassORJSONMixin):
+    users: List[UserMashumaro]
 
 
 def bench_mashumaro(n, no_gc):
     return bench(
         lambda x: x.to_jsonb(),
-        PeopleMashumaro.from_json,
+        UsersMashumaro.from_json,
         n,
-        PeopleMashumaro.from_dict,
+        UsersMashumaro.from_dict,
         no_gc=no_gc,
     )
 

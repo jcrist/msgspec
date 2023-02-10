@@ -1,3 +1,4 @@
+import datetime
 import gc
 import json
 import random
@@ -11,101 +12,25 @@ import ujson
 
 import msgspec
 
-
-class Address(msgspec.Struct, gc=False):
-    street: str
-    state: str
-    zip: int
-
-
-class Person(msgspec.Struct, gc=False):
-    first: str
-    last: str
-    age: int
-    addresses: Optional[List[Address]] = None
-    telephone: Optional[str] = None
-    email: Optional[str] = None
-
-    @classmethod
-    def from_dict(cls, data):
-        addrs = data.pop("addresses", None)
-        return cls(addresses=[Address(**a) for a in addrs] if addrs else None, **data)
-
-
-class AddressArray(msgspec.Struct, array_like=True, gc=False):
-    street: str
-    state: str
-    zip: int
-
-
-class PersonArray(msgspec.Struct, array_like=True, gc=False):
-    first: str
-    last: str
-    age: int
-    addresses: Optional[List[AddressArray]] = None
-    telephone: Optional[str] = None
-    email: Optional[str] = None
-
-    @classmethod
-    def from_dict(cls, data):
-        addrs = data.pop("addresses", None)
-        return cls(
-            addresses=[AddressArray(**a) for a in addrs] if addrs else None, **data
-        )
-
-
+# fmt: off
 states = [
-    "AL",
-    "AK",
-    "AZ",
-    "AR",
-    "CA",
-    "CO",
-    "CT",
-    "DE",
-    "FL",
-    "GA",
-    "HI",
-    "ID",
-    "IL",
-    "IN",
-    "IA",
-    "KS",
-    "KY",
-    "LA",
-    "ME",
-    "MD",
-    "MA",
-    "MI",
-    "MN",
-    "MS",
-    "MO",
-    "MT",
-    "NE",
-    "NV",
-    "NH",
-    "NJ",
-    "NM",
-    "NY",
-    "NC",
-    "ND",
-    "OH",
-    "OK",
-    "OR",
-    "PA",
-    "RI",
-    "SC",
-    "SD",
-    "TN",
-    "TX",
-    "UT",
-    "VT",
-    "VA",
-    "WA",
-    "WV",
-    "WI",
-    "WY",
+    "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI", "ID",
+    "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN", "MS",
+    "MO", "MT", "NE", "NV", "NH", "NJ", "NM", "NY", "NC", "ND", "OH", "OK",
+    "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV",
+    "WI", "WY",
 ]
+# fmt: on
+
+UTC = datetime.timezone.utc
+date_1950 = datetime.datetime(1950, 1, 1, tzinfo=UTC)
+date_2018 = datetime.datetime(2018, 1, 1, tzinfo=UTC)
+date_2023 = datetime.datetime(2023, 1, 1, tzinfo=UTC)
+
+
+def randdt(random, min, max):
+    ts = random.randint(min.timestamp(), max.timestamp())
+    return datetime.datetime.fromtimestamp(ts).replace(tzinfo=UTC)
 
 
 def randstr(random, min=None, max=None):
@@ -114,7 +39,7 @@ def randstr(random, min=None, max=None):
     return "".join(random.choices(string.ascii_letters, k=min))
 
 
-def make_person(rand=random):
+def make_user(rand=random):
     n_addresses = rand.choice([0, 1, 1, 2, 2, 3])
     has_phone = rand.choice([True, True, False])
     has_email = rand.choice([True, True, False])
@@ -128,34 +53,54 @@ def make_person(rand=random):
         for _ in range(n_addresses)
     ]
 
+    created = randdt(rand, date_2018, date_2023)
+    updated = randdt(rand, created, date_2023)
+    birthday = randdt(rand, date_1950, date_2023).date()
+
     return {
+        "created": created.isoformat(),
+        "updated": updated.isoformat(),
         "first": randstr(rand, 3, 15),
         "last": randstr(rand, 3, 15),
-        "age": rand.randint(0, 99),
+        "birthday": birthday.isoformat(),
         "addresses": addresses if addresses else None,
         "telephone": randstr(rand, 9) if has_phone else None,
         "email": randstr(rand, 15, 30) if has_email else None,
     }
 
 
-def make_people(n, seed=42):
+def make_users(n, seed=42):
     rand = random.Random(seed)
-    if n > 1:
-        return [make_person(rand) for _ in range(n)]
+    if n == 1:
+        user = make_user(rand)
+        user["addresses"] = None
+        return user
     else:
-        person = make_person(rand)
-        person["addresses"] = None
-        return person
+        return [make_user(rand) for _ in range(n)]
 
 
-def bench(dumps, loads, ndata, cls=None, no_gc=False):
+class Address(msgspec.Struct, gc=False):
+    street: str
+    state: str
+    zip: int
+
+
+class User(msgspec.Struct, gc=False):
+    created: str
+    updated: str
+    first: str
+    last: str
+    birthday: str
+    addresses: Optional[List[Address]] = None
+    telephone: Optional[str] = None
+    email: Optional[str] = None
+
+
+def bench(dumps, loads, ndata, schema=None, no_gc=False):
     setup = "" if no_gc else "gc.enable()"
-    data = make_people(ndata)
-    if cls:
-        if isinstance(data, list):
-            data = [cls.from_dict(d) for d in data]
-        else:
-            data = cls.from_dict(data)
+    data = make_users(ndata)
+    if schema:
+        data = msgspec.from_builtins(data, schema)
     gc.collect()
     timer = timeit.Timer(
         "func(data)", setup=setup, globals={"func": dumps, "data": data, "gc": gc}
@@ -175,27 +120,17 @@ def bench(dumps, loads, ndata, cls=None, no_gc=False):
 
 
 def bench_msgspec_msgpack(n, no_gc):
+    schema = User if n == 1 else List[User]
     enc = msgspec.msgpack.Encoder()
-    dec = msgspec.msgpack.Decoder(Person if n == 1 else List[Person])
-    return bench(enc.encode, dec.decode, n, Person, no_gc=no_gc)
-
-
-def bench_msgspec_msgpack_array_like(n, no_gc):
-    enc = msgspec.msgpack.Encoder()
-    dec = msgspec.msgpack.Decoder(PersonArray if n == 1 else List[PersonArray])
-    return bench(enc.encode, dec.decode, n, PersonArray, no_gc=no_gc)
+    dec = msgspec.msgpack.Decoder(schema)
+    return bench(enc.encode, dec.decode, n, schema, no_gc=no_gc)
 
 
 def bench_msgspec_json(n, no_gc):
+    schema = User if n == 1 else List[User]
     enc = msgspec.json.Encoder()
-    dec = msgspec.json.Decoder(Person if n == 1 else List[Person])
-    return bench(enc.encode, dec.decode, n, Person, no_gc=no_gc)
-
-
-def bench_msgspec_json_array_like(n, no_gc):
-    enc = msgspec.json.Encoder()
-    dec = msgspec.json.Decoder(PersonArray if n == 1 else List[PersonArray])
-    return bench(enc.encode, dec.decode, n, PersonArray, no_gc=no_gc)
+    dec = msgspec.json.Decoder(schema)
+    return bench(enc.encode, dec.decode, n, schema, no_gc=no_gc)
 
 
 def bench_msgpack(n, no_gc):
@@ -217,9 +152,7 @@ BENCHMARKS = [
     ("orjson", bench_orjson),
     ("msgpack", bench_msgpack),
     ("msgspec msgpack", bench_msgspec_msgpack),
-    ("msgspec msgpack array-like", bench_msgspec_msgpack_array_like),
     ("msgspec json", bench_msgspec_json),
-    ("msgspec json array-like", bench_msgspec_json_array_like),
 ]
 
 

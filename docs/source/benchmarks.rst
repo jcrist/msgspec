@@ -29,36 +29,33 @@ types):
 
 .. code-block:: python
 
+    import datetime
     import msgspec
-    from typing import List, Optional
 
     class Address(msgspec.Struct):
         street: str
         state: str
         zip: int
 
-    class Person(msgspec.Struct):
+    class User(msgspec.Struct):
+        created: datetime.datetime
+        updated: datetime.datetime
         first: str
         last: str
-        age: int
-        addresses: Optional[List[Address]] = None
-        telephone: Optional[str] = None
-        email: Optional[str] = None
+        birthday: datetime.date
+        addresses: list[AddressStruct] | None = None
+        telephone: str | None = None
+        email: str | None = None
 
 The libraries we're benchmarking are the following:
 
-- ``ujson`` - ujson_ with dict message types
-- ``orjson`` - orjson_ with dict message types
-- ``msgpack`` - msgpack_ with dict message types
-- ``msgspec msgpack`` - msgspec_'s MessagePack encoding, with `msgspec.Struct`
-  message types
-- ``msgspec msgpack array-like`` - msgspec_'s MessagePack encoding, with
-  `msgspec.Struct` message types configured with ``array_like=True``
-- ``msgspec json`` - msgspec_'s JSON encoding, with `msgspec.Struct` message types
-- ``msgspec json array-like`` - msgspec_'s JSON encoding, with `msgspec.Struct`
-  message types configured with ``array_like=True``
+- ``ujson`` (`link <https://github.com/ultrajson/ultrajson>`__)
+- ``orjson`` (`link <https://github.com/ijl/orjson>`__)
+- ``msgpack`` (`link <https://github.com/msgpack/msgpack-python>`__)
+- ``msgspec.msgpack``
+- ``msgspec.json``
 
-Each benchmark creates one or more instances of a ``Person`` message, and
+Each benchmark creates one or more instances of a ``User`` message, and
 serializes it/deserializes it in a loop.
 
 The full benchmark source can be found
@@ -73,20 +70,14 @@ etc...).
 
 .. raw:: html
 
-    <div id="bench-1"></div>
+    <div id="bench-1" style="width:75%"></div>
 
-From the chart above, you can see that ``msgspec msgpack array-like`` is the
-fastest method for both serialization and deserialization. This makes sense;
-with ``array_like=True`` `msgspec.Struct` types don’t serialize the field names
-in each message (things like ``"first"``, ``"last"``, …), only the values,
-leading to smaller messages and higher performance.
-
-The ``msgspec msgpack`` and ``msgspec json`` benchmarks also performed quite
-well, encoding/decoding faster than all other options, even those implementing
-the same serialization protocol. This is partly due to the use of `Struct`
-types here - since all keys are statically known, the msgspec decoders can
-apply a few optimizations not available to other Python libraries that rely on
-`dict` types instead.
+From the chart above, you can see that ``msgspec.msgpack`` and ``msgspec.json``
+performed quite well, encoding/decoding faster than all other options, even
+those implementing the same serialization protocol. This is partly due to the
+use of `Struct` types here - since all keys are statically known, the msgspec
+decoders can apply a few optimizations not available to other Python libraries
+that rely on `dict` types instead.
 
 That said, all of these methods serialize/deserialize pretty quickly relative
 to other python operations, so unless you're counting every microsecond your
@@ -95,13 +86,13 @@ choice here probably doesn't matter that much.
 1000 Objects
 ^^^^^^^^^^^^
 
-Here we serialize a list of 1000 ``Person`` objects. There's a lot more data
+Here we serialize a list of 1000 ``User`` objects. There's a lot more data
 here, so the per-call overhead will no longer dominate, and we're now measuring
 the efficiency of the encoding/decoding.
 
 .. raw:: html
 
-    <div id="bench-1k"></div>
+    <div id="bench-1k" style="width:75%"></div>
 
 
 Benchmark - Schema Validation
@@ -126,12 +117,12 @@ The full benchmark source can be found
 
 .. raw:: html
 
-    <div id="bench-1k-validate"></div>
+    <div id="bench-1k-validate" style="width:75%"></div>
 
 This plot shows the performance benefit of performing type validation during
 message decoding (as done by ``msgspec``) rather than as a secondary step with
 a third-party library like pydantic_. In this benchmark ``msgspec`` is ~5x
-faster than ``mashumaro``, ~8x faster than ``cattrs``, and ~38x faster than
+faster than ``mashumaro``, ~10x faster than ``cattrs``, and ~53x faster than
 ``pydantic``.
 
 Validating after decoding is slower for two reasons:
@@ -389,9 +380,12 @@ msgpack_, and pydantic_ combined. However, the total installed binary size of
             "$schema": "https://vega.github.io/schema/vega-lite/v5.2.0.json",
             "title": title,
             "config": {
-                "view": {"continuousHeight": 250, "stroke": null},
-                "legend": {"title": null},
+                "view": {"stroke": null},
+                "legend": {"title": null, "labelFontSize": 12},
+                "title": {"fontSize": 14, "offset": 10},
+                "axis": {"titleFontSize": 12, "titlePadding": 10}
             },
+            "width": "container",
             "data": {"values": data},
             "transform": [
                 {
@@ -407,32 +401,38 @@ msgpack_, and pydantic_ combined. However, the total installed binary size of
                     "scale": {"scheme": "tableau20"},
                     "sort": columns,
                 },
-                "column": {
+                "row": {
                     "field": "library",
-                    "header": {"labelExpr": "split(datum.label, ' ')", "orient": "bottom"},
-                    "sort": {"field": "time", "op": "sum", "order": "descending"},
+                    "header": {
+                        "labelExpr": "split(datum.label, ' ')",
+                        "orient": "left",
+                        "labelAngle": 0,
+                        "labelAlign": "left",
+                        "labelFontSize": 12
+                    },
+                    "sort": {"field": "time", "op": "sum", "order": "ascending"},
                     "title": null,
                     "type": "nominal",
                 },
                 "tooltip": {"field": "tooltip", "type": "nominal"},
                 "x": {
+                    "axis": {"grid": false, "title": `Time (${time_unit})`},
+                    "field": "time",
+                    "type": "quantitative",
+                },
+                "y": {
                     "axis": {"labels": false, "ticks": false, "title": null},
                     "field": "method",
                     "type": "nominal",
                     "sort": columns,
-                },
-                "y": {
-                    "axis": {"grid": false, "title": `Time (${time_unit})`},
-                    "field": "time",
-                    "type": "quantitative",
                 },
             },
         };
         vegaEmbed(div, spec);
     }
 
-    var results = {"1": [["ujson", 6.717021639924496e-07, 7.829359059687704e-07], ["orjson", 2.631088870111853e-07, 4.62388165993616e-07], ["msgpack", 3.223358949762769e-07, 6.897511919960379e-07], ["msgspec msgpack", 1.1219781800173223e-07, 2.1338467899477108e-07], ["msgspec msgpack array-like", 8.444309020414948e-08, 1.779988644993864e-07], ["msgspec json", 1.4419139400706626e-07, 2.535316209832672e-07], ["msgspec json array-like", 1.1690347650437616e-07, 1.9026524299988523e-07]], "1k": [["ujson", 0.001032715715118684, 0.0015374938599416056], ["orjson", 0.00036241704699932595, 0.000918797859980259], ["msgpack", 0.0006078476320253685, 0.0012546482899051625], ["msgspec msgpack", 0.00017605937899497804, 0.0005109944079886191], ["msgspec msgpack array-like", 0.00013544270300189964, 0.0004263007240369916], ["msgspec json", 0.0002518398549873382, 0.0005371352119836957], ["msgspec json array-like", 0.00022411236297921277, 0.00042209100601030514]]}
-    var results_valid = [["msgspec", 0.00021485256099549588, 0.0006725848500063876], ["pydantic", 0.017149360950133995, 0.01645932930005074], ["cattrs", 0.0019598535149998497, 0.004592695699975593], ["mashumaro", 0.0012480893900283262, 0.00303292415002943]]
+    var results = {"1": [["ujson", 8.84270281996578e-07, 1.0871249899719259e-06], ["orjson", 3.3673289700527675e-07, 6.413737859984394e-07], ["msgpack", 4.28064417996211e-07, 8.480497380078305e-07], ["msgspec msgpack", 1.3747216549745643e-07, 3.069279890041798e-07], ["msgspec json", 1.599605484989297e-07, 3.543731710014981e-07]], "1k": [["ujson", 0.0012730492400078218, 0.0019118277849702282], ["orjson", 0.0004415582520014141, 0.0011026356000002125], ["msgpack", 0.0007283394380065147, 0.0017851269550010328], ["msgspec msgpack", 0.00020273890200041934, 0.0006567235120019176], ["msgspec json", 0.0002548581139999442, 0.000684194738001679]]}
+    var results_valid = [["msgspec", 0.0002760087479982758, 0.0007443322900071508], ["pydantic", 0.019481081699996138, 0.03411734719993546], ["cattrs", 0.004493436680058948, 0.0058110291200864595], ["mashumaro", 0.001625292940007057, 0.00362884624999424]]
     buildPlot('#bench-1', results["1"], "Benchmark - 1 Object");
     buildPlot('#bench-1k', results["1k"], "Benchmark - 1000 Objects");
     buildPlot('#bench-1k-validate', results_valid, "Benchmark - 1000 Objects, With Validation");
