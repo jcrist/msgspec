@@ -108,7 +108,7 @@ encoding/decoding a message with `msgspec` can be
 
 <p align="center">
   <a href="https://jcristharif.com/msgspec/benchmarks.html">
-    <img src="https://raw.githubusercontent.com/jcrist/msgspec/main/docs/source/_static/bench-1.svg">
+    <img src="https://raw.githubusercontent.com/jcrist/msgspec/main/docs/source/_static/bench-validation.svg">
   </a>
 </p>
 
