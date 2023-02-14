@@ -2840,6 +2840,20 @@ class TestRaw:
         assert bytes(r) == b'{"x": 1}'
         assert r.copy() is not r  # actual copy indicates a view
 
+    @pytest.mark.parametrize("wrap", [False, True])
+    def test_decode_raw_from_str(self, wrap):
+        msg = '[{"x": 1}]' if wrap else '{"x": 1}'
+        c = sys.getrefcount(msg)
+        if wrap:
+            [r] = msgspec.json.decode(msg, type=List[msgspec.Raw])
+        else:
+            r = msgspec.json.decode(msg, type=msgspec.Raw)
+        assert bytes(r) == b'{"x": 1}'
+        # Raw holds a ref to the original str
+        assert sys.getrefcount(msg) == c + 1
+        del r
+        assert sys.getrefcount(msg) == c
+
     def test_raw_in_union_works_but_doesnt_change_anything(self):
         class Test(msgspec.Struct):
             x: Union[int, str, msgspec.Raw]
