@@ -1,11 +1,7 @@
-<!-- markdownlint-disable -->
 <p align="center">
-<a href="https://jcristharif.com/msgspec/">
   <img src="docs/source/_static/msgspec-logo-dark.svg#gh-light-mode-only" alt="msgspec" width="35%" height="auto" />
   <img src="docs/source/_static/msgspec-logo-light.svg#gh-dark-mode-only" alt="msgspec" width="35%" height="auto" />
-</a>
 </p>
-<!-- markdownlint-restore -->
 
 <p align="center">
   <a href="https://github.com/jcrist/msgspec/actions/workflows/ci.yml">
