@@ -1,7 +1,15 @@
 <p align="center">
   <a href="https://jcristharif.com/msgspec/">
-    <img src="https://raw.githubusercontent.com/jcrist/msgspec/main/docs/source/_static/msgspec-logo-light.svg#gh-light-mode-only" width="35%" alt="msgspec" />
-    <img src="https://raw.githubusercontent.com/jcrist/msgspec/main/docs/source/_static/msgspec-logo-dark.svg#gh-dark-mode-only" width="35%" alt="msgspec" />
+    <picture>
+      <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/jcrist/msgspec/main/docs/source/_static/msgspec-logo-light.svg">
+      <img alt="msgspec" src="https://raw.githubusercontent.com/jcrist/msgspec/main/docs/source/_static/msgspec-logo-light.svg">
+    </picture>
+  </a>
+  <a href="https://jcristharif.com/msgspec/">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/jcrist/msgspec/main/docs/source/_static/msgspec-logo-dark.svg">
+      <img alt="msgspec" src="https://raw.githubusercontent.com/jcrist/msgspec/main/docs/source/_static/msgspec-logo-dark.svg">
+    </picture>
   </a>
 </p>
 
@@ -66,39 +74,56 @@ MessagePack library. For the greatest benefit though, we recommend using
 **Define** your message schemas using standard Python type annotations.
 
 ```python
->>> import msgspec
+>> > import msgspec
 
->>> class User(msgspec.Struct):
-...     """A new type describing a User"""
-...     name: str
-...     groups: set[str] = set()
-...     email: str | None = None
+>> >
+
+class User(msgspec.Struct):
+    ...
+
+
+"""A new type describing a User"""
+...
+name: str
+...
+groups: set[str] = set()
+...
+email: str | None = None
 ```
 
 **Encode** messages as JSON, or one of the many other supported protocols.
 
 ```python
->>> alice = User("alice", groups={"admin", "engineering"})
+>> > alice = User("alice", groups={"admin", "engineering"})
 
->>> alice
+>> > alice
 User(name='alice', groups={"admin", "engineering"}, email=None)
 
->>> msg = msgspec.json.encode(alice)
+>> > msg = msgspec.json.encode(alice)
 
->>> msg
+>> > msg
 b'{"name":"alice","groups":["admin","engineering"],"email":null}'
 ```
 
 **Decode** messages back into Python objects, with optional schema validation.
 
 ```python
->>> msgspec.json.decode(msg, type=User)
+>> > msgspec.json.decode(msg, type=User)
 User(name='alice', groups={"admin", "engineering"}, email=None)
 
->>> msgspec.json.decode(b'{"name":"bob","groups":[123]}', type=User)
-Traceback (most recent call last):
-  File "<stdin>", line 1, in <module>
-msgspec.ValidationError: Expected `str`, got `int` - at `$.groups[0]`
+>> > msgspec.json.decode(b'{"name":"bob","groups":[123]}', type=User)
+Traceback(most
+recent
+call
+last):
+File
+"<stdin>", line
+1, in < module >
+msgspec.ValidationError: Expected
+`str`, got
+`int` - at
+`$.groups[0]
+`
 ```
 
 `msgspec` is designed to be as performant as possible, while retaining some of
@@ -114,7 +139,6 @@ encoding/decoding a message with `msgspec` can be
 </p>
 
 See [the documentation](https://jcristharif.com/msgspec/) for more information.
-
 
 ## LICENSE
 
