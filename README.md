@@ -1,12 +1,12 @@
 <p align="center">
   <a href="https://jcristharif.com/msgspec/">
     <picture>
-      <source media="(prefers-color-scheme: light)" srcset="docs/source/_static/msgspec-logo-light.svg#gh-light-mode-only">
-      <img alt="msgspec" src="docs/source/_static/msgspec-logo-light.svg#gh-light-mode-only">
+      <source media="(prefers-color-scheme: light)" srcset="docs/source/_static/msgspec-logo-dark.svg#gh-light-mode-only">
+      <img alt="msgspec" src="docs/source/_static/msgspec-logo-dark.svg#gh-light-mode-only">
     </picture>
     <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="docs/source/_static/msgspec-logo-dark.svg#gh-dark-mode-only">
-      <img alt="msgspec" src="docs/source/_static/msgspec-logo-dark.svg#gh-dark-mode-only">
+      <source media="(prefers-color-scheme: dark)" srcset="docs/source/_static/msgspec-logo-dark.svg#gh-light-mode-only">
+      <img alt="msgspec" src="docs/source/_static/msgspec-logo-light.svg#gh-dark-mode-only">
     </picture>
   </a>
 </p>
