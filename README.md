@@ -5,6 +5,13 @@
   </a>
 </p>
 
+<!-- markdownlint-disable -->
+<p align="center">
+  <img src="docs/source/_static/msgspec-logo-dark.svg#gh-light-mode-only" alt="Starlite Logo - Light" width="35%" height="auto" />
+  <img src="docs/source/_static/msgspec-logo-light.svg#gh-dark-mode-only" alt="Starlite Logo - Dark" width="35%" height="auto" />
+</p>
+<!-- markdownlint-restore -->
+
 <p align="center">
   <a href="https://github.com/jcrist/msgspec/actions/workflows/ci.yml">
     <img src="https://github.com/jcrist/msgspec/actions/workflows/ci.yml/badge.svg">
