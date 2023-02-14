@@ -362,6 +362,7 @@ typedef struct {
     PyObject *str__field_defaults;
     PyObject *str___dataclass_fields__;
     PyObject *str___post_init__;
+    PyObject *str___attrs_attrs__;
     PyObject *str___supertype__;
     PyObject *str_int;
     PyObject *str_is_safe;
@@ -10664,6 +10665,9 @@ mpack_encode_uncommon(EncoderState *self, PyTypeObject *type, PyObject *obj)
     else if (PyDict_Contains(type->tp_dict, self->mod->str___dataclass_fields__)) {
         return mpack_encode_object(self, obj);
     }
+    else if (PyDict_Contains(type->tp_dict, self->mod->str___attrs_attrs__)) {
+        return mpack_encode_object(self, obj);
+    }
 
     if (self->enc_hook != NULL) {
         int status = -1;
@@ -11525,6 +11529,9 @@ json_encode_uncommon(EncoderState *self, PyTypeObject *type, PyObject *obj) {
         return json_encode_set(self, obj);
     }
     else if (PyDict_Contains(type->tp_dict, self->mod->str___dataclass_fields__)) {
+        return json_encode_object(self, obj);
+    }
+    else if (PyDict_Contains(type->tp_dict, self->mod->str___attrs_attrs__)) {
         return json_encode_object(self, obj);
     }
 
@@ -17170,6 +17177,9 @@ to_builtins(ToBuiltinsState *self, PyObject *obj, bool is_key) {
     else if (PyDict_Contains(type->tp_dict, self->mod->str___dataclass_fields__)) {
         return to_builtins_object(self, obj);
     }
+    else if (PyDict_Contains(type->tp_dict, self->mod->str___attrs_attrs__)) {
+        return to_builtins_object(self, obj);
+    }
     else if (self->enc_hook != NULL) {
         PyObject *out = NULL;
         PyObject *temp;
@@ -18534,6 +18544,7 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->str__field_defaults);
     Py_CLEAR(st->str___dataclass_fields__);
     Py_CLEAR(st->str___post_init__);
+    Py_CLEAR(st->str___attrs_attrs__);
     Py_CLEAR(st->str___supertype__);
     Py_CLEAR(st->str_int);
     Py_CLEAR(st->str_is_safe);
@@ -18919,6 +18930,7 @@ PyInit__core(void)
     CACHED_STRING(str__field_defaults, "_field_defaults");
     CACHED_STRING(str___dataclass_fields__, "__dataclass_fields__");
     CACHED_STRING(str___post_init__, "__post_init__");
+    CACHED_STRING(str___attrs_attrs__, "__attrs_attrs__");
     CACHED_STRING(str___supertype__, "__supertype__");
     CACHED_STRING(str_int, "int");
     CACHED_STRING(str_is_safe, "is_safe");

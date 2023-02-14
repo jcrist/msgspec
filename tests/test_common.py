@@ -28,6 +28,11 @@ from typing import (
 import pytest
 from utils import temp_module
 
+try:
+    import attrs
+except ImportError:
+    attrs = None
+
 import msgspec
 
 UTC = datetime.timezone.utc
@@ -2051,6 +2056,83 @@ class TestDataclass:
             msgspec.ValidationError, match="Expected `object`, got `array`"
         ):
             dec.decode(msg)
+
+
+@pytest.mark.skipif(attrs is None, reason="attrs not installed")
+class TestAttrs:
+    @pytest.mark.parametrize("slots", [True, False])
+    def test_encode_attrs(self, proto, slots):
+        @attrs.define(slots=slots)
+        class Test:
+            x: int
+            y: int
+
+        x = Test(1, 2)
+        res = proto.encode(x)
+        sol = proto.encode({"x": 1, "y": 2})
+        assert res == sol
+
+    @pytest.mark.parametrize("slots", [True, False])
+    def test_encode_attrs_missing_fields(self, proto, slots):
+        @attrs.define(slots=slots)
+        class Test:
+            x: int
+            y: int
+            z: int
+
+        x = Test(1, 2, 3)
+        sol = {"x": 1, "y": 2, "z": 3}
+        for key in "xyz":
+            delattr(x, key)
+            del sol[key]
+            res = proto.decode(proto.encode(x))
+            assert res == sol
+
+    @pytest.mark.parametrize("slots_base", [True, False])
+    @pytest.mark.parametrize("slots", [True, False])
+    def test_encode_attrs_subclasses(self, proto, slots_base, slots):
+        @attrs.define(slots=slots_base)
+        class Base:
+            x: int
+            y: int
+
+        @attrs.define(slots=slots)
+        class Test(Base):
+            y: int
+            z: int
+
+        x = Test(1, 2, 3)
+        res = proto.decode(proto.encode(x))
+        assert res == {"x": 1, "y": 2, "z": 3}
+
+        # Missing attribute ignored
+        del x.y
+        res = proto.decode(proto.encode(x))
+        assert res == {"x": 1, "z": 3}
+
+    def test_encode_attrs_weakref_slot(self, proto):
+        @attrs.define(slots=True, weakref_slot=True)
+        class Test:
+            x: int
+            y: int
+
+        x = Test(1, 2)
+        ref = weakref.ref(x)  # noqa
+        res = proto.decode(proto.encode(x))
+        assert res == {"x": 1, "y": 2}
+
+    @pytest.mark.parametrize("slots", [True, False])
+    def test_encode_attrs_skip_leading_underscore(self, proto, slots):
+        @attrs.define(slots=slots)
+        class Test:
+            x: int
+            y: int
+            _z: int
+
+        x = Test(1, 2, 3)
+        res = proto.encode(x)
+        sol = proto.encode({"x": 1, "y": 2})
+        assert res == sol
 
 
 class TestDate:
