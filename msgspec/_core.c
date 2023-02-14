@@ -102,15 +102,20 @@ ms_get_buffer(PyObject *obj, Py_buffer *view) {
     if (MS_UNLIKELY(PyUnicode_CheckExact(obj))) {
         view->buf = (void *)unicode_str_and_size(obj, &(view->len));
         if (view->buf == NULL) return -1;
+        Py_INCREF(obj);
+        view->obj = obj;
         return 0;
     }
     return PyObject_GetBuffer(obj, view, PyBUF_CONTIG_RO);
 }
 
 static void
-ms_release_buffer(PyObject *obj, Py_buffer *view) {
-    if (MS_LIKELY(!PyUnicode_CheckExact(obj))) {
+ms_release_buffer(Py_buffer *view) {
+    if (MS_LIKELY(!PyUnicode_CheckExact(view->obj))) {
         PyBuffer_Release(view);
+    }
+    else {
+        Py_CLEAR(view->obj);
     }
 }
 
@@ -1138,7 +1143,7 @@ Raw_dealloc(Raw *self)
             buffer.obj = self->base;
             buffer.len = self->len;
             buffer.buf = self->buf;
-            PyBuffer_Release(&buffer);
+            ms_release_buffer(&buffer);
         }
     }
     Py_TYPE(self)->tp_free((PyObject *)self);
@@ -1150,7 +1155,7 @@ Raw_FromView(PyObject *buffer_obj, char *data, Py_ssize_t len) {
     if (out == NULL) return NULL;
 
     Py_buffer buffer;
-    if (PyObject_GetBuffer(buffer_obj, &buffer, PyBUF_CONTIG_RO) < 0) {
+    if (ms_get_buffer(buffer_obj, &buffer) < 0) {
         Py_DECREF(out);
         return NULL;
     }
@@ -16284,7 +16289,7 @@ msgspec_json_format(PyObject *self, PyObject *args, PyObject *kwargs)
             }
         }
 
-        ms_release_buffer(buf, &buffer);
+        ms_release_buffer(&buffer);
     }
 
     return out;
@@ -16331,7 +16336,7 @@ JSONDecoder_decode(JSONDecoder *self, PyObject *const *args, Py_ssize_t nargs)
             Py_CLEAR(res);
         }
 
-        ms_release_buffer(args[0], &buffer);
+        ms_release_buffer(&buffer);
 
         self->state.buffer_obj = NULL;
         self->state.input_start = NULL;
@@ -16483,7 +16488,7 @@ msgspec_json_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyO
             Py_CLEAR(res);
         }
 
-        ms_release_buffer(buf, &buffer);
+        ms_release_buffer(&buffer);
     }
 
     PyMem_Free(state.scratch);
