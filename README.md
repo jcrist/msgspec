@@ -1,6 +1,7 @@
 <p align="center">
   <a href="https://jcristharif.com/msgspec/">
-    <img src="https://raw.githubusercontent.com/jcrist/msgspec/main/docs/source/_static/msgspec-logo-light.svg" width="35%" alt="msgspec" />
+    <img src="https://raw.githubusercontent.com/jcrist/msgspec/main/docs/source/_static/msgspec-logo-light.svg#gh-light-mode-only" width="35%" alt="msgspec" />
+    <img src="https://raw.githubusercontent.com/jcrist/msgspec/main/docs/source/_static/msgspec-logo-dark.svg#gh-dark-mode-only" width="35%" alt="msgspec" />
   </a>
 </p>
 
