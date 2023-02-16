@@ -93,36 +93,74 @@ def get_typeddict_hints(obj):
 
 
 def get_dataclass_info(cls):
-    from dataclasses import _FIELD, _FIELD_INITVAR, MISSING
-
     required = []
     optional = []
     defaults = []
     hints = None
 
-    for field in cls.__dataclass_fields__.values():
-        if field._field_type is not _FIELD:
-            if field._field_type is _FIELD_INITVAR:
-                raise TypeError("dataclasses with `InitVar` fields are not supported")
-            continue
-        name = field.name
-        typ = field.type
-        if type(typ) is str:
-            if hints is None:
-                hints = get_type_hints(cls)
-            typ = hints[name]
-        if field.default is not MISSING:
-            defaults.append(field.default)
-            optional.append((name, typ, False))
-        elif field.default_factory is not MISSING:
-            defaults.append(field.default_factory)
-            optional.append((name, typ, True))
-        else:
-            required.append((name, typ, False))
+    if hasattr(cls, "__dataclass_fields__"):
+        from dataclasses import _FIELD, _FIELD_INITVAR, MISSING
 
-    required.extend(optional)
+        for field in cls.__dataclass_fields__.values():
+            if field._field_type is not _FIELD:
+                if field._field_type is _FIELD_INITVAR:
+                    raise TypeError(
+                        "dataclasses with `InitVar` fields are not supported"
+                    )
+                continue
+            name = field.name
+            typ = field.type
+            if type(typ) is str:
+                if hints is None:
+                    hints = get_type_hints(cls)
+                typ = hints[name]
+            if field.default is not MISSING:
+                defaults.append(field.default)
+                optional.append((name, typ, False))
+            elif field.default_factory is not MISSING:
+                defaults.append(field.default_factory)
+                optional.append((name, typ, True))
+            else:
+                required.append((name, typ, False))
 
-    return tuple(required), tuple(defaults), hasattr(cls, "__post_init__")
+        required.extend(optional)
+
+        pre_init = None
+        post_init = getattr(cls, "__post_init__", None)
+    else:
+        from attrs import NOTHING, Factory
+
+        for field in cls.__attrs_attrs__:
+            name = field.name
+            typ = field.type
+            default = field.default
+            if type(typ) is str:
+                if hints is None:
+                    hints = get_type_hints(cls)
+                typ = hints[name]
+            if default is not NOTHING:
+                if isinstance(default, Factory):
+                    if default.takes_self:
+                        raise NotImplementedError(
+                            "Support for default factories with `takes_self=True` "
+                            "is not implemented. "
+                            "File a GitHub issue if you need "
+                            "this feature!"
+                        )
+                    defaults.append(default.factory)
+                    optional.append((name, typ, True))
+                else:
+                    defaults.append(default)
+                    optional.append((name, typ, False))
+            else:
+                required.append((name, typ, False))
+
+        required.extend(optional)
+
+        pre_init = getattr(cls, "__attrs_pre_init__", None)
+        post_init = getattr(cls, "__attrs_post_init__", None)
+
+    return tuple(required), tuple(defaults), pre_init, post_init
 
 
 def rebuild(cls, kwargs):

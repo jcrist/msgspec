@@ -361,7 +361,6 @@ typedef struct {
     PyObject *str__fields;
     PyObject *str__field_defaults;
     PyObject *str___dataclass_fields__;
-    PyObject *str___post_init__;
     PyObject *str___attrs_attrs__;
     PyObject *str___supertype__;
     PyObject *str_int;
@@ -2293,12 +2292,13 @@ typedef struct {
     TypeNode *type;
 } DataclassField;
 
-typedef struct DataclassInfo {
+typedef struct {
     PyObject_VAR_HEAD
     bool json_compatible;
     bool traversing;
-    bool has_post_init;
     PyObject *class;
+    PyObject *pre_init;
+    PyObject *post_init;
     PyObject *defaults;
     DataclassField fields[];
 } DataclassInfo;
@@ -3618,7 +3618,7 @@ typenode_collect_typeddict(TypeNodeCollectState *state, PyObject *obj) {
 static int
 typenode_collect_dataclass(TypeNodeCollectState *state, PyObject *obj) {
     if (state->dataclass_obj != NULL) {
-        return typenode_collect_err_unique(state, "dataclass");
+        return typenode_collect_err_unique(state, "dataclass or attrs");
     }
     state->types |= MS_TYPE_DATACLASS;
     Py_INCREF(obj);
@@ -4341,6 +4341,10 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
     }
     else if (PyType_Check(t)
         && PyObject_HasAttr(t, state->mod->str___dataclass_fields__)) {
+        out = typenode_collect_dataclass(state, t);
+    }
+    else if (PyType_Check(t)
+        && PyObject_HasAttr(t, state->mod->str___attrs_attrs__)) {
         out = typenode_collect_dataclass(state, t);
     }
     else {
@@ -7531,7 +7535,7 @@ static PyTypeObject TypedDictInfo_Type = {
 
 static PyObject *
 DataclassInfo_Convert(PyObject *obj, bool err_not_json, bool *json_compatible) {
-    PyObject *fields = NULL, *field_defaults = NULL;
+    PyObject *fields = NULL, *field_defaults = NULL, *pre_init = NULL, *post_init = NULL;
     DataclassInfo *info = NULL;
     MsgspecState *mod = msgspec_get_global_state();
     bool cache_set = false;
@@ -7577,7 +7581,10 @@ DataclassInfo_Convert(PyObject *obj, bool err_not_json, bool *json_compatible) {
     Py_INCREF(fields);
     field_defaults = PyTuple_GET_ITEM(temp, 1);
     Py_INCREF(field_defaults);
-    bool has_post_init = PyObject_IsTrue(PyTuple_GET_ITEM(temp, 2));
+    pre_init = PyTuple_GET_ITEM(temp, 2);
+    Py_INCREF(pre_init);
+    post_init = PyTuple_GET_ITEM(temp, 3);
+    Py_INCREF(post_init);
     Py_DECREF(temp);
 
     if (cached != NULL) {
@@ -7616,7 +7623,14 @@ DataclassInfo_Convert(PyObject *obj, bool err_not_json, bool *json_compatible) {
     info->defaults = field_defaults;
     Py_INCREF(obj);
     info->class = obj;
-    info->has_post_init = has_post_init;
+    if (pre_init == Py_None) {
+        Py_CLEAR(pre_init);
+    }
+    info->pre_init = pre_init;
+    if (post_init == Py_None) {
+        Py_CLEAR(post_init);
+    }
+    info->post_init = post_init;
     info->traversing = true;
 
     /* If not already cached, then cache on Dataclass object _before_
@@ -7669,6 +7683,8 @@ error:
     Py_XDECREF((PyObject *)info);
     Py_XDECREF(fields);
     Py_XDECREF(field_defaults);
+    Py_XDECREF(pre_init);
+    Py_XDECREF(post_init);
     return NULL;
 }
 
@@ -7730,9 +7746,8 @@ DataclassInfo_post_decode(DataclassInfo *self, PyObject *obj, PathNode *path) {
             }
         }
     }
-    if (self->has_post_init) {
-        MsgspecState *mod = msgspec_get_global_state();
-        PyObject *res = CALL_METHOD_NO_ARGS(obj, mod->str___post_init__);
+    if (self->post_init != NULL) {
+        PyObject *res = CALL_ONE_ARG(self->post_init, obj);
         if (res == NULL) return -1;
         Py_DECREF(res);
     }
@@ -7751,6 +7766,8 @@ DataclassInfo_traverse(DataclassInfo *self, visitproc visit, void *arg)
     }
     Py_VISIT(self->defaults);
     Py_VISIT(self->class);
+    Py_VISIT(self->pre_init);
+    Py_VISIT(self->post_init);
     return 0;
 }
 
@@ -7764,6 +7781,8 @@ DataclassInfo_clear(DataclassInfo *self)
     }
     Py_CLEAR(self->defaults);
     Py_CLEAR(self->class);
+    Py_CLEAR(self->pre_init);
+    Py_CLEAR(self->post_init);
     return 0;
 }
 
@@ -12878,6 +12897,11 @@ mpack_decode_dataclass(
     PyTypeObject *dataclass_type = (PyTypeObject *)(info->class);
     PyObject *out = dataclass_type->tp_alloc(dataclass_type, 0);
     if (out == NULL) goto error;
+    if (info->pre_init != NULL) {
+        PyObject *res = CALL_ONE_ARG(info->pre_init, out);
+        if (res == NULL) goto error;
+        Py_DECREF(res);
+    }
 
     Py_ssize_t pos = 0;
     for (Py_ssize_t i = 0; i < size; i++) {
@@ -15437,6 +15461,11 @@ json_decode_dataclass(
     PyTypeObject *dataclass_type = (PyTypeObject *)(info->class);
     out = dataclass_type->tp_alloc(dataclass_type, 0);
     if (out == NULL) goto error;
+    if (info->pre_init != NULL) {
+        PyObject *res = CALL_ONE_ARG(info->pre_init, out);
+        if (res == NULL) goto error;
+        Py_DECREF(res);
+    }
 
     self->input_pos++; /* Skip '{' */
 
@@ -18219,6 +18248,11 @@ from_builtins_dataclass(
     PyTypeObject *dataclass_type = (PyTypeObject *)(info->class);
     PyObject *out = dataclass_type->tp_alloc(dataclass_type, 0);
     if (out == NULL) goto error;
+    if (info->pre_init != NULL) {
+        PyObject *res = CALL_ONE_ARG(info->pre_init, out);
+        if (res == NULL) goto error;
+        Py_DECREF(res);
+    }
 
     Py_ssize_t pos = 0, pos_obj = 0;
     PyObject *key_obj = NULL, *val_obj = NULL;
@@ -18543,7 +18577,6 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->str__fields);
     Py_CLEAR(st->str__field_defaults);
     Py_CLEAR(st->str___dataclass_fields__);
-    Py_CLEAR(st->str___post_init__);
     Py_CLEAR(st->str___attrs_attrs__);
     Py_CLEAR(st->str___supertype__);
     Py_CLEAR(st->str_int);
@@ -18929,7 +18962,6 @@ PyInit__core(void)
     CACHED_STRING(str__fields, "_fields");
     CACHED_STRING(str__field_defaults, "_field_defaults");
     CACHED_STRING(str___dataclass_fields__, "__dataclass_fields__");
-    CACHED_STRING(str___post_init__, "__post_init__");
     CACHED_STRING(str___attrs_attrs__, "__attrs_attrs__");
     CACHED_STRING(str___supertype__, "__supertype__");
     CACHED_STRING(str_int, "int");
