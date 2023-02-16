@@ -416,6 +416,18 @@ class TestToBuiltins:
         with pytest.raises(TypeError, match="Encoding objects of type Bad"):
             to_builtins(msg)
 
+    @pytest.mark.parametrize("slots", [True, False])
+    def test_attrs(self, slots):
+        attrs = pytest.importorskip("attrs")
+
+        @attrs.define(slots=slots)
+        class Ex:
+            x: int
+            y: FruitInt
+
+        msg = Ex(1, FruitInt.APPLE)
+        assert to_builtins(msg) == {"x": 1, "y": -1}
+
     def test_custom(self):
         with pytest.raises(TypeError, match="Encoding objects of type Bad"):
             to_builtins(Bad())

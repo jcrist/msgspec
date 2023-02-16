@@ -41,6 +41,11 @@ except ImportError:
     except ImportError:
         TypedDict = None
 
+try:
+    import attrs
+except ImportError:
+    attrs = None
+
 PY310 = sys.version_info[:2] >= (3, 10)
 PY311 = sys.version_info[:2] >= (3, 11)
 
@@ -995,6 +1000,112 @@ class TestDataclass:
 
         with pytest.raises(ValidationError, match="Expected `object`, got `array`"):
             from_builtins([], Example)
+
+
+@pytest.mark.skipif(attrs is None, reason="attrs is not installed")
+class TestAttrs:
+    @pytest.mark.parametrize("slots", [False, True])
+    def test_attrs(self, slots):
+        @attrs.define(slots=slots)
+        class Example:
+            a: int
+            b: int
+            c: int
+
+        msg = Example(1, 2, 3)
+        res = roundtrip(msg, Example)
+        assert res == msg
+
+        # Extra fields ignored
+        res = roundtrip(
+            {"x": -1, "a": 1, "y": -2, "b": 2, "z": -3, "c": 3, "": -4}, Example
+        )
+        assert res == msg
+
+        # Missing fields error
+        with pytest.raises(ValidationError, match="missing required field `b`"):
+            roundtrip({"a": 1}, Example)
+
+        # Incorrect field types error
+        with pytest.raises(
+            ValidationError, match=r"Expected `int`, got `str` - at `\$.a`"
+        ):
+            roundtrip({"a": "bad"}, Example)
+
+        # Non-str keys error
+        with pytest.raises(ValidationError, match=r"Expected `str` - at `key` in `\$`"):
+            from_builtins({"a": 1, 1: 2}, Example)
+
+    @pytest.mark.parametrize("slots", [False, True])
+    def test_attrs_defaults(self, slots):
+        @attrs.define(slots=slots)
+        class Example:
+            a: int
+            b: int
+            c: int = -3
+            d: int = -4
+            e: int = attrs.field(factory=lambda: -1000)
+
+        for args in [(1, 2), (1, 2, 3), (1, 2, 3, 4), (1, 2, 3, 4, 5)]:
+            msg = Example(*args)
+            res = roundtrip(msg, Example)
+            assert res == msg
+
+        # Missing fields error
+        with pytest.raises(ValidationError, match="missing required field `a`"):
+            roundtrip({"c": 1, "d": 2, "e": 3}, Example)
+
+    def test_attrs_pre_init(self):
+        called = False
+
+        @attrs.define
+        class Example:
+            a: int
+
+            def __attrs_pre_init__(self):
+                nonlocal called
+                called = True
+
+        res = roundtrip({"a": 1}, Example)
+        assert res.a == 1
+        assert called
+
+    def test_attrs_pre_init_errors(self):
+        @attrs.define
+        class Example:
+            a: int
+
+            def __attrs_pre_init__(self):
+                raise ValueError("Oh no!")
+
+        with pytest.raises(ValueError, match="Oh no!"):
+            roundtrip({"a": 1}, Example)
+
+    def test_attrs_post_init(self):
+        called = False
+
+        @attrs.define
+        class Example:
+            a: int
+
+            def __attrs_post_init__(self):
+                nonlocal called
+                called = True
+
+        res = roundtrip({"a": 1}, Example)
+        assert res.a == 1
+        assert called
+
+    def test_attrs_post_init_errors(self):
+        @attrs.define
+        class Example:
+            a: int
+
+            def __attrs_post_init__(self):
+                raise ValueError("Oh no!")
+
+        with pytest.raises(ValueError, match="Oh no!"):
+            roundtrip({"a": 1}, Example)
 
 
 class TestStruct:

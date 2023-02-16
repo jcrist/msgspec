@@ -2060,6 +2060,16 @@ class TestDataclass:
 
 @pytest.mark.skipif(attrs is None, reason="attrs not installed")
 class TestAttrs:
+    def test_factory_takes_self_not_implemented(self, proto):
+        """This feature is doable, but not yet implemented"""
+
+        @attrs.define
+        class Test:
+            x: int = attrs.Factory(lambda self: 0, takes_self=True)
+
+        with pytest.raises(NotImplementedError):
+            proto.Decoder(Test)
+
     @pytest.mark.parametrize("slots", [True, False])
     def test_encode_attrs(self, proto, slots):
         @attrs.define(slots=slots)
@@ -2133,6 +2143,131 @@ class TestAttrs:
         res = proto.encode(x)
         sol = proto.encode({"x": 1, "y": 2})
         assert res == sol
+
+    @pytest.mark.parametrize("slots", [False, True])
+    def test_decode_attrs(self, proto, slots):
+        @attrs.define(slots=slots)
+        class Example:
+            a: int
+            b: int
+            c: int
+
+        dec = proto.Decoder(Example)
+        msg = Example(1, 2, 3)
+        res = dec.decode(proto.encode(msg))
+        assert res == msg
+
+        # Extra fields ignored
+        res = dec.decode(
+            proto.encode({"x": -1, "a": 1, "y": -2, "b": 2, "z": -3, "c": 3, "": -4})
+        )
+        assert res == msg
+
+        # Missing fields error
+        with pytest.raises(msgspec.ValidationError, match="missing required field `b`"):
+            dec.decode(proto.encode({"a": 1}))
+
+        # Incorrect field types error
+        with pytest.raises(
+            msgspec.ValidationError, match=r"Expected `int`, got `str` - at `\$.a`"
+        ):
+            dec.decode(proto.encode({"a": "bad"}))
+
+    @pytest.mark.parametrize("slots", [False, True])
+    def test_decode_attrs_defaults(self, proto, slots):
+        @attrs.define(slots=slots)
+        class Example:
+            a: int
+            b: int
+            c: int = -3
+            d: int = -4
+            e: int = attrs.field(factory=lambda: -1000)
+
+        dec = proto.Decoder(Example)
+        for args in [(1, 2), (1, 2, 3), (1, 2, 3, 4), (1, 2, 3, 4, 5)]:
+            msg = Example(*args)
+            res = dec.decode(proto.encode(msg))
+            assert res == msg
+
+        # Missing fields error
+        with pytest.raises(msgspec.ValidationError, match="missing required field `a`"):
+            dec.decode(proto.encode({"c": 1, "d": 2, "e": 3}))
+
+    def test_decode_attrs_default_factory_errors(self, proto):
+        def bad():
+            raise ValueError("Oh no!")
+
+        @attrs.define
+        class Example:
+            a: int = attrs.field(factory=bad)
+
+        with pytest.raises(ValueError, match="Oh no!"):
+            proto.decode(proto.encode({}), type=Example)
+
+    def test_decode_attrs_post_init(self, proto):
+        called = False
+
+        @attrs.define
+        class Example:
+            a: int
+
+            def __attrs_post_init__(self):
+                nonlocal called
+                called = True
+
+        res = proto.decode(proto.encode({"a": 1}), type=Example)
+        assert res.a == 1
+        assert called
+
+    def test_decode_attrs_post_init_errors(self, proto):
+        @attrs.define
+        class Example:
+            a: int
+
+            def __attrs_post_init__(self):
+                raise ValueError("Oh no!")
+
+        with pytest.raises(ValueError, match="Oh no!"):
+            proto.decode(proto.encode({"a": 1}), type=Example)
+
+    def test_decode_attrs_pre_init(self, proto):
+        called = False
+
+        @attrs.define
+        class Example:
+            a: int
+
+            def __attrs_pre_init__(self):
+                nonlocal called
+                called = True
+
+        res = proto.decode(proto.encode({"a": 1}), type=Example)
+        assert res.a == 1
+        assert called
+
+    def test_decode_attrs_pre_init_errors(self, proto):
+        @attrs.define
+        class Example:
+            a: int
+
+            def __attrs_pre_init__(self):
+                raise ValueError("Oh no!")
+
+        with pytest.raises(ValueError, match="Oh no!"):
+            proto.decode(proto.encode({"a": 1}), type=Example)
+
+    def test_decode_attrs_not_object(self, proto):
+        @attrs.define
+        class Example:
+            a: int
+            b: int
+
+        dec = proto.Decoder(Example)
+        msg = proto.encode([])
+        with pytest.raises(
+            msgspec.ValidationError, match="Expected `object`, got `array`"
+        ):
+            dec.decode(msg)
 
 
 class TestDate:
