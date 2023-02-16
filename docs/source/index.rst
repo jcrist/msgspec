@@ -115,7 +115,7 @@ few:
         .. image:: _static/nautilus-trader.png
 
     .. grid-item-card:: Starlite
-        :link: https://starlite-api.github.io/starlite/latest/
+        :link: https://starliteproject.dev/
 
         .. image:: _static/starlite.png
 
