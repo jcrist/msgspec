@@ -1055,6 +1055,16 @@ class TestAttrs:
         with pytest.raises(ValidationError, match="missing required field `a`"):
             roundtrip({"c": 1, "d": 2, "e": 3}, Example)
 
+    def test_attrs_frozen(self):
+        @attrs.define(frozen=True)
+        class Example:
+            x: int
+            y: int
+
+        msg = Example(1, 2)
+        res = roundtrip(msg, Example)
+        assert res == msg
+
     def test_attrs_pre_init(self):
         called = False
 

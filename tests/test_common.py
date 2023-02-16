@@ -2018,6 +2018,16 @@ class TestDataclass:
         with pytest.raises(ValueError, match="Oh no!"):
             proto.decode(proto.encode({}), type=Example)
 
+    def test_decode_dataclass_frozen(self, proto):
+        @dataclass(frozen=True)
+        class Point:
+            x: int
+            y: int
+
+        msg = proto.encode(Point(1, 2))
+        res = proto.decode(msg, type=Point)
+        assert res == Point(1, 2)
+
     def test_decode_dataclass_post_init(self, proto):
         called = False
 
@@ -2203,6 +2213,16 @@ class TestAttrs:
 
         with pytest.raises(ValueError, match="Oh no!"):
             proto.decode(proto.encode({}), type=Example)
+
+    def test_decode_attrs_frozen(self, proto):
+        @attrs.define(frozen=True)
+        class Example:
+            x: int
+            y: int
+
+        msg = Example(1, 2)
+        res = proto.decode(proto.encode(msg), type=Example)
+        assert res == Example(1, 2)
 
     def test_decode_attrs_post_init(self, proto):
         called = False
