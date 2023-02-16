@@ -2329,6 +2329,7 @@ typedef struct {
     int8_t frozen;
     int8_t order;
     int8_t eq;
+    int8_t repr_omit_defaults;
     int8_t array_like;
     int8_t gc;
     int8_t omit_defaults;
@@ -4983,6 +4984,7 @@ typedef struct {
     int frozen;
     int eq;
     int order;
+    int repr_omit_defaults;
     int array_like;
     int gc;
     int weakref;
@@ -5048,6 +5050,9 @@ structmeta_collect_base(StructMetaInfo *info, PyObject *base) {
     info->array_like = STRUCT_MERGE_OPTIONS(info->array_like, st_type->array_like);
     info->gc = STRUCT_MERGE_OPTIONS(info->gc, st_type->gc);
     info->omit_defaults = STRUCT_MERGE_OPTIONS(info->omit_defaults, st_type->omit_defaults);
+    info->repr_omit_defaults = STRUCT_MERGE_OPTIONS(
+        info->repr_omit_defaults, st_type->repr_omit_defaults
+    );
     info->forbid_unknown_fields = STRUCT_MERGE_OPTIONS(
         info->forbid_unknown_fields, st_type->forbid_unknown_fields
     );
@@ -5554,7 +5559,7 @@ StructMeta_new_inner(
     PyObject *arg_tag_field, PyObject *arg_tag, PyObject *arg_rename,
     int arg_omit_defaults, int arg_forbid_unknown_fields,
     int arg_frozen, int arg_eq, int arg_order, bool arg_kw_only,
-    int arg_array_like, int arg_gc, int arg_weakref
+    int arg_repr_omit_defaults, int arg_array_like, int arg_gc, int arg_weakref
 ) {
     StructMetaObject *cls = NULL;
     MsgspecState *mod = msgspec_get_global_state();
@@ -5587,6 +5592,7 @@ StructMeta_new_inner(
         .frozen = -1,
         .eq = -1,
         .order = -1,
+        .repr_omit_defaults = -1,
         .array_like = -1,
         .gc = -1,
         .weakref = arg_weakref,
@@ -5623,6 +5629,7 @@ StructMeta_new_inner(
     info.frozen = STRUCT_MERGE_OPTIONS(info.frozen, arg_frozen);
     info.eq = STRUCT_MERGE_OPTIONS(info.eq, arg_eq);
     info.order = STRUCT_MERGE_OPTIONS(info.order, arg_order);
+    info.repr_omit_defaults = STRUCT_MERGE_OPTIONS(info.repr_omit_defaults, arg_repr_omit_defaults);
     info.array_like = STRUCT_MERGE_OPTIONS(info.array_like, arg_array_like);
     info.gc = STRUCT_MERGE_OPTIONS(info.gc, arg_gc);
     info.omit_defaults = STRUCT_MERGE_OPTIONS(info.omit_defaults, arg_omit_defaults);
@@ -5698,6 +5705,7 @@ StructMeta_new_inner(
     cls->frozen = info.frozen;
     cls->eq = info.eq;
     cls->order = info.order;
+    cls->repr_omit_defaults = info.repr_omit_defaults;
     cls->array_like = info.array_like;
     cls->gc = info.gc;
     cls->omit_defaults = info.omit_defaults;
@@ -5736,27 +5744,27 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
     PyObject *name = NULL, *bases = NULL, *namespace = NULL;
     PyObject *arg_tag_field = NULL, *arg_tag = NULL, *arg_rename = NULL;
     int arg_omit_defaults = -1, arg_forbid_unknown_fields = -1;
-    int arg_frozen = -1, arg_eq = -1, arg_order = -1;
+    int arg_frozen = -1, arg_eq = -1, arg_order = -1, arg_repr_omit_defaults = -1;
     int arg_array_like = -1, arg_gc = -1, arg_weakref = -1;
-    bool arg_kw_only = false;
+    int arg_kw_only = 0;
 
     static char *kwlist[] = {
         "name", "bases", "dict",
         "tag_field", "tag", "rename",
         "omit_defaults", "forbid_unknown_fields",
         "frozen", "eq", "order", "kw_only",
-        "array_like", "gc", "weakref",
+        "repr_omit_defaults", "array_like", "gc", "weakref",
         NULL
     };
 
     /* Parse arguments: (name, bases, dict) */
     if (!PyArg_ParseTupleAndKeywords(
-            args, kwargs, "UO!O!|$OOOppppppppp:StructMeta.__new__", kwlist,
+            args, kwargs, "UO!O!|$OOOpppppppppp:StructMeta.__new__", kwlist,
             &name, &PyTuple_Type, &bases, &PyDict_Type, &namespace,
             &arg_tag_field, &arg_tag, &arg_rename,
             &arg_omit_defaults, &arg_forbid_unknown_fields,
             &arg_frozen, &arg_eq, &arg_order, &arg_kw_only,
-            &arg_array_like, &arg_gc, &arg_weakref
+            &arg_repr_omit_defaults, &arg_array_like, &arg_gc, &arg_weakref
         )
     )
         return NULL;
@@ -5766,7 +5774,7 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
         arg_tag_field, arg_tag, arg_rename,
         arg_omit_defaults, arg_forbid_unknown_fields,
         arg_frozen, arg_eq, arg_order, arg_kw_only,
-        arg_array_like, arg_gc, arg_weakref
+        arg_repr_omit_defaults, arg_array_like, arg_gc, arg_weakref
     );
 }
 
@@ -5775,7 +5783,8 @@ PyDoc_STRVAR(msgspec_defstruct__doc__,
 "defstruct(name, fields, *, bases=(), module=None, namespace=None, "
 "tag_field=None, tag=None, rename=None, omit_defaults=False, "
 "forbid_unknown_fields=False, frozen=False, eq=True, order=False, "
-"kw_only=False, array_like=False, gc=True, weakref=False)\n"
+"kw_only=False, repr_omit_defaults=False, array_like=False, gc=True, "
+"weakref=False)\n"
 "--\n"
 "\n"
 "Dynamically define a new Struct class.\n"
@@ -5811,27 +5820,26 @@ msgspec_defstruct(PyObject *self, PyObject *args, PyObject *kwargs)
     PyObject *arg_tag_field = NULL, *arg_tag = NULL, *arg_rename = NULL;
     PyObject *new_bases = NULL, *annotations = NULL, *fields_fast = NULL, *out = NULL;
     int arg_omit_defaults = -1, arg_forbid_unknown_fields = -1;
-    int arg_frozen = -1, arg_eq = -1, arg_order = -1;
-    int arg_array_like = -1, arg_gc = -1, arg_weakref = -1;
-    bool arg_kw_only = false;
+    int arg_frozen = -1, arg_eq = -1, arg_order = -1, arg_kw_only = 0;
+    int arg_repr_omit_defaults = -1, arg_array_like = -1, arg_gc = -1, arg_weakref = -1;
 
     static char *kwlist[] = {
         "name", "fields", "bases", "module", "namespace",
         "tag_field", "tag", "rename",
         "omit_defaults", "forbid_unknown_fields",
         "frozen", "eq", "order", "kw_only",
-        "array_like", "gc", "weakref",
+        "repr_omit_defaults", "array_like", "gc", "weakref",
         NULL
     };
 
     /* Parse arguments: (name, bases, dict) */
     if (!PyArg_ParseTupleAndKeywords(
-            args, kwargs, "UO|$O!UO!OOOppppppppp:defstruct", kwlist,
+            args, kwargs, "UO|$O!UO!OOOpppppppppp:defstruct", kwlist,
             &name, &fields, &PyTuple_Type, &bases, &module, &PyDict_Type, &namespace,
             &arg_tag_field, &arg_tag, &arg_rename,
             &arg_omit_defaults, &arg_forbid_unknown_fields,
             &arg_frozen, &arg_eq, &arg_order, &arg_kw_only,
-            &arg_array_like, &arg_gc, &arg_weakref)
+            &arg_repr_omit_defaults, &arg_array_like, &arg_gc, &arg_weakref)
     )
         return NULL;
 
@@ -5898,7 +5906,7 @@ msgspec_defstruct(PyObject *self, PyObject *args, PyObject *kwargs)
         arg_tag_field, arg_tag, arg_rename,
         arg_omit_defaults, arg_forbid_unknown_fields,
         arg_frozen, arg_eq, arg_order, arg_kw_only,
-        arg_array_like, arg_gc, arg_weakref
+        arg_repr_omit_defaults, arg_array_like, arg_gc, arg_weakref
     );
 
 cleanup:
@@ -6097,6 +6105,13 @@ StructMeta_gc(StructMetaObject *self, void *closure)
 }
 
 static PyObject*
+StructMeta_repr_omit_defaults(StructMetaObject *self, void *closure)
+{
+    if (self->repr_omit_defaults == OPT_TRUE) { Py_RETURN_TRUE; }
+    else { Py_RETURN_FALSE; }
+}
+
+static PyObject*
 StructMeta_omit_defaults(StructMetaObject *self, void *closure)
 {
     if (self->omit_defaults == OPT_TRUE) { Py_RETURN_TRUE; }
@@ -6215,6 +6230,7 @@ static PyGetSetDef StructMeta_getset[] = {
     {"frozen", (getter) StructMeta_frozen, NULL, NULL, NULL},
     {"eq", (getter) StructMeta_eq, NULL, NULL, NULL},
     {"order", (getter) StructMeta_order, NULL, NULL, NULL},
+    {"repr_omit_defaults", (getter) StructMeta_repr_omit_defaults, NULL, NULL, NULL},
     {"array_like", (getter) StructMeta_array_like, NULL, NULL, NULL},
     {"gc", (getter) StructMeta_gc, NULL, NULL, NULL},
     {"omit_defaults", (getter) StructMeta_omit_defaults, NULL, NULL, NULL},
@@ -6457,57 +6473,66 @@ error:
 
 static PyObject *
 Struct_repr(PyObject *self) {
-    int recursive;
-    Py_ssize_t nfields, i;
-    PyObject *parts = NULL, *empty = NULL, *out = NULL;
-    PyObject *part, *fields, *field, *val;
+    StructMetaObject *st_type = (StructMetaObject *)(Py_TYPE(self));
+    bool omit_defaults = st_type->repr_omit_defaults == OPT_TRUE;
+    PyObject *fields = st_type->struct_fields;
+    Py_ssize_t nfields = PyTuple_GET_SIZE(fields);
+    PyObject *defaults = NULL;
+    Py_ssize_t nunchecked = nfields;
 
-    recursive = Py_ReprEnter(self);
+    if (omit_defaults) {
+        defaults = st_type->struct_defaults;
+        nunchecked = nfields - PyTuple_GET_SIZE(defaults);
+    }
+
+    int recursive = Py_ReprEnter(self);
     if (recursive != 0) {
         return (recursive < 0) ? NULL : PyUnicode_FromString("...");  /* cpylint-ignore */
     }
 
-    fields = StructMeta_GET_FIELDS(Py_TYPE(self));
-    nfields = PyTuple_GET_SIZE(fields);
-    if (nfields == 0) {
-        out = PyUnicode_FromFormat("%s()", Py_TYPE(self)->tp_name);
-        goto cleanup;
-    }
+    strbuilder builder = {0};
+    bool first = true;
+    const char *name = Py_TYPE(self)->tp_name;
+    if (!strbuilder_extend(&builder, name, strlen(name))) goto error;
+    if (!strbuilder_extend_literal(&builder, "(")) goto error;
 
-    parts = PyList_New(nfields + 1);
-    if (parts == NULL)
-        goto cleanup;
+    for (Py_ssize_t i = 0; i < nfields; i++) {
+        PyObject *field = PyTuple_GET_ITEM(fields, i);
+        PyObject *val = Struct_get_index(self, i);
+        if (val == NULL) goto error;
 
-    part = PyUnicode_FromFormat("%s(", Py_TYPE(self)->tp_name);
-    if (part == NULL)
-        goto cleanup;
-    PyList_SET_ITEM(parts, 0, part);
-
-    for (i = 0; i < nfields; i++) {
-        field = PyTuple_GET_ITEM(fields, i);
-        val = Struct_get_index(self, i);
-        if (val == NULL)
-            goto cleanup;
-
-        if (i == (nfields - 1)) {
-            part = PyUnicode_FromFormat("%U=%R)", field, val);
-        } else {
-            part = PyUnicode_FromFormat("%U=%R, ", field, val);
+        if (i >= nunchecked) {
+            PyObject *default_val = PyTuple_GET_ITEM(defaults, i - nunchecked);
+            if (is_default(val, default_val)) continue;
         }
-        if (part == NULL)
-            goto cleanup;
-        PyList_SET_ITEM(parts, i + 1, part);
-    }
-    empty = PyUnicode_FromString("");
-    if (empty == NULL)
-        goto cleanup;
-    out = PyUnicode_Join(empty, parts);
 
-cleanup:
-    Py_XDECREF(parts);
-    Py_XDECREF(empty);
+        if (first) {
+            first = false;
+        }
+        else {
+            if (!strbuilder_extend_literal(&builder, ", ")) goto error;
+        }
+
+        if (!strbuilder_extend_unicode(&builder, field)) goto error;
+        if (!strbuilder_extend_literal(&builder, "=")) goto error;
+
+        PyObject *repr = PyObject_Repr(val);
+        if (repr == NULL) goto error;
+        bool ok = strbuilder_extend_unicode(&builder, repr);
+        Py_DECREF(repr);
+        if (!ok) goto error;
+    }
+
+    if (!strbuilder_extend_literal(&builder, ")")) goto error;
+
+    PyObject *out = strbuilder_build(&builder);
     Py_ReprLeave(self);
     return out;
+
+error:
+    strbuilder_reset(&builder);
+    Py_ReprLeave(self);
+    return NULL;
 }
 
 static Py_hash_t
@@ -6890,23 +6915,41 @@ cleanup:
 
 static PyObject *
 Struct_rich_repr(PyObject *self, PyObject *args) {
-    PyObject *fields = StructMeta_GET_FIELDS(Py_TYPE(self));
+    StructMetaObject *st_type = (StructMetaObject *)(Py_TYPE(self));
+    bool omit_defaults = st_type->repr_omit_defaults == OPT_TRUE;
+    PyObject *fields = st_type->struct_fields;
     Py_ssize_t nfields = PyTuple_GET_SIZE(fields);
+    PyObject *defaults = NULL;
+    Py_ssize_t nunchecked = nfields;
 
-    PyObject *out = PyTuple_New(nfields);
-    if (out == NULL) goto error;
+    if (omit_defaults) {
+        defaults = st_type->struct_defaults;
+        nunchecked = nfields - PyTuple_GET_SIZE(defaults);
+    }
+
+    PyObject *out = PyList_New(0);
+    if (out == NULL) return NULL;
 
     for (Py_ssize_t i = 0; i < nfields; i++) {
         PyObject *field = PyTuple_GET_ITEM(fields, i);
         PyObject *val = Struct_get_index(self, i);
+
+        if (i >= nunchecked) {
+            PyObject *default_val = PyTuple_GET_ITEM(defaults, i - nunchecked);
+            if (is_default(val, default_val)) continue;
+        }
+
         if (val == NULL) goto error;
         PyObject *part = PyTuple_Pack(2, field, val);
         if (part == NULL) goto error;
-        PyTuple_SET_ITEM(out, i, part);
+        int status = PyList_Append(out, part);
+        Py_DECREF(part);
+        if (status < 0) goto error;
     }
     return out;
+
 error:
-    Py_XDECREF(out);
+    Py_DECREF(out);
     return NULL;
 }
 
@@ -7021,6 +7064,9 @@ PyDoc_STRVAR(Struct__doc__,
 "   renamed names (missing fields are not renamed). Alternatively, may be a\n"
 "   callable that takes the field name and returns a new name or ``None`` to\n"
 "   not rename that field. Default is ``None`` for no field renaming.\n"
+"repr_omit_defaults: bool, default False\n"
+"   Whether fields should be omitted from the generated repr if the\n"
+"   corresponding value is the default for that field.\n"
 "array_like: bool, default False\n"
 "   If True, this struct type will be treated as an array-like type during\n"
 "   encoding/decoding, rather than a dict-like type (the default). This may\n"

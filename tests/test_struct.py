@@ -560,60 +560,117 @@ class TestSignature:
         assert Test.__signature__ == sig
 
 
-def test_struct_repr():
-    assert repr(Struct()) == "Struct()"
+class TestRepr:
+    def test_repr_base(self):
+        x = Struct()
+        assert repr(x) == "Struct()"
+        assert x.__rich_repr__() == []
 
-    class Test(Struct):
-        pass
+    def test_repr_empty(self):
+        class Test(Struct):
+            pass
 
-    assert repr(Test()) == "Test()"
+        x = Test()
+        assert repr(x) == "Test()"
+        assert x.__rich_repr__() == []
 
-    class Test(Struct):
-        a: int
-        b: str
+    def test_repr_one_field(self):
+        class Test(Struct):
+            a: int
 
-    assert repr(Test(1, "hello")) == "Test(a=1, b='hello')"
+        x = Test(1)
+        assert repr(x) == "Test(a=1)"
+        assert x.__rich_repr__() == [("a", 1)]
 
-    class Test(Struct):
-        a: int
-        b: Any
+    def test_repr_two_fields(self):
+        class Test(Struct):
+            a: int
+            b: str
 
-    t = Test(1, Test(2, None))
-    t.b.b = t
-    assert repr(t) == "Test(a=1, b=Test(a=2, b=...))"
+        x = Test(1, "y")
+        assert repr(x) == "Test(a=1, b='y')"
+        assert x.__rich_repr__() == [("a", 1), ("b", "y")]
 
+    def test_repr_omit_defaults_empty(self):
+        class Test(Struct, repr_omit_defaults=True):
+            pass
 
-def test_struct_repr_errors():
-    msg = "Oh no!"
+        x = Test()
+        assert repr(x) == "Test()"
+        assert x.__rich_repr__() == []
 
-    class Bad:
-        def __repr__(self):
-            raise ValueError(msg)
+    def test_repr_omit_defaults_one_field(self):
+        class Test(Struct, repr_omit_defaults=True):
+            a: int = 0
 
-    class Test(Struct):
-        a: object
-        b: object
+        x = Test(0)
+        assert repr(x) == "Test()"
+        assert x.__rich_repr__() == []
 
-    t = Test(1, Bad())
+        x = Test(1)
+        assert repr(x) == "Test(a=1)"
+        assert x.__rich_repr__() == [("a", 1)]
 
-    with pytest.raises(ValueError, match=msg):
-        repr(t)
+    def test_repr_omit_defaults_multiple_fields(self):
+        class Test(Struct, repr_omit_defaults=True):
+            a: int
+            b: int = 0
+            c: str = ""
 
+        x = Test(0)
+        assert repr(x) == "Test(a=0)"
+        assert x.__rich_repr__() == [("a", 0)]
 
-def test_struct_rich_repr():
-    assert Struct().__rich_repr__() == ()
+        x = Test(0, b=1)
+        assert repr(x) == "Test(a=0, b=1)"
+        assert x.__rich_repr__() == [("a", 0), ("b", 1)]
 
-    class Test(Struct):
-        a: int
-        b: str
+        x = Test(0, c="two")
+        assert repr(x) == "Test(a=0, c='two')"
+        assert x.__rich_repr__() == [("a", 0), ("c", "two")]
 
-    t = Test(1, "hello")
+        x = Test(0, b=1, c="two")
+        assert repr(x) == "Test(a=0, b=1, c='two')"
+        assert x.__rich_repr__() == [("a", 0), ("b", 1), ("c", "two")]
 
-    assert t.__rich_repr__() == (("a", 1), ("b", "hello"))
+    def test_repr_recursive(self):
+        class Test(Struct):
+            a: int
+            b: Any
 
-    del t.b
-    with pytest.raises(AttributeError):
-        t.__rich_repr__()
+        t = Test(1, Test(2, None))
+        t.b.b = t
+        assert repr(t) == "Test(a=1, b=Test(a=2, b=...))"
+
+    def test_repr_missing_attr_errors(self):
+        class Test(Struct):
+            a: int
+            b: str
+
+        t = Test(1, "hello")
+        del t.b
+
+        with pytest.raises(AttributeError):
+            repr(t)
+
+        with pytest.raises(AttributeError):
+            t.__rich_repr__()
+
+    def test_repr_errors(self):
+        msg = "Oh no!"
+
+        class Bad:
+            def __repr__(self):
+                raise ValueError(msg)
+
+        class Test(Struct):
+            a: object
+            b: object
+
+        t = Test(1, Bad())
+
+        with pytest.raises(ValueError, match=msg):
+            repr(t)
 
 
 def test_struct_copy():
@@ -1049,6 +1106,7 @@ def test_struct_handles_missing_attributes():
         ("frozen", False),
         ("order", False),
         ("eq", True),
+        ("repr_omit_defaults", False),
         ("array_like", False),
         ("gc", True),
         ("omit_defaults", False),
@@ -1634,6 +1692,7 @@ class TestDefStruct:
     @pytest.mark.parametrize(
         "option, default",
         [
+            ("repr_omit_defaults", False),
             ("omit_defaults", False),
             ("forbid_unknown_fields", False),
             ("frozen", False),

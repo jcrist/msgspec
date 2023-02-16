@@ -85,6 +85,15 @@ def check_struct_kw_only_subclass() -> None:
     Test(b"foo", "test", a=1, b=[1, 2, 3])
 
 
+def check_struct_repr_omit_defaults() -> None:
+    class Test(msgspec.Struct, repr_omit_defaults=True):
+        x: int
+        y: str
+
+    t = Test(1, "foo")
+    reveal_type(t.x)  # assert "int" in typ
+
+
 def check_struct_omit_defaults() -> None:
     class Test(msgspec.Struct, omit_defaults=True):
         x: int
@@ -325,6 +334,7 @@ def check_defstruct_config_options() -> None:
         order=True,
         eq=True,
         kw_only=True,
+        repr_omit_defaults=True,
         array_like=True,
         gc=False,
         tag="mytag",
