@@ -290,6 +290,27 @@ def check_struct_attributes() -> None:
         reveal_type(field)  # assert "str" in typ
 
 
+def check_struct_config() -> None:
+    class Point(msgspec.Struct):
+        x: int
+        y: int
+
+    config = Point.__struct_config__
+
+    reveal_type(config)  # assert "StructConfig" in typ
+    reveal_type(config.frozen)  # assert "bool" in typ
+    reveal_type(config.eq)  # assert "bool" in typ
+    reveal_type(config.order)  # assert "bool" in typ
+    reveal_type(config.array_like)  # assert "bool" in typ
+    reveal_type(config.gc)  # assert "bool" in typ
+    reveal_type(config.repr_omit_defaults)  # assert "bool" in typ
+    reveal_type(config.omit_defaults)  # assert "bool" in typ
+    reveal_type(config.forbid_unknown_fields)  # assert "bool" in typ
+    reveal_type(config.weakref)  # assert "bool" in typ
+    reveal_type(config.tag)  # assert "str" in typ and "int" in typ
+    reveal_type(config.tag_field)  # assert "str" in typ
+
+
 ##########################################################
 # defstruct                                              #
 ##########################################################

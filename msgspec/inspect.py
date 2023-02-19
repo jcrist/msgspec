@@ -856,13 +856,14 @@ class _Translator:
         elif _is_struct(t):
             if t in self.cache:
                 return self.cache[t]
+            config = t.__struct_config__
             self.cache[t] = out = StructType(
                 t,
                 (),
-                tag_field=t.__struct_tag_field__,
-                tag=t.__struct_tag__,
-                array_like=t.array_like,
-                forbid_unknown_fields=t.forbid_unknown_fields,
+                tag_field=config.tag_field,
+                tag=config.tag,
+                array_like=config.array_like,
+                forbid_unknown_fields=config.forbid_unknown_fields,
             )
 
             hints = self._get_type_hints(t)
