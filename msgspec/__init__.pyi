@@ -15,6 +15,8 @@ from typing import (
     overload,
 )
 
+from . import inspect, json, msgpack, structs, toml, yaml
+
 T = TypeVar("T")
 
 class _Unset:
@@ -49,6 +51,7 @@ class __StructMeta(type):
 
 class Struct(metaclass=__StructMeta):
     __struct_fields__: ClassVar[Tuple[str, ...]]
+    __struct_config__: ClassVar[structs.StructConfig]
     __match_args__: ClassVar[Tuple[str, ...]]
     def __init__(self, *args: Any, **kwargs: Any) -> None: ...
     def __init_subclass__(
@@ -176,7 +179,5 @@ class MsgspecError(Exception): ...
 class EncodeError(MsgspecError): ...
 class DecodeError(MsgspecError): ...
 class ValidationError(DecodeError): ...
-
-from . import inspect, json, msgpack, structs, toml, yaml
 
 __version__: str

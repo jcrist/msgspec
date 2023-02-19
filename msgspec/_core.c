@@ -2336,6 +2336,11 @@ typedef struct {
     int8_t forbid_unknown_fields;
 } StructMetaObject;
 
+typedef struct {
+    PyObject_HEAD
+    StructMetaObject *st_type;
+} StructConfig;
+
 static PyTypeObject TypedDictInfo_Type;
 static PyTypeObject DataclassInfo_Type;
 static PyTypeObject NamedTupleInfo_Type;
@@ -6070,62 +6075,6 @@ StructMeta_dealloc(StructMetaObject *self)
 }
 
 static PyObject*
-StructMeta_frozen(StructMetaObject *self, void *closure)
-{
-    if (self->frozen == OPT_TRUE) { Py_RETURN_TRUE; }
-    else { Py_RETURN_FALSE; }
-}
-
-static PyObject*
-StructMeta_eq(StructMetaObject *self, void *closure)
-{
-    if (self->eq == OPT_FALSE) { Py_RETURN_FALSE; }
-    else { Py_RETURN_TRUE; }
-}
-
-static PyObject*
-StructMeta_order(StructMetaObject *self, void *closure)
-{
-    if (self->order == OPT_TRUE) { Py_RETURN_TRUE; }
-    else { Py_RETURN_FALSE; }
-}
-
-static PyObject*
-StructMeta_array_like(StructMetaObject *self, void *closure)
-{
-    if (self->array_like == OPT_TRUE) { Py_RETURN_TRUE; }
-    else { Py_RETURN_FALSE; }
-}
-
-static PyObject*
-StructMeta_gc(StructMetaObject *self, void *closure)
-{
-    if (self->gc == OPT_FALSE) { Py_RETURN_FALSE; }
-    else { Py_RETURN_TRUE; }
-}
-
-static PyObject*
-StructMeta_repr_omit_defaults(StructMetaObject *self, void *closure)
-{
-    if (self->repr_omit_defaults == OPT_TRUE) { Py_RETURN_TRUE; }
-    else { Py_RETURN_FALSE; }
-}
-
-static PyObject*
-StructMeta_omit_defaults(StructMetaObject *self, void *closure)
-{
-    if (self->omit_defaults == OPT_TRUE) { Py_RETURN_TRUE; }
-    else { Py_RETURN_FALSE; }
-}
-
-static PyObject*
-StructMeta_forbid_unknown_fields(StructMetaObject *self, void *closure)
-{
-    if (self->forbid_unknown_fields == OPT_TRUE) { Py_RETURN_TRUE; }
-    else { Py_RETURN_FALSE; }
-}
-
-static PyObject*
 StructMeta_signature(StructMetaObject *self, void *closure)
 {
     Py_ssize_t nfields, ndefaults, npos, nkwonly, i;
@@ -6215,26 +6164,190 @@ cleanup:
     return res;
 }
 
+static PyObject*
+StructConfig_frozen(StructConfig *self, void *closure)
+{
+    if (self->st_type->frozen == OPT_TRUE) { Py_RETURN_TRUE; }
+    else { Py_RETURN_FALSE; }
+}
+
+static PyObject*
+StructConfig_eq(StructConfig *self, void *closure)
+{
+    if (self->st_type->eq == OPT_FALSE) { Py_RETURN_FALSE; }
+    else { Py_RETURN_TRUE; }
+}
+
+static PyObject*
+StructConfig_order(StructConfig *self, void *closure)
+{
+    if (self->st_type->order == OPT_TRUE) { Py_RETURN_TRUE; }
+    else { Py_RETURN_FALSE; }
+}
+
+static PyObject*
+StructConfig_array_like(StructConfig *self, void *closure)
+{
+    if (self->st_type->array_like == OPT_TRUE) { Py_RETURN_TRUE; }
+    else { Py_RETURN_FALSE; }
+}
+
+static PyObject*
+StructConfig_gc(StructConfig *self, void *closure)
+{
+    if (self->st_type->gc == OPT_FALSE) { Py_RETURN_FALSE; }
+    else { Py_RETURN_TRUE; }
+}
+
+static PyObject*
+StructConfig_weakref(StructConfig *self, void *closure)
+{
+    PyTypeObject *type = (PyTypeObject *)(self->st_type);
+    if (type->tp_weaklistoffset) {
+        Py_RETURN_TRUE;
+    }
+    Py_RETURN_FALSE;
+}
+
+static PyObject*
+StructConfig_repr_omit_defaults(StructConfig *self, void *closure)
+{
+    if (self->st_type->repr_omit_defaults == OPT_TRUE) { Py_RETURN_TRUE; }
+    else { Py_RETURN_FALSE; }
+}
+
+static PyObject*
+StructConfig_omit_defaults(StructConfig *self, void *closure)
+{
+    if (self->st_type->omit_defaults == OPT_TRUE) { Py_RETURN_TRUE; }
+    else { Py_RETURN_FALSE; }
+}
+
+static PyObject*
+StructConfig_forbid_unknown_fields(StructConfig *self, void *closure)
+{
+    if (self->st_type->forbid_unknown_fields == OPT_TRUE) { Py_RETURN_TRUE; }
+    else { Py_RETURN_FALSE; }
+}
+
+static PyObject*
+StructConfig_tag_field(StructConfig *self, void *closure)
+{
+    PyObject *out = self->st_type->struct_tag_field;
+    if (out == NULL) Py_RETURN_NONE;
+    Py_INCREF(out);
+    return out;
+}
+
+static PyObject*
+StructConfig_tag(StructConfig *self, void *closure)
+{
+    PyObject *out = self->st_type->struct_tag_value;
+    if (out == NULL) Py_RETURN_NONE;
+    Py_INCREF(out);
+    return out;
+}
+
+static PyGetSetDef StructConfig_getset[] = {
+    {"frozen", (getter) StructConfig_frozen, NULL, NULL, NULL},
+    {"eq", (getter) StructConfig_eq, NULL, NULL, NULL},
+    {"order", (getter) StructConfig_order, NULL, NULL, NULL},
+    {"repr_omit_defaults", (getter) StructConfig_repr_omit_defaults, NULL, NULL, NULL},
+    {"array_like", (getter) StructConfig_array_like, NULL, NULL, NULL},
+    {"gc", (getter) StructConfig_gc, NULL, NULL, NULL},
+    {"weakref", (getter) StructConfig_weakref, NULL, NULL, NULL},
+    {"omit_defaults", (getter) StructConfig_omit_defaults, NULL, NULL, NULL},
+    {"forbid_unknown_fields", (getter) StructConfig_forbid_unknown_fields, NULL, NULL, NULL},
+    {"tag", (getter) StructConfig_tag, NULL, NULL, NULL},
+    {"tag_field", (getter) StructConfig_tag_field, NULL, NULL, NULL},
+    {NULL},
+};
+
+static int
+StructConfig_traverse(StructConfig *self, visitproc visit, void *arg) {
+    Py_VISIT(self->st_type);
+    return 0;
+}
+
+static void
+StructConfig_clear(StructConfig *self) {
+    Py_CLEAR(self->st_type);
+}
+
+static void
+StructConfig_dealloc(StructConfig *self) {
+    PyObject_GC_UnTrack(self);
+    StructConfig_clear(self);
+    Py_TYPE(self)->tp_free((PyObject *)self);
+}
+
+PyDoc_STRVAR(StructConfig__doc__,
+"StructConfig()\n"
+"--\n"
+"\n"
+"Configuration settings for a given Struct type.\n"
+"\n"
+"This object is accessible through the ``__struct_config__`` field on a struct\n"
+"type or instance. It exposes the following attributes, matching the Struct\n"
+"configuration parameters of the same name. See the `Struct` docstring for\n"
+"details.\n"
+"\n"
+"Configuration\n"
+"-------------\n"
+"frozen: bool\n"
+"eq: bool\n"
+"order: bool\n"
+"array_like: bool\n"
+"gc: bool\n"
+"repr_omit_defaults: bool\n"
+"omit_defaults: bool\n"
+"forbid_unknown_fields: bool\n"
+"weakref: bool\n"
+"tag_field: str | None\n"
+"tag: str | int | None"
+);
+
+static PyTypeObject StructConfig_Type = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "msgspec.structs.StructConfig",
+    .tp_doc = StructConfig__doc__,
+    .tp_basicsize = sizeof(StructConfig),
+    .tp_itemsize = 0,
+    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
+    .tp_new = NULL,
+    .tp_dealloc = (destructor) StructConfig_dealloc,
+    .tp_clear = (inquiry) StructConfig_clear,
+    .tp_traverse = (traverseproc) StructConfig_traverse,
+    .tp_getset = StructConfig_getset,
+};
+
+static PyObject*
+StructConfig_New(StructMetaObject *st_type)
+{
+    StructConfig *out = (StructConfig *)StructConfig_Type.tp_alloc(&StructConfig_Type, 0);
+    if (out == NULL) return NULL;
+
+    out->st_type = st_type;
+    Py_INCREF(st_type);
+    return (PyObject *)out;
+}
+
+static PyObject*
+StructMeta_config(StructMetaObject *self, void *closure) {
+    return StructConfig_New(self);
+}
+
 static PyMemberDef StructMeta_members[] = {
     {"__struct_fields__", T_OBJECT_EX, offsetof(StructMetaObject, struct_fields), READONLY, "Struct fields"},
     {"__struct_defaults__", T_OBJECT_EX, offsetof(StructMetaObject, struct_defaults), READONLY, "Struct defaults"},
     {"__struct_encode_fields__", T_OBJECT_EX, offsetof(StructMetaObject, struct_encode_fields), READONLY, "Struct encoded field names"},
-    {"__struct_tag_field__", T_OBJECT, offsetof(StructMetaObject, struct_tag_field), READONLY, "Struct tag field"},
-    {"__struct_tag__", T_OBJECT, offsetof(StructMetaObject, struct_tag_value), READONLY, "Struct tag value"},
     {"__match_args__", T_OBJECT_EX, offsetof(StructMetaObject, match_args), READONLY, "Positional match args"},
     {NULL},
 };
 
 static PyGetSetDef StructMeta_getset[] = {
     {"__signature__", (getter) StructMeta_signature, NULL, NULL, NULL},
-    {"frozen", (getter) StructMeta_frozen, NULL, NULL, NULL},
-    {"eq", (getter) StructMeta_eq, NULL, NULL, NULL},
-    {"order", (getter) StructMeta_order, NULL, NULL, NULL},
-    {"repr_omit_defaults", (getter) StructMeta_repr_omit_defaults, NULL, NULL, NULL},
-    {"array_like", (getter) StructMeta_array_like, NULL, NULL, NULL},
-    {"gc", (getter) StructMeta_gc, NULL, NULL, NULL},
-    {"omit_defaults", (getter) StructMeta_omit_defaults, NULL, NULL, NULL},
-    {"forbid_unknown_fields", (getter) StructMeta_forbid_unknown_fields, NULL, NULL, NULL},
+    {"__struct_config__", (getter) StructMeta_config, NULL, "Struct configuration", NULL},
     {NULL},
 };
 
@@ -6974,6 +7087,11 @@ StructMixin_defaults(PyObject *self, void *closure) {
     return out;
 }
 
+static PyObject*
+StructMixin_config(StructMetaObject *self, void *closure) {
+    return StructConfig_New((StructMetaObject *)Py_TYPE(self));
+}
+
 static PyMethodDef Struct_methods[] = {
     {"__copy__", Struct_copy, METH_NOARGS, "copy a struct"},
     {"__reduce__", Struct_reduce, METH_NOARGS, "reduce a struct"},
@@ -6985,6 +7103,7 @@ static PyGetSetDef StructMixin_getset[] = {
     {"__struct_fields__", (getter) StructMixin_fields, NULL, "Struct fields", NULL},
     {"__struct_encode_fields__", (getter) StructMixin_encode_fields, NULL, "Struct encoded field names", NULL},
     {"__struct_defaults__", (getter) StructMixin_defaults, NULL, "Struct defaults", NULL},
+    {"__struct_config__", (getter) StructMixin_config, NULL, "Struct configuration", NULL},
     {NULL},
 };
 
@@ -7015,7 +7134,8 @@ PyDoc_STRVAR(Struct__doc__,
 "``__struct_fields__`` attribute if needed.\n"
 "\n"
 "Additional class options can be enabled by passing keywords to the class\n"
-"definition (see example below).\n"
+"definition (see example below). These configuration options may also be\n"
+"inspected at runtime through the ``__struct_config__`` attribute.\n"
 "\n"
 "Configuration\n"
 "-------------\n"
@@ -18504,6 +18624,8 @@ PyInit__core(void)
         return NULL;
     if (PyType_Ready(&StructMixinType) < 0)
         return NULL;
+    if (PyType_Ready(&StructConfig_Type) < 0)
+        return NULL;
     if (PyType_Ready(&Encoder_Type) < 0)
         return NULL;
     if (PyType_Ready(&Decoder_Type) < 0)
@@ -18530,6 +18652,9 @@ PyInit__core(void)
         return NULL;
     Py_INCREF(&Meta_Type);
     if (PyModule_AddObject(m, "Meta", (PyObject *)&Meta_Type) < 0)
+        return NULL;
+    Py_INCREF(&StructConfig_Type);
+    if (PyModule_AddObject(m, "StructConfig", (PyObject *)&StructConfig_Type) < 0)
         return NULL;
     Py_INCREF(&Ext_Type);
     if (PyModule_AddObject(m, "Ext", (PyObject *)&Ext_Type) < 0)

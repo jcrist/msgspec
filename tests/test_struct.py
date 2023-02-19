@@ -16,7 +16,7 @@ from utils import temp_module
 import msgspec
 from msgspec import Struct, defstruct, field
 from msgspec._core import nodefault
-from msgspec.structs import replace
+from msgspec.structs import StructConfig, replace
 
 
 @contextmanager
@@ -80,6 +80,13 @@ def test_struct_class_attributes():
     assert Struct.__match_args__ == ()
     assert Struct.__slots__ == ()
     assert Struct.__module__ == "msgspec"
+    assert isinstance(Struct.__struct_config__, StructConfig)
+
+
+def test_struct_class_and_instance_dir():
+    expected = {"__struct_fields__", "__struct_config__"}
+    assert expected.issubset(dir(Struct))
+    assert expected.issubset(dir(Struct()))
 
 
 def test_struct_instance_attributes():
@@ -95,6 +102,7 @@ def test_struct_instance_attributes():
     assert x.__struct_fields__ is x.__struct_encode_fields__
     assert x.__struct_defaults__ == ("hello",)
     assert x.__slots__ == ("a", "b", "c")
+    assert isinstance(x.__struct_config__, StructConfig)
 
     assert x.c == 1
     assert x.b == 2.0
@@ -1115,7 +1123,7 @@ def test_struct_handles_missing_attributes():
 )
 def test_struct_option_precedence(option, default):
     def get(cls):
-        return getattr(cls, option)
+        return getattr(cls.__struct_config__, option)
 
     class Default(Struct):
         pass
@@ -1168,26 +1176,31 @@ def test_weakref_option():
         pass
 
     assert Enabled.__weakrefoffset__ != 0
+    assert Enabled.__struct_config__.weakref
 
     class Disabled(Struct, weakref=False):
         pass
 
     assert Disabled.__weakrefoffset__ == 0
+    assert not Disabled.__struct_config__.weakref
 
     class T(Enabled):
         pass
 
     assert T.__weakrefoffset__ != 0
+    assert T.__struct_config__.weakref
 
     class T(Enabled, Default):
         pass
 
     assert T.__weakrefoffset__ != 0
+    assert T.__struct_config__.weakref
 
     class T(Default, Disabled, Enabled):
         pass
 
     assert T.__weakrefoffset__ != 0
+    assert T.__struct_config__.weakref
 
     with pytest.raises(ValueError, match="Cannot set `weakref=False`"):
 
@@ -1376,8 +1389,8 @@ class TestTagAndTagField:
             x: int
             y: int
 
-        assert Test.__struct_tag_field__ == tag_field
-        assert Test.__struct_tag__ == tag
+        assert Test.__struct_config__.tag_field == tag_field
+        assert Test.__struct_config__.tag == tag
 
     @pytest.mark.parametrize(
         "opts1, opts2, tag_field, tag",
@@ -1411,8 +1424,8 @@ class TestTagAndTagField:
         class S2(S1, **opts2):
             pass
 
-        assert S2.__struct_tag_field__ == tag_field
-        assert S2.__struct_tag__ == tag
+        assert S2.__struct_config__.tag_field == tag_field
+        assert S2.__struct_config__.tag == tag
 
     @pytest.mark.parametrize("tag", [b"bad", lambda n: b"bad"])
     def test_tag_wrong_type(self, tag):
@@ -1704,28 +1717,32 @@ class TestDefStruct:
     )
     def test_defstruct_bool_options(self, option, default):
         Test = defstruct("Test", [], **{option: True})
-        assert getattr(Test, option) is True
+        assert getattr(Test.__struct_config__, option) is True
 
         Test = defstruct("Test", [], **{option: False})
-        assert getattr(Test, option) is False
+        assert getattr(Test.__struct_config__, option) is False
 
         Test = defstruct("Test", [])
-        assert getattr(Test, option) is default
+        assert getattr(Test.__struct_config__, option) is default
 
     def test_defstruct_weakref(self):
         Test = defstruct("Test", [])
         assert Test.__weakrefoffset__ == 0
+        assert not Test.__struct_config__.weakref
 
         Test = defstruct("Test", [], weakref=False)
         assert Test.__weakrefoffset__ == 0
+        assert not Test.__struct_config__.weakref
 
         Test = defstruct("Test", [], weakref=True)
         assert Test.__weakrefoffset__ != 0
+        assert Test.__struct_config__.weakref
 
     def test_defstruct_tag_and_tag_field(self):
         Test = defstruct("Test", [], tag="mytag", tag_field="mytagfield")
-        assert Test.__struct_tag__ == "mytag"
-        assert Test.__struct_tag_field__ == "mytagfield"
+        config = Test.__struct_config__
+        assert config.tag_field == "mytagfield"
+        assert config.tag == "mytag"
 
     def test_defstruct_rename(self):
         Test = defstruct("Test", ["my_field"], rename="camel")

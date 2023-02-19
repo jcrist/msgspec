@@ -1,1 +1,1 @@
-from ._core import asdict, astuple, replace
+from ._core import StructConfig, asdict, astuple, replace
