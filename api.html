@@ -274,7 +274,8 @@ needed. Note that <code class="docutils literal notranslate"><span class="pre">_
 methods can. A tuple of the field names is available on the class via the
 <code class="docutils literal notranslate"><span class="pre">__struct_fields__</span></code> attribute if needed.</p>
 <p>Additional class options can be enabled by passing keywords to the class
-definition (see example below).</p>
+definition (see example below). These configuration options may also be
+inspected at runtime through the <code class="docutils literal notranslate"><span class="pre">__struct_config__</span></code> attribute.</p>
 <dl class="field-list">
 <dt class="field-odd">Configuration<span class="colon">:</span></dt>
 <dd class="field-odd"><ul>
@@ -406,10 +407,7 @@ with values from <code class="docutils literal notranslate"><span class="pre">**
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p><strong>new_struct</strong> – A new struct instance of the same type as <code class="docutils literal notranslate"><span class="pre">struct</span></code>.</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><a class="reference internal" href="#msgspec.Struct" title="msgspec.Struct">Struct</a></p>
+<dd class="field-even"><p><strong>new_struct</strong> (<em>Struct</em>) – A new struct instance of the same type as <code class="docutils literal notranslate"><span class="pre">struct</span></code>.</p>
 </dd>
 </dl>
 <p class="rubric">Examples</p>
@@ -435,8 +433,8 @@ with values from <code class="docutils literal notranslate"><span class="pre">**
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><p><strong>struct</strong> (<a class="reference internal" href="#msgspec.Struct" title="msgspec.Struct"><em>Struct</em></a>) – The struct instance.</p>
 </dd>
-<dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.11)">dict</a></p>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><em>dict</em></p>
 </dd>
 </dl>
 <p class="rubric">Examples</p>
@@ -462,8 +460,8 @@ with values from <code class="docutils literal notranslate"><span class="pre">**
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><p><strong>struct</strong> (<a class="reference internal" href="#msgspec.Struct" title="msgspec.Struct"><em>Struct</em></a>) – The struct instance.</p>
 </dd>
-<dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.11)">tuple</a></p>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><em>tuple</em></p>
 </dd>
 </dl>
 <p class="rubric">Examples</p>
@@ -479,6 +477,33 @@ with values from <code class="docutils literal notranslate"><span class="pre">**
 <p class="admonition-title">See also</p>
 <p><a class="reference internal" href="#msgspec.structs.asdict" title="msgspec.structs.asdict"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.structs.asdict</span></code></a>, <a class="reference internal" href="#msgspec.to_builtins" title="msgspec.to_builtins"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.to_builtins</span></code></a></p>
 </div>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="msgspec.structs.StructConfig">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">msgspec.structs.</span></span><span class="sig-name descname"><span class="pre">StructConfig</span></span><a class="headerlink" href="#msgspec.structs.StructConfig" title="Permalink to this definition">#</a></dt>
+<dd><p>Configuration settings for a given Struct type.</p>
+<p>This object is accessible through the <code class="docutils literal notranslate"><span class="pre">__struct_config__</span></code> field on a struct
+type or instance. It exposes the following attributes, matching the Struct
+configuration parameters of the same name. See the <code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code> docstring for
+details.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Configuration<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>frozen</strong> (<em>bool</em>)</p></li>
+<li><p><strong>eq</strong> (<em>bool</em>)</p></li>
+<li><p><strong>order</strong> (<em>bool</em>)</p></li>
+<li><p><strong>array_like</strong> (<em>bool</em>)</p></li>
+<li><p><strong>gc</strong> (<em>bool</em>)</p></li>
+<li><p><strong>repr_omit_defaults</strong> (<em>bool</em>)</p></li>
+<li><p><strong>omit_defaults</strong> (<em>bool</em>)</p></li>
+<li><p><strong>forbid_unknown_fields</strong> (<em>bool</em>)</p></li>
+<li><p><strong>weakref</strong> (<em>bool</em>)</p></li>
+<li><p><strong>tag_field</strong> (<em>str | None</em>)</p></li>
+<li><p><strong>tag</strong> (<em>str | int | None</em>)</p></li>
+</ul>
+</dd>
+</dl>
 </dd></dl>
 
 </section>
@@ -600,10 +625,7 @@ unsupported object and should return a supported object, or raise a TypeError.</
 <dd class="field-odd"><p><strong>obj</strong> (<em>Any</em>) – The object to serialize.</p>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p><strong>data</strong> – The serialized object.</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.11)">bytes</a></p>
+<dd class="field-even"><p><strong>data</strong> (<em>bytes</em>) – The serialized object.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -624,8 +646,8 @@ allowing for efficiently appending additional bytes later.</p>
 to start writing at the end of the buffer.</p></li>
 </ul>
 </dd>
-<dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p>None</p>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><em>None</em></p>
 </dd>
 </dl>
 </dd></dl>
@@ -660,10 +682,7 @@ of only basic JSON types. This hook should transform <code class="docutils liter
 <dd class="field-odd"><p><strong>buf</strong> (<em>bytes-like</em><em> or </em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.11)"><em>str</em></a>) – The message to decode.</p>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p><strong>obj</strong> – The deserialized object.</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>Any</p>
+<dd class="field-even"><p><strong>obj</strong> (<em>Any</em>) – The deserialized object.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -683,10 +702,7 @@ unsupported object and should return a supported object, or raise a TypeError.</
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p><strong>data</strong> – The serialized object.</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.11)">bytes</a></p>
+<dd class="field-even"><p><strong>data</strong> (<em>bytes</em>) – The serialized object.</p>
 </dd>
 </dl>
 <div class="admonition seealso">
@@ -715,10 +731,7 @@ of only basic JSON types. This hook should transform <code class="docutils liter
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p><strong>obj</strong> – The deserialized object.</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>Any</p>
+<dd class="field-even"><p><strong>obj</strong> (<em>Any</em>) – The deserialized object.</p>
 </dd>
 </dl>
 <div class="admonition seealso">
@@ -742,10 +755,7 @@ whitespace, minimizing the message size.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p><strong>output</strong> – The formatted JSON message. Returns a str if input is a str, bytes otherwise.</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.11)">bytes</a> or <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.11)">str</a></p>
+<dd class="field-even"><p><strong>output</strong> (<em>bytes or str</em>) – The formatted JSON message. Returns a str if input is a str, bytes otherwise.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -775,10 +785,7 @@ unsupported object and should return a supported object, or raise a TypeError.</
 <dd class="field-odd"><p><strong>obj</strong> (<em>Any</em>) – The object to serialize.</p>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p><strong>data</strong> – The serialized object.</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.11)">bytes</a></p>
+<dd class="field-even"><p><strong>data</strong> (<em>bytes</em>) – The serialized object.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -799,8 +806,8 @@ allowing for efficiently appending additional bytes later.</p>
 to start writing at the end of the buffer.</p></li>
 </ul>
 </dd>
-<dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p>None</p>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><em>None</em></p>
 </dd>
 </dl>
 </dd></dl>
@@ -842,10 +849,7 @@ If not provided, extension types will decode as <code class="docutils literal no
 <dd class="field-odd"><p><strong>buf</strong> (<em>bytes-like</em>) – The message to decode.</p>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p><strong>obj</strong> – The deserialized object.</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>Any</p>
+<dd class="field-even"><p><strong>obj</strong> (<em>Any</em>) – The deserialized object.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -892,10 +896,7 @@ unsupported object and should return a supported object, or raise a TypeError.</
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p><strong>data</strong> – The serialized object.</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.11)">bytes</a></p>
+<dd class="field-even"><p><strong>data</strong> (<em>bytes</em>) – The serialized object.</p>
 </dd>
 </dl>
 <div class="admonition seealso">
@@ -931,10 +932,7 @@ If not provided, extension types will decode as <code class="docutils literal no
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p><strong>obj</strong> – The deserialized object.</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>Any</p>
+<dd class="field-even"><p><strong>obj</strong> (<em>Any</em>) – The deserialized object.</p>
 </dd>
 </dl>
 <div class="admonition seealso">
@@ -960,10 +958,7 @@ raise a TypeError.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p><strong>data</strong> – The serialized object.</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.11)">bytes</a></p>
+<dd class="field-even"><p><strong>data</strong> (<em>bytes</em>) – The serialized object.</p>
 </dd>
 </dl>
 <p class="rubric">Notes</p>
@@ -994,10 +989,7 @@ into type <code class="docutils literal notranslate"><span class="pre">type</spa
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p><strong>obj</strong> – The deserialized object.</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>Any</p>
+<dd class="field-even"><p><strong>obj</strong> (<em>Any</em>) – The deserialized object.</p>
 </dd>
 </dl>
 <p class="rubric">Notes</p>
@@ -1025,10 +1017,7 @@ raise a TypeError.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p><strong>data</strong> – The serialized object.</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.11)">bytes</a></p>
+<dd class="field-even"><p><strong>data</strong> (<em>bytes</em>) – The serialized object.</p>
 </dd>
 </dl>
 <div class="admonition seealso">
@@ -1057,10 +1046,7 @@ into type <code class="docutils literal notranslate"><span class="pre">type</spa
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p><strong>obj</strong> – The deserialized object.</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>Any</p>
+<dd class="field-even"><p><strong>obj</strong> (<em>Any</em>) – The deserialized object.</p>
 </dd>
 </dl>
 <div class="admonition seealso">
@@ -1085,10 +1071,7 @@ over the generated schema you may want to use <code class="docutils literal notr
 <dd class="field-odd"><p><strong>type</strong> (<a class="reference internal" href="#msgspec.inspect.Type" title="msgspec.inspect.Type"><em>Type</em></a>) – The type to generate the schema for.</p>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p><strong>schema</strong> – The generated JSON Schema.</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.11)">dict</a></p>
+<dd class="field-even"><p><strong>schema</strong> (<em>dict</em>) – The generated JSON Schema.</p>
 </dd>
 </dl>
 <div class="admonition seealso">
@@ -1153,10 +1136,7 @@ unsupported object and should return a supported object, or raise a TypeError.</
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>The converted object.</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>Any</p>
+<dd class="field-even"><p><em>Any</em> – The converted object.</p>
 </dd>
 </dl>
 <p class="rubric">Examples</p>
@@ -1218,10 +1198,7 @@ type <code class="docutils literal notranslate"><span class="pre">type</span></c
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>The converted object of the specified <code class="docutils literal notranslate"><span class="pre">type</span></code>.</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>Any</p>
+<dd class="field-even"><p><em>Any</em> – The converted object of the specified <code class="docutils literal notranslate"><span class="pre">type</span></code>.</p>
 </dd>
 </dl>
 <p class="rubric">Examples</p>
@@ -1263,8 +1240,8 @@ protocol. The default (<a class="reference external" href="https://docs.python.o
 by msgspec.</p></li>
 </ul>
 </dd>
-<dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p><a class="reference internal" href="#msgspec.inspect.Type" title="msgspec.inspect.Type">Type</a></p>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><em>Type</em></p>
 </dd>
 </dl>
 <p class="rubric">Examples</p>
@@ -1300,8 +1277,8 @@ protocol. The default (<a class="reference external" href="https://docs.python.o
 by msgspec.</p></li>
 </ul>
 </dd>
-<dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.11)">tuple</a>[<a class="reference internal" href="#msgspec.inspect.Type" title="msgspec.inspect.Type">Type</a>, …]</p>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><em>tuple[Type, …]</em></p>
 </dd>
 </dl>
 <p class="rubric">Examples</p>
@@ -1859,6 +1836,7 @@ optional fields may exist with no default value.</p></li>
 <li><a class="reference internal" href="#msgspec.structs.replace"><code class="docutils literal notranslate"><span class="pre">replace()</span></code></a></li>
 <li><a class="reference internal" href="#msgspec.structs.asdict"><code class="docutils literal notranslate"><span class="pre">asdict()</span></code></a></li>
 <li><a class="reference internal" href="#msgspec.structs.astuple"><code class="docutils literal notranslate"><span class="pre">astuple()</span></code></a></li>
+<li><a class="reference internal" href="#msgspec.structs.StructConfig"><code class="docutils literal notranslate"><span class="pre">StructConfig</span></code></a></li>
 </ul>
 </li>
 <li><a class="reference internal" href="#meta">Meta</a><ul>

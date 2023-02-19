@@ -7,7 +7,6 @@ Structs
 .. currentmodule:: msgspec
 
 .. autoclass:: Struct
-    :members:
 
 .. autofunction:: field
 
@@ -18,6 +17,8 @@ Structs
 .. autofunction:: msgspec.structs.asdict
 
 .. autofunction:: msgspec.structs.astuple
+
+.. autoclass:: msgspec.structs.StructConfig
 
 Meta
 ----
