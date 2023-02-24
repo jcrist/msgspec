@@ -133,13 +133,18 @@ def test_struct_subclass_forbids_init_new_slots():
             a: int
 
 
-def test_struct_subclass_forbids_field_named_weakref():
+def test_struct_subclass_forbidden_field_names():
     with pytest.raises(
         TypeError, match="Cannot have a struct field named '__weakref__'"
     ):
 
         class Test1(Struct):
             __weakref__: int
+
+    with pytest.raises(TypeError, match="Cannot have a struct field named '__dict__'"):
+
+        class Test2(Struct):
+            __dict__: int
 
 
 def test_struct_subclass_forbids_non_struct_bases():
@@ -1208,6 +1213,48 @@ def test_weakref_option():
             pass
 
 
+def test_dict_option():
+    class Default(Struct):
+        pass
+
+    assert Default.__dictoffset__ == 0
+
+    class Enabled(Struct, dict=True):
+        pass
+
+    assert Enabled.__dictoffset__ != 0
+    assert Enabled.__struct_config__.dict
+
+    class Disabled(Struct, dict=False):
+        pass
+
+    assert Disabled.__dictoffset__ == 0
+    assert not Disabled.__struct_config__.dict
+
+    class T(Enabled):
+        pass
+
+    assert T.__dictoffset__ != 0
+    assert T.__struct_config__.dict
+
+    class T(Enabled, Default):
+        pass
+
+    assert T.__dictoffset__ != 0
+    assert T.__struct_config__.dict
+
+    class T(Default, Disabled, Enabled):
+        pass
+
+    assert T.__dictoffset__ != 0
+    assert T.__struct_config__.dict
+
+    with pytest.raises(ValueError, match="Cannot set `dict=False`"):
+
+        class T(Enabled, dict=False):
+            pass
+
+
 def test_invalid_option_raises():
     with pytest.raises(TypeError):
 
@@ -1737,6 +1784,19 @@ class TestDefStruct:
         Test = defstruct("Test", [], weakref=True)
         assert Test.__weakrefoffset__ != 0
         assert Test.__struct_config__.weakref
+
+    def test_defstruct_dict(self):
+        Test = defstruct("Test", [])
+        assert not hasattr(Test(), "__dict__")
+        assert not Test.__struct_config__.dict
+
+        Test = defstruct("Test", [], dict=False)
+        assert not hasattr(Test(), "__dict__")
+        assert not Test.__struct_config__.dict
+
+        Test = defstruct("Test", [], dict=True)
+        assert hasattr(Test(), "__dict__")
+        assert Test.__struct_config__.dict
 
     def test_defstruct_tag_and_tag_field(self):
         Test = defstruct("Test", [], tag="mytag", tag_field="mytagfield")

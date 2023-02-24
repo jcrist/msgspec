@@ -18,6 +18,7 @@ class StructConfig:
     omit_defaults: bool
     forbid_unknown_fields: bool
     weakref: bool
+    dict: bool
     tag: Union[str, int, None]
     tag_field: Union[str, None]
 

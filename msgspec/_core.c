@@ -344,6 +344,7 @@ typedef struct {
     PyTypeObject *EnumMetaType;
     PyObject *struct_lookup_cache;
     PyObject *str___weakref__;
+    PyObject *str___dict__;
     PyObject *str__value2member_map_;
     PyObject *str___msgspec_cache__;
     PyObject *str__value_;
@@ -4994,6 +4995,8 @@ typedef struct {
     int gc;
     int weakref;
     bool already_has_weakref;
+    int dict;
+    bool already_has_dict;
 } StructMetaInfo;
 
 static int
@@ -5011,14 +5014,14 @@ structmeta_check_namespace(PyObject *namespace) {
 }
 
 static PyObject *
-structmeta_get_module_ns(StructMetaInfo *info) {
+structmeta_get_module_ns(MsgspecState *mod, StructMetaInfo *info) {
     PyObject *name = PyDict_GetItemString(info->namespace, "__module__");
     if (name == NULL) return NULL;
     PyObject *modules = PySys_GetObject("modules");
     if (modules == NULL) return NULL;
-    PyObject *mod = PyDict_GetItem(modules, name);
+    PyObject *module = PyDict_GetItem(modules, name);
     if (mod == NULL) return NULL;
-    return PyObject_GetAttrString(mod, "__dict__");
+    return PyObject_GetAttr(module, mod->str___dict__);
 }
 
 static int
@@ -5035,6 +5038,10 @@ structmeta_collect_base(StructMetaInfo *info, PyObject *base) {
 
     if (((PyTypeObject *)base)->tp_weaklistoffset) {
         info->already_has_weakref = true;
+    }
+
+    if (((PyTypeObject *)base)->tp_dictoffset) {
+        info->already_has_dict = true;
     }
 
     StructMetaObject *st_type = (StructMetaObject *)base;
@@ -5194,7 +5201,7 @@ structmeta_is_classvar(
         if (memcmp(ann_buf, "ClassVar", 8) == 0) {
             if (ann_len != 8 && ann_buf[8] != '[') return 0;
             if (*module_ns == NULL) {
-                *module_ns = structmeta_get_module_ns(info);
+                *module_ns = structmeta_get_module_ns(mod, info);
             }
             if (*module_ns == NULL) return 0;
             PyObject *temp = PyDict_GetItemString(*module_ns, "ClassVar");
@@ -5204,7 +5211,7 @@ structmeta_is_classvar(
         if (memcmp(ann_buf, "typing.ClassVar", 15) == 0) {
             if (ann_len != 15 && ann_buf[15] != '[') return 0;
             if (*module_ns == NULL) {
-                *module_ns = structmeta_get_module_ns(info);
+                *module_ns = structmeta_get_module_ns(mod, info);
             }
             if (*module_ns == NULL) return 0;
             PyObject *temp = PyDict_GetItemString(*module_ns, "typing");
@@ -5257,6 +5264,12 @@ structmeta_collect_fields(StructMetaInfo *info, MsgspecState *mod, bool kwonly) 
         if (PyUnicode_Compare(field, mod->str___weakref__) == 0) {
             PyErr_SetString(
                 PyExc_TypeError, "Cannot have a struct field named '__weakref__'"
+            );
+            goto error;
+        }
+        if (PyUnicode_Compare(field, mod->str___dict__) == 0) {
+            PyErr_SetString(
+                PyExc_TypeError, "Cannot have a struct field named '__dict__'"
             );
             goto error;
         }
@@ -5366,6 +5379,16 @@ structmeta_construct_fields(StructMetaInfo *info, MsgspecState *mod) {
         PyErr_SetString(
             PyExc_ValueError,
             "Cannot set `weakref=False` if base class already has `weakref=True`"
+        );
+        return -1;
+    }
+    if (info->dict == OPT_TRUE && !info->already_has_dict) {
+        if (PyList_Append(info->slots, mod->str___dict__) < 0) return -1;
+    }
+    else if (info->dict == OPT_FALSE && info->already_has_dict) {
+        PyErr_SetString(
+            PyExc_ValueError,
+            "Cannot set `dict=False` if base class already has `dict=True`"
         );
         return -1;
     }
@@ -5564,7 +5587,8 @@ StructMeta_new_inner(
     PyObject *arg_tag_field, PyObject *arg_tag, PyObject *arg_rename,
     int arg_omit_defaults, int arg_forbid_unknown_fields,
     int arg_frozen, int arg_eq, int arg_order, bool arg_kw_only,
-    int arg_repr_omit_defaults, int arg_array_like, int arg_gc, int arg_weakref
+    int arg_repr_omit_defaults, int arg_array_like,
+    int arg_gc, int arg_weakref, int arg_dict
 ) {
     StructMetaObject *cls = NULL;
     MsgspecState *mod = msgspec_get_global_state();
@@ -5602,6 +5626,8 @@ StructMeta_new_inner(
         .gc = -1,
         .weakref = arg_weakref,
         .already_has_weakref = false,
+        .dict = arg_dict,
+        .already_has_dict = false,
     };
 
     info.defaults_lk = PyDict_New();
@@ -5750,7 +5776,7 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
     PyObject *arg_tag_field = NULL, *arg_tag = NULL, *arg_rename = NULL;
     int arg_omit_defaults = -1, arg_forbid_unknown_fields = -1;
     int arg_frozen = -1, arg_eq = -1, arg_order = -1, arg_repr_omit_defaults = -1;
-    int arg_array_like = -1, arg_gc = -1, arg_weakref = -1;
+    int arg_array_like = -1, arg_gc = -1, arg_weakref = -1, arg_dict = -1;
     int arg_kw_only = 0;
 
     static char *kwlist[] = {
@@ -5758,18 +5784,20 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
         "tag_field", "tag", "rename",
         "omit_defaults", "forbid_unknown_fields",
         "frozen", "eq", "order", "kw_only",
-        "repr_omit_defaults", "array_like", "gc", "weakref",
+        "repr_omit_defaults", "array_like",
+        "gc", "weakref", "dict",
         NULL
     };
 
     /* Parse arguments: (name, bases, dict) */
     if (!PyArg_ParseTupleAndKeywords(
-            args, kwargs, "UO!O!|$OOOpppppppppp:StructMeta.__new__", kwlist,
+            args, kwargs, "UO!O!|$OOOppppppppppp:StructMeta.__new__", kwlist,
             &name, &PyTuple_Type, &bases, &PyDict_Type, &namespace,
             &arg_tag_field, &arg_tag, &arg_rename,
             &arg_omit_defaults, &arg_forbid_unknown_fields,
             &arg_frozen, &arg_eq, &arg_order, &arg_kw_only,
-            &arg_repr_omit_defaults, &arg_array_like, &arg_gc, &arg_weakref
+            &arg_repr_omit_defaults, &arg_array_like,
+            &arg_gc, &arg_weakref, &arg_dict
         )
     )
         return NULL;
@@ -5779,7 +5807,8 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
         arg_tag_field, arg_tag, arg_rename,
         arg_omit_defaults, arg_forbid_unknown_fields,
         arg_frozen, arg_eq, arg_order, arg_kw_only,
-        arg_repr_omit_defaults, arg_array_like, arg_gc, arg_weakref
+        arg_repr_omit_defaults, arg_array_like,
+        arg_gc, arg_weakref, arg_dict
     );
 }
 
@@ -5789,7 +5818,7 @@ PyDoc_STRVAR(msgspec_defstruct__doc__,
 "tag_field=None, tag=None, rename=None, omit_defaults=False, "
 "forbid_unknown_fields=False, frozen=False, eq=True, order=False, "
 "kw_only=False, repr_omit_defaults=False, array_like=False, gc=True, "
-"weakref=False)\n"
+"weakref=False, dict=False)\n"
 "--\n"
 "\n"
 "Dynamically define a new Struct class.\n"
@@ -5826,25 +5855,28 @@ msgspec_defstruct(PyObject *self, PyObject *args, PyObject *kwargs)
     PyObject *new_bases = NULL, *annotations = NULL, *fields_fast = NULL, *out = NULL;
     int arg_omit_defaults = -1, arg_forbid_unknown_fields = -1;
     int arg_frozen = -1, arg_eq = -1, arg_order = -1, arg_kw_only = 0;
-    int arg_repr_omit_defaults = -1, arg_array_like = -1, arg_gc = -1, arg_weakref = -1;
+    int arg_repr_omit_defaults = -1, arg_array_like = -1;
+    int arg_gc = -1, arg_weakref = -1, arg_dict = -1;
 
     static char *kwlist[] = {
         "name", "fields", "bases", "module", "namespace",
         "tag_field", "tag", "rename",
         "omit_defaults", "forbid_unknown_fields",
         "frozen", "eq", "order", "kw_only",
-        "repr_omit_defaults", "array_like", "gc", "weakref",
+        "repr_omit_defaults", "array_like",
+        "gc", "weakref", "dict",
         NULL
     };
 
     /* Parse arguments: (name, bases, dict) */
     if (!PyArg_ParseTupleAndKeywords(
-            args, kwargs, "UO|$O!UO!OOOpppppppppp:defstruct", kwlist,
+            args, kwargs, "UO|$O!UO!OOOppppppppppp:defstruct", kwlist,
             &name, &fields, &PyTuple_Type, &bases, &module, &PyDict_Type, &namespace,
             &arg_tag_field, &arg_tag, &arg_rename,
             &arg_omit_defaults, &arg_forbid_unknown_fields,
             &arg_frozen, &arg_eq, &arg_order, &arg_kw_only,
-            &arg_repr_omit_defaults, &arg_array_like, &arg_gc, &arg_weakref)
+            &arg_repr_omit_defaults, &arg_array_like,
+            &arg_gc, &arg_weakref, &arg_dict)
     )
         return NULL;
 
@@ -5911,7 +5943,8 @@ msgspec_defstruct(PyObject *self, PyObject *args, PyObject *kwargs)
         arg_tag_field, arg_tag, arg_rename,
         arg_omit_defaults, arg_forbid_unknown_fields,
         arg_frozen, arg_eq, arg_order, arg_kw_only,
-        arg_repr_omit_defaults, arg_array_like, arg_gc, arg_weakref
+        arg_repr_omit_defaults, arg_array_like,
+        arg_gc, arg_weakref, arg_dict
     );
 
 cleanup:
@@ -6210,6 +6243,16 @@ StructConfig_weakref(StructConfig *self, void *closure)
 }
 
 static PyObject*
+StructConfig_dict(StructConfig *self, void *closure)
+{
+    PyTypeObject *type = (PyTypeObject *)(self->st_type);
+    if (type->tp_dictoffset) {
+        Py_RETURN_TRUE;
+    }
+    Py_RETURN_FALSE;
+}
+
+static PyObject*
 StructConfig_repr_omit_defaults(StructConfig *self, void *closure)
 {
     if (self->st_type->repr_omit_defaults == OPT_TRUE) { Py_RETURN_TRUE; }
@@ -6256,6 +6299,7 @@ static PyGetSetDef StructConfig_getset[] = {
     {"array_like", (getter) StructConfig_array_like, NULL, NULL, NULL},
     {"gc", (getter) StructConfig_gc, NULL, NULL, NULL},
     {"weakref", (getter) StructConfig_weakref, NULL, NULL, NULL},
+    {"dict", (getter) StructConfig_dict, NULL, NULL, NULL},
     {"omit_defaults", (getter) StructConfig_omit_defaults, NULL, NULL, NULL},
     {"forbid_unknown_fields", (getter) StructConfig_forbid_unknown_fields, NULL, NULL, NULL},
     {"tag", (getter) StructConfig_tag, NULL, NULL, NULL},
@@ -6303,6 +6347,7 @@ PyDoc_STRVAR(StructConfig__doc__,
 "omit_defaults: bool\n"
 "forbid_unknown_fields: bool\n"
 "weakref: bool\n"
+"dict: bool\n"
 "tag_field: str | None\n"
 "tag: str | int | None"
 );
@@ -7198,6 +7243,10 @@ PyDoc_STRVAR(Struct__doc__,
 "   that reference cycles don't occur when setting ``gc=False``.\n"
 "weakref: bool, default False\n"
 "   Whether instances of this type support weak references. Defaults to False.\n"
+"dict: bool, default False\n"
+"   Whether instances of this type will include a ``__dict__``. Setting this to\n"
+"   True will allow adding additional undeclared attributes to a struct instance,\n"
+"   which may be useful for holding private runtime state. Defaults to False.\n"
 "\n"
 "Examples\n"
 "--------\n"
@@ -18453,6 +18502,7 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->EnumMetaType);
     Py_CLEAR(st->struct_lookup_cache);
     Py_CLEAR(st->str___weakref__);
+    Py_CLEAR(st->str___dict__);
     Py_CLEAR(st->str__value2member_map_);
     Py_CLEAR(st->str___msgspec_cache__);
     Py_CLEAR(st->str__value_);
@@ -18837,6 +18887,7 @@ PyInit__core(void)
 #define CACHED_STRING(attr, str) \
     if ((st->attr = PyUnicode_InternFromString(str)) == NULL) return NULL
     CACHED_STRING(str___weakref__, "__weakref__");
+    CACHED_STRING(str___dict__, "__dict__");
     CACHED_STRING(str__value2member_map_, "_value2member_map_");
     CACHED_STRING(str___msgspec_cache__, "__msgspec_cache__");
     CACHED_STRING(str__value_, "_value_");

@@ -74,6 +74,7 @@ class Struct(metaclass=__StructMeta):
         array_like: bool = False,
         gc: bool = True,
         weakref: bool = False,
+        dict: bool = False,
     ) -> None: ...
     def __rich_repr__(self) -> Iterable[Tuple[str, Any]]: ...
 
@@ -102,6 +103,7 @@ def defstruct(
     array_like: bool = False,
     gc: bool = True,
     weakref: bool = False,
+    dict: bool = False,
 ) -> Type[Struct]: ...
 
 # Lie and say `Raw` is a subclass of `bytes`, so mypy will accept it in most
