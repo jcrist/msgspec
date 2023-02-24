@@ -18,7 +18,13 @@ Structs
 
 .. autofunction:: msgspec.structs.astuple
 
+.. autofunction:: msgspec.structs.fields
+
+.. autoclass:: msgspec.structs.FieldInfo
+
 .. autoclass:: msgspec.structs.StructConfig
+
+.. autodata:: UNSET
 
 Meta
 ----
@@ -157,7 +163,6 @@ Inspect
 .. autoclass:: NamedTupleType
 .. autoclass:: DataclassType
 .. autoclass:: StructType
-.. autodata:: UNSET
 
 
 Exceptions
