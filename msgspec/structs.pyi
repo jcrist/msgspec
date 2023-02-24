@@ -1,6 +1,6 @@
 from typing import Any, TypeVar, Union
 
-from . import Struct
+from . import UNSET, Struct
 
 S = TypeVar("S", bound=Struct, covariant=True)
 
@@ -20,3 +20,15 @@ class StructConfig:
     weakref: bool
     tag: Union[str, int, None]
     tag_field: Union[str, None]
+
+class FieldInfo(Struct):
+    name: str
+    encode_name: str
+    type: Any
+    default: Any = UNSET
+    default_factory: Any = UNSET
+
+    @property
+    def required(self) -> bool: ...
+
+def fields(type_or_instance: Struct | type[Struct]) -> tuple[FieldInfo]: ...

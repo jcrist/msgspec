@@ -1844,7 +1844,7 @@ class TestReplace:
         del t2
 
 
-class TestUtils:
+class TestAsDictAndAsTuple:
     def test_asdict(self):
         x = Point(1, 2)
         assert msgspec.structs.asdict(x) == {"x": 1, "y": 2}
@@ -1854,7 +1854,7 @@ class TestUtils:
         assert msgspec.structs.astuple(x) == (1, 2)
 
     @pytest.mark.parametrize("func", [msgspec.structs.asdict, msgspec.structs.astuple])
-    def test_asdict_errors(self, func):
+    def test_errors(self, func):
         with pytest.raises(TypeError):
             func(1)
 
@@ -1863,6 +1863,68 @@ class TestUtils:
 
         with pytest.raises(AttributeError):
             func(x)
+
+
+class TestInspectFields:
+    def test_fields_bad_arg(self):
+        with pytest.raises(TypeError, match="struct type or instance"):
+            msgspec.structs.fields(1)
+
+    def test_fields_no_fields(self):
+        assert msgspec.structs.fields(msgspec.Struct) == ()
+
+    @pytest.mark.parametrize("instance", [False, True])
+    def test_fields(self, instance):
+        def factory():
+            return 1
+
+        class Example(msgspec.Struct):
+            x: int
+            y: int = 0
+            z: int = msgspec.field(default_factory=factory)
+
+        arg = Example(1, 2, 3) if instance else Example
+        fields = msgspec.structs.fields(arg)
+        x_field, y_field, z_field = fields
+
+        assert x_field.required
+        assert x_field.default is msgspec.UNSET
+        assert x_field.default_factory is msgspec.UNSET
+
+        assert not y_field.required
+        assert y_field.default == 0
+        assert y_field.default_factory is msgspec.UNSET
+
+        assert not z_field.required
+        assert z_field.default is msgspec.UNSET
+        assert z_field.default_factory is factory
+
+    def test_fields_keyword_only(self):
+        class Example(msgspec.Struct, kw_only=True):
+            a: int
+            b: int = 1
+            c: int
+            d: int = 2
+
+        sol = (
+            msgspec.structs.FieldInfo("a", "a", int),
+            msgspec.structs.FieldInfo("b", "b", int, default=1),
+            msgspec.structs.FieldInfo("c", "c", int),
+            msgspec.structs.FieldInfo("d", "d", int, default=2),
+        )
+        assert msgspec.structs.fields(Example) == sol
+
+    def test_fields_encode_name(self):
+        class Example(msgspec.Struct, rename="camel"):
+            field_one: int
+            field_two: int
+
+        sol = (
+            msgspec.structs.FieldInfo("field_one", "fieldOne", int),
+            msgspec.structs.FieldInfo("field_two", "fieldTwo", int),
+        )
+
+        assert msgspec.structs.fields(Example) == sol
 
 
 class TestClassVar:

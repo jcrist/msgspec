@@ -397,6 +397,23 @@ def check_astuple() -> None:
     reveal_type(msgspec.structs.astuple(x))  # assert "tuple" in typ
 
 
+def check_fields() -> None:
+    class Test(msgspec.Struct):
+        x: int
+        y: int
+
+    x = Test(1, 2)
+    res1 = msgspec.structs.fields(x)
+    reveal_type(res1)  # assert "tuple" in typ.lower() and "FieldInfo" in typ
+    res2 = msgspec.structs.fields(Test)
+    reveal_type(res2)  # assert "tuple" in typ.lower() and "FieldInfo" in typ
+
+    for field in res1:
+        reveal_type(field)  # assert "FieldInfo" in typ
+        reveal_type(field.required)  # assert "bool" in typ
+        reveal_type(field.name)  # assert "str" in typ
+
+
 ##########################################################
 # Meta                                                   #
 ##########################################################
