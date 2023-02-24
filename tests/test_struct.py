@@ -147,15 +147,96 @@ def test_struct_subclass_forbidden_field_names():
             __dict__: int
 
 
-def test_struct_subclass_forbids_non_struct_bases():
-    class Mixin(object):
-        def method(self):
+class TestMixins:
+    def test_mixin_no_slots(self):
+        class Mixin(object):
+            def method(self):
+                pass
+
+        class Test1(Struct, Mixin):
             pass
 
-    with pytest.raises(TypeError, match="All base classes must be"):
+        assert issubclass(Test1, Mixin)
+        assert Test1.__dictoffset__ != 0
+        assert Test1.__weakrefoffset__ != 0
+
+        class Test2(Struct, Mixin, dict=True, weakref=True):
+            pass
+
+        assert Test2.__dictoffset__ != 0
+        assert Test2.__weakrefoffset__ != 0
+
+    def test_mixin_slots(self):
+        class Mixin(object):
+            __slots__ = ()
+
+            def method(self):
+                pass
+
+        class Test1(Struct, Mixin):
+            pass
+
+        assert issubclass(Test1, Mixin)
+        assert Test1.__dictoffset__ == 0
+        assert Test1.__weakrefoffset__ == 0
+
+        class Test2(Struct, Mixin, dict=True, weakref=True):
+            pass
+
+        assert Test2.__dictoffset__ != 0
+        assert Test2.__weakrefoffset__ != 0
+
+    def test_mixin_nonempty_slots(self):
+        class Mixin(object):
+            __slots__ = "_state"
+
+            def method(self):
+                try:
+                    return self._state
+                except AttributeError:
+                    self._state = self.x + 1
+                    return self._state
 
         class Test(Struct, Mixin):
-            a: int
+            x: int
+
+        assert Test.__dictoffset__ == 0
+
+        t = Test(1)
+        assert t.method() == 2
+        assert t.method() == 2
+
+    def test_mixin_forbids_init(self):
+        class Mixin(object):
+            def __init__(self):
+                pass
+
+        with pytest.raises(TypeError, match="cannot define __init__"):
+
+            class Test(Struct, Mixin):
+                pass
+
+    def test_mixin_forbids_new(self):
+        class Mixin(object):
+            def __new__(self):
+                pass
+
+        with pytest.raises(TypeError, match="cannot define __new__"):
+
+            class Test(Struct, Mixin):
+                pass
+
+
+def test_struct_subclass_forbids_non_types():
+    # Currently this failcase is handled by CPython's internals, but it's good
+    # to make sure this user error actually errors.
+    class Foo:
+        pass
+
+    with pytest.raises(TypeError):
+
+        class Test(msgspec.Struct, Foo()):
+            pass
 
 
 def test_struct_subclass_forbids_mixed_layouts():

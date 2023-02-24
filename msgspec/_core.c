@@ -5028,20 +5028,34 @@ static int
 structmeta_collect_base(StructMetaInfo *info, PyObject *base) {
     if ((PyTypeObject *)base == &StructMixinType) return 0;
 
-    if (!(PyType_Check(base) && (Py_TYPE(base) == &StructMetaType))) {
-        PyErr_SetString(
-            PyExc_TypeError,
-            "All base classes must be subclasses of msgspec.Struct"
-        );
-        return -1;
-    }
-
     if (((PyTypeObject *)base)->tp_weaklistoffset) {
         info->already_has_weakref = true;
     }
 
     if (((PyTypeObject *)base)->tp_dictoffset) {
         info->already_has_dict = true;
+    }
+
+    if (!PyType_Check(base)) {
+        /* CPython's metaclass conflict check will catch this issue earlier on,
+         * but it's still good to have this check in place in case that's ever
+         * removed */
+        PyErr_SetString(PyExc_TypeError, "All base classes must be types");
+        return -1;
+    }
+
+    if (Py_TYPE(base) != &StructMetaType) {
+        PyTypeObject *cls = (PyTypeObject *)base;
+        static const char *attrs[] = {"__init__", "__new__"};
+        Py_ssize_t nattrs = 2;
+
+        for (Py_ssize_t i = 0; i < nattrs; i++) {
+            if (PyDict_GetItemString(cls->tp_dict, attrs[i]) != NULL) {
+                PyErr_Format(PyExc_TypeError, "Struct base classes cannot define %s", attrs[i]);
+                return -1;
+            }
+        }
+        return 0;
     }
 
     StructMetaObject *st_type = (StructMetaObject *)base;
