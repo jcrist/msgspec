@@ -11,6 +11,7 @@ import attrs
 import cattrs.preconf.orjson
 import orjson
 import pydantic
+import typedload.dataloader, typedload.datadumper
 from mashumaro.mixins.orjson import DataClassORJSONMixin
 
 import msgspec
@@ -183,6 +184,56 @@ def bench_pydantic(n, no_gc):
 
 
 #############################################################################
+#  typedload                                                                #
+#############################################################################
+
+
+@attrs.define
+class AddressTypedload:
+    street: str
+    state: str
+    zip: int
+
+
+@attrs.define
+class UserTypedload:
+    created: datetime.datetime
+    updated: datetime.datetime
+    first: str
+    last: str
+    birthday: datetime.date
+    addresses: Optional[List[AddressTypedload]] = None
+    telephone: Optional[str] = None
+    email: Optional[str] = None
+
+
+@attrs.define
+class UsersTypedload:
+    users: List[UserTypedload]
+
+
+def bench_typedload(n, no_gc):
+    # Dates are stored as ISO strings, not tuples, switch the handlers
+    loader = typedload.dataloader.Loader()
+    handler_index = loader.index(datetime.date)
+    loader.handlers[handler_index] = lambda t: t == datetime.date, lambda l, v, t: t.fromisoformat(v)
+    loader.handlers.insert(
+        handler_index,
+        (lambda t: t == datetime.datetime, lambda _, v, t: t.fromisoformat(v))
+    )
+    dumper = typedload.datadumper.Dumper()
+    handler_index = dumper.index(datetime.date(1,1,1))
+    dumper.handlers[handler_index] = lambda v: isinstance(v, (datetime.date, datetime.datetime)), lambda _, v: v.isoformat()
+    return bench(
+        lambda data: dumper.dump(data),
+        lambda data: loader.load(data, UsersTypedload),
+        n,
+        None,
+        no_gc=no_gc,
+    )
+
+
+#############################################################################
 #  cattrs                                                                   #
 #############################################################################
 
@@ -270,6 +321,7 @@ BENCHMARKS = [
     ("pydantic", bench_pydantic),
     ("cattrs", bench_cattrs),
     ("mashumaro", bench_mashumaro),
+    ("typedload", bench_typedload),
 ]
 
 
