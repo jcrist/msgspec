@@ -111,6 +111,7 @@ and decoding time.
 - pydantic_
 - cattrs_
 - mashumaro_
+- typedload_
 
 The full benchmark source can be found
 `here <https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_validation.py>`__.
@@ -317,17 +318,19 @@ The full benchmark source can be found `here
 
 **Results (smaller is better)**
 
-+--------------+---------+------------+-------------+
-|              | version | size (MiB) | vs. msgspec |
-+==============+=========+============+=============+
-| **msgspec**  | 0.12.0  | 0.34       | 1.00x       |
-+--------------+---------+------------+-------------+
-| **orjson**   | 3.8.5   | 0.56       | 1.64x       |
-+--------------+---------+------------+-------------+
-| **msgpack**  | 1.0.4   | 0.99       | 2.91x       |
-+--------------+---------+------------+-------------+
-| **pydantic** | 1.10.4  | 8.71       | 25.67x      |
-+--------------+---------+------------+-------------+
++---------------+---------+------------+-------------+
+|               | version | size (MiB) | vs. msgspec |
++===============+=========+============+=============+
+| **typedload** | 2.22    | 0.15       | 0.38x       |
++---------------+---------+------------+-------------+
+| **msgspec**   | 0.13.1  | 0.40       | 1.00x       |
++---------------+---------+------------+-------------+
+| **orjson**    | 3.8.7   | 0.56       | 1.41x       |
++---------------+---------+------------+-------------+
+| **msgpack**   | 1.0.4   | 0.99       | 2.48x       |
++---------------+---------+------------+-------------+
+| **pydantic**  | 1.10.5  | 8.71       | 21.85x      |
++---------------+---------+------------+-------------+
 
 The functionality available in ``msgspec`` is comparable to that of orjson_,
 msgpack_, and pydantic_ combined. However, the total installed binary size of
@@ -451,3 +454,4 @@ msgpack_, and pydantic_ combined. However, the total installed binary size of
 .. _cattrs: https://catt.rs/en/latest/
 .. _mashumaro: https://github.com/Fatal1ty/mashumaro
 .. _conda-forge: https://conda-forge.org/
+.. _typedload: https://ltworf.github.io/typedload/
