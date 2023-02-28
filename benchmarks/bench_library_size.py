@@ -23,6 +23,13 @@ def get_latest_310_manylinux_x86_64_wheel_size(library):
         if "310" in name and "manylinux_2_17" in name and "x86_64" in name:
             files[name] = url
     if len(files) != 1:
+        # No binary, could it be a pure python library? Let's see!
+        for file_info in resp["releases"][version]:
+            name = file_info["filename"]
+            url = file_info["url"]
+            if "py3" in name and "none" in name and "any" in name:
+                files[name] = url
+    if len(files) != 1:
         raise ValueError(
             f"Expected to find only 1 matching file for {library}, got {list(files)}"
         )
@@ -39,7 +46,7 @@ def get_latest_310_manylinux_x86_64_wheel_size(library):
 def main():
     data = [
         get_latest_310_manylinux_x86_64_wheel_size(lib)
-        for lib in ["msgspec", "orjson", "msgpack", "pydantic"]
+        for lib in ["msgspec", "orjson", "msgpack", "pydantic", "typedload"]
     ]
     data.sort(key=lambda x: x[2])
     msgspec_size = next(s for l, _, s in data if l == "msgspec")
