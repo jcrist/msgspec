@@ -3006,7 +3006,6 @@ typenode_collect_constraints(
         if (constraints->lt != NULL) {
             state->types |= MS_CONSTR_INT_MAX;
             if (!_constr_as_i64(constraints->lt, &(state->c_int_max), -1)) return -1;
-            state->c_int_min -= 1;
         }
         else if (constraints->le != NULL) {
             state->types |= MS_CONSTR_INT_MAX;
