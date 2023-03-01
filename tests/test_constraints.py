@@ -345,6 +345,7 @@ class TestIntConstraints:
             (Meta(ge=0, multiple_of=2), [0, 2**63 + 2], [-2, 2**63 + 1]),
             (Meta(le=0, multiple_of=2), [0, -(2**63)], [-1, 2, 2**63]),
             (Meta(ge=0, le=10), [0, 10], [-1, 11]),
+            (Meta(gt=0, lt=10), [1, 2, 9], [-1, 0, 10]),
         ],
     )
     def test_combinations(self, proto, meta, good, bad):
