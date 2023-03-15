@@ -5137,7 +5137,8 @@ structmeta_process_default(StructMetaInfo *info, PyObject *field) {
             goto done;
         }
         else {
-            if (PyDict_SetItem(info->defaults_lk, field, NODEFAULT) < 0) return -1;
+            default_val = NODEFAULT;
+            Py_INCREF(default_val);
             goto done;
         }
     }
