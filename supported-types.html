@@ -314,6 +314,10 @@ Most combinations of the following types are supported (with a few restrictions)
 <li><p><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Mapping" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collections.abc.Mapping</span></code></a> / <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Mapping" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.Mapping</span></code></a></p></li>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.MutableMapping" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collections.abc.MutableMapping</span></code></a> / <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.MutableMapping" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.MutableMapping</span></code></a></p></li>
 </ul>
+<p><strong>Third-Party Libraries</strong></p>
+<ul class="simple">
+<li><p><a class="reference external" href="https://www.attrs.org/en/stable/index.html">attrs</a> types</p></li>
+</ul>
 <p>Additional types may be supported through <a class="reference internal" href="extending.html"><span class="doc">extensions</span></a>.</p>
 <p>Note that except where explicitly stated, subclasses of these types are not
 supported by default (see <a class="reference internal" href="extending.html"><span class="doc">Extending</span></a> for how to add support yourself).</p>
@@ -762,6 +766,41 @@ additional features.</p>
 </pre></div>
 </div>
 </section>
+<section id="attrs">
+<h2><code class="docutils literal notranslate"><span class="pre">attrs</span></code><a class="headerlink" href="#attrs" title="Permalink to this heading">#</a></h2>
+<p><a class="reference external" href="https://www.attrs.org/en/stable/index.html">attrs</a> types map to objects/maps in all protocols.</p>
+<p>During encoding, all attributes without a leading underscore (<code class="docutils literal notranslate"><span class="pre">&quot;_&quot;</span></code>) are
+encoded.</p>
+<p>During decoding, any extra fields are ignored. An error is raised if a field’s
+type doesn’t match or if any required fields are missing.</p>
+<p>If the <code class="docutils literal notranslate"><span class="pre">__attrs_pre_init__</span></code> or <code class="docutils literal notranslate"><span class="pre">__attrs_post_init__</span></code> methods are defined on
+the class, they are called as part of the decoding process.</p>
+<p>When possible we recommend using <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> instead of <a class="reference external" href="https://www.attrs.org/en/stable/index.html">attrs</a> types for
+specifying schemas - <a class="reference internal" href="structs.html"><span class="doc">Structs</span></a> are faster, more ergonomic, and support
+additional features.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">attrs</span> <span class="kn">import</span> <span class="n">define</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="nd">@define</span>
+<span class="gp">... </span><span class="k">class</span> <span class="nc">Person</span><span class="p">:</span>
+<span class="gp">... </span>    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+<span class="gp">... </span>    <span class="n">age</span><span class="p">:</span> <span class="nb">int</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">carol</span> <span class="o">=</span> <span class="n">Person</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;carol&quot;</span><span class="p">,</span> <span class="n">age</span><span class="o">=</span><span class="mi">32</span><span class="p">)</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">carol</span><span class="p">)</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Person</span><span class="p">)</span>
+<span class="go">Person(name=&#39;carol&#39;, age=32)</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">wrong_type</span> <span class="o">=</span> <span class="sa">b</span><span class="s1">&#39;{&quot;name&quot;: &quot;doug&quot;, &quot;age&quot;: &quot;thirty&quot;}&#39;</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">wrong_type</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Person</span><span class="p">)</span>
+<span class="gt">Traceback (most recent call last):</span>
+  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+<span class="gr">msgspec.ValidationError</span>: <span class="n">Expected `int`, got `str` - at `$.age`</span>
+</pre></div>
+</div>
+</section>
 <section id="struct">
 <h2><code class="docutils literal notranslate"><span class="pre">Struct</span></code><a class="headerlink" href="#struct" title="Permalink to this heading">#</a></h2>
 <p>Structs are the preferred way of defining structured data types in <code class="docutils literal notranslate"><span class="pre">msgspec</span></code>.
@@ -987,8 +1026,7 @@ value.</p>
 is fixable with some work, if this is a feature you need please <a class="reference external" href="https://github.com/jcrist/msgspec/issues">open an
 issue</a>.</p></li>
 <li><p>Unions may contain at most one type that encodes to an object (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a>,
-<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypedDict" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.TypedDict</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#dataclasses.dataclass" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses.dataclass</span></code></a>, <code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code> with
-<code class="docutils literal notranslate"><span class="pre">array_like=False</span></code>)</p></li>
+<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypedDict" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.TypedDict</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/dataclasses.html">dataclasses</a>, <a class="reference external" href="https://www.attrs.org/en/stable/index.html">attrs</a>, <code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code> with <code class="docutils literal notranslate"><span class="pre">array_like=False</span></code>)</p></li>
 <li><p>Unions may contain at most one type that encodes to an array (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">list</span></code></a>,
 <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tuple</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#set" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#frozenset" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">frozenset</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.NamedTuple" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.NamedTuple</span></code></a>, <code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code> with
 <code class="docutils literal notranslate"><span class="pre">array_like=True</span></code>).</p></li>
@@ -1250,6 +1288,7 @@ by default.</p>
 <li><a class="reference internal" href="#dict"><code class="docutils literal notranslate"><span class="pre">dict</span></code></a></li>
 <li><a class="reference internal" href="#typeddict"><code class="docutils literal notranslate"><span class="pre">TypedDict</span></code></a></li>
 <li><a class="reference internal" href="#dataclasses"><code class="docutils literal notranslate"><span class="pre">dataclasses</span></code></a></li>
+<li><a class="reference internal" href="#attrs"><code class="docutils literal notranslate"><span class="pre">attrs</span></code></a></li>
 <li><a class="reference internal" href="#struct"><code class="docutils literal notranslate"><span class="pre">Struct</span></code></a></li>
 <li><a class="reference internal" href="#enum-intenum"><code class="docutils literal notranslate"><span class="pre">Enum</span></code> / <code class="docutils literal notranslate"><span class="pre">IntEnum</span></code></a></li>
 <li><a class="reference internal" href="#literal"><code class="docutils literal notranslate"><span class="pre">Literal</span></code></a></li>

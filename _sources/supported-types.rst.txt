@@ -56,6 +56,10 @@ Most combinations of the following types are supported (with a few restrictions)
 - `collections.abc.Mapping` / `typing.Mapping`
 - `collections.abc.MutableMapping` / `typing.MutableMapping`
 
+**Third-Party Libraries**
+
+- attrs_ types
+
 Additional types may be supported through :doc:`extensions <extending>`.
 
 Note that except where explicitly stated, subclasses of these types are not
@@ -558,6 +562,47 @@ additional features.
       File "<stdin>", line 1, in <module>
     msgspec.ValidationError: Expected `int`, got `str` - at `$.age`
 
+``attrs``
+---------
+
+attrs_ types map to objects/maps in all protocols.
+
+During encoding, all attributes without a leading underscore (``"_"``) are
+encoded.
+
+During decoding, any extra fields are ignored. An error is raised if a field's
+type doesn't match or if any required fields are missing.
+
+If the ``__attrs_pre_init__`` or ``__attrs_post_init__`` methods are defined on
+the class, they are called as part of the decoding process.
+
+When possible we recommend using `msgspec.Struct` instead of attrs_ types for
+specifying schemas - :doc:`structs` are faster, more ergonomic, and support
+additional features.
+
+.. code-block:: python
+
+    >>> from attrs import define
+
+    >>> @define
+    ... class Person:
+    ...     name: str
+    ...     age: int
+
+    >>> carol = Person(name="carol", age=32)
+
+    >>> msg = msgspec.json.encode(carol)
+
+    >>> msgspec.json.decode(msg, type=Person)
+    Person(name='carol', age=32)
+
+    >>> wrong_type = b'{"name": "doug", "age": "thirty"}'
+
+    >>> msgspec.json.decode(wrong_type, type=Person)
+    Traceback (most recent call last):
+      File "<stdin>", line 1, in <module>
+    msgspec.ValidationError: Expected `int`, got `str` - at `$.age`
+
 ``Struct``
 ----------
 
@@ -801,8 +846,7 @@ Union restrictions are as follows:
   issue <https://github.com/jcrist/msgspec/issues>`__.
 
 - Unions may contain at most one type that encodes to an object (`dict`,
-  `typing.TypedDict`, `dataclasses.dataclass`, `Struct` with
-  ``array_like=False``)
+  `typing.TypedDict`, dataclasses_, attrs_, `Struct` with ``array_like=False``)
 
 - Unions may contain at most one type that encodes to an array (`list`,
   `tuple`, `set`, `frozenset`, `typing.NamedTuple`, `Struct` with
