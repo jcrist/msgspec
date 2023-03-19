@@ -641,6 +641,58 @@ def test_dataclass():
     }
 
 
+def test_attrs():
+    attrs = pytest.importorskip("attrs")
+
+    @attrs.define
+    class Point:
+        x: int
+        y: int
+
+    @attrs.define
+    class Polygon:
+        """An example docstring"""
+
+        vertices: List[Point]
+        name: Union[str, None] = None
+        metadata: Dict[str, str] = attrs.field(factory=dict)
+
+    assert msgspec.json.schema(Polygon) == {
+        "$ref": "#/$defs/Polygon",
+        "$defs": {
+            "Polygon": {
+                "title": "Polygon",
+                "description": "An example docstring",
+                "type": "object",
+                "properties": {
+                    "vertices": {
+                        "type": "array",
+                        "items": {"$ref": "#/$defs/Point"},
+                    },
+                    "name": {
+                        "anyOf": [{"type": "string"}, {"type": "null"}],
+                        "default": None,
+                    },
+                    "metadata": {
+                        "type": "object",
+                        "additionalProperties": {"type": "string"},
+                    },
+                },
+                "required": ["vertices"],
+            },
+            "Point": {
+                "title": "Point",
+                "type": "object",
+                "properties": {
+                    "x": {"type": "integer"},
+                    "y": {"type": "integer"},
+                },
+                "required": ["x", "y"],
+            },
+        },
+    }
+
+
 @pytest.mark.parametrize("use_union_operator", [False, True])
 def test_union(use_union_operator):
     class Example(msgspec.Struct):
