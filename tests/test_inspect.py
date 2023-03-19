@@ -515,6 +515,26 @@ def test_dataclass():
     assert mi.type_info(Example) == sol
 
 
+def test_attrs():
+    attrs = pytest.importorskip("attrs")
+
+    @attrs.define
+    class Example:
+        x: int
+        y: int = 0
+        z: str = attrs.field(factory=str)
+
+    sol = mi.DataclassType(
+        Example,
+        fields=(
+            mi.Field("x", "x", mi.IntType()),
+            mi.Field("y", "y", mi.IntType(), required=False, default=0),
+            mi.Field("z", "z", mi.StrType(), required=False, default_factory=str),
+        ),
+    )
+    assert mi.type_info(Example) == sol
+
+
 @pytest.mark.parametrize("kind", ["struct", "namedtuple", "typeddict", "dataclass"])
 def test_self_referential_objects(kind):
     if kind == "struct":

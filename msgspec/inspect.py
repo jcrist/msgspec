@@ -23,6 +23,7 @@ from ._core import (
 from ._utils import (
     _CONCRETE_TYPES,
     _AnnotatedAlias,
+    get_dataclass_info as _get_dataclass_info,
     get_type_hints as _get_type_hints,
 )
 
@@ -496,7 +497,7 @@ class NamedTupleType(Type):
 
 
 class DataclassType(Type):
-    """A type corresponding to a `dataclasses.dataclass` type.
+    """A type corresponding to a `dataclasses` or `attrs` type.
 
     Parameters
     ----------
@@ -654,6 +655,10 @@ def _is_enum(t):
 
 def _is_dataclass(t):
     return hasattr(t, "__dataclass_fields__")
+
+
+def _is_attrs(t):
+    return hasattr(t, "__attrs_attrs__")
 
 
 def _is_typeddict(t):
@@ -919,25 +924,22 @@ class _Translator:
                 for name, field_type in sorted(hints.items())
             )
             return out
-        elif _is_dataclass(t):
-            from dataclasses import MISSING, fields
-
+        elif _is_dataclass(t) or _is_attrs(t):
             if t in self.cache:
                 return self.cache[t]
             self.cache[t] = out = DataclassType(t, ())
-            hints = self._get_type_hints(t)
+            info, defaults, _, _ = _get_dataclass_info(t)
+            defaults = ((UNSET,) * (len(info) - len(defaults))) + defaults
             out.fields = tuple(
                 Field(
-                    name=f.name,
-                    encode_name=f.name,
-                    type=self.translate(hints[f.name]),
-                    required=f.default is MISSING and f.default_factory is MISSING,
-                    default=UNSET if f.default is MISSING else f.default,
-                    default_factory=(
-                        UNSET if f.default_factory is MISSING else f.default_factory
-                    ),
+                    name=name,
+                    encode_name=name,
+                    type=self.translate(typ),
+                    required=default is UNSET,
+                    default=UNSET if is_factory else default,
+                    default_factory=default if is_factory else UNSET,
                 )
-                for f in fields(t)
+                for (name, typ, is_factory), default in zip(info, defaults)
             )
             return out
         elif _is_namedtuple(t):
