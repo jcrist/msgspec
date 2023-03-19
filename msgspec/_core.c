@@ -8755,8 +8755,14 @@ ms_decode_pyint(PyObject *obj, TypeNode *type, PathNode *path) {
     if (MS_UNLIKELY(type->types & MS_INT_CONSTRS)) {
         if (!ms_passes_int_constraints(ux, neg, type, path)) return NULL;
     }
-    Py_INCREF(obj);
-    return obj;
+    if (MS_LIKELY(PyLong_CheckExact(obj))) {
+        Py_INCREF(obj);
+        return obj;
+    }
+    if (!neg) {
+        return PyLong_FromUnsignedLongLong(ux);
+    }
+    return PyLong_FromLongLong(-(int64_t)ux);
 }
 
 static MS_NOINLINE PyObject *
@@ -17586,8 +17592,7 @@ from_builtins_bytes(
             return NULL;
         }
         if (type->types & MS_TYPE_BYTES) {
-            Py_INCREF(obj);
-            return obj;
+            return PyBytes_FromObject(obj);
         }
         return PyByteArray_FromObject(obj);
     }
@@ -18322,63 +18327,61 @@ static PyObject *
 from_builtins(
     FromBuiltinsState *self, PyObject *obj, TypeNode *type, PathNode *path
 ) {
-    PyObject *out = NULL;
-    PyTypeObject *pytype = Py_TYPE(obj);
-    if (pytype == &PyUnicode_Type) {
-        out = self->from_builtins_str(self, obj, false, type, path);
-    }
-    else if (pytype == &PyLong_Type) {
-        out = from_builtins_int(self, obj, type, path);
-    }
-    else if (pytype == &PyFloat_Type) {
-        out = from_builtins_float(self, obj, type, path);
-    }
-    else if (pytype == &PyList_Type || pytype == &PyTuple_Type) {
-        out = from_builtins_array(self, obj, type, path);
-    }
-    else if (pytype == &PyDict_Type) {
-        out = from_builtins_object(self, obj, type, path);
-    }
-    else if (pytype == &PyBool_Type) {
-        out = from_builtins_bool(self, obj, type, path);
-    }
-    else if (obj == Py_None) {
-        out = from_builtins_none(self, obj, type, path);
-    }
-    else if (pytype == &PyBytes_Type) {
-        out = from_builtins_bytes(self, obj, type, path);
-    }
-    else if (pytype == &PyByteArray_Type) {
-        out = from_builtins_bytearray(self, obj, type, path);
-    }
-    else if (pytype == PyDateTimeAPI->DateTimeType) {
-        out = from_builtins_datetime(self, obj, type, path);
-    }
-    else if (pytype == PyDateTimeAPI->TimeType) {
-        out = from_builtins_time(self, obj, type, path);
-    }
-    else if (pytype == PyDateTimeAPI->DateType) {
-        out = from_builtins_immutable(self, MS_TYPE_DATE, "date", obj, type, path);
-    }
-    else if (pytype == (PyTypeObject *)self->mod->UUIDType) {
-        out = from_builtins_immutable(self, MS_TYPE_UUID, "uuid", obj, type, path);
-    }
-    else if (pytype == (PyTypeObject *)self->mod->DecimalType) {
-        out = from_builtins_immutable(self, MS_TYPE_DECIMAL, "decimal", obj, type, path);
-    }
-    else {
-        PyErr_Format(
-            PyExc_TypeError,
-            "from_builtins doesn't support objects of type '%.200s'",
-            pytype->tp_name
-        );
-        return NULL;
+    if (MS_UNLIKELY(type->types & (MS_TYPE_CUSTOM | MS_TYPE_CUSTOM_GENERIC))) {
+        Py_INCREF(obj);
+        return ms_decode_custom(obj, self->dec_hook, type, path);
     }
 
-    if (MS_UNLIKELY(type->types & (MS_TYPE_CUSTOM | MS_TYPE_CUSTOM_GENERIC))) {
-        return ms_decode_custom(out, self->dec_hook, type, path);
+    PyTypeObject *pytype = Py_TYPE(obj);
+    if (pytype == &PyUnicode_Type) {
+        return self->from_builtins_str(self, obj, false, type, path);
     }
-    return out;
+    else if (pytype == &PyBool_Type) {
+        return from_builtins_bool(self, obj, type, path);
+    }
+    else if (PyLong_Check(obj)) {
+        return from_builtins_int(self, obj, type, path);
+    }
+    else if (pytype == &PyFloat_Type) {
+        return from_builtins_float(self, obj, type, path);
+    }
+    else if (pytype == &PyList_Type || pytype == &PyTuple_Type) {
+        return from_builtins_array(self, obj, type, path);
+    }
+    else if (pytype == &PyDict_Type) {
+        return from_builtins_object(self, obj, type, path);
+    }
+    else if (obj == Py_None) {
+        return from_builtins_none(self, obj, type, path);
+    }
+    else if (PyBytes_Check(obj)) {
+        return from_builtins_bytes(self, obj, type, path);
+    }
+    else if (pytype == &PyByteArray_Type) {
+        return from_builtins_bytearray(self, obj, type, path);
+    }
+    else if (pytype == PyDateTimeAPI->DateTimeType) {
+        return from_builtins_datetime(self, obj, type, path);
+    }
+    else if (pytype == PyDateTimeAPI->TimeType) {
+        return from_builtins_time(self, obj, type, path);
+    }
+    else if (pytype == PyDateTimeAPI->DateType) {
+        return from_builtins_immutable(self, MS_TYPE_DATE, "date", obj, type, path);
+    }
+    else if (pytype == (PyTypeObject *)self->mod->UUIDType) {
+        return from_builtins_immutable(self, MS_TYPE_UUID, "uuid", obj, type, path);
+    }
+    else if (pytype == (PyTypeObject *)self->mod->DecimalType) {
+        return from_builtins_immutable(self, MS_TYPE_DECIMAL, "decimal", obj, type, path);
+    }
+    else if (type->types & MS_TYPE_ANY) {
+        Py_INCREF(obj);
+        return obj;
+    }
+    else {
+        return ms_validation_error(pytype->tp_name, type, path);
+    }
 }
 
 PyDoc_STRVAR(msgspec_from_builtins__doc__,

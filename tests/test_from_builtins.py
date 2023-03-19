@@ -114,12 +114,49 @@ class TestFromBuiltins:
     def test_dec_hook_explicit_none(self):
         assert from_builtins(1, int, dec_hook=None) == 1
 
-    def test_unsupported_input_type(self):
-        class Oops:
+    def test_custom_input_type(self):
+        class Custom:
             pass
 
-        with pytest.raises(TypeError, match="doesn't support objects of type 'Oops'"):
-            from_builtins(Oops(), Any)
+        with pytest.raises(ValidationError, match="Expected `int`, got `Custom`"):
+            from_builtins(Custom(), int)
+
+    def test_custom_input_type_works_with_any(self):
+        class Custom:
+            pass
+
+        x = Custom()
+        res = from_builtins(x, Any)
+        assert res is x
+        assert sys.getrefcount(x) == 3  # x + res + 1
+
+    def test_custom_input_type_works_with_custom(self):
+        class Custom:
+            pass
+
+        x = Custom()
+        res = from_builtins(x, Custom)
+        assert res is x
+        assert sys.getrefcount(x) == 3  # x + res + 1
+
+    def test_custom_input_type_works_with_dec_hook(self):
+        class Custom:
+            pass
+
+        class Custom2:
+            pass
+
+        def dec_hook(typ, x):
+            if typ is Custom2:
+                assert isinstance(x, Custom)
+                return Custom2()
+            raise TypeError
+
+        x = Custom()
+        res = from_builtins(x, Custom2, dec_hook=dec_hook)
+        assert isinstance(res, Custom2)
+        assert sys.getrefcount(res) == 2  # res + 1
+        assert sys.getrefcount(x) == 2  # x + 1
 
     def test_unsupported_output_type(self):
         with pytest.raises(TypeError, match="more than one array-like"):
@@ -250,6 +287,20 @@ class TestInt:
             with pytest.raises(ValidationError):
                 from_builtins({"x": x}, Ex)
 
+    def test_int_subclass(self):
+        class MyInt(int):
+            pass
+
+        for val in [10, 0, -10]:
+            sol = from_builtins(MyInt(val), int)
+            assert type(sol) is int
+            assert sol == val
+
+        x = MyInt(100)
+        sol = from_builtins(x, MyInt)
+        assert sol is x
+        assert sys.getrefcount(x) == 3  # x + sol + 1
+
 
 class TestFloat:
     def test_float(self):
@@ -361,6 +412,22 @@ class TestBinary:
                 msg = {"x": in_type(x)}
             with pytest.raises(ValidationError):
                 from_builtins(msg, Ex)
+
+    def test_bytes_subclass(self):
+        class MyBytes(bytes):
+            pass
+
+        msg = MyBytes(b"abc")
+
+        for typ in [bytes, bytearray]:
+            sol = from_builtins(msg, typ)
+            assert type(sol) is typ
+            assert sol == b"abc"
+
+        assert sys.getrefcount(msg) == 2  # msg + 1
+        sol = from_builtins(msg, MyBytes)
+        assert sol is msg
+        assert sys.getrefcount(msg) == 3  # msg + sol + 1
 
 
 class TestDateTime:
@@ -528,6 +595,19 @@ class TestEnum:
             from_builtins(3, Ex)
         with pytest.raises(ValidationError, match="Expected `int`, got `str`"):
             from_builtins("A", Ex)
+
+    def test_int_enum_int_subclass(self):
+        class MyInt(int):
+            pass
+
+        class Ex(enum.IntEnum):
+            x = 1
+            y = 2
+
+        msg = MyInt(1)
+        assert from_builtins(msg, Ex) is Ex.x
+        assert sys.getrefcount(msg) == 2  # msg + 1
+        assert from_builtins(MyInt(2), Ex) is Ex.y
 
 
 class TestLiteral:
