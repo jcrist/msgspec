@@ -371,13 +371,16 @@ type annotation.</p>
 instances. These are specified by assigning the default value itself as part
 of the field definition (as in <code class="docutils literal notranslate"><span class="pre">a</span></code> above). Most default values will be of
 this variety.</p></li>
-<li><p>A “dynamic” default value. Here a new default value is used for all
-instances. These are specified using the <a class="reference internal" href="api.html#msgspec.field" title="msgspec.field"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.field</span></code></a> function, and
-passing in a <code class="docutils literal notranslate"><span class="pre">default_factory</span></code> used to create a new default value per
-instance( as in <code class="docutils literal notranslate"><span class="pre">b</span></code> above). These are mainly useful for occasions where you
-need dynamic defaults, or when a default value is a mutable object that you
-don’t want to share between all instances of the struct (a <a class="reference external" href="https://docs.python-guide.org/writing/gotchas/#mutable-default-arguments">common gotcha</a>
-in Python).</p></li>
+<li><p>A “dynamic” default value. Here a new default value is used for every
+instance. These are specified by passing a 0-argument callable to the
+<code class="docutils literal notranslate"><span class="pre">default_factory</span></code> argument of <a class="reference internal" href="api.html#msgspec.field" title="msgspec.field"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.field</span></code></a> (as in <code class="docutils literal notranslate"><span class="pre">b</span></code> above). This
+function will be called as needed to create a new default value per instance.
+These are mainly useful for occasions where you need dynamic defaults, or
+when a default value is a mutable object that you don’t want to share between
+all instances of the struct (a <a class="reference external" href="https://docs.python-guide.org/writing/gotchas/#mutable-default-arguments">common gotcha</a>
+in Python). Note that since the <code class="docutils literal notranslate"><span class="pre">default_factory</span></code> callables take no
+arguments, you might need to make use of a <a class="reference external" href="https://docs.python.org/3/tutorial/controlflow.html#lambda-expressions">lambda</a> or <a class="reference external" href="https://docs.python.org/3/library/functools.html#functools.partial" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">functools.partial</span></code></a> to
+forward any additional parameters needed to the default factory.</p></li>
 <li><p>Builtin <em>empty</em> mutable collections (<code class="docutils literal notranslate"><span class="pre">[]</span></code>, <code class="docutils literal notranslate"><span class="pre">{}</span></code>, <code class="docutils literal notranslate"><span class="pre">set()</span></code>, and
 <code class="docutils literal notranslate"><span class="pre">bytearray()</span></code>) may be used as default values (as in <code class="docutils literal notranslate"><span class="pre">c</span></code> above). Since
 defaults of these types are so common, they’re these are “syntactic sugar”
