@@ -125,14 +125,17 @@ Default values may be one of 3 kinds:
   of the field definition (as in ``a`` above). Most default values will be of
   this variety.
 
-- A "dynamic" default value. Here a new default value is used for all
-  instances. These are specified using the `msgspec.field` function, and
-  passing in a ``default_factory`` used to create a new default value per
-  instance( as in ``b`` above). These are mainly useful for occasions where you
-  need dynamic defaults, or when a default value is a mutable object that you
-  don't want to share between all instances of the struct (a `common gotcha
+- A "dynamic" default value. Here a new default value is used for every
+  instance. These are specified by passing a 0-argument callable to the
+  ``default_factory`` argument of `msgspec.field` (as in ``b`` above). This
+  function will be called as needed to create a new default value per instance.
+  These are mainly useful for occasions where you need dynamic defaults, or
+  when a default value is a mutable object that you don't want to share between
+  all instances of the struct (a `common gotcha
   <https://docs.python-guide.org/writing/gotchas/#mutable-default-arguments>`_
-  in Python).
+  in Python). Note that since the ``default_factory`` callables take no
+  arguments, you might need to make use of a lambda_ or `functools.partial` to
+  forward any additional parameters needed to the default factory.
 
 - Builtin *empty* mutable collections (``[]``, ``{}``, ``set()``, and
   ``bytearray()``) may be used as default values (as in ``c`` above). Since
@@ -905,3 +908,4 @@ collected (leading to a memory leak).
 .. _tagged unions: https://en.wikipedia.org/wiki/Tagged_union
 .. _rich: https://rich.readthedocs.io/en/stable/pretty.html
 .. _keyword-only parameters: https://docs.python.org/3/glossary.html#term-parameter
+.. _lambda: https://docs.python.org/3/tutorial/controlflow.html#lambda-expressions
