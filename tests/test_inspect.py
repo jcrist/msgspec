@@ -535,6 +535,30 @@ def test_attrs():
     assert mi.type_info(Example) == sol
 
 
+@pytest.mark.parametrize("kind", ["struct", "dataclass", "attrs"])
+def test_unset_fields(kind):
+    if kind == "struct":
+
+        class Ex(msgspec.Struct):
+            x: Union[int, msgspec.UnsetType] = msgspec.UNSET
+
+    elif kind == "dataclass":
+
+        @dataclass
+        class Ex:
+            x: Union[int, msgspec.UnsetType] = msgspec.UNSET
+
+    elif kind == "attrs":
+        attrs = pytest.importorskip("attrs")
+
+        @attrs.define
+        class Ex:
+            x: Union[int, msgspec.UnsetType] = msgspec.UNSET
+
+    res = mi.type_info(Ex)
+    assert res.fields == (mi.Field("x", "x", mi.IntType(), required=False),)
+
+
 @pytest.mark.parametrize("kind", ["struct", "namedtuple", "typeddict", "dataclass"])
 def test_self_referential_objects(kind):
     if kind == "struct":
