@@ -1,3 +1,23 @@
+# We want to document both the UNSET singleton, and the UnsetType class, but we
+# don't want them to have the same docstring. I couldn't find an easy way to
+# do this in sphinx. For now, we patch the  UnsetType object when building types
+# to override the docstring handling.
+try:
+    import msgspec
+
+    class UnsetType:
+        """The type of `UNSET`.
+
+        See Also
+        --------
+        UNSET
+        """
+
+    msgspec.UnsetType = UnsetType
+except ImportError:
+    pass
+
+
 project = "msgspec"
 copyright = "2022, Jim Crist-Harif"
 author = "Jim Crist-Harif"
