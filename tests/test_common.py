@@ -2757,3 +2757,13 @@ class TestAbstractTypes:
                 msgspec.ValidationError, match="Expected `int`, got `str`"
             ):
                 proto.decode(proto.encode({"a": "b"}), type=typ[str, int])
+
+
+class TestUnset:
+    def test_unset_type_annotation_ignored(self, proto):
+        class Ex(msgspec.Struct):
+            x: Union[int, msgspec.UnsetType]
+
+        dec = proto.Decoder(Ex)
+        msg = proto.encode({"x": 1})
+        assert dec.decode(msg) == Ex(1)
