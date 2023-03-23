@@ -1,3 +1,4 @@
+import enum
 from typing import (
     Any,
     Callable,
@@ -19,15 +20,15 @@ from . import inspect, json, msgpack, structs, toml, yaml
 
 T = TypeVar("T")
 
-class UnsetType:
-    pass
+class UnsetType(enum.Enum):
+    UNSET = "UNSET"
 
-UNSET = UnsetType()
+UNSET = UnsetType.UNSET
 
-class _NoDefault:
-    pass
+class _NoDefault(enum.Enum):
+    NODEFAULT = "NODEFAULT"
 
-NODEFAULT = _NoDefault()
+NODEFAULT = _NoDefault.NODEFAULT
 
 @overload
 def field(*, default: T) -> T: ...
