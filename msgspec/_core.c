@@ -4325,7 +4325,10 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
     }
     else if (origin == state->mod->typing_union) {
         for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(args); i++) {
-            out = typenode_collect_type(state, PyTuple_GET_ITEM(args, i));
+            PyObject *arg = PyTuple_GET_ITEM(args, i);
+            /* Ignore UnsetType in unions */
+            if (arg == (PyObject *)(&Unset_Type)) continue;
+            out = typenode_collect_type(state, arg);
             if (out < 0) break;
         }
     }
