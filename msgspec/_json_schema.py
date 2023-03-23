@@ -322,7 +322,7 @@ def _to_schema(
             field_schema = _to_schema(field.type, name_map, ref_template)
             if field.required:
                 required.append(field.encode_name)
-            elif field.default is not mi.UNSET:
+            elif field.default is not mi.NODEFAULT:
                 field_schema["default"] = to_builtins(field.default, str_keys=True)
             elif field.default_factory in (list, dict, set, bytearray):
                 field_schema["default"] = field.default_factory()
@@ -356,7 +356,7 @@ def _to_schema(
             field_schema = _to_schema(field.type, name_map, ref_template)
             if field.required:
                 required.append(field.encode_name)
-            elif field.default is not mi.UNSET:
+            elif field.default is not mi.NODEFAULT:
                 field_schema["default"] = to_builtins(field.default, str_keys=True)
             names.append(field.encode_name)
             fields.append(field_schema)

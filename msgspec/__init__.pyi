@@ -19,10 +19,15 @@ from . import inspect, json, msgpack, structs, toml, yaml
 
 T = TypeVar("T")
 
-class _Unset:
+class UnsetType:
     pass
 
-UNSET = _Unset()
+UNSET = UnsetType()
+
+class _NoDefault:
+    pass
+
+NODEFAULT = _NoDefault()
 
 @overload
 def field(*, default: T) -> T: ...

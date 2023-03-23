@@ -14,8 +14,7 @@ import pytest
 from utils import temp_module
 
 import msgspec
-from msgspec import Struct, defstruct, field
-from msgspec._core import nodefault
+from msgspec import NODEFAULT, UNSET, Struct, defstruct, field
 from msgspec.structs import StructConfig, replace
 
 
@@ -38,9 +37,7 @@ def as_tuple(x):
     return tuple(getattr(x, f) for f in x.__struct_fields__)
 
 
-@pytest.mark.parametrize(
-    "obj, str_obj", [(msgspec.UNSET, "UNSET"), (nodefault, "nodefault")]
-)
+@pytest.mark.parametrize("obj, str_obj", [(UNSET, "UNSET"), (NODEFAULT, "NODEFAULT")])
 def test_singletons(obj, str_obj):
     assert str(obj) == str_obj
     assert pickle.loads(pickle.dumps(obj)) is obj
@@ -55,15 +52,15 @@ def test_singletons(obj, str_obj):
 
 def test_field():
     f1 = msgspec.field()
-    assert f1.default is msgspec.UNSET
-    assert f1.default_factory is msgspec.UNSET
+    assert f1.default is NODEFAULT
+    assert f1.default_factory is NODEFAULT
 
     f2 = msgspec.field(default=1)
     assert f2.default == 1
-    assert f2.default_factory is msgspec.UNSET
+    assert f2.default_factory is NODEFAULT
 
     f3 = msgspec.field(default_factory=int)
-    assert f3.default is msgspec.UNSET
+    assert f3.default is NODEFAULT
     assert f3.default_factory is int
 
     with pytest.raises(TypeError, match="Cannot set both"):
@@ -426,7 +423,7 @@ class TestStructParameterOrdering:
             d: int = 1
 
         assert Test.__struct_fields__ == ("b", "a", "c", "d")
-        assert Test.__struct_defaults__ == (0, nodefault, 1)
+        assert Test.__struct_defaults__ == (0, NODEFAULT, 1)
         assert Test.__match_args__ == ()
         assert Test.__slots__ == ("a", "b", "c", "d")
 
@@ -449,7 +446,7 @@ class TestStructParameterOrdering:
         assert S1.__slots__ == ("c", "d")
 
         assert S2.__struct_fields__ == ("d", "c", "b", "a")
-        assert S2.__struct_defaults__ == (1, nodefault, nodefault)
+        assert S2.__struct_defaults__ == (1, NODEFAULT, NODEFAULT)
         assert S2.__match_args__ == ("d", "c")
         assert S2.__slots__ == ("c", "d")
 
@@ -463,7 +460,7 @@ class TestStructParameterOrdering:
             c: int = 2
 
         assert S1.__struct_fields__ == ("d", "c", "b", "a")
-        assert S1.__struct_defaults__ == (2, 1, nodefault)
+        assert S1.__struct_defaults__ == (2, 1, NODEFAULT)
         assert S1.__match_args__ == ("d", "c")
         assert S1.__slots__ == ("c", "d")
 
@@ -491,7 +488,7 @@ class TestStructParameterOrdering:
             c: int = 1
 
         assert S1.__struct_fields__ == ("b", "a", "d", "c")
-        assert S1.__struct_defaults__ == (0, nodefault, 1)
+        assert S1.__struct_defaults__ == (0, NODEFAULT, 1)
         assert S1.__match_args__ == ("b", "a")
         assert S1.__slots__ == ("c", "d")
 
@@ -505,7 +502,7 @@ class TestStructParameterOrdering:
             c: int = 3
 
         assert S1.__struct_fields__ == ("a", "b", "c")
-        assert S1.__struct_defaults__ == (2, nodefault, 3)
+        assert S1.__struct_defaults__ == (2, NODEFAULT, 3)
         assert S1.__match_args__ == ("a",)
         assert S1.__slots__ == ("c",)
 
@@ -2031,15 +2028,15 @@ class TestInspectFields:
         x_field, y_field, z_field = fields
 
         assert x_field.required
-        assert x_field.default is msgspec.UNSET
-        assert x_field.default_factory is msgspec.UNSET
+        assert x_field.default is NODEFAULT
+        assert x_field.default_factory is NODEFAULT
 
         assert not y_field.required
         assert y_field.default == 0
-        assert y_field.default_factory is msgspec.UNSET
+        assert y_field.default_factory is NODEFAULT
 
         assert not z_field.required
-        assert z_field.default is msgspec.UNSET
+        assert z_field.default is NODEFAULT
         assert z_field.default_factory is factory
 
     def test_fields_keyword_only(self):

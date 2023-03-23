@@ -13,13 +13,9 @@ except Exception:
     _types_UnionType = type("UnionType", (), {})
 
 import msgspec
-from msgspec import UNSET
+from msgspec import NODEFAULT
 
-from ._core import (
-    Factory as _Factory,
-    nodefault as _nodefault,
-    to_builtins as _to_builtins,
-)
+from ._core import Factory as _Factory, to_builtins as _to_builtins
 from ._utils import (
     _CONCRETE_TYPES,
     _AnnotatedAlias,
@@ -63,7 +59,6 @@ __all__ = (
     "NamedTupleType",
     "DataclassType",
     "StructType",
-    "UNSET",
 )
 
 
@@ -452,18 +447,19 @@ class Field(msgspec.Struct):
         necessarily mean that `default` or `default_factory` will be set -
         optional fields may exist with no default value.
     default: Any, optional
-        A default value for the field. Will be `UNSET` if no default value is set.
+        A default value for the field. Will be `NODEFAULT` if no default value
+        is set.
     default_factory: Any, optional
         A callable that creates a default value for the field. Will be
-        `UNSET` if no ``default_factory`` is set.
+        `NODEFAULT` if no ``default_factory`` is set.
     """
 
     name: str
     encode_name: str
     type: Type
     required: bool = True
-    default: Any = UNSET
-    default_factory: Any = UNSET
+    default: Any = msgspec.field(default_factory=lambda: NODEFAULT)
+    default_factory: Any = msgspec.field(default_factory=lambda: NODEFAULT)
 
 
 class TypedDictType(Type):
@@ -877,19 +873,19 @@ class _Translator:
             for name, encode_name, default_obj in zip(
                 t.__struct_fields__,
                 t.__struct_encode_fields__,
-                (_nodefault,) * npos + t.__struct_defaults__,
+                (NODEFAULT,) * npos + t.__struct_defaults__,
             ):
-                if default_obj is _nodefault:
+                if default_obj is NODEFAULT:
                     required = True
-                    default = default_factory = UNSET
+                    default = default_factory = NODEFAULT
                 elif isinstance(default_obj, _Factory):
                     required = False
-                    default = UNSET
+                    default = NODEFAULT
                     default_factory = default_obj.factory
                 else:
                     required = False
                     default = default_obj
-                    default_factory = UNSET
+                    default_factory = NODEFAULT
 
                 field = Field(
                     name=name,
@@ -929,15 +925,15 @@ class _Translator:
                 return self.cache[t]
             self.cache[t] = out = DataclassType(t, ())
             info, defaults, _, _ = _get_dataclass_info(t)
-            defaults = ((UNSET,) * (len(info) - len(defaults))) + defaults
+            defaults = ((NODEFAULT,) * (len(info) - len(defaults))) + defaults
             out.fields = tuple(
                 Field(
                     name=name,
                     encode_name=name,
                     type=self.translate(typ),
-                    required=default is UNSET,
-                    default=UNSET if is_factory else default,
-                    default_factory=default if is_factory else UNSET,
+                    required=default is NODEFAULT,
+                    default=NODEFAULT if is_factory else default,
+                    default_factory=default if is_factory else NODEFAULT,
                 )
                 for (name, typ, is_factory), default in zip(info, defaults)
             )
@@ -953,7 +949,7 @@ class _Translator:
                     encode_name=name,
                     type=self.translate(hints.get(name, Any)),
                     required=name not in t._field_defaults,
-                    default=t._field_defaults.get(name, UNSET),
+                    default=t._field_defaults.get(name, NODEFAULT),
                 )
                 for name in t._fields
             )

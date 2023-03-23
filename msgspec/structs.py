@@ -2,13 +2,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from . import UNSET, Struct
+from . import NODEFAULT, Struct, field
 from ._core import (  # noqa
     Factory as _Factory,
     StructConfig,
     asdict,
     astuple,
-    nodefault as _nodefault,
     replace,
 )
 from ._utils import _get_type_hints
@@ -40,22 +39,23 @@ class FieldInfo(Struct):
     type: Any
         The full field type annotation.
     default: Any, optional
-        A default value for the field. Will be `UNSET` if no default value is set.
+        A default value for the field. Will be `NODEFAULT` if no default value
+        is set.
     default_factory: Any, optional
         A callable that creates a default value for the field. Will be
-        `UNSET` if no ``default_factory`` is set.
+        `NODEFAULT` if no ``default_factory`` is set.
     """
 
     name: str
     encode_name: str
     type: Any
-    default: Any = UNSET
-    default_factory: Any = UNSET
+    default: Any = field(default_factory=lambda: NODEFAULT)
+    default_factory: Any = field(default_factory=lambda: NODEFAULT)
 
     @property
     def required(self) -> bool:
         """A helper for checking whether a field is required"""
-        return self.default is UNSET and self.default_factory is UNSET
+        return self.default is NODEFAULT and self.default_factory is NODEFAULT
 
 
 def fields(type_or_instance: Struct | type[Struct]) -> tuple[FieldInfo]:
@@ -83,12 +83,12 @@ def fields(type_or_instance: Struct | type[Struct]) -> tuple[FieldInfo]:
     for name, encode_name, default_obj in zip(
         cls.__struct_fields__,
         cls.__struct_encode_fields__,
-        (_nodefault,) * npos + cls.__struct_defaults__,
+        (NODEFAULT,) * npos + cls.__struct_defaults__,
     ):
-        default = default_factory = UNSET
+        default = default_factory = NODEFAULT
         if isinstance(default_obj, _Factory):
             default_factory = default_obj.factory
-        elif default_obj is not _nodefault:
+        elif default_obj is not NODEFAULT:
             default = default_obj
 
         field = FieldInfo(

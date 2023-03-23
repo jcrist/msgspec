@@ -24,7 +24,7 @@ Structs
 
 .. autoclass:: msgspec.structs.StructConfig
 
-.. autodata:: UNSET
+.. autodata:: NODEFAULT
 
 Meta
 ----
