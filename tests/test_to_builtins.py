@@ -7,11 +7,11 @@ import sys
 import uuid
 import weakref
 from dataclasses import dataclass
-from typing import Any, NamedTuple
+from typing import Any, NamedTuple, Union
 
 import pytest
 
-from msgspec import EncodeError, Struct, to_builtins
+from msgspec import UNSET, EncodeError, Struct, UnsetType, to_builtins
 
 PY310 = sys.version_info[:2] >= (3, 10)
 PY311 = sys.version_info[:2] >= (3, 11)
@@ -427,6 +427,42 @@ class TestToBuiltins:
 
         msg = Ex(1, FruitInt.APPLE)
         assert to_builtins(msg) == {"x": 1, "y": -1}
+
+    @pytest.mark.parametrize("kind", ["struct", "dataclass", "attrs"])
+    def test_unset_fields(self, kind):
+        if kind == "struct":
+
+            class Ex(Struct):
+                x: Union[int, UnsetType]
+                y: Union[int, UnsetType]
+
+        elif kind == "dataclass":
+
+            @dataclass
+            class Ex:
+                x: Union[int, UnsetType]
+                y: Union[int, UnsetType]
+
+        elif kind == "attrs":
+            attrs = pytest.importorskip("attrs")
+
+            @attrs.define
+            class Ex:
+                x: Union[int, UnsetType]
+                y: Union[int, UnsetType]
+
+        res = to_builtins(Ex(1, UNSET))
+        assert res == {"x": 1}
+
+        res = to_builtins(Ex(UNSET, 2))
+        assert res == {"y": 2}
+
+        res = to_builtins(Ex(UNSET, UNSET))
+        assert res == {}
+
+    def test_unset_errors_in_other_contexts(self):
+        with pytest.raises(TypeError):
+            to_builtins(UNSET)
 
     def test_custom(self):
         with pytest.raises(TypeError, match="Encoding objects of type Bad"):

@@ -2767,3 +2767,53 @@ class TestUnset:
         dec = proto.Decoder(Ex)
         msg = proto.encode({"x": 1})
         assert dec.decode(msg) == Ex(1)
+
+    def test_encode_unset_errors_other_contexts(self, proto):
+        with pytest.raises(TypeError):
+            proto.encode(msgspec.UNSET)
+
+    @pytest.mark.parametrize("kind", ["struct", "dataclass", "attrs"])
+    def test_unset_encode(self, kind, proto):
+        if kind == "struct":
+
+            class Ex(msgspec.Struct):
+                x: Union[int, msgspec.UnsetType]
+                y: Union[int, msgspec.UnsetType]
+
+        elif kind == "dataclass":
+
+            @dataclass
+            class Ex:
+                x: Union[int, msgspec.UnsetType]
+                y: Union[int, msgspec.UnsetType]
+
+        elif kind == "attrs":
+            attrs = pytest.importorskip("attrs")
+
+            @attrs.define
+            class Ex:
+                x: Union[int, msgspec.UnsetType]
+                y: Union[int, msgspec.UnsetType]
+
+        res = proto.encode(Ex(1, msgspec.UNSET))
+        sol = proto.encode({"x": 1})
+        assert res == sol
+
+        res = proto.encode(Ex(msgspec.UNSET, 2))
+        sol = proto.encode({"y": 2})
+        assert res == sol
+
+        res = proto.encode(Ex(msgspec.UNSET, msgspec.UNSET))
+        sol = proto.encode({})
+        assert res == sol
+
+    def test_unset_encode_struct_omit_defaults(self, proto):
+        class Ex(msgspec.Struct, omit_defaults=True):
+            x: Union[int, msgspec.UnsetType] = msgspec.UNSET
+            y: Union[int, msgspec.UnsetType] = msgspec.UNSET
+            z: int = 0
+
+        for x, y in [(Ex(), {}), (Ex(y=2), {"y": 2}), (Ex(z=1), {"z": 1})]:
+            res = proto.encode(x)
+            sol = proto.encode(y)
+            assert res == sol
