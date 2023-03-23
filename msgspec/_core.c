@@ -1902,6 +1902,14 @@ static PyMethodDef unset_methods[] = {
     {NULL, NULL}
 };
 
+static int unset_bool(PyObject *obj) {
+    return 0;
+};
+
+static PyNumberMethods unset_as_number = {
+    .nb_bool = unset_bool,
+};
+
 PyTypeObject Unset_Type = {
     PyVarObject_HEAD_INIT(NULL, 0)
     .tp_name = "msgspec.UnsetType",
@@ -1909,6 +1917,7 @@ PyTypeObject Unset_Type = {
     .tp_repr = unset_repr,
     .tp_flags = Py_TPFLAGS_DEFAULT,
     .tp_methods = unset_methods,
+    .tp_as_number = &unset_as_number,
     .tp_new = unset_new,
     .tp_dealloc = 0,
     .tp_itemsize = 0,

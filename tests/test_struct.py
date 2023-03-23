@@ -48,6 +48,10 @@ def test_singletons(obj, str_obj):
         cls(1)
     with pytest.raises(TypeError):
         cls(foo=1)
+    if obj is UNSET:
+        assert bool(obj) is False
+    else:
+        assert bool(obj) is True
 
 
 def test_field():
