@@ -711,6 +711,9 @@ During encoding, any field containing ``UNSET`` is omitted from the message.
     >>> json.encode(Example(1))  # y is UNSET
     b'{"x":1}'
 
+    >>> json.encode(Example(1, UNSET))  # y is UNSET
+    b'{"x":1}'
+
     >>> json.encode(Example(1, None))  # y is None
     b'{"x":1,"y":null}'
 
@@ -723,13 +726,13 @@ determine whether a field was left unset, or explicitly set to ``None``
 
 .. code-block:: python
 
-    >>> json.decode(b'{\"x\": 1}', type=Example)  # y defaults to UNSET
+    >>> json.decode(b'{"x": 1}', type=Example)  # y defaults to UNSET
     Example(x=1, y=UNSET)
 
-    >>> json.decode(b'{\"x\": 1, \"y\": null}', type=Example)  # y is None
+    >>> json.decode(b'{"x": 1, "y": null}', type=Example)  # y is None
     Example(x=1, y=None)
 
-    >>> json.decode(b'{\"x\": 1, \"y\": 2}', type=Example)  # y is 2
+    >>> json.decode(b'{"x": 1, "y": 2}', type=Example)  # y is 2
     Example(x=1, y=2)
 
 ``UNSET`` fields are supported for `msgspec.Struct`, `dataclasses`, and attrs_
