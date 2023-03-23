@@ -24,7 +24,8 @@ Structs
 
 .. autoclass:: msgspec.structs.StructConfig
 
-.. autodata:: UNSET
+.. autodata:: NODEFAULT
+   :no-value:
 
 Meta
 ----
@@ -40,6 +41,14 @@ Raw
 
 .. autoclass:: Raw
     :members:
+
+Unset
+-----
+
+.. autodata:: UNSET
+   :no-value:
+
+.. autoclass:: UnsetType
 
 
 JSON

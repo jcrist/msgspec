@@ -281,6 +281,7 @@ Most combinations of the following types are supported (with a few restrictions)
 <ul class="simple">
 <li><p><a class="reference internal" href="api.html#msgspec.msgpack.Ext" title="msgspec.msgpack.Ext"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.msgpack.Ext</span></code></a></p></li>
 <li><p><a class="reference internal" href="api.html#msgspec.Raw" title="msgspec.Raw"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Raw</span></code></a></p></li>
+<li><p><a class="reference internal" href="api.html#msgspec.UNSET" title="msgspec.UNSET"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.UNSET</span></code></a></p></li>
 <li><p><a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> types</p></li>
 </ul>
 <p><strong>Standard Library Types</strong></p>
@@ -880,6 +881,50 @@ Type checking also still applies.</p>
 </pre></div>
 </div>
 </section>
+<section id="unset">
+<h2><code class="docutils literal notranslate"><span class="pre">UNSET</span></code><a class="headerlink" href="#unset" title="Permalink to this heading">#</a></h2>
+<p><a class="reference internal" href="api.html#msgspec.UNSET" title="msgspec.UNSET"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.UNSET</span></code></a> is a singleton object used to indicate that a field has no set
+value. This is useful for cases where you need to differentiate between a
+message where a field is missing and a message where the field is explicitly
+<code class="docutils literal notranslate"><span class="pre">None</span></code>.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">msgspec</span> <span class="kn">import</span> <span class="n">Struct</span><span class="p">,</span> <span class="n">UnsetType</span><span class="p">,</span> <span class="n">UNSET</span><span class="p">,</span> <span class="n">json</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">Example</span><span class="p">(</span><span class="n">Struct</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="n">x</span><span class="p">:</span> <span class="nb">int</span>
+<span class="gp">... </span>    <span class="n">y</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">|</span> <span class="n">UnsetType</span> <span class="o">=</span> <span class="n">UNSET</span>  <span class="c1"># a field, defaulting to UNSET</span>
+</pre></div>
+</div>
+<p>During encoding, any field containing <code class="docutils literal notranslate"><span class="pre">UNSET</span></code> is omitted from the message.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">Example</span><span class="p">(</span><span class="mi">1</span><span class="p">))</span>  <span class="c1"># y is UNSET</span>
+<span class="go">b&#39;{&quot;x&quot;:1}&#39;</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">Example</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">UNSET</span><span class="p">))</span>  <span class="c1"># y is UNSET</span>
+<span class="go">b&#39;{&quot;x&quot;:1}&#39;</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">Example</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="kc">None</span><span class="p">))</span>  <span class="c1"># y is None</span>
+<span class="go">b&#39;{&quot;x&quot;:1,&quot;y&quot;:null}&#39;</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">Example</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>  <span class="c1"># y is 2</span>
+<span class="go">b&#39;{&quot;x&quot;:1,&quot;y&quot;:2}&#39;</span>
+</pre></div>
+</div>
+<p>During decoding, if a field isn’t explicitly set in the message, the default
+value of <code class="docutils literal notranslate"><span class="pre">UNSET</span></code> will be set instead. This lets downstream consumers
+determine whether a field was left unset, or explicitly set to <code class="docutils literal notranslate"><span class="pre">None</span></code></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;{&quot;x&quot;: 1}&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Example</span><span class="p">)</span>  <span class="c1"># y defaults to UNSET</span>
+<span class="go">Example(x=1, y=UNSET)</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;{&quot;x&quot;: 1, &quot;y&quot;: null}&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Example</span><span class="p">)</span>  <span class="c1"># y is None</span>
+<span class="go">Example(x=1, y=None)</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;{&quot;x&quot;: 1, &quot;y&quot;: 2}&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Example</span><span class="p">)</span>  <span class="c1"># y is 2</span>
+<span class="go">Example(x=1, y=2)</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">UNSET</span></code> fields are supported for <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#module-dataclasses" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses</span></code></a>, and <a class="reference external" href="https://www.attrs.org/en/stable/index.html">attrs</a>
+types. It is an error to use <a class="reference internal" href="api.html#msgspec.UNSET" title="msgspec.UNSET"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.UNSET</span></code></a> or <a class="reference internal" href="api.html#msgspec.UnsetType" title="msgspec.UnsetType"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.UnsetType</span></code></a> anywhere
+other than a field for one of these types.</p>
+</section>
 <section id="enum-intenum">
 <h2><code class="docutils literal notranslate"><span class="pre">Enum</span></code> / <code class="docutils literal notranslate"><span class="pre">IntEnum</span></code><a class="headerlink" href="#enum-intenum" title="Permalink to this heading">#</a></h2>
 <p><a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.Enum" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enum.Enum</span></code></a> and <a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.IntEnum" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enum.IntEnum</span></code></a> types encode as their member <em>values</em> in all
@@ -1290,6 +1335,7 @@ by default.</p>
 <li><a class="reference internal" href="#dataclasses"><code class="docutils literal notranslate"><span class="pre">dataclasses</span></code></a></li>
 <li><a class="reference internal" href="#attrs"><code class="docutils literal notranslate"><span class="pre">attrs</span></code></a></li>
 <li><a class="reference internal" href="#struct"><code class="docutils literal notranslate"><span class="pre">Struct</span></code></a></li>
+<li><a class="reference internal" href="#unset"><code class="docutils literal notranslate"><span class="pre">UNSET</span></code></a></li>
 <li><a class="reference internal" href="#enum-intenum"><code class="docutils literal notranslate"><span class="pre">Enum</span></code> / <code class="docutils literal notranslate"><span class="pre">IntEnum</span></code></a></li>
 <li><a class="reference internal" href="#literal"><code class="docutils literal notranslate"><span class="pre">Literal</span></code></a></li>
 <li><a class="reference internal" href="#newtype"><code class="docutils literal notranslate"><span class="pre">NewType</span></code></a></li>

@@ -357,7 +357,7 @@ we define a new <a class="reference internal" href="#msgspec.Struct" title="msgs
 
 <dl class="py function">
 <dt class="sig sig-object py" id="msgspec.field">
-<span class="sig-prename descclassname"><span class="pre">msgspec.</span></span><span class="sig-name descname"><span class="pre">field</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">default</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">UNSET</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">default_factory</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">UNSET</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.field" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">msgspec.</span></span><span class="sig-name descname"><span class="pre">field</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">default</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">NODEFAULT</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">default_factory</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">NODEFAULT</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.field" title="Permalink to this definition">#</a></dt>
 <dd><p>Configuration for a Struct field.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -498,7 +498,7 @@ with values from <code class="docutils literal notranslate"><span class="pre">**
 
 <dl class="py class">
 <dt class="sig sig-object py" id="msgspec.structs.FieldInfo">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">msgspec.structs.</span></span><span class="sig-name descname"><span class="pre">FieldInfo</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">encode_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">type</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">default</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">UNSET</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">default_factory</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">UNSET</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.structs.FieldInfo" title="Permalink to this definition">#</a></dt>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">msgspec.structs.</span></span><span class="sig-name descname"><span class="pre">FieldInfo</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">encode_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">type</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">default=&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">default_factory=&lt;factory&gt;</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.structs.FieldInfo" title="Permalink to this definition">#</a></dt>
 <dd><p>A record describing a field in a struct type.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -507,9 +507,10 @@ with values from <code class="docutils literal notranslate"><span class="pre">**
 <li><p><strong>encode_name</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.11)"><em>str</em></a>) – The name used when encoding/decoding the field. This may differ if
 the field is renamed (e.g. <code class="docutils literal notranslate"><span class="pre">fieldOne</span></code>).</p></li>
 <li><p><strong>type</strong> (<em>Any</em>) – The full field type annotation.</p></li>
-<li><p><strong>default</strong> (<em>Any</em><em>, </em><em>optional</em>) – A default value for the field. Will be <code class="xref py py-obj docutils literal notranslate"><span class="pre">UNSET</span></code> if no default value is set.</p></li>
+<li><p><strong>default</strong> (<em>Any</em><em>, </em><em>optional</em>) – A default value for the field. Will be <code class="xref py py-obj docutils literal notranslate"><span class="pre">NODEFAULT</span></code> if no default value
+is set.</p></li>
 <li><p><strong>default_factory</strong> (<em>Any</em><em>, </em><em>optional</em>) – A callable that creates a default value for the field. Will be
-<code class="xref py py-obj docutils literal notranslate"><span class="pre">UNSET</span></code> if no <code class="docutils literal notranslate"><span class="pre">default_factory</span></code> is set.</p></li>
+<code class="xref py py-obj docutils literal notranslate"><span class="pre">NODEFAULT</span></code> if no <code class="docutils literal notranslate"><span class="pre">default_factory</span></code> is set.</p></li>
 </ul>
 </dd>
 </dl>
@@ -544,9 +545,9 @@ details.</p>
 </dd></dl>
 
 <dl class="py data">
-<dt class="sig sig-object py" id="msgspec.UNSET">
-<span class="sig-prename descclassname"><span class="pre">msgspec.</span></span><span class="sig-name descname"><span class="pre">UNSET</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">UNSET</span></em><a class="headerlink" href="#msgspec.UNSET" title="Permalink to this definition">#</a></dt>
-<dd><p>A singleton indicating a value is unset.</p>
+<dt class="sig sig-object py" id="msgspec.NODEFAULT">
+<span class="sig-prename descclassname"><span class="pre">msgspec.</span></span><span class="sig-name descname"><span class="pre">NODEFAULT</span></span><a class="headerlink" href="#msgspec.NODEFAULT" title="Permalink to this definition">#</a></dt>
+<dd><p>A singleton indicating no default value is configured.</p>
 </dd></dl>
 
 </section>
@@ -641,6 +642,55 @@ during decoding will be kept in memory for a while rather than immediately
 decoded and dropped.</p>
 </dd></dl>
 
+</dd></dl>
+
+</section>
+<section id="unset">
+<h2>Unset<a class="headerlink" href="#unset" title="Permalink to this heading">#</a></h2>
+<dl class="py data">
+<dt class="sig sig-object py" id="msgspec.UNSET">
+<span class="sig-prename descclassname"><span class="pre">msgspec.</span></span><span class="sig-name descname"><span class="pre">UNSET</span></span><a class="headerlink" href="#msgspec.UNSET" title="Permalink to this definition">#</a></dt>
+<dd><p>A singleton indicating a field value is unset.</p>
+<p>This may be useful for working with message schemas where an unset field
+in an object needs to be treated differently than one containing an explicit
+<code class="docutils literal notranslate"><span class="pre">None</span></code> value. In this case, you may use <code class="docutils literal notranslate"><span class="pre">UNSET</span></code> as the default value,
+rather than <code class="docutils literal notranslate"><span class="pre">None</span></code> when defining object schemas. This feature is supported
+for any <a class="reference internal" href="#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#module-dataclasses" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses</span></code></a> or <code class="xref py py-obj docutils literal notranslate"><span class="pre">attrs</span></code> types.</p>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">msgspec</span> <span class="kn">import</span> <span class="n">Struct</span><span class="p">,</span> <span class="n">UnsetType</span><span class="p">,</span> <span class="n">UNSET</span><span class="p">,</span> <span class="n">json</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">Example</span><span class="p">(</span><span class="n">Struct</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="n">x</span><span class="p">:</span> <span class="nb">int</span>
+<span class="gp">... </span>    <span class="n">y</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">|</span> <span class="n">UnsetType</span> <span class="o">=</span> <span class="n">UNSET</span>
+</pre></div>
+</div>
+<p>During encoding, any field containing <code class="docutils literal notranslate"><span class="pre">UNSET</span></code> is omitted from the message.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">Example</span><span class="p">(</span><span class="mi">1</span><span class="p">))</span>
+<span class="go">b&#39;{&quot;x&quot;:1}&#39;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">Example</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>
+<span class="go">b&#39;{&quot;x&quot;:1,&quot;y&quot;:2}&#39;</span>
+</pre></div>
+</div>
+<p>During decoding, if a field isn’t explicitly set in the message, the default
+value of <code class="docutils literal notranslate"><span class="pre">UNSET</span></code> will be set instead. This lets downstream consumers
+determine whether a field was left unset, or explicitly set to <code class="docutils literal notranslate"><span class="pre">None</span></code></p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;{&quot;x&quot;: 1}&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Example</span><span class="p">)</span>  <span class="c1"># unset</span>
+<span class="go">Example(x=1, y=UNSET)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;{&quot;x&quot;: 1, &quot;y&quot;: null}&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Example</span><span class="p">)</span>  <span class="c1"># explicit null</span>
+<span class="go">Example(x=1, y=None)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;{&quot;x&quot;: 1, &quot;y&quot;: 2}&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Example</span><span class="p">)</span>  <span class="c1"># explicit value</span>
+<span class="go">Example(x=1, y=2)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="msgspec.UnsetType">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">msgspec.</span></span><span class="sig-name descname"><span class="pre">UnsetType</span></span><a class="headerlink" href="#msgspec.UnsetType" title="Permalink to this definition">#</a></dt>
+<dd><p>The type of <a class="reference internal" href="#msgspec.UNSET" title="msgspec.UNSET"><code class="xref py py-obj docutils literal notranslate"><span class="pre">UNSET</span></code></a>.</p>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<p><a class="reference internal" href="#msgspec.UNSET" title="msgspec.UNSET"><code class="xref py py-obj docutils literal notranslate"><span class="pre">UNSET</span></code></a></p>
+</div>
 </dd></dl>
 
 </section>
@@ -1690,7 +1740,7 @@ to <code class="docutils literal notranslate"><span class="pre">max_length</span
 
 <dl class="py class">
 <dt class="sig sig-object py" id="msgspec.inspect.Field">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">msgspec.inspect.</span></span><span class="sig-name descname"><span class="pre">Field</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">encode_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">type</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">required</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">default</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">UNSET</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">default_factory</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">UNSET</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.inspect.Field" title="Permalink to this definition">#</a></dt>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">msgspec.inspect.</span></span><span class="sig-name descname"><span class="pre">Field</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">encode_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">type</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">required=True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">default=&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">default_factory=&lt;factory&gt;</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.inspect.Field" title="Permalink to this definition">#</a></dt>
 <dd><p>A record describing a field in an object-like type.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -1702,9 +1752,10 @@ the field is renamed (e.g. <code class="docutils literal notranslate"><span clas
 <li><p><strong>required</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.11)"><em>bool</em></a><em>, </em><em>optional</em>) – Whether the field is required. Note that if <code class="xref py py-obj docutils literal notranslate"><span class="pre">required</span></code> is False doesn’t
 necessarily mean that <code class="xref py py-obj docutils literal notranslate"><span class="pre">default</span></code> or <code class="xref py py-obj docutils literal notranslate"><span class="pre">default_factory</span></code> will be set -
 optional fields may exist with no default value.</p></li>
-<li><p><strong>default</strong> (<em>Any</em><em>, </em><em>optional</em>) – A default value for the field. Will be <code class="xref py py-obj docutils literal notranslate"><span class="pre">UNSET</span></code> if no default value is set.</p></li>
+<li><p><strong>default</strong> (<em>Any</em><em>, </em><em>optional</em>) – A default value for the field. Will be <code class="xref py py-obj docutils literal notranslate"><span class="pre">NODEFAULT</span></code> if no default value
+is set.</p></li>
 <li><p><strong>default_factory</strong> (<em>Any</em><em>, </em><em>optional</em>) – A callable that creates a default value for the field. Will be
-<code class="xref py py-obj docutils literal notranslate"><span class="pre">UNSET</span></code> if no <code class="docutils literal notranslate"><span class="pre">default_factory</span></code> is set.</p></li>
+<code class="xref py py-obj docutils literal notranslate"><span class="pre">NODEFAULT</span></code> if no <code class="docutils literal notranslate"><span class="pre">default_factory</span></code> is set.</p></li>
 </ul>
 </dd>
 </dl>
@@ -1876,7 +1927,7 @@ optional fields may exist with no default value.</p></li>
 <li><a class="reference internal" href="#msgspec.structs.fields"><code class="docutils literal notranslate"><span class="pre">fields()</span></code></a></li>
 <li><a class="reference internal" href="#msgspec.structs.FieldInfo"><code class="docutils literal notranslate"><span class="pre">FieldInfo</span></code></a></li>
 <li><a class="reference internal" href="#msgspec.structs.StructConfig"><code class="docutils literal notranslate"><span class="pre">StructConfig</span></code></a></li>
-<li><a class="reference internal" href="#msgspec.UNSET"><code class="docutils literal notranslate"><span class="pre">UNSET</span></code></a></li>
+<li><a class="reference internal" href="#msgspec.NODEFAULT"><code class="docutils literal notranslate"><span class="pre">NODEFAULT</span></code></a></li>
 </ul>
 </li>
 <li><a class="reference internal" href="#meta">Meta</a><ul>
@@ -1888,6 +1939,11 @@ optional fields may exist with no default value.</p></li>
 <li><a class="reference internal" href="#msgspec.Raw.copy"><code class="docutils literal notranslate"><span class="pre">Raw.copy()</span></code></a></li>
 </ul>
 </li>
+</ul>
+</li>
+<li><a class="reference internal" href="#unset">Unset</a><ul>
+<li><a class="reference internal" href="#msgspec.UNSET"><code class="docutils literal notranslate"><span class="pre">UNSET</span></code></a></li>
+<li><a class="reference internal" href="#msgspec.UnsetType"><code class="docutils literal notranslate"><span class="pre">UnsetType</span></code></a></li>
 </ul>
 </li>
 <li><a class="reference internal" href="#json">JSON</a><ul>
