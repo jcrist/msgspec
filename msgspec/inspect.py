@@ -13,7 +13,7 @@ except Exception:
     _types_UnionType = type("UnionType", (), {})
 
 import msgspec
-from msgspec import NODEFAULT
+from msgspec import NODEFAULT, UNSET, UnsetType as _UnsetType
 
 from ._core import Factory as _Factory, to_builtins as _to_builtins
 from ._utils import (
@@ -849,7 +849,8 @@ class _Translator:
                 max_length=max_length,
             )
         elif t is Union:
-            return UnionType(tuple(self.translate(a) for a in args))
+            args = tuple(self.translate(a) for a in args if a is not _UnsetType)
+            return args[0] if len(args) == 1 else UnionType(args)
         elif t is Literal:
             return LiteralType(tuple(sorted(args)))
         elif _is_enum(t):
@@ -884,7 +885,7 @@ class _Translator:
                     default_factory = default_obj.factory
                 else:
                     required = False
-                    default = default_obj
+                    default = NODEFAULT if default_obj is UNSET else default_obj
                     default_factory = NODEFAULT
 
                 field = Field(
@@ -926,17 +927,31 @@ class _Translator:
             self.cache[t] = out = DataclassType(t, ())
             info, defaults, _, _ = _get_dataclass_info(t)
             defaults = ((NODEFAULT,) * (len(info) - len(defaults))) + defaults
-            out.fields = tuple(
-                Field(
-                    name=name,
-                    encode_name=name,
-                    type=self.translate(typ),
-                    required=default is NODEFAULT,
-                    default=NODEFAULT if is_factory else default,
-                    default_factory=default if is_factory else NODEFAULT,
+            fields = []
+            for (name, typ, is_factory), default_obj in zip(info, defaults):
+                if default_obj is NODEFAULT:
+                    required = True
+                    default = default_factory = NODEFAULT
+                elif is_factory:
+                    required = False
+                    default = NODEFAULT
+                    default_factory = default_obj
+                else:
+                    required = False
+                    default = NODEFAULT if default_obj is UNSET else default_obj
+                    default_factory = NODEFAULT
+
+                fields.append(
+                    Field(
+                        name=name,
+                        encode_name=name,
+                        type=self.translate(typ),
+                        required=required,
+                        default=default,
+                        default_factory=default_factory,
+                    )
                 )
-                for (name, typ, is_factory), default in zip(info, defaults)
-            )
+            out.fields = tuple(fields)
             return out
         elif _is_namedtuple(t):
             if t in self.cache:

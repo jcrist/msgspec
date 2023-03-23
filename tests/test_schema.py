@@ -846,6 +846,23 @@ def test_struct_array_union():
     }
 
 
+def test_struct_unset_fields():
+    class Ex(msgspec.Struct):
+        x: Union[int, msgspec.UnsetType] = msgspec.UNSET
+
+    assert msgspec.json.schema(Ex) == {
+        "$ref": "#/$defs/Ex",
+        "$defs": {
+            "Ex": {
+                "properties": {"x": {"type": "integer"}},
+                "required": [],
+                "title": "Ex",
+                "type": "object",
+            }
+        },
+    }
+
+
 @pytest.mark.parametrize(
     "field, constraint",
     [
