@@ -1806,17 +1806,23 @@ static PyTypeObject Meta_Type = {
 };
 
 /*************************************************************************
- * nodefault singleton                                                   *
+ * NODEFAULT singleton                                                   *
  *************************************************************************/
 
 PyObject _NoDefault_Object;
 #define NODEFAULT &_NoDefault_Object
 
+PyDoc_STRVAR(nodefault__doc__,
+"NoDefaultType()\n"
+"--\n"
+"\n"
+"A singleton indicating no default value is configured."
+);
 static PyObject *
 nodefault_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
 {
     if (PyTuple_GET_SIZE(args) || (kwargs && PyDict_GET_SIZE(kwargs))) {
-        PyErr_SetString(PyExc_TypeError, "NoDefault takes no arguments");
+        PyErr_SetString(PyExc_TypeError, "NoDefaultType takes no arguments");
         return NULL;
     }
     Py_INCREF(NODEFAULT);
@@ -1826,13 +1832,13 @@ nodefault_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
 static PyObject *
 nodefault_repr(PyObject *op)
 {
-    return PyUnicode_FromString("nodefault");
+    return PyUnicode_FromString("NODEFAULT");
 }
 
 static PyObject *
 nodefault_reduce(PyObject *op, PyObject *args)
 {
-    return PyUnicode_FromString("nodefault");
+    return PyUnicode_FromString("NODEFAULT");
 }
 
 static PyMethodDef nodefault_methods[] = {
@@ -1842,7 +1848,8 @@ static PyMethodDef nodefault_methods[] = {
 
 PyTypeObject NoDefault_Type = {
     PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name = "msgspec._core.NoDefault",
+    .tp_name = "msgspec._core.NoDefaultType",
+    .tp_doc = nodefault__doc__,
     .tp_repr = nodefault_repr,
     .tp_flags = Py_TPFLAGS_DEFAULT,
     .tp_methods = nodefault_methods,
@@ -1861,17 +1868,17 @@ PyObject _NoDefault_Object = {1, &NoDefault_Type};
 PyObject _Unset_Object;
 #define UNSET &_Unset_Object
 
-PyDoc_STRVAR(Unset__doc__,
-"Unset()\n"
+PyDoc_STRVAR(unset__doc__,
+"UnsetType()\n"
 "--\n"
 "\n"
-"A singleton indicating a value is unset."
+"A singleton indicating a field value is unset."
 );
 static PyObject *
 unset_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
 {
     if (PyTuple_GET_SIZE(args) || (kwargs && PyDict_GET_SIZE(kwargs))) {
-        PyErr_SetString(PyExc_TypeError, "Unset takes no arguments");
+        PyErr_SetString(PyExc_TypeError, "UnsetType takes no arguments");
         return NULL;
     }
     Py_INCREF(UNSET);
@@ -1897,8 +1904,8 @@ static PyMethodDef unset_methods[] = {
 
 PyTypeObject Unset_Type = {
     PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name = "msgspec._core.Unset",
-    .tp_doc = Unset__doc__,
+    .tp_name = "msgspec.UnsetType",
+    .tp_doc = unset__doc__,
     .tp_repr = unset_repr,
     .tp_flags = Py_TPFLAGS_DEFAULT,
     .tp_methods = unset_methods,
@@ -2043,7 +2050,7 @@ PyDoc_STRVAR(Field__doc__,
 static PyObject *
 Field_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
     static char *kwlist[] = {"default", "default_factory", NULL};
-    PyObject *default_value = UNSET, *default_factory = UNSET;
+    PyObject *default_value = NODEFAULT, *default_factory = NODEFAULT;
 
     if (
         !PyArg_ParseTupleAndKeywords(
@@ -2053,13 +2060,13 @@ Field_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
     ) {
         return NULL;
     }
-    if (default_value != UNSET && default_factory != UNSET) {
+    if (default_value != NODEFAULT && default_factory != NODEFAULT) {
         PyErr_SetString(
             PyExc_TypeError, "Cannot set both `default` and `default_factory`"
         );
         return NULL;
     }
-    if (default_factory != UNSET) {
+    if (default_factory != NODEFAULT) {
         if (!PyCallable_Check(default_factory)) {
             PyErr_SetString(PyExc_TypeError, "default_factory must be callable");
             return NULL;
@@ -2100,8 +2107,8 @@ Field_dealloc(Field *self)
 }
 
 static PyMemberDef Field_members[] = {
-    {"default", T_OBJECT_EX, offsetof(Field, default_value), READONLY, "The default value, or UNSET if unset"},
-    {"default_factory", T_OBJECT_EX, offsetof(Field, default_factory), READONLY, "The default_factory, or UNSET if unset"},
+    {"default", T_OBJECT_EX, offsetof(Field, default_value), READONLY, "The default value, or NODEFAULT if no default"},
+    {"default_factory", T_OBJECT_EX, offsetof(Field, default_factory), READONLY, "The default_factory, or NODEFAULT if no default"},
     {NULL},
 };
 
@@ -5132,11 +5139,11 @@ structmeta_process_default(StructMetaInfo *info, PyObject *field) {
 
     if (type == &Field_Type) {
         Field *f = (Field *)obj;
-        if (f->default_value != UNSET) {
+        if (f->default_value != NODEFAULT) {
             obj = f->default_value;
             type = Py_TYPE(obj);
         }
-        else if (f->default_factory != UNSET) {
+        else if (f->default_factory != NODEFAULT) {
             default_val = Factory_New(f->default_factory);
             if (default_val == NULL) return -1;
             goto done;
@@ -18785,15 +18792,18 @@ PyInit__core(void)
     Py_INCREF(&JSONDecoder_Type);
     if (PyModule_AddObject(m, "JSONDecoder", (PyObject *)&JSONDecoder_Type) < 0)
         return NULL;
+    Py_INCREF(&Unset_Type);
+    if (PyModule_AddObject(m, "UnsetType", (PyObject *)&Unset_Type) < 0)
+        return NULL;
 
     st = msgspec_get_state(m);
 
     /* Initialize GC counter */
     st->gc_cycle = 0;
 
-    /* Add nodefault singleton */
+    /* Add NODEFAULT singleton */
     Py_INCREF(NODEFAULT);
-    if (PyModule_AddObject(m, "nodefault", NODEFAULT) < 0)
+    if (PyModule_AddObject(m, "NODEFAULT", NODEFAULT) < 0)
         return NULL;
 
     /* Add UNSET singleton */

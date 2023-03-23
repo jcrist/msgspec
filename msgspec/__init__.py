@@ -6,21 +6,17 @@ from ._core import (
     MsgspecError,
     Raw,
     Struct,
+    UnsetType,
     UNSET,
+    NODEFAULT,
     ValidationError,
     defstruct,
     from_builtins,
     to_builtins,
 )
-from . import msgpack
-from . import json
-from . import yaml
-from . import toml
-from . import inspect
-from . import structs
 
 
-def field(*, default=UNSET, default_factory=UNSET):
+def field(*, default=NODEFAULT, default_factory=NODEFAULT):
     """
     Configuration for a Struct field.
 
@@ -35,6 +31,12 @@ def field(*, default=UNSET, default_factory=UNSET):
     return _Field(default=default, default_factory=default_factory)
 
 
+from . import msgpack
+from . import json
+from . import yaml
+from . import toml
+from . import inspect
+from . import structs
 from ._version import get_versions
 
 __version__ = get_versions()["version"]

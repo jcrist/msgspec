@@ -1,6 +1,6 @@
 from typing import Any, TypeVar, Union
 
-from . import UNSET, Struct
+from . import NODEFAULT, Struct
 
 S = TypeVar("S", bound=Struct, covariant=True)
 
@@ -26,8 +26,8 @@ class FieldInfo(Struct):
     name: str
     encode_name: str
     type: Any
-    default: Any = UNSET
-    default_factory: Any = UNSET
+    default: Any = NODEFAULT
+    default_factory: Any = NODEFAULT
 
     @property
     def required(self) -> bool: ...

@@ -20,9 +20,17 @@ def check_exceptions() -> None:
 
 
 def check_unset() -> None:
-    reveal_type(msgspec.UNSET)  # assert "Any" not in typ
+    reveal_type(msgspec.UNSET)  # assert "UnsetType" in typ
+    if isinstance(msgspec.UNSET, msgspec.UnsetType):
+        print("True")
     str(msgspec.UNSET)
     pickle.dumps(msgspec.UNSET)
+
+
+def check_nodefault() -> None:
+    reveal_type(msgspec.NODEFAULT)  # assert "Any" not in typ
+    str(msgspec.NODEFAULT)
+    pickle.dumps(msgspec.NODEFAULT)
 
 
 ##########################################################
