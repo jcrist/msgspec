@@ -16,6 +16,8 @@ from typing import (
     overload,
 )
 
+from typing_extensions import dataclass_transform
+
 from . import inspect, json, msgpack, structs, toml, yaml
 
 T = TypeVar("T")
@@ -36,29 +38,13 @@ def field(*, default: T) -> T: ...
 def field(*, default_factory: Callable[[], T]) -> T: ...
 @overload
 def field() -> Any: ...
-
-# Use `__dataclass_transform__` to catch more errors under pyright. Since we don't expose
-# the underlying metaclass, hide it under an underscore name. See
-# https://github.com/microsoft/pyright/blob/main/specs/dataclass_transforms.md
-# for more information.
-
-def __dataclass_transform__(
-    *,
-    eq_default: bool = True,
-    order_default: bool = False,
-    kw_only_default: bool = False,
-    field_specifiers: Tuple[Union[type, Callable[..., Any]], ...] = (),
-) -> Callable[[T], T]: ...
-@__dataclass_transform__(field_specifiers=(field,))
-class __StructMeta(type):
-    def __new__(
-        cls: Type[type], name: str, bases: tuple, classdict: dict
-    ) -> "__StructMeta": ...
-
-class Struct(metaclass=__StructMeta):
+@dataclass_transform(field_specifiers=(field,))
+class Struct:
     __struct_fields__: ClassVar[Tuple[str, ...]]
     __struct_config__: ClassVar[structs.StructConfig]
     __match_args__: ClassVar[Tuple[str, ...]]
+    # A default __init__ so that Structs with unknown field types (say
+    # constructed by `defstruct`) won't error on every call to `__init__`
     def __init__(self, *args: Any, **kwargs: Any) -> None: ...
     def __init_subclass__(
         cls,
