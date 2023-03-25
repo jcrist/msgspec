@@ -34,50 +34,34 @@ else:
 
 
 # A mapping from a type annotation (or annotation __origin__) to the concrete
-# python type that msgspec will use when decoding. Note that non-collection
-# types don't strict need to be in this mapping. Common ones are added to avoid
-# an unnecessary `getattr(t, "__origin__", None)` call on them.
-# THIS IS PRIVATE FOR A REASON. DON'T MUCK WITH THIS.
+# python type that msgspec will use when decoding. THIS IS PRIVATE FOR A
+# REASON. DON'T MUCK WITH THIS.
 _CONCRETE_TYPES = {
-    t: t
-    for t in [
-        None,
-        bool,
-        int,
-        float,
-        str,
-        bytes,
-        bytearray,
-        list,
-        tuple,
-        set,
-        frozenset,
-        dict,
-    ]
+    list: list,
+    tuple: tuple,
+    set: set,
+    frozenset: frozenset,
+    dict: dict,
+    typing.List: list,
+    typing.Tuple: tuple,
+    typing.Set: set,
+    typing.FrozenSet: frozenset,
+    typing.Dict: dict,
+    typing.Collection: list,
+    typing.MutableSequence: list,
+    typing.Sequence: list,
+    typing.MutableMapping: dict,
+    typing.Mapping: dict,
+    typing.MutableSet: set,
+    typing.AbstractSet: set,
+    collections.abc.Collection: list,
+    collections.abc.MutableSequence: list,
+    collections.abc.Sequence: list,
+    collections.abc.MutableSet: set,
+    collections.abc.Set: set,
+    collections.abc.MutableMapping: dict,
+    collections.abc.Mapping: dict,
 }
-_CONCRETE_TYPES.update(
-    {
-        typing.List: list,
-        typing.Tuple: tuple,
-        typing.Set: set,
-        typing.FrozenSet: frozenset,
-        typing.Dict: dict,
-        typing.Collection: list,
-        typing.MutableSequence: list,
-        typing.Sequence: list,
-        typing.MutableMapping: dict,
-        typing.Mapping: dict,
-        typing.MutableSet: set,
-        typing.AbstractSet: set,
-        collections.abc.Collection: list,
-        collections.abc.MutableSequence: list,
-        collections.abc.Sequence: list,
-        collections.abc.MutableSet: set,
-        collections.abc.Set: set,
-        collections.abc.MutableMapping: dict,
-        collections.abc.Mapping: dict,
-    }
-)
 
 
 def get_typeddict_hints(obj):

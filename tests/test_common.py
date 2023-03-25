@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from typing import (
     Deque,
     Dict,
+    Final,
     List,
     Literal,
     NamedTuple,
@@ -2817,3 +2818,27 @@ class TestUnset:
             res = proto.encode(x)
             sol = proto.encode(y)
             assert res == sol
+
+
+class TestFinal:
+    def test_decode_final(self, proto):
+        dec = proto.Decoder(Final[int])
+
+        assert dec.decode(proto.encode(1)) == 1
+        with pytest.raises(msgspec.ValidationError):
+            dec.decode(proto.encode("bad"))
+
+    def test_decode_final_annotated(self, proto, Annotated):
+        dec = proto.Decoder(Final[Annotated[int, msgspec.Meta(ge=0)]])
+
+        assert dec.decode(proto.encode(1)) == 1
+        with pytest.raises(msgspec.ValidationError):
+            dec.decode(proto.encode(-1))
+
+    def test_decode_final_newtype(self, proto):
+        UserId = NewType("UserId", int)
+        dec = proto.Decoder(Final[UserId])
+
+        assert dec.decode(proto.encode(1)) == 1
+        with pytest.raises(msgspec.ValidationError):
+            dec.decode(proto.encode("bad"))
