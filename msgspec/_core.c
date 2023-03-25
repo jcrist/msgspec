@@ -372,6 +372,7 @@ typedef struct {
     PyObject *typing_any;
     PyObject *typing_literal;
     PyObject *typing_classvar;
+    PyObject *typing_final;
     PyObject *typing_generic_alias;
     PyObject *typing_annotated_alias;
     PyObject *concrete_types;
@@ -4123,44 +4124,92 @@ typenode_origin_args_metadata(
     PyObject *t = obj;
     Py_INCREF(t);
 
-    /* First strip out meta "wrapper" types (Annotated, NewType) */
+    /* First strip out meta "wrapper" types (Annotated, NewType, Final) */
     while (true) {
-        if (Py_TYPE(t) == (PyTypeObject *)(state->mod->typing_annotated_alias)) {
-            /* Handle Annotated */
-            PyObject *origin = PyObject_GetAttr(t, state->mod->str___origin__);
-            if (origin == NULL) {
-                Py_CLEAR(t);
-                return NULL;
-            }
+        assert(t != NULL && origin == NULL && args == NULL);
 
-            PyObject *metadata = PyObject_GetAttr(t, state->mod->str___metadata__);
-            if (metadata == NULL) {
-                Py_DECREF(origin);
-                Py_DECREF(t);
-                return NULL;
-            }
+        /* Before inspecting attributes, try looking up the object in the
+         * abstract -> concrete mapping. If present, this is an unparametrized
+         * collection of some form. This helps avoid compatibility issues in
+         * Python 3.8, where unparametrized collections still have __args__. */
+        origin = PyDict_GetItem(state->mod->concrete_types, t);
+        if (origin != NULL) {
+            Py_INCREF(origin);
+            break;
+        }
 
-            for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(metadata); i++) {
-                PyObject *annot = PyTuple_GET_ITEM(metadata, i);
-                if (Py_TYPE(annot) == &Meta_Type) {
-                    if (constraints_update(constraints, (Meta *)annot, obj) < 0) {
-                        Py_DECREF(metadata);
-                        Py_DECREF(origin);
-                        Py_DECREF(t);
-                        return NULL;
+        /* If `t` is a type instance, no need to inspect further */
+        if (PyType_CheckExact(t)) {
+            /* t is a concrete type object. */
+            break;
+        }
+
+        origin = PyObject_GetAttr(t, state->mod->str___origin__);
+        if (origin != NULL) {
+            if (Py_TYPE(t) == (PyTypeObject *)(state->mod->typing_annotated_alias)) {
+                /* Handle typing.Annotated[...] */
+                PyObject *metadata = PyObject_GetAttr(t, state->mod->str___metadata__);
+                if (metadata == NULL) goto error;
+                for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(metadata); i++) {
+                    PyObject *annot = PyTuple_GET_ITEM(metadata, i);
+                    if (Py_TYPE(annot) == &Meta_Type) {
+                        if (constraints_update(constraints, (Meta *)annot, obj) < 0) {
+                            Py_DECREF(metadata);
+                            goto error;
+                        }
                     }
                 }
+                Py_DECREF(metadata);
+                Py_DECREF(t);
+                t = origin;
+                origin = NULL;
+                continue;
             }
-            Py_DECREF(metadata);
-            Py_DECREF(t);
-            t = origin;
+            else {
+                args = PyObject_GetAttr(t, state->mod->str___args__);
+                if (args != NULL) {
+                    if (!PyTuple_Check(args)) {
+                        PyErr_SetString(PyExc_TypeError, "__args__ must be a tuple");
+                        goto error;
+                    }
+                    if (origin == state->mod->typing_final) {
+                        /* Handle typing.Final[...] */
+                        PyObject *temp = PyTuple_GetItem(args, 0);
+                        if (temp == NULL) goto error;
+                        Py_CLEAR(args);
+                        Py_CLEAR(origin);
+                        Py_DECREF(t);
+                        Py_INCREF(temp);
+                        t = temp;
+                        continue;
+                    }
+                }
+                else {
+                    /* Custom non-parametrized generics won't have __args__
+                     * set. Ignore __args__ error */
+                    PyErr_Clear();
+                }
+                /* Lookup __origin__ in the mapping, in case it's a supported
+                * abstract type. Equal to `origin = mapping.get(origin, origin)` */
+                PyObject *temp = PyDict_GetItem(state->mod->concrete_types, origin);
+                if (temp != NULL) {
+                    Py_DECREF(origin);
+                    Py_INCREF(temp);
+                    origin = temp;
+                }
+                break;
+            }
         }
         else {
-            /* Handle NewType */
+            PyErr_Clear();
+
+            /* Check for NewType */
             PyObject *supertype = PyObject_GetAttr(t, state->mod->str___supertype__);
             if (supertype != NULL) {
+                /* It's a newtype, use the wrapped type and loop again */
                 Py_DECREF(t);
                 t = supertype;
+                continue;
             }
             else {
                 PyErr_Clear();
@@ -4169,59 +4218,25 @@ typenode_origin_args_metadata(
         }
     }
 
-    /* At this point `t` is a concrete type. Next check for generic types,
-     * extracting `__origin__` and `__args__`. This lets us normalize how
-     * we check for collection types later */
-    if ((origin = PyDict_GetItem(state->mod->concrete_types, t)) != NULL) {
-        Py_INCREF(origin);
-    }
     #if PY_VERSION_HEX >= 0x030a00f0
-    else if (Py_TYPE(t) == (PyTypeObject *)(state->mod->types_uniontype)) {
+    if (Py_TYPE(t) == (PyTypeObject *)(state->mod->types_uniontype)) {
+        /* Handle types.UnionType unions (`int | float | ...`) */
         args = PyObject_GetAttr(t, state->mod->str___args__);
-        if (args == NULL) {
-            Py_DECREF(t);
-            return NULL;
-        }
+        if (args == NULL) goto error;
         origin = state->mod->typing_union;
         Py_INCREF(origin);
     }
     #endif
-    else {
-        origin = PyObject_GetAttr(t, state->mod->str___origin__);
-        if (origin == NULL) {
-            /* Not a generic */
-            PyErr_Clear();
-        }
-        else {
-            /* Lookup __origin__ in the mapping, in case it's a supported
-             * abstract type */
-            PyObject *temp = PyDict_GetItem(state->mod->concrete_types, origin);
-            if (temp != NULL) {
-                Py_DECREF(origin);
-                Py_INCREF(temp);
-                origin = temp;
-            }
-            args = PyObject_GetAttr(t, state->mod->str___args__);
-            if (args == NULL) {
-                /* Custom non-parametrized generics won't have __args__ set.
-                 * Ignore __args__ error */
-                PyErr_Clear();
-            }
-            else {
-                if (!PyTuple_Check(args)) {
-                    PyErr_SetString(PyExc_TypeError, "__args__ must be a tuple");
-                    Py_DECREF(t);
-                    Py_DECREF(origin);
-                    Py_DECREF(args);
-                    return NULL;
-                }
-            }
-        }
-    }
 
     *out_origin = origin;
     *out_args = args;
     return t;
+
+error:
+    Py_XDECREF(t);
+    Py_XDECREF(origin);
+    Py_XDECREF(args);
+    return NULL;
 }
 
 static int
@@ -10443,7 +10458,7 @@ mpack_encode_struct(EncoderState *self, PyObject *obj)
                 actual_len--;
             }
             else {
-                if (mpack_encode_str(self, key) < 0) goto cleanup; 
+                if (mpack_encode_str(self, key) < 0) goto cleanup;
                 if (mpack_encode(self, val) < 0) goto cleanup;
             }
         }
@@ -10458,7 +10473,7 @@ mpack_encode_struct(EncoderState *self, PyObject *obj)
                 actual_len--;
             }
             else {
-                if (mpack_encode_str(self, key) < 0) goto cleanup; 
+                if (mpack_encode_str(self, key) < 0) goto cleanup;
                 if (mpack_encode(self, val) < 0) goto cleanup;
             }
         }
@@ -18606,6 +18621,7 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->typing_any);
     Py_CLEAR(st->typing_literal);
     Py_CLEAR(st->typing_classvar);
+    Py_CLEAR(st->typing_final);
     Py_CLEAR(st->typing_generic_alias);
     Py_CLEAR(st->typing_annotated_alias);
     Py_CLEAR(st->concrete_types);
@@ -18686,6 +18702,7 @@ msgspec_traverse(PyObject *m, visitproc visit, void *arg)
     Py_VISIT(st->typing_any);
     Py_VISIT(st->typing_literal);
     Py_VISIT(st->typing_classvar);
+    Py_VISIT(st->typing_final);
     Py_VISIT(st->typing_generic_alias);
     Py_VISIT(st->typing_annotated_alias);
     Py_VISIT(st->concrete_types);
@@ -18893,6 +18910,7 @@ PyInit__core(void)
     SET_REF(typing_any, "Any");
     SET_REF(typing_literal, "Literal");
     SET_REF(typing_classvar, "ClassVar");
+    SET_REF(typing_final, "Final");
     SET_REF(typing_generic_alias, "_GenericAlias");
     Py_DECREF(temp_module);
 

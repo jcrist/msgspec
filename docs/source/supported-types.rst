@@ -44,6 +44,7 @@ Most combinations of the following types are supported (with a few restrictions)
 - `typing.Union`
 - `typing.Literal`
 - `typing.NewType`
+- `typing.Final`
 - `typing.NamedTuple` / `collections.namedtuple`
 - `typing.TypedDict`
 

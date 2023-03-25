@@ -5,7 +5,7 @@ import decimal
 import enum
 import uuid
 from collections.abc import Iterable
-from typing import Any, Literal, Tuple, Type as typing_Type, Union
+from typing import Any, Final, Literal, Tuple, Type as typing_Type, Union
 
 try:
     from types import UnionType as _types_UnionType
@@ -611,34 +611,38 @@ def type_info(type: Any, *, protocol: Literal[None, "msgpack", "json"] = None) -
 
 # Implementation details
 def _origin_args_metadata(t):
-    # Strip Annotated and NewType wrappers until we hit a concrete base type
+    # Strip wrappers (Annotated, NewType, Final) until we hit a concrete type
     metadata = []
     while True:
-        supertype = getattr(t, "__supertype__", None)
-        if supertype is not None:
-            t = supertype
-        elif type(t) is _AnnotatedAlias:
-            metadata.extend(m for m in t.__metadata__ if type(m) is msgspec.Meta)
-            t = t.__origin__
-        else:
+        origin = _CONCRETE_TYPES.get(t)
+        if origin is not None:
+            args = None
             break
 
-    if type(t) is _types_UnionType:
-        args = t.__args__
-        t = Union
-    else:
-        try:
-            t = _CONCRETE_TYPES[t]
-            args = None
-        except Exception:
-            try:
-                origin = t.__origin__
-            except AttributeError:
-                args = None
+        origin = getattr(t, "__origin__", None)
+        if origin is not None:
+            if type(t) is _AnnotatedAlias:
+                metadata.extend(m for m in t.__metadata__ if type(m) is msgspec.Meta)
+                t = origin
+            elif origin == Final:
+                t = t.__args__[0]
             else:
                 args = getattr(t, "__args__", None)
-                t = _CONCRETE_TYPES.get(origin, origin)
-    return t, args, tuple(metadata)
+                origin = _CONCRETE_TYPES.get(origin, origin)
+                break
+        else:
+            supertype = getattr(t, "__supertype__", None)
+            if supertype is not None:
+                t = supertype
+            else:
+                origin = t
+                args = None
+                break
+
+    if type(origin) is _types_UnionType:
+        args = origin.__args__
+        origin = Union
+    return origin, args, tuple(metadata)
 
 
 def _is_struct(t):

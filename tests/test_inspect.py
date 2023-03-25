@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from typing import (
     Any,
     Dict,
+    Final,
     FrozenSet,
     List,
     Literal,
@@ -184,6 +185,21 @@ def test_newtype():
     assert mi.type_info(Annotated[UserId2, Meta(min_length=2)]) == mi.StrType(
         min_length=2, max_length=10
     )
+
+
+def test_final(Annotated):
+    cases = [
+        (int, mi.IntType()),
+        (Annotated[int, Meta(ge=0)], mi.IntType(ge=0)),
+        (NewType("UserId", Annotated[int, Meta(ge=0)]), mi.IntType(ge=0)),
+    ]
+    for typ, sol in cases:
+
+        class Ex(msgspec.Struct):
+            x: Final[typ]
+
+        info = mi.type_info(Ex)
+        assert info.fields[0].type == sol
 
 
 def test_custom():

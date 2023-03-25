@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import datetime
 import pickle
-from typing import Any, Dict, List, Type, Union
+from typing import Any, Dict, Final, List, Type, Union
 
 import msgspec
 
@@ -98,6 +98,18 @@ def check_struct_kw_only_subclass() -> None:
 
     Test(b"foo", a=1)
     Test(b"foo", "test", a=1, b=[1, 2, 3])
+
+
+def check_struct_final_fields() -> None:
+    """Test that type checkers support `Final` fields for
+    dataclass_transform"""
+    class Test(msgspec.Struct):
+        x: Final[int] = 0
+
+    t = Test()
+    t2 = Test(x=1)
+    reveal_type(t.x)  # assert "int" in typ
+    reveal_type(t2.x)  # assert "int" in typ
 
 
 def check_struct_repr_omit_defaults() -> None:
