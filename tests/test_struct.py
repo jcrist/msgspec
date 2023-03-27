@@ -58,20 +58,32 @@ def test_field():
     f1 = msgspec.field()
     assert f1.default is NODEFAULT
     assert f1.default_factory is NODEFAULT
+    assert f1.name is None
 
     f2 = msgspec.field(default=1)
     assert f2.default == 1
     assert f2.default_factory is NODEFAULT
+    assert f2.name is None
 
     f3 = msgspec.field(default_factory=int)
     assert f3.default is NODEFAULT
     assert f3.default_factory is int
+    assert f3.name is None
+
+    f4 = msgspec.field(name="foo")
+    assert f4.name == "foo"
+
+    f5 = msgspec.field(name=None)
+    assert f5.name is None
 
     with pytest.raises(TypeError, match="Cannot set both"):
         msgspec.field(default=1, default_factory=int)
 
     with pytest.raises(TypeError, match="must be callable"):
         msgspec.field(default_factory=1)
+
+    with pytest.raises(TypeError, match="must be a str or None"):
+        msgspec.field(name=b"bad")
 
 
 def test_struct_class_attributes():

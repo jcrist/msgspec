@@ -2075,6 +2075,7 @@ typedef struct {
     PyObject_HEAD
     PyObject *default_value;
     PyObject *default_factory;
+    PyObject *name;
 } Field;
 
 PyDoc_STRVAR(Field__doc__,
@@ -2086,17 +2087,22 @@ PyDoc_STRVAR(Field__doc__,
 "    A default value to use for this field.\n"
 "default_factory : callable, optional\n"
 "    A zero-argument function called to generate a new default value\n"
-"    per-instance, rather than using a constant value as in ``default``."
+"    per-instance, rather than using a constant value as in ``default``.\n"
+"name : str, optional\n"
+"    An alternative field name to use when encoding/decoding this field.\n"
+"    If present, this will override any struct-level configuration using\n"
+"    the ``rename`` option for this field."
 );
 static PyObject *
 Field_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
-    static char *kwlist[] = {"default", "default_factory", NULL};
+    static char *kwlist[] = {"default", "default_factory", "name", NULL};
     PyObject *default_value = NODEFAULT, *default_factory = NODEFAULT;
+    PyObject *name = Py_None;
 
     if (
         !PyArg_ParseTupleAndKeywords(
-            args, kwargs, "|$OO", kwlist,
-            &default_value, &default_factory
+            args, kwargs, "|$OOO", kwlist,
+            &default_value, &default_factory, &name
         )
     ) {
         return NULL;
@@ -2113,6 +2119,14 @@ Field_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
             return NULL;
         }
     }
+    if (name == Py_None) {
+        name = NULL;
+    }
+    else if (!PyUnicode_CheckExact(name)) {
+        PyErr_SetString(PyExc_TypeError, "name must be a str or None");
+        return NULL;
+    }
+
 
     Field *self = (Field *)Field_Type.tp_alloc(&Field_Type, 0);
     if (self == NULL) return NULL;
@@ -2120,6 +2134,8 @@ Field_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
     self->default_value = default_value;
     Py_INCREF(default_factory);
     self->default_factory = default_factory;
+    Py_XINCREF(name);
+    self->name = name;
     return (PyObject *)self;
 }
 
@@ -2128,6 +2144,7 @@ Field_traverse(Field *self, visitproc visit, void *arg)
 {
     Py_VISIT(self->default_value);
     Py_VISIT(self->default_factory);
+    Py_VISIT(self->name);
     return 0;
 }
 
@@ -2136,6 +2153,7 @@ Field_clear(Field *self)
 {
     Py_CLEAR(self->default_value);
     Py_CLEAR(self->default_factory);
+    Py_CLEAR(self->name);
     return 0;
 }
 
@@ -2148,8 +2166,18 @@ Field_dealloc(Field *self)
 }
 
 static PyMemberDef Field_members[] = {
-    {"default", T_OBJECT_EX, offsetof(Field, default_value), READONLY, "The default value, or NODEFAULT if no default"},
-    {"default_factory", T_OBJECT_EX, offsetof(Field, default_factory), READONLY, "The default_factory, or NODEFAULT if no default"},
+    {
+        "default", T_OBJECT_EX, offsetof(Field, default_value), READONLY,
+        "The default value, or NODEFAULT if no default"
+    },
+    {
+        "default_factory", T_OBJECT_EX, offsetof(Field, default_factory), READONLY,
+        "The default_factory, or NODEFAULT if no default"
+    },
+    {
+        "name", T_OBJECT, offsetof(Field, name), READONLY,
+        "An alternative name to use when encoding/decoding this field"
+    },
     {NULL},
 };
 
