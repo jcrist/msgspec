@@ -58,12 +58,17 @@ def check_struct() -> None:
 def check_struct_field() -> None:
     class Test(msgspec.Struct):
         a: int
+        b: int = msgspec.field(name="b_field")
         x: int = msgspec.field(default=1)
         y: List[int] = msgspec.field(default_factory=lambda: [1, 2, 3])
+        x2: int = msgspec.field(default=1, name="x2_field")
+        y2: List[int] = msgspec.field(default_factory=lambda: [1, 2, 3], name="y2_field")
 
-    Test(1)
     Test(1, 2)
-    Test(1, 2, [3])
+    Test(1, 2, 3)
+    Test(1, 2, 3, [4])
+    Test(1, 2, 3, [4], 5)
+    Test(1, 2, 3, [4], 5, [6])
 
 
 def check_struct_kw_only() -> None:
