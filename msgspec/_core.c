@@ -5066,6 +5066,7 @@ typedef struct {
     PyObject *kwonly_fields;
     PyObject *slots;
     PyObject *namespace;
+    PyObject *renamed_fields;
     /* Output values. All owned references. */
     PyObject *fields;
     PyObject *encode_fields;
@@ -5181,6 +5182,7 @@ structmeta_collect_base(StructMetaInfo *info, PyObject *base) {
     );
 
     PyObject *fields = st_type->struct_fields;
+    PyObject *encode_fields = st_type->struct_encode_fields;
     PyObject *defaults = st_type->struct_defaults;
     Py_ssize_t *offsets = st_type->struct_offsets;
     Py_ssize_t nfields = PyTuple_GET_SIZE(fields);
@@ -5190,6 +5192,7 @@ structmeta_collect_base(StructMetaInfo *info, PyObject *base) {
 
     for (Py_ssize_t i = 0; i < nfields; i++) {
         PyObject *field = PyTuple_GET_ITEM(fields, i);
+        PyObject *encode_field = PyTuple_GET_ITEM(encode_fields, i);
         PyObject *default_val = NODEFAULT;
         if (i >= defaults_offset) {
             default_val = PyTuple_GET_ITEM(defaults, i - defaults_offset);
@@ -5204,6 +5207,11 @@ structmeta_collect_base(StructMetaInfo *info, PyObject *base) {
             if (PySet_Discard(info->kwonly_fields, field) < 0) return -1;
         }
 
+        /* Propagate any renamed fields */
+        if (field != encode_field) {
+            if (PyDict_SetItem(info->renamed_fields, field, encode_field) < 0) return -1;
+        }
+
         PyObject *offset = PyLong_FromSsize_t(offsets[i]);
         if (offset == NULL) return -1;
         bool errored = PyDict_SetItem(info->offsets_lk, field, offset) < 0;
@@ -5214,10 +5222,71 @@ structmeta_collect_base(StructMetaInfo *info, PyObject *base) {
 }
 
 static int
-structmeta_process_default(StructMetaInfo *info, PyObject *field) {
-    PyObject *obj = PyDict_GetItem(info->namespace, field);
+structmeta_process_rename(
+    StructMetaInfo *info, PyObject *name, PyObject *default_value
+) {
+    if (
+        default_value != NULL &&
+        Py_TYPE(default_value) == &Field_Type &&
+        ((Field *)default_value)->name != NULL
+    ) {
+        Field *field = (Field *)default_value;
+        if (PyUnicode_Compare(name, field->name) == 0) return 0;
+        return PyDict_SetItem(info->renamed_fields, name, field->name);
+    }
+
+    if (info->rename == NULL) return 0;
+
+    PyObject* (*method)(PyObject *, PyObject *);
+    if (PyUnicode_CheckExact(info->rename)) {
+        if (PyUnicode_CompareWithASCIIString(info->rename, "lower") == 0) {
+            method = &rename_lower;
+        }
+        else if (PyUnicode_CompareWithASCIIString(info->rename, "upper") == 0) {
+            method = &rename_upper;
+        }
+        else if (PyUnicode_CompareWithASCIIString(info->rename, "camel") == 0) {
+            method = &rename_camel;
+        }
+        else if (PyUnicode_CompareWithASCIIString(info->rename, "pascal") == 0) {
+            method = &rename_pascal;
+        }
+        else if (PyUnicode_CompareWithASCIIString(info->rename, "kebab") == 0) {
+            method = &rename_kebab;
+        }
+        else {
+            PyErr_Format(PyExc_ValueError, "rename='%U' is unsupported", info->rename);
+            return -1;
+        }
+    }
+    else if (PyCallable_Check(info->rename)) {
+        method = &rename_callable;
+    }
+    else if (PyMapping_Check(info->rename)) {
+        method = &rename_mapping;
+    }
+    else {
+        PyErr_SetString(PyExc_TypeError, "`rename` must be a str, callable, or mapping");
+        return -1;
+    }
+
+    PyObject *temp = method(info->rename, name);
+    if (temp == NULL) return -1;
+    int out = 0;
+    if (PyUnicode_Compare(name, temp) != 0) {
+        out = PyDict_SetItem(info->renamed_fields, name, temp);
+    }
+    Py_DECREF(temp);
+    return out;
+}
+
+static int
+structmeta_process_default(StructMetaInfo *info, PyObject *name) {
+    PyObject *obj = PyDict_GetItem(info->namespace, name);
+    if (structmeta_process_rename(info, name, obj) < 0) return -1;
+
     if (obj == NULL) {
-        return PyDict_SetItem(info->defaults_lk, field, NODEFAULT);
+        return PyDict_SetItem(info->defaults_lk, name, NODEFAULT);
     }
 
     PyObject* default_val = NULL;
@@ -5225,6 +5294,8 @@ structmeta_process_default(StructMetaInfo *info, PyObject *field) {
 
     if (type == &Field_Type) {
         Field *f = (Field *)obj;
+
+        /* Extract default or default_factory */
         if (f->default_value != NODEFAULT) {
             obj = f->default_value;
             type = Py_TYPE(obj);
@@ -5273,11 +5344,11 @@ structmeta_process_default(StructMetaInfo *info, PyObject *field) {
     }
 
 done:
-    if (dict_discard(info->namespace, field) < 0) {
+    if (dict_discard(info->namespace, name) < 0) {
         Py_DECREF(default_val);
         return -1;
     }
-    int status = PyDict_SetItem(info->defaults_lk, field, default_val);
+    int status = PyDict_SetItem(info->defaults_lk, name, default_val);
     Py_DECREF(default_val);
     return status;
 
@@ -5520,51 +5591,22 @@ static int json_str_requires_escaping(PyObject *);
 static int
 structmeta_construct_encode_fields(StructMetaInfo *info)
 {
-    if (info->rename == NULL) {
+    if (PyDict_GET_SIZE(info->renamed_fields) == 0) {
         /* Nothing to do, use original field tuple */
         Py_INCREF(info->fields);
         info->encode_fields = info->fields;
         return 0;
     }
 
-    PyObject* (*method)(PyObject *, PyObject *);
-    if (PyUnicode_CheckExact(info->rename)) {
-        if (PyUnicode_CompareWithASCIIString(info->rename, "lower") == 0) {
-            method = &rename_lower;
-        }
-        else if (PyUnicode_CompareWithASCIIString(info->rename, "upper") == 0) {
-            method = &rename_upper;
-        }
-        else if (PyUnicode_CompareWithASCIIString(info->rename, "camel") == 0) {
-            method = &rename_camel;
-        }
-        else if (PyUnicode_CompareWithASCIIString(info->rename, "pascal") == 0) {
-            method = &rename_pascal;
-        }
-        else if (PyUnicode_CompareWithASCIIString(info->rename, "kebab") == 0) {
-            method = &rename_kebab;
-        }
-        else {
-            PyErr_Format(PyExc_ValueError, "rename='%U' is unsupported", info->rename);
-            return -1;
-        }
-    }
-    else if (PyCallable_Check(info->rename)) {
-        method = &rename_callable;
-    }
-    else if (PyMapping_Check(info->rename)) {
-        method = &rename_mapping;
-    }
-    else {
-        PyErr_SetString(PyExc_TypeError, "`rename` must be a str, callable, or mapping");
-        return -1;
-    }
-
     info->encode_fields = PyTuple_New(PyTuple_GET_SIZE(info->fields));
     if (info->encode_fields == NULL) return -1;
     for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(info->fields); i++) {
-        PyObject *temp = method(info->rename, PyTuple_GET_ITEM(info->fields, i));
-        if (temp == NULL) return -1;
+        PyObject *name = PyTuple_GET_ITEM(info->fields, i);
+        PyObject *temp = PyDict_GetItem(info->renamed_fields, name); 
+        if (temp == NULL) {
+            temp = name;
+        }
+        Py_INCREF(temp);
         PyTuple_SET_ITEM(info->encode_fields, i, temp);
     }
 
@@ -5714,6 +5756,7 @@ StructMeta_new_inner(
         .kwonly_fields = NULL,
         .slots = NULL,
         .namespace = NULL,
+        .renamed_fields = NULL,
         .fields = NULL,
         .encode_fields = NULL,
         .defaults = NULL,
@@ -5750,6 +5793,8 @@ StructMeta_new_inner(
     if (info.kwonly_fields == NULL) goto cleanup;
     info.namespace = PyDict_Copy(namespace);
     if (info.namespace == NULL) goto cleanup;
+    info.renamed_fields = PyDict_New();
+    if (info.renamed_fields == NULL) goto cleanup;
     info.slots = PyList_New(0);
     if (info.slots == NULL) goto cleanup;
 
@@ -5863,6 +5908,7 @@ cleanup:
     Py_XDECREF(info.kwonly_fields);
     Py_XDECREF(info.slots);
     Py_XDECREF(info.namespace);
+    Py_XDECREF(info.renamed_fields);
     /* Constructed outputs */
     Py_XDECREF(info.fields);
     Py_XDECREF(info.encode_fields);
