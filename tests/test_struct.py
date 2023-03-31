@@ -1620,6 +1620,42 @@ class TestTagAndTagField:
 
 
 class TestRename:
+    def test_field_name(self):
+        class Test(Struct):
+            x: int = field(name="field_x")
+
+        assert Test.__struct_encode_fields__ == ("field_x",)
+
+    def test_rename_mixed_with_field_name(self):
+        class Test(Struct, rename="upper"):
+            x: int = field(name="field_x")
+            y: int
+
+        assert Test.__struct_encode_fields__ == ("field_x", "Y")
+
+    def test_rename_no_change(self):
+        class Test(Struct, rename="lower"):
+            x: int
+
+        assert Test.__struct_fields__ is Test.__struct_encode_fields__
+
+    def test_field_name_no_change(self):
+        class Test(Struct):
+            x: int = field(name="x")
+
+        assert Test.__struct_fields__ is Test.__struct_encode_fields__
+
+    def test_field_name_none(self):
+        class Test(Struct):
+            x: int = field(name=None)
+
+        assert Test.__struct_fields__ is Test.__struct_encode_fields__
+
+        class Test(Struct, rename="upper"):
+            x: int = field(name=None)
+
+        assert Test.__struct_encode_fields__ == ("X",)
+
     def test_rename_explicit_none(self):
         class Test(Struct, rename=None):
             field_one: int
@@ -1760,10 +1796,15 @@ class TestRename:
 
         assert Test2.__struct_encode_fields__ == ("myField",)
 
-        class Test3(Base, rename=None):
+        class Test3(Test2, rename="kebab"):
+            my_other_field: int
+
+        assert Test3.__struct_encode_fields__ == ("myField", "my-other-field")
+
+        class Test4(Base, rename=None):
             my_field: int
 
-        assert Test3.__struct_encode_fields__ == ("my_field",)
+        assert Test4.__struct_encode_fields__ == ("my_field",)
 
     def test_rename_fields_only_used_for_encode_and_decode(self):
         """Check that the renamed fields don't show up elsewhere"""
