@@ -5,7 +5,7 @@
     <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Benchmarks" href="benchmarks.html" /><link rel="prev" title="Performance Tips" href="perf-tips.html" />
 
-    <!-- Generated with Sphinx 5.3.0 and Furo 2023.03.23 -->
+    <!-- Generated with Sphinx 5.3.0 and Furo 2023.03.27 -->
         <title>API Docs</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=fad236701ea90a88636c2a8c73b44ae642ed2a53" />
@@ -357,7 +357,7 @@ we define a new <a class="reference internal" href="#msgspec.Struct" title="msgs
 
 <dl class="py function">
 <dt class="sig sig-object py" id="msgspec.field">
-<span class="sig-prename descclassname"><span class="pre">msgspec.</span></span><span class="sig-name descname"><span class="pre">field</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">default</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">NODEFAULT</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">default_factory</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">NODEFAULT</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.field" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">msgspec.</span></span><span class="sig-name descname"><span class="pre">field</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">default</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">NODEFAULT</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">default_factory</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">NODEFAULT</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.field" title="Permalink to this definition">#</a></dt>
 <dd><p>Configuration for a Struct field.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -365,6 +365,9 @@ we define a new <a class="reference internal" href="#msgspec.Struct" title="msgs
 <li><p><strong>default</strong> (<em>Any</em><em>, </em><em>optional</em>) – A default value to use for this field.</p></li>
 <li><p><strong>default_factory</strong> (<em>callable</em><em>, </em><em>optional</em>) – A zero-argument function called to generate a new default value
 per-instance, rather than using a constant value as in <code class="docutils literal notranslate"><span class="pre">default</span></code>.</p></li>
+<li><p><strong>name</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.11)"><em>str</em></a><em>, </em><em>optional</em>) – The name to use when encoding/decoding this field. If present, this
+will override any struct-level configuration using the <code class="docutils literal notranslate"><span class="pre">rename</span></code>
+option for this field.</p></li>
 </ul>
 </dd>
 </dl>
