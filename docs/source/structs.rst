@@ -667,16 +667,50 @@ encountered will result in an error.
     msgspec.ValidationError: Object contains unknown field `field_twoo`
 
 
-Renaming Field Names
---------------------
+Renaming Fields
+---------------
 
 Sometimes you want the field name used in the encoded message to differ from
 the name used your Python code. Perhaps you want a ``camelCase`` naming
 convention in your JSON messages, but to use ``snake_case`` field names in
 Python.
 
-To handle this, ``msgspec`` supports a ``rename`` configuration option in
-`Struct` definitions. This can take a few different values:
+``msgspec`` supports two places for configuring a field's name used for
+encoding/decoding:
+
+**On the field definition**
+
+If you're only renaming a few fields, you might find configuring the new names
+as part of the field definition to be the simplest option. To do this you can
+use the ``name`` argument in `msgspec.field`. Any fields declared with this
+option will use the new name for encoding/decoding.
+
+.. code-block:: python
+
+    >>> import msgspec
+
+    >>> class Example(msgspec.Struct):
+    ...     x: int
+    ...     y: int
+    ...     z: int = msgspec.field(name="field_z")  # renamed to "field_z"
+
+    >>> # Python code uses the original field names
+    ... ex = Example(x=1, y=2, z=3)
+
+    >>> # Encoded messages use the renamed field names
+    ... msgspec.json.encode(ex)
+    b'{"x":1,"y":2,"field_z":3}'
+
+    >>> # Decoding also uses the renamed field names
+    ... msgspec.json.decode(b'{"x": 1, "y": 2, "field_z": 3}', type=Example)
+    Example(x=1, y=2, z=3)
+
+**On the struct definition**
+
+If you're renaming lots of fields (especially if you're renaming them with a
+naming convention like ``camelCase``), you may wish to make use of the
+``rename`` configuration option in the `Struct` definition instead. This can
+take a few different values:
 
 - ``None``: the default, no field renaming (``example_field``)
 - ``"lower"``: lowercase all fields (``example_field``)
@@ -718,11 +752,10 @@ code will still refer to them using their original names.
       File "<stdin>", line 1, in <module>
     msgspec.ValidationError: Object missing required field `fieldTwo`
 
-
-Note that if renaming to camelCase, you may run into issues if your field names
-contain acronyms (e.g. ``FQDN`` in ``setHostnameAsFQDN``). Some JSON style
-guides prefer to fully-uppercase these components (``FQDN``), but ``msgspec``
-has no way to know if a component is an acroynm or not (and so will result in
+If renaming to camelCase, you may run into issues if your field names contain
+acronyms (e.g. ``FQDN`` in ``setHostnameAsFQDN``). Some JSON style guides
+prefer to fully-uppercase these components (``FQDN``), but ``msgspec`` has no
+way to know if a component is an acroynm or not (and so will result in
 ``Fqdn``). As such, we recommend using an explicit dict mapping for renaming if
 generating `Struct` types to match an existing API.
 
@@ -743,6 +776,22 @@ generating `Struct` types to match an existing API.
         service_account_name: str = ""
         set_hostname_as_fqdn: bool = False
         ...
+
+
+Note that if both the ``rename`` configuration option and the ``name`` arg to
+`msgspec.field` are used, names set explicitly via `msgspec.field` take
+precedence.
+
+.. code-block:: python
+
+    >>> import msgspec
+
+    >>> class Example(msgspec.Struct, rename="camel"):
+    ...     field_x: int
+    ...     field_y: int = msgspec.field(name="y")  # set explicitly
+
+    >>> msgspec.json.encode(Example(1, 2))
+    b'{"fieldX":1,"y":2}'
 
 
 Encoding/Decoding as Arrays
