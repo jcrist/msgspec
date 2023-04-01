@@ -2089,9 +2089,9 @@ PyDoc_STRVAR(Field__doc__,
 "    A zero-argument function called to generate a new default value\n"
 "    per-instance, rather than using a constant value as in ``default``.\n"
 "name : str, optional\n"
-"    An alternative field name to use when encoding/decoding this field.\n"
-"    If present, this will override any struct-level configuration using\n"
-"    the ``rename`` option for this field."
+"    The name to use when encoding/decoding this field. If present, this\n"
+"    will override any struct-level configuration using the ``rename``\n"
+"    option for this field."
 );
 static PyObject *
 Field_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
