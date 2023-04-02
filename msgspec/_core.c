@@ -1429,7 +1429,7 @@ PyDoc_STRVAR(Meta__doc__,
 );
 static PyObject *
 Meta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
-    static char *kwlist[] = {
+    char *kwlist[] = {
         "gt", "ge", "lt", "le", "multiple_of",
         "pattern", "min_length", "max_length", "tz",
         "title", "description", "examples", "extra_json_schema",
@@ -2095,7 +2095,7 @@ PyDoc_STRVAR(Field__doc__,
 );
 static PyObject *
 Field_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
-    static char *kwlist[] = {"default", "default_factory", "name", NULL};
+    char *kwlist[] = {"default", "default_factory", "name", NULL};
     PyObject *default_value = NODEFAULT, *default_factory = NODEFAULT;
     PyObject *name = Py_None;
 
@@ -5937,7 +5937,7 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
     int arg_array_like = -1, arg_gc = -1, arg_weakref = -1, arg_dict = -1;
     int arg_kw_only = 0;
 
-    static char *kwlist[] = {
+    char *kwlist[] = {
         "name", "bases", "dict",
         "tag_field", "tag", "rename",
         "omit_defaults", "forbid_unknown_fields",
@@ -6016,7 +6016,7 @@ msgspec_defstruct(PyObject *self, PyObject *args, PyObject *kwargs)
     int arg_repr_omit_defaults = -1, arg_array_like = -1;
     int arg_gc = -1, arg_weakref = -1, arg_dict = -1;
 
-    static char *kwlist[] = {
+    char *kwlist[] = {
         "name", "fields", "bases", "module", "namespace",
         "tag_field", "tag", "rename",
         "omit_defaults", "forbid_unknown_fields",
@@ -8367,7 +8367,7 @@ ms_write(EncoderState *self, const char *s, Py_ssize_t n)
 static int
 Encoder_init(Encoder *self, PyObject *args, PyObject *kwds)
 {
-    static char *kwlist[] = {"enc_hook", "write_buffer_size", NULL};
+    char *kwlist[] = {"enc_hook", "write_buffer_size", NULL};
     Py_ssize_t write_buffer_size = 512;
     PyObject *enc_hook = NULL;
 
@@ -11833,7 +11833,7 @@ PyDoc_STRVAR(Decoder__doc__,
 static int
 Decoder_init(Decoder *self, PyObject *args, PyObject *kwds)
 {
-    static char *kwlist[] = {"type", "dec_hook", "ext_hook", NULL};
+    char *kwlist[] = {"type", "dec_hook", "ext_hook", NULL};
     MsgspecState *st = msgspec_get_global_state();
     PyObject *type = st->typing_any;
     PyObject *ext_hook = NULL;
@@ -13665,7 +13665,7 @@ PyDoc_STRVAR(JSONDecoder__doc__,
 static int
 JSONDecoder_init(JSONDecoder *self, PyObject *args, PyObject *kwds)
 {
-    static char *kwlist[] = {"type", "dec_hook", NULL};
+    char *kwlist[] = {"type", "dec_hook", NULL};
     MsgspecState *st = msgspec_get_global_state();
     PyObject *type = st->typing_any;
     PyObject *dec_hook = NULL;
@@ -16591,7 +16591,7 @@ msgspec_json_format(PyObject *self, PyObject *args, PyObject *kwargs)
     int status;
     Py_buffer buffer;
     PyObject *out = NULL, *buf = NULL;
-    static char *kwlist[] = {"buf", "indent", NULL};
+    char *kwlist[] = {"buf", "indent", NULL};
     Py_ssize_t indent = 2;
 
     /* Parse arguments */
@@ -17449,7 +17449,7 @@ msgspec_to_builtins(PyObject *self, PyObject *args, PyObject *kwargs)
     int str_keys = false;
     ToBuiltinsState state;
 
-    static char *kwlist[] = {"obj", "builtin_types", "str_keys", "enc_hook", NULL};
+    char *kwlist[] = {"obj", "builtin_types", "str_keys", "enc_hook", NULL};
 
     /* Parse arguments */
     if (!PyArg_ParseTupleAndKeywords(
@@ -18556,7 +18556,7 @@ msgspec_from_builtins(PyObject *self, PyObject *args, PyObject *kwargs)
     int str_keys = false, str_values = false;
     FromBuiltinsState state;
 
-    static char *kwlist[] = {
+    char *kwlist[] = {
         "obj", "type", "builtin_types", "str_keys", "str_values", "dec_hook", NULL
     };
 
