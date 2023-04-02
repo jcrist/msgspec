@@ -3,6 +3,40 @@ Changelog
 
 .. currentmodule:: msgspec
 
+Version 0.14.0 (2023-04-02)
+---------------------------
+
+- Support encoding and decoding `attrs <https://attrs.org>`__ types (:pr:`323`).
+- Add ``repr_omit_defaults`` configuration option for omitting struct default
+  values in the ``repr`` (:pr:`322`).
+- Expose a struct's configuration through a ``__struct_config__`` attribute
+  (:pr:`328`).
+- Add `msgspec.structs.fields` utility function for inspecting the fields
+  configured on a Struct (:pr:`330`).
+- Add a ``dict`` configuration option for adding a ``__dict__`` attribute to a
+  Struct (:pr:`331`).
+- Allow non-struct mixins to be used with struct types (:pr:`332`).
+- Fix a bug when defining both ``lt`` and ``gt`` constraints on an integer
+  type (:pr:`335`).
+- Fix a bug supporting fields defined with `msgspec.field()` with no arguments
+  (:pr:`343`).
+- Allow arbitrary input types to `msgspec.from_builtins` (:pr:`346`).
+- Support decoding into subclasses of ``int`` & ``bytes`` in
+  `msgspec.from_builtins` (:pr:`346`).
+- Add `msgspec.UNSET` and `msgspec.UnsetType` for tracking unset fields. See the
+  :ref:`docs <unset-type>` for more information (:pr:`350`).
+- **BREAKING**: In the unlikely event you were using the previous
+  ``msgspec.UNSET`` singleton to explicitly indicate no default value on struct
+  types, you should now make use of `msgspec.NODEFAULT` instead (:pr:`350`).
+- Improve struct type annotations now that ``mypy`` supports
+  `typing.dataclass_transform` (:pr:`352`).
+- Support `typing.Final` annotations for indicating that an object field should
+  be treated as immutable (:pr:`354`).
+- Add a ``name`` keyword option to `msgspec.field` for renaming a single field
+  (:pr:`356`).
+- **BREAKING**: The rules around class inheritance and a struct's ``rename``
+  option have changed. See :pr:`356` for more information.
+
 Version 0.13.1 (2023-02-09)
 ---------------------------
 
