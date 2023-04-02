@@ -427,7 +427,9 @@ def check_asdict() -> None:
         y: int
 
     x = Test(1, 2)
-    reveal_type(msgspec.structs.asdict(x))  # assert "dict" in typ
+    o = msgspec.structs.asdict(x)
+    reveal_type(o)  # assert "dict" in typ
+    reveal_type(o["foo"])  # assert "Any" in typ
 
 
 def check_astuple() -> None:
@@ -436,7 +438,9 @@ def check_astuple() -> None:
         y: int
 
     x = Test(1, 2)
-    reveal_type(msgspec.structs.astuple(x))  # assert "tuple" in typ
+    o = msgspec.structs.astuple(x)
+    reveal_type(o)  # assert "tuple" in typ
+    reveal_type(o[0])  # assert "Any" in typ
 
 
 def check_fields() -> None:
