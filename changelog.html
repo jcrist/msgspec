@@ -260,6 +260,41 @@
         <article role="main">
           <section id="changelog">
 <h1>Changelog<a class="headerlink" href="#changelog" title="Permalink to this heading">#</a></h1>
+<section id="version-0-14-0-2023-04-02">
+<h2>Version 0.14.0 (2023-04-02)<a class="headerlink" href="#version-0-14-0-2023-04-02" title="Permalink to this heading">#</a></h2>
+<ul class="simple">
+<li><p>Support encoding and decoding <a class="reference external" href="https://attrs.org">attrs</a> types (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/323">PR #323</a>).</p></li>
+<li><p>Add <code class="docutils literal notranslate"><span class="pre">repr_omit_defaults</span></code> configuration option for omitting struct default
+values in the <code class="docutils literal notranslate"><span class="pre">repr</span></code> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/322">PR #322</a>).</p></li>
+<li><p>Expose a struct’s configuration through a <code class="docutils literal notranslate"><span class="pre">__struct_config__</span></code> attribute
+(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/328">PR #328</a>).</p></li>
+<li><p>Add <a class="reference internal" href="api.html#msgspec.structs.fields" title="msgspec.structs.fields"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.structs.fields</span></code></a> utility function for inspecting the fields
+configured on a Struct (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/330">PR #330</a>).</p></li>
+<li><p>Add a <code class="docutils literal notranslate"><span class="pre">dict</span></code> configuration option for adding a <code class="docutils literal notranslate"><span class="pre">__dict__</span></code> attribute to a
+Struct (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/331">PR #331</a>).</p></li>
+<li><p>Allow non-struct mixins to be used with struct types (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/332">PR #332</a>).</p></li>
+<li><p>Fix a bug when defining both <code class="docutils literal notranslate"><span class="pre">lt</span></code> and <code class="docutils literal notranslate"><span class="pre">gt</span></code> constraints on an integer
+type (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/335">PR #335</a>).</p></li>
+<li><p>Fix a bug supporting fields defined with <a class="reference internal" href="api.html#msgspec.field" title="msgspec.field"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.field()</span></code></a> with no arguments
+(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/343">PR #343</a>).</p></li>
+<li><p>Allow arbitrary input types to <a class="reference internal" href="api.html#msgspec.from_builtins" title="msgspec.from_builtins"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.from_builtins</span></code></a> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/346">PR #346</a>).</p></li>
+<li><p>Support decoding into subclasses of <code class="docutils literal notranslate"><span class="pre">int</span></code> &amp; <code class="docutils literal notranslate"><span class="pre">bytes</span></code> in
+<a class="reference internal" href="api.html#msgspec.from_builtins" title="msgspec.from_builtins"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.from_builtins</span></code></a> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/346">PR #346</a>).</p></li>
+<li><p>Add <a class="reference internal" href="api.html#msgspec.UNSET" title="msgspec.UNSET"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.UNSET</span></code></a> and <a class="reference internal" href="api.html#msgspec.UnsetType" title="msgspec.UnsetType"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.UnsetType</span></code></a> for tracking unset fields. See the
+<a class="reference internal" href="supported-types.html#unset-type"><span class="std std-ref">docs</span></a> for more information (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/350">PR #350</a>).</p></li>
+<li><p><strong>BREAKING</strong>: In the unlikely event you were using the previous
+<code class="docutils literal notranslate"><span class="pre">msgspec.UNSET</span></code> singleton to explicitly indicate no default value on struct
+types, you should now make use of <a class="reference internal" href="api.html#msgspec.NODEFAULT" title="msgspec.NODEFAULT"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.NODEFAULT</span></code></a> instead (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/350">PR #350</a>).</p></li>
+<li><p>Improve struct type annotations now that <code class="docutils literal notranslate"><span class="pre">mypy</span></code> supports
+<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.dataclass_transform" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.dataclass_transform</span></code></a> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/352">PR #352</a>).</p></li>
+<li><p>Support <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Final" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.Final</span></code></a> annotations for indicating that an object field should
+be treated as immutable (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/354">PR #354</a>).</p></li>
+<li><p>Add a <code class="docutils literal notranslate"><span class="pre">name</span></code> keyword option to <a class="reference internal" href="api.html#msgspec.field" title="msgspec.field"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.field</span></code></a> for renaming a single field
+(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/356">PR #356</a>).</p></li>
+<li><p><strong>BREAKING</strong>: The rules around class inheritance and a struct’s <code class="docutils literal notranslate"><span class="pre">rename</span></code>
+option have changed. See <a class="reference external" href="https://github.com/jcrist/msgspec/pull/356">PR #356</a> for more information.</p></li>
+</ul>
+</section>
 <section id="version-0-13-1-2023-02-09">
 <h2>Version 0.13.1 (2023-02-09)<a class="headerlink" href="#version-0-13-1-2023-02-09" title="Permalink to this heading">#</a></h2>
 <ul class="simple">
@@ -621,6 +656,7 @@ faster decoding.</p></li>
           <div class="toc-tree">
             <ul>
 <li><a class="reference internal" href="#">Changelog</a><ul>
+<li><a class="reference internal" href="#version-0-14-0-2023-04-02">Version 0.14.0 (2023-04-02)</a></li>
 <li><a class="reference internal" href="#version-0-13-1-2023-02-09">Version 0.13.1 (2023-02-09)</a></li>
 <li><a class="reference internal" href="#version-0-13-0-2023-02-08">Version 0.13.0 (2023-02-08)</a></li>
 <li><a class="reference internal" href="#version-0-12-0-2023-01-05">Version 0.12.0 (2023-01-05)</a></li>
