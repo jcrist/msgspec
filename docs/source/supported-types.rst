@@ -689,6 +689,8 @@ Type checking also still applies.
       File "<stdin>", line 1, in <module>
     msgspec.ValidationError: Expected `str`, got `int` - at `$[1][1]`
 
+.. _unset-type:
+
 ``UNSET``
 ---------
 
