@@ -1042,12 +1042,15 @@ class TestStructGC:
         assert not gc.is_tracked(copy.copy(Test(1, ())))
         assert gc.is_tracked(copy.copy(Test(1, []))) == has_gc
 
-    def test_struct_dealloc_decrefs_type(self):
-        class Test1(Struct):
+
+class TestStructDealloc:
+    @pytest.mark.parametrize("has_gc", [False, True])
+    def test_struct_dealloc_decrefs_type(self, has_gc):
+        class Test1(Struct, gc=has_gc):
             x: int
             y: int
 
-        class Test2(Struct):
+        class Test2(Struct, gc=has_gc):
             x: int
             y: int
 
@@ -1058,8 +1061,6 @@ class TestStructGC:
             assert sys.getrefcount(Test1) == orig_1 + 1
             del t
             assert sys.getrefcount(Test1) == orig_1
-            # Allocating a struct of the same size that was just deleted should
-            # hit the freelist, reusing the same memory allocation.
             t = Test2(1, 2)
             assert sys.getrefcount(Test1) == orig_1
             assert sys.getrefcount(Test2) == orig_2 + 1
@@ -1072,9 +1073,6 @@ class TestStructGC:
 
     @pytest.mark.parametrize("has_gc", [False, True])
     def test_struct_dealloc_calls_finalizer(self, has_gc):
-        # We loop here (and in the resurrection test) to ensure that the
-        # `is_finalized` state isn't carried over through the freelist from a
-        # previously allocated struct.
         for _ in range(3):
             called = False
 
@@ -1120,10 +1118,11 @@ class TestStructGC:
             assert new_ref is not None
             del new_ref
 
-    def test_struct_dealloc_trashcan(self):
+    @pytest.mark.parametrize("has_gc", [False, True])
+    def test_struct_dealloc_trashcan(self, has_gc):
         call_count = 0
 
-        class Node(Struct):
+        class Node(Struct, gc=has_gc):
             child: "Optional[Node]" = None
 
             def __del__(self):
@@ -1136,6 +1135,46 @@ class TestStructGC:
 
         del node
         assert call_count == 100
+
+    @pytest.mark.parametrize("has_gc", [False, True])
+    def test_struct_dealloc_decrefs_fields(self, has_gc):
+        class Test(Struct, gc=has_gc):
+            x: Any
+
+        x = object()
+        t = Test(x)
+        count = sys.getrefcount(x)
+        del t
+        assert sys.getrefcount(x) == count - 1
+
+    @pytest.mark.parametrize("has_gc", [False, True])
+    def test_struct_dealloc_works_with_missing_fields(self, has_gc):
+        class Test(Struct, gc=has_gc):
+            x: Any
+            y: Any
+
+        x = object()
+        t = Test(x, None)
+        del t.y
+        count = sys.getrefcount(x)
+        del t
+        assert sys.getrefcount(x) == count - 1
+
+    def test_struct_dealloc_dict(self):
+        class Test(Struct, dict=True):
+            x: int
+
+        called = False
+
+        class Flag:
+            def __del__(self):
+                nonlocal called
+                called = True
+
+        t = Test(1)
+        t.flag = Flag()
+        del t
+        assert called
 
     def test_struct_dealloc_weakref(self):
         class Test(Struct, weakref=True):
@@ -1152,8 +1191,6 @@ class TestStructGC:
         assert ref() is None
 
     def test_struct_dealloc_in_gc_properly_handles_type_decref(self):
-        """Due to a bug in 3.11 compatibility this briefly led to segfaults"""
-
         def inner():
             class Box(msgspec.Struct):
                 a: Any
