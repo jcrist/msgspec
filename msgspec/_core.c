@@ -54,6 +54,9 @@ ms_popcount(uint64_t i) {                            \
 /* Easy access to NoneType object */
 #define NONE_TYPE ((PyObject *)(Py_TYPE(Py_None)))
 
+/* Capacity of a list */
+#define LIST_CAPACITY(x) (((PyListObject *)x)->allocated)
+
 /* Fast shrink of bytes & bytearray objects. This doesn't do any memory
  * allocations, it just shrinks the size of the view presented to Python. Since
  * outputs of `encode` should be short lived (immediately written to a
@@ -5602,7 +5605,7 @@ structmeta_construct_encode_fields(StructMetaInfo *info)
     if (info->encode_fields == NULL) return -1;
     for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(info->fields); i++) {
         PyObject *name = PyTuple_GET_ITEM(info->fields, i);
-        PyObject *temp = PyDict_GetItem(info->renamed_fields, name); 
+        PyObject *temp = PyDict_GetItem(info->renamed_fields, name);
         if (temp == NULL) {
             temp = name;
         }
@@ -14662,14 +14665,13 @@ json_decode_dict_key(JSONDecoderState *self, TypeNode *type, PathNode *path) {
 
 static PyObject *
 json_decode_list(JSONDecoderState *self, TypeNode *type, TypeNode *el_type, PathNode *path) {
-    PyObject *out, *item = NULL;
     unsigned char c;
     bool first = true;
     PathNode el_path = {path, 0, NULL};
 
     self->input_pos++; /* Skip '[' */
 
-    out = PyList_New(0);
+    PyObject *out = PyList_New(0);
     if (out == NULL) return NULL;
     if (Py_EnterRecursiveCall(" while deserializing an object")) {
         Py_DECREF(out);
@@ -14701,13 +14703,20 @@ json_decode_list(JSONDecoderState *self, TypeNode *type, TypeNode *el_type, Path
         }
 
         /* Parse item */
-        item = json_decode(self, el_type, &el_path);
+        PyObject *item = json_decode(self, el_type, &el_path);
         if (item == NULL) goto error;
         el_path.index++;
 
         /* Append item to list */
-        if (PyList_Append(out, item) < 0) goto error;
-        Py_CLEAR(item);
+        if (MS_LIKELY((LIST_CAPACITY(out) > Py_SIZE(out)))) {
+            PyList_SET_ITEM(out, Py_SIZE(out), item);
+            SET_SIZE(out, Py_SIZE(out) + 1);
+        }
+        else {
+            int status = PyList_Append(out, item);
+            Py_DECREF(item);
+            if (MS_UNLIKELY(status < 0)) goto error;
+        }
     }
 
     if (MS_UNLIKELY(!ms_passes_array_constraints(PyList_GET_SIZE(out), type, path))) {
@@ -14719,7 +14728,6 @@ json_decode_list(JSONDecoderState *self, TypeNode *type, TypeNode *el_type, Path
 error:
     Py_LeaveRecursiveCall();
     Py_DECREF(out);
-    Py_XDECREF(item);
     return NULL;
 }
 
