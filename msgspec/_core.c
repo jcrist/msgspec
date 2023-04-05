@@ -4682,46 +4682,6 @@ ms_error_with_path(const char *msg, PathNode *path) {
 
 static PyTypeObject StructMixinType;
 
-/* To reduce overhead of repeatedly allocating & freeing messages (in e.g. a
- * server), we keep Struct objects below a certain size around in a freelist.
- * This freelist is cleared during major GC collections (as part of traversing
- * the msgspec module).
- *
- * Set STRUCT_FREELIST_MAX_SIZE to 0 to disable the freelist entirely.
- */
-#ifndef STRUCT_FREELIST_MAX_SIZE
-#define STRUCT_FREELIST_MAX_SIZE 10
-#endif
-#ifndef STRUCT_FREELIST_MAX_PER_SIZE
-#define STRUCT_FREELIST_MAX_PER_SIZE 2000
-#endif
-
-#if STRUCT_FREELIST_MAX_SIZE > 0
-static PyObject *struct_freelist[STRUCT_FREELIST_MAX_SIZE * 2];
-static int struct_freelist_len[STRUCT_FREELIST_MAX_SIZE * 2];
-
-static void
-Struct_freelist_clear(void) {
-    Py_ssize_t i;
-    PyObject *obj;
-    /* Non-gc freelist */
-    for (i = 0; i < STRUCT_FREELIST_MAX_SIZE; i++) {
-        while ((obj = struct_freelist[i]) != NULL) {
-            struct_freelist[i] = MS_GET_FIRST_SLOT(obj);
-            PyObject_Del(obj);
-        }
-        struct_freelist_len[i] = 0;
-    }
-    /* GC freelist */
-    for (i = STRUCT_FREELIST_MAX_SIZE; i < STRUCT_FREELIST_MAX_SIZE * 2; i++) {
-        while ((obj = struct_freelist[i]) != NULL) {
-            struct_freelist[i] = MS_GET_FIRST_SLOT(obj);
-            PyObject_GC_Del(obj);
-        }
-        struct_freelist_len[i] = 0;
-    }
-}
-#endif
 
 /* Note this always allocates an UNTRACKED object */
 static PyObject *
@@ -4729,43 +4689,16 @@ Struct_alloc(PyTypeObject *type) {
     PyObject *obj;
     bool is_gc = MS_TYPE_IS_GC(type);
 
-#if STRUCT_FREELIST_MAX_SIZE > 0
-    Py_ssize_t size = (type->tp_basicsize - sizeof(PyObject)) / sizeof(void *);
-    Py_ssize_t free_ind = (is_gc * STRUCT_FREELIST_MAX_SIZE) + size - 1;
-
-    if (size > 0 &&
-        size <= STRUCT_FREELIST_MAX_SIZE &&
-        struct_freelist[free_ind] != NULL)
-    {
-        /* Pop object off freelist */
-        struct_freelist_len[free_ind]--;
-        obj = struct_freelist[free_ind];
-        struct_freelist[free_ind] = MS_GET_FIRST_SLOT(obj);
-        MS_SET_FIRST_SLOT(obj, NULL);
-
-        /* Initialize the object. This is mirrored from within `PyObject_Init`,
-        * as well as PyType_GenericAlloc */
-        obj->ob_type = type;
-        Py_INCREF(type);
-        _Py_NewReference(obj);
-        return obj;
+    if (is_gc) {
+        obj = PyObject_GC_New(PyObject, type);
     }
-#else
-    if (false) {
-    }
-#endif
     else {
-        if (is_gc) {
-            obj = PyObject_GC_New(PyObject, type);
-        }
-        else {
-            obj = PyObject_New(PyObject, type);
-        }
-        if (obj == NULL) return NULL;
-        /* Zero out slot fields */
-        memset((char *)obj + sizeof(PyObject), '\0', type->tp_basicsize - sizeof(PyObject));
-        return obj;
+        obj = PyObject_New(PyObject, type);
     }
+    if (obj == NULL) return NULL;
+    /* Zero out slot fields */
+    memset((char *)obj + sizeof(PyObject), '\0', type->tp_basicsize - sizeof(PyObject));
+    return obj;
 }
 
 /* Mirrored from cpython Objects/typeobject.c */
@@ -4790,7 +4723,7 @@ clear_slots(PyTypeObject *type, PyObject *self)
 }
 
 static void
-Struct_dealloc(PyObject *self) {
+Struct_dealloc_nogc(PyObject *self) {
     PyTypeObject *type, *base;
     bool is_gc;
 
@@ -4802,7 +4735,7 @@ Struct_dealloc(PyObject *self) {
         PyObject_GC_UnTrack(self);
     }
 
-    Py_TRASHCAN_BEGIN(self, Struct_dealloc)
+    Py_TRASHCAN_BEGIN(self, Struct_dealloc_nogc)
 
     /* Maybe call a finalizer */
     if (type->tp_finalize) {
@@ -4824,51 +4757,7 @@ Struct_dealloc(PyObject *self) {
         base = base->tp_base;
     }
 
-#if STRUCT_FREELIST_MAX_SIZE > 0
-    Py_ssize_t size = (type->tp_basicsize - sizeof(PyObject)) / sizeof(void *);
-    Py_ssize_t free_ind = (is_gc * STRUCT_FREELIST_MAX_SIZE) + size - 1;
-    if (size > 0 &&
-        size <= STRUCT_FREELIST_MAX_SIZE &&
-        struct_freelist_len[free_ind] < STRUCT_FREELIST_MAX_PER_SIZE)
-    {
-        /* XXX: Python 3.11 requires GC types to have a valid ob_type field
-         * when deleted, it uses this to determine the header size. This means
-         * that objects shoved in the freelist need to still have an `ob_type`
-         * field. However, we can't decref any GC types in
-         * `Struct_freelist_clear`, since that's called during a GC traversal
-         * and deleting GC objects in a traversal leads to segfaults. To work
-         * around this, we set `ob_type` to a valid statically allocated type
-         * just so `PyObject_GC_Del` still works. This means that we can still
-         * clear the freelist in a traversal without ever needing to free a GC
-         * type. The actual type is still decref'd here.
-         *
-         * All of this is very complicated and finicky, and indicates we may need
-         * to reevaluate if the freelist is even worth it.
-         * */
-
-        /* Push object onto freelist */
-        if (is_gc) {
-            /* Reset GC state before pushing onto freelist */
-            MS_AS_GC(self)->_gc_next = 0;
-            MS_AS_GC(self)->_gc_prev = 0;
-            /* A statically allocated GC type */
-            self->ob_type = &IntLookup_Type;
-        }
-        else {
-            /* A statically allocated non-GC type */
-            self->ob_type = &StructMixinType;
-        }
-        struct_freelist_len[free_ind]++;
-        MS_SET_FIRST_SLOT(self, struct_freelist[free_ind]);
-        struct_freelist[free_ind] = self;
-    }
-#else
-    if (false) {
-    }
-#endif
-    else {
-        type->tp_free(self);
-    }
+    type->tp_free(self);
     /* Decref the object type immediately */
     Py_DECREF(type);
 done:
@@ -5852,9 +5741,9 @@ StructMeta_new_inner(
 
     /* Fill in type methods */
     ((PyTypeObject *)cls)->tp_vectorcall = (vectorcallfunc)Struct_vectorcall;
-    ((PyTypeObject *)cls)->tp_dealloc = Struct_dealloc;
     if (info.gc == OPT_FALSE) {
         ((PyTypeObject *)cls)->tp_flags &= ~Py_TPFLAGS_HAVE_GC;
+        ((PyTypeObject *)cls)->tp_dealloc = &Struct_dealloc_nogc;
         ((PyTypeObject *)cls)->tp_free = &PyObject_Free;
     }
     else {
@@ -18730,17 +18619,6 @@ msgspec_traverse(PyObject *m, visitproc visit, void *arg)
 {
     MsgspecState *st = msgspec_get_state(m);
 
-#if STRUCT_FREELIST_MAX_SIZE > 0
-    /* Since module objects tend to persist throughout a program's execution,
-     * this should only be called during major GC collections (i.e. rarely).
-     *
-     * We want to clear the freelist periodically to free up old pages and
-     * reduce fragmentation. But we don't want to do it too often, or the
-     * freelist will rarely be used. Hence clearing the freelist here. This may
-     * change in future releases.
-     */
-    Struct_freelist_clear();
-#endif
     /* Clear the string cache every 10 major GC passes.
      *
      * The string cache can help improve performance in 2 different situations:
@@ -18755,13 +18633,6 @@ msgspec_traverse(PyObject *m, visitproc visit, void *arg)
      * the allocator can free up old pages and reduce fragmentation, but we
      * want to do so as infrequently as possible. I've arbitrarily picked 10
      * major GC passes here as a heuristic.
-     *
-     * We clear the cache less frequently than the struct freelist, since:
-     *
-     * - Allocating a struct is much cheaper than validating and allocating a
-     *   new string object.
-     * - The struct freelist may contain many more objects, and consume a
-     *   larger amount of memory.
      *
      * With the current configuration, the string cache may consume up to 20
      * KiB at a time, but that's with 100% of slots filled (unlikely due to
