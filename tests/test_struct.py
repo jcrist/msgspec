@@ -1042,6 +1042,41 @@ class TestStructGC:
         assert not gc.is_tracked(copy.copy(Test(1, ())))
         assert gc.is_tracked(copy.copy(Test(1, []))) == has_gc
 
+    def test_struct_gc_false_forbids_mixins(self):
+        class Mixin:
+            pass
+
+        with pytest.raises(
+            ValueError,
+            match="Cannot set gc=False when inheriting from non-struct types",
+        ):
+
+            class Test(Struct, Mixin, gc=False):
+                pass
+
+    @pytest.mark.parametrize("case", ["base-dict", "base-nogc", "nobase"])
+    def test_struct_gc_false_forbids_dict_true(self, case):
+        if case == "base-dict":
+
+            class Base(Struct, dict=True):
+                pass
+
+            opts = {"gc": False}
+        elif case == "base-nogc":
+
+            class Base(Struct, gc=False):
+                pass
+
+            opts = {"dict": True}
+        elif case == "nobase":
+            Base = Struct
+            opts = {"gc": False, "dict": True}
+
+        with pytest.raises(ValueError, match="Cannot set gc=False and dict=True"):
+
+            class Test(Base, **opts):
+                pass
+
 
 class TestStructDealloc:
     @pytest.mark.parametrize("has_gc", [False, True])
@@ -1438,7 +1473,7 @@ class TestOrderAndEq:
         assert not a == b
 
     def test_order_no_eq_errors(self):
-        with pytest.raises(ValueError, match="eq must be true if order is true"):
+        with pytest.raises(ValueError, match="Cannot set eq=False and order=True"):
 
             class Test(Struct, order=True, eq=False):
                 pass

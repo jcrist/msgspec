@@ -4987,6 +4987,7 @@ typedef struct {
     bool already_has_weakref;
     int dict;
     bool already_has_dict;
+    bool has_non_struct_bases;
 } StructMetaInfo;
 
 static int
@@ -5045,6 +5046,7 @@ structmeta_collect_base(StructMetaInfo *info, PyObject *base) {
                 return -1;
             }
         }
+        info->has_non_struct_bases = true;
         return 0;
     }
 
@@ -5675,6 +5677,7 @@ StructMeta_new_inner(
         .already_has_weakref = false,
         .dict = arg_dict,
         .already_has_dict = false,
+        .has_non_struct_bases = false,
     };
 
     info.defaults_lk = PyDict_New();
@@ -5716,8 +5719,22 @@ StructMeta_new_inner(
     info.forbid_unknown_fields = STRUCT_MERGE_OPTIONS(info.forbid_unknown_fields, arg_forbid_unknown_fields);
 
     if (info.eq == OPT_FALSE && info.order == OPT_TRUE) {
-        PyErr_SetString(PyExc_ValueError, "eq must be true if order is true");
+        PyErr_SetString(PyExc_ValueError, "Cannot set eq=False and order=True");
         goto cleanup;
+    }
+
+    if (info.gc == OPT_FALSE) {
+        if (info.has_non_struct_bases) {
+            PyErr_SetString(
+                PyExc_ValueError,
+                "Cannot set gc=False when inheriting from non-struct types"
+            );
+            goto cleanup;
+        }
+        else if (info.dict == OPT_TRUE || info.already_has_dict) {
+            PyErr_SetString(PyExc_ValueError, "Cannot set gc=False and dict=True");
+            goto cleanup;
+        }
     }
 
     /* Collect new fields and defaults */
