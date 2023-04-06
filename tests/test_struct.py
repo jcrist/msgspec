@@ -1155,21 +1155,24 @@ class TestStructDealloc:
 
     @pytest.mark.parametrize("has_gc", [False, True])
     def test_struct_dealloc_trashcan(self, has_gc):
-        call_count = 0
+        N = 100
+        # XXX: Python <= 3.10 may run __del__ more than once for non-gc types
+        # if the trashcan mechanism is invoked. As such, we keep a set to track
+        # if it was called, not how many times it was called.
+        called = set()
 
         class Node(Struct, gc=has_gc):
             child: "Optional[Node]" = None
 
             def __del__(self):
-                nonlocal call_count
-                call_count += 1
+                called.add(id(self))
 
         node = None
-        for _ in range(100):
+        for _ in range(N):
             node = Node(node)
 
         del node
-        assert call_count == 100
+        assert len(called) == N
 
     @pytest.mark.parametrize("has_gc", [False, True])
     def test_struct_dealloc_decrefs_fields(self, has_gc):
