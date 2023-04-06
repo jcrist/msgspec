@@ -4724,18 +4724,9 @@ clear_slots(PyTypeObject *type, PyObject *self)
 
 static void
 Struct_dealloc_nogc(PyObject *self) {
-    PyTypeObject *type, *base;
-    bool is_gc;
-
-    type = Py_TYPE(self);
-
-    is_gc = MS_TYPE_IS_GC(type);
-
-    if (is_gc) {
-        PyObject_GC_UnTrack(self);
-    }
-
     Py_TRASHCAN_BEGIN(self, Struct_dealloc_nogc)
+
+    PyTypeObject *type = Py_TYPE(self);
 
     /* Maybe call a finalizer */
     if (type->tp_finalize) {
@@ -4749,7 +4740,7 @@ Struct_dealloc_nogc(PyObject *self) {
     }
 
     /* Clear all slots */
-    base = type;
+    PyTypeObject *base = type;
     while (base != NULL) {
         if (Py_SIZE(base)) {
             clear_slots(base, self);
