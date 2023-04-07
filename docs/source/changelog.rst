@@ -3,6 +3,14 @@ Changelog
 
 .. currentmodule:: msgspec
 
+Version 0.14.1 (2023-04-07)
+---------------------------
+
+- Further optimize decoding of JSON arrays into lists (:pr:`363`)
+- Fix a bug preventing using structs configured with ``dict=True`` on Python
+  3.11 (:pr:`365`)
+- Avoid preallocating large lists/tuples in the msgpack decoder (:pr:`367`)
+
 Version 0.14.0 (2023-04-02)
 ---------------------------
 
