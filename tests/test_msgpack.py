@@ -707,6 +707,22 @@ class TestDecoderMisc:
         ids = {id(k) for d in res for k in d.keys()}
         assert len(ids) == 3
 
+    @pytest.mark.parametrize("type", [None, list, tuple, set])
+    def test_decoding_large_arrays_doesnt_preallocate(self, type):
+        # <maximum sized array, truncated>
+        b = b"\xdd\xff\xff\xff\xff"
+        with pytest.raises(msgspec.DecodeError, match="truncated"):
+            if type is None:
+                msgspec.msgpack.decode(b)
+            else:
+                msgspec.msgpack.decode(b, type=type)
+
+    def test_decoding_large_arrays_as_keys_doesnt_preallocate(self):
+        # {"x": <maximum sized array, truncated>}
+        b = b"\x81\xa1x\xdd\xff\xff\xff\xff"
+        with pytest.raises(msgspec.DecodeError, match="truncated"):
+            msgspec.msgpack.decode(b)
+
 
 class TestTypedDecoder:
     def check_unexpected_type(self, dec_type, val, msg):
@@ -1512,7 +1528,7 @@ class CommonTypeTestBase:
 
 class TestDecodeArrayTypeUsesTupleIfHashableRequired:
     def test_decode_tuple_dict_keys_as_tuples(self):
-        orig = {(1, 2): [1, 2, [3, 4]], (1, (2, 3)): [4, 5, 6]}
+        orig = {(1, 2): [1, 2, [3, 4]], (1, (2, 3)): [4, 5, 6], tuple(range(32)): []}
         data = msgspec.msgpack.encode(orig)
         out = msgspec.msgpack.decode(data)
         assert orig == out

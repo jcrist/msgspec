@@ -12321,9 +12321,25 @@ mpack_decode_list(
 ) {
     Py_ssize_t i;
     PyObject *res, *item;
-
-    res = PyList_New(size);
+    /* XXX: Preallocate all elements for lists <= 16 elements in length.
+     *
+     * This minimizes the ability of malicious messages to cause a massive
+     * overallocation, while not penalizing decoding speed for small lists.
+     * With this restriction, a malicious message can preallocate at most:
+     *
+     * sys.getsizeof(list(range(16))) * sys.getrecursionlimit()
+     *
+     * bytes, which should be low enough to not matter (500 KiB on my machine).
+     * Dropping this optimization (resulting in the same allocation pattern as
+     * the JSON decoder would reduce this to
+     *
+     * sys.getsizeof([]) * sys.getrecursionlimit()
+     *
+     * which is roughly 1/3 the size. This reduction is deemed not worth it.
+     */
+    res = PyList_New(Py_MIN(16, size));
     if (res == NULL) return NULL;
+    SET_SIZE(res, 0);
     if (size == 0) return res;
 
     if (Py_EnterRecursiveCall(" while deserializing an object")) {
@@ -12337,7 +12353,20 @@ mpack_decode_list(
             Py_CLEAR(res);
             break;
         }
-        PyList_SET_ITEM(res, i, item);
+
+        /* Append item to list */
+        if (MS_LIKELY((LIST_CAPACITY(res) > Py_SIZE(res)))) {
+            PyList_SET_ITEM(res, Py_SIZE(res), item);
+            SET_SIZE(res, Py_SIZE(res) + 1);
+        }
+        else {
+            int status = PyList_Append(res, item);
+            Py_DECREF(item);
+            if (MS_UNLIKELY(status < 0)) {
+                Py_CLEAR(res);
+                break;
+            }
+        }
     }
     Py_LeaveRecursiveCall();
     return res;
@@ -12378,6 +12407,16 @@ mpack_decode_vartuple(
 ) {
     Py_ssize_t i;
     PyObject *res, *item;
+
+    if (MS_UNLIKELY(size > 16)) {
+        /* For variadic tuples of length > 16, we fallback to decoding into a
+         * list, then converting to a tuple. This lets us avoid pre-allocating
+         * extremely large tuples. See the comment in `mpack_decode_list` for
+         * more info. */
+        PyObject *temp = mpack_decode_list(self, size, el_type, path);
+        if (temp == NULL) return NULL;
+        return PyList_AsTuple(temp);
+    }
 
     res = PyTuple_New(size);
     if (res == NULL) return NULL;
