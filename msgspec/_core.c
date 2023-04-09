@@ -4724,14 +4724,12 @@ clear_slots(PyTypeObject *type, PyObject *self)
 
 static void
 Struct_dealloc_nogc(PyObject *self) {
-    Py_TRASHCAN_BEGIN(self, Struct_dealloc_nogc)
-
     PyTypeObject *type = Py_TYPE(self);
 
     /* Maybe call a finalizer */
     if (type->tp_finalize) {
         /* If resurrected, exit early */
-        if (PyObject_CallFinalizerFromDealloc(self) < 0) goto done;
+        if (PyObject_CallFinalizerFromDealloc(self) < 0) return;
     }
 
     /* Maybe clear weakrefs */
@@ -4751,8 +4749,6 @@ Struct_dealloc_nogc(PyObject *self) {
     type->tp_free(self);
     /* Decref the object type immediately */
     Py_DECREF(type);
-done:
-    Py_TRASHCAN_END
 }
 
 static MS_INLINE Py_ssize_t
