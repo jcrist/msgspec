@@ -104,7 +104,7 @@ msgspec.ValidationError: Expected `str`, got `int` - at `$.groups[0]`
 the nicities of validation libraries like
 [pydantic](https://pydantic-docs.helpmanual.io/). For supported types,
 encoding/decoding a message with `msgspec` can be
-[~2-80x faster than alternative libraries](https://jcristharif.com/msgspec/benchmarks.html).
+[~10-80x faster than alternative libraries](https://jcristharif.com/msgspec/benchmarks.html).
 
 <p align="center">
   <a href="https://jcristharif.com/msgspec/benchmarks.html">
