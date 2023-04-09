@@ -68,7 +68,7 @@ MessagePack library. For the greatest benefit though, we recommend using
 
 ``msgspec`` is designed to be as performant as possible, while retaining some
 of the nicities of validation libraries like pydantic_. For supported types,
-encoding/decoding a message with ``msgspec`` can be :doc:`~2-80x faster than
+encoding/decoding a message with ``msgspec`` can be :doc:`~10-80x faster than
 alternative libraries <benchmarks>`.
 
 Highlights
