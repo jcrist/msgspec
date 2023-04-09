@@ -32,20 +32,19 @@ types):
     import datetime
     import msgspec
 
-    class Address(msgspec.Struct):
-        street: str
-        state: str
-        zip: int
+    class File(msgspec.Struct, tag="file"):
+        name: str
+        created_by: str
+        created_at: datetime.datetime
+        updated_at: datetime.datetime
+        nbytes: int
 
-    class User(msgspec.Struct):
-        created: datetime.datetime
-        updated: datetime.datetime
-        first: str
-        last: str
-        birthday: datetime.date
-        addresses: list[AddressStruct] | None = None
-        telephone: str | None = None
-        email: str | None = None
+    class Directory(msgspec.Struct, tag="directory"):
+        name: str
+        created_by: str
+        created_at: datetime.datetime
+        updated_at: datetime.datetime
+        contents: list[File | Directory]
 
 The libraries we're benchmarking are the following:
 
@@ -55,8 +54,8 @@ The libraries we're benchmarking are the following:
 - ``msgspec.msgpack``
 - ``msgspec.json``
 
-Each benchmark creates one or more instances of a ``User`` message, and
-serializes it/deserializes it in a loop.
+Each benchmark creates a message containing one or more ``File``/``Directory``
+instances, then then serializes and deserializes it in a loop.
 
 The full benchmark source can be found
 `here <https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_encodings.py>`__.
@@ -86,9 +85,9 @@ choice here probably doesn't matter that much.
 1000 Objects
 ^^^^^^^^^^^^
 
-Here we serialize a list of 1000 ``User`` objects. There's a lot more data
-here, so the per-call overhead will no longer dominate, and we're now measuring
-the efficiency of the encoding/decoding.
+Here we serialize a tree of 1000 ``File``/``Directory`` objects. There's a lot
+more data here, so the per-call overhead will no longer dominate, and we're now
+measuring the efficiency of the encoding/decoding.
 
 .. raw:: html
 
@@ -121,8 +120,8 @@ The full benchmark source can be found
 
 This plot shows the performance benefit of performing type validation during
 message decoding (as done by ``msgspec``) rather than as a secondary step with
-a third-party library like pydantic_. In this benchmark ``msgspec`` is ~5x
-faster than ``mashumaro``, ~10x faster than ``cattrs``, and ~53x faster than
+a third-party library like pydantic_. In this benchmark ``msgspec`` is ~10x
+faster than ``mashumaro``, ~12x faster than ``cattrs``, and ~80x faster than
 ``pydantic``.
 
 Validating after decoding is slower for two reasons:
@@ -431,8 +430,8 @@ msgpack_, and pydantic_ combined. However, the total installed binary size of
         vegaEmbed(div, spec);
     }
 
-    var results = {"1": [["ujson", 8.84270281996578e-07, 1.0871249899719259e-06], ["orjson", 3.3673289700527675e-07, 6.413737859984394e-07], ["msgpack", 4.28064417996211e-07, 8.480497380078305e-07], ["msgspec msgpack", 1.3747216549745643e-07, 3.069279890041798e-07], ["msgspec json", 1.599605484989297e-07, 3.543731710014981e-07]], "1k": [["ujson", 0.0012730492400078218, 0.0019118277849702282], ["orjson", 0.0004415582520014141, 0.0011026356000002125], ["msgpack", 0.0007283394380065147, 0.0017851269550010328], ["msgspec msgpack", 0.00020273890200041934, 0.0006567235120019176], ["msgspec json", 0.0002548581139999442, 0.000684194738001679]]}
-    var results_valid = [["msgspec", 0.0002760087479982758, 0.0007443322900071508], ["pydantic", 0.019481081699996138, 0.03411734719993546], ["cattrs", 0.004493436680058948, 0.0058110291200864595], ["mashumaro", 0.001625292940007057, 0.00362884624999424]]
+    var results = {"1": [["ujson", 8.829250499984482e-07, 8.730858320013794e-07], ["orjson", 3.096652690001065e-07, 6.008548780009733e-07], ["msgpack", 3.735713579990261e-07, 6.712430439984019e-07], ["msgspec msgpack", 1.209437355000773e-07, 2.4524554299932786e-07], ["msgspec json", 1.5702481800053648e-07, 2.9431164100060416e-07]], "1k": [["ujson", 0.0006268990559983649, 0.0008841279000007489], ["orjson", 0.00022851538299983076, 0.0005686095599994587], ["msgpack", 0.000333242345999679, 0.0007984013619970938], ["msgspec msgpack", 7.986827880013152e-05, 0.0002904889190012909], ["msgspec json", 0.00012921423349962423, 0.00030142520899971713]]}
+    var results_valid = [["msgspec", 0.00014108686700001273, 0.0003501984610011277], ["pydantic", 0.015396889400017244, 0.022798635399885823], ["cattrs", 0.0025966005599912024, 0.0033668910000051256], ["mashumaro", 0.0009302718219987582, 0.0037224738400072964]]
     buildPlot('#bench-1', results["1"], "Benchmark - 1 Object");
     buildPlot('#bench-1k', results["1k"], "Benchmark - 1000 Objects");
     buildPlot('#bench-1k-validate', results_valid, "Benchmark - 1000 Objects, With Validation");

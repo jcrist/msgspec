@@ -281,20 +281,19 @@ types):</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">datetime</span>
 <span class="kn">import</span> <span class="nn">msgspec</span>
 
-<span class="k">class</span> <span class="nc">Address</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
-    <span class="n">street</span><span class="p">:</span> <span class="nb">str</span>
-    <span class="n">state</span><span class="p">:</span> <span class="nb">str</span>
-    <span class="nb">zip</span><span class="p">:</span> <span class="nb">int</span>
+<span class="k">class</span> <span class="nc">File</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">tag</span><span class="o">=</span><span class="s2">&quot;file&quot;</span><span class="p">):</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">created_by</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">created_at</span><span class="p">:</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span>
+    <span class="n">updated_at</span><span class="p">:</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span>
+    <span class="n">nbytes</span><span class="p">:</span> <span class="nb">int</span>
 
-<span class="k">class</span> <span class="nc">User</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
-    <span class="n">created</span><span class="p">:</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span>
-    <span class="n">updated</span><span class="p">:</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span>
-    <span class="n">first</span><span class="p">:</span> <span class="nb">str</span>
-    <span class="n">last</span><span class="p">:</span> <span class="nb">str</span>
-    <span class="n">birthday</span><span class="p">:</span> <span class="n">datetime</span><span class="o">.</span><span class="n">date</span>
-    <span class="n">addresses</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">AddressStruct</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-    <span class="n">telephone</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-    <span class="n">email</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="k">class</span> <span class="nc">Directory</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">tag</span><span class="o">=</span><span class="s2">&quot;directory&quot;</span><span class="p">):</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">created_by</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">created_at</span><span class="p">:</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span>
+    <span class="n">updated_at</span><span class="p">:</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span>
+    <span class="n">contents</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">File</span> <span class="o">|</span> <span class="n">Directory</span><span class="p">]</span>
 </pre></div>
 </div>
 <p>The libraries we’re benchmarking are the following:</p>
@@ -305,8 +304,8 @@ types):</p>
 <li><p><code class="docutils literal notranslate"><span class="pre">msgspec.msgpack</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">msgspec.json</span></code></p></li>
 </ul>
-<p>Each benchmark creates one or more instances of a <code class="docutils literal notranslate"><span class="pre">User</span></code> message, and
-serializes it/deserializes it in a loop.</p>
+<p>Each benchmark creates a message containing one or more <code class="docutils literal notranslate"><span class="pre">File</span></code>/<code class="docutils literal notranslate"><span class="pre">Directory</span></code>
+instances, then then serializes and deserializes it in a loop.</p>
 <p>The full benchmark source can be found
 <a class="reference external" href="https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_encodings.py">here</a>.</p>
 <section id="object">
@@ -326,9 +325,9 @@ choice here probably doesn’t matter that much.</p>
 </section>
 <section id="objects">
 <h3>1000 Objects<a class="headerlink" href="#objects" title="Permalink to this heading">#</a></h3>
-<p>Here we serialize a list of 1000 <code class="docutils literal notranslate"><span class="pre">User</span></code> objects. There’s a lot more data
-here, so the per-call overhead will no longer dominate, and we’re now measuring
-the efficiency of the encoding/decoding.</p>
+<p>Here we serialize a tree of 1000 <code class="docutils literal notranslate"><span class="pre">File</span></code>/<code class="docutils literal notranslate"><span class="pre">Directory</span></code> objects. There’s a lot
+more data here, so the per-call overhead will no longer dominate, and we’re now
+measuring the efficiency of the encoding/decoding.</p>
 <div id="bench-1k" style="width:75%"></div></section>
 </section>
 <section id="benchmark-schema-validation">
@@ -350,8 +349,8 @@ and decoding time.</p>
 <a class="reference external" href="https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_validation.py">here</a>.</p>
 <div id="bench-1k-validate" style="width:75%"></div><p>This plot shows the performance benefit of performing type validation during
 message decoding (as done by <code class="docutils literal notranslate"><span class="pre">msgspec</span></code>) rather than as a secondary step with
-a third-party library like <a class="reference external" href="https://pydantic-docs.helpmanual.io/">pydantic</a>. In this benchmark <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> is ~5x
-faster than <code class="docutils literal notranslate"><span class="pre">mashumaro</span></code>, ~10x faster than <code class="docutils literal notranslate"><span class="pre">cattrs</span></code>, and ~53x faster than
+a third-party library like <a class="reference external" href="https://pydantic-docs.helpmanual.io/">pydantic</a>. In this benchmark <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> is ~10x
+faster than <code class="docutils literal notranslate"><span class="pre">mashumaro</span></code>, ~12x faster than <code class="docutils literal notranslate"><span class="pre">cattrs</span></code>, and ~80x faster than
 <code class="docutils literal notranslate"><span class="pre">pydantic</span></code>.</p>
 <p>Validating after decoding is slower for two reasons:</p>
 <ul class="simple">
@@ -722,8 +721,8 @@ function buildPlot(div, rows, title) {
     vegaEmbed(div, spec);
 }
 
-var results = {"1": [["ujson", 8.84270281996578e-07, 1.0871249899719259e-06], ["orjson", 3.3673289700527675e-07, 6.413737859984394e-07], ["msgpack", 4.28064417996211e-07, 8.480497380078305e-07], ["msgspec msgpack", 1.3747216549745643e-07, 3.069279890041798e-07], ["msgspec json", 1.599605484989297e-07, 3.543731710014981e-07]], "1k": [["ujson", 0.0012730492400078218, 0.0019118277849702282], ["orjson", 0.0004415582520014141, 0.0011026356000002125], ["msgpack", 0.0007283394380065147, 0.0017851269550010328], ["msgspec msgpack", 0.00020273890200041934, 0.0006567235120019176], ["msgspec json", 0.0002548581139999442, 0.000684194738001679]]}
-var results_valid = [["msgspec", 0.0002760087479982758, 0.0007443322900071508], ["pydantic", 0.019481081699996138, 0.03411734719993546], ["cattrs", 0.004493436680058948, 0.0058110291200864595], ["mashumaro", 0.001625292940007057, 0.00362884624999424]]
+var results = {"1": [["ujson", 8.829250499984482e-07, 8.730858320013794e-07], ["orjson", 3.096652690001065e-07, 6.008548780009733e-07], ["msgpack", 3.735713579990261e-07, 6.712430439984019e-07], ["msgspec msgpack", 1.209437355000773e-07, 2.4524554299932786e-07], ["msgspec json", 1.5702481800053648e-07, 2.9431164100060416e-07]], "1k": [["ujson", 0.0006268990559983649, 0.0008841279000007489], ["orjson", 0.00022851538299983076, 0.0005686095599994587], ["msgpack", 0.000333242345999679, 0.0007984013619970938], ["msgspec msgpack", 7.986827880013152e-05, 0.0002904889190012909], ["msgspec json", 0.00012921423349962423, 0.00030142520899971713]]}
+var results_valid = [["msgspec", 0.00014108686700001273, 0.0003501984610011277], ["pydantic", 0.015396889400017244, 0.022798635399885823], ["cattrs", 0.0025966005599912024, 0.0033668910000051256], ["mashumaro", 0.0009302718219987582, 0.0037224738400072964]]
 buildPlot('#bench-1', results["1"], "Benchmark - 1 Object");
 buildPlot('#bench-1k', results["1k"], "Benchmark - 1000 Objects");
 buildPlot('#bench-1k-validate', results_valid, "Benchmark - 1000 Objects, With Validation");
