@@ -1435,7 +1435,7 @@ class FrozenPoint(Struct, frozen=True):
     y: int
 
 
-class TestFrozen:
+class TestSetAttr:
     def test_frozen_objects_no_setattr(self):
         p = FrozenPoint(1, 2)
         with pytest.raises(AttributeError, match="immutable type: 'FrozenPoint'"):
@@ -1455,10 +1455,61 @@ class TestFrozen:
         with pytest.raises(TypeError):
             hash(p)
 
-    def test_mutable_objects_hash_errors(self):
+    def test_frozen_hash_mutable_objects_hash_errors(self):
         p = Point(1, 2)
         with pytest.raises(TypeError, match="unhashable type"):
             hash(p)
+
+    @pytest.mark.parametrize("base_gc", [True, None, False])
+    @pytest.mark.parametrize("base_frozen", [True, False])
+    @pytest.mark.parametrize("has_gc", [True, None, False])
+    def test_override_setattr(self, has_gc, base_gc, base_frozen):
+        called = False
+
+        class Base(Struct, gc=base_gc, frozen=base_frozen):
+            pass
+
+        class Test(Struct, gc=has_gc, frozen=False):
+            x: Any
+
+            def __setattr__(self, name, value):
+                nonlocal called
+                called = True
+                super().__setattr__(name, value)
+
+        t = Test(1)
+        assert not called
+        t.x = 2
+        assert called
+        if has_gc:
+            assert not gc.is_tracked(t)
+            t.x = [1]
+            assert gc.is_tracked(t)
+
+    @pytest.mark.parametrize("base_gc", [True, None, False])
+    @pytest.mark.parametrize("has_gc", [True, None, False])
+    def test_override_setattr_inherit(self, base_gc, has_gc):
+        called = False
+
+        class Base(Struct, gc=base_gc):
+            x: Any
+
+            def __setattr__(self, name, value):
+                nonlocal called
+                called = True
+                super().__setattr__(name, value)
+
+        class Test(Base, gc=has_gc):
+            pass
+
+        t = Test(1)
+        assert not called
+        t.x = 2
+        assert called
+        if has_gc:
+            assert not gc.is_tracked(t)
+            t.x = [1]
+            assert gc.is_tracked(t)
 
 
 class TestOrderAndEq:
