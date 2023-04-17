@@ -210,7 +210,7 @@ typedef struct {
  * - the value supports GC
  * - the value isn't a tuple or the object is tracked (skip tracked checks for non-tuples)
  */
-#define MS_OBJ_IS_GC(x) \
+#define MS_MAYBE_TRACKED(x) \
     (MS_TYPE_IS_GC(Py_TYPE(x)) && \
      (!PyTuple_CheckExact(x) || MS_IS_TRACKED(x)))
 
@@ -4808,12 +4808,16 @@ Struct_setattro_frozen(PyObject *self, PyObject *key, PyObject *value) {
     return -1;
 }
 
-/* setattr for frozen=False, gc=True types */
+/* setattr for frozen=False types */
 static int
 Struct_setattro_default(PyObject *self, PyObject *key, PyObject *value) {
-    if (PyObject_GenericSetAttr(self, key, value) < 0)
-        return -1;
-    if (value != NULL && MS_OBJ_IS_GC(value) && !MS_IS_TRACKED(self))
+    if (PyObject_GenericSetAttr(self, key, value) < 0) return -1;
+    if (
+        value != NULL &&
+        MS_OBJECT_IS_GC(self) &&
+        !MS_IS_TRACKED(self) &&
+        MS_MAYBE_TRACKED(value)
+    )
         PyObject_GC_Track(self);
     return 0;
 }
@@ -5755,12 +5759,17 @@ StructMeta_new_inner(
         ((PyTypeObject *)cls)->tp_free = &PyObject_GC_Del;
     }
     if (info.frozen == OPT_TRUE) {
+        /* Frozen structs always override __setattr__ */
         ((PyTypeObject *)cls)->tp_setattro = &Struct_setattro_frozen;
     }
-    else if (info.gc == OPT_FALSE) {
-        ((PyTypeObject *)cls)->tp_setattro = &PyObject_GenericSetAttr;
-    }
-    else {
+    else if (
+        ((PyTypeObject *)cls)->tp_setattro == Struct_setattro_frozen ||
+        ((PyTypeObject *)cls)->tp_setattro == PyObject_GenericSetAttr
+    ) {
+        /* Only set non-frozen __setattr__ if it hasn't been defined by the
+         * user. All structs will inherit `Struct_setattro_default` from the
+         * base Struct class, so proper use of `super()` should still result in
+         * this being called. */
         ((PyTypeObject *)cls)->tp_setattro = &Struct_setattro_default;
     }
 
@@ -6549,7 +6558,7 @@ Struct_fill_in_defaults(StructMetaObject *st_type, PyObject *obj, PathNode *path
             Struct_set_index(obj, i, val);
         }
         if (should_untrack) {
-            should_untrack = !MS_OBJ_IS_GC(val);
+            should_untrack = !MS_MAYBE_TRACKED(val);
         }
     }
 
@@ -6597,7 +6606,7 @@ Struct_vectorcall(PyTypeObject *cls, PyObject *const *args, size_t nargsf, PyObj
         Py_INCREF(val);
         *(PyObject **)addr = val;
         if (should_untrack) {
-            should_untrack = !MS_OBJ_IS_GC(val);
+            should_untrack = !MS_MAYBE_TRACKED(val);
         }
     }
 
@@ -6643,7 +6652,7 @@ kw_found:
         Py_INCREF(val);
         *(PyObject **)addr = val;
         if (should_untrack) {
-            should_untrack = !MS_OBJ_IS_GC(val);
+            should_untrack = !MS_MAYBE_TRACKED(val);
         }
     }
 
@@ -6659,7 +6668,7 @@ kw_found:
                         if (MS_UNLIKELY(val == NULL)) goto error;
                         *(PyObject **)addr = val;
                         if (should_untrack) {
-                            should_untrack = !MS_OBJ_IS_GC(val);
+                            should_untrack = !MS_MAYBE_TRACKED(val);
                         }
                         continue;
                     }
@@ -6949,7 +6958,7 @@ struct_replace(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject
         Py_INCREF(val);
         Struct_set_index(out, field_index, val);
         if (should_untrack) {
-            should_untrack = !MS_OBJ_IS_GC(val);
+            should_untrack = !MS_MAYBE_TRACKED(val);
         }
     }
 
@@ -6958,7 +6967,7 @@ struct_replace(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject
             PyObject *val = Struct_get_index(obj, i);
             if (val == NULL) goto error;
             if (should_untrack) {
-                should_untrack = !MS_OBJ_IS_GC(val);
+                should_untrack = !MS_MAYBE_TRACKED(val);
             }
             Py_INCREF(val);
             Struct_set_index(out, i, val);
@@ -12672,7 +12681,7 @@ mpack_decode_struct_array_inner(
         }
         Struct_set_index(res, i, val);
         if (should_untrack) {
-            should_untrack = !MS_OBJ_IS_GC(val);
+            should_untrack = !MS_MAYBE_TRACKED(val);
         }
     }
     if (MS_UNLIKELY(size > 0)) {
@@ -14974,7 +14983,7 @@ json_decode_struct_array_inner(
             if (MS_UNLIKELY(item == NULL)) goto error;
             Struct_set_index(out, i, item);
             if (should_untrack) {
-                should_untrack = !MS_OBJ_IS_GC(item);
+                should_untrack = !MS_MAYBE_TRACKED(item);
             }
             i++;
             item_path.index++;
@@ -15013,7 +15022,7 @@ json_decode_struct_array_inner(
         if (item == NULL) goto error;
         Struct_set_index(out, i, item);
         if (should_untrack) {
-            should_untrack = !MS_OBJ_IS_GC(item);
+            should_untrack = !MS_MAYBE_TRACKED(item);
         }
     }
     Py_LeaveRecursiveCall();
@@ -18005,7 +18014,7 @@ from_builtins_struct_array_inner(
         }
         Struct_set_index(out, i, val);
         if (should_untrack) {
-            should_untrack = !MS_OBJ_IS_GC(val);
+            should_untrack = !MS_MAYBE_TRACKED(val);
         }
     }
     if (MS_UNLIKELY(size > 0)) {
