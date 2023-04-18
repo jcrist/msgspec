@@ -248,12 +248,6 @@ class TestEncodeFunction:
 
 
 class TestEncoderMisc:
-    @pytest.mark.parametrize("x", [-(2**63) - 1, 2**64])
-    def test_encode_integer_limits(self, x):
-        enc = msgspec.json.Encoder()
-        with pytest.raises(OverflowError):
-            enc.encode(x)
-
     def rec_obj1(self):
         o = []
         o.append(o)
@@ -1097,14 +1091,9 @@ class TestIntegers:
         if 0 < ndigits < 20:
             assert msgspec.json.encode(-x) == b"-" + s
 
-    @pytest.mark.parametrize("x", [-(2**63), 2**64 - 1])
-    def test_encode_int_boundaries(self, x):
+    @pytest.mark.parametrize("x", [-(2**63 + 1), -(2**63), 2**64 - 1, 2**64])
+    def test_encode_big_integers(self, x):
         assert msgspec.json.encode(x) == str(x).encode()
-        with pytest.raises(OverflowError):
-            if x > 0:
-                msgspec.json.encode(x + 1)
-            else:
-                msgspec.json.encode(x - 1)
 
     @pytest.mark.parametrize("ndigits", range(21))
     def test_decode_int(self, ndigits):
@@ -1887,8 +1876,8 @@ class TestDict:
         assert s == b'{"-9223372036854775808":"a","0":"b","18446744073709551615":"c"}'
 
         for x in [-(2**63) - 1, 2**64]:
-            with pytest.raises(OverflowError):
-                msgspec.json.encode({x: "a"})
+            s = msgspec.json.encode({x: "a"})
+            assert s == f'{{"{x}":"a"}}'.encode("utf-8")
 
     def test_decode_dict_int_key(self):
         msg = {}
