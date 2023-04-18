@@ -10897,6 +10897,21 @@ json_encode_false(EncoderState *self)
 }
 
 static MS_NOINLINE int
+json_encode_long_fallback(EncoderState *self, PyObject *obj) {
+    int out = -1;
+    PyObject *encoded = PyLong_Type.tp_repr(obj);
+    if (MS_LIKELY(encoded != NULL)) {
+        Py_ssize_t len;
+        const char* buf = unicode_str_and_size(encoded, &len);
+        if (MS_LIKELY(buf != NULL)) {
+            out = ms_write(self, buf, len);
+        }
+        Py_DECREF(encoded);
+    }
+    return out;
+}
+
+static MS_NOINLINE int
 json_encode_long(EncoderState *self, PyObject *obj) {
     char buf[20];
     char *p = &buf[20];
@@ -10904,11 +10919,7 @@ json_encode_long(EncoderState *self, PyObject *obj) {
     bool neg, overflow;
     overflow = fast_long_extract_parts(obj, &neg, &x);
     if (MS_UNLIKELY(overflow)) {
-        PyErr_SetString(
-            PyExc_OverflowError,
-            "can't serialize ints < -2**63 or > 2**64 - 1"
-        );
-        return -1;
+        return json_encode_long_fallback(self, obj);
     }
     while (x >= 100) {
         uint64_t const old = x;
