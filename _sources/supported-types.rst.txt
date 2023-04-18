@@ -102,10 +102,15 @@ supported protocols.
 ``int``
 -------
 
-Integers map to integers in all supported protocols. Only values that fit in an
-``int64`` or ``uint64`` (within ``[-2**63, 2**64 - 1]``, inclusive) are
-supported. Values outside this range will raise a `msgspec.ValidationError`
-during decoding.
+Integers map to integers in all supported protocols.
+
+Support for large integers varies by protocol:
+
+- ``msgpack`` only supports encoding/decoding integers within
+  ``[-2**63, 2**64 - 1]``, inclusive.
+- ``json`` will encode any integer, but will decode large integers (outside of
+  ``[-2**63, 2**64 - 1]``, inclusive) as floats.
+- ``yaml`` and ``toml`` have no restrictions on encode or decode.
 
 .. code-block:: python
 

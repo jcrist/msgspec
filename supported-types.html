@@ -352,10 +352,15 @@ supported protocols.</p>
 </section>
 <section id="int">
 <h2><code class="docutils literal notranslate"><span class="pre">int</span></code><a class="headerlink" href="#int" title="Permalink to this heading">#</a></h2>
-<p>Integers map to integers in all supported protocols. Only values that fit in an
-<code class="docutils literal notranslate"><span class="pre">int64</span></code> or <code class="docutils literal notranslate"><span class="pre">uint64</span></code> (within <code class="docutils literal notranslate"><span class="pre">[-2**63,</span> <span class="pre">2**64</span> <span class="pre">-</span> <span class="pre">1]</span></code>, inclusive) are
-supported. Values outside this range will raise a <a class="reference internal" href="api.html#msgspec.ValidationError" title="msgspec.ValidationError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.ValidationError</span></code></a>
-during decoding.</p>
+<p>Integers map to integers in all supported protocols.</p>
+<p>Support for large integers varies by protocol:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">msgpack</span></code> only supports encoding/decoding integers within
+<code class="docutils literal notranslate"><span class="pre">[-2**63,</span> <span class="pre">2**64</span> <span class="pre">-</span> <span class="pre">1]</span></code>, inclusive.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">json</span></code> will encode any integer, but will decode large integers (outside of
+<code class="docutils literal notranslate"><span class="pre">[-2**63,</span> <span class="pre">2**64</span> <span class="pre">-</span> <span class="pre">1]</span></code>, inclusive) as floats.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">yaml</span></code> and <code class="docutils literal notranslate"><span class="pre">toml</span></code> have no restrictions on encode or decode.</p></li>
+</ul>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="mi">123</span><span class="p">)</span>
 <span class="go">b&quot;123&quot;</span>
 
