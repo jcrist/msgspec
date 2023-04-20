@@ -1321,20 +1321,14 @@ type <code class="docutils literal notranslate"><span class="pre">type</span></c
 <h2>Inspect<a class="headerlink" href="#inspect" title="Permalink to this heading">#</a></h2>
 <dl class="py function">
 <dt class="sig sig-object py" id="msgspec.inspect.type_info">
-<span class="sig-prename descclassname"><span class="pre">msgspec.inspect.</span></span><span class="sig-name descname"><span class="pre">type_info</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">type</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">protocol</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.inspect.type_info" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">msgspec.inspect.</span></span><span class="sig-name descname"><span class="pre">type_info</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">type</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.inspect.type_info" title="Permalink to this definition">#</a></dt>
 <dd><p>Get information about a msgspec-compatible type.</p>
 <p>Note that if you need to inspect multiple types it’s more efficient to call
 <a class="reference internal" href="#msgspec.inspect.multi_type_info" title="msgspec.inspect.multi_type_info"><code class="xref py py-obj docutils literal notranslate"><span class="pre">multi_type_info</span></code></a> once with a sequence of types than calling <a class="reference internal" href="#msgspec.inspect.type_info" title="msgspec.inspect.type_info"><code class="xref py py-obj docutils literal notranslate"><span class="pre">type_info</span></code></a>
 multiple times.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>type</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#type" title="(in Python v3.11)"><em>type</em></a>) – The type to get info about.</p></li>
-<li><p><strong>protocol</strong> (<em>{None</em><em>, </em><em>&quot;msgpack&quot;</em><em>, </em><em>&quot;json&quot;}</em><em>, </em><em>optional</em>) – Not all types are supported by all protocols. If provided, msgspec will
-check that the provided types are compatible with the specified
-protocol. The default (<a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a>) only checks that the types are supported
-by msgspec.</p></li>
-</ul>
+<dd class="field-odd"><p><strong>type</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#type" title="(in Python v3.11)"><em>type</em></a>) – The type to get info about.</p>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p><em>Type</em></p>
@@ -1361,17 +1355,11 @@ by msgspec.</p></li>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="msgspec.inspect.multi_type_info">
-<span class="sig-prename descclassname"><span class="pre">msgspec.inspect.</span></span><span class="sig-name descname"><span class="pre">multi_type_info</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">types</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">protocol</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.inspect.multi_type_info" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">msgspec.inspect.</span></span><span class="sig-name descname"><span class="pre">multi_type_info</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">types</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.inspect.multi_type_info" title="Permalink to this definition">#</a></dt>
 <dd><p>Get information about multiple msgspec-compatible types.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>types</strong> (<em>an iterable</em><em> of </em><em>types</em>) – The types to get info about.</p></li>
-<li><p><strong>protocol</strong> (<em>{None</em><em>, </em><em>&quot;msgpack&quot;</em><em>, </em><em>&quot;json&quot;}</em><em>, </em><em>optional</em>) – Not all types are supported by all protocols. If provided, msgspec will
-check that the provided types are compatible with the specified
-protocol. The default (<a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a>) only checks that the types are supported
-by msgspec.</p></li>
-</ul>
+<dd class="field-odd"><p><strong>types</strong> (<em>an iterable</em><em> of </em><em>types</em>) – The types to get info about.</p>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p><em>tuple[Type, …]</em></p>
