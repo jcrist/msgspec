@@ -2,7 +2,7 @@ from typing import Any, TypeVar, Union
 
 from . import NODEFAULT, Struct
 
-S = TypeVar("S", bound=Struct, covariant=True)
+S = TypeVar("S", bound=Struct)
 
 def replace(struct: S, /, **changes: Any) -> S: ...
 def asdict(struct: Struct) -> dict[str, Any]: ...
