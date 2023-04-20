@@ -3,13 +3,26 @@ Changelog
 
 .. currentmodule:: msgspec
 
+Version 0.14.2 (2023-04-19)
+---------------------------
+
+- Remove ``__del__`` trashcan usage for structs with ``gc=False`` (:pr:`369`).
+- Support overriding ``__setattr__`` in Struct types (:pr:`376`).
+- Support encoding large integers in JSON (:pr:`378`).
+- Fix a memory leak when msgpack decoding variable length tuples with more than
+  16 elements (:pr:`380`).
+- Remove JSON compatibility checks when constructing a
+  ``msgspec.json.Decoder``. Trying to decode messages into types that JSON
+  doesn't support will now error at decode time, rather than when the decoder
+  is constructed (:pr:`381`).
+
 Version 0.14.1 (2023-04-07)
 ---------------------------
 
-- Further optimize decoding of JSON arrays into lists (:pr:`363`)
+- Further optimize decoding of JSON arrays into lists (:pr:`363`).
 - Fix a bug preventing using structs configured with ``dict=True`` on Python
-  3.11 (:pr:`365`)
-- Avoid preallocating large lists/tuples in the msgpack decoder (:pr:`367`)
+  3.11 (:pr:`365`).
+- Avoid preallocating large lists/tuples in the msgpack decoder (:pr:`367`).
 
 Version 0.14.0 (2023-04-02)
 ---------------------------
