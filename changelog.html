@@ -260,13 +260,27 @@
         <article role="main">
           <section id="changelog">
 <h1>Changelog<a class="headerlink" href="#changelog" title="Permalink to this heading">#</a></h1>
+<section id="version-0-14-2-2023-04-19">
+<h2>Version 0.14.2 (2023-04-19)<a class="headerlink" href="#version-0-14-2-2023-04-19" title="Permalink to this heading">#</a></h2>
+<ul class="simple">
+<li><p>Remove <code class="docutils literal notranslate"><span class="pre">__del__</span></code> trashcan usage for structs with <code class="docutils literal notranslate"><span class="pre">gc=False</span></code> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/369">PR #369</a>).</p></li>
+<li><p>Support overriding <code class="docutils literal notranslate"><span class="pre">__setattr__</span></code> in Struct types (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/376">PR #376</a>).</p></li>
+<li><p>Support encoding large integers in JSON (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/378">PR #378</a>).</p></li>
+<li><p>Fix a memory leak when msgpack decoding variable length tuples with more than
+16 elements (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/380">PR #380</a>).</p></li>
+<li><p>Remove JSON compatibility checks when constructing a
+<code class="docutils literal notranslate"><span class="pre">msgspec.json.Decoder</span></code>. Trying to decode messages into types that JSON
+doesn’t support will now error at decode time, rather than when the decoder
+is constructed (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/381">PR #381</a>).</p></li>
+</ul>
+</section>
 <section id="version-0-14-1-2023-04-07">
 <h2>Version 0.14.1 (2023-04-07)<a class="headerlink" href="#version-0-14-1-2023-04-07" title="Permalink to this heading">#</a></h2>
 <ul class="simple">
-<li><p>Further optimize decoding of JSON arrays into lists (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/363">PR #363</a>)</p></li>
+<li><p>Further optimize decoding of JSON arrays into lists (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/363">PR #363</a>).</p></li>
 <li><p>Fix a bug preventing using structs configured with <code class="docutils literal notranslate"><span class="pre">dict=True</span></code> on Python
-3.11 (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/365">PR #365</a>)</p></li>
-<li><p>Avoid preallocating large lists/tuples in the msgpack decoder (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/367">PR #367</a>)</p></li>
+3.11 (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/365">PR #365</a>).</p></li>
+<li><p>Avoid preallocating large lists/tuples in the msgpack decoder (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/367">PR #367</a>).</p></li>
 </ul>
 </section>
 <section id="version-0-14-0-2023-04-02">
@@ -665,6 +679,7 @@ faster decoding.</p></li>
           <div class="toc-tree">
             <ul>
 <li><a class="reference internal" href="#">Changelog</a><ul>
+<li><a class="reference internal" href="#version-0-14-2-2023-04-19">Version 0.14.2 (2023-04-19)</a></li>
 <li><a class="reference internal" href="#version-0-14-1-2023-04-07">Version 0.14.1 (2023-04-07)</a></li>
 <li><a class="reference internal" href="#version-0-14-0-2023-04-02">Version 0.14.0 (2023-04-02)</a></li>
 <li><a class="reference internal" href="#version-0-13-1-2023-02-09">Version 0.13.1 (2023-02-09)</a></li>
