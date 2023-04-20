@@ -941,9 +941,11 @@ class TestTypedDecoder:
     def test_vartuple_lengths(self, size):
         enc = msgspec.msgpack.Encoder()
         dec = msgspec.msgpack.Decoder(tuple)
-        x = tuple(range(size))
+        x = tuple(f"x{i}x" for i in range(size))
         res = dec.decode(enc.encode(x))
         assert res == x
+        if res:
+            assert sys.getrefcount(res[0]) == 3  # 1 tuple, 1 index, 1 func call
 
     @pytest.mark.parametrize("typ", [tuple, Tuple, Tuple[Any, ...]])
     def test_vartuple_any(self, typ):

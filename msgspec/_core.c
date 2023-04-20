@@ -12421,9 +12421,6 @@ static PyObject *
 mpack_decode_vartuple(
     DecoderState *self, Py_ssize_t size, TypeNode *el_type, PathNode *path, bool is_key
 ) {
-    Py_ssize_t i;
-    PyObject *res, *item;
-
     if (MS_UNLIKELY(size > 16)) {
         /* For variadic tuples of length > 16, we fallback to decoding into a
          * list, then converting to a tuple. This lets us avoid pre-allocating
@@ -12431,10 +12428,12 @@ mpack_decode_vartuple(
          * more info. */
         PyObject *temp = mpack_decode_list(self, size, el_type, path);
         if (temp == NULL) return NULL;
-        return PyList_AsTuple(temp);
+        PyObject *res = PyList_AsTuple(temp);
+        Py_DECREF(temp);
+        return res;
     }
 
-    res = PyTuple_New(size);
+    PyObject *res = PyTuple_New(size);
     if (res == NULL) return NULL;
     if (size == 0) return res;
 
@@ -12442,9 +12441,9 @@ mpack_decode_vartuple(
         Py_DECREF(res);
         return NULL; /* cpylint-ignore */
     }
-    for (i = 0; i < size; i++) {
+    for (Py_ssize_t i = 0; i < size; i++) {
         PathNode el_path = {path, i};
-        item = mpack_decode(self, el_type, &el_path, is_key);
+        PyObject *item = mpack_decode(self, el_type, &el_path, is_key);
         if (MS_UNLIKELY(item == NULL)) {
             Py_CLEAR(res);
             break;
