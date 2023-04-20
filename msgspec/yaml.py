@@ -16,7 +16,7 @@ def __dir__():
 
 def _import_pyyaml(name):
     try:
-        import yaml
+        import yaml  # type: ignore
     except ImportError:
         raise ImportError(
             f"`msgspec.yaml.{name}` requires PyYAML be installed.\n\n"
@@ -103,12 +103,7 @@ def decode(
     pass
 
 
-def decode(
-    buf: Union[bytes, str],
-    *,
-    type: Type[T] = Any,
-    dec_hook: Optional[Callable[[Type, Any], Any]] = None,
-) -> T:
+def decode(buf, *, type=Any, dec_hook=None):
     """Deserialize an object from YAML.
 
     Parameters

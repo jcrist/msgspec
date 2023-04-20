@@ -16,14 +16,14 @@ def __dir__():
 
 def _import_tomllib():
     try:
-        import tomllib
+        import tomllib  # type: ignore
 
         return tomllib
     except ImportError:
         pass
 
     try:
-        import tomli
+        import tomli  # type: ignore
 
         return tomli
     except ImportError:
@@ -37,7 +37,7 @@ def _import_tomllib():
 
 def _import_tomli_w():
     try:
-        import tomli_w
+        import tomli_w  # type: ignore
 
         return tomli_w
     except ImportError:
@@ -111,12 +111,7 @@ def decode(
     pass
 
 
-def decode(
-    buf: Union[bytes, str],
-    *,
-    type: Type[T] = Any,
-    dec_hook: Optional[Callable[[Type, Any], Any]] = None,
-) -> T:
+def decode(buf, *, type=Any, dec_hook=None):
     """Deserialize an object from TOML.
 
     Parameters
