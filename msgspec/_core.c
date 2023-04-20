@@ -417,12 +417,6 @@ ms_err_truncated(void)
     return -1;
 }
 
-static PyObject *
-ms_err_unreachable(void) {
-    PyErr_SetString(PyExc_RuntimeError, "Supposedly unreachable branch hit, please file an issue on GitHub!");
-    return NULL;
-}
-
 /*************************************************************************
  * Utilities                                                             *
  *************************************************************************/
@@ -540,7 +534,6 @@ typedef struct Lookup {
     PyObject_VAR_HEAD
     PyObject *tag_field;  /* used for struct lookup table only */
     bool array_like;
-    bool json_compatible;
 } Lookup;
 
 static PyTypeObject IntLookup_Type;
@@ -578,7 +571,6 @@ typedef struct StrLookup {
 } StrLookup;
 
 #define Lookup_array_like(obj) ((Lookup *)(obj))->array_like
-#define Lookup_json_compatible(obj) ((Lookup *)(obj))->json_compatible
 #define Lookup_tag_field(obj) ((Lookup *)(obj))->tag_field
 #define Lookup_IsStrLookup(obj) (Py_TYPE(obj) == &StrLookup_Type)
 #define Lookup_IsIntLookup(obj) (Py_TYPE(obj) == &IntLookup_Type)
@@ -609,7 +601,7 @@ _IntLookupHashmap_Set(IntLookupHashmap *self, int64_t key, PyObject *value) {
 }
 
 static PyObject *
-IntLookup_New(PyObject *arg, PyObject *tag_field, bool array_like, bool json_compatible) {
+IntLookup_New(PyObject *arg, PyObject *tag_field, bool array_like) {
     Py_ssize_t nitems;
     PyObject *item, *items = NULL;
     IntLookup *self = NULL;
@@ -779,7 +771,6 @@ IntLookup_New(PyObject *arg, PyObject *tag_field, bool array_like, bool json_com
     Py_XINCREF(tag_field);
     self->common.tag_field = tag_field;
     self->common.array_like = array_like;
-    self->common.json_compatible = json_compatible;
 
 cleanup:
     Py_XDECREF(items);
@@ -902,7 +893,7 @@ StrLookup_Set(StrLookup *self, PyObject *key, PyObject *value) {
 }
 
 static PyObject *
-StrLookup_New(PyObject *arg, PyObject *tag_field, bool array_like, bool json_compatible) {
+StrLookup_New(PyObject *arg, PyObject *tag_field, bool array_like) {
     Py_ssize_t nitems;
     PyObject *item, *items = NULL;
     StrLookup *self = NULL;
@@ -975,7 +966,6 @@ StrLookup_New(PyObject *arg, PyObject *tag_field, bool array_like, bool json_com
     Py_XINCREF(tag_field);
     self->common.tag_field = tag_field;
     self->common.array_like = array_like;
-    self->common.json_compatible = json_compatible;
 
 cleanup:
     Py_XDECREF(items);
@@ -2362,7 +2352,6 @@ typedef struct {
 typedef struct {
     PyObject_VAR_HEAD
     Py_ssize_t nrequired;
-    bool json_compatible;
     TypedDictField fields[];
 } TypedDictInfo;
 
@@ -2373,7 +2362,6 @@ typedef struct {
 
 typedef struct {
     PyObject_VAR_HEAD
-    bool json_compatible;
     bool traversing;
     PyObject *class;
     PyObject *pre_init;
@@ -2384,7 +2372,6 @@ typedef struct {
 
 typedef struct {
     PyObject_VAR_HEAD
-    bool json_compatible;
     bool traversing;
     PyObject *class;
     PyObject *defaults;
@@ -2405,7 +2392,6 @@ typedef struct {
     PyObject *struct_tag;        /* True, str, or NULL */
     PyObject *match_args;
     PyObject *rename;
-    bool json_compatible;
     bool traversing;
     int8_t frozen;
     int8_t order;
@@ -2427,11 +2413,11 @@ static PyTypeObject DataclassInfo_Type;
 static PyTypeObject NamedTupleInfo_Type;
 static PyTypeObject StructMetaType;
 static PyTypeObject Ext_Type;
-static TypeNode* TypeNode_Convert(PyObject *type, bool, bool *);
-static int StructMeta_prep_types(PyObject*, bool, bool*);
-static PyObject* TypedDictInfo_Convert(PyObject*, bool, bool*);
-static PyObject* DataclassInfo_Convert(PyObject*, bool, bool*);
-static PyObject* NamedTupleInfo_Convert(PyObject*, bool, bool*);
+static TypeNode* TypeNode_Convert(PyObject *type);
+static int StructMeta_prep_types(PyObject*);
+static PyObject* TypedDictInfo_Convert(PyObject*);
+static PyObject* DataclassInfo_Convert(PyObject*);
+static PyObject* NamedTupleInfo_Convert(PyObject*);
 
 #define StructMeta_GET_FIELDS(s) (((StructMetaObject *)(s))->struct_fields)
 #define StructMeta_GET_NFIELDS(s) (PyTuple_GET_SIZE((((StructMetaObject *)(s))->struct_fields)))
@@ -3179,7 +3165,7 @@ typenode_collect_constraints(
 static int typenode_collect_type(TypeNodeCollectState*, PyObject*);
 
 static TypeNode *
-typenode_from_collect_state(TypeNodeCollectState *state, bool err_not_json, bool *json_compatible) {
+typenode_from_collect_state(TypeNodeCollectState *state) {
     Py_ssize_t e_ind, n_extra = 0, fixtuple_size = 0;
     bool has_fixtuple = false;
 
@@ -3262,7 +3248,7 @@ typenode_from_collect_state(TypeNodeCollectState *state, bool err_not_json, bool
             PyErr_Clear();
             PyObject *member_map = PyObject_GetAttr(state->intenum_obj, state->mod->str__value2member_map_);
             if (member_map == NULL) goto error;
-            lookup = IntLookup_New(member_map, NULL, false, false);
+            lookup = IntLookup_New(member_map, NULL, false);
             Py_DECREF(member_map);
             if (lookup == NULL) goto error;
             if (PyObject_SetAttr(state->intenum_obj, state->mod->str___msgspec_cache__, lookup) < 0) {
@@ -3293,7 +3279,7 @@ typenode_from_collect_state(TypeNodeCollectState *state, bool err_not_json, bool
             PyErr_Clear();
             PyObject *member_map = PyObject_GetAttr(state->enum_obj, state->mod->str__value2member_map_);
             if (member_map == NULL) goto error;
-            lookup = StrLookup_New(member_map, NULL, false, false);
+            lookup = StrLookup_New(member_map, NULL, false);
             Py_DECREF(member_map);
             if (lookup == NULL) goto error;
             if (PyObject_SetAttr(state->enum_obj, state->mod->str___msgspec_cache__, lookup) < 0) {
@@ -3318,23 +3304,17 @@ typenode_from_collect_state(TypeNodeCollectState *state, bool err_not_json, bool
         out->details[e_ind++].pointer = state->str_literal_lookup;
     }
     if (state->typeddict_obj != NULL) {
-        PyObject *info = TypedDictInfo_Convert(
-            state->typeddict_obj, err_not_json, json_compatible
-        );
+        PyObject *info = TypedDictInfo_Convert(state->typeddict_obj);
         if (info == NULL) goto error;
         out->details[e_ind++].pointer = info;
     }
     if (state->dataclass_obj != NULL) {
-        PyObject *info = DataclassInfo_Convert(
-            state->dataclass_obj, err_not_json, json_compatible
-        );
+        PyObject *info = DataclassInfo_Convert(state->dataclass_obj);
         if (info == NULL) goto error;
         out->details[e_ind++].pointer = info;
     }
     if (state->namedtuple_obj != NULL) {
-        PyObject *info = NamedTupleInfo_Convert(
-            state->namedtuple_obj, err_not_json, json_compatible
-        );
+        PyObject *info = NamedTupleInfo_Convert(state->namedtuple_obj);
         if (info == NULL) goto error;
         out->details[e_ind++].pointer = info;
     }
@@ -3343,34 +3323,10 @@ typenode_from_collect_state(TypeNodeCollectState *state, bool err_not_json, bool
         out->details[e_ind++].pointer = state->c_str_regex;
     }
     if (state->dict_key_obj != NULL) {
-        TypeNode *temp = TypeNode_Convert(state->dict_key_obj, err_not_json, json_compatible);
+        TypeNode *temp = TypeNode_Convert(state->dict_key_obj);
         if (temp == NULL) goto error;
         out->details[e_ind++].pointer = temp;
-        /* Check that JSON dict keys are strings */
-        if (
-            temp->types
-            & ~(
-                MS_TYPE_ANY |
-                MS_TYPE_STR | MS_TYPE_ENUM | MS_TYPE_STRLITERAL | MS_STR_CONSTRS |
-                MS_TYPE_INT | MS_TYPE_INTENUM | MS_TYPE_INTLITERAL | MS_INT_CONSTRS |
-                MS_TYPE_BYTES | MS_BYTES_CONSTRS |
-                MS_TYPE_DATETIME | MS_TYPE_DATE | MS_TYPE_TIME | MS_TIME_CONSTRS |
-                MS_TYPE_UUID | MS_TYPE_DECIMAL
-            )
-        ) {
-            if (err_not_json) {
-                PyErr_Format(
-                    PyExc_TypeError,
-                    "Only dicts with str-like or int-like keys are supported "
-                    "- type `%R` is not supported",
-                    state->context
-                );
-                goto error;  /* temp already added to `out`, gets freed below */
-            }
-            if (json_compatible != NULL)
-                *json_compatible = false;
-        }
-        temp = TypeNode_Convert(state->dict_val_obj, err_not_json, json_compatible);
+        temp = TypeNode_Convert(state->dict_val_obj);
         if (temp == NULL) goto error;
         out->details[e_ind++].pointer = temp;
     }
@@ -3380,18 +3336,14 @@ typenode_from_collect_state(TypeNodeCollectState *state, bool err_not_json, bool
 
             for (Py_ssize_t i = 0; i < fixtuple_size; i++) {
                 TypeNode *temp = TypeNode_Convert(
-                    PyTuple_GET_ITEM(state->array_el_obj, i),
-                    err_not_json,
-                    json_compatible
+                    PyTuple_GET_ITEM(state->array_el_obj, i)
                 );
                 if (temp == NULL) goto error;
                 out->details[e_ind++].pointer = temp;
             }
         }
         else {
-            TypeNode *temp = TypeNode_Convert(
-                state->array_el_obj, err_not_json, json_compatible
-            );
+            TypeNode *temp = TypeNode_Convert(state->array_el_obj);
             if (temp == NULL) goto error;
             out->details[e_ind++].pointer = temp;
         }
@@ -3458,9 +3410,7 @@ typenode_collect_err_unique(TypeNodeCollectState *state, const char *kind) {
 }
 
 static int
-typenode_collect_check_invariants(
-    TypeNodeCollectState *state, bool err_not_json, bool *json_compatible
-) {
+typenode_collect_check_invariants(TypeNodeCollectState *state) {
     /* If a custom type is used, this node may only contain that type and `None */
     if (
         state->custom_obj != NULL &&
@@ -3845,12 +3795,12 @@ typenode_collect_convert_literals(TypeNodeCollectState *state) {
             /* Convert values to lookup objects (if values exist for each type) */
             if (state->int_literal_values != NULL) {
                 state->types |= MS_TYPE_INTLITERAL;
-                state->int_literal_lookup = IntLookup_New(state->int_literal_values, NULL, false, false);
+                state->int_literal_lookup = IntLookup_New(state->int_literal_values, NULL, false);
                 if (state->int_literal_lookup == NULL) return -1;
             }
             if (state->str_literal_values != NULL) {
                 state->types |= MS_TYPE_STRLITERAL;
-                state->str_literal_lookup = StrLookup_New(state->str_literal_values, NULL, false, false);
+                state->str_literal_lookup = StrLookup_New(state->str_literal_values, NULL, false);
                 if (state->str_literal_lookup == NULL) return -1;
             }
 
@@ -3875,62 +3825,26 @@ typenode_collect_convert_literals(TypeNodeCollectState *state) {
         /* Convert values to lookup objects (if values exist for each type) */
         if (state->int_literal_values != NULL) {
             state->types |= MS_TYPE_INTLITERAL;
-            state->int_literal_lookup = IntLookup_New(state->int_literal_values, NULL, false, false);
+            state->int_literal_lookup = IntLookup_New(state->int_literal_values, NULL, false);
             if (state->int_literal_lookup == NULL) return -1;
         }
         if (state->str_literal_values != NULL) {
             state->types |= MS_TYPE_STRLITERAL;
-            state->str_literal_lookup = StrLookup_New(state->str_literal_values, NULL, false, false);
+            state->str_literal_lookup = StrLookup_New(state->str_literal_values, NULL, false);
             if (state->str_literal_lookup == NULL) return -1;
         }
         return 0;
     }
 }
 
-static void
-_lookup_raise_json_incompatible(PyObject *lookup) {
-    if (Py_TYPE(lookup) == &StrLookup_Type) {
-        StrLookup *lk = (StrLookup *)lookup;
-        for (Py_ssize_t i = 0; i < Py_SIZE(lk); i++) {
-            if (lk->table[i].value != NULL) {
-                PyObject *struct_type = lk->table[i].value;
-                if (StructMeta_prep_types(struct_type, true, NULL) < 0) return;
-            }
-        }
-    }
-    else {
-        if (((IntLookup *)lookup)->compact) {
-            IntLookupCompact *lk = (IntLookupCompact *)lookup;
-            for (Py_ssize_t i = 0; i < Py_SIZE(lk); i++) {
-                if (lk->table[i] != NULL) {
-                    PyObject *struct_type = lk->table[i];
-                    if (StructMeta_prep_types(struct_type, true, NULL) < 0) return;
-                }
-            }
-        }
-        else {
-            IntLookupHashmap *lk = (IntLookupHashmap *)lookup;
-            for (Py_ssize_t i = 0; i < Py_SIZE(lk); i++) {
-                if (lk->table[i].value != NULL) {
-                    PyObject *struct_type = lk->table[i].value;
-                    if (StructMeta_prep_types(struct_type, true, NULL) < 0) return;
-                }
-            }
-        }
-    }
-}
-
-
 static int
-typenode_collect_convert_structs(
-    TypeNodeCollectState *state, bool err_not_json, bool *json_compatible
-) {
+typenode_collect_convert_structs(TypeNodeCollectState *state) {
     if (state->struct_obj == NULL && state->structs_set == NULL) {
         return 0;
     }
     else if (state->struct_obj != NULL) {
         /* Single struct */
-        if (StructMeta_prep_types(state->struct_obj, err_not_json, json_compatible) < 0) {
+        if (StructMeta_prep_types(state->struct_obj) < 0) {
             return -1;
         }
         if (((StructMetaObject *)state->struct_obj)->array_like == OPT_TRUE) {
@@ -3952,17 +3866,6 @@ typenode_collect_convert_structs(
     );
     if (lookup != NULL) {
         /* Lookup was in the cache, update the state and return */
-        bool union_json_compatible = Lookup_json_compatible(lookup);
-        if (!union_json_compatible) {
-            if (json_compatible != NULL) {
-                *json_compatible = union_json_compatible;
-            }
-            if (err_not_json) {
-                /* Recurse to raise nice error message */
-                _lookup_raise_json_incompatible(lookup);
-                return -1;
-            }
-        }
         Py_INCREF(lookup);
         state->structs_lookup = lookup;
 
@@ -3990,7 +3893,6 @@ typenode_collect_convert_structs(
     Py_ssize_t set_pos = 0;
     Py_hash_t set_hash;
     bool array_like = false;
-    bool union_json_compatible = true;
     bool tags_are_strings = true;
     int status = -1;
 
@@ -4002,12 +3904,10 @@ typenode_collect_convert_structs(
         PyObject *item_tag_field = struct_type->struct_tag_field;
         PyObject *item_tag_value = struct_type->struct_tag_value;
         bool item_array_like = struct_type->array_like == OPT_TRUE;
-        bool item_json_compatible = true;
 
-        if (StructMeta_prep_types((PyObject *)struct_type, err_not_json, &item_json_compatible) < 0) {
+        if (StructMeta_prep_types((PyObject *)struct_type) < 0) {
             goto cleanup;
         }
-        union_json_compatible &= item_json_compatible;
 
         if (item_tag_value == NULL) {
             PyErr_Format(
@@ -4069,15 +3969,12 @@ typenode_collect_convert_structs(
             goto cleanup;
         }
     }
-    if (json_compatible != NULL && !union_json_compatible) {
-        *json_compatible = union_json_compatible;
-    }
     /* Build a lookup from tag_value -> struct_type */
     if (tags_are_strings) {
-        lookup = StrLookup_New(tag_mapping, tag_field, array_like, union_json_compatible);
+        lookup = StrLookup_New(tag_mapping, tag_field, array_like);
     }
     else {
-        lookup = IntLookup_New(tag_mapping, tag_field, array_like, union_json_compatible);
+        lookup = IntLookup_New(tag_mapping, tag_field, array_like);
     }
     if (lookup == NULL) goto cleanup;
 
@@ -4473,7 +4370,7 @@ invalid:
 }
 
 static TypeNode *
-TypeNode_Convert(PyObject *obj, bool err_not_json, bool *json_compatible) {
+TypeNode_Convert(PyObject *obj) {
     TypeNode *out = NULL;
     TypeNodeCollectState state = {0};
     state.mod = msgspec_get_global_state();
@@ -4482,13 +4379,13 @@ TypeNode_Convert(PyObject *obj, bool err_not_json, bool *json_compatible) {
     /* Traverse `obj` to collect all type annotations at this level */
     if (typenode_collect_type(&state, obj) < 0) goto done;
     /* Handle structs in a second pass */
-    if (typenode_collect_convert_structs(&state, err_not_json, json_compatible) < 0) goto done;
+    if (typenode_collect_convert_structs(&state) < 0) goto done;
     /* Handle literals in a second pass */
     if (typenode_collect_convert_literals(&state) < 0) goto done;
     /* Check type invariants to ensure Union types are valid */
-    if (typenode_collect_check_invariants(&state, err_not_json, json_compatible) < 0) goto done;
+    if (typenode_collect_check_invariants(&state) < 0) goto done;
     /* Populate a new TypeNode, recursing into subtypes as needed */
-    out = typenode_from_collect_state(&state, err_not_json, json_compatible);
+    out = typenode_from_collect_state(&state);
 done:
     typenode_collect_clear_state(&state);
     return out;
@@ -6020,31 +5917,18 @@ cleanup:
 
 
 static int
-StructMeta_prep_types(PyObject *py_self, bool err_not_json, bool *json_compatible) {
+StructMeta_prep_types(PyObject *py_self) {
     StructMetaObject *self = (StructMetaObject *)py_self;
     MsgspecState *st;
     TypeNode *type;
     TypeNode **struct_types = NULL;
     Py_ssize_t i, nfields;
     PyObject *obj, *field, *annotations = NULL;
-    bool struct_is_json_compatible = true;
 
     /* Types are currently being prepped, recursive type */
     if (self->traversing) return 0;
 
-    if (self->struct_types) {
-        if (!self->json_compatible) {
-            if (json_compatible != NULL) {
-                *json_compatible = false;
-            }
-            if (!err_not_json) return 0;
-            /* If we want to error, we need to recurse again here. This won't
-             * modify any internal state, since it will error too early. */
-        }
-        else {
-            return 0;
-        }
-    }
+    if (self->struct_types) return 0;
 
     if (MS_UNLIKELY(self->struct_fields == NULL)) {
         /* The struct isn't fully initialized! This most commonly happens if
@@ -6078,21 +5962,16 @@ StructMeta_prep_types(PyObject *py_self, bool err_not_json, bool *json_compatibl
     }
 
     for (i = 0; i < nfields; i++) {
-        bool field_is_json_compatible = true;
         field = PyTuple_GET_ITEM(self->struct_fields, i);
         obj = PyDict_GetItem(annotations, field);
         if (obj == NULL) goto error;
-        type = TypeNode_Convert(obj, err_not_json, &field_is_json_compatible);
+        type = TypeNode_Convert(obj);
         if (type == NULL) goto error;
         struct_types[i] = type;
-        struct_is_json_compatible &= field_is_json_compatible;
     }
 
     self->traversing = false;
     self->struct_types = struct_types;
-    self->json_compatible = struct_is_json_compatible;
-    if (!struct_is_json_compatible && json_compatible != NULL)
-        *json_compatible = false;
 
     Py_DECREF(annotations);
     return 0;
@@ -7336,7 +7215,7 @@ PyDoc_STRVAR(Struct__doc__,
 );
 
 static PyObject *
-TypedDictInfo_Convert(PyObject *obj, bool err_not_json, bool *json_compatible) {
+TypedDictInfo_Convert(PyObject *obj) {
     PyObject *annotations = NULL, *required = NULL;
     TypedDictInfo *info = NULL;
     MsgspecState *mod = msgspec_get_global_state();
@@ -7354,23 +7233,7 @@ TypedDictInfo_Convert(PyObject *obj, bool err_not_json, bool *json_compatible) {
             );
             return NULL;
         }
-
-        /* -1 indicates the TypedDictInfo is still being built (due to a
-         * recursive type definition). Just return immediately. */
-        if (((TypedDictInfo *)cached)->nrequired == -1) return cached;
-
-        if (!((TypedDictInfo *)cached)->json_compatible) {
-            if (json_compatible != NULL) {
-                *json_compatible = false;
-            }
-            if (!err_not_json) return cached;
-            /* XXX: If we want to error, we need to recurse again here. This won't
-            * modify any internal state, since it will error too early. */
-            Py_DECREF(cached);
-        }
-        else {
-            return cached;
-        }
+        return cached;
     }
 
     /* Clear the getattr error, if any */
@@ -7400,30 +7263,6 @@ TypedDictInfo_Convert(PyObject *obj, bool err_not_json, bool *json_compatible) {
         if (required == NULL) goto error;
     }
 
-    if (cached != NULL) {
-        /* If cached is not NULL, this means that a TypedDictInfo already exists for
-         * this TypedDict, but it's not JSON compatible and we're recursing through
-         * again to raise a nice TypeError. In this case we:
-         * - Temporarily mark the TypedDictInfo object as being recursively traversed
-         *   to guard against recursion errors. This is done by setting nrequired = -1
-         * - Call `TypeNode_Convert` on every field type, bubbling up the error if
-         *   raised, otherwise immediately free the result.
-         * - Reset `nrequired` to its original value before raising the error.
-         */
-        Py_ssize_t nrequired_temp = ((TypedDictInfo *)cached)->nrequired;
-        ((TypedDictInfo *)cached)->nrequired = -1;
-        Py_ssize_t pos = 0;
-        PyObject *val;
-        while (PyDict_Next(annotations, &pos, NULL, &val)) {
-            bool item_is_json_compatible = true;
-            TypeNode *type = TypeNode_Convert(val, err_not_json, &item_is_json_compatible);
-            if (type == NULL) break;
-            TypeNode_Free(type);
-        }
-        ((TypedDictInfo *)cached)->nrequired = nrequired_temp;
-        goto error;
-    }
-
     /* Allocate and zero-out a new TypedDictInfo object */
     Py_ssize_t nfields = PyDict_GET_SIZE(annotations);
     info = PyObject_GC_NewVar(TypedDictInfo, &TypedDictInfo_Type, nfields);
@@ -7446,25 +7285,18 @@ TypedDictInfo_Convert(PyObject *obj, bool err_not_json, bool *json_compatible) {
     /* Traverse fields and initialize TypedDictInfo */
     Py_ssize_t pos = 0, i = 0;
     PyObject *key, *val;
-    bool dict_is_json_compatible = true;
     while (PyDict_Next(annotations, &pos, &key, &val)) {
-        bool item_is_json_compatible = true;
-        TypeNode *type = TypeNode_Convert(val, err_not_json, &item_is_json_compatible);
+        TypeNode *type = TypeNode_Convert(val);
         if (type == NULL) goto error;
         Py_INCREF(key);
         info->fields[i].key = key;
         info->fields[i].type = type;
-        dict_is_json_compatible &= item_is_json_compatible;
         int contains = PySet_Contains(required, key);
         if (contains == -1) goto error;
         if (contains) { type->types |= MS_EXTRA_FLAG; }
         i++;
     }
     info->nrequired = PySet_GET_SIZE(required);
-    info->json_compatible = dict_is_json_compatible;
-    if (!dict_is_json_compatible && json_compatible != NULL) {
-        *json_compatible = false;
-    }
     Py_XDECREF(annotations);
     Py_XDECREF(required);
     PyObject_GC_Track(info);
@@ -7578,7 +7410,7 @@ static PyTypeObject TypedDictInfo_Type = {
 };
 
 static PyObject *
-DataclassInfo_Convert(PyObject *obj, bool err_not_json, bool *json_compatible) {
+DataclassInfo_Convert(PyObject *obj) {
     PyObject *fields = NULL, *field_defaults = NULL, *pre_init = NULL, *post_init = NULL;
     DataclassInfo *info = NULL;
     MsgspecState *mod = msgspec_get_global_state();
@@ -7596,23 +7428,7 @@ DataclassInfo_Convert(PyObject *obj, bool err_not_json, bool *json_compatible) {
             );
             return NULL;
         }
-
-        /* True if DataclassInfo is still being built (due to a
-         * recursive type definition). Just return immediately. */
-        if (((DataclassInfo *)cached)->traversing) return cached;
-
-        if (!((DataclassInfo *)cached)->json_compatible) {
-            if (json_compatible != NULL) {
-                *json_compatible = false;
-            }
-            if (!err_not_json) return cached;
-            /* XXX: If we want to error, we need to recurse again here. This won't
-            * modify any internal state, since it will error too early. */
-            Py_DECREF(cached);
-        }
-        else {
-            return cached;
-        }
+        return cached;
     }
 
     /* Clear the getattr error, if any */
@@ -7630,30 +7446,6 @@ DataclassInfo_Convert(PyObject *obj, bool err_not_json, bool *json_compatible) {
     post_init = PyTuple_GET_ITEM(temp, 3);
     Py_INCREF(post_init);
     Py_DECREF(temp);
-
-    if (cached != NULL) {
-        /* If cached is not NULL, this means that a DataclassInfo already exists for
-         * this Dataclass, but it's not JSON compatible and we're recursing through
-         * again to raise a nice TypeError. In this case we:
-         * - Temporarily mark the DataclassInfo object as being recursively traversed
-         *   to guard against recursion errors.
-         * - Call `TypeNode_Convert` on every field type, bubbling up the error if
-         *   raised, otherwise immediately free the result.
-         */
-        ((DataclassInfo *)cached)->traversing = true;
-        for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(fields); i++) {
-            TypeNode *temp = TypeNode_Convert(
-                PyTuple_GET_ITEM(PyTuple_GET_ITEM(fields, i), 1),
-                err_not_json,
-                NULL
-            );
-            if (temp == NULL) goto found_invalid;
-            TypeNode_Free(temp);
-        }
-    found_invalid:
-        ((DataclassInfo *)cached)->traversing = false;
-        goto error;
-    }
 
     /* Allocate and zero-out a new DataclassInfo object */
     Py_ssize_t nfields = PyTuple_GET_SIZE(fields);
@@ -7685,13 +7477,9 @@ DataclassInfo_Convert(PyObject *obj, bool err_not_json, bool *json_compatible) {
     cache_set = true;
 
     /* Traverse fields and initialize DataclassInfo */
-    bool dict_is_json_compatible = true;
     for (Py_ssize_t i = 0; i < nfields; i++) {
-        bool item_is_json_compatible = true;
         PyObject *field = PyTuple_GET_ITEM(fields, i);
-        TypeNode *type = TypeNode_Convert(
-            PyTuple_GET_ITEM(field, 1), err_not_json, &item_is_json_compatible
-        );
+        TypeNode *type = TypeNode_Convert(PyTuple_GET_ITEM(field, 1));
         if (type == NULL) goto error;
         /* If field has a default factory, set extra flag bit */
         if (PyObject_IsTrue(PyTuple_GET_ITEM(field, 2))) {
@@ -7700,14 +7488,9 @@ DataclassInfo_Convert(PyObject *obj, bool err_not_json, bool *json_compatible) {
         info->fields[i].type = type;
         info->fields[i].key = PyTuple_GET_ITEM(field, 0);
         Py_INCREF(info->fields[i].key);
-        dict_is_json_compatible &= item_is_json_compatible;
     }
 
     info->traversing = false;
-    info->json_compatible = dict_is_json_compatible;
-    if (!dict_is_json_compatible && json_compatible != NULL) {
-        *json_compatible = false;
-    }
     Py_DECREF(fields);
     Py_DECREF(field_defaults);
     PyObject_GC_Track(info);
@@ -7850,7 +7633,7 @@ static PyTypeObject DataclassInfo_Type = {
 };
 
 static PyObject *
-NamedTupleInfo_Convert(PyObject *obj, bool err_not_json, bool *json_compatible) {
+NamedTupleInfo_Convert(PyObject *obj) {
     MsgspecState *mod = msgspec_get_global_state();
     NamedTupleInfo *info = NULL;
     PyObject *annotations = NULL, *fields = NULL, *defaults = NULL, *defaults_list = NULL;
@@ -7868,23 +7651,7 @@ NamedTupleInfo_Convert(PyObject *obj, bool err_not_json, bool *json_compatible) 
             );
             return NULL;
         }
-
-        /* True if NamedTupleInfo is still being built (due to a
-         * recursive type definition). Just return immediately. */
-        if (((NamedTupleInfo *)cached)->traversing) return cached;
-
-        if (!((NamedTupleInfo *)cached)->json_compatible) {
-            if (json_compatible != NULL) {
-                *json_compatible = false;
-            }
-            if (!err_not_json) return cached;
-            /* XXX: If we want to error, we need to recurse again here. This won't
-            * modify any internal state, since it will error too early. */
-            Py_DECREF(cached);
-        }
-        else {
-            return cached;
-        }
+        return cached;
     }
 
     /* Clear the getattr error, if any */
@@ -7897,28 +7664,6 @@ NamedTupleInfo_Convert(PyObject *obj, bool err_not_json, bool *json_compatible) 
     if (fields == NULL) goto cleanup;
     defaults = PyObject_GetAttr(obj, mod->str__field_defaults);
     if (defaults == NULL) goto cleanup;
-
-    if (cached != NULL) {
-        /* If cached is not NULL, this means that a NamedTupleInfo already exists for
-         * this NamedTuple, but it's not JSON compatible and we're recursing through
-         * again to raise a nice TypeError. In this case we:
-         * - Temporarily mark the NamedTupleInfo object as being recursively traversed
-         *   to guard against recursion errors.
-         * - Call `TypeNode_Convert` on every field type, bubbling up the error if
-         *   raised, otherwise immediately free the result.
-         */
-        ((NamedTupleInfo *)cached)->traversing = true;
-        Py_ssize_t pos = 0;
-        PyObject *val;
-        while (PyDict_Next(annotations, &pos, NULL, &val)) {
-            bool item_is_json_compatible = true;
-            TypeNode *type = TypeNode_Convert(val, err_not_json, &item_is_json_compatible);
-            if (type == NULL) break;
-            TypeNode_Free(type);
-        }
-        ((NamedTupleInfo *)cached)->traversing = false;
-        goto cleanup;
-    }
 
     /* Allocate and zero-out a new NamedTupleInfo object */
     Py_ssize_t nfields = PyTuple_GET_SIZE(fields);
@@ -7940,7 +7685,6 @@ NamedTupleInfo_Convert(PyObject *obj, bool err_not_json, bool *json_compatible) 
     cache_set = true;
 
     /* Traverse fields and initialize NamedTupleInfo */
-    bool tuple_is_json_compatible = true;
     defaults_list = PyList_New(0);
     if (defaults_list == NULL) goto cleanup;
     for (Py_ssize_t i = 0; i < nfields; i++) {
@@ -7951,9 +7695,7 @@ NamedTupleInfo_Convert(PyObject *obj, bool err_not_json, bool *json_compatible) 
             type_obj = mod->typing_any;
         }
         /* Convert the type to a TypeNode */
-        bool item_is_json_compatible = true;
-        TypeNode *type = TypeNode_Convert(type_obj, err_not_json, &item_is_json_compatible);
-        tuple_is_json_compatible &= item_is_json_compatible;
+        TypeNode *type = TypeNode_Convert(type_obj);
         if (type == NULL) goto cleanup;
         info->types[i] = type;
         /* Get the field default (if any), and append it to the list */
@@ -7967,10 +7709,6 @@ NamedTupleInfo_Convert(PyObject *obj, bool err_not_json, bool *json_compatible) 
     info->class = obj;
     info->defaults = PyList_AsTuple(defaults_list);
     if (info->defaults == NULL) goto cleanup;
-    info->json_compatible = tuple_is_json_compatible;
-    if (!tuple_is_json_compatible && json_compatible != NULL) {
-        *json_compatible = false;
-    }
     PyObject_GC_Track(info);
 
     succeeded = true;
@@ -11788,7 +11526,7 @@ Decoder_init(Decoder *self, PyObject *args, PyObject *kwds)
     self->state.ext_hook = ext_hook;
 
     /* Handle type */
-    self->state.type = TypeNode_Convert(type, false, NULL);
+    self->state.type = TypeNode_Convert(type);
     if (self->state.type == NULL) {
         return -1;
     }
@@ -13531,10 +13269,10 @@ msgspec_msgpack_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, 
     if (type == NULL || type == st->typing_any) {
     }
     else if (Py_TYPE(type) == &StructMetaType) {
-        if (StructMeta_prep_types(type, false, NULL) < 0) return NULL;
+        if (StructMeta_prep_types(type) < 0) return NULL;
     }
     else {
-        state.type = TypeNode_Convert(type, false, NULL);
+        state.type = TypeNode_Convert(type);
         if (state.type == NULL) return NULL;
     }
 
@@ -13643,7 +13381,7 @@ JSONDecoder_init(JSONDecoder *self, PyObject *args, PyObject *kwds)
     self->state.dec_hook = dec_hook;
 
     /* Handle type */
-    self->state.type = TypeNode_Convert(type, true, NULL);
+    self->state.type = TypeNode_Convert(type);
     if (self->state.type == NULL) return -1;
     Py_INCREF(type);
     self->orig_type = type;
@@ -14571,7 +14309,7 @@ json_decode_dict_key_fallback(
         return json_decode_binary(view, size, type, path);
     }
     else {
-        return ms_err_unreachable();
+        return ms_validation_error("str", type, path);
     }
 }
 
@@ -16787,10 +16525,10 @@ msgspec_json_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyO
     if (type == NULL || type == st->typing_any) {
     }
     else if (Py_TYPE(type) == &StructMetaType) {
-        if (StructMeta_prep_types(type, true, NULL) < 0) return NULL;
+        if (StructMeta_prep_types(type) < 0) return NULL;
     }
     else {
-        state.type = TypeNode_Convert(type, true, NULL);
+        state.type = TypeNode_Convert(type);
         if (state.type == NULL) return NULL;
     }
 
@@ -18550,7 +18288,7 @@ msgspec_from_builtins(PyObject *self, PyObject *args, PyObject *kwargs)
 
     /* Avoid allocating a new TypeNode for struct types */
     if (Py_TYPE(pytype) == &StructMetaType) {
-        if (StructMeta_prep_types(pytype, str_keys, NULL) < 0) return NULL;
+        if (StructMeta_prep_types(pytype) < 0) return NULL;
         bool array_like = ((StructMetaObject *)pytype)->array_like == OPT_TRUE;
         TypeNodeSimple type;
         type.types = array_like ? MS_TYPE_STRUCT_ARRAY : MS_TYPE_STRUCT;
@@ -18558,7 +18296,7 @@ msgspec_from_builtins(PyObject *self, PyObject *args, PyObject *kwargs)
         return from_builtins(&state, obj, (TypeNode *)(&type), NULL);
     }
 
-    TypeNode *type = TypeNode_Convert(pytype, str_keys, NULL);
+    TypeNode *type = TypeNode_Convert(pytype);
     if (type == NULL) return NULL;
     PyObject *out = from_builtins(&state, obj, type, NULL);
     TypeNode_Free(type);
