@@ -643,24 +643,6 @@ def test_metadata():
     )
 
 
-@pytest.mark.parametrize("protocol", [None, "msgpack", "json"])
-def test_type_info_protocol(protocol):
-    res = mi.type_info(Dict[str, int], protocol=protocol)
-    assert res == mi.DictType(mi.StrType(), mi.IntType())
-
-    if protocol == "json":
-        with pytest.raises(TypeError):
-            mi.type_info(Dict[float, int], protocol=protocol)
-    else:
-        res = mi.type_info(Dict[float, int], protocol=protocol)
-        assert res == mi.DictType(mi.FloatType(), mi.IntType())
-
-
-def test_type_info_protocol_invalid():
-    with pytest.raises(ValueError, match="protocol must be one of"):
-        mi.type_info(int, protocol="invalid")
-
-
 def test_multi_type_info():
     class Example(msgspec.Struct):
         x: int

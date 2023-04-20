@@ -857,9 +857,9 @@ def check_inspect_type_info() -> None:
     o = msgspec.inspect.type_info(List[int])
     reveal_type(o)  # assert "Type" in typ
 
-    msgspec.inspect.type_info(int, protocol=None)
-    msgspec.inspect.type_info(int, protocol="msgpack")
-    msgspec.inspect.type_info(int, protocol="json")
+    msgspec.inspect.type_info(int)
+    msgspec.inspect.type_info(int)
+    msgspec.inspect.type_info(int)
 
 
 def check_inspect_multi_type_info() -> None:
@@ -869,9 +869,9 @@ def check_inspect_multi_type_info() -> None:
     o2 = msgspec.inspect.multi_type_info((int, float))
     reveal_type(o2)  # assert "Type" in typ and "tuple" in typ.lower()
 
-    msgspec.inspect.multi_type_info([int], protocol=None)
-    msgspec.inspect.multi_type_info([int], protocol="msgpack")
-    msgspec.inspect.multi_type_info([int], protocol="json")
+    msgspec.inspect.multi_type_info([int])
+    msgspec.inspect.multi_type_info([int])
+    msgspec.inspect.multi_type_info([int])
 
 
 def max_depth(t: msgspec.inspect.Type, depth: int = 0) -> int:

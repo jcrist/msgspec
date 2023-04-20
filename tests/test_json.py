@@ -28,7 +28,6 @@ from typing import (
 )
 
 import pytest
-from utils import temp_module
 
 import msgspec
 
@@ -92,96 +91,13 @@ class TestInvalidJSONTypes:
                 with pytest.raises(TypeError, match="not supported"):
                     msgspec.json.Decoder(Union[types])
 
-    def test_invalid_type_dict_non_str_key(self):
-        with pytest.raises(TypeError, match="not supported"):
-            msgspec.json.Decoder(Dict[float, int])
-
-    def test_invalid_type_in_collection(self):
-        with pytest.raises(TypeError, match="not supported"):
-            msgspec.json.Decoder(List[Union[int, Dict[float, int]]])
-
-        with pytest.raises(TypeError, match="not supported"):
-            msgspec.json.Decoder(List[Dict[str, Union[int, str, bytes]]])
-
-    @pytest.mark.parametrize("preinit", [False, True])
-    def test_invalid_dict_type_in_struct(self, preinit):
-        class Test(msgspec.Struct):
-            a: int
-            b: Dict[float, str]
-            c: str
-
-        if preinit:
-            # Creating a msgpack decoder pre-parses the type definition
-            msgspec.msgpack.Decoder(Test)
-
-        with pytest.raises(TypeError, match="not supported"):
-            msgspec.json.Decoder(Test)
-
-        # Msgpack decoder still works
-        dec = msgspec.msgpack.Decoder(Test)
-        msg = Test(1, {2: "three"}, "four")
-        assert dec.decode(msgspec.msgpack.encode(msg)) == msg
-
-    @pytest.mark.parametrize("preinit", [False, True])
-    def test_invalid_type_nested_in_struct(self, preinit):
-        source = """
-        from __future__ import annotations
-
-        import msgspec
-        from typing import List, Dict
-
-        class Inner(msgspec.Struct):
-            a: List[Dict[float, int]]
-            b: int
-
-        class Outer(msgspec.Struct):
-            a: List[Inner]
-            b: bool
-        """
-        with temp_module(source) as mod:
-            if preinit:
-                msgspec.msgpack.Decoder(mod.Outer)
-
-            with pytest.raises(TypeError, match="not supported"):
-                msgspec.json.Decoder(mod.Outer)
-
-            dec = msgspec.msgpack.Decoder(mod.Outer)
-            msg = mod.Outer([mod.Inner([{2: 3}], 1)], False)
-            assert dec.decode(msgspec.msgpack.encode(msg)) == msg
-
-    @pytest.mark.parametrize("preinit", [False, True])
-    @pytest.mark.parametrize("kind", ["A", "B", "C"])
-    def test_invalid_type_recursive(self, preinit, kind):
-        source = """
-        from __future__ import annotations
-
-        import msgspec
-        from typing import Optional, Dict
-
-        class A(msgspec.Struct):
-            x: Optional[dict]
-            y: Optional[B]
-
-        class B(msgspec.Struct):
-            x: Optional[dict]
-            y: Optional[C]
-
-        class C(msgspec.Struct):
-            x: Optional[Dict[float, int]]
-            y: Optional[A]
-        """
-
-        with temp_module(source) as mod:
-            cls = getattr(mod, kind)
-            if preinit:
-                msgspec.msgpack.Decoder(cls)
-
-            with pytest.raises(TypeError, match="not supported"):
-                msgspec.json.Decoder(cls)
-
-            dec = msgspec.msgpack.Decoder(cls)
-            msg = {"x": None, "y": {"x": None, "y": {"x": None, "y": None}}}
-            assert isinstance(dec.decode(msgspec.msgpack.encode(msg)), cls)
+    def test_invalid_dict_key_type_errors_at_runtime(self):
+        # We used to check this statically at TypeNode build time, but this was
+        # a pain. We now just ensure invalid types error at runtime.
+        with pytest.raises(
+            msgspec.ValidationError, match="Expected `array`, got `str`"
+        ):
+            msgspec.json.decode(b'{"x": 1}', type=Dict[Tuple[int, int], int])
 
 
 class TestEncodeFunction:
@@ -450,13 +366,6 @@ class TestDecodeFunction:
 
         for _ in range(2):
             assert msgspec.json.decode(msg, type=Point) == Point(1, 2)
-
-    def test_decode_type_struct_not_json_compatible(self):
-        class Test(msgspec.Struct):
-            x: Dict[float, str]
-
-        with pytest.raises(TypeError, match="not supported"):
-            msgspec.json.decode(b'{"x": {1: "two"}}', type=Test)
 
     def test_decode_type_struct_invalid_type(self):
         class Test(msgspec.Struct):
@@ -2472,28 +2381,6 @@ class TestStructUnion:
 
         res = msgspec.json.decode(s, type=Union[Test1, Test2])
         assert res == Test1(1, 2)
-
-    @pytest.mark.parametrize("preinit", [False, True])
-    @pytest.mark.parametrize("tags", [("A", "B"), (0, 2), (0, 1000)])
-    @pytest.mark.parametrize("wrap", [False, True])
-    def test_struct_union_not_json_compatible(self, preinit, tags, wrap):
-        class Test1(msgspec.Struct, tag=tags[0]):
-            a: int
-
-        class Test2(msgspec.Struct, tag=tags[1]):
-            b: Dict[float, int]
-
-        typ = Union[Test1, Test2]
-        if wrap:
-            typ = TypedDict("Test3", {"c": typ})
-
-        if preinit:
-            msgspec.msgpack.Decoder(typ)
-
-        with pytest.raises(
-            TypeError, match="Only dicts with str-like or int-like keys are supported"
-        ):
-            msgspec.json.Decoder(typ)
 
 
 class TestStructArray:

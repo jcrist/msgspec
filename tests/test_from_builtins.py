@@ -873,10 +873,8 @@ class TestDict:
     def test_non_str_keys(self):
         from_builtins({1.5: 1}, Dict[float, int]) == {1.5: 1}
 
-        with pytest.raises(
-            TypeError, match="Only dicts with str-like or int-like keys are supported"
-        ):
-            from_builtins({1.5: 1}, Dict[float, int], str_keys=True)
+        with pytest.raises(ValidationError):
+            from_builtins({"x": 1}, Dict[Tuple[int, int], int], str_keys=True)
 
     def test_dict_cyclic_recursion(self):
         depth = 50

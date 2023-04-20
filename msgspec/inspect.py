@@ -535,20 +535,13 @@ class StructType(Type):
     forbid_unknown_fields: bool = False
 
 
-def multi_type_info(
-    types: Iterable[Any], *, protocol: Literal[None, "msgpack", "json"] = None
-) -> tuple[Type, ...]:
+def multi_type_info(types: Iterable[Any]) -> tuple[Type, ...]:
     """Get information about multiple msgspec-compatible types.
 
     Parameters
     ----------
     types: an iterable of types
         The types to get info about.
-    protocol: {None, "msgpack", "json"}, optional
-        Not all types are supported by all protocols. If provided, msgspec will
-        check that the provided types are compatible with the specified
-        protocol. The default (`None`) only checks that the types are supported
-        by msgspec.
 
     Returns
     -------
@@ -567,10 +560,10 @@ def multi_type_info(
         )
     )
     """
-    return _Translator(types, protocol).run()
+    return _Translator(types).run()
 
 
-def type_info(type: Any, *, protocol: Literal[None, "msgpack", "json"] = None) -> Type:
+def type_info(type: Any) -> Type:
     """Get information about a msgspec-compatible type.
 
     Note that if you need to inspect multiple types it's more efficient to call
@@ -581,11 +574,6 @@ def type_info(type: Any, *, protocol: Literal[None, "msgpack", "json"] = None) -
     ----------
     type: type
         The type to get info about.
-    protocol: {None, "msgpack", "json"}, optional
-        Not all types are supported by all protocols. If provided, msgspec will
-        check that the provided types are compatible with the specified
-        protocol. The default (`None`) only checks that the types are supported
-        by msgspec.
 
     Returns
     -------
@@ -606,7 +594,7 @@ def type_info(type: Any, *, protocol: Literal[None, "msgpack", "json"] = None) -
         max_length=None
     )
     """
-    return multi_type_info([type], protocol=protocol)[0]
+    return multi_type_info([type])[0]
 
 
 # Implementation details
@@ -695,9 +683,8 @@ def _merge_json(a, b):
 
 
 class _Translator:
-    def __init__(self, types, protocol):
+    def __init__(self, types):
         self.types = tuple(types)
-        self.protocol = protocol
         self.type_hints = {}
         self.cache = {}
 
@@ -711,15 +698,9 @@ class _Translator:
 
     def run(self):
         # First construct a decoder to validate the types are valid
-        if self.protocol in (None, "msgpack"):
-            from ._core import MsgpackDecoder as Decoder
-        elif self.protocol == "json":
-            from ._core import JSONDecoder as Decoder
-        else:
-            raise ValueError("protocol must be one of None, 'msgpack', 'json'")
+        from ._core import MsgpackDecoder
 
-        Decoder(Tuple[self.types])
-
+        MsgpackDecoder(Tuple[self.types])
         return tuple(self.translate(t) for t in self.types)
 
     def translate(self, typ):

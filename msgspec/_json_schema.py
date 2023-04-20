@@ -70,7 +70,7 @@ def schema_components(
     --------
     schema
     """
-    type_infos = mi.multi_type_info(types, protocol="json")
+    type_infos = mi.multi_type_info(types)
 
     component_types = _collect_component_types(type_infos)
 

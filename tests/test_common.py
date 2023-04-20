@@ -1327,37 +1327,6 @@ class TestTypedDict:
             proto.Decoder(Ex)
         assert not hasattr(Ex, "__msgspec_cache__")
 
-    @pytest.mark.parametrize("msgpack_first", [False, True])
-    @pytest.mark.parametrize("wrap", [False, True])
-    def test_type_errors_not_json(self, msgpack_first, wrap):
-        class Ex(TypedDict):
-            a: int
-            b: Dict[float, int]
-
-        if wrap:
-            typ = TypedDict("Test", {"x": Ex})
-        else:
-            typ = Ex
-
-        if msgpack_first:
-            dec = msgspec.msgpack.Decoder(typ)
-            info = Ex.__msgspec_cache__
-            assert info is not None
-            msg = {"a": 1, "b": {1: 2}}
-            if wrap:
-                msg = {"x": msg}
-            assert dec.decode(msgspec.msgpack.encode(msg)) == msg
-
-        with pytest.raises(
-            TypeError, match="Only dicts with str-like or int-like keys"
-        ):
-            msgspec.json.Decoder(typ)
-
-        if msgpack_first:
-            assert Ex.__msgspec_cache__ is info
-        else:
-            assert not hasattr(Ex, "__msgspec_cache__")
-
     def test_recursive_type(self, proto):
         source = """
         from __future__ import annotations
@@ -1377,35 +1346,6 @@ class TestTypedDict:
                 dec.decode(proto.encode({"a": 1, "b": {"a": "bad"}}))
             assert "`$.b.a`" in str(rec.value)
             assert "Expected `int`, got `str`" in str(rec.value)
-
-    @pytest.mark.parametrize("msgpack_first", [True])
-    def test_recursive_type_errors_not_json(self, msgpack_first):
-        source = """
-        from __future__ import annotations
-        from typing import TypedDict, Union, Dict
-
-        class Ex(TypedDict):
-            a: int
-            b: Union[Ex, None]
-            c: Dict[float, int]
-        """
-        with temp_module(source) as mod:
-            if msgpack_first:
-                dec = msgspec.msgpack.Decoder(mod.Ex)
-                info = mod.Ex.__msgspec_cache__
-                assert info is not None
-                msg = {"a": 1, "b": None, "c": {1: 2}}
-                assert dec.decode(msgspec.msgpack.encode(msg)) == msg
-
-            with pytest.raises(
-                TypeError, match="Only dicts with str-like or int-like keys"
-            ):
-                msgspec.json.Decoder(mod.Ex)
-
-            if msgpack_first:
-                assert mod.Ex.__msgspec_cache__ is info
-            else:
-                assert not hasattr(mod.Ex, "__msgspec_cache__")
 
     def test_total_true(self, proto):
         class Ex(TypedDict):
@@ -1549,37 +1489,6 @@ class TestNamedTuple:
             proto.Decoder(Ex)
         assert not hasattr(Ex, "__msgspec_cache__")
 
-    @pytest.mark.parametrize("msgpack_first", [False, True])
-    @pytest.mark.parametrize("wrap", [False, True])
-    def test_type_errors_not_json(self, msgpack_first, wrap):
-        class Ex(NamedTuple):
-            a: int
-            b: Dict[float, int]
-
-        if wrap:
-            typ = TypedDict("Test", {"x": Ex})
-        else:
-            typ = Ex
-
-        if msgpack_first:
-            dec = msgspec.msgpack.Decoder(typ)
-            info = Ex.__msgspec_cache__
-            assert info is not None
-            msg = Ex(1, {1: 2})
-            if wrap:
-                msg = {"x": msg}
-            assert dec.decode(msgspec.msgpack.encode(msg)) == msg
-
-        with pytest.raises(
-            TypeError, match="Only dicts with str-like or int-like keys"
-        ):
-            msgspec.json.Decoder(typ)
-
-        if msgpack_first:
-            assert Ex.__msgspec_cache__ is info
-        else:
-            assert not hasattr(Ex, "__msgspec_cache__")
-
     def test_recursive_type(self, proto):
         source = """
         from __future__ import annotations
@@ -1599,35 +1508,6 @@ class TestNamedTuple:
                 dec.decode(proto.encode(mod.Ex(1, ("bad", "two"))))
             assert "`$[1][0]`" in str(rec.value)
             assert "Expected `int`, got `str`" in str(rec.value)
-
-    @pytest.mark.parametrize("msgpack_first", [True])
-    def test_recursive_type_errors_not_json(self, msgpack_first):
-        source = """
-        from __future__ import annotations
-        from typing import NamedTuple, Union, Dict
-
-        class Ex(NamedTuple):
-            a: int
-            b: Union[Ex, None]
-            c: Dict[float, int]
-        """
-        with temp_module(source) as mod:
-            if msgpack_first:
-                dec = msgspec.msgpack.Decoder(mod.Ex)
-                info = mod.Ex.__msgspec_cache__
-                assert info is not None
-                msg = mod.Ex(1, None, {1: 2})
-                assert dec.decode(msgspec.msgpack.encode(msg)) == msg
-
-            with pytest.raises(
-                TypeError, match="Only dicts with str-like or int-like keys"
-            ):
-                msgspec.json.Decoder(mod.Ex)
-
-            if msgpack_first:
-                assert mod.Ex.__msgspec_cache__ is info
-            else:
-                assert not hasattr(mod.Ex, "__msgspec_cache__")
 
     @pytest.mark.parametrize("use_typing", [True, False])
     def test_decode_namedtuple_no_defaults(self, proto, use_typing):
@@ -1828,38 +1708,6 @@ class TestDataclass:
             proto.Decoder(Ex)
         assert not hasattr(Ex, "__msgspec_cache__")
 
-    @pytest.mark.parametrize("msgpack_first", [False, True])
-    @pytest.mark.parametrize("wrap", [False, True])
-    def test_type_errors_not_json(self, msgpack_first, wrap):
-        @dataclass
-        class Ex:
-            a: int
-            b: Dict[float, int]
-
-        if wrap:
-            typ = TypedDict("Test", {"x": Ex})
-        else:
-            typ = Ex
-
-        if msgpack_first:
-            dec = msgspec.msgpack.Decoder(typ)
-            info = Ex.__msgspec_cache__
-            assert info is not None
-            msg = Ex(a=1, b={1: 2})
-            if wrap:
-                msg = {"x": msg}
-            assert dec.decode(msgspec.msgpack.encode(msg)) == msg
-
-        with pytest.raises(
-            TypeError, match="Only dicts with str-like or int-like keys"
-        ):
-            msgspec.json.Decoder(typ)
-
-        if msgpack_first:
-            assert Ex.__msgspec_cache__ is info
-        else:
-            assert not hasattr(Ex, "__msgspec_cache__")
-
     def test_recursive_type(self, proto):
         source = """
         from __future__ import annotations
@@ -1881,37 +1729,6 @@ class TestDataclass:
                 dec.decode(proto.encode({"a": 1, "b": {"a": "bad"}}))
             assert "`$.b.a`" in str(rec.value)
             assert "Expected `int`, got `str`" in str(rec.value)
-
-    @pytest.mark.parametrize("msgpack_first", [True])
-    def test_recursive_type_errors_not_json(self, msgpack_first):
-        source = """
-        from __future__ import annotations
-        from typing import Union, Dict
-        from dataclasses import dataclass
-
-        @dataclass
-        class Ex:
-            a: int
-            b: Union[Ex, None]
-            c: Dict[float, int]
-        """
-        with temp_module(source) as mod:
-            if msgpack_first:
-                dec = msgspec.msgpack.Decoder(mod.Ex)
-                info = mod.Ex.__msgspec_cache__
-                assert info is not None
-                msg = mod.Ex(a=1, b=None, c={1: 2})
-                assert dec.decode(msgspec.msgpack.encode(msg)) == msg
-
-            with pytest.raises(
-                TypeError, match="Only dicts with str-like or int-like keys"
-            ):
-                msgspec.json.Decoder(mod.Ex)
-
-            if msgpack_first:
-                assert mod.Ex.__msgspec_cache__ is info
-            else:
-                assert not hasattr(mod.Ex, "__msgspec_cache__")
 
     def test_classvars_ignored(self, proto):
         source = """
