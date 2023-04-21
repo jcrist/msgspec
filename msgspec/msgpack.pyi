@@ -13,7 +13,7 @@ T = TypeVar("T")
 
 enc_hook_sig = Optional[Callable[[Any], Any]]
 ext_hook_sig = Optional[Callable[[int, memoryview], Any]]
-dec_hook_sig = Optional[Callable[[Type[Any], Any], Any]]
+dec_hook_sig = Optional[Callable[[type, Any], Any]]
 
 class Ext:
     code: int
