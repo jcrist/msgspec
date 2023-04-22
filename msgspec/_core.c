@@ -380,6 +380,7 @@ typedef struct {
     PyObject *typing_annotated_alias;
     PyObject *concrete_types;
     PyObject *get_type_hints;
+    PyObject *get_class_annotations;
     PyObject *get_typeddict_hints;
     PyObject *get_dataclass_info;
     PyObject *rebuild;
@@ -5952,7 +5953,7 @@ StructMeta_prep_types(PyObject *py_self) {
     nfields = PyTuple_GET_SIZE(self->struct_fields);
 
     st = msgspec_get_global_state();
-    annotations = CALL_ONE_ARG(st->get_type_hints, py_self);
+    annotations = CALL_ONE_ARG(st->get_class_annotations, py_self);
     if (annotations == NULL) goto error;
 
     struct_types = PyMem_Calloc(nfields, sizeof(TypeNode*));
@@ -18397,6 +18398,7 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->typing_annotated_alias);
     Py_CLEAR(st->concrete_types);
     Py_CLEAR(st->get_type_hints);
+    Py_CLEAR(st->get_class_annotations);
     Py_CLEAR(st->get_typeddict_hints);
     Py_CLEAR(st->get_dataclass_info);
     Py_CLEAR(st->rebuild);
@@ -18460,6 +18462,7 @@ msgspec_traverse(PyObject *m, visitproc visit, void *arg)
     Py_VISIT(st->typing_annotated_alias);
     Py_VISIT(st->concrete_types);
     Py_VISIT(st->get_type_hints);
+    Py_VISIT(st->get_class_annotations);
     Py_VISIT(st->get_typeddict_hints);
     Py_VISIT(st->get_dataclass_info);
     Py_VISIT(st->rebuild);
@@ -18671,6 +18674,7 @@ PyInit__core(void)
     if (temp_module == NULL) return NULL;
     SET_REF(concrete_types, "_CONCRETE_TYPES");
     SET_REF(get_type_hints, "get_type_hints");
+    SET_REF(get_class_annotations, "get_class_annotations");
     SET_REF(get_typeddict_hints, "get_typeddict_hints");
     SET_REF(get_dataclass_info, "get_dataclass_info");
     SET_REF(typing_annotated_alias, "_AnnotatedAlias");
