@@ -1,7 +1,6 @@
 # type: ignore
 import collections
 import sys
-import types
 import typing
 
 try:
@@ -35,6 +34,32 @@ else:
         return _get_type_hints(obj, include_extras=True)
 
 
+# The `is_class` argument was new in 3.11, but was backported to 3.9 and 3.10.
+# It's _likely_ to be available for 3.9/3.10, but may not be. Easiest way to
+# check is to try it and see. This check can be removed when we drop support
+# for Python 3.10.
+try:
+    typing.ForwardRef("Foo", is_class=True)
+except TypeError:
+
+    def _forward_ref(value):
+        return typing.ForwardRef(value, is_argument=False)
+
+else:
+
+    def _forward_ref(value):
+        return typing.ForwardRef(value, is_argument=False, is_class=True)
+
+
+def _apply_params(obj, mapping):
+    if params := getattr(obj, "__parameters__", None):
+        args = tuple(mapping.get(p, p) for p in params)
+        return obj[args]
+    elif isinstance(obj, typing.TypeVar):
+        return mapping.get(obj, obj)
+    return obj
+
+
 def _get_class_mro_and_typevar_mappings(obj):
     mapping = {}
 
@@ -43,22 +68,26 @@ def _get_class_mro_and_typevar_mappings(obj):
     else:
         cls = obj.__origin__
 
-    def inner(c):
+    def inner(c, scope):
         if isinstance(c, type):
             cls = c
+            new_scope = {}
         else:
             cls = c.__origin__
             if cls in (object, typing.Generic):
                 return
             if cls not in mapping:
-                mapping[cls] = dict(zip(cls.__parameters__, c.__args__))
+                params = cls.__parameters__
+                args = tuple(_apply_params(a, scope) for a in c.__args__)
+                assert len(params) == len(args)
+                mapping[cls] = new_scope = dict(zip(params, args))
 
         if issubclass(cls, typing.Generic):
             bases = getattr(cls, "__orig_bases__", cls.__bases__)
             for b in bases:
-                inner(b)
+                inner(b, new_scope)
 
-    inner(obj)
+    inner(obj, {})
     return cls.__mro__, mapping
 
 
@@ -92,23 +121,16 @@ def get_class_annotations(obj):
         cls_globals = getattr(sys.modules.get(cls.__module__, None), "__dict__", {})
 
         ann = cls.__dict__.get("__annotations__", {})
-        if isinstance(ann, types.GetSetDescriptorType):
-            ann = {}
-
         for name, value in ann.items():
             if name in hints:
                 continue
             if value is None:
                 value = type(None)
-            if isinstance(value, str):
-                value = typing.ForwardRef(value, is_argument=False, is_class=True)
+            elif isinstance(value, str):
+                value = _forward_ref(value)
             value = typing._eval_type(value, cls_locals, cls_globals)
             if mapping is not None:
-                if params := getattr(value, "__parameters__", None):
-                    args = tuple(mapping.get(p, p) for p in params)
-                    value = value[args]
-                elif isinstance(value, typing.TypeVar):
-                    value = mapping.get(value, value)
+                value = _apply_params(value, mapping)
             hints[name] = value
     return hints
 

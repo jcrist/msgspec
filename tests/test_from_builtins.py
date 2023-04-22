@@ -12,11 +12,13 @@ from typing import (
     Any,
     Dict,
     FrozenSet,
+    Generic,
     List,
     Literal,
     NamedTuple,
     Set,
     Tuple,
+    TypeVar,
     Union,
 )
 
@@ -52,6 +54,8 @@ PY311 = sys.version_info[:2] >= (3, 11)
 uses_annotated = pytest.mark.skipif(Annotated is None, reason="Annotated not available")
 
 UTC = datetime.timezone.utc
+
+T = TypeVar("T")
 
 
 def assert_eq(x, y):
@@ -1558,6 +1562,72 @@ class TestStructUnion:
         with pytest.raises(ValidationError) as rec:
             roundtrip([unknown, 1, 2, 3], typ)
         assert f"Invalid value {unknown!r} - at `$[0]`" == str(rec.value)
+
+
+class TestGenericStruct:
+    @pytest.mark.parametrize("array_like", [False, True])
+    def test_generic_struct(self, array_like):
+        class Ex(Struct, Generic[T], array_like=array_like):
+            x: T
+            y: List[T]
+
+        sol = Ex(1, [1, 2])
+        msg = to_builtins(sol)
+
+        res = from_builtins(msg, Ex)
+        assert res == sol
+
+        res = from_builtins(msg, Ex[int])
+        assert res == sol
+
+        res = from_builtins(msg, Ex[Union[int, str]])
+        assert res == sol
+
+        res = from_builtins(msg, Ex[float])
+        assert type(res.x) is float
+
+        with pytest.raises(ValidationError, match="Expected `str`, got `int`"):
+            from_builtins(msg, Ex[str])
+
+    @pytest.mark.parametrize("array_like", [False, True])
+    def test_generic_struct_union(self, array_like):
+        class Test1(Struct, Generic[T], tag=True, array_like=array_like):
+            a: Union[T, None]
+            b: int
+
+        class Test2(Struct, Generic[T], tag=True, array_like=array_like):
+            x: T
+            y: int
+
+        typ = Union[Test1[T], Test2[T]]
+
+        msg1 = Test1(1, 2)
+        s1 = to_builtins(msg1)
+        msg2 = Test2("three", 4)
+        s2 = to_builtins(msg2)
+        msg3 = Test1(None, 4)
+        s3 = to_builtins(msg3)
+
+        assert from_builtins(s1, typ) == msg1
+        assert from_builtins(s2, typ) == msg2
+        assert from_builtins(s3, typ) == msg3
+
+        assert from_builtins(s1, typ[int]) == msg1
+        assert from_builtins(s3, typ[int]) == msg3
+        assert from_builtins(s2, typ[str]) == msg2
+        assert from_builtins(s3, typ[str]) == msg3
+
+        with pytest.raises(ValidationError) as rec:
+            from_builtins(s1, typ[str])
+        assert "Expected `str | null`, got `int`" in str(rec.value)
+        loc = "$[1]" if array_like else "$.a"
+        assert loc in str(rec.value)
+
+        with pytest.raises(ValidationError) as rec:
+            from_builtins(s2, typ[int])
+        assert "Expected `int`, got `str`" in str(rec.value)
+        loc = "$[1]" if array_like else "$.x"
+        assert loc in str(rec.value)
 
 
 class TestStrValues:

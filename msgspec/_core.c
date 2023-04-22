@@ -379,6 +379,7 @@ typedef struct {
     PyObject *typing_classvar;
     PyObject *typing_typevar;
     PyObject *typing_final;
+    PyObject *typing_generic;
     PyObject *typing_generic_alias;
     PyObject *typing_annotated_alias;
     PyObject *concrete_types;
@@ -4963,7 +4964,7 @@ structmeta_get_module_ns(MsgspecState *mod, StructMetaInfo *info) {
 }
 
 static int
-structmeta_collect_base(StructMetaInfo *info, PyObject *base) {
+structmeta_collect_base(StructMetaInfo *info, MsgspecState *mod, PyObject *base) {
     if ((PyTypeObject *)base == &StructMixinType) return 0;
 
     if (((PyTypeObject *)base)->tp_weaklistoffset) {
@@ -4983,17 +4984,21 @@ structmeta_collect_base(StructMetaInfo *info, PyObject *base) {
     }
 
     if (Py_TYPE(base) != &StructMetaType) {
-        PyTypeObject *cls = (PyTypeObject *)base;
+        info->has_non_struct_bases = true;
+        /* XXX: in Python 3.8 Generic defines __new__, but we can ignore it.
+         * This can be removed when Python 3.8 support is dropped */
+        if (base == mod->typing_generic) return 0;
+
         static const char *attrs[] = {"__init__", "__new__"};
         Py_ssize_t nattrs = 2;
-
         for (Py_ssize_t i = 0; i < nattrs; i++) {
-            if (PyDict_GetItemString(cls->tp_dict, attrs[i]) != NULL) {
+            if (PyDict_GetItemString(
+                    ((PyTypeObject *)base)->tp_dict, attrs[i]) != NULL
+                ) {
                 PyErr_Format(PyExc_TypeError, "Struct base classes cannot define %s", attrs[i]);
                 return -1;
             }
         }
-        info->has_non_struct_bases = true;
         return 0;
     }
 
@@ -5643,7 +5648,7 @@ StructMeta_new_inner(
     /* Extract info from base classes in reverse MRO order */
     for (Py_ssize_t i = PyTuple_GET_SIZE(bases) - 1; i >= 0; i--) {
         PyObject *base = PyTuple_GET_ITEM(bases, i);
-        if (structmeta_collect_base(&info, base) < 0) goto cleanup;
+        if (structmeta_collect_base(&info, mod, base) < 0) goto cleanup;
     }
 
     /* Process configuration options */
@@ -6098,9 +6103,7 @@ StructInfo_Convert(PyObject *obj) {
         class->struct_info = info;
     }
     else {
-        if (PyObject_SetAttr(obj, mod->str___msgspec_cache__, (PyObject *)info) < 0) {
-            goto error;
-        }
+        if (PyObject_SetAttr(obj, mod->str___msgspec_cache__, (PyObject *)info) < 0) goto error;
     }
     cache_set = true;
 
@@ -18528,6 +18531,7 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->typing_classvar);
     Py_CLEAR(st->typing_typevar);
     Py_CLEAR(st->typing_final);
+    Py_CLEAR(st->typing_generic);
     Py_CLEAR(st->typing_generic_alias);
     Py_CLEAR(st->typing_annotated_alias);
     Py_CLEAR(st->concrete_types);
@@ -18593,6 +18597,7 @@ msgspec_traverse(PyObject *m, visitproc visit, void *arg)
     Py_VISIT(st->typing_classvar);
     Py_VISIT(st->typing_typevar);
     Py_VISIT(st->typing_final);
+    Py_VISIT(st->typing_generic);
     Py_VISIT(st->typing_generic_alias);
     Py_VISIT(st->typing_annotated_alias);
     Py_VISIT(st->concrete_types);
@@ -18805,6 +18810,7 @@ PyInit__core(void)
     SET_REF(typing_classvar, "ClassVar");
     SET_REF(typing_typevar, "TypeVar");
     SET_REF(typing_final, "Final");
+    SET_REF(typing_generic, "Generic");
     SET_REF(typing_generic_alias, "_GenericAlias");
     Py_DECREF(temp_module);
 

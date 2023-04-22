@@ -16,6 +16,7 @@ from typing import (
     Deque,
     Dict,
     Final,
+    Generic,
     List,
     Literal,
     NamedTuple,
@@ -23,6 +24,7 @@ from typing import (
     Optional,
     Tuple,
     TypedDict,
+    TypeVar,
     Union,
 )
 
@@ -44,6 +46,8 @@ PY311 = sys.version_info[:2] >= (3, 11)
 
 py310_plus = pytest.mark.skipif(not PY310, reason="3.10+ only")
 py311_plus = pytest.mark.skipif(not PY311, reason="3.11+ only")
+
+T = TypeVar("T")
 
 
 @pytest.fixture(params=["json", "msgpack"])
@@ -1063,6 +1067,163 @@ class TestStructUnion:
         assert len(cache) == MAX_CACHE_SIZE
         assert first not in cache
         assert frozenset(new) in cache
+
+
+class TestGenericStruct:
+    def test_generic_struct_info_cached(self, proto):
+        class Ex(msgspec.Struct, Generic[T]):
+            x: T
+
+        typ = Ex[int]
+        assert Ex[int] is typ
+
+        dec = proto.Decoder(typ)
+        info = typ.__msgspec_cache__
+        assert info is not None
+        assert sys.getrefcount(info) == 4  # info + attr + decoder + func call
+        dec2 = proto.Decoder(typ)
+        assert typ.__msgspec_cache__ is info
+        assert sys.getrefcount(info) == 5
+
+        del dec
+        del dec2
+        assert sys.getrefcount(info) == 3
+
+    def test_generic_struct_invalid_types_not_cached(self, proto):
+        class Ex(msgspec.Struct, Generic[T]):
+            x: Union[List[T], Tuple[float]]
+
+        for typ in [Ex, Ex[int]]:
+            for _ in range(2):
+                with pytest.raises(TypeError, match="not supported"):
+                    proto.Decoder(typ)
+
+            assert not hasattr(typ, "__msgspec_cache__")
+
+    def test_msgspec_cache_overwritten(self, proto):
+        class Ex(msgspec.Struct, Generic[T]):
+            x: T
+
+        typ = Ex[int]
+        typ.__msgspec_cache__ = 1
+
+        with pytest.raises(RuntimeError, match="__msgspec_cache__"):
+            proto.Decoder(typ)
+
+    @pytest.mark.parametrize("array_like", [False, True])
+    def test_generic_struct(self, proto, array_like):
+        class Ex(msgspec.Struct, Generic[T], array_like=array_like):
+            x: T
+            y: List[T]
+
+        sol = Ex(1, [1, 2])
+        msg = proto.encode(sol)
+
+        res = proto.decode(msg, type=Ex)
+        assert res == sol
+
+        res = proto.decode(msg, type=Ex[int])
+        assert res == sol
+
+        res = proto.decode(msg, type=Ex[Union[int, str]])
+        assert res == sol
+
+        res = proto.decode(msg, type=Ex[float])
+        assert type(res.x) is float
+
+        with pytest.raises(msgspec.ValidationError, match="Expected `str`, got `int`"):
+            proto.decode(msg, type=Ex[str])
+
+    @pytest.mark.parametrize("array_like", [False, True])
+    def test_recursive_generic_struct(self, proto, array_like):
+        source = f"""
+        from __future__ import annotations
+        from typing import Union, Generic, TypeVar
+        from msgspec import Struct
+
+        T = TypeVar("T")
+
+        class Ex(Struct, Generic[T], array_like={array_like}):
+            a: T
+            b: Union[Ex[T], None]
+        """
+
+        with temp_module(source) as mod:
+            msg = mod.Ex(a=1, b=mod.Ex(a=2, b=None))
+            msg2 = mod.Ex(a=1, b=mod.Ex(a="bad", b=None))
+            assert proto.decode(proto.encode(msg), type=mod.Ex) == msg
+            assert proto.decode(proto.encode(msg2), type=mod.Ex) == msg2
+            assert proto.decode(proto.encode(msg), type=mod.Ex[int]) == msg
+
+            with pytest.raises(msgspec.ValidationError) as rec:
+                proto.decode(proto.encode(msg2), type=mod.Ex[int])
+            if array_like:
+                assert "`$[1][0]`" in str(rec.value)
+            else:
+                assert "`$.b.a`" in str(rec.value)
+            assert "Expected `int`, got `str`" in str(rec.value)
+
+    @pytest.mark.parametrize("array_like", [False, True])
+    def test_generic_struct_union(self, proto, array_like):
+        class Test1(msgspec.Struct, Generic[T], tag=True, array_like=array_like):
+            a: Union[T, None]
+            b: int
+
+        class Test2(msgspec.Struct, Generic[T], tag=True, array_like=array_like):
+            x: T
+            y: int
+
+        typ = Union[Test1[T], Test2[T]]
+
+        msg1 = Test1(1, 2)
+        s1 = proto.encode(msg1)
+        msg2 = Test2("three", 4)
+        s2 = proto.encode(msg2)
+        msg3 = Test1(None, 4)
+        s3 = proto.encode(msg3)
+
+        assert proto.decode(s1, type=typ) == msg1
+        assert proto.decode(s2, type=typ) == msg2
+        assert proto.decode(s3, type=typ) == msg3
+
+        assert proto.decode(s1, type=typ[int]) == msg1
+        assert proto.decode(s3, type=typ[int]) == msg3
+        assert proto.decode(s2, type=typ[str]) == msg2
+        assert proto.decode(s3, type=typ[str]) == msg3
+
+        with pytest.raises(msgspec.ValidationError) as rec:
+            proto.decode(s1, type=typ[str])
+        assert "Expected `str | null`, got `int`" in str(rec.value)
+        loc = "$[1]" if array_like else "$.a"
+        assert loc in str(rec.value)
+
+        with pytest.raises(msgspec.ValidationError) as rec:
+            proto.decode(s2, type=typ[int])
+        assert "Expected `int`, got `str`" in str(rec.value)
+        loc = "$[1]" if array_like else "$.x"
+        assert loc in str(rec.value)
+
+    def test_unbound_typevars_use_bound_if_set(self, proto):
+        T = TypeVar("T", bound=Union[int, str])
+
+        dec = proto.Decoder(List[T])
+        sol = [1, "two", 3, "four"]
+        msg = proto.encode(sol)
+        assert dec.decode(msg) == sol
+
+        bad = proto.encode([1, {}])
+        with pytest.raises(
+            msgspec.ValidationError,
+            match=r"Expected `int \| str`, got `object` - at `\$\[1\]`",
+        ):
+            dec.decode(bad)
+
+    def test_unbound_typevars_with_constraints_unsupported(self, proto):
+        T = TypeVar("T", int, str)
+        with pytest.raises(TypeError) as rec:
+            proto.Decoder(List[T])
+
+        assert "Unbound TypeVar `~T` has constraints" in str(rec.value)
 
 
 class TestStructOmitDefaults:
