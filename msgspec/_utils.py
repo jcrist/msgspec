@@ -1,5 +1,7 @@
 # type: ignore
 import collections
+import sys
+import types
 import typing
 
 try:
@@ -31,6 +33,84 @@ else:
 
     def get_type_hints(obj):
         return _get_type_hints(obj, include_extras=True)
+
+
+def _get_class_mro_and_typevar_mappings(obj):
+    mapping = {}
+
+    if isinstance(obj, type):
+        cls = obj
+    else:
+        cls = obj.__origin__
+
+    def inner(c):
+        if isinstance(c, type):
+            cls = c
+        else:
+            cls = c.__origin__
+            if cls in (object, typing.Generic):
+                return
+            if cls not in mapping:
+                mapping[cls] = dict(zip(cls.__parameters__, c.__args__))
+
+        if issubclass(cls, typing.Generic):
+            bases = getattr(cls, "__orig_bases__", cls.__bases__)
+            for b in bases:
+                inner(b)
+
+    inner(obj)
+    return cls.__mro__, mapping
+
+
+def get_class_annotations(obj):
+    """Get the annotations for a class.
+
+    This is similar to ``typing.get_type_hints``, except:
+
+    - We maintain it
+    - It leaves extras like ``Annotated``/``ClassVar`` alone
+    - It resolves any parametrized generics in the class mro. The returned
+      mapping may still include ``TypeVar`` values, but those should be treated
+      as their unparametrized variants (i.e. equal to ``Any`` for the common case).
+
+    Note that this function doesn't check that Generic types are being used
+    properly - invalid uses of `Generic` may slip through without complaint.
+
+    The assumption here is that the user is making use of a static analysis
+    tool like ``mypy``/``pyright`` already, which would catch misuse of these
+    APIs.
+    """
+    hints = {}
+    mro, typevar_mappings = _get_class_mro_and_typevar_mappings(obj)
+
+    for cls in mro:
+        if cls in (typing.Generic, object):
+            continue
+
+        mapping = typevar_mappings.get(cls)
+        cls_locals = dict(vars(cls))
+        cls_globals = getattr(sys.modules.get(cls.__module__, None), "__dict__", {})
+
+        ann = cls.__dict__.get("__annotations__", {})
+        if isinstance(ann, types.GetSetDescriptorType):
+            ann = {}
+
+        for name, value in ann.items():
+            if name in hints:
+                continue
+            if value is None:
+                value = type(None)
+            if isinstance(value, str):
+                value = typing.ForwardRef(value, is_argument=False, is_class=True)
+            value = typing._eval_type(value, cls_locals, cls_globals)
+            if mapping is not None:
+                if params := getattr(value, "__parameters__", None):
+                    args = tuple(mapping.get(p, p) for p in params)
+                    value = value[args]
+                elif isinstance(value, typing.TypeVar):
+                    value = mapping.get(value, value)
+            hints[name] = value
+    return hints
 
 
 # A mapping from a type annotation (or annotation __origin__) to the concrete

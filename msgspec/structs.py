@@ -10,7 +10,7 @@ from ._core import (  # noqa
     astuple,
     replace,
 )
-from ._utils import _get_type_hints
+from ._utils import get_type_hints as _get_type_hints
 
 __all__ = (
     "FieldInfo",
