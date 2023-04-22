@@ -366,6 +366,8 @@ typedef struct {
     PyObject *str___dataclass_fields__;
     PyObject *str___attrs_attrs__;
     PyObject *str___supertype__;
+    PyObject *str___bound__;
+    PyObject *str___constraints__;
     PyObject *str_int;
     PyObject *str_is_safe;
     PyObject *UUIDType;
@@ -3623,6 +3625,46 @@ typenode_collect_custom(TypeNodeCollectState *state, uint64_t type, PyObject *ob
 }
 
 static int
+typenode_collect_typevar(TypeNodeCollectState *state, PyObject *obj) {
+    int out;
+    PyObject *bound = PyObject_GetAttr(obj, state->mod->str___bound__);
+    if (bound == NULL) return -1;
+    if (bound == Py_None) {
+        Py_DECREF(bound);
+
+        /* No `bound`, check for constraints */
+        PyObject *constraints = PyObject_GetAttr(obj, state->mod->str___constraints__);
+        if (constraints == NULL) return -1;
+        if (
+            !(
+                (constraints == Py_None) ||
+                (PyTuple_CheckExact(constraints) && (PyTuple_GET_SIZE(constraints) == 0))
+            )
+        ) {
+            PyErr_Format(
+                PyExc_TypeError,
+                "Unbound TypeVar `%R` has constraints `%R` - constraints are "
+                "currently unsupported. If possible, either explicitly bind "
+                "the parameter, or use `bound` instead of constraints.",
+                obj, constraints
+            );
+            Py_DECREF(constraints);
+            return -1;
+        }
+        Py_DECREF(constraints);
+
+        /* No constraints either, use `Any` */
+        out = typenode_collect_type(state, state->mod->typing_any);
+    }
+    else {
+        /* Bound, substitute in the bound type */
+        out = typenode_collect_type(state, bound);
+        Py_DECREF(bound);
+    }
+    return out;
+}
+
+static int
 typenode_collect_struct(TypeNodeCollectState *state, PyObject *obj) {
     if (state->struct_obj == NULL && state->structs_set == NULL) {
         /* First struct found, store it directly */
@@ -4244,6 +4286,9 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
     }
     else if (t == (PyObject *)(&Raw_Type)) {
         /* Raw is marked with a typecode of 0, nothing to do */
+    }
+    else if (Py_TYPE(t) == (PyTypeObject *)(state->mod->typing_typevar)) {
+        out = typenode_collect_typevar(state, t);
     }
     else if (
         Py_TYPE(t) == &StructMetaType ||
@@ -18470,6 +18515,8 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->str___dataclass_fields__);
     Py_CLEAR(st->str___attrs_attrs__);
     Py_CLEAR(st->str___supertype__);
+    Py_CLEAR(st->str___bound__);
+    Py_CLEAR(st->str___constraints__);
     Py_CLEAR(st->str_int);
     Py_CLEAR(st->str_is_safe);
     Py_CLEAR(st->UUIDType);
@@ -18851,6 +18898,8 @@ PyInit__core(void)
     CACHED_STRING(str___dataclass_fields__, "__dataclass_fields__");
     CACHED_STRING(str___attrs_attrs__, "__attrs_attrs__");
     CACHED_STRING(str___supertype__, "__supertype__");
+    CACHED_STRING(str___bound__, "__bound__");
+    CACHED_STRING(str___constraints__, "__constraints__");
     CACHED_STRING(str_int, "int");
     CACHED_STRING(str_is_safe, "is_safe");
 
