@@ -375,6 +375,7 @@ typedef struct {
     PyObject *typing_any;
     PyObject *typing_literal;
     PyObject *typing_classvar;
+    PyObject *typing_typevar;
     PyObject *typing_final;
     PyObject *typing_generic_alias;
     PyObject *typing_annotated_alias;
@@ -3897,6 +3898,7 @@ typenode_collect_convert_structs(TypeNodeCollectState *state) {
      * If any of these checks fails, an appropriate error is returned.
      */
     PyObject *tag_mapping = NULL, *tag_field = NULL, *set_item = NULL;
+    PyObject *struct_info = NULL;
     Py_ssize_t set_pos = 0;
     Py_hash_t set_hash;
     bool array_like = false;
@@ -3907,7 +3909,10 @@ typenode_collect_convert_structs(TypeNodeCollectState *state) {
     if (tag_mapping == NULL) goto cleanup;
 
     while (_PySet_NextEntry(state->structs_set, &set_pos, &set_item, &set_hash)) {
-        StructMetaObject *struct_type = (StructMetaObject *)set_item;
+        struct_info = StructInfo_Convert(set_item);
+        if (struct_info == NULL) goto cleanup;
+
+        StructMetaObject *struct_type = ((StructInfo *)struct_info)->class;
         PyObject *item_tag_field = struct_type->struct_tag_field;
         PyObject *item_tag_value = struct_type->struct_tag_value;
         bool item_array_like = struct_type->array_like == OPT_TRUE;
@@ -3969,14 +3974,11 @@ typenode_collect_convert_structs(TypeNodeCollectState *state) {
             goto cleanup;
         }
 
-        PyObject *info = StructInfo_Convert((PyObject *)struct_type);
-        if (info == NULL) goto cleanup;
-
-        int ok = PyDict_SetItem(tag_mapping, item_tag_value, info) == 0;
-        Py_DECREF(info);
+        int ok = PyDict_SetItem(tag_mapping, item_tag_value, struct_info) == 0;
+        Py_CLEAR(struct_info);
         if (!ok) goto cleanup;
     }
-    /* Build a lookup from tag_value -> struct_type */
+    /* Build a lookup from tag_value -> struct_info */
     if (tags_are_strings) {
         lookup = StrLookup_New(tag_mapping, tag_field, array_like);
     }
@@ -4015,6 +4017,7 @@ typenode_collect_convert_structs(TypeNodeCollectState *state) {
 
 cleanup:
     Py_XDECREF(tag_mapping);
+    Py_XDECREF(struct_info);
     return status;
 }
 
@@ -4242,7 +4245,10 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
     else if (t == (PyObject *)(&Raw_Type)) {
         /* Raw is marked with a typecode of 0, nothing to do */
     }
-    else if (Py_TYPE(t) == &StructMetaType) {
+    else if (
+        Py_TYPE(t) == &StructMetaType ||
+        (origin != NULL && Py_TYPE(origin) == &StructMetaType)
+    ) {
         out = typenode_collect_struct(state, t);
     }
     else if (Py_TYPE(t) == state->mod->EnumMetaType) {
@@ -5964,12 +5970,57 @@ static PyTypeObject StructInfo_Type = {
     .tp_dealloc = (destructor)StructInfo_dealloc,
 };
 
-static int
-StructMeta_check_ready(StructMetaObject *class) {
+static PyObject *
+StructInfo_Convert(PyObject *obj) {
+    MsgspecState *mod = msgspec_get_global_state();
+    StructMetaObject *class;
+    PyObject *annotations = NULL;
+    StructInfo *info = NULL;
+    bool cache_set = false;
+    bool is_struct = Py_TYPE(obj) == &StructMetaType;
+
+    /* Check for a cached StructInfo, and return if one exists */
+    if (MS_LIKELY(is_struct)) {
+        class = (StructMetaObject *)obj;
+        if (class->struct_info != NULL) {
+            Py_INCREF(class->struct_info);
+            return (PyObject *)(class->struct_info);
+        }
+        Py_INCREF(class);
+    }
+    else {
+        PyObject *cached = PyObject_GetAttr(obj, mod->str___msgspec_cache__);
+        if (cached != NULL) {
+            if (Py_TYPE(cached) != &StructInfo_Type) {
+                Py_DECREF(cached);
+                PyErr_Format(
+                    PyExc_RuntimeError,
+                    "%R.__msgspec_cache__ has been overwritten",
+                    obj
+                );
+                return NULL;
+            }
+            return cached;
+        }
+        PyErr_Clear();
+
+        PyObject *origin = PyObject_GetAttr(obj, mod->str___origin__);
+        if (origin == NULL) return NULL;
+        if (Py_TYPE(origin) != &StructMetaType) {
+            Py_DECREF(origin);
+            PyErr_SetString(
+                PyExc_RuntimeError, "Expected __origin__ to be a Struct type"
+            );
+            return NULL;
+        }
+        class = (StructMetaObject *)origin;
+    }
+
+    /* At this point `class` is a StructMetaObject, and `obj` is a
+     * StructMetaObject or Generic. `class` has already been incref'd */
+
+    /* Ensure the StructMetaObject is fully initialized */
     if (MS_UNLIKELY(class->struct_fields == NULL)) {
-        /* The struct isn't fully initialized! This most commonly happens if
-         * the user tries to do anything inside a `__init_subclass__` method.
-         * Error nicely rather than segfaulting. */
         PyErr_Format(
             PyExc_ValueError,
             "Type `%R` isn't fully defined, and can't be used in any "
@@ -5979,38 +6030,36 @@ StructMeta_check_ready(StructMetaObject *class) {
             "please raise an issue on GitHub.",
             (PyObject *)class
         );
-        return -1;
+        goto error;
     }
-    return 0;
-}
 
-static PyObject *
-StructInfo_Convert(PyObject *obj) {
-    StructMetaObject *class = (StructMetaObject *)obj;
-    StructInfo *info = class->struct_info;
-    if (info != NULL) {
-        Py_INCREF(info);
-        return (PyObject *)info;
-    }
-    if (StructMeta_check_ready(class) < 0) return NULL;
+    /* Extract annotations from the original type object */
+    annotations = CALL_ONE_ARG(mod->get_class_annotations, obj);
+    if (annotations == NULL) goto error;
 
+    /* Allocate and zero-out a new StructInfo */
     Py_ssize_t nfields = PyTuple_GET_SIZE(class->struct_fields);
-
     info = PyObject_GC_NewVar(StructInfo, &StructInfo_Type, nfields);
-    if (info == NULL) return NULL;
-
+    if (info == NULL) goto error;
     for (Py_ssize_t i = 0; i < nfields; i++) {
         info->types[i] = NULL;
     }
-    Py_INCREF(obj);
-    info->class = (StructMetaObject *)obj;
+    Py_INCREF(class);
+    info->class = class;
 
-    class->struct_info = info;
+    /* Cache the new StuctInfo on the original type annotation */
+    if (is_struct) {
+        Py_INCREF(info);
+        class->struct_info = info;
+    }
+    else {
+        if (PyObject_SetAttr(obj, mod->str___msgspec_cache__, (PyObject *)info) < 0) {
+            goto error;
+        }
+    }
+    cache_set = true;
 
-    MsgspecState *mod = msgspec_get_global_state();
-    PyObject *annotations = CALL_ONE_ARG(mod->get_class_annotations, obj);
-    if (annotations == NULL) goto error;
-
+    /* Process all the struct fields */
     for (Py_ssize_t i = 0; i < nfields; i++) {
         PyObject *field = PyTuple_GET_ITEM(class->struct_fields, i);
         PyObject *field_type = PyDict_GetItem(annotations, field);
@@ -6020,13 +6069,28 @@ StructInfo_Convert(PyObject *obj) {
         info->types[i] = type;
     }
 
+    Py_DECREF(class);
     Py_DECREF(annotations);
-
-    Py_INCREF(info);
+    PyObject_GC_Track(info);
     return (PyObject *)info;
 
 error:
-    class->struct_info = NULL;
+    if (cache_set) {
+        /* An error occurred after the cache was created and set on the object.
+         * We need to delete the cached value. */
+        if (is_struct) {
+            Py_CLEAR(class->struct_info);
+        }
+        else {
+            /* Fetch and restore the original exception to avoid DelAttr
+             * silently clearing it on rare occasions. */
+            PyObject *err_type, *err_value, *err_tb;
+            PyErr_Fetch(&err_type, &err_value, &err_tb);
+            PyObject_DelAttr(obj, mod->str___msgspec_cache__);
+            PyErr_Restore(err_type, err_value, err_tb);
+        }
+    }
+    Py_DECREF(class);
     Py_XDECREF(annotations);
     Py_XDECREF(info);
     return NULL;
@@ -18415,6 +18479,7 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->typing_any);
     Py_CLEAR(st->typing_literal);
     Py_CLEAR(st->typing_classvar);
+    Py_CLEAR(st->typing_typevar);
     Py_CLEAR(st->typing_final);
     Py_CLEAR(st->typing_generic_alias);
     Py_CLEAR(st->typing_annotated_alias);
@@ -18479,6 +18544,7 @@ msgspec_traverse(PyObject *m, visitproc visit, void *arg)
     Py_VISIT(st->typing_any);
     Py_VISIT(st->typing_literal);
     Py_VISIT(st->typing_classvar);
+    Py_VISIT(st->typing_typevar);
     Py_VISIT(st->typing_final);
     Py_VISIT(st->typing_generic_alias);
     Py_VISIT(st->typing_annotated_alias);
@@ -18690,6 +18756,7 @@ PyInit__core(void)
     SET_REF(typing_any, "Any");
     SET_REF(typing_literal, "Literal");
     SET_REF(typing_classvar, "ClassVar");
+    SET_REF(typing_typevar, "TypeVar");
     SET_REF(typing_final, "Final");
     SET_REF(typing_generic_alias, "_GenericAlias");
     Py_DECREF(temp_module);
