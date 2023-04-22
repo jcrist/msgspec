@@ -2363,7 +2363,6 @@ typedef struct {
 
 typedef struct {
     PyObject_VAR_HEAD
-    bool traversing;
     PyObject *class;
     PyObject *pre_init;
     PyObject *post_init;
@@ -2373,11 +2372,12 @@ typedef struct {
 
 typedef struct {
     PyObject_VAR_HEAD
-    bool traversing;
     PyObject *class;
     PyObject *defaults;
     TypeNode *types[];
 } NamedTupleInfo;
+
+struct StructInfo;
 
 typedef struct {
     PyHeapTypeObject base;
@@ -2385,7 +2385,7 @@ typedef struct {
     PyObject *struct_defaults;
     Py_ssize_t *struct_offsets;
     PyObject *struct_encode_fields;
-    TypeNode **struct_types;
+    struct StructInfo *struct_info;
     Py_ssize_t nkwonly;
     Py_ssize_t n_trailing_defaults;
     PyObject *struct_tag_field;  /* str or NULL */
@@ -2393,7 +2393,6 @@ typedef struct {
     PyObject *struct_tag;        /* True, str, or NULL */
     PyObject *match_args;
     PyObject *rename;
-    bool traversing;
     int8_t frozen;
     int8_t order;
     int8_t eq;
@@ -2404,6 +2403,12 @@ typedef struct {
     int8_t forbid_unknown_fields;
 } StructMetaObject;
 
+typedef struct StructInfo {
+    PyObject_VAR_HEAD
+    StructMetaObject *class;
+    TypeNode *types[];
+} StructInfo;
+
 typedef struct {
     PyObject_HEAD
     StructMetaObject *st_type;
@@ -2412,10 +2417,11 @@ typedef struct {
 static PyTypeObject TypedDictInfo_Type;
 static PyTypeObject DataclassInfo_Type;
 static PyTypeObject NamedTupleInfo_Type;
+static PyTypeObject StructInfo_Type;
 static PyTypeObject StructMetaType;
 static PyTypeObject Ext_Type;
 static TypeNode* TypeNode_Convert(PyObject *type);
-static int StructMeta_prep_types(PyObject*);
+static PyObject* StructInfo_Convert(PyObject*);
 static PyObject* TypedDictInfo_Convert(PyObject*);
 static PyObject* DataclassInfo_Convert(PyObject*);
 static PyObject* NamedTupleInfo_Convert(PyObject*);
@@ -2430,8 +2436,8 @@ static PyObject* NamedTupleInfo_Convert(PyObject*);
 #define OPT_TRUE 1
 #define STRUCT_MERGE_OPTIONS(opt1, opt2) (((opt2) != OPT_UNSET) ? (opt2) : (opt1))
 
-static MS_INLINE StructMetaObject *
-TypeNode_get_struct(TypeNode *type) {
+static MS_INLINE StructInfo *
+TypeNode_get_struct_info(TypeNode *type) {
     /* Struct types are always first */
     return type->details[0].pointer;
 }
@@ -2847,6 +2853,7 @@ typedef struct {
     PyObject *context;
     uint64_t types;
     PyObject *struct_obj;
+    PyObject *struct_info;
     PyObject *structs_set;
     PyObject *structs_lookup;
     PyObject *intenum_obj;
@@ -3234,9 +3241,9 @@ typenode_from_collect_state(TypeNodeCollectState *state) {
         out->types |= MS_TYPE_ANY;
         out->details[e_ind++].pointer = state->custom_obj;
     }
-    if (state->struct_obj != NULL) {
-        Py_INCREF(state->struct_obj);
-        out->details[e_ind++].pointer = state->struct_obj;
+    if (state->struct_info != NULL) {
+        Py_INCREF(state->struct_info);
+        out->details[e_ind++].pointer = state->struct_info;
     }
     if (state->structs_lookup != NULL) {
         Py_INCREF(state->structs_lookup);
@@ -3845,10 +3852,9 @@ typenode_collect_convert_structs(TypeNodeCollectState *state) {
     }
     else if (state->struct_obj != NULL) {
         /* Single struct */
-        if (StructMeta_prep_types(state->struct_obj) < 0) {
-            return -1;
-        }
-        if (((StructMetaObject *)state->struct_obj)->array_like == OPT_TRUE) {
+        state->struct_info = StructInfo_Convert(state->struct_obj);
+        if (state->struct_info == NULL) return -1;
+        if (((StructInfo *)state->struct_info)->class->array_like == OPT_TRUE) {
             state->types |= MS_TYPE_STRUCT_ARRAY;
         }
         else {
@@ -3906,10 +3912,6 @@ typenode_collect_convert_structs(TypeNodeCollectState *state) {
         PyObject *item_tag_value = struct_type->struct_tag_value;
         bool item_array_like = struct_type->array_like == OPT_TRUE;
 
-        if (StructMeta_prep_types((PyObject *)struct_type) < 0) {
-            goto cleanup;
-        }
-
         if (item_tag_value == NULL) {
             PyErr_Format(
                 PyExc_TypeError,
@@ -3966,9 +3968,13 @@ typenode_collect_convert_structs(TypeNodeCollectState *state) {
             );
             goto cleanup;
         }
-        if (PyDict_SetItem(tag_mapping, item_tag_value, (PyObject *)struct_type) < 0) {
-            goto cleanup;
-        }
+
+        PyObject *info = StructInfo_Convert((PyObject *)struct_type);
+        if (info == NULL) goto cleanup;
+
+        int ok = PyDict_SetItem(tag_mapping, item_tag_value, info) == 0;
+        Py_DECREF(info);
+        if (!ok) goto cleanup;
     }
     /* Build a lookup from tag_value -> struct_type */
     if (tags_are_strings) {
@@ -4015,6 +4021,7 @@ cleanup:
 static void
 typenode_collect_clear_state(TypeNodeCollectState *state) {
     Py_CLEAR(state->struct_obj);
+    Py_CLEAR(state->struct_info);
     Py_CLEAR(state->structs_set);
     Py_CLEAR(state->structs_lookup);
     Py_CLEAR(state->intenum_obj);
@@ -5916,22 +5923,50 @@ cleanup:
     return out;
 }
 
+static int
+StructInfo_traverse(StructInfo *self, visitproc visit, void *arg)
+{
+    Py_VISIT(self->class);
+    for (Py_ssize_t i = 0; i < Py_SIZE(self); i++) {
+        int out = TypeNode_traverse(self->types[i], visit, arg);
+        if (out != 0) return out;
+    }
+    return 0;
+}
 
 static int
-StructMeta_prep_types(PyObject *py_self) {
-    StructMetaObject *self = (StructMetaObject *)py_self;
-    MsgspecState *st;
-    TypeNode *type;
-    TypeNode **struct_types = NULL;
-    Py_ssize_t i, nfields;
-    PyObject *obj, *field, *annotations = NULL;
+StructInfo_clear(StructInfo *self)
+{
+    Py_CLEAR(self->class);
+    for (Py_ssize_t i = 0; i < Py_SIZE(self); i++) {
+        TypeNode_Free(self->types[i]);
+        self->types[i] = NULL;
+    }
+    return 0;
+}
 
-    /* Types are currently being prepped, recursive type */
-    if (self->traversing) return 0;
+static void
+StructInfo_dealloc(StructInfo *self)
+{
+    PyObject_GC_UnTrack(self);
+    StructInfo_clear(self);
+    Py_TYPE(self)->tp_free((PyObject *)self);
+}
 
-    if (self->struct_types) return 0;
+static PyTypeObject StructInfo_Type = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "msgspec._core.StructInfo",
+    .tp_basicsize = sizeof(StructInfo),
+    .tp_itemsize = sizeof(TypeNode *),
+    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
+    .tp_clear = (inquiry)StructInfo_clear,
+    .tp_traverse = (traverseproc)StructInfo_traverse,
+    .tp_dealloc = (destructor)StructInfo_dealloc,
+};
 
-    if (MS_UNLIKELY(self->struct_fields == NULL)) {
+static int
+StructMeta_check_ready(StructMetaObject *class) {
+    if (MS_UNLIKELY(class->struct_fields == NULL)) {
         /* The struct isn't fully initialized! This most commonly happens if
          * the user tries to do anything inside a `__init_subclass__` method.
          * Error nicely rather than segfaulting. */
@@ -5942,51 +5977,59 @@ StructMeta_prep_types(PyObject *py_self) {
             "trying to use the struct type within an `__init_subclass__` "
             "method. If you believe what you're trying to do should work, "
             "please raise an issue on GitHub.",
-            py_self
+            (PyObject *)class
         );
         return -1;
     }
+    return 0;
+}
 
-    /* Prevent recursion, clear on return */
-    self->traversing = true;
+static PyObject *
+StructInfo_Convert(PyObject *obj) {
+    StructMetaObject *class = (StructMetaObject *)obj;
+    StructInfo *info = class->struct_info;
+    if (info != NULL) {
+        Py_INCREF(info);
+        return (PyObject *)info;
+    }
+    if (StructMeta_check_ready(class) < 0) return NULL;
 
-    nfields = PyTuple_GET_SIZE(self->struct_fields);
+    Py_ssize_t nfields = PyTuple_GET_SIZE(class->struct_fields);
 
-    st = msgspec_get_global_state();
-    annotations = CALL_ONE_ARG(st->get_class_annotations, py_self);
+    info = PyObject_GC_NewVar(StructInfo, &StructInfo_Type, nfields);
+    if (info == NULL) return NULL;
+
+    for (Py_ssize_t i = 0; i < nfields; i++) {
+        info->types[i] = NULL;
+    }
+    Py_INCREF(obj);
+    info->class = (StructMetaObject *)obj;
+
+    class->struct_info = info;
+
+    MsgspecState *mod = msgspec_get_global_state();
+    PyObject *annotations = CALL_ONE_ARG(mod->get_class_annotations, obj);
     if (annotations == NULL) goto error;
 
-    struct_types = PyMem_Calloc(nfields, sizeof(TypeNode*));
-    if (struct_types == NULL)  {
-        PyErr_NoMemory();
-        goto error;
-    }
-
-    for (i = 0; i < nfields; i++) {
-        field = PyTuple_GET_ITEM(self->struct_fields, i);
-        obj = PyDict_GetItem(annotations, field);
-        if (obj == NULL) goto error;
-        type = TypeNode_Convert(obj);
+    for (Py_ssize_t i = 0; i < nfields; i++) {
+        PyObject *field = PyTuple_GET_ITEM(class->struct_fields, i);
+        PyObject *field_type = PyDict_GetItem(annotations, field);
+        if (field_type == NULL) goto error;
+        TypeNode *type = TypeNode_Convert(field_type);
         if (type == NULL) goto error;
-        struct_types[i] = type;
+        info->types[i] = type;
     }
-
-    self->traversing = false;
-    self->struct_types = struct_types;
 
     Py_DECREF(annotations);
-    return 0;
+
+    Py_INCREF(info);
+    return (PyObject *)info;
 
 error:
-    self->traversing = false;
+    class->struct_info = NULL;
     Py_XDECREF(annotations);
-    if (struct_types != NULL) {
-        for (i = 0; i < nfields; i++) {
-            TypeNode_Free(struct_types[i]);
-        }
-    }
-    PyMem_Free(struct_types);
-    return -1;
+    Py_XDECREF(info);
+    return NULL;
 }
 
 static int
@@ -5997,25 +6040,16 @@ StructMeta_traverse(StructMetaObject *self, visitproc visit, void *arg)
     Py_VISIT(self->struct_encode_fields);
     Py_VISIT(self->struct_tag);  /* May be a function */
     Py_VISIT(self->rename);  /* May be a function */
-    if (self->struct_types != NULL) {
-        assert(self->struct_fields != NULL);
-        Py_ssize_t nfields = PyTuple_GET_SIZE(self->struct_fields);
-        for (Py_ssize_t i = 0; i < nfields; i++) {
-            int out = TypeNode_traverse(self->struct_types[i], visit, arg);
-            if (out != 0) return out;
-        }
-    }
+    Py_VISIT(self->struct_info);
     return PyType_Type.tp_traverse((PyObject *)self, visit, arg);
 }
 
 static int
 StructMeta_clear(StructMetaObject *self)
 {
-    Py_ssize_t i, nfields;
     /* skip if clear already invoked */
     if (self->struct_fields == NULL) return 0;
 
-    nfields = PyTuple_GET_SIZE(self->struct_fields);
     Py_CLEAR(self->struct_fields);
     Py_CLEAR(self->struct_defaults);
     Py_CLEAR(self->struct_encode_fields);
@@ -6023,17 +6057,10 @@ StructMeta_clear(StructMetaObject *self)
     Py_CLEAR(self->struct_tag_value);
     Py_CLEAR(self->struct_tag);
     Py_CLEAR(self->rename);
+    Py_CLEAR(self->struct_info);
     if (self->struct_offsets != NULL) {
         PyMem_Free(self->struct_offsets);
         self->struct_offsets = NULL;
-    }
-    if (self->struct_types != NULL) {
-        for (i = 0; i < nfields; i++) {
-            TypeNode_Free(self->struct_types[i]);
-            self->struct_types[i] = NULL;
-        }
-        PyMem_Free(self->struct_types);
-        self->struct_types = NULL;
     }
     return PyType_Type.tp_clear((PyObject *)self);
 }
@@ -7468,7 +7495,6 @@ DataclassInfo_Convert(PyObject *obj) {
         Py_CLEAR(post_init);
     }
     info->post_init = post_init;
-    info->traversing = true;
 
     /* If not already cached, then cache on Dataclass object _before_
     * traversing fields. This is to ensure self-referential Dataclasses work. */
@@ -7491,7 +7517,6 @@ DataclassInfo_Convert(PyObject *obj) {
         Py_INCREF(info->fields[i].key);
     }
 
-    info->traversing = false;
     Py_DECREF(fields);
     Py_DECREF(field_defaults);
     PyObject_GC_Track(info);
@@ -7675,8 +7700,6 @@ NamedTupleInfo_Convert(PyObject *obj) {
     for (Py_ssize_t i = 0; i < nfields; i++) {
         info->types[i] = NULL;
     }
-    /* Mark this info object as still being traversed to guard */
-    info->traversing = true;
 
     /* If not already cached, then cache on NamedTuple object _before_
     * traversing fields. This is to ensure self-referential NamedTuple work. */
@@ -7705,7 +7728,6 @@ NamedTupleInfo_Convert(PyObject *obj) {
             if (PyList_Append(defaults_list, default_obj) < 0) goto cleanup;
         }
     }
-    info->traversing = false;
     Py_INCREF(obj);
     info->class = obj;
     info->defaults = PyList_AsTuple(defaults_list);
@@ -12335,17 +12357,17 @@ mpack_ensure_tag_matches(
     return 0;
 }
 
-static StructMetaObject *
+static StructInfo *
 mpack_decode_tag_and_lookup_type(
     DecoderState *self, Lookup *lookup, PathNode *path
 ) {
-    StructMetaObject *out = NULL;
+    StructInfo *out = NULL;
     if (Lookup_IsStrLookup(lookup)) {
         Py_ssize_t tag_size;
         char *tag = NULL;
         tag_size = mpack_decode_cstr(self, &tag, path);
         if (tag_size < 0) return NULL;
-        out = (StructMetaObject *)StrLookup_Get((StrLookup *)lookup, tag, tag_size);
+        out = (StructInfo *)StrLookup_Get((StrLookup *)lookup, tag, tag_size);
         if (out == NULL) {
             ms_invalid_cstr_value(tag, tag_size, path);
         }
@@ -12355,13 +12377,13 @@ mpack_decode_tag_and_lookup_type(
         uint64_t utag = 0;
         if (mpack_decode_cint(self, &tag, &utag, path) < 0) return NULL;
         if (utag == 0) {
-            out = (StructMetaObject *)IntLookup_GetInt64((IntLookup *)lookup, tag);
+            out = (StructInfo *)IntLookup_GetInt64((IntLookup *)lookup, tag);
             if (out == NULL) {
                 ms_invalid_cint_value(tag, path);
             }
         }
         else {
-            out = (StructMetaObject *)IntLookup_GetUInt64((IntLookup *)lookup, utag);
+            out = (StructInfo *)IntLookup_GetUInt64((IntLookup *)lookup, utag);
             if (out == NULL) {
                 ms_invalid_cuint_value(utag, path);
             }
@@ -12373,10 +12395,11 @@ mpack_decode_tag_and_lookup_type(
 static PyObject *
 mpack_decode_struct_array_inner(
     DecoderState *self, Py_ssize_t size, bool tag_already_read,
-    StructMetaObject *st_type, PathNode *path, bool is_key
+    StructInfo *info, PathNode *path, bool is_key
 ) {
     Py_ssize_t i, nfields, ndefaults, nrequired, npos;
     PyObject *res, *val = NULL;
+    StructMetaObject *st_type = info->class;
     bool is_gc, should_untrack;
     bool tagged = st_type->struct_tag_value != NULL;
     PathNode item_path = {path, 0};
@@ -12416,7 +12439,7 @@ mpack_decode_struct_array_inner(
 
     for (i = 0; i < nfields; i++) {
         if (size > 0) {
-            val = mpack_decode(self, st_type->struct_types[i], &item_path, is_key);
+            val = mpack_decode(self, info->types[i], &item_path, is_key);
             if (MS_UNLIKELY(val == NULL)) goto error;
             size--;
             item_path.index++;
@@ -12466,8 +12489,8 @@ static PyObject *
 mpack_decode_struct_array(
     DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *path, bool is_key
 ) {
-    StructMetaObject *st_type = TypeNode_get_struct(type);
-    return mpack_decode_struct_array_inner(self, size, false, st_type, path, is_key);
+    StructInfo *info = TypeNode_get_struct_info(type);
+    return mpack_decode_struct_array_inner(self, size, false, info, path, is_key);
 }
 
 static PyObject *
@@ -12483,11 +12506,11 @@ mpack_decode_struct_array_union(
 
     /* Decode and lookup tag */
     PathNode tag_path = {path, 0};
-    StructMetaObject *struct_type = mpack_decode_tag_and_lookup_type(self, lookup, &tag_path);
-    if (struct_type == NULL) return NULL;
+    StructInfo *info = mpack_decode_tag_and_lookup_type(self, lookup, &tag_path);
+    if (info == NULL) return NULL;
 
     /* Finish decoding the rest of the struct */
-    return mpack_decode_struct_array_inner(self, size, true, struct_type, path, is_key);
+    return mpack_decode_struct_array_inner(self, size, true, info, path, is_key);
 }
 
 static PyObject *
@@ -12738,8 +12761,9 @@ error:
 static PyObject *
 mpack_decode_struct_map(
     DecoderState *self, Py_ssize_t size,
-    StructMetaObject *st_type, PathNode *path, bool is_key
+    StructInfo *info, PathNode *path, bool is_key
 ) {
+    StructMetaObject *st_type = info->class;
     Py_ssize_t i, key_size, field_index, pos = 0;
     char *key = NULL;
     PyObject *res, *val = NULL;
@@ -12775,9 +12799,7 @@ mpack_decode_struct_map(
         }
         else {
             PathNode field_path = {path, field_index, (PyObject *)st_type};
-            val = mpack_decode(
-                self, st_type->struct_types[field_index], &field_path, is_key
-            );
+            val = mpack_decode(self, info->types[field_index], &field_path, is_key);
             if (val == NULL) goto error;
             Struct_set_index(res, field_index, val);
         }
@@ -12818,8 +12840,8 @@ mpack_decode_struct_union(
         if (key_size == tag_field_size && memcmp(key, tag_field, key_size) == 0) {
             /* Decode and lookup tag */
             PathNode tag_path = {path, PATH_STR, Lookup_tag_field(lookup)};
-            StructMetaObject *struct_type = mpack_decode_tag_and_lookup_type(self, lookup, &tag_path);
-            if (struct_type == NULL) return NULL;
+            StructInfo *info = mpack_decode_tag_and_lookup_type(self, lookup, &tag_path);
+            if (info == NULL) return NULL;
             if (i == 0) {
                 /* Common case, tag is first field. No need to reset, just mark
                  * that the first field has been read. */
@@ -12828,7 +12850,7 @@ mpack_decode_struct_union(
             else {
                 self->input_pos = orig_input_pos;
             }
-            return mpack_decode_struct_map(self, size, struct_type, path, is_key);
+            return mpack_decode_struct_map(self, size, info, path, is_key);
         }
         else {
             /* Not the tag field, skip the value and try again */
@@ -12850,8 +12872,8 @@ mpack_decode_map(
     PathNode *path, bool is_key
 ) {
     if (type->types & MS_TYPE_STRUCT) {
-        StructMetaObject *struct_type = TypeNode_get_struct(type);
-        return mpack_decode_struct_map(self, size, struct_type, path, is_key);
+        StructInfo *info = TypeNode_get_struct_info(type);
+        return mpack_decode_struct_map(self, size, info, path, is_key);
     }
     else if (type->types & MS_TYPE_TYPEDDICT) {
         return mpack_decode_typeddict(self, size, type, path);
@@ -13265,11 +13287,18 @@ msgspec_msgpack_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, 
 
     /* Allocate Any & Struct type nodes (simple, common cases) on the stack,
      * everything else on the heap */
-    state.type = NULL;
+    TypeNode typenode_any = {MS_TYPE_ANY};
+    TypeNodeSimple typenode_struct;
     if (type == NULL || type == st->typing_any) {
+        state.type = &typenode_any;
     }
     else if (Py_TYPE(type) == &StructMetaType) {
-        if (StructMeta_prep_types(type) < 0) return NULL;
+        PyObject *info = StructInfo_Convert(type);
+        if (info == NULL) return NULL;
+        bool array_like = ((StructMetaObject *)type)->array_like == OPT_TRUE;
+        typenode_struct.types = array_like ? MS_TYPE_STRUCT_ARRAY : MS_TYPE_STRUCT;
+        typenode_struct.details[0].pointer = info;
+        state.type = (TypeNode *)(&typenode_struct);
     }
     else {
         state.type = TypeNode_Convert(type);
@@ -13282,27 +13311,17 @@ msgspec_msgpack_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, 
         state.input_start = buffer.buf;
         state.input_pos = buffer.buf;
         state.input_end = state.input_pos + buffer.len;
-        if (state.type != NULL) {
-            res = mpack_decode(&state, state.type, NULL, false);
-        }
-        else if (type == NULL || type == st->typing_any) {
-            TypeNode type_any = {MS_TYPE_ANY};
-            res = mpack_decode(&state, &type_any, NULL, false);
-        }
-        else {
-            bool array_like = ((StructMetaObject *)type)->array_like == OPT_TRUE;
-            TypeNodeSimple type_obj;
-            type_obj.types = array_like ? MS_TYPE_STRUCT_ARRAY : MS_TYPE_STRUCT;
-            type_obj.details[0].pointer = type;
-            res = mpack_decode(&state, (TypeNode*)(&type_obj), NULL, false);
-        }
+        res = mpack_decode(&state, state.type, NULL, false);
         PyBuffer_Release(&buffer);
         if (res != NULL && mpack_has_trailing_characters(&state)) {
             Py_CLEAR(res);
         }
     }
 
-    if (state.type != NULL) {
+    if (state.type == (TypeNode *)&typenode_struct) {
+        Py_DECREF(typenode_struct.details[0].pointer);
+    }
+    else if (state.type != &typenode_any) {
         TypeNode_Free(state.type);
     }
     return res;
@@ -14677,7 +14696,7 @@ error:
 
 static PyObject *
 json_decode_struct_array_inner(
-    JSONDecoderState *self, StructMetaObject *st_type, PathNode *path,
+    JSONDecoderState *self, StructInfo *info, PathNode *path,
     Py_ssize_t starting_index
 ) {
     Py_ssize_t nfields, ndefaults, nrequired, npos, i = 0;
@@ -14685,6 +14704,7 @@ json_decode_struct_array_inner(
     unsigned char c;
     bool is_gc, should_untrack;
     bool first = starting_index == 0;
+    StructMetaObject *st_type = info->class;
     PathNode item_path = {path, starting_index};
 
     out = Struct_alloc((PyTypeObject *)(st_type));
@@ -14728,7 +14748,7 @@ json_decode_struct_array_inner(
 
         if (MS_LIKELY(i < nfields)) {
             /* Parse item */
-            item = json_decode(self, st_type->struct_types[i], &item_path);
+            item = json_decode(self, info->types[i], &item_path);
             if (MS_UNLIKELY(item == NULL)) goto error;
             Struct_set_index(out, i, item);
             if (should_untrack) {
@@ -14961,17 +14981,17 @@ json_ensure_tag_matches(
     return 0;
 }
 
-static StructMetaObject *
+static StructInfo *
 json_decode_tag_and_lookup_type(
     JSONDecoderState *self, Lookup *lookup, PathNode *path
 ) {
-    StructMetaObject *out = NULL;
+    StructInfo *out = NULL;
     if (Lookup_IsStrLookup(lookup)) {
         Py_ssize_t tag_size;
         char *tag = NULL;
         tag_size = json_decode_cstr(self, &tag, path);
         if (tag_size < 0) return NULL;
-        out = (StructMetaObject *)StrLookup_Get((StrLookup *)lookup, tag, tag_size);
+        out = (StructInfo *)StrLookup_Get((StrLookup *)lookup, tag, tag_size);
         if (out == NULL) {
             ms_invalid_cstr_value(tag, tag_size, path);
         }
@@ -14981,7 +15001,7 @@ json_decode_tag_and_lookup_type(
         uint64_t utag = 0;
         if (json_decode_cint(self, &tag, &utag, path) < 0) return NULL;
         if (utag == 0) {
-            out = (StructMetaObject *)IntLookup_GetInt64((IntLookup *)lookup, tag);
+            out = (StructInfo *)IntLookup_GetInt64((IntLookup *)lookup, tag);
             if (out == NULL) {
                 ms_invalid_cint_value(tag, path);
             }
@@ -14999,20 +15019,20 @@ json_decode_struct_array(
     JSONDecoderState *self, TypeNode *type, PathNode *path
 ) {
     Py_ssize_t starting_index = 0;
-    StructMetaObject *st_type = TypeNode_get_struct(type);
+    StructInfo *info = TypeNode_get_struct_info(type);
 
     self->input_pos++; /* Skip '[' */
 
     /* If this is a tagged struct, first read and validate the tag */
-    if (st_type->struct_tag_value != NULL) {
+    if (info->class->struct_tag_value != NULL) {
         PathNode tag_path = {path, 0};
-        if (json_ensure_array_nonempty(self, st_type, path) < 0) return NULL;
-        if (json_ensure_tag_matches(self, &tag_path, st_type->struct_tag_value) < 0) return NULL;
+        if (json_ensure_array_nonempty(self, info->class, path) < 0) return NULL;
+        if (json_ensure_tag_matches(self, &tag_path, info->class->struct_tag_value) < 0) return NULL;
         starting_index = 1;
     }
 
     /* Decode the rest of the struct */
-    return json_decode_struct_array_inner(self, st_type, path, starting_index);
+    return json_decode_struct_array_inner(self, info, path, starting_index);
 }
 
 static PyObject *
@@ -15025,11 +15045,11 @@ json_decode_struct_array_union(
     self->input_pos++; /* Skip '[' */
     /* Decode & lookup struct type from tag */
     if (json_ensure_array_nonempty(self, NULL, path) < 0) return NULL;
-    StructMetaObject *struct_type = json_decode_tag_and_lookup_type(self, lookup, &tag_path);
-    if (struct_type == NULL) return NULL;
+    StructInfo *info = json_decode_tag_and_lookup_type(self, lookup, &tag_path);
+    if (info == NULL) return NULL;
 
     /* Finish decoding the rest of the struct */
-    return json_decode_struct_array_inner(self, struct_type, path, 1);
+    return json_decode_struct_array_inner(self, info, path, 1);
 }
 
 static PyObject *
@@ -15346,7 +15366,7 @@ error:
 
 static PyObject *
 json_decode_struct_map_inner(
-    JSONDecoderState *self, StructMetaObject *st_type, PathNode *path,
+    JSONDecoderState *self, StructInfo *info, PathNode *path,
     Py_ssize_t starting_index
 ) {
     PyObject *out, *val = NULL;
@@ -15354,6 +15374,7 @@ json_decode_struct_map_inner(
     unsigned char c;
     char *key = NULL;
     bool first = starting_index == 0;
+    StructMetaObject *st_type = info->class;
     PathNode field_path = {path, 0, (PyObject *)st_type};
 
     out = Struct_alloc((PyTypeObject *)(st_type));
@@ -15410,7 +15431,7 @@ json_decode_struct_map_inner(
         field_index = StructMeta_get_field_index(st_type, key, key_size, &pos);
         if (MS_LIKELY(field_index >= 0)) {
             field_path.index = field_index;
-            TypeNode *type = st_type->struct_types[field_index];
+            TypeNode *type = info->types[field_index];
             val = json_decode(self, type, &field_path);
             if (val == NULL) goto error;
             Struct_set_index(out, field_index, val);
@@ -15447,11 +15468,11 @@ static PyObject *
 json_decode_struct_map(
     JSONDecoderState *self, TypeNode *type, PathNode *path
 ) {
-    StructMetaObject *st_type = TypeNode_get_struct(type);
+    StructInfo *info = TypeNode_get_struct_info(type);
 
     self->input_pos++; /* Skip '{' */
 
-    return json_decode_struct_map_inner(self, st_type, path, 0);
+    return json_decode_struct_map_inner(self, info, path, 0);
 }
 
 static PyObject *
@@ -15519,13 +15540,13 @@ json_decode_struct_union(
         /* Parse value */
         if (tag_found) {
             /* Decode & lookup struct type from tag */
-            StructMetaObject *st_type = json_decode_tag_and_lookup_type(self, lookup, &tag_path);
-            if (st_type == NULL) return NULL;
+            StructInfo *info = json_decode_tag_and_lookup_type(self, lookup, &tag_path);
+            if (info == NULL) return NULL;
             if (i != 0) {
                 /* tag wasn't first field, reset decoder position */
                 self->input_pos = orig_input_pos;
             }
-            return json_decode_struct_map_inner(self, st_type, path, i == 0 ? 1 : 0);
+            return json_decode_struct_map_inner(self, info, path, i == 0 ? 1 : 0);
         }
         else {
             if (json_skip(self) < 0) return NULL;
@@ -16521,11 +16542,18 @@ msgspec_json_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyO
 
     /* Allocate Any & Struct type nodes (simple, common cases) on the stack,
      * everything else on the heap */
-    state.type = NULL;
+    TypeNode typenode_any = {MS_TYPE_ANY};
+    TypeNodeSimple typenode_struct;
     if (type == NULL || type == st->typing_any) {
+        state.type = &typenode_any;
     }
     else if (Py_TYPE(type) == &StructMetaType) {
-        if (StructMeta_prep_types(type) < 0) return NULL;
+        PyObject *info = StructInfo_Convert(type);
+        if (info == NULL) return NULL;
+        bool array_like = ((StructMetaObject *)type)->array_like == OPT_TRUE;
+        typenode_struct.types = array_like ? MS_TYPE_STRUCT_ARRAY : MS_TYPE_STRUCT;
+        typenode_struct.details[0].pointer = info;
+        state.type = (TypeNode *)(&typenode_struct);
     }
     else {
         state.type = TypeNode_Convert(type);
@@ -16539,20 +16567,7 @@ msgspec_json_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyO
         state.input_pos = buffer.buf;
         state.input_end = state.input_pos + buffer.len;
 
-        if (state.type != NULL) {
-            res = json_decode(&state, state.type, NULL);
-        }
-        else if (type == NULL || type == st->typing_any) {
-            TypeNode type_any = {MS_TYPE_ANY};
-            res = json_decode(&state, &type_any, NULL);
-        }
-        else {
-            bool array_like = ((StructMetaObject *)type)->array_like == OPT_TRUE;
-            TypeNodeSimple type_obj;
-            type_obj.types = array_like ? MS_TYPE_STRUCT_ARRAY : MS_TYPE_STRUCT;
-            type_obj.details[0].pointer = type;
-            res = json_decode(&state, (TypeNode*)(&type_obj), NULL);
-        }
+        res = json_decode(&state, state.type, NULL);
 
         if (res != NULL && json_has_trailing_characters(&state)) {
             Py_CLEAR(res);
@@ -16563,7 +16578,10 @@ msgspec_json_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyO
 
     PyMem_Free(state.scratch);
 
-    if (state.type != NULL) {
+    if (state.type == (TypeNode *)&typenode_struct) {
+        Py_DECREF(typenode_struct.details[0].pointer);
+    }
+    else if (state.type != &typenode_any) {
         TypeNode_Free(state.type);
     }
 
@@ -17662,17 +17680,17 @@ wrong_type:
     return false;
 }
 
-static StructMetaObject *
+static StructInfo *
 from_builtins_lookup_tag(
     FromBuiltinsState *self, Lookup *lookup, PyObject *tag, PathNode *path
 ) {
-    StructMetaObject *out = NULL;
+    StructInfo *out = NULL;
     if (Lookup_IsStrLookup(lookup)) {
         if (!PyUnicode_CheckExact(tag)) goto wrong_type;
         Py_ssize_t size;
         const char *buf = unicode_str_and_size(tag, &size);
         if (buf == NULL) return NULL;
-        out = (StructMetaObject *)StrLookup_Get((StrLookup *)lookup, buf, size);
+        out = (StructInfo *)StrLookup_Get((StrLookup *)lookup, buf, size);
     }
     else {
         if (!PyLong_CheckExact(tag)) goto wrong_type;
@@ -17681,10 +17699,10 @@ from_builtins_lookup_tag(
         overflow = fast_long_extract_parts(tag, &neg, &ux);
         if (overflow) goto invalid_value;
         if (neg) {
-            out = (StructMetaObject *)IntLookup_GetInt64((IntLookup *)lookup, -(int64_t)ux);
+            out = (StructInfo *)IntLookup_GetInt64((IntLookup *)lookup, -(int64_t)ux);
         }
         else {
-            out = (StructMetaObject *)IntLookup_GetUInt64((IntLookup *)lookup, ux);
+            out = (StructInfo *)IntLookup_GetUInt64((IntLookup *)lookup, ux);
         }
     }
     if (out != NULL) return out;
@@ -17704,8 +17722,9 @@ wrong_type:
 static PyObject *
 from_builtins_struct_array_inner(
     FromBuiltinsState *self, PyObject **items, Py_ssize_t size,
-    bool tag_already_read, StructMetaObject *st_type, PathNode *path
+    bool tag_already_read, StructInfo *info, PathNode *path
 ) {
+    StructMetaObject *st_type = info->class;
     PathNode item_path = {path, 0};
     bool tagged = st_type->struct_tag_value != NULL;
     Py_ssize_t nfields = PyTuple_GET_SIZE(st_type->struct_encode_fields);
@@ -17749,7 +17768,7 @@ from_builtins_struct_array_inner(
         PyObject *val;
         if (size > 0) {
             val = from_builtins(
-                self, items[item_path.index], st_type->struct_types[i], &item_path
+                self, items[item_path.index], info->types[i], &item_path
             );
             if (MS_UNLIKELY(val == NULL)) goto error;
             size--;
@@ -17793,7 +17812,7 @@ from_builtins_struct_array(
     TypeNode *type, PathNode *path
 ) {
     return from_builtins_struct_array_inner(
-        self, items, size, false, TypeNode_get_struct(type), path
+        self, items, size, false, TypeNode_get_struct_info(type), path
     );
 }
 
@@ -17810,11 +17829,9 @@ from_builtins_struct_array_union(
     }
 
     PathNode tag_path = {path, 0};
-    StructMetaObject *struct_type = from_builtins_lookup_tag(
-        self, lookup, items[0], &tag_path
-    );
-    if (struct_type == NULL) return NULL;
-    return from_builtins_struct_array_inner(self, items, size, true, struct_type, path);
+    StructInfo *info = from_builtins_lookup_tag(self, lookup, items[0], &tag_path);
+    if (info == NULL) return NULL;
+    return from_builtins_struct_array_inner(self, items, size, true, info, path);
 }
 
 static PyObject *
@@ -17913,8 +17930,10 @@ from_builtins_is_str_key(PyObject *key, PathNode *path) {
 
 static PyObject *
 from_builtins_struct(
-    FromBuiltinsState *self, PyObject *obj, StructMetaObject *struct_type, PathNode *path
+    FromBuiltinsState *self, PyObject *obj, StructInfo *info, PathNode *path
 ) {
+    StructMetaObject *struct_type = info->class;
+
     if (Py_EnterRecursiveCall(" while deserializing an object")) return NULL;
 
     PyObject *out = Struct_alloc((PyTypeObject *)(struct_type));
@@ -17952,7 +17971,7 @@ from_builtins_struct(
         else {
             PathNode field_path = {path, field_index, (PyObject *)struct_type};
             PyObject *val = from_builtins(
-                self, val_obj, struct_type->struct_types[field_index], &field_path
+                self, val_obj, info->types[field_index], &field_path
             );
             if (val == NULL) goto error;
             Struct_set_index(out, field_index, val);
@@ -17982,11 +18001,11 @@ from_builtins_struct_union(
         if (_PyUnicode_EQ(key_obj, tag_field)) {
             /* Decode and lookup tag */
             PathNode tag_path = {path, PATH_STR, tag_field};
-            StructMetaObject *struct_type = from_builtins_lookup_tag(
+            StructInfo *info = from_builtins_lookup_tag(
                 self, lookup, val_obj, &tag_path
             );
-            if (struct_type == NULL) return NULL;
-            return from_builtins_struct(self, obj, struct_type, path);
+            if (info == NULL) return NULL;
+            return from_builtins_struct(self, obj, info, path);
         }
     }
 
@@ -18110,8 +18129,8 @@ from_builtins_object(
         return from_builtins_dict(self, obj, key_type, val_type, path);
     }
     else if (type->types & MS_TYPE_STRUCT) {
-        StructMetaObject *struct_type = TypeNode_get_struct(type);
-        return from_builtins_struct(self, obj, struct_type, path);
+        StructInfo *info = TypeNode_get_struct_info(type);
+        return from_builtins_struct(self, obj, info, path);
     }
     else if (type->types & MS_TYPE_STRUCT_UNION) {
         return from_builtins_struct_union(self, obj, type, path);
@@ -18288,12 +18307,15 @@ msgspec_from_builtins(PyObject *self, PyObject *args, PyObject *kwargs)
 
     /* Avoid allocating a new TypeNode for struct types */
     if (Py_TYPE(pytype) == &StructMetaType) {
-        if (StructMeta_prep_types(pytype) < 0) return NULL;
+        PyObject *info = StructInfo_Convert(pytype);
+        if (info == NULL) return NULL;
         bool array_like = ((StructMetaObject *)pytype)->array_like == OPT_TRUE;
         TypeNodeSimple type;
         type.types = array_like ? MS_TYPE_STRUCT_ARRAY : MS_TYPE_STRUCT;
-        type.details[0].pointer = pytype;
-        return from_builtins(&state, obj, (TypeNode *)(&type), NULL);
+        type.details[0].pointer = info;
+        PyObject *out = from_builtins(&state, obj, (TypeNode *)(&type), NULL);
+        Py_DECREF(info);
+        return out;
     }
 
     TypeNode *type = TypeNode_Convert(pytype);
@@ -18516,6 +18538,8 @@ PyInit__core(void)
     if (PyType_Ready(&DataclassInfo_Type) < 0)
         return NULL;
     if (PyType_Ready(&NamedTupleInfo_Type) < 0)
+        return NULL;
+    if (PyType_Ready(&StructInfo_Type) < 0)
         return NULL;
     if (PyType_Ready(&Meta_Type) < 0)
         return NULL;
