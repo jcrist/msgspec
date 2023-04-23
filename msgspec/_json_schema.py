@@ -158,7 +158,7 @@ def _has_nondefault_docstring(t: mi.Type) -> bool:
     """Check if a type has a user-defined docstring.
 
     Some types like Enum or Dataclass generate a default docstring."""
-    if not (doc := getattr(t.cls, "__doc__", None)):
+    if not (doc := getattr(t.cls, "__doc__", None)):  # type: ignore
         return False
 
     if isinstance(t, mi.EnumType):
@@ -271,7 +271,7 @@ def _to_schema(
                 real_type = real_type.type
             if isinstance(real_type, mi.StructType) and not real_type.array_like:
                 tag_field = real_type.tag_field
-                structs[subtype.tag] = real_type
+                structs[real_type.tag] = real_type
             else:
                 other.append(subtype)
 
