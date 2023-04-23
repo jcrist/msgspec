@@ -53,8 +53,10 @@ jobs:
           PYTHONMALLOC: "malloc"
           ASAN_OPTIONS: "detect_leaks=0"
         run: |
-          export LD_PRELOAD=`gcc -print-file-name=libasan.so`
-          coverage run -m pytest -s -m "not mypy and not pyright"
+          LD_PRELOAD=`gcc -print-file-name=libasan.so` coverage run -m pytest -s -m "not mypy and not pyright"
+
+      - name: Generate coverage files
+        run: |
           coverage xml
           gcov -abcu `find build/ -name *.o`
 
