@@ -8,15 +8,18 @@ from collections.abc import Iterable
 from typing import Any, Final, Literal, Tuple, Type as typing_Type, Union
 
 try:
-    from types import UnionType as _types_UnionType
+    from types import UnionType as _types_UnionType  # type: ignore
 except Exception:
-    _types_UnionType = type("UnionType", (), {})
+    _types_UnionType = type("UnionType", (), {})  # type: ignore
 
 import msgspec
 from msgspec import NODEFAULT, UNSET, UnsetType as _UnsetType
 
-from ._core import Factory as _Factory, to_builtins as _to_builtins
-from ._utils import (
+from ._core import (  # type: ignore
+    Factory as _Factory,
+    to_builtins as _to_builtins,
+)
+from ._utils import (  # type: ignore
     _CONCRETE_TYPES,
     _AnnotatedAlias,
     get_dataclass_info as _get_dataclass_info,
