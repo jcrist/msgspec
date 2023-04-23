@@ -46,7 +46,9 @@ jobs:
           MSGSPEC_COVERAGE: "true"
         run: |
           python setup.py clean --all
-          pip install -e .
+          # I know this is deprecated, but I can't find a way to keep the build
+          # directory around anymore on new versions of setuptools
+          python setup.py develop
 
       - name: Run tests with sanitizers
         env:
