@@ -72,7 +72,7 @@ class Struct:
 
 def defstruct(
     name: str,
-    fields: Iterable[Union[str, Tuple[str, Type], Tuple[str, Type, Any]]],
+    fields: Iterable[Union[str, Tuple[str, type], Tuple[str, type, Any]]],
     *,
     bases: Tuple[Type[Struct], ...] = (),
     module: Optional[str] = None,
@@ -146,7 +146,7 @@ def to_builtins(
     obj: Any,
     *,
     str_keys: bool = False,
-    builtin_types: Union[Iterable[Type], None] = None,
+    builtin_types: Union[Iterable[type], None] = None,
     enc_hook: Optional[Callable[[Any], Any]] = None,
 ) -> Any: ...
 @overload
@@ -156,8 +156,8 @@ def from_builtins(
     *,
     str_keys: bool = False,
     str_values: bool = False,
-    builtin_types: Union[Iterable[Type], None] = None,
-    dec_hook: Optional[Callable[[Type, Any], Any]] = None,
+    builtin_types: Union[Iterable[type], None] = None,
+    dec_hook: Optional[Callable[[type, Any], Any]] = None,
 ) -> T: ...
 @overload
 def from_builtins(
@@ -165,8 +165,8 @@ def from_builtins(
     type: Any,
     *,
     str_keys: bool = False,
-    builtin_types: Union[Iterable[Type], None] = None,
-    dec_hook: Optional[Callable[[Type, Any], Any]] = None,
+    builtin_types: Union[Iterable[type], None] = None,
+    dec_hook: Optional[Callable[[type, Any], Any]] = None,
 ) -> Any: ...
 
 class MsgspecError(Exception): ...

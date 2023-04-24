@@ -20,7 +20,7 @@ def schema(type: Any) -> dict[str, Any]:
 
     Parameters
     ----------
-    type : Type
+    type : type
         The type to generate the schema for.
 
     Returns
@@ -48,7 +48,7 @@ def schema_components(
 
     Parameters
     ----------
-    types : Iterable[Type]
+    types : Iterable[type]
         An iterable of one or more types to generate schemas for.
     ref_template : str, optional
         A template to use when generating ``"$ref"`` fields. This template is

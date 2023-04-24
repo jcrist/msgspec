@@ -78,7 +78,7 @@ T = TypeVar("T")
 
 @overload
 def decode(
-    buf: Union[bytes, str], *, dec_hook: Optional[Callable[[Type, Any], Any]] = None
+    buf: Union[bytes, str], *, dec_hook: Optional[Callable[[type, Any], Any]] = None
 ) -> Any:
     pass
 
@@ -88,7 +88,7 @@ def decode(
     buf: Union[bytes, str],
     *,
     type: Type[T] = ...,
-    dec_hook: Optional[Callable[[Type, Any], Any]] = None,
+    dec_hook: Optional[Callable[[type, Any], Any]] = None,
 ) -> T:
     pass
 
@@ -98,7 +98,7 @@ def decode(
     buf: Union[bytes, str],
     *,
     type: Any = ...,
-    dec_hook: Optional[Callable[[Type, Any], Any]] = None,
+    dec_hook: Optional[Callable[[type, Any], Any]] = None,
 ) -> Any:
     pass
 
