@@ -15,7 +15,7 @@ from typing import (
 T = TypeVar("T")
 
 enc_hook_sig = Optional[Callable[[Any], Any]]
-dec_hook_sig = Optional[Callable[[Type, Any], Any]]
+dec_hook_sig = Optional[Callable[[type, Any], Any]]
 
 class Encoder:
     enc_hook: enc_hook_sig
