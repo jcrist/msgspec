@@ -124,6 +124,35 @@ def _collect_component_types(type_infos: Iterable[mi.Type]) -> dict[Any, mi.Type
     return components
 
 
+def _type_repr(obj):
+    return obj.__name__ if isinstance(obj, type) else repr(obj)
+
+
+def _get_class_name(cls: Any) -> str:
+    if hasattr(cls, "__origin__"):
+        name = cls.__origin__.__name__
+        args = ", ".join(_type_repr(a) for a in cls.__args__)
+        return f"{name}[{args}]"
+    return cls.__name__
+
+
+def _get_doc(t: mi.Type) -> str:
+    assert hasattr(t, "cls")
+    if hasattr(t.cls, "__origin__"):
+        doc = getattr(t.cls.__origin__, "__doc__")
+    else:
+        doc = getattr(t.cls, "__doc__", "")
+    if not doc:
+        return ""
+    if isinstance(t, mi.EnumType):
+        if doc == "An enumeration.":
+            return ""
+    elif isinstance(t, (mi.NamedTupleType, mi.DataclassType)):
+        if doc.startswith(f"{t.cls.__name__}(") and doc.endswith(")"):
+            return ""
+    return doc
+
+
 def _build_name_map(component_types: dict[Any, mi.Type]) -> dict[Any, str]:
     """A mapping from nameable subcomponents to a generated name.
 
@@ -142,7 +171,7 @@ def _build_name_map(component_types: dict[Any, mi.Type]) -> dict[Any, str]:
     names: dict[str, Any] = {}
 
     for cls in component_types:
-        name = normalize(cls.__name__)
+        name = normalize(_get_class_name(cls))
         if name in names:
             old = names.pop(name)
             conflicts.add(name)
@@ -152,20 +181,6 @@ def _build_name_map(component_types: dict[Any, mi.Type]) -> dict[Any, str]:
         else:
             names[name] = cls
     return {v: k for k, v in names.items()}
-
-
-def _has_nondefault_docstring(t: mi.Type) -> bool:
-    """Check if a type has a user-defined docstring.
-
-    Some types like Enum or Dataclass generate a default docstring."""
-    if not (doc := getattr(t.cls, "__doc__", None)):  # type: ignore
-        return False
-
-    if isinstance(t, mi.EnumType):
-        return doc != "An enumeration."
-    elif isinstance(t, (mi.NamedTupleType, mi.DataclassType)):
-        return not (doc.startswith(f"{t.cls.__name__}(") and doc.endswith(")"))
-    return True
 
 
 def _to_schema(
@@ -302,13 +317,13 @@ def _to_schema(
         schema["enum"] = sorted(t.values)
     elif isinstance(t, mi.EnumType):
         schema.setdefault("title", t.cls.__name__)
-        if _has_nondefault_docstring(t):
-            schema.setdefault("description", t.cls.__doc__)
+        if doc := _get_doc(t):
+            schema.setdefault("description", doc)
         schema["enum"] = sorted(e.value for e in t.cls)
     elif isinstance(t, mi.StructType):
-        schema.setdefault("title", t.cls.__name__)
-        if _has_nondefault_docstring(t):
-            schema.setdefault("description", t.cls.__doc__)
+        schema.setdefault("title", _get_class_name(t.cls))
+        if doc := _get_doc(t):
+            schema.setdefault("description", doc)
         required = []
         names = []
         fields = []
@@ -347,8 +362,8 @@ def _to_schema(
                 schema["additionalProperties"] = False
     elif isinstance(t, (mi.TypedDictType, mi.DataclassType, mi.NamedTupleType)):
         schema.setdefault("title", t.cls.__name__)
-        if _has_nondefault_docstring(t):
-            schema.setdefault("description", t.cls.__doc__)
+        if doc := _get_doc(t):
+            schema.setdefault("description", doc)
         names = []
         fields = []
         required = []
