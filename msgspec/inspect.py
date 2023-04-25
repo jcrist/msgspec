@@ -5,7 +5,15 @@ import decimal
 import enum
 import uuid
 from collections.abc import Iterable
-from typing import Any, Final, Literal, Tuple, Type as typing_Type, Union
+from typing import (
+    Any,
+    Final,
+    Literal,
+    Tuple,
+    Type as typing_Type,
+    TypeVar,
+    Union,
+)
 
 try:
     from types import UnionType as _types_UnionType  # type: ignore
@@ -22,8 +30,8 @@ from ._core import (  # type: ignore
 from ._utils import (  # type: ignore
     _CONCRETE_TYPES,
     _AnnotatedAlias,
+    get_class_annotations as _get_class_annotations,
     get_dataclass_info as _get_dataclass_info,
-    get_type_hints as _get_type_hints,
 )
 
 __all__ = (
@@ -691,12 +699,12 @@ class _Translator:
         self.type_hints = {}
         self.cache = {}
 
-    def _get_type_hints(self, t):
-        """A cached version of `get_type_hints`"""
+    def _get_class_annotations(self, t):
+        """A cached version of `get_class_annotations`"""
         try:
             return self.type_hints[t]
         except KeyError:
-            out = self.type_hints[t] = _get_type_hints(t)
+            out = self.type_hints[t] = _get_class_annotations(t)
             return out
 
     def run(self):
@@ -762,6 +770,10 @@ class _Translator:
         tz=None,
     ):
         if t is Any:
+            return AnyType()
+        elif isinstance(t, TypeVar):
+            if t.__bound__ is not None:
+                return self.translate(t.__bound__)
             return AnyType()
         elif t is None or t is type(None):
             return NoneType()
@@ -844,11 +856,12 @@ class _Translator:
         elif _is_enum(t):
             return EnumType(t)
         elif _is_struct(t):
-            if t in self.cache:
-                return self.cache[t]
+            cls = t[args] if args else t
+            if cls in self.cache:
+                return self.cache[cls]
             config = t.__struct_config__
-            self.cache[t] = out = StructType(
-                t,
+            self.cache[cls] = out = StructType(
+                cls,
                 (),
                 tag_field=config.tag_field,
                 tag=config.tag,
@@ -856,7 +869,7 @@ class _Translator:
                 forbid_unknown_fields=config.forbid_unknown_fields,
             )
 
-            hints = self._get_type_hints(t)
+            hints = self._get_class_annotations(cls)
             npos = len(t.__struct_fields__) - len(t.__struct_defaults__)
             fields = []
             for name, encode_name, default_obj in zip(
@@ -892,7 +905,7 @@ class _Translator:
             if t in self.cache:
                 return self.cache[t]
             self.cache[t] = out = TypedDictType(t, ())
-            hints = self._get_type_hints(t)
+            hints = self._get_class_annotations(t)
             if hasattr(t, "__required_keys__"):
                 required = set(t.__required_keys__)
             elif t.__total__:
@@ -945,7 +958,7 @@ class _Translator:
             if t in self.cache:
                 return self.cache[t]
             self.cache[t] = out = NamedTupleType(t, ())
-            hints = self._get_type_hints(t)
+            hints = self._get_class_annotations(t)
             out.fields = tuple(
                 Field(
                     name=name,
