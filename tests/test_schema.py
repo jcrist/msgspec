@@ -10,6 +10,7 @@ from typing import (
     Any,
     Dict,
     FrozenSet,
+    Generic,
     List,
     Literal,
     NamedTuple,
@@ -17,6 +18,7 @@ from typing import (
     Set,
     Tuple,
     TypedDict,
+    TypeVar,
     Union,
 )
 
@@ -33,6 +35,9 @@ except ImportError:
         from typing_extensions import Annotated
     except ImportError:
         pytestmark = pytest.mark.skip("Annotated types not available")
+
+
+T = TypeVar("T")
 
 
 def type_index(typ, args):
@@ -861,6 +866,91 @@ def test_struct_unset_fields():
             }
         },
     }
+
+
+def test_generic_struct():
+    class Ex(msgspec.Struct, Generic[T]):
+        """An example docstring"""
+
+        x: T
+        y: List[T]
+
+    assert msgspec.json.schema(Ex) == {
+        "$ref": "#/$defs/Ex",
+        "$defs": {
+            "Ex": {
+                "title": "Ex",
+                "description": "An example docstring",
+                "type": "object",
+                "properties": {
+                    "x": {},
+                    "y": {"type": "array"},
+                },
+                "required": ["x", "y"],
+            },
+        },
+    }
+
+    assert msgspec.json.schema(Ex[int]) == {
+        "$ref": "#/$defs/Ex_int_",
+        "$defs": {
+            "Ex_int_": {
+                "title": "Ex[int]",
+                "description": "An example docstring",
+                "type": "object",
+                "properties": {
+                    "x": {"type": "integer"},
+                    "y": {"type": "array", "items": {"type": "integer"}},
+                },
+                "required": ["x", "y"],
+            },
+        },
+    }
+
+
+def test_generic_struct_tagged_union():
+    class Point(msgspec.Struct, Generic[T], tag=True):
+        x: T
+        y: T
+
+    class Point3D(Point[T]):
+        z: T
+
+    sol = {
+        "anyOf": [{"$ref": "#/$defs/Point_int_"}, {"$ref": "#/$defs/Point3D_int_"}],
+        "discriminator": {
+            "mapping": {
+                "Point": "#/$defs/Point_int_",
+                "Point3D": "#/$defs/Point3D_int_",
+            },
+            "propertyName": "type",
+        },
+        "$defs": {
+            "Point_int_": {
+                "properties": {
+                    "type": {"enum": ["Point"]},
+                    "x": {"type": "integer"},
+                    "y": {"type": "integer"},
+                },
+                "required": ["type", "x", "y"],
+                "title": "Point[int]",
+                "type": "object",
+            },
+            "Point3D_int_": {
+                "properties": {
+                    "type": {"enum": ["Point3D"]},
+                    "x": {"type": "integer"},
+                    "y": {"type": "integer"},
+                    "z": {"type": "integer"},
+                },
+                "required": ["type", "x", "y", "z"],
+                "title": "Point3D[int]",
+                "type": "object",
+            },
+        },
+    }
+    res = msgspec.json.schema(Union[Point[int], Point3D[int]])
+    assert res == sol
 
 
 @pytest.mark.parametrize(
