@@ -14,6 +14,7 @@ from typing import (
     Dict,
     Final,
     FrozenSet,
+    Generic,
     List,
     Literal,
     NamedTuple,
@@ -21,6 +22,7 @@ from typing import (
     Set,
     Tuple,
     TypedDict,
+    TypeVar,
     Union,
 )
 
@@ -41,6 +43,8 @@ except ImportError:
 
 
 PY39 = sys.version_info[:2] >= (3, 9)
+
+T = TypeVar("T")
 
 
 def type_index(typ, args):
@@ -79,6 +83,15 @@ def test_inspect_module_dir():
 
 def test_any():
     assert mi.type_info(Any) == mi.AnyType()
+
+
+def test_typevar():
+    assert mi.type_info(T) == mi.AnyType()
+
+
+def test_bound_typevar():
+    T = TypeVar("T", bound=Union[int, str])
+    assert mi.type_info(T) == mi.UnionType((mi.IntType(), mi.StrType()))
 
 
 def test_none():
@@ -426,6 +439,30 @@ def test_struct_encode_name():
         ),
     )
     assert mi.type_info(Example) == sol
+
+
+def test_generic_struct():
+    class Example(msgspec.Struct, Generic[T]):
+        a: T
+        b: List[T]
+
+    sol = mi.StructType(
+        Example,
+        fields=(
+            mi.Field("a", "a", mi.AnyType()),
+            mi.Field("b", "b", mi.ListType(mi.AnyType())),
+        ),
+    )
+    assert mi.type_info(Example) == sol
+
+    sol = mi.StructType(
+        Example[int],
+        fields=(
+            mi.Field("a", "a", mi.IntType()),
+            mi.Field("b", "b", mi.ListType(mi.IntType())),
+        ),
+    )
+    assert mi.type_info(Example[int]) == sol
 
 
 def test_typing_namedtuple():
