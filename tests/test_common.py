@@ -2339,14 +2339,7 @@ class TestTime:
     @staticmethod
     def parse(t_str):
         t_str = t_str.replace("Z", "+00:00")
-        t = datetime.time.fromisoformat(t_str)
-        if t.tzinfo is not None:
-            offset = t.tzinfo.utcoffset(None)
-            if offset:
-                dt = datetime.datetime.combine(datetime.date(2000, 1, 1), t)
-                t = (dt - offset).time()
-            return t.replace(tzinfo=datetime.timezone.utc)
-        return t
+        return datetime.time.fromisoformat(t_str)
 
     @pytest.mark.parametrize(
         "t",

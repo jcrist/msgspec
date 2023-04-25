@@ -8966,6 +8966,52 @@ ms_encode_err_type_unsupported(PyTypeObject *type) {
 #define MS_TIME_GET_TZINFO(o) PyDateTime_TIME_GET_TZINFO(o)
 #endif
 
+#ifndef TIMEZONE_CACHE_SIZE
+#define TIMEZONE_CACHE_SIZE 512
+#endif
+
+typedef struct {
+    int32_t offset;
+    PyObject *tz;
+} TimezoneCacheItem;
+
+static TimezoneCacheItem timezone_cache[TIMEZONE_CACHE_SIZE];
+
+static void
+timezone_cache_clear(void) {
+    /* Traverse the timezone cache, deleting any string with a reference count
+     * of only 1 */
+    for (Py_ssize_t i = 0; i < TIMEZONE_CACHE_SIZE; i++) {
+        PyObject *tz = timezone_cache[i].tz;
+        if (tz != NULL && Py_REFCNT(tz) == 1) {
+            timezone_cache[i].offset = 0;
+            timezone_cache[i].tz = NULL;
+            Py_DECREF(tz);
+        }
+    }
+}
+
+/* Returns a new reference */
+static PyObject*
+timezone_from_offset(int32_t offset) {
+    uint32_t index = ((uint32_t)offset) % TIMEZONE_CACHE_SIZE;
+    if (timezone_cache[index].offset == offset) {
+        PyObject *tz = timezone_cache[index].tz;
+        Py_INCREF(tz);
+        return tz;
+    }
+    PyObject *delta = PyDelta_FromDSU(0, offset * 60, 0);
+    if (delta == NULL) return NULL;
+    PyObject *tz = PyTimeZone_FromOffset(delta);
+    Py_DECREF(delta);
+    if (tz == NULL) return NULL;
+    Py_XDECREF(timezone_cache[index].tz);
+    timezone_cache[index].offset = offset;
+    Py_INCREF(tz);
+    timezone_cache[index].tz = tz;
+    return tz;
+}
+
 static bool
 is_leap_year(int year)
 {
@@ -8982,66 +9028,59 @@ days_in_month(int year, int month) {
         return ndays[month - 1];
 }
 
-static inline int
-divmod(int x, int y, int *r) {
-    int quo = x / y;
-    *r = x - quo * y;
-    if (*r < 0) {
-        --quo;
-        *r += y;
-    }
-    return quo;
-}
-
-/* Convert a *valid* datetime with a tz offset (in minutes) to UTC time.
- * Returns -1 on error, but no error indicator set */
-static int
-datetime_apply_tz_offset(
+static MS_NOINLINE int
+datetime_round_up_micros(
     int *year, int *month, int *day, int *hour,
-    int *minute, int tz_offset
+    int *minute, int *second, int *microsecond
 ) {
-    *minute -= tz_offset;
-    if (*minute < 0 || *minute >= 60) {
-        *hour += divmod(*minute, 60, minute);
-    }
-    if (*hour < 0 || *hour >= 24) {
-        *day += divmod(*hour, 24, hour);
-    }
-    /* days can only be off by +/- day */
-    if (*day == 0) {
-        --*month;
-        if (*month > 0)
-            *day = days_in_month(*year, *month);
-        else {
-            --*year;
-            *month = 12;
-            *day = 31;
+    ++*microsecond;
+    if (*microsecond == 1000000) {
+        *microsecond = 0;
+        ++*second;
+        if (*second == 60) {
+            *second = 0;
+            ++*minute;
+            if (*minute == 60) {
+                *minute = 0;
+                ++*hour;
+                if (*hour == 24) {
+                    *hour = 0;
+                    ++*day;
+                    if (*day == days_in_month(*year, *month) + 1) {
+                        ++*month;
+                        *day = 1;
+                        if (*month > 12) {
+                            *month = 1;
+                            ++*year;
+                            if (*year > 9999) return -1;
+                        }
+                    }
+                }
+            }
         }
     }
-    else if (*day == days_in_month(*year, *month) + 1) {
-        ++*month;
-        *day = 1;
-        if (*month > 12) {
-            *month = 1;
-            ++*year;
-        }
-    }
-    if (1 <= *year && *year <= 9999)
-        return 0;
-    return -1;
+    return 0;
 }
 
-/* Convert a *valid* time with a tz offset (in minutes) to UTC time. */
-static void
-time_apply_tz_offset(
-    int *hour, int *minute, int tz_offset
+static MS_NOINLINE void
+time_round_up_micros(
+    int *hour, int *minute, int *second, int *microsecond
 ) {
-    *minute -= tz_offset;
-    if (*minute < 0 || *minute >= 60) {
-        *hour += divmod(*minute, 60, minute);
-    }
-    if (*hour < 0 || *hour >= 24) {
-        divmod(*hour, 24, hour);
+    ++*microsecond;
+    if (*microsecond == 1000000) {
+        *microsecond = 0;
+        ++*second;
+        if (*second == 60) {
+            *second = 0;
+            ++*minute;
+            if (*minute == 60) {
+                *minute = 0;
+                ++*hour;
+                if (*hour == 24) {
+                    *hour = 0;
+                }
+            }
+        }
     }
 }
 
@@ -9330,7 +9369,7 @@ invalid:
 
 static PyObject *
 ms_decode_time(const char *buf, Py_ssize_t size, TypeNode *type, PathNode *path) {
-    int hour, minute, second, microsecond = 0, offset = 0;
+    int hour, minute, second, microsecond = 0;
     const char *buf_end = buf + size;
     bool round_up_micros = false;
     PyObject *tz = Py_None;
@@ -9381,33 +9420,41 @@ end_decimal:
 #undef next_or_null
 
     /* Parse timezone */
-    if (c == 'Z' || c == 'z') {
-        tz = PyDateTime_TimeZone_UTC;
-
-        /* Check for trailing characters */
-        if (buf != buf_end) goto invalid;
-    }
-    else if (c != '\0') {
-        int offset_hour, offset_min;
-        if (c == '-') {
-            offset = -1;
-        }
-        else if (c == '+') {
-            offset = 1;
+    if (c != '\0') {
+        int offset = 0;
+        if (c == 'Z' || c == 'z') {
+            /* Check for trailing characters */
+            if (buf != buf_end) goto invalid;
         }
         else {
-            goto invalid;
+            int offset_hour, offset_min;
+            if (c == '-') {
+                offset = -1;
+            }
+            else if (c == '+') {
+                offset = 1;
+            }
+            else {
+                goto invalid;
+            }
+
+            /* Explicit offset requires exactly 5 bytes left */
+            if (buf_end - buf != 5) goto invalid;
+
+            if ((buf = ms_read_fixint(buf, 2, &offset_hour)) == NULL) goto invalid;
+            if (*buf++ != ':') goto invalid;
+            if ((buf = ms_read_fixint(buf, 2, &offset_min)) == NULL) goto invalid;
+            if (offset_hour > 23 || offset_min > 59) goto invalid;
+            offset *= (offset_hour * 60 + offset_min);
         }
-
-        /* Explicit offset requires exactly 5 bytes left */
-        if (buf_end - buf != 5) goto invalid;
-
-        if ((buf = ms_read_fixint(buf, 2, &offset_hour)) == NULL) goto invalid;
-        if (*buf++ != ':') goto invalid;
-        if ((buf = ms_read_fixint(buf, 2, &offset_min)) == NULL) goto invalid;
-        if (offset_hour > 23 || offset_min > 59) goto invalid;
-        offset *= (offset_hour * 60 + offset_min);
-        tz = PyDateTime_TimeZone_UTC;
+        if (offset == 0) {
+            tz = PyDateTime_TimeZone_UTC;
+            Py_INCREF(tz);
+        }
+        else {
+            tz = timezone_from_offset(offset);
+            if (tz == NULL) goto error;
+        }
     }
 
     /* Ensure all numbers are valid */
@@ -9416,31 +9463,26 @@ end_decimal:
     if (second > 59) goto invalid;
 
     if (MS_UNLIKELY(round_up_micros)) {
-        microsecond++;
-        if (microsecond == 1000000) {
-            microsecond = 0;
-            second++;
-            if (second == 60) {
-                second = 0;
-                offset--;
-            }
-        }
+        time_round_up_micros(&hour, &minute, &second, &microsecond);
     }
 
-    if (offset) time_apply_tz_offset(&hour, &minute, offset);
-
-    if (!ms_passes_tz_constraint(tz, type, path)) return NULL;
-    return PyDateTimeAPI->Time_FromTime(
+    if (!ms_passes_tz_constraint(tz, type, path)) goto error;
+    PyObject *out = PyDateTimeAPI->Time_FromTime(
         hour, minute, second, microsecond, tz, PyDateTimeAPI->TimeType
     );
+    Py_XDECREF(tz);
+    return out;
 
 invalid:
-    return ms_error_with_path("Invalid RFC3339 encoded time%U", path);
+    ms_error_with_path("Invalid RFC3339 encoded time%U", path);
+error:
+    Py_XDECREF(tz);
+    return NULL;
 }
 
 static PyObject *
 ms_decode_datetime(const char *buf, Py_ssize_t size, TypeNode *type, PathNode *path) {
-    int year, month, day, hour, minute, second, microsecond = 0, offset = 0;
+    int year, month, day, hour, minute, second, microsecond = 0;
     const char *buf_end = buf + size;
     bool round_up_micros = false;
     PyObject *tz = Py_None;
@@ -9511,33 +9553,41 @@ end_decimal:
 #undef next_or_null
 
     /* Parse timezone */
-    if (c == 'Z' || c == 'z') {
-        tz = PyDateTime_TimeZone_UTC;
-
-        /* Check for trailing characters */
-        if (buf != buf_end) goto invalid;
-    }
-    else if (c != '\0') {
-        int offset_hour, offset_min;
-        if (c == '-') {
-            offset = -1;
-        }
-        else if (c == '+') {
-            offset = 1;
+    if (c != '\0') {
+        int offset = 0;
+        if (c == 'Z' || c == 'z') {
+            /* Check for trailing characters */
+            if (buf != buf_end) goto invalid;
         }
         else {
-            goto invalid;
+            int offset_hour, offset_min;
+            if (c == '-') {
+                offset = -1;
+            }
+            else if (c == '+') {
+                offset = 1;
+            }
+            else {
+                goto invalid;
+            }
+
+            /* Explicit offset requires exactly 5 bytes left */
+            if (buf_end - buf != 5) goto invalid;
+
+            if ((buf = ms_read_fixint(buf, 2, &offset_hour)) == NULL) goto invalid;
+            if (*buf++ != ':') goto invalid;
+            if ((buf = ms_read_fixint(buf, 2, &offset_min)) == NULL) goto invalid;
+            if (offset_hour > 23 || offset_min > 59) goto invalid;
+            offset *= (offset_hour * 60 + offset_min);
         }
-
-        /* Explicit offset requires exactly 5 bytes left */
-        if (buf_end - buf != 5) goto invalid;
-
-        if ((buf = ms_read_fixint(buf, 2, &offset_hour)) == NULL) goto invalid;
-        if (*buf++ != ':') goto invalid;
-        if ((buf = ms_read_fixint(buf, 2, &offset_min)) == NULL) goto invalid;
-        if (offset_hour > 23 || offset_min > 59) goto invalid;
-        offset *= (offset_hour * 60 + offset_min);
-        tz = PyDateTime_TimeZone_UTC;
+        if (offset == 0) {
+            tz = PyDateTime_TimeZone_UTC;
+            Py_INCREF(tz);
+        }
+        else {
+            tz = timezone_from_offset(offset);
+            if (tz == NULL) goto error;
+        }
     }
 
     /* Ensure all numbers are valid */
@@ -9549,31 +9599,26 @@ end_decimal:
     if (second > 59) goto invalid;
 
     if (MS_UNLIKELY(round_up_micros)) {
-        microsecond++;
-        if (microsecond == 1000000) {
-            microsecond = 0;
-            second++;
-            if (second == 60) {
-                second = 0;
-                offset--;
-            }
-        }
+        if (
+            datetime_round_up_micros(
+                &year, &month, &day, &hour, &minute, &second, &microsecond
+            ) < 0
+        ) goto invalid;
     }
 
-    if (offset) {
-        if (datetime_apply_tz_offset(&year, &month, &day, &hour, &minute, offset) < 0) {
-            goto invalid;
-        }
-    }
-
-    if (!ms_passes_tz_constraint(tz, type, path)) return NULL;
-    return PyDateTimeAPI->DateTime_FromDateAndTime(
+    if (!ms_passes_tz_constraint(tz, type, path)) goto error;
+    PyObject *out = PyDateTimeAPI->DateTime_FromDateAndTime(
         year, month, day, hour, minute, second, microsecond, tz,
         PyDateTimeAPI->DateTimeType
     );
+    Py_XDECREF(tz);
+    return out;
 
 invalid:
-    return ms_error_with_path("Invalid RFC3339 encoded datetime%U", path);
+    ms_error_with_path("Invalid RFC3339 encoded datetime%U", path);
+error:
+    Py_XDECREF(tz);
+    return NULL;
 }
 
 /*************************************************************************
@@ -18583,6 +18628,7 @@ msgspec_traverse(PyObject *m, visitproc visit, void *arg)
     if (st->gc_cycle == 10) {
         st->gc_cycle = 0;
         string_cache_clear();
+        timezone_cache_clear();
     }
 
     Py_VISIT(st->MsgspecError);
