@@ -197,15 +197,13 @@ protocol and whether these objects are timezone-aware_ or timezone-naive:
 - **JSON**: Timezone-aware datetimes are encoded as RFC3339_ compatible
   strings. Timezone-naive datetimes are encoded the same, but lack the timezone
   component (making them not strictly RFC3339_ compatible, but still ISO8601_
-  compatible). During decoding any timezone-aware datetimes will have their
-  timezone normalized to UTC.
+  compatible).
 
 - **MessagePack**: Timezone-aware datetimes are encoded using the `timestamp
   extension`. Timezone-naive datetimes are encoded the same, but lack the
   timezone component (making them not strictly RFC3339_ compatible, but still
   ISO8601_ compatible). During decoding, both string and timestamp-extension
-  values are supported for flexibility. Any timezone-aware datetimes will have
-  their timezone normalized to UTC.
+  values are supported for flexibility.
 
 - **YAML**: Datetimes are encoded using YAML's native datetime type. Both
   timezone-aware and timezone-naive datetimes are supported.
@@ -221,17 +219,17 @@ timezone-naive by specifying a ``tz`` constraint (see
 
     >>> import datetime
 
-    >>> tz = datetime.timezone(datetime.timedelta(hours=-6))
+    >>> tz = datetime.timezone(datetime.timedelta(hours=6))
 
     >>> tz_aware = datetime.datetime(2021, 4, 2, 18, 18, 10, 123, tzinfo=tz)
 
     >>> msg = msgspec.json.encode(tz_aware)
 
     >>> msg
-    b'"2021-04-02T18:18:10.000123-06:00"'
+    b'"2021-04-02T18:18:10.000123+06:00"'
 
     >>> msgspec.json.decode(msg, type=datetime.datetime)
-    datetime.datetime(2021, 4, 3, 0, 18, 10, 123, tzinfo=datetime.timezone.utc)
+    datetime.datetime(2021, 4, 2, 18, 18, 10, 123, tzinfo=datetime.timezone(datetime.timedelta(seconds=21600)))
 
     >>> tz_naive = datetime.datetime(2021, 4, 2, 18, 18, 10, 123)
 
@@ -249,7 +247,7 @@ timezone-naive by specifying a ``tz`` constraint (see
     msgspec.ValidationError: Invalid RFC3339 encoded datetime
 
 ``date``
-------------
+--------
 
 `datetime.date` values map to:
 
@@ -286,8 +284,7 @@ and whether these objects are timezone-aware_ or timezone-naive:
 - **JSON**, **MessagePack**, and **YAML**: Timezone-aware times are encoded as
   RFC3339_ compatible strings. Timezone-naive times are encoded the same, but
   lack the timezone component (making them not strictly RFC3339_ compatible,
-  but still ISO8601_ compatible). During decoding any timezone-aware times will
-  have their timezone normalized to UTC.
+  but still ISO8601_ compatible).
 
 - **TOML**: Timezone-naive times are encoded using TOML's native time type.
   Timezone-aware times aren't supported.
@@ -300,17 +297,17 @@ timezone-naive by specifying a ``tz`` constraint (see
 
     >>> import datetime
 
-    >>> tz = datetime.timezone(datetime.timedelta(hours=-6))
+    >>> tz = datetime.timezone(datetime.timedelta(hours=6))
 
     >>> tz_aware = datetime.time(18, 18, 10, 123, tzinfo=tz)
 
     >>> msg = msgspec.json.encode(tz_aware)
 
     >>> msg
-    b'"18:18:10.000123-06:00"'
+    b'"18:18:10.000123+06:00"'
 
     >>> msgspec.json.decode(msg, type=datetime.time)
-    datetime.time(0, 18, 10, 123, tzinfo=datetime.timezone.utc)
+    datetime.time(18, 18, 10, 123, tzinfo=datetime.timezone(datetime.timedelta(seconds=21600)))
 
     >>> tz_naive = datetime.time(18, 18, 10, 123)
 
