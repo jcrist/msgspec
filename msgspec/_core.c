@@ -9715,8 +9715,9 @@ ms_decode_uuid(const char *buf, Py_ssize_t size, PathNode *path) {
     unsigned char *decoded = scratch;
     int segments[] = {4, 2, 2, 2, 6};
 
-    /* A valid uuid is 36 characters in length */
-    if (size != 36) goto invalid;
+    /* A valid uuid is 32 or 36 characters in length */
+    if (size != 32 && size != 36) goto invalid;
+    bool has_hyphens = size == 36;
 
     for (int i = 0; i < 5; i++) {
         for (int j = 0; j < segments[i]; j++) {
@@ -9734,7 +9735,7 @@ ms_decode_uuid(const char *buf, Py_ssize_t size, PathNode *path) {
 
             *decoded++ = ((unsigned char)hi << 4) + (unsigned char)lo;
         }
-        if (i < 4 && *buf++ != '-') goto invalid;
+        if (has_hyphens && i < 4 && *buf++ != '-') goto invalid;
     }
     PyObject *int128 = _PyLong_FromByteArray(scratch, 16, 0, 0);
     if (int128 == NULL) return NULL;

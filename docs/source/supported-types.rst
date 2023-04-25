@@ -328,6 +328,7 @@ timezone-naive by specifying a ``tz`` constraint (see
 --------
 
 `uuid.UUID` values are serialized as RFC4122_ encoded strings in all protocols.
+When decoding, both hyphenated and unhyphenated forms are supported.
 
 .. code-block:: python
 
@@ -335,12 +336,13 @@ timezone-naive by specifying a ``tz`` constraint (see
 
     >>> u = uuid.UUID("c4524ac0-e81e-4aa8-a595-0aec605a659a")
 
-    >>> msg = msgspec.json.encode(u)
-
-    >>> msg
+    >>> msgspec.json.encode(u)
     b'"c4524ac0-e81e-4aa8-a595-0aec605a659a"'
 
-    >>> msgspec.json.decode(msg, type=uuid.UUID)
+    >>> msgspec.json.decode(b'"c4524ac0-e81e-4aa8-a595-0aec605a659a"', type=uuid.UUID)
+    UUID('c4524ac0-e81e-4aa8-a595-0aec605a659a')
+
+    >>> msgspec.json.decode(b'"c4524ac0e81e4aa8a5950aec605a659a"', type=uuid.UUID)
     UUID('c4524ac0-e81e-4aa8-a595-0aec605a659a')
 
     >>> msgspec.json.decode(b'"oops"', type=uuid.UUID)

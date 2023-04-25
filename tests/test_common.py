@@ -2567,9 +2567,12 @@ class TestUUID:
             proto.encode(u)
 
     @pytest.mark.parametrize("upper", [False, True])
-    def test_decode_uuid(self, proto, upper):
+    @pytest.mark.parametrize("hyphens", [False, True])
+    def test_decode_uuid(self, proto, upper, hyphens):
         u = uuid.uuid4()
-        s = str(u).upper() if upper else str(u)
+        s = str(u) if hyphens else u.hex
+        if upper:
+            s = s.upper()
         msg = proto.encode(s)
         res = proto.decode(msg, type=uuid.UUID)
         assert res == u
@@ -2578,6 +2581,9 @@ class TestUUID:
     @pytest.mark.parametrize(
         "uuid_str",
         [
+            # Truncated
+            "12345678-1234-1234-1234-1234567890a",
+            "123456781234123412341234567890a",
             # Truncated segments
             "1234567-1234-1234-1234-1234567890abc",
             "12345678-123-1234-1234-1234567890abc",
@@ -2585,6 +2591,7 @@ class TestUUID:
             "12345678-1234-1234-123-1234567890abc",
             "12345678-1234-1234-1234-1234567890a-",
             # Invalid character
+            "123456x81234123412341234567890ab",
             "123456x8-1234-1234-1234-1234567890ab",
             "1234567x-1234-1234-1234-1234567890ab",
             "12345678-123x-1234-1234-1234567890ab",
