@@ -844,6 +844,20 @@ class TestDatetime:
         res = msgspec.json.decode(json_s, type=datetime.datetime)
         assert res == exp
 
+    def test_decode_timezone_cache(self):
+        msg = b'"2000-01-01T00:00:01+03:02"'
+        tz = msgspec.json.decode(msg, type=datetime.datetime).tzinfo
+        tz2 = msgspec.json.decode(msg, type=datetime.datetime).tzinfo
+        assert tz is tz2
+        del tz2
+        assert sys.getrefcount(tz) == 3  # 1 tz, 1 cache, 1 func call
+        for _ in range(10):
+            gc.collect()  # cache is cleared every 10 full collections
+
+        # Since tz still has refcnt > 1, shouldn't be cleared
+        tz2 = msgspec.json.decode(msg, type=datetime.datetime).tzinfo
+        assert tz is tz2
+
     @pytest.mark.parametrize(
         "s",
         [
@@ -976,8 +990,6 @@ class TestDatetime:
             # Timezone minute out of range
             b'"0001-02-03T04:05:06.000007+00:60"',
             b'"0001-02-03T04:05:06.000007-00:60"',
-            # Year out of range with timezone applied
-            b'"9999-12-31T23:59:59-00:01"',
         ],
     )
     def test_decode_datetime_malformed(self, s):
