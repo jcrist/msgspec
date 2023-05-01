@@ -178,11 +178,17 @@ def get_typeddict_hints(obj):
     return out
 
 
-def get_dataclass_info(cls):
+def get_dataclass_info(obj):
     required = []
     optional = []
     defaults = []
     hints = None
+
+    if isinstance(obj, type):
+        cls = obj
+    else:
+        cls = obj.__origin__
+    hints = get_class_annotations(obj)
 
     if hasattr(cls, "__dataclass_fields__"):
         from dataclasses import _FIELD, _FIELD_INITVAR, MISSING
@@ -195,11 +201,7 @@ def get_dataclass_info(cls):
                     )
                 continue
             name = field.name
-            typ = field.type
-            if type(typ) is str:
-                if hints is None:
-                    hints = get_type_hints(cls)
-                typ = hints[name]
+            typ = hints[name]
             if field.default is not MISSING:
                 defaults.append(field.default)
                 optional.append((name, typ, False))
@@ -218,12 +220,8 @@ def get_dataclass_info(cls):
 
         for field in cls.__attrs_attrs__:
             name = field.name
-            typ = field.type
+            typ = hints[name]
             default = field.default
-            if type(typ) is str:
-                if hints is None:
-                    hints = get_type_hints(cls)
-                typ = hints[name]
             if default is not NOTHING:
                 if isinstance(default, Factory):
                     if default.takes_self:
@@ -246,7 +244,7 @@ def get_dataclass_info(cls):
         pre_init = getattr(cls, "__attrs_pre_init__", None)
         post_init = getattr(cls, "__attrs_post_init__", None)
 
-    return tuple(required), tuple(defaults), pre_init, post_init
+    return cls, tuple(required), tuple(defaults), pre_init, post_init
 
 
 def rebuild(cls, kwargs):

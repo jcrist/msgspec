@@ -1226,6 +1226,141 @@ class TestGenericStruct:
         assert "Unbound TypeVar `~T` has constraints" in str(rec.value)
 
 
+@pytest.fixture(params=["dataclass", "attrs"])
+def decorator(request):
+    if request.param == "dataclass":
+        return dataclass
+    elif request.param == "attrs":
+        if attrs is None:
+            pytest.skip(reason="attrs not installed")
+        return attrs.define
+
+
+class TestGenericDataclassOrAttrs:
+    def test_generic_info_cached(self, decorator, proto):
+        @decorator
+        class Ex(Generic[T]):
+            x: T
+
+        typ = Ex[int]
+        assert Ex[int] is typ
+
+        dec = proto.Decoder(typ)
+        info = typ.__msgspec_cache__
+        assert info is not None
+        assert sys.getrefcount(info) == 4  # info + attr + decoder + func call
+        dec2 = proto.Decoder(typ)
+        assert typ.__msgspec_cache__ is info
+        assert sys.getrefcount(info) == 5
+
+        del dec
+        del dec2
+        assert sys.getrefcount(info) == 3
+
+    def test_generic_invalid_types_not_cached(self, decorator, proto):
+        @decorator
+        class Ex(Generic[T]):
+            x: Union[List[T], Tuple[float]]
+
+        for typ in [Ex, Ex[int]]:
+            for _ in range(2):
+                with pytest.raises(TypeError, match="not supported"):
+                    proto.Decoder(typ)
+
+            assert not hasattr(typ, "__msgspec_cache__")
+
+    def test_msgspec_cache_overwritten(self, decorator, proto):
+        @decorator
+        class Ex(Generic[T]):
+            x: T
+
+        typ = Ex[int]
+        typ.__msgspec_cache__ = 1
+
+        with pytest.raises(RuntimeError, match="__msgspec_cache__"):
+            proto.Decoder(typ)
+
+    def test_generic_dataclass(self, decorator, proto):
+        @decorator
+        class Ex(Generic[T]):
+            x: T
+            y: List[T]
+
+        sol = Ex(1, [1, 2])
+        msg = proto.encode(sol)
+
+        res = proto.decode(msg, type=Ex)
+        assert res == sol
+
+        res = proto.decode(msg, type=Ex[int])
+        assert res == sol
+
+        res = proto.decode(msg, type=Ex[Union[int, str]])
+        assert res == sol
+
+        res = proto.decode(msg, type=Ex[float])
+        assert type(res.x) is float
+
+        with pytest.raises(msgspec.ValidationError, match="Expected `str`, got `int`"):
+            proto.decode(msg, type=Ex[str])
+
+    @pytest.mark.parametrize("module", ["dataclasses", "attrs"])
+    def test_recursive_generic(self, module, proto):
+        pytest.importorskip(module)
+        if module == "dataclasses":
+            import_ = "from dataclasses import dataclass as decorator"
+        else:
+            import_ = "from attrs import define as decorator"
+
+        source = f"""
+        from __future__ import annotations
+        from typing import Union, Generic, TypeVar
+        from msgspec import Struct
+        {import_}
+
+        T = TypeVar("T")
+
+        @decorator
+        class Ex(Generic[T]):
+            a: T
+            b: Union[Ex[T], None]
+        """
+
+        with temp_module(source) as mod:
+            msg = mod.Ex(a=1, b=mod.Ex(a=2, b=None))
+            msg2 = mod.Ex(a=1, b=mod.Ex(a="bad", b=None))
+            assert proto.decode(proto.encode(msg), type=mod.Ex) == msg
+            assert proto.decode(proto.encode(msg2), type=mod.Ex) == msg2
+            assert proto.decode(proto.encode(msg), type=mod.Ex[int]) == msg
+
+            with pytest.raises(msgspec.ValidationError) as rec:
+                proto.decode(proto.encode(msg2), type=mod.Ex[int])
+            assert "`$.b.a`" in str(rec.value)
+            assert "Expected `int`, got `str`" in str(rec.value)
+
+    def test_unbound_typevars_use_bound_if_set(self, proto):
+        T = TypeVar("T", bound=Union[int, str])
+
+        dec = proto.Decoder(List[T])
+        sol = [1, "two", 3, "four"]
+        msg = proto.encode(sol)
+        assert dec.decode(msg) == sol
+
+        bad = proto.encode([1, {}])
+        with pytest.raises(
+            msgspec.ValidationError,
+            match=r"Expected `int \| str`, got `object` - at `\$\[1\]`",
+        ):
+            dec.decode(bad)
+
+    def test_unbound_typevars_with_constraints_unsupported(self, proto):
+        T = TypeVar("T", int, str)
+        with pytest.raises(TypeError) as rec:
+            proto.Decoder(List[T])
+
+        assert "Unbound TypeVar `~T` has constraints" in str(rec.value)
+
+
 class TestStructOmitDefaults:
     def test_omit_defaults(self, proto):
         class Test(msgspec.Struct, omit_defaults=True):
@@ -1978,9 +2113,10 @@ class TestDataclass:
 
         dec = proto.Decoder(Example)
         for args in [(1, 2), (1, 2, 3), (1, 2, 3, 4), (1, 2, 3, 4, 5)]:
-            msg = Example(*args)
+            sol = Example(*args)
+            msg = dict(zip("abcde", args))
             res = dec.decode(proto.encode(msg))
-            assert res == msg
+            assert res == sol
 
         # Missing fields error
         with pytest.raises(msgspec.ValidationError, match="missing required field `a`"):
