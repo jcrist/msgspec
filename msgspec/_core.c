@@ -4392,12 +4392,23 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
         && PyObject_HasAttr(t, state->mod->str__fields)) {
         out = typenode_collect_namedtuple(state, t);
     }
-    else if (PyType_Check(t)
-        && PyObject_HasAttr(t, state->mod->str___dataclass_fields__)) {
+    else if (
+        PyType_Check(t) && (
+            PyObject_HasAttr(t, state->mod->str___dataclass_fields__) ||
+            PyObject_HasAttr(t, state->mod->str___attrs_attrs__)
+        )
+    ) {
+        /* Dataclass or attrs class */
         out = typenode_collect_dataclass(state, t);
     }
-    else if (PyType_Check(t)
-        && PyObject_HasAttr(t, state->mod->str___attrs_attrs__)) {
+    else if (
+        origin != NULL &&
+        PyType_Check(origin) &&  (
+            PyObject_HasAttr(origin, state->mod->str___dataclass_fields__) ||
+            PyObject_HasAttr(origin, state->mod->str___attrs_attrs__)
+        )
+    ) {
+        /* Parametrized generic dataclass or attrs class */
         out = typenode_collect_dataclass(state, t);
     }
     else {
@@ -7551,7 +7562,8 @@ static PyTypeObject TypedDictInfo_Type = {
 
 static PyObject *
 DataclassInfo_Convert(PyObject *obj) {
-    PyObject *fields = NULL, *field_defaults = NULL, *pre_init = NULL, *post_init = NULL;
+    PyObject *cls = NULL, *fields = NULL, *field_defaults = NULL;
+    PyObject *pre_init = NULL, *post_init = NULL;
     DataclassInfo *info = NULL;
     MsgspecState *mod = msgspec_get_global_state();
     bool cache_set = false;
@@ -7577,13 +7589,15 @@ DataclassInfo_Convert(PyObject *obj) {
     /* Not cached, extract fields from Dataclass object */
     PyObject *temp = CALL_ONE_ARG(mod->get_dataclass_info, obj);
     if (temp == NULL) return NULL;
-    fields = PyTuple_GET_ITEM(temp, 0);
+    cls = PyTuple_GET_ITEM(temp, 0);
+    Py_INCREF(cls);
+    fields = PyTuple_GET_ITEM(temp, 1);
     Py_INCREF(fields);
-    field_defaults = PyTuple_GET_ITEM(temp, 1);
+    field_defaults = PyTuple_GET_ITEM(temp, 2);
     Py_INCREF(field_defaults);
-    pre_init = PyTuple_GET_ITEM(temp, 2);
+    pre_init = PyTuple_GET_ITEM(temp, 3);
     Py_INCREF(pre_init);
-    post_init = PyTuple_GET_ITEM(temp, 3);
+    post_init = PyTuple_GET_ITEM(temp, 4);
     Py_INCREF(post_init);
     Py_DECREF(temp);
 
@@ -7597,8 +7611,8 @@ DataclassInfo_Convert(PyObject *obj) {
     }
     Py_INCREF(field_defaults);
     info->defaults = field_defaults;
-    Py_INCREF(obj);
-    info->class = obj;
+    Py_INCREF(cls);
+    info->class = cls;
     if (pre_init == Py_None) {
         Py_CLEAR(pre_init);
     }
@@ -7629,6 +7643,7 @@ DataclassInfo_Convert(PyObject *obj) {
         Py_INCREF(info->fields[i].key);
     }
 
+    Py_DECREF(cls);
     Py_DECREF(fields);
     Py_DECREF(field_defaults);
     PyObject_GC_Track(info);
@@ -7646,6 +7661,7 @@ error:
         PyErr_Restore(err_type, err_value, err_tb);
     }
     Py_XDECREF((PyObject *)info);
+    Py_XDECREF(cls);
     Py_XDECREF(fields);
     Py_XDECREF(field_defaults);
     Py_XDECREF(pre_init);
