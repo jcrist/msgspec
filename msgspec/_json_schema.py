@@ -138,17 +138,15 @@ def _get_class_name(cls: Any) -> str:
 
 def _get_doc(t: mi.Type) -> str:
     assert hasattr(t, "cls")
-    if hasattr(t.cls, "__origin__"):
-        doc = getattr(t.cls.__origin__, "__doc__")
-    else:
-        doc = getattr(t.cls, "__doc__", "")
+    cls = getattr(t.cls, "__origin__", t.cls)
+    doc = getattr(cls, "__doc__", "")
     if not doc:
         return ""
     if isinstance(t, mi.EnumType):
         if doc == "An enumeration.":
             return ""
     elif isinstance(t, (mi.NamedTupleType, mi.DataclassType)):
-        if doc.startswith(f"{t.cls.__name__}(") and doc.endswith(")"):
+        if doc.startswith(f"{cls.__name__}(") and doc.endswith(")"):
             return ""
     return doc
 
@@ -361,7 +359,7 @@ def _to_schema(
             if t.forbid_unknown_fields:
                 schema["additionalProperties"] = False
     elif isinstance(t, (mi.TypedDictType, mi.DataclassType, mi.NamedTupleType)):
-        schema.setdefault("title", t.cls.__name__)
+        schema.setdefault("title", _get_class_name(t.cls))
         if doc := _get_doc(t):
             schema.setdefault("description", doc)
         names = []

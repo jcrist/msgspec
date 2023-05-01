@@ -588,6 +588,35 @@ def test_attrs():
     assert mi.type_info(Example) == sol
 
 
+@pytest.mark.parametrize("module", ["dataclasses", "attrs"])
+def test_generic_dataclass_or_attrs(module):
+    m = pytest.importorskip(module)
+    decorator = m.define if module == "attrs" else m.dataclass
+
+    @decorator
+    class Example(Generic[T]):
+        a: T
+        b: List[T]
+
+    sol = mi.DataclassType(
+        Example,
+        fields=(
+            mi.Field("a", "a", mi.AnyType()),
+            mi.Field("b", "b", mi.ListType(mi.AnyType())),
+        ),
+    )
+    assert mi.type_info(Example) == sol
+
+    sol = mi.DataclassType(
+        Example[int],
+        fields=(
+            mi.Field("a", "a", mi.IntType()),
+            mi.Field("b", "b", mi.ListType(mi.IntType())),
+        ),
+    )
+    assert mi.type_info(Example[int]) == sol
+
+
 @pytest.mark.parametrize("kind", ["struct", "dataclass", "attrs"])
 def test_unset_fields(kind):
     if kind == "struct":
