@@ -1161,7 +1161,7 @@ def test_ref_template():
     }
 
 
-def test_multiline_docstrig():
+def test_multiline_docstring():
     class Example(msgspec.Struct):
         """
         first line
