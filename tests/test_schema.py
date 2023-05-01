@@ -5,7 +5,7 @@ import typing
 import uuid
 from base64 import b64encode
 from collections import namedtuple
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import (
     Any,
     Dict,
@@ -596,19 +596,28 @@ def test_typeddict_optional(use_typing_extensions):
     }
 
 
-def test_dataclass():
-    @dataclass
+@pytest.mark.parametrize("module", ["dataclasses", "attrs"])
+def test_dataclass_or_attrs(module):
+    m = pytest.importorskip(module)
+    if module == "attrs":
+        decorator = m.define
+        factory_default = m.field(factory=dict)
+    else:
+        decorator = m.dataclass
+        factory_default = m.field(default_factory=dict)
+
+    @decorator
     class Point:
         x: int
         y: int
 
-    @dataclass
+    @decorator
     class Polygon:
         """An example docstring"""
 
         vertices: List[Point]
         name: Union[str, None] = None
-        metadata: Dict[str, str] = field(default_factory=dict)
+        metadata: Dict[str, str] = factory_default
 
     assert msgspec.json.schema(Polygon) == {
         "$ref": "#/$defs/Polygon",
@@ -646,51 +655,44 @@ def test_dataclass():
     }
 
 
-def test_attrs():
-    attrs = pytest.importorskip("attrs")
+@pytest.mark.parametrize("module", ["dataclasses", "attrs"])
+def test_generic_dataclass_or_attrs(module):
+    m = pytest.importorskip(module)
+    decorator = m.define if module == "attrs" else m.dataclass
 
-    @attrs.define
-    class Point:
-        x: int
-        y: int
-
-    @attrs.define
-    class Polygon:
+    @decorator
+    class Ex(Generic[T]):
         """An example docstring"""
 
-        vertices: List[Point]
-        name: Union[str, None] = None
-        metadata: Dict[str, str] = attrs.field(factory=dict)
+        x: T
+        y: List[T]
 
-    assert msgspec.json.schema(Polygon) == {
-        "$ref": "#/$defs/Polygon",
+    assert msgspec.json.schema(Ex) == {
+        "$ref": "#/$defs/Ex",
         "$defs": {
-            "Polygon": {
-                "title": "Polygon",
+            "Ex": {
+                "title": "Ex",
                 "description": "An example docstring",
                 "type": "object",
                 "properties": {
-                    "vertices": {
-                        "type": "array",
-                        "items": {"$ref": "#/$defs/Point"},
-                    },
-                    "name": {
-                        "anyOf": [{"type": "string"}, {"type": "null"}],
-                        "default": None,
-                    },
-                    "metadata": {
-                        "type": "object",
-                        "additionalProperties": {"type": "string"},
-                    },
+                    "x": {},
+                    "y": {"type": "array"},
                 },
-                "required": ["vertices"],
+                "required": ["x", "y"],
             },
-            "Point": {
-                "title": "Point",
+        },
+    }
+
+    assert msgspec.json.schema(Ex[int]) == {
+        "$ref": "#/$defs/Ex_int_",
+        "$defs": {
+            "Ex_int_": {
+                "title": "Ex[int]",
+                "description": "An example docstring",
                 "type": "object",
                 "properties": {
                     "x": {"type": "integer"},
-                    "y": {"type": "integer"},
+                    "y": {"type": "array", "items": {"type": "integer"}},
                 },
                 "required": ["x", "y"],
             },
