@@ -1159,3 +1159,27 @@ def test_ref_template():
             "required": ["b"],
         },
     }
+
+
+def test_multiline_docstring():
+    class Example(msgspec.Struct):
+        """
+            indented first line
+
+        last line.
+        """
+
+        pass
+
+    assert msgspec.json.schema(Example) == {
+        "$ref": "#/$defs/Example",
+        "$defs": {
+            "Example": {
+                "description": "    indented first line\n\nlast line.",
+                "title": "Example",
+                "type": "object",
+                "properties": {},
+                "required": [],
+            }
+        },
+    }
