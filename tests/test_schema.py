@@ -1164,9 +1164,7 @@ def test_ref_template():
 def test_multiline_docstring():
     class Example(msgspec.Struct):
         """
-        first line
-
-            indented
+            indented first line
 
         last line.
         """
@@ -1177,7 +1175,7 @@ def test_multiline_docstring():
         "$ref": "#/$defs/Example",
         "$defs": {
             "Example": {
-                "description": "\nfirst line\n\n    indented\n\nlast line.\n",
+                "description": "    indented first line\n\nlast line.",
                 "title": "Example",
                 "type": "object",
                 "properties": {},

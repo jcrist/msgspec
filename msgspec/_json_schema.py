@@ -143,7 +143,7 @@ def _get_doc(t: mi.Type) -> str:
     doc = getattr(cls, "__doc__", "")
     if not doc:
         return ""
-    doc = textwrap.dedent(doc)
+    doc = textwrap.dedent(doc).strip("\r\n")
     if isinstance(t, mi.EnumType):
         if doc == "An enumeration.":
             return ""
