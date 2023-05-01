@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import textwrap
 from collections.abc import Iterable
 from typing import Any
 
@@ -142,6 +143,7 @@ def _get_doc(t: mi.Type) -> str:
     doc = getattr(cls, "__doc__", "")
     if not doc:
         return ""
+    doc = textwrap.dedent(doc)
     if isinstance(t, mi.EnumType):
         if doc == "An enumeration.":
             return ""
