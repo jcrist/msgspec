@@ -4413,7 +4413,10 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
     else if (is_typeddict_class(state, t)) {
         out = typenode_collect_typeddict(state, t);
     }
-    else if (is_namedtuple_class(state, t)) {
+    else if (
+        is_namedtuple_class(state, t) ||
+        (origin != NULL && is_namedtuple_class(state, origin))
+    ) {
         out = typenode_collect_namedtuple(state, t);
     }
     else if (
@@ -7801,7 +7804,8 @@ static PyObject *
 NamedTupleInfo_Convert(PyObject *obj) {
     MsgspecState *mod = msgspec_get_global_state();
     NamedTupleInfo *info = NULL;
-    PyObject *annotations = NULL, *fields = NULL, *defaults = NULL, *defaults_list = NULL;
+    PyObject *annotations = NULL, *cls = NULL, *fields = NULL;
+    PyObject *defaults = NULL, *defaults_list = NULL;
     bool cache_set = false, succeeded = false;
 
     /* Check if cached */
@@ -7823,11 +7827,21 @@ NamedTupleInfo_Convert(PyObject *obj) {
     PyErr_Clear();
 
     /* Not cached, extract fields from NamedTuple object */
-    annotations = CALL_ONE_ARG(mod->get_type_hints, obj);
+    annotations = CALL_ONE_ARG(mod->get_class_annotations, obj);
     if (annotations == NULL) goto cleanup;
-    fields = PyObject_GetAttr(obj, mod->str__fields);
+
+    if (PyType_Check(obj)) {
+        Py_INCREF(obj);
+        cls = obj;
+    }
+    else {
+        cls = PyObject_GetAttr(obj, mod->str___origin__);
+        if (cls == NULL) goto cleanup;
+    }
+
+    fields = PyObject_GetAttr(cls, mod->str__fields);
     if (fields == NULL) goto cleanup;
-    defaults = PyObject_GetAttr(obj, mod->str__field_defaults);
+    defaults = PyObject_GetAttr(cls, mod->str__field_defaults);
     if (defaults == NULL) goto cleanup;
 
     /* Allocate and zero-out a new NamedTupleInfo object */
@@ -7867,8 +7881,8 @@ NamedTupleInfo_Convert(PyObject *obj) {
             if (PyList_Append(defaults_list, default_obj) < 0) goto cleanup;
         }
     }
-    Py_INCREF(obj);
-    info->class = obj;
+    Py_INCREF(cls);
+    info->class = cls;
     info->defaults = PyList_AsTuple(defaults_list);
     if (info->defaults == NULL) goto cleanup;
     PyObject_GC_Track(info);
@@ -7889,6 +7903,7 @@ cleanup:
             PyErr_Restore(err_type, err_value, err_tb);
         }
     }
+    Py_XDECREF(cls);
     Py_XDECREF(annotations);
     Py_XDECREF(fields);
     Py_XDECREF(defaults);
