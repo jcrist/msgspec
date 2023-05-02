@@ -506,7 +506,7 @@ A struct's tagging configuration is determined as follows.
 - If a struct is tagged, ``tag`` defaults to the class name (e.g. ``"Get"``) if
   not provided or inherited. This can be overridden by passing a string (or
   less commonly an integer) value explicitly (e.g. ``tag="get"``).  ``tag`` can
-  also be passed a callable that takes the class name and returns a valid tag
+  also be passed a callable that takes the class qualname and returns a valid tag
   value (e.g. ``tag=str.lower``). Note that tag values must be unique for all
   struct types in a union, and ``str`` and ``int`` tag types cannot both be
   used within the same union.

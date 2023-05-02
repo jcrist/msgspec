@@ -302,8 +302,8 @@ decoding.</p>
 is <code class="docutils literal notranslate"><span class="pre">&quot;type&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">tag</span></code> is the class name). Alternatively, you can provide
 a string (or less commonly int) value directly to be used as the tag
 (e.g. <code class="docutils literal notranslate"><span class="pre">tag=&quot;my-tag-value&quot;</span></code>).``tag`` can also be passed a callable that
-takes the class name and returns a valid tag value (e.g. <code class="docutils literal notranslate"><span class="pre">tag=str.lower</span></code>).
-See the docs for more information.</p>
+takes the class qualname and returns a valid tag value (e.g.
+<code class="docutils literal notranslate"><span class="pre">tag=str.lower</span></code>). See the docs for more information.</p>
 </li>
 <li><p><strong>tag_field</strong> (<em>str or None, default None</em>) – The field name to use for tagged union support. If <code class="docutils literal notranslate"><span class="pre">tag</span></code> is non-None,
 then this defaults to <code class="docutils literal notranslate"><span class="pre">&quot;type&quot;</span></code>. See the <code class="docutils literal notranslate"><span class="pre">tag</span></code> docs above for more

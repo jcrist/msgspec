@@ -702,7 +702,7 @@ a union.</p></li>
 <li><p>If a struct is tagged, <code class="docutils literal notranslate"><span class="pre">tag</span></code> defaults to the class name (e.g. <code class="docutils literal notranslate"><span class="pre">&quot;Get&quot;</span></code>) if
 not provided or inherited. This can be overridden by passing a string (or
 less commonly an integer) value explicitly (e.g. <code class="docutils literal notranslate"><span class="pre">tag=&quot;get&quot;</span></code>).  <code class="docutils literal notranslate"><span class="pre">tag</span></code> can
-also be passed a callable that takes the class name and returns a valid tag
+also be passed a callable that takes the class qualname and returns a valid tag
 value (e.g. <code class="docutils literal notranslate"><span class="pre">tag=str.lower</span></code>). Note that tag values must be unique for all
 struct types in a union, and <code class="docutils literal notranslate"><span class="pre">str</span></code> and <code class="docutils literal notranslate"><span class="pre">int</span></code> tag types cannot both be
 used within the same union.</p></li>
