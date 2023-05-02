@@ -73,8 +73,8 @@ def _get_class_mro_and_typevar_mappings(obj):
             cls = c
             new_scope = {}
         else:
-            cls = c.__origin__
-            if cls in (object, typing.Generic):
+            cls = getattr(c, "__origin__", None)
+            if cls in (None, object, typing.Generic):
                 return
             if cls not in mapping:
                 params = cls.__parameters__

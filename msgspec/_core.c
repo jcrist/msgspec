@@ -4221,6 +4221,34 @@ error:
     return NULL;
 }
 
+static bool
+is_namedtuple_class(TypeNodeCollectState *state, PyObject *t) {
+    return (
+        PyType_Check(t)
+        && PyType_IsSubtype((PyTypeObject *)t, &PyTuple_Type)
+        && PyObject_HasAttr(t, state->mod->str__fields)
+    );
+}
+
+static bool
+is_typeddict_class(TypeNodeCollectState *state, PyObject *t) {
+    return (
+        PyType_Check(t)
+        && PyType_IsSubtype((PyTypeObject *)t, &PyDict_Type)
+        && PyObject_HasAttr(t, state->mod->str___total__)
+    );
+}
+
+static bool
+is_dataclass_or_attrs_class(TypeNodeCollectState *state, PyObject *t) {
+    return (
+        PyType_Check(t) && (
+            PyObject_HasAttr(t, state->mod->str___dataclass_fields__) ||
+            PyObject_HasAttr(t, state->mod->str___attrs_attrs__)
+        )
+    );
+}
+
 static int
 typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
     int out = 0;
@@ -4382,33 +4410,16 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
         }
         out = PyList_Append(state->literals, t);
     }
-    else if (PyType_Check(t)
-        && PyType_IsSubtype((PyTypeObject *)t, &PyDict_Type)
-        && PyObject_HasAttr(t, state->mod->str___total__)) {
+    else if (is_typeddict_class(state, t)) {
         out = typenode_collect_typeddict(state, t);
     }
-    else if (PyType_Check(t)
-        && PyType_IsSubtype((PyTypeObject *)t, &PyTuple_Type)
-        && PyObject_HasAttr(t, state->mod->str__fields)) {
+    else if (is_namedtuple_class(state, t)) {
         out = typenode_collect_namedtuple(state, t);
     }
     else if (
-        PyType_Check(t) && (
-            PyObject_HasAttr(t, state->mod->str___dataclass_fields__) ||
-            PyObject_HasAttr(t, state->mod->str___attrs_attrs__)
-        )
+        is_dataclass_or_attrs_class(state, t) ||
+        (origin != NULL && is_dataclass_or_attrs_class(state, origin))
     ) {
-        /* Dataclass or attrs class */
-        out = typenode_collect_dataclass(state, t);
-    }
-    else if (
-        origin != NULL &&
-        PyType_Check(origin) &&  (
-            PyObject_HasAttr(origin, state->mod->str___dataclass_fields__) ||
-            PyObject_HasAttr(origin, state->mod->str___attrs_attrs__)
-        )
-    ) {
-        /* Parametrized generic dataclass or attrs class */
         out = typenode_collect_dataclass(state, t);
     }
     else {
