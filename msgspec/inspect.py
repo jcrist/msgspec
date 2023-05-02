@@ -956,10 +956,11 @@ class _Translator:
             out.fields = tuple(fields)
             return out
         elif _is_namedtuple(t):
-            if t in self.cache:
-                return self.cache[t]
-            self.cache[t] = out = NamedTupleType(t, ())
-            hints = self._get_class_annotations(t)
+            cls = t[args] if args else t
+            if cls in self.cache:
+                return self.cache[cls]
+            self.cache[cls] = out = NamedTupleType(cls, ())
+            hints = self._get_class_annotations(cls)
             out.fields = tuple(
                 Field(
                     name=name,

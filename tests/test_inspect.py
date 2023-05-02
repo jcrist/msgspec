@@ -496,6 +496,32 @@ def test_collections_namedtuple():
     assert mi.type_info(Example) == sol
 
 
+def test_generic_namedtuple():
+    NamedTuple = pytest.importorskip("typing_extensions").NamedTuple
+
+    class Example(NamedTuple, Generic[T]):
+        a: T
+        b: List[T]
+
+    sol = mi.NamedTupleType(
+        Example,
+        fields=(
+            mi.Field("a", "a", mi.AnyType()),
+            mi.Field("b", "b", mi.ListType(mi.AnyType())),
+        ),
+    )
+    assert mi.type_info(Example) == sol
+
+    sol = mi.NamedTupleType(
+        Example[int],
+        fields=(
+            mi.Field("a", "a", mi.IntType()),
+            mi.Field("b", "b", mi.ListType(mi.IntType())),
+        ),
+    )
+    assert mi.type_info(Example[int]) == sol
+
+
 @pytest.mark.parametrize("use_typing_extensions", [False, True])
 def test_typeddict(use_typing_extensions):
     if use_typing_extensions:
