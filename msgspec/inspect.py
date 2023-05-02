@@ -32,6 +32,7 @@ from ._utils import (  # type: ignore
     _AnnotatedAlias,
     get_class_annotations as _get_class_annotations,
     get_dataclass_info as _get_dataclass_info,
+    get_typeddict_info as _get_typeddict_info,
 )
 
 __all__ = (
@@ -902,16 +903,11 @@ class _Translator:
             out.fields = tuple(fields)
             return out
         elif _is_typeddict(t):
-            if t in self.cache:
-                return self.cache[t]
-            self.cache[t] = out = TypedDictType(t, ())
-            hints = self._get_class_annotations(t)
-            if hasattr(t, "__required_keys__"):
-                required = set(t.__required_keys__)
-            elif t.__total__:
-                required = set(hints)
-            else:
-                required = set()
+            cls = t[args] if args else t
+            if cls in self.cache:
+                return self.cache[cls]
+            self.cache[cls] = out = TypedDictType(cls, ())
+            hints, required = _get_typeddict_info(cls)
             out.fields = tuple(
                 Field(
                     name=name,

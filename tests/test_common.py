@@ -1604,6 +1604,15 @@ class TestTypedDict:
         assert dec.decode(proto.encode(msg)) == msg
         assert dec2.decode(proto.encode(msg)) == msg
 
+    def test_msgspec_cache_overwritten(self, proto):
+        class Ex(TypedDict):
+            x: int
+
+        Ex.__msgspec_cache__ = 1
+
+        with pytest.raises(RuntimeError, match="__msgspec_cache__"):
+            proto.Decoder(Ex)
+
     def test_multiple_typeddict_errors(self, proto):
         class Ex1(TypedDict):
             a: int
@@ -1747,6 +1756,92 @@ class TestTypedDict:
         msg = dec.decode(proto.encode({"key_name_1": 1, "key_name_2": 2}))
         for k1, k2 in zip(sorted(Ex.__annotations__), sorted(msg)):
             assert k1 is k2
+
+    def test_generic_typeddict_info_cached(self, proto):
+        TypedDict = pytest.importorskip("typing_extensions").TypedDict
+
+        class Ex(TypedDict, Generic[T]):
+            x: T
+
+        typ = Ex[int]
+        assert Ex[int] is typ
+
+        dec = proto.Decoder(typ)
+        info = typ.__msgspec_cache__
+        assert info is not None
+        assert sys.getrefcount(info) == 4  # info + attr + decoder + func call
+        dec2 = proto.Decoder(typ)
+        assert typ.__msgspec_cache__ is info
+        assert sys.getrefcount(info) == 5
+
+        del dec
+        del dec2
+        assert sys.getrefcount(info) == 3
+
+    def test_generic_typeddict_invalid_types_not_cached(self, proto):
+        TypedDict = pytest.importorskip("typing_extensions").TypedDict
+
+        class Ex(TypedDict, Generic[T]):
+            x: Union[List[T], Tuple[float]]
+
+        for typ in [Ex, Ex[int]]:
+            for _ in range(2):
+                with pytest.raises(TypeError, match="not supported"):
+                    proto.Decoder(typ)
+
+            assert not hasattr(typ, "__msgspec_cache__")
+
+    def test_generic_typeddict(self, proto):
+        TypedDict = pytest.importorskip("typing_extensions").TypedDict
+
+        class Ex(TypedDict, Generic[T]):
+            x: T
+            y: List[T]
+
+        sol = Ex(x=1, y=[1, 2])
+        msg = proto.encode(sol)
+
+        res = proto.decode(msg, type=Ex)
+        assert res == sol
+
+        res = proto.decode(msg, type=Ex[int])
+        assert res == sol
+
+        res = proto.decode(msg, type=Ex[Union[int, str]])
+        assert res == sol
+
+        res = proto.decode(msg, type=Ex[float])
+        assert type(res["x"]) is float
+
+        with pytest.raises(msgspec.ValidationError, match="Expected `str`, got `int`"):
+            proto.decode(msg, type=Ex[str])
+
+    def test_recursive_generic_typeddict(self, proto):
+        pytest.importorskip("typing_extensions")
+
+        source = """
+        from __future__ import annotations
+        from typing import Union, Generic, TypeVar
+        from typing_extensions import TypedDict
+
+        T = TypeVar("T")
+
+        class Ex(TypedDict, Generic[T]):
+            a: T
+            b: Union[Ex[T], None]
+        """
+
+        with temp_module(source) as mod:
+            msg = mod.Ex(a=1, b=mod.Ex(a=2, b=None))
+            msg2 = mod.Ex(a=1, b=mod.Ex(a="bad", b=None))
+            assert proto.decode(proto.encode(msg), type=mod.Ex) == msg
+            assert proto.decode(proto.encode(msg2), type=mod.Ex) == msg2
+            assert proto.decode(proto.encode(msg), type=mod.Ex[int]) == msg
+
+            with pytest.raises(msgspec.ValidationError) as rec:
+                proto.decode(proto.encode(msg2), type=mod.Ex[int])
+            assert "`$.b.a`" in str(rec.value)
+            assert "Expected `int`, got `str`" in str(rec.value)
 
 
 class TestNamedTuple:
