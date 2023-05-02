@@ -47,6 +47,8 @@ Most combinations of the following types are supported (with a few restrictions)
 - `typing.Final`
 - `typing.NamedTuple` / `collections.namedtuple`
 - `typing.TypedDict`
+- `typing.Generic`
+- `typing.TypeVar`
 
 **Abstract types**
 
