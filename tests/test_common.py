@@ -1766,6 +1766,15 @@ class TestNamedTuple:
         assert dec.decode(proto.encode(msg)) == msg
         assert dec2.decode(proto.encode(msg)) == msg
 
+    def test_msgspec_cache_overwritten(self, proto):
+        class Ex(NamedTuple):
+            x: int
+
+        Ex.__msgspec_cache__ = 1
+
+        with pytest.raises(RuntimeError, match="__msgspec_cache__"):
+            proto.Decoder(Ex)
+
     def test_multiple_namedtuple_errors(self, proto):
         class Ex1(NamedTuple):
             a: int
@@ -1873,6 +1882,92 @@ class TestNamedTuple:
             msgspec.ValidationError, match="Expected `array`, got `object`"
         ):
             dec.decode(msg)
+
+    def test_generic_namedtuple_info_cached(self, proto):
+        NamedTuple = pytest.importorskip("typing_extensions").NamedTuple
+
+        class Ex(NamedTuple, Generic[T]):
+            x: T
+
+        typ = Ex[int]
+        assert Ex[int] is typ
+
+        dec = proto.Decoder(typ)
+        info = typ.__msgspec_cache__
+        assert info is not None
+        assert sys.getrefcount(info) == 4  # info + attr + decoder + func call
+        dec2 = proto.Decoder(typ)
+        assert typ.__msgspec_cache__ is info
+        assert sys.getrefcount(info) == 5
+
+        del dec
+        del dec2
+        assert sys.getrefcount(info) == 3
+
+    def test_generic_namedtuple_invalid_types_not_cached(self, proto):
+        NamedTuple = pytest.importorskip("typing_extensions").NamedTuple
+
+        class Ex(NamedTuple, Generic[T]):
+            x: Union[List[T], Tuple[float]]
+
+        for typ in [Ex, Ex[int]]:
+            for _ in range(2):
+                with pytest.raises(TypeError, match="not supported"):
+                    proto.Decoder(typ)
+
+            assert not hasattr(typ, "__msgspec_cache__")
+
+    def test_generic_namedtuple(self, proto):
+        NamedTuple = pytest.importorskip("typing_extensions").NamedTuple
+
+        class Ex(NamedTuple, Generic[T]):
+            x: T
+            y: List[T]
+
+        sol = Ex(1, [1, 2])
+        msg = proto.encode(sol)
+
+        res = proto.decode(msg, type=Ex)
+        assert res == sol
+
+        res = proto.decode(msg, type=Ex[int])
+        assert res == sol
+
+        res = proto.decode(msg, type=Ex[Union[int, str]])
+        assert res == sol
+
+        res = proto.decode(msg, type=Ex[float])
+        assert type(res.x) is float
+
+        with pytest.raises(msgspec.ValidationError, match="Expected `str`, got `int`"):
+            proto.decode(msg, type=Ex[str])
+
+    def test_recursive_generic_namedtuple(self, proto):
+        pytest.importorskip("typing_extensions")
+
+        source = """
+        from __future__ import annotations
+        from typing import Union, Generic, TypeVar
+        from typing_extensions import NamedTuple
+
+        T = TypeVar("T")
+
+        class Ex(NamedTuple, Generic[T]):
+            a: T
+            b: Union[Ex[T], None]
+        """
+
+        with temp_module(source) as mod:
+            msg = mod.Ex(a=1, b=mod.Ex(a=2, b=None))
+            msg2 = mod.Ex(a=1, b=mod.Ex(a="bad", b=None))
+            assert proto.decode(proto.encode(msg), type=mod.Ex) == msg
+            assert proto.decode(proto.encode(msg2), type=mod.Ex) == msg2
+            assert proto.decode(proto.encode(msg), type=mod.Ex[int]) == msg
+
+            with pytest.raises(msgspec.ValidationError) as rec:
+                proto.decode(proto.encode(msg2), type=mod.Ex[int])
+            assert "`$[1][0]`" in str(rec.value)
+            assert "Expected `int`, got `str`" in str(rec.value)
 
 
 class TestDataclass:
