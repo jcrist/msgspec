@@ -385,7 +385,7 @@ typedef struct {
     PyObject *concrete_types;
     PyObject *get_type_hints;
     PyObject *get_class_annotations;
-    PyObject *get_typeddict_hints;
+    PyObject *get_typeddict_info;
     PyObject *get_dataclass_info;
     PyObject *rebuild;
 #if PY_VERSION_HEX >= 0x030a00f0
@@ -4410,7 +4410,10 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
         }
         out = PyList_Append(state->literals, t);
     }
-    else if (is_typeddict_class(state, t)) {
+    else if (
+        is_typeddict_class(state, t) ||
+        (origin != NULL && is_typeddict_class(state, origin))
+    ) {
         out = typenode_collect_typeddict(state, t);
     }
     else if (
@@ -7384,7 +7387,7 @@ TypedDictInfo_Convert(PyObject *obj) {
     PyObject *annotations = NULL, *required = NULL;
     TypedDictInfo *info = NULL;
     MsgspecState *mod = msgspec_get_global_state();
-    bool cache_set = false;
+    bool cache_set = false, succeeded = false;
 
     /* Check if cached */
     PyObject *cached = PyObject_GetAttr(obj, mod->str___msgspec_cache__);
@@ -7405,33 +7408,18 @@ TypedDictInfo_Convert(PyObject *obj) {
     PyErr_Clear();
 
     /* Not cached, extract fields from TypedDict object */
-    annotations = CALL_ONE_ARG(mod->get_typeddict_hints, obj);
-    if (annotations == NULL) return NULL;
-
-    required = PyObject_GetAttr(obj, mod->str___required_keys__);
-    /* Python 3.8 doesn't have __required_keys__. In that case we treat the
-     * dict as fully optional or fully required. */
-    if (required == NULL) {
-        PyErr_Clear();
-
-        bool is_total;
-        PyObject *total = PyObject_GetAttr(obj, mod->str___total__);
-        if (total != NULL) {
-            is_total = PyObject_IsTrue(total);
-            Py_DECREF(total);
-        }
-        else {
-            is_total = true;
-            PyErr_Clear();
-        }
-        required = PyFrozenSet_New(is_total ? annotations : NULL);
-        if (required == NULL) goto error;
-    }
+    PyObject *temp = CALL_ONE_ARG(mod->get_typeddict_info, obj);
+    if (temp == NULL) return NULL;
+    annotations = PyTuple_GET_ITEM(temp, 0);
+    Py_INCREF(annotations);
+    required = PyTuple_GET_ITEM(temp, 1);
+    Py_INCREF(required);
+    Py_DECREF(temp);
 
     /* Allocate and zero-out a new TypedDictInfo object */
     Py_ssize_t nfields = PyDict_GET_SIZE(annotations);
     info = PyObject_GC_NewVar(TypedDictInfo, &TypedDictInfo_Type, nfields);
-    if (info == NULL) goto error;
+    if (info == NULL) goto cleanup;
     for (Py_ssize_t i = 0; i < nfields; i++) {
         info->fields[i].key = NULL;
         info->fields[i].type = NULL;
@@ -7443,7 +7431,7 @@ TypedDictInfo_Convert(PyObject *obj) {
     /* If not already cached, then cache on TypedDict object _before_
     * traversing fields. This is to ensure self-referential TypedDicts work. */
     if (PyObject_SetAttr(obj, mod->str___msgspec_cache__, (PyObject *)info) < 0) {
-        goto error;
+        goto cleanup;
     }
     cache_set = true;
 
@@ -7452,36 +7440,37 @@ TypedDictInfo_Convert(PyObject *obj) {
     PyObject *key, *val;
     while (PyDict_Next(annotations, &pos, &key, &val)) {
         TypeNode *type = TypeNode_Convert(val);
-        if (type == NULL) goto error;
+        if (type == NULL) goto cleanup;
         Py_INCREF(key);
         info->fields[i].key = key;
         info->fields[i].type = type;
         int contains = PySet_Contains(required, key);
-        if (contains == -1) goto error;
+        if (contains == -1) goto cleanup;
         if (contains) { type->types |= MS_EXTRA_FLAG; }
         i++;
     }
     info->nrequired = PySet_GET_SIZE(required);
-    Py_XDECREF(annotations);
-    Py_XDECREF(required);
-    PyObject_GC_Track(info);
-    return (PyObject *)info;
 
-error:
-    if (cache_set) {
-        /* An error occurred after the cache was created and set on the
-         * TypedDict. We need to delete the attribute. Fetch and restore the
-         * original exception to avoid DelAttr silently clearing it on rare
-         * occasions. */
-        PyObject *err_type, *err_value, *err_tb;
-        PyErr_Fetch(&err_type, &err_value, &err_tb);
-        PyObject_DelAttr(obj, mod->str___msgspec_cache__);
-        PyErr_Restore(err_type, err_value, err_tb);
+    PyObject_GC_Track(info);
+    succeeded = true;
+
+cleanup:
+    if (!succeeded) {
+        Py_CLEAR(info);
+        if (cache_set) {
+            /* An error occurred after the cache was created and set on the
+            * TypedDict. We need to delete the attribute. Fetch and restore the
+            * original exception to avoid DelAttr silently clearing it on rare
+            * occasions. */
+            PyObject *err_type, *err_value, *err_tb;
+            PyErr_Fetch(&err_type, &err_value, &err_tb);
+            PyObject_DelAttr(obj, mod->str___msgspec_cache__);
+            PyErr_Restore(err_type, err_value, err_tb);
+        }
     }
-    Py_XDECREF((PyObject *)info);
     Py_XDECREF(annotations);
     Py_XDECREF(required);
-    return NULL;
+    return (PyObject *)info;
 }
 
 static MS_INLINE PyObject *
@@ -7580,7 +7569,7 @@ DataclassInfo_Convert(PyObject *obj) {
     PyObject *pre_init = NULL, *post_init = NULL;
     DataclassInfo *info = NULL;
     MsgspecState *mod = msgspec_get_global_state();
-    bool cache_set = false;
+    bool cache_set = false, succeeded = false;
 
     /* Check if cached */
     PyObject *cached = PyObject_GetAttr(obj, mod->str___msgspec_cache__);
@@ -7618,7 +7607,7 @@ DataclassInfo_Convert(PyObject *obj) {
     /* Allocate and zero-out a new DataclassInfo object */
     Py_ssize_t nfields = PyTuple_GET_SIZE(fields);
     info = PyObject_GC_NewVar(DataclassInfo, &DataclassInfo_Type, nfields);
-    if (info == NULL) goto error;
+    if (info == NULL) goto cleanup;
     for (Py_ssize_t i = 0; i < nfields; i++) {
         info->fields[i].key = NULL;
         info->fields[i].type = NULL;
@@ -7628,18 +7617,24 @@ DataclassInfo_Convert(PyObject *obj) {
     Py_INCREF(cls);
     info->class = cls;
     if (pre_init == Py_None) {
-        Py_CLEAR(pre_init);
+        info->pre_init = NULL;
     }
-    info->pre_init = pre_init;
+    else {
+        Py_INCREF(pre_init);
+        info->pre_init = pre_init;
+    }
     if (post_init == Py_None) {
-        Py_CLEAR(post_init);
+        info->post_init = NULL;
     }
-    info->post_init = post_init;
+    else {
+        Py_INCREF(post_init);
+        info->post_init = post_init;
+    }
 
     /* If not already cached, then cache on Dataclass object _before_
     * traversing fields. This is to ensure self-referential Dataclasses work. */
     if (PyObject_SetAttr(obj, mod->str___msgspec_cache__, (PyObject *)info) < 0) {
-        goto error;
+        goto cleanup;
     }
     cache_set = true;
 
@@ -7647,7 +7642,7 @@ DataclassInfo_Convert(PyObject *obj) {
     for (Py_ssize_t i = 0; i < nfields; i++) {
         PyObject *field = PyTuple_GET_ITEM(fields, i);
         TypeNode *type = TypeNode_Convert(PyTuple_GET_ITEM(field, 1));
-        if (type == NULL) goto error;
+        if (type == NULL) goto cleanup;
         /* If field has a default factory, set extra flag bit */
         if (PyObject_IsTrue(PyTuple_GET_ITEM(field, 2))) {
             type->types |= MS_EXTRA_FLAG;
@@ -7657,30 +7652,29 @@ DataclassInfo_Convert(PyObject *obj) {
         Py_INCREF(info->fields[i].key);
     }
 
-    Py_DECREF(cls);
-    Py_DECREF(fields);
-    Py_DECREF(field_defaults);
     PyObject_GC_Track(info);
-    return (PyObject *)info;
+    succeeded = true;
 
-error:
-    if (cache_set) {
-        /* An error occurred after the cache was created and set on the
-         * Dataclass. We need to delete the attribute. Fetch and restore the
-         * original exception to avoid DelAttr silently clearing it on rare
-         * occasions. */
-        PyObject *err_type, *err_value, *err_tb;
-        PyErr_Fetch(&err_type, &err_value, &err_tb);
-        PyObject_DelAttr(obj, mod->str___msgspec_cache__);
-        PyErr_Restore(err_type, err_value, err_tb);
+cleanup:
+    if (!succeeded) {
+        Py_CLEAR(info);
+        if (cache_set) {
+            /* An error occurred after the cache was created and set on the
+            * Dataclass. We need to delete the attribute. Fetch and restore the
+            * original exception to avoid DelAttr silently clearing it on rare
+            * occasions. */
+            PyObject *err_type, *err_value, *err_tb;
+            PyErr_Fetch(&err_type, &err_value, &err_tb);
+            PyObject_DelAttr(obj, mod->str___msgspec_cache__);
+            PyErr_Restore(err_type, err_value, err_tb);
+        }
     }
-    Py_XDECREF((PyObject *)info);
     Py_XDECREF(cls);
     Py_XDECREF(fields);
     Py_XDECREF(field_defaults);
     Py_XDECREF(pre_init);
     Py_XDECREF(post_init);
-    return NULL;
+    return (PyObject *)info;
 }
 
 static MS_INLINE PyObject *
@@ -18625,7 +18619,7 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->concrete_types);
     Py_CLEAR(st->get_type_hints);
     Py_CLEAR(st->get_class_annotations);
-    Py_CLEAR(st->get_typeddict_hints);
+    Py_CLEAR(st->get_typeddict_info);
     Py_CLEAR(st->get_dataclass_info);
     Py_CLEAR(st->rebuild);
 #if PY_VERSION_HEX >= 0x030a00f0
@@ -18692,7 +18686,7 @@ msgspec_traverse(PyObject *m, visitproc visit, void *arg)
     Py_VISIT(st->concrete_types);
     Py_VISIT(st->get_type_hints);
     Py_VISIT(st->get_class_annotations);
-    Py_VISIT(st->get_typeddict_hints);
+    Py_VISIT(st->get_typeddict_info);
     Py_VISIT(st->get_dataclass_info);
     Py_VISIT(st->rebuild);
 #if PY_VERSION_HEX >= 0x030a00f0
@@ -18908,7 +18902,7 @@ PyInit__core(void)
     SET_REF(concrete_types, "_CONCRETE_TYPES");
     SET_REF(get_type_hints, "get_type_hints");
     SET_REF(get_class_annotations, "get_class_annotations");
-    SET_REF(get_typeddict_hints, "get_typeddict_hints");
+    SET_REF(get_typeddict_info, "get_typeddict_info");
     SET_REF(get_dataclass_info, "get_dataclass_info");
     SET_REF(typing_annotated_alias, "_AnnotatedAlias");
     SET_REF(rebuild, "rebuild");

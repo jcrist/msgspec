@@ -166,29 +166,37 @@ _CONCRETE_TYPES = {
 }
 
 
-def get_typeddict_hints(obj):
-    """Same as `get_type_hints`, but strips off Required/NotRequired"""
-    hints = get_type_hints(obj)
-    out = {}
-    for k, v in hints.items():
-        # Strip off Required/NotRequired
-        if getattr(v, "__origin__", False) in (Required, NotRequired):
-            v = v.__args__[0]
-        out[k] = v
-    return out
-
-
-def get_dataclass_info(obj):
-    required = []
-    optional = []
-    defaults = []
-    hints = None
-
+def get_typeddict_info(obj):
     if isinstance(obj, type):
         cls = obj
     else:
         cls = obj.__origin__
     hints = get_class_annotations(obj)
+    # Strip off Required/NotRequired
+    hints = {
+        k: v.__args__[0]
+        if getattr(v, "__origin__", False) in (Required, NotRequired)
+        else v
+        for k, v in hints.items()
+    }
+    if hasattr(cls, "__required_keys__"):
+        required = set(cls.__required_keys__)
+    elif cls.__total__:
+        required = set(hints)
+    else:
+        required = set()
+    return hints, required
+
+
+def get_dataclass_info(obj):
+    if isinstance(obj, type):
+        cls = obj
+    else:
+        cls = obj.__origin__
+    hints = get_class_annotations(obj)
+    required = []
+    optional = []
+    defaults = []
 
     if hasattr(cls, "__dataclass_fields__"):
         from dataclasses import _FIELD, _FIELD_INITVAR, MISSING

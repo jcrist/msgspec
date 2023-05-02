@@ -637,6 +637,48 @@ def test_typeddict_optional(use_typing_extensions):
     }
 
 
+def test_generic_typeddict():
+    TypedDict = pytest.importorskip("typing_extensions").TypedDict
+
+    class Ex(TypedDict, Generic[T]):
+        """An example docstring"""
+
+        x: T
+        y: List[T]
+
+    assert msgspec.json.schema(Ex) == {
+        "$ref": "#/$defs/Ex",
+        "$defs": {
+            "Ex": {
+                "title": "Ex",
+                "description": "An example docstring",
+                "type": "object",
+                "properties": {
+                    "x": {},
+                    "y": {"type": "array"},
+                },
+                "required": ["x", "y"],
+            },
+        },
+    }
+
+    assert msgspec.json.schema(Ex[int]) == {
+        "$ref": "#/$defs/Ex_int_",
+        "$defs": {
+            "Ex_int_": {
+                "title": "Ex[int]",
+                "description": "An example docstring",
+                "type": "object",
+                "properties": {
+                    "x": {"type": "integer"},
+                    "y": {"type": "array", "items": {"type": "integer"}},
+                },
+                "required": ["x", "y"],
+            },
+        },
+    }
+
+
 @pytest.mark.parametrize("module", ["dataclasses", "attrs"])
 def test_dataclass_or_attrs(module):
     m = pytest.importorskip(module)

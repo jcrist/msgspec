@@ -576,6 +576,32 @@ def test_typeddict_optional(use_typing_extensions):
     assert mi.type_info(Example) == sol
 
 
+def test_generic_typeddict():
+    TypedDict = pytest.importorskip("typing_extensions").TypedDict
+
+    class Example(TypedDict, Generic[T]):
+        a: T
+        b: List[T]
+
+    sol = mi.TypedDictType(
+        Example,
+        fields=(
+            mi.Field("a", "a", mi.AnyType()),
+            mi.Field("b", "b", mi.ListType(mi.AnyType())),
+        ),
+    )
+    assert mi.type_info(Example) == sol
+
+    sol = mi.TypedDictType(
+        Example[int],
+        fields=(
+            mi.Field("a", "a", mi.IntType()),
+            mi.Field("b", "b", mi.ListType(mi.IntType())),
+        ),
+    )
+    assert mi.type_info(Example[int]) == sol
+
+
 def test_dataclass():
     @dataclass
     class Example:
