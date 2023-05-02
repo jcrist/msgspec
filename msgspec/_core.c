@@ -5518,8 +5518,41 @@ structmeta_construct_encode_fields(StructMetaInfo *info)
     return 0;
 }
 
+/* Extracts the qualname for a class, and strips off any leading bits from a
+ * function namespace. Examples:
+ *
+ * - `Foo` -> `Foo`
+ * - `Foo.Bar` -> `Foo.Bar`
+ * - `fizz.<locals>.Foo.Bar` -> `Foo.Bar`
+ *
+ * This means that (nested) classes dynamically defined within functions should
+ * work the same as (nested) classes defined at the top level.
+ */
+static PyObject *simple_qualname(PyObject *cls) {
+    PyObject *qualname = NULL, *dotlocalsdot = NULL, *rsplits = NULL, *out = NULL;
+
+    qualname = PyObject_GetAttrString(cls, "__qualname__");
+    if (qualname == NULL) goto cleanup;
+
+    dotlocalsdot = PyUnicode_FromString(".<locals>.");
+    if (dotlocalsdot == NULL) goto cleanup;
+
+    rsplits = PyUnicode_RSplit(qualname, dotlocalsdot, 1);
+    if (rsplits == NULL) goto cleanup;
+
+    Py_ssize_t end = PyList_GET_SIZE(rsplits) - 1;
+    out = PyList_GET_ITEM(rsplits, end);
+    Py_INCREF(out);
+
+cleanup:
+    Py_XDECREF(qualname);
+    Py_XDECREF(dotlocalsdot);
+    Py_XDECREF(rsplits);
+    return out;
+}
+
 static int
-structmeta_construct_tag(StructMetaInfo *info, MsgspecState *mod) {
+structmeta_construct_tag(StructMetaInfo *info, MsgspecState *mod, PyObject *cls) {
     if (info->temp_tag == Py_False) return 0;
     if (info->temp_tag == NULL && info->temp_tag_field == NULL) return 0;
 
@@ -5528,18 +5561,22 @@ structmeta_construct_tag(StructMetaInfo *info, MsgspecState *mod) {
 
     /* Determine the tag value */
     if (info->temp_tag == NULL || info->temp_tag == Py_True) {
-        Py_INCREF(info->name);
-        info->tag_value = info->name;
+        info->tag_value = simple_qualname(cls);
+        if (info->tag_value == NULL) return -1;
     }
     else {
         if (PyCallable_Check(info->temp_tag)) {
-            info->tag_value = CALL_ONE_ARG(info->temp_tag, info->name);
+            PyObject *qualname = simple_qualname(cls);
+            if (qualname == NULL) return -1;
+            info->tag_value = CALL_ONE_ARG(info->temp_tag, qualname);
+            Py_DECREF(qualname);
             if (info->tag_value == NULL) return -1;
         }
         else {
             Py_INCREF(info->temp_tag);
             info->tag_value = info->temp_tag;
         }
+
         if (PyLong_CheckExact(info->tag_value)) {
             int64_t val = PyLong_AsLongLong(info->tag_value);
             if (val == -1 && PyErr_Occurred()) {
@@ -5726,9 +5763,6 @@ StructMeta_new_inner(
     /* Construct encode_fields */
     if (structmeta_construct_encode_fields(&info) < 0) goto cleanup;
 
-    /* Construct tag, tag_field, & tag_value */
-    if (structmeta_construct_tag(&info, mod) < 0) goto cleanup;
-
     /* Construct type */
     PyObject *args = Py_BuildValue("(OOO)", name, bases, info.namespace);
     if (args == NULL) goto cleanup;
@@ -5761,6 +5795,9 @@ StructMeta_new_inner(
          * this being called. */
         ((PyTypeObject *)cls)->tp_setattro = &Struct_setattro_default;
     }
+
+    /* Construct tag, tag_field, & tag_value */
+    if (structmeta_construct_tag(&info, mod, (PyObject *)cls) < 0) goto cleanup;
 
     /* Fill in struct offsets */
     if (structmeta_construct_offsets(&info, cls) < 0) goto cleanup;
@@ -7325,8 +7362,8 @@ PyDoc_STRVAR(Struct__doc__,
 "   is ``\"type\"``, ``tag`` is the class name). Alternatively, you can provide\n"
 "   a string (or less commonly int) value directly to be used as the tag\n"
 "   (e.g. ``tag=\"my-tag-value\"``).``tag`` can also be passed a callable that\n"
-"   takes the class name and returns a valid tag value (e.g. ``tag=str.lower``).\n"
-"   See the docs for more information.\n"
+"   takes the class qualname and returns a valid tag value (e.g.\n"
+"   ``tag=str.lower``). See the docs for more information.\n"
 "tag_field: str or None, default None\n"
 "   The field name to use for tagged union support. If ``tag`` is non-None,\n"
 "   then this defaults to ``\"type\"``. See the ``tag`` docs above for more\n"
