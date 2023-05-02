@@ -1693,6 +1693,21 @@ class TestTagAndTagField:
         assert S2.__struct_config__.tag_field == tag_field
         assert S2.__struct_config__.tag == tag
 
+    def test_tag_uses_simple_qualname(self):
+        class S1(Struct, tag=True):
+            class S2(Struct, tag=True):
+                pass
+
+        assert S1.__struct_config__.tag == "S1"
+        assert S1.S2.__struct_config__.tag == "S1.S2"
+
+        class S1(Struct, tag=str.lower):
+            class S2(Struct, tag=str.lower):
+                pass
+
+        assert S1.__struct_config__.tag == "s1"
+        assert S1.S2.__struct_config__.tag == "s1.s2"
+
     @pytest.mark.parametrize("tag", [b"bad", lambda n: b"bad"])
     def test_tag_wrong_type(self, tag):
         with pytest.raises(TypeError, match="`tag` must be a `str` or an `int`"):
@@ -2059,6 +2074,12 @@ class TestDefStruct:
         assert Test.__struct_config__.dict
 
     def test_defstruct_tag_and_tag_field(self):
+        Test = defstruct("Test", [], tag=True)
+        assert Test.__struct_config__.tag == "Test"
+
+        Test = defstruct("Test", [], namespace={"__qualname__": "Foo.Test"}, tag=True)
+        assert Test.__struct_config__.tag == "Foo.Test"
+
         Test = defstruct("Test", [], tag="mytag", tag_field="mytagfield")
         config = Test.__struct_config__
         assert config.tag_field == "mytagfield"
