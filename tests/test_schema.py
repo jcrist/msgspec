@@ -524,6 +524,47 @@ def test_collections_namedtuple():
     }
 
 
+def test_generic_namedtuple():
+    NamedTuple = pytest.importorskip("typing_extensions").NamedTuple
+
+    class Ex(NamedTuple, Generic[T]):
+        """An example docstring"""
+
+        x: T
+        y: List[T]
+
+    assert msgspec.json.schema(Ex) == {
+        "$ref": "#/$defs/Ex",
+        "$defs": {
+            "Ex": {
+                "title": "Ex",
+                "description": "An example docstring",
+                "type": "array",
+                "prefixItems": [{}, {"type": "array"}],
+                "minItems": 2,
+                "maxItems": 2,
+            },
+        },
+    }
+
+    assert msgspec.json.schema(Ex[int]) == {
+        "$ref": "#/$defs/Ex_int_",
+        "$defs": {
+            "Ex_int_": {
+                "title": "Ex[int]",
+                "description": "An example docstring",
+                "type": "array",
+                "prefixItems": [
+                    {"type": "integer"},
+                    {"type": "array", "items": {"type": "integer"}},
+                ],
+                "minItems": 2,
+                "maxItems": 2,
+            },
+        },
+    }
+
+
 @pytest.mark.parametrize("use_typing_extensions", [False, True])
 def test_typeddict(use_typing_extensions):
     if use_typing_extensions:
