@@ -535,46 +535,28 @@ class TestLiterals:
         with pytest.raises(TypeError, match="not supported"):
             msgspec.msgpack.Decoder(typ)
 
-    def test_literal_valid_values(self):
-        literal = Literal[1, "two", None]
-
-        dec = msgspec.msgpack.Decoder(literal)
-        assert literal.__msgspec_cache__[0] is not None
-        assert literal.__msgspec_cache__[1] is not None
-
-        for val in [1, "two", None]:
-            assert dec.decode(msgspec.msgpack.encode(val)) == val
-
-    @pytest.mark.parametrize(
-        "values", [(1, 2), ("one", "two"), (1, 2, "three", "four")]
-    )
-    def test_caching(self, values):
+    def test_decode_literal_int_str_and_none_uncached_and_cached(self):
+        values = (45987, "an_unlikely_string", None)
         literal = Literal[values]
+        assert not hasattr(literal, "__msgspec_cache__")
+        uncached = msgspec.msgpack.Decoder(literal)
+        assert hasattr(literal, "__msgspec_cache__")
+        cached = msgspec.msgpack.Decoder(literal)
 
+        for val in values:
+            assert uncached.decode(msgspec.msgpack.encode(val)) == val
+            assert cached.decode(msgspec.msgpack.encode(val)) == val
+
+    def test_cache_refcounts(self):
+        literal = Literal[1, 2, "three", "four"]
         dec = msgspec.msgpack.Decoder(literal)  # noqa
-
-        int_lookup, str_lookup = literal.__msgspec_cache__
-        assert (int_lookup is not None) == any(isinstance(i, int) for i in values)
-        assert (str_lookup is not None) == any(isinstance(i, str) for i in values)
-
-        intcount = sys.getrefcount(int_lookup)
-        strcount = sys.getrefcount(str_lookup)
-
+        cache = literal.__msgspec_cache__
+        count = sys.getrefcount(cache)
         dec2 = msgspec.msgpack.Decoder(literal)
-
-        if int_lookup is not None:
-            assert sys.getrefcount(int_lookup) == intcount + 1
-        if str_lookup is not None:
-            assert sys.getrefcount(str_lookup) == strcount + 1
-
-        # Reference count decreases when decoder is dropped
+        assert sys.getrefcount(cache) == count
         del dec2
         gc.collect()
-
-        if int_lookup is not None:
-            assert sys.getrefcount(int_lookup) == intcount
-        if str_lookup is not None:
-            assert sys.getrefcount(str_lookup) == strcount
+        assert sys.getrefcount(cache) == count
 
     @pytest.mark.parametrize("val", [None, (), (1,), (1, 2), (1, 2, 3)])
     def test_msgspec_cache_overwritten(self, val):
