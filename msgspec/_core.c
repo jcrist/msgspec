@@ -6085,6 +6085,27 @@ static PyTypeObject StructInfo_Type = {
     .tp_dealloc = (destructor)StructInfo_dealloc,
 };
 
+static bool
+msgspec_state_is_cached(MsgspecState *mod, PyObject *obj, PyTypeObject *type, PyObject **out) {
+    PyObject *cached = PyObject_GetAttr(obj, mod->str___msgspec_cache__);
+    if (cached != NULL) {
+        if (Py_TYPE(cached) != type) {
+            Py_DECREF(cached);
+            PyErr_Format(
+                PyExc_RuntimeError,
+                "%R.__msgspec_cache__ has been overwritten",
+                obj
+            );
+        }
+        else {
+            *out = cached;
+        }
+        return true;
+    }
+    PyErr_Clear();
+    return false;
+}
+
 static PyObject *
 StructInfo_Convert(PyObject *obj) {
     MsgspecState *mod = msgspec_get_global_state();
@@ -6104,21 +6125,10 @@ StructInfo_Convert(PyObject *obj) {
         Py_INCREF(class);
     }
     else {
-        PyObject *cached = PyObject_GetAttr(obj, mod->str___msgspec_cache__);
-        if (cached != NULL) {
-            if (Py_TYPE(cached) != &StructInfo_Type) {
-                Py_DECREF(cached);
-                PyErr_Format(
-                    PyExc_RuntimeError,
-                    "%R.__msgspec_cache__ has been overwritten",
-                    obj
-                );
-                return NULL;
-            }
+        PyObject *cached = NULL;
+        if (msgspec_state_is_cached(mod, obj, &StructInfo_Type, &cached)) {
             return cached;
         }
-        PyErr_Clear();
-
         PyObject *origin = PyObject_GetAttr(obj, mod->str___origin__);
         if (origin == NULL) return NULL;
         if (Py_TYPE(origin) != &StructMetaType) {
@@ -7426,23 +7436,10 @@ TypedDictInfo_Convert(PyObject *obj) {
     MsgspecState *mod = msgspec_get_global_state();
     bool cache_set = false, succeeded = false;
 
-    /* Check if cached */
-    PyObject *cached = PyObject_GetAttr(obj, mod->str___msgspec_cache__);
-    if (cached != NULL) {
-        if (Py_TYPE(cached) != &TypedDictInfo_Type) {
-            Py_DECREF(cached);
-            PyErr_Format(
-                PyExc_RuntimeError,
-                "%R.__msgspec_cache__ has been overwritten",
-                obj
-            );
-            return NULL;
-        }
+    PyObject *cached = NULL;
+    if (msgspec_state_is_cached(mod, obj, &TypedDictInfo_Type, &cached)) {
         return cached;
     }
-
-    /* Clear the getattr error, if any */
-    PyErr_Clear();
 
     /* Not cached, extract fields from TypedDict object */
     PyObject *temp = CALL_ONE_ARG(mod->get_typeddict_info, obj);
@@ -7608,23 +7605,10 @@ DataclassInfo_Convert(PyObject *obj) {
     MsgspecState *mod = msgspec_get_global_state();
     bool cache_set = false, succeeded = false;
 
-    /* Check if cached */
-    PyObject *cached = PyObject_GetAttr(obj, mod->str___msgspec_cache__);
-    if (cached != NULL) {
-        if (Py_TYPE(cached) != &DataclassInfo_Type) {
-            Py_DECREF(cached);
-            PyErr_Format(
-                PyExc_RuntimeError,
-                "%R.__msgspec_cache__ has been overwritten",
-                obj
-            );
-            return NULL;
-        }
+    PyObject *cached = NULL;
+    if (msgspec_state_is_cached(mod, obj, &DataclassInfo_Type, &cached)) {
         return cached;
     }
-
-    /* Clear the getattr error, if any */
-    PyErr_Clear();
 
     /* Not cached, extract fields from Dataclass object */
     PyObject *temp = CALL_ONE_ARG(mod->get_dataclass_info, obj);
@@ -7839,23 +7823,10 @@ NamedTupleInfo_Convert(PyObject *obj) {
     PyObject *defaults = NULL, *defaults_list = NULL;
     bool cache_set = false, succeeded = false;
 
-    /* Check if cached */
-    PyObject *cached = PyObject_GetAttr(obj, mod->str___msgspec_cache__);
-    if (cached != NULL) {
-        if (Py_TYPE(cached) != &NamedTupleInfo_Type) {
-            Py_DECREF(cached);
-            PyErr_Format(
-                PyExc_RuntimeError,
-                "%R.__msgspec_cache__ has been overwritten",
-                obj
-            );
-            return NULL;
-        }
+    PyObject *cached = NULL;
+    if (msgspec_state_is_cached(mod, obj, &NamedTupleInfo_Type, &cached)) {
         return cached;
     }
-
-    /* Clear the getattr error, if any */
-    PyErr_Clear();
 
     /* Not cached, extract fields from NamedTuple object */
     annotations = CALL_ONE_ARG(mod->get_class_annotations, obj);
