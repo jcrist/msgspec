@@ -1564,7 +1564,7 @@ Meta_traverse(Meta *self, visitproc visit, void *arg) {
     return 0;
 }
 
-static void
+static int
 Meta_clear(Meta *self) {
     Py_CLEAR(self->gt);
     Py_CLEAR(self->ge);
@@ -1581,6 +1581,7 @@ Meta_clear(Meta *self) {
     Py_CLEAR(self->examples);
     Py_CLEAR(self->extra_json_schema);
     Py_CLEAR(self->extra);
+    return 0;
 }
 
 static void
@@ -2350,6 +2351,13 @@ typedef struct {
 } TypeNodeSimple;
 
 typedef struct {
+    PyObject_HEAD
+    PyObject *int_lookup;
+    PyObject *str_lookup;
+    bool literal_none;
+} LiteralInfo;
+
+typedef struct {
     PyObject *key;
     TypeNode *type;
 } TypedDictField;
@@ -2418,6 +2426,7 @@ typedef struct {
     StructMetaObject *st_type;
 } StructConfig;
 
+static PyTypeObject LiteralInfo_Type;
 static PyTypeObject TypedDictInfo_Type;
 static PyTypeObject DataclassInfo_Type;
 static PyTypeObject NamedTupleInfo_Type;
@@ -2870,10 +2879,11 @@ typedef struct {
     PyObject *dataclass_obj;
     PyObject *namedtuple_obj;
     PyObject *literals;
-    PyObject *int_literal_values;
-    PyObject *int_literal_lookup;
-    PyObject *str_literal_values;
-    PyObject *str_literal_lookup;
+    PyObject *literal_int_values;
+    PyObject *literal_int_lookup;
+    PyObject *literal_str_values;
+    PyObject *literal_str_lookup;
+    bool literal_none;
     /* Constraints */
     int64_t c_int_min;
     int64_t c_int_max;
@@ -3280,9 +3290,9 @@ typenode_from_collect_state(TypeNodeCollectState *state) {
         }
         out->details[e_ind++].pointer = lookup;
     }
-    if (state->int_literal_lookup != NULL) {
-        Py_INCREF(state->int_literal_lookup);
-        out->details[e_ind++].pointer = state->int_literal_lookup;
+    if (state->literal_int_lookup != NULL) {
+        Py_INCREF(state->literal_int_lookup);
+        out->details[e_ind++].pointer = state->literal_int_lookup;
     }
     if (state->enum_obj != NULL) {
         PyObject *lookup = PyObject_GetAttr(state->enum_obj, state->mod->str___msgspec_cache__);
@@ -3311,9 +3321,9 @@ typenode_from_collect_state(TypeNodeCollectState *state) {
         }
         out->details[e_ind++].pointer = lookup;
     }
-    if (state->str_literal_lookup != NULL) {
-        Py_INCREF(state->str_literal_lookup);
-        out->details[e_ind++].pointer = state->str_literal_lookup;
+    if (state->literal_str_lookup != NULL) {
+        Py_INCREF(state->literal_str_lookup);
+        out->details[e_ind++].pointer = state->literal_str_lookup;
     }
     if (state->typeddict_obj != NULL) {
         PyObject *info = TypedDictInfo_Convert(state->typeddict_obj);
@@ -3409,6 +3419,27 @@ error:
     return NULL;
 }
 
+static bool
+get_msgspec_cache(MsgspecState *mod, PyObject *obj, PyTypeObject *type, PyObject **out) {
+    PyObject *cached = PyObject_GetAttr(obj, mod->str___msgspec_cache__);
+    if (cached != NULL) {
+        if (Py_TYPE(cached) != type) {
+            Py_DECREF(cached);
+            PyErr_Format(
+                PyExc_RuntimeError,
+                "%R.__msgspec_cache__ has been overwritten",
+                obj
+            );
+        }
+        else {
+            *out = cached;
+        }
+        return true;
+    }
+    PyErr_Clear();
+    return false;
+}
+
 static int
 typenode_collect_err_unique(TypeNodeCollectState *state, const char *kind) {
     PyErr_Format(
@@ -3477,15 +3508,15 @@ typenode_collect_check_invariants(TypeNodeCollectState *state) {
     }
 
     /* If int & int literals are both present, drop literals */
-    if (state->types & MS_TYPE_INT && state->int_literal_lookup) {
+    if (state->types & MS_TYPE_INT && state->literal_int_lookup) {
         state->types &= ~MS_TYPE_INTLITERAL;
-        Py_CLEAR(state->int_literal_lookup);
+        Py_CLEAR(state->literal_int_lookup);
     }
 
     /* If str & str literals are both present, drop literals */
-    if (state->types & MS_TYPE_STR && state->str_literal_lookup) {
+    if (state->types & MS_TYPE_STR && state->literal_str_lookup) {
         state->types &= ~MS_TYPE_STRLITERAL;
-        Py_CLEAR(state->str_literal_lookup);
+        Py_CLEAR(state->literal_str_lookup);
     }
 
     /* Ensure int-like types don't conflict */
@@ -3741,23 +3772,21 @@ typenode_collect_literal(TypeNodeCollectState *state, PyObject *literal) {
         PyTypeObject *type = Py_TYPE(obj);
 
         if (obj == Py_None || obj == NONE_TYPE) {
-            state->types |= MS_TYPE_NONE;
+            state->literal_none = true;
         }
         else if (type == &PyLong_Type) {
-            if (state->int_literal_values == NULL) {
-                state->types |= MS_TYPE_INTLITERAL;
-                state->int_literal_values = PySet_New(NULL);
-                if (state->int_literal_values == NULL) goto error;
+            if (state->literal_int_values == NULL) {
+                state->literal_int_values = PySet_New(NULL);
+                if (state->literal_int_values == NULL) goto error;
             }
-            if (PySet_Add(state->int_literal_values, obj) < 0) goto error;
+            if (PySet_Add(state->literal_int_values, obj) < 0) goto error;
         }
         else if (type == &PyUnicode_Type) {
-            if (state->str_literal_values == NULL) {
-                state->types |= MS_TYPE_STRLITERAL;
-                state->str_literal_values = PySet_New(NULL);
-                if (state->str_literal_values == NULL) goto error;
+            if (state->literal_str_values == NULL) {
+                state->literal_str_values = PySet_New(NULL);
+                if (state->literal_str_values == NULL) goto error;
             }
-            if (PySet_Add(state->str_literal_values, obj) < 0) goto error;
+            if (PySet_Add(state->literal_str_values, obj) < 0) goto error;
         }
         else {
             /* Check for nested Literal */
@@ -3802,91 +3831,66 @@ typenode_collect_convert_literals(TypeNodeCollectState *state) {
     if (n == 1) {
         PyObject *literal = PyList_GET_ITEM(state->literals, 0);
 
-        /* Check if cached, otherwise create and cache */
-        PyObject *cached = PyObject_GetAttr(literal, state->mod->str___msgspec_cache__);
-        if (cached != NULL) {
-            /* Extract and store the lookups */
-            if (PyTuple_CheckExact(cached) && PyTuple_GET_SIZE(cached) == 2) {
-                PyObject *int_lookup = PyTuple_GET_ITEM(cached, 0);
-                PyObject *str_lookup = PyTuple_GET_ITEM(cached, 1);
-                if (
-                    (
-                        (int_lookup == Py_None || Lookup_IsIntLookup(int_lookup)) &&
-                        (str_lookup == Py_None || Lookup_IsStrLookup(str_lookup))
-                    )
-                ) {
-                    if (Lookup_IsIntLookup(int_lookup)) {
-                        Py_INCREF(int_lookup);
-                        state->types |= MS_TYPE_INTLITERAL;
-                        state->int_literal_lookup = int_lookup;
-                    }
-                    if (Lookup_IsStrLookup(str_lookup)) {
-                        Py_INCREF(str_lookup);
-                        state->types |= MS_TYPE_STRLITERAL;
-                        state->str_literal_lookup = str_lookup;
-                    }
-                    Py_DECREF(cached);
-                    return 0;
-                }
-            }
-            Py_DECREF(cached);
-            PyErr_Format(
-                PyExc_RuntimeError,
-                "%R.__msgspec_cache__ has been overwritten",
-                literal
-            );
-            return -1;
-        }
-        else {
-            /* Clear the AttributError from the cache lookup */
-            PyErr_Clear();
-
-            /* Collect all values in the literal */
-            if (typenode_collect_literal(state, literal) < 0) return -1;
-
-            /* Convert values to lookup objects (if values exist for each type) */
-            if (state->int_literal_values != NULL) {
-                state->types |= MS_TYPE_INTLITERAL;
-                state->int_literal_lookup = IntLookup_New(state->int_literal_values, NULL, false);
-                if (state->int_literal_lookup == NULL) return -1;
-            }
-            if (state->str_literal_values != NULL) {
-                state->types |= MS_TYPE_STRLITERAL;
-                state->str_literal_lookup = StrLookup_New(state->str_literal_values, NULL, false);
-                if (state->str_literal_lookup == NULL) return -1;
-            }
-
-            /* Cache the lookups as a tuple on the `Literal` object */
-            PyObject *cached = PyTuple_Pack(
-                2,
-                state->int_literal_lookup == NULL ? Py_None : state->int_literal_lookup,
-                state->str_literal_lookup == NULL ? Py_None : state->str_literal_lookup
-            );
+        PyObject *cached = NULL;
+        if (get_msgspec_cache(state->mod, literal, &LiteralInfo_Type, &cached)) {
             if (cached == NULL) return -1;
-            int out = PyObject_SetAttr(literal, state->mod->str___msgspec_cache__, cached);
+            LiteralInfo *info = (LiteralInfo *)cached;
+            if (info->int_lookup != NULL) {
+                state->types |= MS_TYPE_INTLITERAL;
+                Py_INCREF(info->int_lookup);
+                state->literal_int_lookup = info->int_lookup;
+            }
+            if (info->str_lookup != NULL) {
+                state->types |= MS_TYPE_STRLITERAL;
+                Py_INCREF(info->str_lookup);
+                state->literal_str_lookup = info->str_lookup;
+            }
+            if (info->literal_none) {
+                state->types |= MS_TYPE_NONE;
+            }
             Py_DECREF(cached);
-            return out;
+            return 0;
         }
     }
-    else {
-        /* Collect all values in all literals */
-        for (Py_ssize_t i = 0; i < n; i++) {
-            PyObject *literal = PyList_GET_ITEM(state->literals, i);
-            if (typenode_collect_literal(state, literal) < 0) return -1;
-        }
-        /* Convert values to lookup objects (if values exist for each type) */
-        if (state->int_literal_values != NULL) {
-            state->types |= MS_TYPE_INTLITERAL;
-            state->int_literal_lookup = IntLookup_New(state->int_literal_values, NULL, false);
-            if (state->int_literal_lookup == NULL) return -1;
-        }
-        if (state->str_literal_values != NULL) {
-            state->types |= MS_TYPE_STRLITERAL;
-            state->str_literal_lookup = StrLookup_New(state->str_literal_values, NULL, false);
-            if (state->str_literal_lookup == NULL) return -1;
-        }
-        return 0;
+
+    /* Collect all values in all literals */
+    for (Py_ssize_t i = 0; i < n; i++) {
+        PyObject *literal = PyList_GET_ITEM(state->literals, i);
+        if (typenode_collect_literal(state, literal) < 0) return -1;
     }
+    /* Convert values to lookup objects (if values exist for each type) */
+    if (state->literal_int_values != NULL) {
+        state->types |= MS_TYPE_INTLITERAL;
+        state->literal_int_lookup = IntLookup_New(state->literal_int_values, NULL, false);
+        if (state->literal_int_lookup == NULL) return -1;
+    }
+    if (state->literal_str_values != NULL) {
+        state->types |= MS_TYPE_STRLITERAL;
+        state->literal_str_lookup = StrLookup_New(state->literal_str_values, NULL, false);
+        if (state->literal_str_lookup == NULL) return -1;
+    }
+    if (state->literal_none) {
+        state->types |= MS_TYPE_NONE;
+    }
+
+    if (n == 1) {
+        /* A single `Literal` object, cache the lookups on it */
+        LiteralInfo *info = PyObject_GC_New(LiteralInfo, &LiteralInfo_Type);
+        if (info == NULL) return -1;
+        Py_XINCREF(state->literal_int_lookup);
+        info->int_lookup = state->literal_int_lookup;
+        Py_XINCREF(state->literal_str_lookup);
+        info->str_lookup = state->literal_str_lookup;
+        info->literal_none = state->literal_none;
+        PyObject_GC_Track(info);
+        PyObject *literal = PyList_GET_ITEM(state->literals, 0);
+        int status = PyObject_SetAttr(
+            literal, state->mod->str___msgspec_cache__, (PyObject *)info
+        );
+        Py_DECREF(info);
+        return status;
+    }
+    return 0;
 }
 
 static int
@@ -4080,10 +4084,10 @@ typenode_collect_clear_state(TypeNodeCollectState *state) {
     Py_CLEAR(state->dataclass_obj);
     Py_CLEAR(state->namedtuple_obj);
     Py_CLEAR(state->literals);
-    Py_CLEAR(state->int_literal_values);
-    Py_CLEAR(state->int_literal_lookup);
-    Py_CLEAR(state->str_literal_values);
-    Py_CLEAR(state->str_literal_lookup);
+    Py_CLEAR(state->literal_int_values);
+    Py_CLEAR(state->literal_int_lookup);
+    Py_CLEAR(state->literal_str_values);
+    Py_CLEAR(state->literal_str_lookup);
     Py_CLEAR(state->c_str_regex);
 }
 
@@ -6085,27 +6089,6 @@ static PyTypeObject StructInfo_Type = {
     .tp_dealloc = (destructor)StructInfo_dealloc,
 };
 
-static bool
-msgspec_state_is_cached(MsgspecState *mod, PyObject *obj, PyTypeObject *type, PyObject **out) {
-    PyObject *cached = PyObject_GetAttr(obj, mod->str___msgspec_cache__);
-    if (cached != NULL) {
-        if (Py_TYPE(cached) != type) {
-            Py_DECREF(cached);
-            PyErr_Format(
-                PyExc_RuntimeError,
-                "%R.__msgspec_cache__ has been overwritten",
-                obj
-            );
-        }
-        else {
-            *out = cached;
-        }
-        return true;
-    }
-    PyErr_Clear();
-    return false;
-}
-
 static PyObject *
 StructInfo_Convert(PyObject *obj) {
     MsgspecState *mod = msgspec_get_global_state();
@@ -6126,7 +6109,7 @@ StructInfo_Convert(PyObject *obj) {
     }
     else {
         PyObject *cached = NULL;
-        if (msgspec_state_is_cached(mod, obj, &StructInfo_Type, &cached)) {
+        if (get_msgspec_cache(mod, obj, &StructInfo_Type, &cached)) {
             return cached;
         }
         PyObject *origin = PyObject_GetAttr(obj, mod->str___origin__);
@@ -6470,9 +6453,10 @@ StructConfig_traverse(StructConfig *self, visitproc visit, void *arg) {
     return 0;
 }
 
-static void
+static int
 StructConfig_clear(StructConfig *self) {
     Py_CLEAR(self->st_type);
+    return 0;
 }
 
 static void
@@ -7429,6 +7413,41 @@ PyDoc_STRVAR(Struct__doc__,
 "{Point(1.5, 2.0): 1}"
 );
 
+static int
+LiteralInfo_traverse(LiteralInfo *self, visitproc visit, void *arg)
+{
+    Py_VISIT(self->str_lookup);
+    Py_VISIT(self->int_lookup);
+    return 0;
+}
+
+static int
+LiteralInfo_clear(LiteralInfo *self)
+{
+    Py_CLEAR(self->str_lookup);
+    Py_CLEAR(self->int_lookup);
+    return 0;
+}
+
+static void
+LiteralInfo_dealloc(LiteralInfo *self)
+{
+    PyObject_GC_UnTrack(self);
+    LiteralInfo_clear(self);
+    Py_TYPE(self)->tp_free((PyObject *)self);
+}
+
+static PyTypeObject LiteralInfo_Type = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "msgspec._core.LiteralInfo",
+    .tp_basicsize = sizeof(LiteralInfo),
+    .tp_itemsize = 0,
+    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
+    .tp_clear = (inquiry)LiteralInfo_clear,
+    .tp_traverse = (traverseproc)LiteralInfo_traverse,
+    .tp_dealloc = (destructor)LiteralInfo_dealloc,
+};
+
 static PyObject *
 TypedDictInfo_Convert(PyObject *obj) {
     PyObject *annotations = NULL, *required = NULL;
@@ -7437,7 +7456,7 @@ TypedDictInfo_Convert(PyObject *obj) {
     bool cache_set = false, succeeded = false;
 
     PyObject *cached = NULL;
-    if (msgspec_state_is_cached(mod, obj, &TypedDictInfo_Type, &cached)) {
+    if (get_msgspec_cache(mod, obj, &TypedDictInfo_Type, &cached)) {
         return cached;
     }
 
@@ -7606,7 +7625,7 @@ DataclassInfo_Convert(PyObject *obj) {
     bool cache_set = false, succeeded = false;
 
     PyObject *cached = NULL;
-    if (msgspec_state_is_cached(mod, obj, &DataclassInfo_Type, &cached)) {
+    if (get_msgspec_cache(mod, obj, &DataclassInfo_Type, &cached)) {
         return cached;
     }
 
@@ -7824,7 +7843,7 @@ NamedTupleInfo_Convert(PyObject *obj) {
     bool cache_set = false, succeeded = false;
 
     PyObject *cached = NULL;
-    if (msgspec_state_is_cached(mod, obj, &NamedTupleInfo_Type, &cached)) {
+    if (get_msgspec_cache(mod, obj, &NamedTupleInfo_Type, &cached)) {
         return cached;
     }
 
@@ -18741,6 +18760,8 @@ PyInit__core(void)
     if (PyType_Ready(&IntLookup_Type) < 0)
         return NULL;
     if (PyType_Ready(&StrLookup_Type) < 0)
+        return NULL;
+    if (PyType_Ready(&LiteralInfo_Type) < 0)
         return NULL;
     if (PyType_Ready(&TypedDictInfo_Type) < 0)
         return NULL;
