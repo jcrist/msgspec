@@ -195,20 +195,11 @@ class TestEncoderMisc:
             enc.encode(o)
 
     def test_getsizeof(self):
-        enc1 = msgspec.json.Encoder(write_buffer_size=64)
-        enc2 = msgspec.json.Encoder(write_buffer_size=128)
-        assert sys.getsizeof(enc1) == sys.getsizeof(enc2)  # no buffer allocated yet
-        enc1.encode(None)
-        enc2.encode(None)
-        assert sys.getsizeof(enc1) < sys.getsizeof(enc2)
-
-    def test_write_buffer_size_attribute(self):
-        enc1 = msgspec.json.Encoder(write_buffer_size=64)
-        enc2 = msgspec.json.Encoder(write_buffer_size=128)
-        enc3 = msgspec.json.Encoder(write_buffer_size=1)
-        assert enc1.write_buffer_size == 64
-        assert enc2.write_buffer_size == 128
-        assert enc3.write_buffer_size == 32
+        enc = msgspec.json.Encoder()
+        s1 = sys.getsizeof(enc)
+        enc.encode(None)
+        s2 = sys.getsizeof(enc)
+        assert s1 < s2
 
     def test_encode_no_enc_hook(self):
         class Foo:
