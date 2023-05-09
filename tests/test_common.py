@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import abc
+import base64
 import collections
 import datetime
 import decimal
@@ -141,6 +142,21 @@ class TestEncodeSubclasses:
 
         for msg in [[], [1, 2]]:
             assert proto.encode(subclass(msg)) == proto.encode(cls(msg))
+
+
+class TestThreadSafe:
+    def test_encode_threadsafe(self, proto):
+        class Nested:
+            def __init__(self, x):
+                self.x = x
+
+        def enc_hook(obj):
+            return base64.b64encode(enc.encode(obj.x)).decode("utf-8")
+
+        enc = proto.Encoder(enc_hook=enc_hook)
+        res = enc.encode({"x": Nested(1)})
+        sol = proto.encode({"x": base64.b64encode(proto.encode(1)).decode("utf-8")})
+        assert res == sol
 
 
 class TestIntEnum:

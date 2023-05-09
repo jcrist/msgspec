@@ -8208,12 +8208,11 @@ ms_write(EncoderState *self, const char *s, Py_ssize_t n)
 static int
 Encoder_init(Encoder *self, PyObject *args, PyObject *kwds)
 {
-    char *kwlist[] = {"enc_hook", "write_buffer_size", NULL};
+    char *kwlist[] = {"enc_hook", NULL};
     Py_ssize_t write_buffer_size = 512;
     PyObject *enc_hook = NULL;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|$On", kwlist,
-                                     &enc_hook, &write_buffer_size)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|$O", kwlist, &enc_hook)) {
         return -1;
     }
 
@@ -8231,7 +8230,7 @@ Encoder_init(Encoder *self, PyObject *args, PyObject *kwds)
     self->state.mod = msgspec_get_global_state();
 
     self->state.enc_hook = enc_hook;
-    self->state.write_buffer_size = Py_MAX(write_buffer_size, 32);
+    self->state.write_buffer_size = write_buffer_size;
     self->state.max_output_len = self->state.write_buffer_size;
     self->state.output_len = 0;
     self->state.output_buffer = NULL;
@@ -8489,8 +8488,6 @@ encode_common(
 
 static PyMemberDef Encoder_members[] = {
     {"enc_hook", T_OBJECT, offsetof(Encoder, state.enc_hook), READONLY, "The encoder enc_hook"},
-    {"write_buffer_size", T_PYSSIZET, offsetof(Encoder, state.write_buffer_size),
-        READONLY, "The encoder write buffer size"},
     {NULL},
 };
 
@@ -9857,7 +9854,7 @@ ms_decode_decimal(const char *view, Py_ssize_t size, bool is_ascii, PathNode *pa
  *************************************************************************/
 
 PyDoc_STRVAR(Encoder__doc__,
-"Encoder(*, enc_hook=None, write_buffer_size=512)\n"
+"Encoder(*, enc_hook=None)\n"
 "--\n"
 "\n"
 "A MessagePack encoder.\n"
@@ -9866,9 +9863,7 @@ PyDoc_STRVAR(Encoder__doc__,
 "----------\n"
 "enc_hook : callable, optional\n"
 "    A callable to call for objects that aren't supported msgspec types. Takes the\n"
-"    unsupported object and should return a supported object, or raise a TypeError.\n"
-"write_buffer_size : int, optional\n"
-"    The size of the internal static write buffer."
+"    unsupported object and should return a supported object, or raise a TypeError."
 );
 
 enum mpack_code {
@@ -10840,7 +10835,7 @@ msgspec_msgpack_encode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, 
  *************************************************************************/
 
 PyDoc_STRVAR(JSONEncoder__doc__,
-"Encoder(*, enc_hook=None, write_buffer_size=512)\n"
+"Encoder(*, enc_hook=None)\n"
 "--\n"
 "\n"
 "A JSON encoder.\n"
@@ -10849,9 +10844,7 @@ PyDoc_STRVAR(JSONEncoder__doc__,
 "----------\n"
 "enc_hook : callable, optional\n"
 "    A callable to call for objects that aren't supported msgspec types. Takes the\n"
-"    unsupported object and should return a supported object, or raise a TypeError.\n"
-"write_buffer_size : int, optional\n"
-"    The size of the internal static write buffer."
+"    unsupported object and should return a supported object, or raise a TypeError."
 );
 
 static int json_encode_inline(EncoderState*, PyObject*);
