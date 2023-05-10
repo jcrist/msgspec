@@ -11621,7 +11621,11 @@ typedef struct DecoderState {
 typedef struct Decoder {
     PyObject_HEAD
     PyObject *orig_type;
-    DecoderState state;
+
+    /* Configuration */
+    TypeNode *type;
+    PyObject *dec_hook;
+    PyObject *ext_hook;
 } Decoder;
 
 PyDoc_STRVAR(Decoder__doc__,
@@ -11678,7 +11682,7 @@ Decoder_init(Decoder *self, PyObject *args, PyObject *kwds)
         }
         Py_INCREF(dec_hook);
     }
-    self->state.dec_hook = dec_hook;
+    self->dec_hook = dec_hook;
 
     /* Handle ext_hook */
     if (ext_hook == Py_None) {
@@ -11691,11 +11695,11 @@ Decoder_init(Decoder *self, PyObject *args, PyObject *kwds)
         }
         Py_INCREF(ext_hook);
     }
-    self->state.ext_hook = ext_hook;
+    self->ext_hook = ext_hook;
 
     /* Handle type */
-    self->state.type = TypeNode_Convert(type);
-    if (self->state.type == NULL) {
+    self->type = TypeNode_Convert(type);
+    if (self->type == NULL) {
         return -1;
     }
     Py_INCREF(type);
@@ -11706,11 +11710,11 @@ Decoder_init(Decoder *self, PyObject *args, PyObject *kwds)
 static int
 Decoder_traverse(Decoder *self, visitproc visit, void *arg)
 {
-    int out = TypeNode_traverse(self->state.type, visit, arg);
+    int out = TypeNode_traverse(self->type, visit, arg);
     if (out != 0) return out;
     Py_VISIT(self->orig_type);
-    Py_VISIT(self->state.dec_hook);
-    Py_VISIT(self->state.ext_hook);
+    Py_VISIT(self->dec_hook);
+    Py_VISIT(self->ext_hook);
     return 0;
 }
 
@@ -11718,10 +11722,10 @@ static void
 Decoder_dealloc(Decoder *self)
 {
     PyObject_GC_UnTrack(self);
-    TypeNode_Free(self->state.type);
+    TypeNode_Free(self->type);
     Py_XDECREF(self->orig_type);
-    Py_XDECREF(self->state.dec_hook);
-    Py_XDECREF(self->state.ext_hook);
+    Py_XDECREF(self->dec_hook);
+    Py_XDECREF(self->ext_hook);
     Py_TYPE(self)->tp_free((PyObject *)self);
 }
 
@@ -13282,33 +13286,34 @@ PyDoc_STRVAR(Decoder_decode__doc__,
 static PyObject*
 Decoder_decode(Decoder *self, PyObject *const *args, Py_ssize_t nargs)
 {
-    PyObject *res = NULL;
-    Py_buffer buffer;
-    buffer.buf = NULL;
-
     if (!check_positional_nargs(nargs, 1, 1)) {
         return NULL;
     }
 
+    DecoderState state = {
+        .type = self->type,
+        .dec_hook = self->dec_hook,
+        .ext_hook = self->ext_hook
+    };
+
+    Py_buffer buffer;
+    buffer.buf = NULL;
     if (PyObject_GetBuffer(args[0], &buffer, PyBUF_CONTIG_RO) >= 0) {
-        self->state.buffer_obj = args[0];
-        self->state.input_start = buffer.buf;
-        self->state.input_pos = buffer.buf;
-        self->state.input_end = self->state.input_pos + buffer.len;
+        state.buffer_obj = args[0];
+        state.input_start = buffer.buf;
+        state.input_pos = buffer.buf;
+        state.input_end = state.input_pos + buffer.len;
 
-        res = mpack_decode(&(self->state), self->state.type, NULL, false);
+        PyObject *res = mpack_decode(&state, state.type, NULL, false);
 
-        if (res != NULL && mpack_has_trailing_characters(&self->state)) {
+        if (res != NULL && mpack_has_trailing_characters(&state)) {
             Py_CLEAR(res);
         }
 
         PyBuffer_Release(&buffer);
-        self->state.buffer_obj = NULL;
-        self->state.input_start = NULL;
-        self->state.input_pos = NULL;
-        self->state.input_end = NULL;
+        return res;
     }
-    return res;
+    return NULL;
 }
 
 static struct PyMethodDef Decoder_methods[] = {
@@ -13321,8 +13326,8 @@ static struct PyMethodDef Decoder_methods[] = {
 
 static PyMemberDef Decoder_members[] = {
     {"type", T_OBJECT_EX, offsetof(Decoder, orig_type), READONLY, "The Decoder type"},
-    {"dec_hook", T_OBJECT, offsetof(Decoder, state.dec_hook), READONLY, "The Decoder dec_hook"},
-    {"ext_hook", T_OBJECT, offsetof(Decoder, state.ext_hook), READONLY, "The Decoder ext_hook"},
+    {"dec_hook", T_OBJECT, offsetof(Decoder, dec_hook), READONLY, "The Decoder dec_hook"},
+    {"ext_hook", T_OBJECT, offsetof(Decoder, ext_hook), READONLY, "The Decoder ext_hook"},
     {NULL},
 };
 
@@ -13385,18 +13390,16 @@ static PyObject*
 msgspec_msgpack_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
 {
     PyObject *res = NULL, *buf = NULL, *type = NULL, *dec_hook = NULL, *ext_hook = NULL;
-    DecoderState state;
-    Py_buffer buffer;
-    MsgspecState *st = msgspec_get_global_state();
+    MsgspecState *mod = msgspec_get_global_state();
 
     /* Parse arguments */
     if (!check_positional_nargs(nargs, 1, 1)) return NULL;
     buf = args[0];
     if (kwnames != NULL) {
         Py_ssize_t nkwargs = PyTuple_GET_SIZE(kwnames);
-        if ((type = find_keyword(kwnames, args + nargs, st->str_type)) != NULL) nkwargs--;
-        if ((dec_hook = find_keyword(kwnames, args + nargs, st->str_dec_hook)) != NULL) nkwargs--;
-        if ((ext_hook = find_keyword(kwnames, args + nargs, st->str_ext_hook)) != NULL) nkwargs--;
+        if ((type = find_keyword(kwnames, args + nargs, mod->str_type)) != NULL) nkwargs--;
+        if ((dec_hook = find_keyword(kwnames, args + nargs, mod->str_dec_hook)) != NULL) nkwargs--;
+        if ((ext_hook = find_keyword(kwnames, args + nargs, mod->str_ext_hook)) != NULL) nkwargs--;
         if (nkwargs > 0) {
             PyErr_SetString(
                 PyExc_TypeError,
@@ -13416,7 +13419,6 @@ msgspec_msgpack_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, 
             return NULL;
         }
     }
-    state.dec_hook = dec_hook;
 
     /* Handle ext_hook */
     if (ext_hook == Py_None) {
@@ -13428,13 +13430,17 @@ msgspec_msgpack_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, 
             return NULL;
         }
     }
-    state.ext_hook = ext_hook;
+
+    DecoderState state = {
+        .dec_hook = dec_hook,
+        .ext_hook = ext_hook
+    };
 
     /* Allocate Any & Struct type nodes (simple, common cases) on the stack,
      * everything else on the heap */
     TypeNode typenode_any = {MS_TYPE_ANY};
     TypeNodeSimple typenode_struct;
-    if (type == NULL || type == st->typing_any) {
+    if (type == NULL || type == mod->typing_any) {
         state.type = &typenode_any;
     }
     else if (Py_TYPE(type) == &StructMetaType) {
@@ -13450,6 +13456,7 @@ msgspec_msgpack_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, 
         if (state.type == NULL) return NULL;
     }
 
+    Py_buffer buffer;
     buffer.buf = NULL;
     if (PyObject_GetBuffer(buf, &buffer, PyBUF_CONTIG_RO) >= 0) {
         state.buffer_obj = buf;
@@ -13496,7 +13503,10 @@ typedef struct JSONDecoderState {
 typedef struct JSONDecoder {
     PyObject_HEAD
     PyObject *orig_type;
-    JSONDecoderState state;
+
+    /* Configuration */
+    TypeNode *type;
+    PyObject *dec_hook;
 } JSONDecoder;
 
 PyDoc_STRVAR(JSONDecoder__doc__,
@@ -13542,18 +13552,13 @@ JSONDecoder_init(JSONDecoder *self, PyObject *args, PyObject *kwds)
         }
         Py_INCREF(dec_hook);
     }
-    self->state.dec_hook = dec_hook;
+    self->dec_hook = dec_hook;
 
     /* Handle type */
-    self->state.type = TypeNode_Convert(type);
-    if (self->state.type == NULL) return -1;
+    self->type = TypeNode_Convert(type);
+    if (self->type == NULL) return -1;
     Py_INCREF(type);
     self->orig_type = type;
-
-    /* Init scratch space */
-    self->state.scratch = NULL;
-    self->state.scratch_capacity = 0;
-    self->state.scratch_len = 0;
 
     return 0;
 }
@@ -13561,10 +13566,10 @@ JSONDecoder_init(JSONDecoder *self, PyObject *args, PyObject *kwds)
 static int
 JSONDecoder_traverse(JSONDecoder *self, visitproc visit, void *arg)
 {
-    int out = TypeNode_traverse(self->state.type, visit, arg);
+    int out = TypeNode_traverse(self->type, visit, arg);
     if (out != 0) return out;
     Py_VISIT(self->orig_type);
-    Py_VISIT(self->state.dec_hook);
+    Py_VISIT(self->dec_hook);
     return 0;
 }
 
@@ -13572,10 +13577,9 @@ static void
 JSONDecoder_dealloc(JSONDecoder *self)
 {
     PyObject_GC_UnTrack(self);
-    TypeNode_Free(self->state.type);
+    TypeNode_Free(self->type);
     Py_XDECREF(self->orig_type);
-    Py_XDECREF(self->state.dec_hook);
-    PyMem_Free(self->state.scratch);
+    Py_XDECREF(self->dec_hook);
     Py_TYPE(self)->tp_free((PyObject *)self);
 }
 
@@ -13748,15 +13752,6 @@ static MS_NOINLINE int
 json_scratch_expand(JSONDecoderState *state, Py_ssize_t required) {
     size_t new_size = Py_MAX(8, 1.5 * required);
     return json_scratch_resize(state, new_size);
-}
-
-static int
-json_scratch_reset(JSONDecoderState *state) {
-    state->scratch_len = 0;
-    if (state->scratch_capacity > JS_SCRATCH_MAX_SIZE) {
-        if (json_scratch_resize(state, JS_SCRATCH_MAX_SIZE) < 0) return -1;
-    }
-    return 0;
 }
 
 static int
@@ -16545,37 +16540,40 @@ PyDoc_STRVAR(JSONDecoder_decode__doc__,
 static PyObject*
 JSONDecoder_decode(JSONDecoder *self, PyObject *const *args, Py_ssize_t nargs)
 {
-    PyObject *res = NULL;
-    Py_buffer buffer;
-    buffer.buf = NULL;
-
     if (!check_positional_nargs(nargs, 1, 1)) {
         return NULL;
     }
 
+    JSONDecoderState state = {
+        .type = self->type,
+        .dec_hook = self->dec_hook,
+        .scratch = NULL,
+        .scratch_capacity = 0,
+        .scratch_len = 0
+    };
+
+    Py_buffer buffer;
+    buffer.buf = NULL;
     if (ms_get_buffer(args[0], &buffer) >= 0) {
 
-        self->state.buffer_obj = args[0];
-        self->state.input_start = buffer.buf;
-        self->state.input_pos = buffer.buf;
-        self->state.input_end = self->state.input_pos + buffer.len;
+        state.buffer_obj = args[0];
+        state.input_start = buffer.buf;
+        state.input_pos = buffer.buf;
+        state.input_end = state.input_pos + buffer.len;
 
-        res = json_decode(&(self->state), self->state.type, NULL);
+        PyObject *res = json_decode(&state, state.type, NULL);
 
-        if (res != NULL && json_has_trailing_characters(&self->state)) {
+        if (res != NULL && json_has_trailing_characters(&state)) {
             Py_CLEAR(res);
         }
 
         ms_release_buffer(&buffer);
 
-        self->state.buffer_obj = NULL;
-        self->state.input_start = NULL;
-        self->state.input_pos = NULL;
-        self->state.input_end = NULL;
-        json_scratch_reset(&(self->state));
+        PyMem_Free(state.scratch);
+        return res;
     }
 
-    return res;
+    return NULL;
 }
 
 static struct PyMethodDef JSONDecoder_methods[] = {
@@ -16588,7 +16586,7 @@ static struct PyMethodDef JSONDecoder_methods[] = {
 
 static PyMemberDef JSONDecoder_members[] = {
     {"type", T_OBJECT_EX, offsetof(JSONDecoder, orig_type), READONLY, "The Decoder type"},
-    {"dec_hook", T_OBJECT, offsetof(JSONDecoder, state.dec_hook), READONLY, "The Decoder dec_hook"},
+    {"dec_hook", T_OBJECT, offsetof(JSONDecoder, dec_hook), READONLY, "The Decoder dec_hook"},
     {NULL},
 };
 
@@ -16642,17 +16640,15 @@ static PyObject*
 msgspec_json_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
 {
     PyObject *res = NULL, *buf = NULL, *type = NULL, *dec_hook = NULL;
-    JSONDecoderState state;
-    Py_buffer buffer;
-    MsgspecState *st = msgspec_get_global_state();
+    MsgspecState *mod = msgspec_get_global_state();
 
     /* Parse arguments */
     if (!check_positional_nargs(nargs, 1, 1)) return NULL;
     buf = args[0];
     if (kwnames != NULL) {
         Py_ssize_t nkwargs = PyTuple_GET_SIZE(kwnames);
-        if ((type = find_keyword(kwnames, args + nargs, st->str_type)) != NULL) nkwargs--;
-        if ((dec_hook = find_keyword(kwnames, args + nargs, st->str_dec_hook)) != NULL) nkwargs--;
+        if ((type = find_keyword(kwnames, args + nargs, mod->str_type)) != NULL) nkwargs--;
+        if ((dec_hook = find_keyword(kwnames, args + nargs, mod->str_dec_hook)) != NULL) nkwargs--;
         if (nkwargs > 0) {
             PyErr_SetString(
                 PyExc_TypeError,
@@ -16672,18 +16668,19 @@ msgspec_json_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyO
             return NULL;
         }
     }
-    state.dec_hook = dec_hook;
 
-    /* Init scratch space */
-    state.scratch = NULL;
-    state.scratch_capacity = 0;
-    state.scratch_len = 0;
+    JSONDecoderState state = {
+        .dec_hook = dec_hook,
+        .scratch = NULL,
+        .scratch_capacity = 0,
+        .scratch_len = 0
+    };
 
     /* Allocate Any & Struct type nodes (simple, common cases) on the stack,
      * everything else on the heap */
     TypeNode typenode_any = {MS_TYPE_ANY};
     TypeNodeSimple typenode_struct;
-    if (type == NULL || type == st->typing_any) {
+    if (type == NULL || type == mod->typing_any) {
         state.type = &typenode_any;
     }
     else if (Py_TYPE(type) == &StructMetaType) {
@@ -16699,6 +16696,7 @@ msgspec_json_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyO
         if (state.type == NULL) return NULL;
     }
 
+    Py_buffer buffer;
     buffer.buf = NULL;
     if (ms_get_buffer(buf, &buffer) >= 0) {
         state.buffer_obj = buf;

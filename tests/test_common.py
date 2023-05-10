@@ -158,6 +158,26 @@ class TestThreadSafe:
         sol = proto.encode({"x": base64.b64encode(proto.encode(1)).decode("utf-8")})
         assert res == sol
 
+    def test_decode_threadsafe(self, proto):
+        class Custom:
+            def __init__(self, node):
+                self.node = node
+
+            def __eq__(self, other):
+                return type(other) is Custom and self.node == other.node
+
+        def dec_hook(typ, obj):
+            msg = base64.b64decode(obj)
+            return Custom(dec.decode(msg))
+
+        dec = proto.Decoder(Tuple[Union[Custom, None], int], dec_hook=dec_hook)
+        msg = proto.encode(
+            (base64.b64encode(proto.encode((None, 1))).decode("utf-8"), 2)
+        )
+        sol = (Custom((None, 1)), 2)
+        res = dec.decode(msg)
+        assert res == sol
+
 
 class TestIntEnum:
     def test_empty_errors(self, proto):
