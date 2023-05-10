@@ -3,6 +3,26 @@ Changelog
 
 .. currentmodule:: msgspec
 
+Version 0.15.0 (2023-05-10)
+---------------------------
+
+- Add support for Generic `Struct` types (:pr:`386`, :pr:`393`).
+- Add support for Generic `dataclasses` and `attrs <https://attrs.org>`__ types
+  (:pr:`396`).
+- Add support for Generic `typing.TypedDict` and `typing.NamedTuple` types
+  (:pr:`398`).
+- **BREAKING**: No longer normalize timezones to UTC when decoding `datetime`
+  objects from JSON (:pr:`391`).
+- Support decoding unhyphenated UUIDs (:pr:`392`).
+- A few type annotation fixups (:pr:`383`, :pr:`387`).
+- Dedent docstrings for descriptions when generating JSON schemas (:pr:`397`).
+- Use a variant of ``__qualname__`` when auto-generating Struct tags rather
+  than ``__name__`` (:pr:`399`).
+- Fix bug when handling `typing.Literal` types containing a literal ``None``
+  (:pr:`400`).
+- Make all ``Encoder``/``Decoder`` methods threadsafe (:pr:`402`).
+- **BREAKING**: Drop the ``write_buffer_size`` kwarg to ``Encoder`` (:pr:`402`).
+
 Version 0.14.2 (2023-04-19)
 ---------------------------
 
