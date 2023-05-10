@@ -8140,22 +8140,23 @@ static PyTypeObject Ext_Type = {
  * Shared Encoder structs/methods                                        *
  *************************************************************************/
 
-typedef struct EncoderState {
-    PyObject *enc_hook;     /* `enc_hook` callback */
-    Py_ssize_t write_buffer_size;  /* Configured internal buffer size */
+#define ENC_INIT_BUFSIZE 32
 
-    PyObject *output_buffer;    /* bytes or bytearray storing the output */
+typedef struct EncoderState {
+    MsgspecState *mod;          /* module reference */
+    PyObject *enc_hook;         /* `enc_hook` callback */
+    char* (*resize_buffer)(PyObject**, Py_ssize_t);  /* callback for resizing buffer */
+
     char *output_buffer_raw;    /* raw pointer to output_buffer internal buffer */
     Py_ssize_t output_len;      /* Length of output_buffer */
     Py_ssize_t max_output_len;  /* Allocation size of output_buffer */
-    char* (*resize_buffer)(PyObject**, Py_ssize_t);  /* callback for resizing buffer */
-
-    MsgspecState *mod;   /* module reference */
+    PyObject *output_buffer;    /* bytes or bytearray storing the output */
 } EncoderState;
 
 typedef struct Encoder {
     PyObject_HEAD
-    EncoderState state;
+    PyObject *enc_hook;
+    MsgspecState *mod;
 } Encoder;
 
 static char*
@@ -8209,7 +8210,6 @@ static int
 Encoder_init(Encoder *self, PyObject *args, PyObject *kwds)
 {
     char *kwlist[] = {"enc_hook", NULL};
-    Py_ssize_t write_buffer_size = 512;
     PyObject *enc_hook = NULL;
 
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "|$O", kwlist, &enc_hook)) {
@@ -8227,22 +8227,22 @@ Encoder_init(Encoder *self, PyObject *args, PyObject *kwds)
         Py_INCREF(enc_hook);
     }
 
-    self->state.mod = msgspec_get_global_state();
+    self->mod = msgspec_get_global_state();
+    self->enc_hook = enc_hook;
+    return 0;
+}
 
-    self->state.enc_hook = enc_hook;
-    self->state.write_buffer_size = write_buffer_size;
-    self->state.max_output_len = self->state.write_buffer_size;
-    self->state.output_len = 0;
-    self->state.output_buffer = NULL;
-    self->state.resize_buffer = &ms_resize_bytes;
+static int
+Encoder_traverse(Encoder *self, visitproc visit, void *arg)
+{
+    Py_VISIT(self->enc_hook);
     return 0;
 }
 
 static int
 Encoder_clear(Encoder *self)
 {
-    Py_CLEAR(self->state.output_buffer);
-    Py_CLEAR(self->state.enc_hook);
+    Py_CLEAR(self->enc_hook);
     return 0;
 }
 
@@ -8252,25 +8252,6 @@ Encoder_dealloc(Encoder *self)
     PyObject_GC_UnTrack(self);
     Encoder_clear(self);
     Py_TYPE(self)->tp_free((PyObject *)self);
-}
-
-static int
-Encoder_traverse(Encoder *self, visitproc visit, void *arg)
-{
-    Py_VISIT(self->state.enc_hook);
-    return 0;
-}
-
-static PyObject*
-Encoder_sizeof(Encoder *self)
-{
-    Py_ssize_t res;
-
-    res = sizeof(Encoder);
-    if (self->state.output_buffer != NULL) {
-        res += self->state.max_output_len;
-    }
-    return PyLong_FromSsize_t(res);
 }
 
 PyDoc_STRVAR(Encoder_encode_into__doc__,
@@ -8299,27 +8280,21 @@ PyDoc_STRVAR(Encoder_encode_into__doc__,
 );
 static PyObject*
 encoder_encode_into_common(
-    EncoderState *state,
+    Encoder *self,
     PyObject *const *args,
     Py_ssize_t nargs,
     int(*encode)(EncoderState*, PyObject*)
 )
 {
-    int status;
-    PyObject *obj, *old_buf, *buf;
-    Py_ssize_t buf_size, offset = 0;
-
-    if (!check_positional_nargs(nargs, 2, 3)) {
-        return NULL;
-    }
-    obj = args[0];
-    buf = args[1];
+    if (!check_positional_nargs(nargs, 2, 3)) return NULL;
+    PyObject *obj = args[0];
+    PyObject *buf = args[1];
     if (!PyByteArray_CheckExact(buf)) {
         PyErr_SetString(PyExc_TypeError, "buffer must be a `bytearray`");
         return NULL;
     }
-    buf_size = PyByteArray_GET_SIZE(buf);
-
+    Py_ssize_t buf_size = PyByteArray_GET_SIZE(buf);
+    Py_ssize_t offset = 0;
     if (nargs == 3) {
         offset = PyLong_AsSsize_t(args[2]);
         if (offset == -1) {
@@ -8336,27 +8311,20 @@ encoder_encode_into_common(
     }
 
     /* Setup buffer */
-    old_buf = state->output_buffer;
-    state->output_buffer = buf;
-    state->output_buffer_raw = PyByteArray_AS_STRING(buf);
-    state->resize_buffer = &ms_resize_bytearray;
-    state->output_len = offset;
-    state->max_output_len = buf_size;
-
-    status = encode(state, obj);
-
-    /* Reset buffer */
-    state->output_buffer = old_buf;
-    state->resize_buffer = &ms_resize_bytes;
-    if (old_buf != NULL) {
-        state->output_buffer_raw = PyBytes_AS_STRING(old_buf);
+    EncoderState state = {
+        .mod = self->mod,
+        .enc_hook = self->enc_hook,
+        .output_buffer = buf,
+        .output_buffer_raw = PyByteArray_AS_STRING(buf),
+        .output_len = offset,
+        .max_output_len = buf_size,
+        .resize_buffer = ms_resize_bytearray
+    };
+    if (encode(&state, obj) < 0) {
+        return NULL;
     }
-
-    if (status == 0) {
-        FAST_BYTEARRAY_SHRINK(buf, state->output_len);
-        Py_RETURN_NONE;
-    }
-    return NULL;
+    FAST_BYTEARRAY_SHRINK(buf, state.output_len);
+    Py_RETURN_NONE;
 }
 
 PyDoc_STRVAR(Encoder_encode__doc__,
@@ -8377,52 +8345,31 @@ PyDoc_STRVAR(Encoder_encode__doc__,
 );
 static PyObject*
 encoder_encode_common(
-    EncoderState *state,
+    Encoder *self,
     PyObject *const *args,
     Py_ssize_t nargs,
     int(*encode)(EncoderState*, PyObject*)
 )
 {
-    int status;
-    PyObject *res = NULL;
+    if (!check_positional_nargs(nargs, 1, 1)) return NULL;
 
-    if (!check_positional_nargs(nargs, 1, 1)) {
+    EncoderState state = {
+        .mod = self->mod,
+        .enc_hook = self->enc_hook,
+        .output_len = 0,
+        .max_output_len = ENC_INIT_BUFSIZE,
+        .resize_buffer = &ms_resize_bytes
+    };
+    state.output_buffer = PyBytes_FromStringAndSize(NULL, state.max_output_len);
+    if (state.output_buffer == NULL) return NULL;
+    state.output_buffer_raw = PyBytes_AS_STRING(state.output_buffer);
+
+    if (encode(&state, args[0]) < 0) {
+        Py_DECREF(state.output_buffer);
         return NULL;
     }
-
-    /* reset buffer */
-    state->output_len = 0;
-    if (state->output_buffer == NULL) {
-        state->max_output_len = state->write_buffer_size;
-        state->output_buffer = PyBytes_FromStringAndSize(NULL, state->max_output_len);
-        if (state->output_buffer == NULL) return NULL;
-        state->output_buffer_raw = PyBytes_AS_STRING(state->output_buffer);
-    }
-
-    status = encode(state, args[0]);
-
-    if (status == 0) {
-        if (state->max_output_len > state->write_buffer_size) {
-            /* Buffer was resized, trim to length */
-            res = state->output_buffer;
-            state->output_buffer = NULL;
-            FAST_BYTES_SHRINK(res, state->output_len);
-        }
-        else {
-            /* Only constant buffer used, copy to output */
-            res = PyBytes_FromStringAndSize(
-                PyBytes_AS_STRING(state->output_buffer),
-                state->output_len
-            );
-        }
-    } else {
-        /* Error in encode, drop buffer if necessary */
-        if (state->max_output_len > state->write_buffer_size) {
-            Py_DECREF(state->output_buffer);
-            state->output_buffer = NULL;
-        }
-    }
-    return res;
+    FAST_BYTES_SHRINK(state.output_buffer, state.output_len);
+    return state.output_buffer;
 }
 
 static PyObject*
@@ -8433,17 +8380,16 @@ encode_common(
     int(*encode)(EncoderState*, PyObject*)
 )
 {
-    int status;
-    PyObject *enc_hook = NULL, *res = NULL;
-    EncoderState state;
-
-    state.mod = msgspec_get_global_state();
+    PyObject *enc_hook = NULL;
+    MsgspecState *mod = msgspec_get_global_state();
 
     /* Parse arguments */
     if (!check_positional_nargs(nargs, 1, 1)) return NULL;
     if (kwnames != NULL) {
         Py_ssize_t nkwargs = PyTuple_GET_SIZE(kwnames);
-        if ((enc_hook = find_keyword(kwnames, args + nargs, state.mod->str_enc_hook)) != NULL) nkwargs--;
+        if ((enc_hook = find_keyword(kwnames, args + nargs, mod->str_enc_hook)) != NULL) {
+            nkwargs--;
+        }
         if (nkwargs > 0) {
             PyErr_SetString(
                 PyExc_TypeError,
@@ -8456,38 +8402,31 @@ encode_common(
     if (enc_hook == Py_None) {
         enc_hook = NULL;
     }
-    if (enc_hook != NULL) {
-        if (!PyCallable_Check(enc_hook)) {
-            PyErr_SetString(PyExc_TypeError, "enc_hook must be callable");
-            return NULL;
-        }
+    if (enc_hook != NULL && !PyCallable_Check(enc_hook)) {
+        PyErr_SetString(PyExc_TypeError, "enc_hook must be callable");
+        return NULL;
     }
-    state.enc_hook = enc_hook;
-
-    /* use a smaller buffer size here to reduce chance of over allocating for one-off calls */
-    state.write_buffer_size = 32;
-    state.max_output_len = state.write_buffer_size;
-    state.output_len = 0;
+    EncoderState state = {
+        .mod = mod,
+        .enc_hook = enc_hook,
+        .output_len = 0,
+        .max_output_len = ENC_INIT_BUFSIZE,
+        .resize_buffer = &ms_resize_bytes
+    };
     state.output_buffer = PyBytes_FromStringAndSize(NULL, state.max_output_len);
     if (state.output_buffer == NULL) return NULL;
     state.output_buffer_raw = PyBytes_AS_STRING(state.output_buffer);
-    state.resize_buffer = &ms_resize_bytes;
 
-    status = encode(&state, args[0]);
-
-    if (status == 0) {
-        /* Trim output to length */
-        res = state.output_buffer;
-        FAST_BYTES_SHRINK(res, state.output_len);
-    } else {
-        /* Error in encode, drop buffer */
-        Py_CLEAR(state.output_buffer);
+    if (encode(&state, args[0]) < 0) {
+        Py_DECREF(state.output_buffer);
+        return NULL;
     }
-    return res;
+    FAST_BYTES_SHRINK(state.output_buffer, state.output_len);
+    return state.output_buffer;
 }
 
 static PyMemberDef Encoder_members[] = {
-    {"enc_hook", T_OBJECT, offsetof(Encoder, state.enc_hook), READONLY, "The encoder enc_hook"},
+    {"enc_hook", T_OBJECT, offsetof(Encoder, enc_hook), READONLY, "The encoder enc_hook"},
     {NULL},
 };
 
@@ -10761,13 +10700,13 @@ mpack_encode(EncoderState *self, PyObject *obj) {
 static PyObject*
 Encoder_encode_into(Encoder *self, PyObject *const *args, Py_ssize_t nargs)
 {
-    return encoder_encode_into_common(&(self->state), args, nargs, &mpack_encode);
+    return encoder_encode_into_common(self, args, nargs, &mpack_encode);
 }
 
 static PyObject*
 Encoder_encode(Encoder *self, PyObject *const *args, Py_ssize_t nargs)
 {
-    return encoder_encode_common(&(self->state), args, nargs, &mpack_encode);
+    return encoder_encode_common(self, args, nargs, &mpack_encode);
 }
 
 static struct PyMethodDef Encoder_methods[] = {
@@ -10778,10 +10717,6 @@ static struct PyMethodDef Encoder_methods[] = {
     {
         "encode_into", (PyCFunction) Encoder_encode_into, METH_FASTCALL,
         Encoder_encode_into__doc__,
-    },
-    {
-        "__sizeof__", (PyCFunction) Encoder_sizeof, METH_NOARGS,
-        PyDoc_STR("Size in bytes")
     },
     {NULL, NULL}                /* sentinel */
 };
@@ -11601,13 +11536,13 @@ json_encode(EncoderState *self, PyObject *obj)
 static PyObject*
 JSONEncoder_encode_into(Encoder *self, PyObject *const *args, Py_ssize_t nargs)
 {
-    return encoder_encode_into_common(&(self->state), args, nargs, &json_encode);
+    return encoder_encode_into_common(self, args, nargs, &json_encode);
 }
 
 static PyObject*
 JSONEncoder_encode(Encoder *self, PyObject *const *args, Py_ssize_t nargs)
 {
-    return encoder_encode_common(&(self->state), args, nargs, &json_encode);
+    return encoder_encode_common(self, args, nargs, &json_encode);
 }
 
 static struct PyMethodDef JSONEncoder_methods[] = {
@@ -11618,10 +11553,6 @@ static struct PyMethodDef JSONEncoder_methods[] = {
     {
         "encode_into", (PyCFunction) JSONEncoder_encode_into, METH_FASTCALL,
         Encoder_encode_into__doc__,
-    },
-    {
-        "__sizeof__", (PyCFunction) Encoder_sizeof, METH_NOARGS,
-        PyDoc_STR("Size in bytes")
     },
     {NULL, NULL}                /* sentinel */
 };
@@ -16553,16 +16484,10 @@ msgspec_json_format(PyObject *self, PyObject *args, PyObject *kwargs)
         /* Init encoder */
         enc.mod = msgspec_get_global_state();
         enc.enc_hook = NULL;
-        if (indent >= 0) {
-            /* Assume pretty-printing will take at least as much space as the
-             * input. This is true unless there's existing whitespace. */
-            enc.write_buffer_size = buffer.len;
-        }
-        else {
-            enc.write_buffer_size = 512;
-        }
+        /* Assume pretty-printing will take at least as much space as the
+         * input. This is true unless there's existing whitespace. */
+        enc.max_output_len = (indent >= 0) ? buffer.len : ENC_INIT_BUFSIZE;
         enc.output_len = 0;
-        enc.max_output_len = enc.write_buffer_size;
         enc.output_buffer = PyBytes_FromStringAndSize(NULL, enc.max_output_len);
         if (enc.output_buffer != NULL) {
             enc.output_buffer_raw = PyBytes_AS_STRING(enc.output_buffer);
