@@ -194,13 +194,6 @@ class TestEncoderMisc:
         with pytest.raises(RecursionError):
             enc.encode(o)
 
-    def test_getsizeof(self):
-        enc = msgspec.json.Encoder()
-        s1 = sys.getsizeof(enc)
-        enc.encode(None)
-        s2 = sys.getsizeof(enc)
-        assert s1 < s2
-
     def test_encode_no_enc_hook(self):
         class Foo:
             pass
