@@ -853,6 +853,130 @@ support here is purely to aid static analysis tools like mypy_ or pyright_.
       File "<stdin>", line 1, in <module>
     msgspec.ValidationError: Expected `int`, got `str`
 
+Generic Types
+-------------
+
+``msgspec`` supports generic types, including `user-defined generic types`_
+based on any of the following types:
+
+- `msgspec.Struct`
+- `dataclasses`
+- `attrs`
+- `typing.TypedDict`
+- `typing.NamedTuple`
+
+Generic types may be useful for reusing common message structures.
+
+To define a generic type:
+
+- Define one or more type variables (`typing.TypeVar`) to parametrize your type with.
+- Add `typing.Generic` as a base class when defining your type, parametrizing
+  it by the relevant type variables.
+- When annotating the field types, use the relevant type variables instead of
+  "concrete" types anywhere you want to be generic.
+
+For example, here we define a generic ``Paginated`` struct type for storing
+extra pagination information in an API response.
+
+.. code-block:: python
+
+    import msgspec
+    from typing import Generic, TypeVar
+
+    # A type variable for the item type
+    T = TypeVar("T")
+
+    class Paginated(msgspec.Struct, Generic[T]):
+        """A generic paginated API wrapper, parametrized by the item type."""
+        page: int        # The current page number
+        per_page: int    # Number of items per page
+        total: int       # The total number of items found
+        items: list[T]   # Items returned, up to `per_page` in length
+
+This type is generic over the type of item contained in ``Paginated.items``.
+This ``Paginated`` wrapper may then be used to decode a message containing a
+specific item type by parametrizing it with that type. When processing a
+generic type, the parametrized types are substituted for the type variables.
+
+Here we define a ``User`` type, then use it to decode a paginated API response
+containing a list of users:
+
+.. code-block:: python
+
+    class User(msgspec.Struct):
+        """A user model"""
+        name: str
+        groups: list[str] = []
+
+    json_str = """
+    {
+        "page": 1,
+        "per_page": 5,
+        "total": 252,
+        "data": [
+            {"name": "alice", "groups": ["admin"]},
+            {"name": "ben"},
+            {"name": "carol", "groups": ["engineering"]},
+            {"name": "dan", "groups": ["hr"]},
+            {"name": "ellen", "groups": ["engineering"]}
+        ]
+    }
+    """
+
+    # Decode a paginated response containing a list of users
+    msg = msgspec.json.decode(json_str, type=Paginated[User])
+    print(msg)
+    #> Paginated(
+    #>     page=1, per_page=5, total=252,
+    #>     data=[
+    #>         User(name='alice', groups=['admin']),
+    #>         User(name='ben', groups=[]),
+    #>         User(name='carol', groups=['engineering']),
+    #>         User(name='dan', groups=['hr']),
+    #>         User(name='ellen', groups=['engineering'])
+    #>     ]
+    #> )
+
+If instead we wanted to decode a paginated response of another type (say
+``Team``), we could do this by parametrizing ``Paginated`` with a different
+type.
+
+.. code-block:: python
+
+    # Decode a paginated response containing a list of teams
+    msgspec.json.decode(some_other_message, type=Paginated[Team])
+
+Any unparametrized type variables will be treated as `typing.Any` when decoding.
+
+.. code-block:: python
+
+    # These are equivalent.
+    # The unparametrized version substitutes in `Any` for `T`
+    msgspec.json.decode(some_other_message, type=Paginated)
+    msgspec.json.decode(some_other_message, type=Paginated[Any])
+
+However, if an unparametrized type variable has a ``bound`` (`docs
+<https://peps.python.org/pep-0484/#type-variables-with-an-upper-bound>`__),
+then the bound type will be used instead.
+
+.. code-block:: python
+
+    from collections.abc import Sequence
+    S = TypeVar("S", bound=Sequence)  # Can be any sequence type
+
+    class Example(msgspec.Struct, Generic[S]):
+        value: S
+
+    msg = b'{"value": [1, 2, 3]}'
+
+    # These are equivalent.
+    # The unparametrized version substitutes in `Sequence` for `S`
+    msgspec.json.decode(some_other_message, type=Example)
+    msgspec.json.decode(some_other_message, type=Example[Sequence])
+
+See the official Python docs on `generic types`_ and the `corresponding PEP
+<https://peps.python.org/pep-0484/#generics>`__ for more information.
+
 Abstract Types
 --------------
 
@@ -1117,3 +1241,5 @@ TOML_ types are decoded to Python types as follows:
 .. _timezone-aware: https://docs.python.org/3/library/datetime.html#aware-and-naive-objects
 .. _mypy: https://mypy.readthedocs.io
 .. _pyright: https://github.com/microsoft/pyright
+.. _generic types:
+.. _user-defined generic types: https://docs.python.org/3/library/typing.html#user-defined-generic-types

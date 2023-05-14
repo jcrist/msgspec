@@ -1030,6 +1030,115 @@ support here is purely to aid static analysis tools like <a class="reference ext
 </pre></div>
 </div>
 </section>
+<section id="generic-types">
+<h2>Generic Types<a class="headerlink" href="#generic-types" title="Permalink to this heading">#</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> supports generic types, including <a class="reference external" href="https://docs.python.org/3/library/typing.html#user-defined-generic-types">user-defined generic types</a>
+based on any of the following types:</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a></p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#module-dataclasses" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses</span></code></a></p></li>
+<li><p><a class="reference external" href="https://www.attrs.org/en/stable/api.html#module-attrs" title="(in attrs v23.1)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">attrs</span></code></a></p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypedDict" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.TypedDict</span></code></a></p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.NamedTuple" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.NamedTuple</span></code></a></p></li>
+</ul>
+<p>Generic types may be useful for reusing common message structures.</p>
+<p>To define a generic type:</p>
+<ul class="simple">
+<li><p>Define one or more type variables (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypeVar" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.TypeVar</span></code></a>) to parametrize your type with.</p></li>
+<li><p>Add <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Generic" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.Generic</span></code></a> as a base class when defining your type, parametrizing
+it by the relevant type variables.</p></li>
+<li><p>When annotating the field types, use the relevant type variables instead of
+“concrete” types anywhere you want to be generic.</p></li>
+</ul>
+<p>For example, here we define a generic <code class="docutils literal notranslate"><span class="pre">Paginated</span></code> struct type for storing
+extra pagination information in an API response.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">msgspec</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Generic</span><span class="p">,</span> <span class="n">TypeVar</span>
+
+<span class="c1"># A type variable for the item type</span>
+<span class="n">T</span> <span class="o">=</span> <span class="n">TypeVar</span><span class="p">(</span><span class="s2">&quot;T&quot;</span><span class="p">)</span>
+
+<span class="k">class</span> <span class="nc">Paginated</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">Generic</span><span class="p">[</span><span class="n">T</span><span class="p">]):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;A generic paginated API wrapper, parametrized by the item type.&quot;&quot;&quot;</span>
+    <span class="n">page</span><span class="p">:</span> <span class="nb">int</span>        <span class="c1"># The current page number</span>
+    <span class="n">per_page</span><span class="p">:</span> <span class="nb">int</span>    <span class="c1"># Number of items per page</span>
+    <span class="n">total</span><span class="p">:</span> <span class="nb">int</span>       <span class="c1"># The total number of items found</span>
+    <span class="n">items</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">T</span><span class="p">]</span>   <span class="c1"># Items returned, up to `per_page` in length</span>
+</pre></div>
+</div>
+<p>This type is generic over the type of item contained in <code class="docutils literal notranslate"><span class="pre">Paginated.items</span></code>.
+This <code class="docutils literal notranslate"><span class="pre">Paginated</span></code> wrapper may then be used to decode a message containing a
+specific item type by parametrizing it with that type. When processing a
+generic type, the parametrized types are substituted for the type variables.</p>
+<p>Here we define a <code class="docutils literal notranslate"><span class="pre">User</span></code> type, then use it to decode a paginated API response
+containing a list of users:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">User</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;A user model&quot;&quot;&quot;</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">groups</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+
+<span class="n">json_str</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">{</span>
+<span class="s2">    &quot;page&quot;: 1,</span>
+<span class="s2">    &quot;per_page&quot;: 5,</span>
+<span class="s2">    &quot;total&quot;: 252,</span>
+<span class="s2">    &quot;data&quot;: [</span>
+<span class="s2">        {&quot;name&quot;: &quot;alice&quot;, &quot;groups&quot;: [&quot;admin&quot;]},</span>
+<span class="s2">        {&quot;name&quot;: &quot;ben&quot;},</span>
+<span class="s2">        {&quot;name&quot;: &quot;carol&quot;, &quot;groups&quot;: [&quot;engineering&quot;]},</span>
+<span class="s2">        {&quot;name&quot;: &quot;dan&quot;, &quot;groups&quot;: [&quot;hr&quot;]},</span>
+<span class="s2">        {&quot;name&quot;: &quot;ellen&quot;, &quot;groups&quot;: [&quot;engineering&quot;]}</span>
+<span class="s2">    ]</span>
+<span class="s2">}</span>
+<span class="s2">&quot;&quot;&quot;</span>
+
+<span class="c1"># Decode a paginated response containing a list of users</span>
+<span class="n">msg</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">json_str</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Paginated</span><span class="p">[</span><span class="n">User</span><span class="p">])</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+<span class="c1">#&gt; Paginated(</span>
+<span class="c1">#&gt;     page=1, per_page=5, total=252,</span>
+<span class="c1">#&gt;     data=[</span>
+<span class="c1">#&gt;         User(name=&#39;alice&#39;, groups=[&#39;admin&#39;]),</span>
+<span class="c1">#&gt;         User(name=&#39;ben&#39;, groups=[]),</span>
+<span class="c1">#&gt;         User(name=&#39;carol&#39;, groups=[&#39;engineering&#39;]),</span>
+<span class="c1">#&gt;         User(name=&#39;dan&#39;, groups=[&#39;hr&#39;]),</span>
+<span class="c1">#&gt;         User(name=&#39;ellen&#39;, groups=[&#39;engineering&#39;])</span>
+<span class="c1">#&gt;     ]</span>
+<span class="c1">#&gt; )</span>
+</pre></div>
+</div>
+<p>If instead we wanted to decode a paginated response of another type (say
+<code class="docutils literal notranslate"><span class="pre">Team</span></code>), we could do this by parametrizing <code class="docutils literal notranslate"><span class="pre">Paginated</span></code> with a different
+type.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Decode a paginated response containing a list of teams</span>
+<span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">some_other_message</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Paginated</span><span class="p">[</span><span class="n">Team</span><span class="p">])</span>
+</pre></div>
+</div>
+<p>Any unparametrized type variables will be treated as <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.Any</span></code></a> when decoding.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># These are equivalent.</span>
+<span class="c1"># The unparametrized version substitutes in `Any` for `T`</span>
+<span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">some_other_message</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Paginated</span><span class="p">)</span>
+<span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">some_other_message</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Paginated</span><span class="p">[</span><span class="n">Any</span><span class="p">])</span>
+</pre></div>
+</div>
+<p>However, if an unparametrized type variable has a <code class="docutils literal notranslate"><span class="pre">bound</span></code> (<a class="reference external" href="https://peps.python.org/pep-0484/#type-variables-with-an-upper-bound">docs</a>),
+then the bound type will be used instead.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">collections.abc</span> <span class="kn">import</span> <span class="n">Sequence</span>
+<span class="n">S</span> <span class="o">=</span> <span class="n">TypeVar</span><span class="p">(</span><span class="s2">&quot;S&quot;</span><span class="p">,</span> <span class="n">bound</span><span class="o">=</span><span class="n">Sequence</span><span class="p">)</span>  <span class="c1"># Can be any sequence type</span>
+
+<span class="k">class</span> <span class="nc">Example</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">Generic</span><span class="p">[</span><span class="n">S</span><span class="p">]):</span>
+    <span class="n">value</span><span class="p">:</span> <span class="n">S</span>
+
+<span class="n">msg</span> <span class="o">=</span> <span class="sa">b</span><span class="s1">&#39;{&quot;value&quot;: [1, 2, 3]}&#39;</span>
+
+<span class="c1"># These are equivalent.</span>
+<span class="c1"># The unparametrized version substitutes in `Sequence` for `S`</span>
+<span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">some_other_message</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Example</span><span class="p">)</span>
+<span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">some_other_message</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Example</span><span class="p">[</span><span class="n">Sequence</span><span class="p">])</span>
+</pre></div>
+</div>
+<p>See the official Python docs on <a class="reference external" href="https://docs.python.org/3/library/typing.html#user-defined-generic-types">generic types</a> and the <a class="reference external" href="https://peps.python.org/pep-0484/#generics">corresponding PEP</a> for more information.</p>
+</section>
 <section id="abstract-types">
 <h2>Abstract Types<a class="headerlink" href="#abstract-types" title="Permalink to this heading">#</a></h2>
 <p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> supports several “abstract” types, decoding them as
@@ -1346,6 +1455,7 @@ by default.</p>
 <li><a class="reference internal" href="#enum-intenum"><code class="docutils literal notranslate"><span class="pre">Enum</span></code> / <code class="docutils literal notranslate"><span class="pre">IntEnum</span></code></a></li>
 <li><a class="reference internal" href="#literal"><code class="docutils literal notranslate"><span class="pre">Literal</span></code></a></li>
 <li><a class="reference internal" href="#newtype"><code class="docutils literal notranslate"><span class="pre">NewType</span></code></a></li>
+<li><a class="reference internal" href="#generic-types">Generic Types</a></li>
 <li><a class="reference internal" href="#abstract-types">Abstract Types</a></li>
 <li><a class="reference internal" href="#union-optional"><code class="docutils literal notranslate"><span class="pre">Union</span></code> /  <code class="docutils literal notranslate"><span class="pre">Optional</span></code></a></li>
 <li><a class="reference internal" href="#raw"><code class="docutils literal notranslate"><span class="pre">Raw</span></code></a></li>
