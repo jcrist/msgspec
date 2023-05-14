@@ -86,7 +86,10 @@ extensions = [
     "sphinx_design",
     "IPython.sphinxext.ipython_console_highlighting",
 ]
-intersphinx_mapping = {"python": ("https://docs.python.org/3", None)}
+intersphinx_mapping = {
+    "python": ("https://docs.python.org/3", None),
+    "attrs": ("https://www.attrs.org/en/stable/", None),
+}
 autodoc_typehints = "none"
 napoleon_numpy_docstring = True
 napoleon_google_docstring = False
