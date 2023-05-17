@@ -9371,7 +9371,7 @@ ms_decode_time(const char *buf, Py_ssize_t size, TypeNode *type, PathNode *path)
     int hour, minute, second, microsecond = 0;
     const char *buf_end = buf + size;
     bool round_up_micros = false;
-    PyObject *tz = Py_None;
+    PyObject *tz = NULL;
     char c;
 
     /* A valid time is at least 8 characters in length */
@@ -9418,8 +9418,8 @@ end_decimal:
     }
 #undef next_or_null
 
-    /* Parse timezone */
     if (c != '\0') {
+        /* Parse timezone */
         int offset = 0;
         if (c == 'Z' || c == 'z') {
             /* Check for trailing characters */
@@ -9455,6 +9455,10 @@ end_decimal:
             if (tz == NULL) goto error;
         }
     }
+    else {
+        tz = Py_None;
+        Py_INCREF(tz);
+    }
 
     /* Ensure all numbers are valid */
     if (hour > 23) goto invalid;
@@ -9484,7 +9488,7 @@ ms_decode_datetime(const char *buf, Py_ssize_t size, TypeNode *type, PathNode *p
     int year, month, day, hour, minute, second, microsecond = 0;
     const char *buf_end = buf + size;
     bool round_up_micros = false;
-    PyObject *tz = Py_None;
+    PyObject *tz = NULL;
     char c;
 
     /* A valid datetime is at least 19 characters in length */
@@ -9551,8 +9555,8 @@ end_decimal:
     }
 #undef next_or_null
 
-    /* Parse timezone */
     if (c != '\0') {
+        /* Parse timezone */
         int offset = 0;
         if (c == 'Z' || c == 'z') {
             /* Check for trailing characters */
@@ -9587,6 +9591,10 @@ end_decimal:
             tz = timezone_from_offset(offset);
             if (tz == NULL) goto error;
         }
+    }
+    else {
+        tz = Py_None;
+        Py_INCREF(tz);
     }
 
     /* Ensure all numbers are valid */
