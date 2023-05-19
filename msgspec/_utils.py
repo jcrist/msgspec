@@ -171,20 +171,33 @@ def get_typeddict_info(obj):
         cls = obj
     else:
         cls = obj.__origin__
-    hints = get_class_annotations(obj)
-    # Strip off Required/NotRequired
-    hints = {
-        k: v.__args__[0]
-        if getattr(v, "__origin__", False) in (Required, NotRequired)
-        else v
-        for k, v in hints.items()
-    }
+
+    raw_hints = get_class_annotations(obj)
+
     if hasattr(cls, "__required_keys__"):
         required = set(cls.__required_keys__)
     elif cls.__total__:
-        required = set(hints)
+        required = set(raw_hints)
     else:
         required = set()
+
+    # Both `typing.TypedDict` and `typing_extensions.TypedDict` have a bug
+    # where `Required`/`NotRequired` aren't properly detected at runtime when
+    # `__future__.annotations` is enabled, meaning the `__required_keys__`
+    # isn't correct. This code block works around this issue by amending the
+    # set of required keys as needed, while also stripping off any
+    # `Required`/`NotRequired` wrappers.
+    hints = {}
+    for k, v in raw_hints.items():
+        origin = getattr(v, "__origin__", False)
+        if origin is Required:
+            required.add(k)
+            hints[k] = v.__args__[0]
+        elif origin is NotRequired:
+            required.discard(k)
+            hints[k] = v.__args__[0]
+        else:
+            hints[k] = v
     return hints, required
 
 
