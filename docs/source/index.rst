@@ -114,10 +114,10 @@ few:
 
         .. image:: _static/nautilus-trader.png
 
-    .. grid-item-card:: Starlite
-        :link: https://starliteproject.dev/
+    .. grid-item-card:: Litestar
+        :link: https://litestar.dev/
 
-        .. image:: _static/starlite.png
+        .. image:: _static/litestar.png
 
     .. grid-item-card:: Mosec
         :link: https://mosecorg.github.io/mosec/
