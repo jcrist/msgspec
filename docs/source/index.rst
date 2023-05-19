@@ -119,6 +119,11 @@ few:
 
         .. image:: _static/starlite.png
 
+    .. grid-item-card:: Mosec
+        :link: https://mosecorg.github.io/mosec/
+
+        .. image:: _static/mosec.png
+
 
 .. _type annotations: https://docs.python.org/3/library/typing.html
 .. _JSON: https://json.org
