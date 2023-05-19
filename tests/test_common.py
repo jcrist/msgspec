@@ -1762,6 +1762,52 @@ class TestTypedDict:
             dec.decode(proto.encode({"b": "two"}))
         assert "Object missing required field `a`" == str(rec.value)
 
+    @pytest.mark.parametrize("use_typing_extensions", [False, True])
+    def test_required_and_notrequired(self, proto, use_typing_extensions):
+        if use_typing_extensions:
+            module = "typing_extensions"
+        else:
+            module = "typing"
+
+        ns = pytest.importorskip(module)
+
+        if not hasattr(ns, "Required"):
+            pytest.skip(f"{module}.Required is not available")
+
+        if not hasattr(ns.TypedDict("C"), "__required_keys__"):
+            # This should be Python 3.8, builtin typing only
+            pytest.skip("partially optional TypedDict not supported")
+
+        source = f"""
+        from __future__ import annotations
+        from {module} import TypedDict, Required, NotRequired
+
+        class Base(TypedDict):
+            a: int
+            b: NotRequired[str]
+
+        class Ex(Base, total=False):
+            c: str
+            d: Required[bool]
+        """
+
+        with temp_module(source) as mod:
+            dec = proto.Decoder(mod.Ex)
+
+            x = {"a": 1, "b": "two", "c": "extra", "d": False}
+            assert dec.decode(proto.encode(x)) == x
+
+            x2 = {"a": 1, "d": False}
+            assert dec.decode(proto.encode(x2)) == x2
+
+            with pytest.raises(msgspec.ValidationError) as rec:
+                dec.decode(proto.encode({"d": False}))
+            assert "Object missing required field `a`" == str(rec.value)
+
+            with pytest.raises(msgspec.ValidationError) as rec:
+                dec.decode(proto.encode({"a": 2}))
+            assert "Object missing required field `d`" == str(rec.value)
+
     def test_keys_are_their_interned_values(self, proto):
         """Ensure that we're not allocating new keys here, but reusing the
         existing keys on the TypedDict schema"""
