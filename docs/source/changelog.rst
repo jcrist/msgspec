@@ -3,6 +3,16 @@ Changelog
 
 .. currentmodule:: msgspec
 
+Version 0.15.1 (2023-05-19)
+---------------------------
+
+- Fix a reference counting bug introduced in 0.15.0 when decoding naive (no
+  timezone) ``datetime``/``time`` objects in both the ``msgpack`` and ``json``
+  decoders (:pr:`409`).
+- Work around an upstream bug in CPython to properly support
+  `typing.Required`/`typing.NotRequired` in `typing.TypedDict` when
+  ``__future__.annotations`` is enabled (:pr:`410`).
+
 Version 0.15.0 (2023-05-10)
 ---------------------------
 
