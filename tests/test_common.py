@@ -45,6 +45,7 @@ PY39 = sys.version_info[:2] >= (3, 9)
 PY310 = sys.version_info[:2] >= (3, 10)
 PY311 = sys.version_info[:2] >= (3, 11)
 
+py39_plus = pytest.mark.skipif(not PY39, reason="3.9+ only")
 py310_plus = pytest.mark.skipif(not PY310, reason="3.10+ only")
 py311_plus = pytest.mark.skipif(not PY311, reason="3.11+ only")
 
@@ -142,6 +143,15 @@ class TestEncodeSubclasses:
 
         for msg in [[], [1, 2]]:
             assert proto.encode(subclass(msg)) == proto.encode(cls(msg))
+
+
+class TestDecoder:
+    @py39_plus
+    def test_decoder_runtime_type_parameters(self, proto):
+        dec = proto.Decoder[int](int)
+        assert isinstance(dec, proto.Decoder)
+        msg = proto.encode(2)
+        assert dec.decode(msg) == 2
 
 
 class TestThreadSafe:

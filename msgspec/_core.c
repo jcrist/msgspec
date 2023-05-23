@@ -13329,6 +13329,9 @@ static struct PyMethodDef Decoder_methods[] = {
         "decode", (PyCFunction) Decoder_decode, METH_FASTCALL,
         Decoder_decode__doc__,
     },
+#if PY_VERSION_HEX >= 0x03090000
+    {"__class_getitem__", Py_GenericAlias, METH_O|METH_CLASS},
+#endif
     {NULL, NULL}                /* sentinel */
 };
 
@@ -16589,6 +16592,9 @@ static struct PyMethodDef JSONDecoder_methods[] = {
         "decode", (PyCFunction) JSONDecoder_decode, METH_FASTCALL,
         JSONDecoder_decode__doc__,
     },
+#if PY_VERSION_HEX >= 0x03090000
+    {"__class_getitem__", Py_GenericAlias, METH_O|METH_CLASS},
+#endif
     {NULL, NULL}                /* sentinel */
 };
 
