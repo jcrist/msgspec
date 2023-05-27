@@ -17986,7 +17986,7 @@ from_builtins_struct_array_union(
 }
 
 static PyObject *
-from_builtins_array(
+from_builtins_sequence(
     FromBuiltinsState *self, PyObject *obj, TypeNode *type, PathNode *path
 ) {
     PyObject **items = PySequence_Fast_ITEMS(obj);
@@ -18023,6 +18023,17 @@ from_builtins_array(
         return from_builtins_struct_array_union(self, items, size, type, path);
     }
     return ms_validation_error("array", type, path);
+}
+
+static PyObject *
+from_builtins_any_sequence(
+    FromBuiltinsState *self, PyObject *obj, TypeNode *type, PathNode *path
+) {
+    PyObject *seq = PySequence_Tuple(obj);
+    if (seq == NULL) return NULL;
+    PyObject *out = from_builtins_sequence(self, seq, type, path);
+    Py_DECREF(seq);
+    return out;
 }
 
 static PyObject *
@@ -18318,7 +18329,7 @@ from_builtins(
         return from_builtins_float(self, obj, type, path);
     }
     else if (pytype == &PyList_Type || pytype == &PyTuple_Type) {
-        return from_builtins_array(self, obj, type, path);
+        return from_builtins_sequence(self, obj, type, path);
     }
     else if (pytype == &PyDict_Type) {
         return from_builtins_object(self, obj, type, path);
@@ -18340,6 +18351,9 @@ from_builtins(
     }
     else if (pytype == PyDateTimeAPI->DateType) {
         return from_builtins_immutable(self, MS_TYPE_DATE, "date", obj, type, path);
+    }
+    else if (pytype == &PySet_Type || pytype == &PyFrozenSet_Type) {
+        return from_builtins_any_sequence(self, obj, type, path);
     }
     else if (pytype == (PyTypeObject *)self->mod->UUIDType) {
         return from_builtins_immutable(self, MS_TYPE_UUID, "uuid", obj, type, path);

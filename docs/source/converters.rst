@@ -76,8 +76,8 @@ Since all protocols are different, `to_builtins` and `from_builtins` have a few
 configuration options:
 
 - ``builtin_types``: an iterable of additional types to treat as builtin types,
-  beyond the standard `dict`, `list`, `tuple`, `str`, `int`, `float`, `bool`,
-  and `None`.
+  beyond the standard `dict`, `list`, `tuple`, `set`, `frozenset`, `str`,
+  `int`, `float`, `bool`, and `None`.
 
 - ``str_keys``: whether the wrapped protocol only supports strings for object
   keys, rather than any hashable type.
