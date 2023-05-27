@@ -640,12 +640,12 @@ class TestSequences:
     def test_any_sequence(self):
         assert from_builtins((1, 2, 3), Any) == [1, 2, 3]
 
-    @pytest.mark.parametrize("in_type", [list, tuple])
+    @pytest.mark.parametrize("in_type", [list, tuple, set, frozenset])
     @pytest.mark.parametrize("out_type", [list, tuple, set, frozenset])
     def test_empty_sequence(self, in_type, out_type):
         assert from_builtins(in_type(), out_type) == out_type()
 
-    @pytest.mark.parametrize("in_type", [list, tuple])
+    @pytest.mark.parametrize("in_type", [list, tuple, set, frozenset])
     @pytest.mark.parametrize(
         "out_type_annot",
         [(list, List), (tuple, Tuple), (set, Set), (frozenset, FrozenSet)],
@@ -663,15 +663,15 @@ class TestSequences:
         assert res == sol
         assert isinstance(res, out_type)
 
-    @pytest.mark.parametrize("in_type", [list, tuple])
+    @pytest.mark.parametrize("in_type", [list, tuple, set, frozenset])
     @pytest.mark.parametrize(
         "out_annot", [List[int], Tuple[int, ...], Set[int], FrozenSet[int]]
     )
     def test_sequence_wrong_item_type(self, in_type, out_annot):
         with pytest.raises(
-            ValidationError, match=r"Expected `int`, got `str` - at `\$\[1\]`"
+            ValidationError, match=r"Expected `int`, got `str` - at `\$\[0\]`"
         ):
-            assert from_builtins(in_type([1, "bad"]), out_annot)
+            assert from_builtins(in_type(["bad"]), out_annot)
 
     @pytest.mark.parametrize("out_type", [list, tuple, set, frozenset])
     def test_sequence_wrong_type(self, out_type):
