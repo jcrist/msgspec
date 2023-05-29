@@ -4625,6 +4625,15 @@ ms_validation_error(const char *got, TypeNode *type, PathNode *path) {
     return NULL;
 }
 
+static void
+ms_missing_required_field(PyObject *field, PathNode *path) {
+    ms_raise_validation_error(
+        path,
+        "Object missing required field `%U`%U",
+        field
+    );
+}
+
 static PyObject *
 ms_invalid_cstr_value(const char *cstr, Py_ssize_t size, PathNode *path) {
     PyObject *str = PyUnicode_DecodeUTF8(cstr, size, NULL);
@@ -6645,10 +6654,8 @@ Struct_fill_in_defaults(StructMetaObject *st_type, PyObject *obj, PathNode *path
     return 0;
 
 missing_required:
-    ms_raise_validation_error(
-        path,
-        "Object missing required field `%U`%U",
-        PyTuple_GET_ITEM(st_type->struct_encode_fields, i)
+    ms_missing_required_field(
+        PyTuple_GET_ITEM(st_type->struct_encode_fields, i), path
     );
     return -1;
 }
@@ -7562,11 +7569,7 @@ TypedDictInfo_error_missing(TypedDictInfo *self, PyObject *dict, PathNode *path)
             int contains = PyDict_Contains(dict, field);
             if (contains < 0) return;
             if (contains == 0) {
-                ms_raise_validation_error(
-                    path,
-                    "Object missing required field `%U`%U",
-                    field
-                );
+                ms_missing_required_field(field, path);
                 return;
             }
         }
@@ -7744,6 +7747,21 @@ DataclassInfo_lookup_key(
     return NULL;
 }
 
+
+static MS_INLINE PyObject *
+DataclassInfo_get_default(DataclassInfo *self, Py_ssize_t i) {
+    PyObject *default_value = PyTuple_GET_ITEM(self->defaults, i);
+    bool is_factory = self->fields[i].type->types & MS_EXTRA_FLAG;
+    if (is_factory) {
+        default_value = CALL_NO_ARGS(default_value);
+        if (default_value == NULL) return NULL;
+        return default_value;
+    }
+    Py_INCREF(default_value);
+    return default_value;
+}
+
+
 static int
 DataclassInfo_post_decode(DataclassInfo *self, PyObject *obj, PathNode *path) {
     Py_ssize_t nfields = Py_SIZE(self);
@@ -7753,9 +7771,7 @@ DataclassInfo_post_decode(DataclassInfo *self, PyObject *obj, PathNode *path) {
         PyObject *name = self->fields[i].key;
         if (!PyObject_HasAttr(obj, name)) {
             if (i < (nfields - ndefaults)) {
-                ms_raise_validation_error(
-                    path, "Object missing required field `%U`%U", name
-                );
+                ms_missing_required_field(name, path);
                 return -1;
             }
             else {
@@ -13015,11 +13031,7 @@ mpack_decode_struct_union(
         }
     }
 
-    ms_raise_validation_error(
-        path,
-        "Object missing required field `%U`%U",
-        Lookup_tag_field(lookup)
-    );
+    ms_missing_required_field(Lookup_tag_field(lookup), path);
     return NULL;
 }
 
@@ -15704,11 +15716,7 @@ json_decode_struct_union(
         }
     }
 
-    ms_raise_validation_error(
-        path,
-        "Object missing required field `%U`%U",
-        Lookup_tag_field(lookup)
-    );
+    ms_missing_required_field(Lookup_tag_field(lookup), path);
     return NULL;
 }
 
@@ -17351,6 +17359,7 @@ typedef struct FromBuiltinsState {
     PyObject *dec_hook;
     uint32_t builtin_types;
     bool str_keys;
+    bool attributes;
     PyObject* (*from_builtins_str)(
         struct FromBuiltinsState*, PyObject*, bool, TypeNode*, PathNode*
     );
@@ -18037,7 +18046,7 @@ from_builtins_any_sequence(
 }
 
 static PyObject *
-from_builtins_dict(
+from_builtins_dict_to_dict(
     FromBuiltinsState *self, PyObject *obj,
     TypeNode *key_type, TypeNode *val_type, PathNode *path
 ) {
@@ -18091,8 +18100,9 @@ from_builtins_is_str_key(PyObject *key, PathNode *path) {
 
 
 static PyObject *
-from_builtins_struct(
-    FromBuiltinsState *self, PyObject *obj, StructInfo *info, PathNode *path
+from_builtins_dict_to_struct(
+    FromBuiltinsState *self, PyObject *obj, StructInfo *info, PathNode *path,
+    bool tag_already_read
 ) {
     StructMetaObject *struct_type = info->class;
 
@@ -18113,6 +18123,7 @@ from_builtins_struct(
         Py_ssize_t field_index = StructMeta_get_field_index(struct_type, key, key_size, &pos);
         if (field_index < 0) {
             if (MS_UNLIKELY(field_index == -2)) {
+                if (tag_already_read) continue;
                 PathNode tag_path = {path, PATH_STR, struct_type->struct_tag_field};
                 if (
                     !from_builtins_tag_matches(
@@ -18150,37 +18161,26 @@ error:
 }
 
 static PyObject *
-from_builtins_struct_union(
+from_builtins_dict_to_struct_union(
     FromBuiltinsState *self, PyObject *obj, TypeNode *type, PathNode *path
 ) {
     Lookup *lookup = TypeNode_get_struct_union(type);
     PyObject *tag_field = Lookup_tag_field(lookup);
-
-    PyObject *key_obj, *val_obj;
-    Py_ssize_t pos_obj = 0;
-    while (PyDict_Next(obj, &pos_obj, &key_obj, &val_obj)) {
-        if (!from_builtins_is_str_key(key_obj, path)) return NULL;
-        if (_PyUnicode_EQ(key_obj, tag_field)) {
-            /* Decode and lookup tag */
-            PathNode tag_path = {path, PATH_STR, tag_field};
-            StructInfo *info = from_builtins_lookup_tag(
-                self, lookup, val_obj, &tag_path
-            );
-            if (info == NULL) return NULL;
-            return from_builtins_struct(self, obj, info, path);
-        }
+    PyObject *value = PyDict_GetItem(obj, tag_field);
+    if (value != NULL) {
+        PathNode tag_path = {path, PATH_STR, tag_field};
+        StructInfo *info = from_builtins_lookup_tag(
+            self, lookup, value, &tag_path
+        );
+        if (info == NULL) return NULL;
+        return from_builtins_dict_to_struct(self, obj, info, path, true);
     }
-
-    ms_raise_validation_error(
-        path,
-        "Object missing required field `%U`%U",
-        tag_field
-    );
+    ms_missing_required_field(tag_field, path);
     return NULL;
 }
 
 static PyObject *
-from_builtins_typeddict(
+from_builtins_dict_to_typeddict(
     FromBuiltinsState *self, PyObject *obj, TypeNode *type, PathNode *path
 ) {
     if (Py_EnterRecursiveCall(" while deserializing an object")) return NULL;
@@ -18226,7 +18226,7 @@ error:
 }
 
 static PyObject *
-from_builtins_dataclass(
+from_builtins_dict_to_dataclass(
     FromBuiltinsState *self, PyObject *obj, TypeNode *type, PathNode *path
 ) {
     if (Py_EnterRecursiveCall(" while deserializing an object")) return NULL;
@@ -18273,7 +18273,7 @@ error:
 }
 
 static PyObject *
-from_builtins_object(
+from_builtins_dict(
     FromBuiltinsState *self, PyObject *obj, TypeNode *type, PathNode *path
 ) {
     if (type->types & (MS_TYPE_DICT | MS_TYPE_ANY)) {
@@ -18288,22 +18288,210 @@ from_builtins_object(
         else {
             TypeNode_get_dict(type, &key_type, &val_type);
         }
-        return from_builtins_dict(self, obj, key_type, val_type, path);
+        return from_builtins_dict_to_dict(self, obj, key_type, val_type, path);
     }
     else if (type->types & MS_TYPE_STRUCT) {
         StructInfo *info = TypeNode_get_struct_info(type);
-        return from_builtins_struct(self, obj, info, path);
+        return from_builtins_dict_to_struct(self, obj, info, path, false);
     }
     else if (type->types & MS_TYPE_STRUCT_UNION) {
-        return from_builtins_struct_union(self, obj, type, path);
+        return from_builtins_dict_to_struct_union(self, obj, type, path);
     }
     else if (type->types & MS_TYPE_TYPEDDICT) {
-        return from_builtins_typeddict(self, obj, type, path);
+        return from_builtins_dict_to_typeddict(self, obj, type, path);
     }
     else if (type->types & MS_TYPE_DATACLASS) {
-        return from_builtins_dataclass(self, obj, type, path);
+        return from_builtins_dict_to_dataclass(self, obj, type, path);
     }
     return ms_validation_error("object", type, path);
+}
+
+static PyObject *
+from_builtins_object_to_struct(
+    FromBuiltinsState *self, PyObject *obj, StructInfo *info, PathNode *path,
+    bool tag_already_read
+) {
+    StructMetaObject *struct_type = info->class;
+
+    Py_ssize_t nfields = PyTuple_GET_SIZE(struct_type->struct_fields);
+    Py_ssize_t ndefaults = PyTuple_GET_SIZE(struct_type->struct_defaults);
+
+    if (struct_type->struct_tag_value != NULL && !tag_already_read) {
+        PyObject *attr = PyObject_GetAttr(obj, struct_type->struct_tag_field);
+        if (attr != NULL) {
+            PathNode tag_path = {path, PATH_STR, struct_type->struct_tag_field};
+            bool ok = from_builtins_tag_matches(
+                self, attr, struct_type->struct_tag_value, &tag_path
+            );
+            Py_DECREF(attr);
+            if (!ok) return NULL;
+        }
+        else {
+            /* Tag not present, ignore and continue */
+            PyErr_Clear();
+        }
+    }
+
+    if (Py_EnterRecursiveCall(" while deserializing an object")) return NULL;
+
+    PyObject *out = Struct_alloc((PyTypeObject *)(struct_type));
+    if (out == NULL) goto error;
+
+    bool is_gc = MS_TYPE_IS_GC(struct_type);
+    bool should_untrack = is_gc;
+
+    for (Py_ssize_t i = 0; i < nfields; i++) {
+        PyObject *field = PyTuple_GET_ITEM(struct_type->struct_fields, i);
+        PyObject *attr = PyObject_GetAttr(obj, field);
+        PyObject *val;
+        if (attr == NULL) {
+            PyErr_Clear();
+            PyObject *default_val = NULL;
+            if (MS_LIKELY(i >= (nfields - ndefaults))) {
+                default_val = PyTuple_GET_ITEM(
+                    struct_type->struct_defaults, i - (nfields - ndefaults)
+                );
+                if (MS_UNLIKELY(default_val == NODEFAULT)) {
+                    default_val = NULL;
+                }
+            }
+            if (default_val == NULL) {
+                ms_missing_required_field(field, path);
+                goto error;
+            }
+            val = get_default(default_val);
+        }
+        else {
+            PathNode field_path = {path, PATH_STR, field};
+            val = from_builtins(self, attr, info->types[i], &field_path);
+            Py_DECREF(attr);
+        }
+        if (val == NULL) goto error;
+        Struct_set_index(out, i, val);
+        if (should_untrack) {
+            should_untrack = !MS_MAYBE_TRACKED(val);
+        }
+    }
+    Py_LeaveRecursiveCall();
+    if (is_gc && !should_untrack)
+        PyObject_GC_Track(out);
+    return out;
+
+error:
+    Py_LeaveRecursiveCall();
+    Py_XDECREF(out);
+    return NULL;
+}
+
+static PyObject *
+from_builtins_object_to_struct_union(
+    FromBuiltinsState *self, PyObject *obj, TypeNode *type, PathNode *path
+) {
+    Lookup *lookup = TypeNode_get_struct_union(type);
+    PyObject *tag_field = Lookup_tag_field(lookup);
+    PyObject *value = PyObject_GetAttr(obj, tag_field);
+    if (value != NULL) {
+        PathNode tag_path = {path, PATH_STR, tag_field};
+        StructInfo *info = from_builtins_lookup_tag(
+            self, lookup, value, &tag_path
+        );
+        Py_DECREF(value);
+        if (info == NULL) return NULL;
+        return from_builtins_object_to_struct(self, obj, info, path, true);
+    }
+    ms_missing_required_field(tag_field, path);
+    return NULL;
+}
+
+static PyObject *
+from_builtins_object_to_dataclass(
+    FromBuiltinsState *self, PyObject *obj, TypeNode *type, PathNode *path
+) {
+    DataclassInfo *info = TypeNode_get_dataclass_info(type);
+
+    Py_ssize_t nfields = Py_SIZE(info);
+    Py_ssize_t ndefaults = PyTuple_GET_SIZE(info->defaults);
+
+    if (Py_EnterRecursiveCall(" while deserializing an object")) return NULL;
+
+    PyTypeObject *dataclass_type = (PyTypeObject *)(info->class);
+    PyObject *out = dataclass_type->tp_alloc(dataclass_type, 0);
+    if (out == NULL) goto error;
+    if (info->pre_init != NULL) {
+        PyObject *res = CALL_ONE_ARG(info->pre_init, out);
+        if (res == NULL) goto error;
+        Py_DECREF(res);
+    }
+
+    for (Py_ssize_t i = 0; i < nfields; i++) {
+        PyObject *field = info->fields[i].key;
+        PyObject *attr = PyObject_GetAttr(obj, field);
+        PyObject *val;
+        if (attr == NULL) {
+            PyErr_Clear();
+            if (MS_LIKELY(i >= (nfields - ndefaults))) {
+                PyObject *default_val = PyTuple_GET_ITEM(
+                    info->defaults, i - (nfields - ndefaults)
+                );
+                bool is_factory = info->fields[i].type->types & MS_EXTRA_FLAG;
+                if (is_factory) {
+                    val = CALL_NO_ARGS(default_val);
+                }
+                else {
+                    Py_INCREF(default_val);
+                    val = default_val;
+                }
+            }
+            else {
+                ms_missing_required_field(field, path);
+                goto error;
+            }
+        }
+        else {
+            PathNode field_path = {path, PATH_STR, field};
+            val = from_builtins(self, attr, info->fields[i].type, &field_path);
+            Py_DECREF(attr);
+        }
+        if (val == NULL) goto error;
+        int status = PyObject_GenericSetAttr(out, field, val);
+        Py_DECREF(val);
+        if (status < 0) goto error;
+    }
+    if (info->post_init != NULL) {
+        PyObject *res = CALL_ONE_ARG(info->post_init, out);
+        if (res == NULL) goto error;
+        Py_DECREF(res);
+    }
+    Py_LeaveRecursiveCall();
+    return out;
+
+error:
+    Py_LeaveRecursiveCall();
+    Py_XDECREF(out);
+    return NULL;
+}
+
+static PyObject *
+from_builtins_object(
+    FromBuiltinsState *self, PyObject *obj, TypeNode *type, PathNode *path
+) {
+    if (type->types & MS_TYPE_ANY) {
+        Py_INCREF(obj);
+        return obj;
+    }
+    if (self->attributes) {
+        if (type->types & MS_TYPE_STRUCT) {
+            StructInfo *info = TypeNode_get_struct_info(type);
+            return from_builtins_object_to_struct(self, obj, info, path, false);
+        }
+        else if (type->types & MS_TYPE_STRUCT_UNION) {
+            return from_builtins_object_to_struct_union(self, obj, type, path);
+        }
+        else if (type->types & MS_TYPE_DATACLASS) {
+            return from_builtins_object_to_dataclass(self, obj, type, path);
+        }
+    }
+    return ms_validation_error(Py_TYPE(obj)->tp_name, type, path);
 }
 
 static PyObject *
@@ -18332,7 +18520,7 @@ from_builtins(
         return from_builtins_sequence(self, obj, type, path);
     }
     else if (pytype == &PyDict_Type) {
-        return from_builtins_object(self, obj, type, path);
+        return from_builtins_dict(self, obj, type, path);
     }
     else if (obj == Py_None) {
         return from_builtins_none(self, obj, type, path);
@@ -18361,17 +18549,13 @@ from_builtins(
     else if (pytype == (PyTypeObject *)self->mod->DecimalType) {
         return from_builtins_immutable(self, MS_TYPE_DECIMAL, "decimal", obj, type, path);
     }
-    else if (type->types & MS_TYPE_ANY) {
-        Py_INCREF(obj);
-        return obj;
-    }
     else {
-        return ms_validation_error(pytype->tp_name, type, path);
+        return from_builtins_object(self, obj, type, path);
     }
 }
 
 PyDoc_STRVAR(msgspec_from_builtins__doc__,
-"from_builtins(obj, type, *, str_keys=False, str_values=False, builtin_types=None, dec_hook=None)\n"
+"from_builtins(obj, type, *, str_keys=False, str_values=False, builtin_types=None, attributes=False, dec_hook=None)\n"
 "--\n"
 "\n"
 "Construct a complex object from one composed only of simpler builtin types\n"
@@ -18402,6 +18586,11 @@ PyDoc_STRVAR(msgspec_from_builtins__doc__,
 "    Whether the wrapped protocol only supports string values. Setting to True\n"
 "    enables a wider set of coercion rules from string to non-string types for\n"
 "    all values. Implies ``str_keys=True``. Default is False.\n"
+"attributes: bool, optional\n"
+"    If True, input objects may be coerced to ``Struct``/``dataclass``/``attrs``\n"
+"    types by extracting attributes from the input matching fields in the output\n"
+"    type. One use case is converting database query results (ORM or otherwise)\n"
+"    to msgspec structured types. Default is False.\n"
 "dec_hook: callable, optional\n"
 "    An optional callback for handling decoding custom types. Should have the\n"
 "    signature ``dec_hook(type: Type, obj: Any) -> Any``, where ``type`` is the\n"
@@ -18435,23 +18624,25 @@ static PyObject*
 msgspec_from_builtins(PyObject *self, PyObject *args, PyObject *kwargs)
 {
     PyObject *obj = NULL, *pytype = NULL, *builtin_types = NULL, *dec_hook = NULL;
-    int str_keys = false, str_values = false;
+    int str_keys = false, str_values = false, attributes = false;
     FromBuiltinsState state;
 
     char *kwlist[] = {
-        "obj", "type", "builtin_types", "str_keys", "str_values", "dec_hook", NULL
+        "obj", "type", "builtin_types", "str_keys", "str_values",
+        "attributes", "dec_hook", NULL
     };
 
     /* Parse arguments */
     if (!PyArg_ParseTupleAndKeywords(
-        args, kwargs, "OO|$OppO", kwlist,
-        &obj, &pytype, &builtin_types, &str_keys, &str_values, &dec_hook
+        args, kwargs, "OO|$OpppO", kwlist,
+        &obj, &pytype, &builtin_types, &str_keys, &str_values, &attributes, &dec_hook
     )) {
         return NULL;
     }
 
     state.mod = msgspec_get_global_state();
     state.builtin_types = 0;
+    state.attributes = attributes;
     state.str_keys = str_keys;
     if (str_values) {
         state.from_builtins_str = &(from_builtins_str_lax);

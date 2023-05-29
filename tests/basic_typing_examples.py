@@ -953,3 +953,6 @@ def check_from_builtins() -> None:
 
     o6 = msgspec.from_builtins(1, int, dec_hook=lambda typ, x: None)
     reveal_type(o6)  # assert "int" in typ.lower()
+
+    o7 = msgspec.from_builtins(1, int, attributes=True)
+    reveal_type(o7)  # assert "int" in typ.lower()
