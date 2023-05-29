@@ -86,6 +86,12 @@ configuration options:
   supports string values. This is useful for completely untyped protocols like
   URL querystrings, where only string values exist.
 
+- ``attributes``: `from_builtins` only. If True, input objects may be coerced
+  to ``Struct``/``dataclass``/``attrs`` types by extracting attributes from the
+  input matching fields in the output type. One use case is converting database
+  query results (ORM or otherwise) to msgspec structured types. The default is
+  False.
+
 - ``enc_hook``/``dec_hook``: the standard keyword arguments used for
   :doc:`extending` msgspec to support additional types.
 

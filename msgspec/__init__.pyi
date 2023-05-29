@@ -157,6 +157,7 @@ def from_builtins(
     str_keys: bool = False,
     str_values: bool = False,
     builtin_types: Union[Iterable[type], None] = None,
+    attributes: bool = False,
     dec_hook: Optional[Callable[[type, Any], Any]] = None,
 ) -> T: ...
 @overload
@@ -166,6 +167,7 @@ def from_builtins(
     *,
     str_keys: bool = False,
     builtin_types: Union[Iterable[type], None] = None,
+    attributes: bool = False,
     dec_hook: Optional[Callable[[type, Any], Any]] = None,
 ) -> Any: ...
 
