@@ -327,6 +327,11 @@ keys, rather than any hashable type.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">str_values</span></code>: <a class="reference internal" href="api.html#msgspec.from_builtins" title="msgspec.from_builtins"><code class="xref py py-obj docutils literal notranslate"><span class="pre">from_builtins</span></code></a> only. Whether the wrapped protocol only
 supports string values. This is useful for completely untyped protocols like
 URL querystrings, where only string values exist.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">attributes</span></code>: <a class="reference internal" href="api.html#msgspec.from_builtins" title="msgspec.from_builtins"><code class="xref py py-obj docutils literal notranslate"><span class="pre">from_builtins</span></code></a> only. If True, input objects may be coerced
+to <code class="docutils literal notranslate"><span class="pre">Struct</span></code>/<code class="docutils literal notranslate"><span class="pre">dataclass</span></code>/<code class="docutils literal notranslate"><span class="pre">attrs</span></code> types by extracting attributes from the
+input matching fields in the output type. One use case is converting database
+query results (ORM or otherwise) to msgspec structured types. The default is
+False.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">enc_hook</span></code>/<code class="docutils literal notranslate"><span class="pre">dec_hook</span></code>: the standard keyword arguments used for
 <a class="reference internal" href="extending.html"><span class="doc">Extending</span></a> msgspec to support additional types.</p></li>
 </ul>
