@@ -124,6 +124,11 @@ few:
 
         .. image:: _static/mosec.png
 
+    .. grid-item-card:: anywidget
+        :link: https://anywidget.dev/
+
+        .. image:: _static/anywidget.png
+
 
 .. _type annotations: https://docs.python.org/3/library/typing.html
 .. _JSON: https://json.org
