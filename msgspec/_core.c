@@ -18035,12 +18035,42 @@ from_builtins_sequence(
 }
 
 static PyObject *
-from_builtins_any_sequence(
+from_builtins_any_set(
     FromBuiltinsState *self, PyObject *obj, TypeNode *type, PathNode *path
 ) {
+    if (MS_UNLIKELY(type->types & MS_TYPE_ANY)) {
+        Py_INCREF(obj);
+        return obj;
+    }
+
     PyObject *seq = PySequence_Tuple(obj);
     if (seq == NULL) return NULL;
-    PyObject *out = from_builtins_sequence(self, seq, type, path);
+
+    PyObject **items = PySequence_Fast_ITEMS(seq);
+    Py_ssize_t size = PySequence_Fast_GET_SIZE(seq);
+
+    PyObject *out = NULL;
+
+    if (!ms_passes_array_constraints(size, type, path)) goto done;
+
+    if (type->types & MS_TYPE_LIST) {
+        out = from_builtins_list(self, items, size, TypeNode_get_array(type), path);
+    }
+    else if (type->types & (MS_TYPE_SET | MS_TYPE_FROZENSET)) {
+        out = from_builtins_set(
+            self, items, size,
+            (type->types & MS_TYPE_SET),
+            TypeNode_get_array(type), path
+        );
+    }
+    else if (type->types & MS_TYPE_VARTUPLE) {
+        out = from_builtins_vartuple(self, items, size, TypeNode_get_array(type), path);
+    }
+    else {
+        ms_validation_error("set", type, path);
+    }
+
+done:
     Py_DECREF(seq);
     return out;
 }
@@ -18541,7 +18571,7 @@ from_builtins(
         return from_builtins_immutable(self, MS_TYPE_DATE, "date", obj, type, path);
     }
     else if (pytype == &PySet_Type || pytype == &PyFrozenSet_Type) {
-        return from_builtins_any_sequence(self, obj, type, path);
+        return from_builtins_any_set(self, obj, type, path);
     }
     else if (pytype == (PyTypeObject *)self->mod->UUIDType) {
         return from_builtins_immutable(self, MS_TYPE_UUID, "uuid", obj, type, path);
