@@ -744,6 +744,9 @@ class TestSequences:
         with pytest.raises(ValidationError, match="Expected `array`, got `int`"):
             from_builtins(1, typ)
 
+        with pytest.raises(ValidationError, match="Expected `array`, got `set`"):
+            from_builtins({1, 2, 3}, typ)
+
         with pytest.raises(ValidationError, match="Expected `array` of length 3"):
             from_builtins((1, "two"), typ)
 
@@ -755,6 +758,9 @@ class TestSequences:
 
         with pytest.raises(ValidationError, match="Expected `bool`"):
             from_builtins([1, "two", "three"], typ)
+
+        with pytest.raises(ValidationError, match="Expected `array`, got `set`"):
+            from_builtins({1, 2, 3}, typ)
 
         with pytest.raises(ValidationError, match="Expected `array` of length 3"):
             from_builtins((1, "two"), typ)
