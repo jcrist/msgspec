@@ -18077,9 +18077,20 @@ done:
 
 static PyObject *
 from_builtins_dict_to_dict(
-    FromBuiltinsState *self, PyObject *obj,
-    TypeNode *key_type, TypeNode *val_type, PathNode *path
+    FromBuiltinsState *self, PyObject *obj, TypeNode *type, PathNode *path
 ) {
+    Py_ssize_t size = PyDict_GET_SIZE(obj);
+    if (!ms_passes_map_constraints(size, type, path)) return NULL;
+    TypeNode *key_type, *val_type;
+    TypeNode type_any = {MS_TYPE_ANY};
+    if (type->types & MS_TYPE_ANY) {
+        key_type = &type_any;
+        val_type = &type_any;
+    }
+    else {
+        TypeNode_get_dict(type, &key_type, &val_type);
+    }
+
     PathNode key_path = {path, PATH_KEY, NULL};
     PathNode val_path = {path, PATH_ELLIPSIS, NULL};
 
@@ -18118,6 +18129,20 @@ error:
     Py_LeaveRecursiveCall();
     Py_DECREF(out);
     return NULL;
+}
+
+static PyObject *
+from_builtins_mapping_to_dict(
+    FromBuiltinsState *self, PyObject *obj, TypeNode *type, PathNode *path
+) {
+    PyObject *out = NULL;
+    PyObject *temp = PyDict_New();
+    if (temp == NULL) return NULL;
+    if (PyDict_Merge(temp, obj, 1) == 0) {
+        out = from_builtins_dict_to_dict(self, temp, type, path);
+    }
+    Py_DECREF(temp);
+    return out;
 }
 
 static bool
@@ -18307,18 +18332,7 @@ from_builtins_dict(
     FromBuiltinsState *self, PyObject *obj, TypeNode *type, PathNode *path
 ) {
     if (type->types & (MS_TYPE_DICT | MS_TYPE_ANY)) {
-        Py_ssize_t size = PyDict_GET_SIZE(obj);
-        if (!ms_passes_map_constraints(size, type, path)) return NULL;
-        TypeNode *key_type, *val_type;
-        TypeNode type_any = {MS_TYPE_ANY};
-        if (type->types & MS_TYPE_ANY) {
-            key_type = &type_any;
-            val_type = &type_any;
-        }
-        else {
-            TypeNode_get_dict(type, &key_type, &val_type);
-        }
-        return from_builtins_dict_to_dict(self, obj, key_type, val_type, path);
+        return from_builtins_dict_to_dict(self, obj, type, path);
     }
     else if (type->types & MS_TYPE_STRUCT) {
         StructInfo *info = TypeNode_get_struct_info(type);
@@ -18339,7 +18353,7 @@ from_builtins_dict(
 static PyObject *
 from_builtins_object_to_struct(
     FromBuiltinsState *self, PyObject *obj, StructInfo *info, PathNode *path,
-    bool tag_already_read
+    PyObject* (*getter)(PyObject *, PyObject *), bool tag_already_read
 ) {
     StructMetaObject *struct_type = info->class;
 
@@ -18347,7 +18361,7 @@ from_builtins_object_to_struct(
     Py_ssize_t ndefaults = PyTuple_GET_SIZE(struct_type->struct_defaults);
 
     if (struct_type->struct_tag_value != NULL && !tag_already_read) {
-        PyObject *attr = PyObject_GetAttr(obj, struct_type->struct_tag_field);
+        PyObject *attr = getter(obj, struct_type->struct_tag_field);
         if (attr != NULL) {
             PathNode tag_path = {path, PATH_STR, struct_type->struct_tag_field};
             bool ok = from_builtins_tag_matches(
@@ -18372,7 +18386,7 @@ from_builtins_object_to_struct(
 
     for (Py_ssize_t i = 0; i < nfields; i++) {
         PyObject *field = PyTuple_GET_ITEM(struct_type->struct_fields, i);
-        PyObject *attr = PyObject_GetAttr(obj, field);
+        PyObject *attr = getter(obj, field);
         PyObject *val;
         if (attr == NULL) {
             PyErr_Clear();
@@ -18415,11 +18429,12 @@ error:
 
 static PyObject *
 from_builtins_object_to_struct_union(
-    FromBuiltinsState *self, PyObject *obj, TypeNode *type, PathNode *path
+    FromBuiltinsState *self, PyObject *obj, TypeNode *type, PathNode *path,
+    PyObject* (*getter)(PyObject *, PyObject *)
 ) {
     Lookup *lookup = TypeNode_get_struct_union(type);
     PyObject *tag_field = Lookup_tag_field(lookup);
-    PyObject *value = PyObject_GetAttr(obj, tag_field);
+    PyObject *value = getter(obj, tag_field);
     if (value != NULL) {
         PathNode tag_path = {path, PATH_STR, tag_field};
         StructInfo *info = from_builtins_lookup_tag(
@@ -18427,7 +18442,7 @@ from_builtins_object_to_struct_union(
         );
         Py_DECREF(value);
         if (info == NULL) return NULL;
-        return from_builtins_object_to_struct(self, obj, info, path, true);
+        return from_builtins_object_to_struct(self, obj, info, path, getter, true);
     }
     ms_missing_required_field(tag_field, path);
     return NULL;
@@ -18435,7 +18450,8 @@ from_builtins_object_to_struct_union(
 
 static PyObject *
 from_builtins_object_to_dataclass(
-    FromBuiltinsState *self, PyObject *obj, TypeNode *type, PathNode *path
+    FromBuiltinsState *self, PyObject *obj, TypeNode *type, PathNode *path,
+    PyObject* (*getter)(PyObject *, PyObject *)
 ) {
     DataclassInfo *info = TypeNode_get_dataclass_info(type);
 
@@ -18455,7 +18471,7 @@ from_builtins_object_to_dataclass(
 
     for (Py_ssize_t i = 0; i < nfields; i++) {
         PyObject *field = info->fields[i].key;
-        PyObject *attr = PyObject_GetAttr(obj, field);
+        PyObject *attr = getter(obj, field);
         PyObject *val;
         if (attr == NULL) {
             PyErr_Clear();
@@ -18509,18 +18525,34 @@ from_builtins_object(
         Py_INCREF(obj);
         return obj;
     }
-    if (self->attributes) {
-        if (type->types & MS_TYPE_STRUCT) {
-            StructInfo *info = TypeNode_get_struct_info(type);
-            return from_builtins_object_to_struct(self, obj, info, path, false);
+
+    PyObject* (*getter)(PyObject *, PyObject *);
+
+    if (PyMapping_Check(obj)) {
+        if (type->types & MS_TYPE_DICT) {
+            return from_builtins_mapping_to_dict(self, obj, type, path);
         }
-        else if (type->types & MS_TYPE_STRUCT_UNION) {
-            return from_builtins_object_to_struct_union(self, obj, type, path);
-        }
-        else if (type->types & MS_TYPE_DATACLASS) {
-            return from_builtins_object_to_dataclass(self, obj, type, path);
-        }
+        getter = PyObject_GetItem;
     }
+    else if (self->attributes) {
+        getter = PyObject_GetAttr;
+    }
+    else {
+        goto error;
+    }
+
+    if (type->types & MS_TYPE_STRUCT) {
+        StructInfo *info = TypeNode_get_struct_info(type);
+        return from_builtins_object_to_struct(self, obj, info, path, getter, false);
+    }
+    else if (type->types & MS_TYPE_STRUCT_UNION) {
+        return from_builtins_object_to_struct_union(self, obj, type, path, getter);
+    }
+    else if (type->types & MS_TYPE_DATACLASS) {
+        return from_builtins_object_to_dataclass(self, obj, type, path, getter);
+    }
+
+error:
     return ms_validation_error(Py_TYPE(obj)->tp_name, type, path);
 }
 

@@ -6,6 +6,7 @@ import inspect
 import sys
 import uuid
 from base64 import b64encode
+from collections.abc import MutableMapping
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import (
@@ -58,7 +59,7 @@ UTC = datetime.timezone.utc
 T = TypeVar("T")
 
 
-class AttrDict:
+class GetAttrObj:
     def __init__(self, _data=None, **kwargs):
         self._data = _data or {}
         self._data.update(kwargs)
@@ -70,8 +71,49 @@ class AttrDict:
             raise AttributeError(key) from None
 
 
+class GetItemObj(MutableMapping):
+    def __init__(self, _data=None, **kwargs):
+        self._data = _data or {}
+        self._data.update(kwargs)
+
+    def __getitem__(self, key):
+        return self._data[key]
+
+    def __setitem__(self, key, val):
+        self._data[key] = val
+
+    def __delitem__(self, key):
+        del self._data[key]
+
+    def __iter__(self):
+        return iter(self._data)
+
+    def __len__(self):
+        return len(self._data)
+
+
 def KWList(**kwargs):
     return list(kwargs.values())
+
+
+mapcls_and_attributes = pytest.mark.parametrize(
+    "mapcls, attributes", [(dict, False), (GetAttrObj, True), (GetItemObj, False)]
+)
+
+mapcls_attributes_and_array_like = pytest.mark.parametrize(
+    "mapcls, attributes, array_like",
+    [
+        (dict, False, False),
+        (KWList, False, True),
+        (GetAttrObj, True, False),
+        (GetItemObj, False, False),
+    ],
+)
+
+
+@pytest.fixture(params=["dict", "mapping"])
+def dictcls(request):
+    return dict if request.param == "dict" else GetItemObj
 
 
 def assert_eq(x, y):
@@ -837,27 +879,27 @@ class TestNamedTuple:
 
 
 class TestDict:
-    def test_any_dict(self):
-        assert from_builtins({"one": 1, 2: "two"}, Any) == {"one": 1, 2: "two"}
+    def test_any_dict(self, dictcls):
+        assert from_builtins(dictcls({"one": 1, 2: "two"}), Any) == {"one": 1, 2: "two"}
 
-    def test_empty_dict(self):
-        assert from_builtins({}, dict) == {}
-        assert from_builtins({}, Dict[int, int]) == {}
+    def test_empty_dict(self, dictcls):
+        assert from_builtins(dictcls({}), dict) == {}
+        assert from_builtins(dictcls({}), Dict[int, int]) == {}
 
-    def test_typed_dict(self):
-        res = from_builtins({"x": 1, "y": 2}, Dict[str, float])
+    def test_typed_dict(self, dictcls):
+        res = from_builtins(dictcls({"x": 1, "y": 2}), Dict[str, float])
         assert res == {"x": 1.0, "y": 2.0}
         assert all(type(v) is float for v in res.values())
 
         with pytest.raises(
             ValidationError, match=r"Expected `str`, got `int` - at `\$\[\.\.\.\]`"
         ):
-            from_builtins({"x": 1}, Dict[str, str])
+            from_builtins(dictcls({"x": 1}), Dict[str, str])
 
         with pytest.raises(
             ValidationError, match=r"Expected `int`, got `str` - at `key` in `\$`"
         ):
-            from_builtins({"x": 1}, Dict[int, str])
+            from_builtins(dictcls({"x": 1}), Dict[int, str])
 
     def test_dict_wrong_type(self):
         with pytest.raises(ValidationError, match=r"Expected `object`, got `int`"):
@@ -869,8 +911,8 @@ class TestDict:
         assert res == msg
 
     @pytest.mark.parametrize("key_type", ["int", "enum", "literal"])
-    def test_int_keys(self, key_type):
-        msg = {1: "A", 2: "B"}
+    def test_int_keys(self, dictcls, key_type):
+        msg = dictcls({1: "A", 2: "B"})
         if key_type == "enum":
             Key = enum.IntEnum("Key", ["one", "two"])
             sol = {Key.one: "A", Key.two: "B"}
@@ -887,7 +929,7 @@ class TestDict:
         res = from_builtins(msg, Dict[Key, str], str_keys=True)
         assert res == sol
 
-        str_msg = to_builtins(msg, str_keys=True)
+        str_msg = dictcls(to_builtins(dict(msg), str_keys=True))
         res = from_builtins(str_msg, Dict[Key, str], str_keys=True)
         assert res == sol
 
@@ -896,36 +938,36 @@ class TestDict:
         ):
             from_builtins(str_msg, Dict[Key, str])
 
-    def test_non_str_keys(self):
-        from_builtins({1.5: 1}, Dict[float, int]) == {1.5: 1}
+    def test_non_str_keys(self, dictcls):
+        from_builtins(dictcls({1.5: 1}), Dict[float, int]) == {1.5: 1}
 
         with pytest.raises(ValidationError):
-            from_builtins({"x": 1}, Dict[Tuple[int, int], int], str_keys=True)
+            from_builtins(dictcls({"x": 1}), Dict[Tuple[int, int], int], str_keys=True)
 
-    def test_dict_cyclic_recursion(self):
+    def test_dict_cyclic_recursion(self, dictcls):
         depth = 50
         typ = Dict[str, int]
         for _ in range(depth):
             typ = Dict[str, typ]
-        msg = {}
+        msg = dictcls()
         msg["x"] = msg
         with pytest.raises(RecursionError):
             with max_call_depth(5):
                 assert from_builtins(msg, typ)
 
     @uses_annotated
-    def test_dict_constrs(self):
+    def test_dict_constrs(self, dictcls):
         class Ex(Struct):
             x: Annotated[dict, Meta(min_length=2, max_length=4)]
 
         for n in [2, 4]:
-            x = {str(i): i for i in range(n)}
-            assert from_builtins({"x": x}, Ex).x == x
+            x = dictcls({str(i): i for i in range(n)})
+            assert from_builtins(dictcls({"x": x}), Ex).x == x
 
         for n in [1, 5]:
             x = {str(i): i for i in range(n)}
             with pytest.raises(ValidationError):
-                from_builtins({"x": x}, Ex)
+                from_builtins(dictcls({"x": x}), Ex)
 
 
 @pytest.mark.skipif(TypedDict is None, reason="TypedDict not available")
@@ -995,10 +1037,8 @@ class TestTypedDict:
 
 class TestDataclass:
     @pytest.mark.parametrize("slots", [False, True])
-    @pytest.mark.parametrize("attributes", [False, True])
-    def test_dataclass(self, slots, attributes):
-        Msg = AttrDict if attributes else dict
-
+    @mapcls_and_attributes
+    def test_dataclass(self, slots, mapcls, attributes):
         if slots:
             if not PY310:
                 pytest.skip(reason="Python 3.10+ required")
@@ -1013,13 +1053,13 @@ class TestDataclass:
             c: int
 
         sol = Example(1, 2, 3)
-        msg = Msg(a=1, b=2, c=3)
+        msg = mapcls(a=1, b=2, c=3)
         res = from_builtins(msg, Example, attributes=attributes)
         assert res == sol
 
         # Extra fields ignored
         res = from_builtins(
-            Msg({"x": -1, "a": 1, "y": -2, "b": 2, "z": -3, "c": 3, "": -4}),
+            mapcls({"x": -1, "a": 1, "y": -2, "b": 2, "z": -3, "c": 3, "": -4}),
             Example,
             attributes=attributes,
         )
@@ -1027,13 +1067,13 @@ class TestDataclass:
 
         # Missing fields error
         with pytest.raises(ValidationError, match="missing required field `b`"):
-            from_builtins(Msg(a=1), Example, attributes=attributes)
+            from_builtins(mapcls(a=1), Example, attributes=attributes)
 
         # Incorrect field types error
         with pytest.raises(
             ValidationError, match=r"Expected `int`, got `str` - at `\$.a`"
         ):
-            from_builtins(Msg(a="bad"), Example, attributes=attributes)
+            from_builtins(mapcls(a="bad"), Example, attributes=attributes)
 
     def test_dict_to_dataclass_errors(self):
         @dataclass
@@ -1060,10 +1100,8 @@ class TestDataclass:
         assert from_builtins(msg, Ex, attributes=True) == Ex(1)
 
     @pytest.mark.parametrize("slots", [False, True])
-    @pytest.mark.parametrize("attributes", [False, True])
-    def test_dataclass_defaults(self, slots, attributes):
-        Msg = AttrDict if attributes else dict
-
+    @mapcls_and_attributes
+    def test_dataclass_defaults(self, slots, mapcls, attributes):
         if slots:
             if not PY310:
                 pytest.skip(reason="Python 3.10+ required")
@@ -1081,16 +1119,16 @@ class TestDataclass:
 
         for args in [(1, 2), (1, 2, 3), (1, 2, 3, 4), (1, 2, 3, 4, 5)]:
             sol = Example(*args)
-            msg = Msg(dict(zip("abcde", args)))
+            msg = mapcls(dict(zip("abcde", args)))
             res = from_builtins(msg, Example, attributes=attributes)
             assert res == sol
 
         # Missing fields error
         with pytest.raises(ValidationError, match="missing required field `a`"):
-            from_builtins(Msg(c=1, d=2, e=3), Example, attributes=attributes)
+            from_builtins(mapcls(c=1, d=2, e=3), Example, attributes=attributes)
 
-    @pytest.mark.parametrize("attributes", [False, True])
-    def test_dataclass_default_factory_errors(self, attributes):
+    @mapcls_and_attributes
+    def test_dataclass_default_factory_errors(self, mapcls, attributes):
         def bad():
             raise ValueError("Oh no!")
 
@@ -1098,13 +1136,13 @@ class TestDataclass:
         class Example:
             a: int = field(default_factory=bad)
 
-        msg = AttrDict() if attributes else {}
+        msg = mapcls()
 
         with pytest.raises(ValueError, match="Oh no!"):
             from_builtins(msg, Example, attributes=attributes)
 
-    @pytest.mark.parametrize("attributes", [False, True])
-    def test_dataclass_post_init(self, attributes):
+    @mapcls_and_attributes
+    def test_dataclass_post_init(self, mapcls, attributes):
         called = False
 
         @dataclass
@@ -1115,13 +1153,13 @@ class TestDataclass:
                 nonlocal called
                 called = True
 
-        msg = AttrDict(a=1) if attributes else {"a": 1}
+        msg = mapcls(a=1)
         res = from_builtins(msg, Example, attributes=attributes)
         assert res.a == 1
         assert called
 
-    @pytest.mark.parametrize("attributes", [False, True])
-    def test_dataclass_post_init_errors(self, attributes):
+    @mapcls_and_attributes
+    def test_dataclass_post_init_errors(self, mapcls, attributes):
         @dataclass
         class Example:
             a: int
@@ -1129,13 +1167,13 @@ class TestDataclass:
             def __post_init__(self):
                 raise ValueError("Oh no!")
 
-        msg = AttrDict(a=1) if attributes else {"a": 1}
+        msg = mapcls(a=1)
 
         with pytest.raises(ValueError, match="Oh no!"):
             from_builtins(msg, Example, attributes=attributes)
 
-    @pytest.mark.parametrize("attributes", [False, True])
-    def test_dataclass_not_object(self, attributes):
+    @mapcls_and_attributes
+    def test_dataclass_not_object(self, mapcls, attributes):
         @dataclass
         class Example:
             a: int
@@ -1148,10 +1186,8 @@ class TestDataclass:
 @pytest.mark.skipif(attrs is None, reason="attrs is not installed")
 class TestAttrs:
     @pytest.mark.parametrize("slots", [False, True])
-    @pytest.mark.parametrize("attributes", [False, True])
-    def test_attrs(self, slots, attributes):
-        Msg = AttrDict if attributes else dict
-
+    @mapcls_and_attributes
+    def test_attrs(self, slots, mapcls, attributes):
         @attrs.define(slots=slots)
         class Example:
             a: int
@@ -1159,13 +1195,13 @@ class TestAttrs:
             c: int
 
         sol = Example(1, 2, 3)
-        msg = Msg(a=1, b=2, c=3)
+        msg = mapcls(a=1, b=2, c=3)
         res = from_builtins(msg, Example, attributes=attributes)
         assert res == sol
 
         # Extra fields ignored
         res = from_builtins(
-            Msg({"x": -1, "a": 1, "y": -2, "b": 2, "z": -3, "c": 3, "": -4}),
+            mapcls({"x": -1, "a": 1, "y": -2, "b": 2, "z": -3, "c": 3, "": -4}),
             Example,
             attributes=attributes,
         )
@@ -1173,7 +1209,7 @@ class TestAttrs:
 
         # Missing fields error
         with pytest.raises(ValidationError, match="missing required field `b`"):
-            from_builtins(Msg(a=1), Example, attributes=attributes)
+            from_builtins(mapcls(a=1), Example, attributes=attributes)
 
         # Incorrect field types error
         with pytest.raises(
@@ -1206,10 +1242,8 @@ class TestAttrs:
         assert from_builtins(msg, Ex, attributes=True) == Ex(1)
 
     @pytest.mark.parametrize("slots", [False, True])
-    @pytest.mark.parametrize("attributes", [False, True])
-    def test_attrs_defaults(self, slots, attributes):
-        Msg = AttrDict if attributes else dict
-
+    @mapcls_and_attributes
+    def test_attrs_defaults(self, slots, mapcls, attributes):
         @attrs.define(slots=slots)
         class Example:
             a: int
@@ -1220,32 +1254,28 @@ class TestAttrs:
 
         for args in [(1, 2), (1, 2, 3), (1, 2, 3, 4), (1, 2, 3, 4, 5)]:
             sol = Example(*args)
-            msg = Msg(dict(zip("abcde", args)))
+            msg = mapcls(dict(zip("abcde", args)))
             res = from_builtins(msg, Example, attributes=attributes)
             assert res == sol
 
         # Missing fields error
         with pytest.raises(ValidationError, match="missing required field `a`"):
-            from_builtins(Msg(c=1, d=2, e=3), Example, attributes=attributes)
+            from_builtins(mapcls(c=1, d=2, e=3), Example, attributes=attributes)
 
-    @pytest.mark.parametrize("attributes", [False, True])
-    def test_attrs_frozen(self, attributes):
-        Msg = AttrDict if attributes else dict
-
+    @mapcls_and_attributes
+    def test_attrs_frozen(self, mapcls, attributes):
         @attrs.define(frozen=True)
         class Example:
             x: int
             y: int
 
         sol = Example(1, 2)
-        msg = Msg(x=1, y=2)
+        msg = mapcls(x=1, y=2)
         res = from_builtins(msg, Example, attributes=attributes)
         assert res == sol
 
-    @pytest.mark.parametrize("attributes", [False, True])
-    def test_attrs_pre_init(self, attributes):
-        Msg = AttrDict if attributes else dict
-
+    @mapcls_and_attributes
+    def test_attrs_pre_init(self, mapcls, attributes):
         called = False
 
         @attrs.define
@@ -1256,14 +1286,12 @@ class TestAttrs:
                 nonlocal called
                 called = True
 
-        res = from_builtins(Msg(a=1), Example, attributes=attributes)
+        res = from_builtins(mapcls(a=1), Example, attributes=attributes)
         assert res.a == 1
         assert called
 
-    @pytest.mark.parametrize("attributes", [False, True])
-    def test_attrs_pre_init_errors(self, attributes):
-        Msg = AttrDict if attributes else dict
-
+    @mapcls_and_attributes
+    def test_attrs_pre_init_errors(self, mapcls, attributes):
         @attrs.define
         class Example:
             a: int
@@ -1272,12 +1300,10 @@ class TestAttrs:
                 raise ValueError("Oh no!")
 
         with pytest.raises(ValueError, match="Oh no!"):
-            from_builtins(Msg(a=1), Example, attributes=attributes)
+            from_builtins(mapcls(a=1), Example, attributes=attributes)
 
-    @pytest.mark.parametrize("attributes", [False, True])
-    def test_attrs_post_init(self, attributes):
-        Msg = AttrDict if attributes else dict
-
+    @mapcls_and_attributes
+    def test_attrs_post_init(self, mapcls, attributes):
         called = False
 
         @attrs.define
@@ -1288,14 +1314,12 @@ class TestAttrs:
                 nonlocal called
                 called = True
 
-        res = from_builtins(Msg(a=1), Example, attributes=attributes)
+        res = from_builtins(mapcls(a=1), Example, attributes=attributes)
         assert res.a == 1
         assert called
 
-    @pytest.mark.parametrize("attributes", [False, True])
-    def test_attrs_post_init_errors(self, attributes):
-        Msg = AttrDict if attributes else dict
-
+    @mapcls_and_attributes
+    def test_attrs_post_init_errors(self, mapcls, attributes):
         @attrs.define
         class Example:
             a: int
@@ -1304,7 +1328,7 @@ class TestAttrs:
                 raise ValueError("Oh no!")
 
         with pytest.raises(ValueError, match="Oh no!"):
-            from_builtins(Msg(a=1), Example, attributes=attributes)
+            from_builtins(mapcls(a=1), Example, attributes=attributes)
 
 
 class TestStruct:
@@ -1314,11 +1338,9 @@ class TestStruct:
         age: int
         verified: bool = False
 
-    @pytest.mark.parametrize("attributes", [False, True])
-    def test_struct(self, attributes):
-        Msg = AttrDict if attributes else dict
-
-        msg = Msg(first="alice", last="munro", age=91, verified=True)
+    @mapcls_and_attributes
+    def test_struct(self, mapcls, attributes):
+        msg = mapcls(first="alice", last="munro", age=91, verified=True)
         sol = self.Account("alice", "munro", 91, True)
         res = from_builtins(msg, self.Account, attributes=attributes)
         assert res == sol
@@ -1330,14 +1352,14 @@ class TestStruct:
             ValidationError, match=r"Expected `str`, got `int` - at `\$.last`"
         ):
             from_builtins(
-                Msg(first="alice", last=1), self.Account, attributes=attributes
+                mapcls(first="alice", last=1), self.Account, attributes=attributes
             )
 
         with pytest.raises(
             ValidationError, match="Object missing required field `age`"
         ):
             from_builtins(
-                Msg(first="alice", last="munro"), self.Account, attributes=attributes
+                mapcls(first="alice", last="munro"), self.Account, attributes=attributes
             )
 
     def test_dict_to_struct_errors(self):
@@ -1360,52 +1382,39 @@ class TestStruct:
         assert from_builtins(msg, Ex, attributes=True) == Ex(1)
 
     @pytest.mark.parametrize("forbid_unknown_fields", [False, True])
-    @pytest.mark.parametrize("attributes", [False, True])
-    def test_struct_extra_fields(self, forbid_unknown_fields, attributes):
-        Msg = AttrDict if attributes else dict
-
+    @mapcls_and_attributes
+    def test_struct_extra_fields(self, forbid_unknown_fields, mapcls, attributes):
         class Ex(Struct, forbid_unknown_fields=forbid_unknown_fields):
             a: int
             b: int
 
-        msg = Msg(x=1, a=2, y=3, b=4, z=5)
-        if forbid_unknown_fields and not attributes:
+        msg = mapcls(x=1, a=2, y=3, b=4, z=5)
+        if forbid_unknown_fields and mapcls is dict:
             with pytest.raises(ValidationError, match="unknown field `x`"):
                 from_builtins(msg, Ex, attributes=attributes)
         else:
             res = from_builtins(msg, Ex, attributes=attributes)
             assert res == Ex(2, 4)
 
-    @pytest.mark.parametrize("attributes", [False, True])
-    def test_struct_defaults_missing_fields(self, attributes):
-        Msg = AttrDict if attributes else dict
-
-        msg = Msg(first="alice", last="munro", age=91)
+    @mapcls_and_attributes
+    def test_struct_defaults_missing_fields(self, mapcls, attributes):
+        msg = mapcls(first="alice", last="munro", age=91)
         res = from_builtins(msg, self.Account, attributes=attributes)
         assert res == self.Account("alice", "munro", 91)
 
-    @pytest.mark.parametrize(
-        "array_like, attributes", [(False, False), (True, False), (False, True)]
-    )
-    def test_struct_gc_maybe_untracked_on_decode(self, array_like, attributes):
-        if attributes:
-            Msg = AttrDict
-        elif array_like:
-            Msg = KWList
-        else:
-            Msg = dict
-
+    @mapcls_attributes_and_array_like
+    def test_struct_gc_maybe_untracked_on_decode(self, mapcls, attributes, array_like):
         class Test(Struct, array_like=array_like):
             x: Any
             y: Any
             z: Tuple = ()
 
         ts = [
-            Msg(x=1, y=2),
-            Msg(x=3, y="hello"),
-            Msg(x=[], y=[]),
-            Msg(x={}, y={}),
-            Msg(x=None, y=None, z=()),
+            mapcls(x=1, y=2),
+            mapcls(x=3, y="hello"),
+            mapcls(x=[], y=[]),
+            mapcls(x={}, y={}),
+            mapcls(x=None, y=None, z=()),
         ]
         a, b, c, d, e = from_builtins(ts, List[Test], attributes=attributes)
         assert not gc.is_tracked(a)
@@ -1414,91 +1423,80 @@ class TestStruct:
         assert gc.is_tracked(d)
         assert not gc.is_tracked(e)
 
-    @pytest.mark.parametrize(
-        "array_like, attributes", [(False, False), (True, False), (False, True)]
-    )
-    def test_struct_gc_false_always_untracked_on_decode(self, array_like, attributes):
-        if attributes:
-            Msg = AttrDict
-        elif array_like:
-            Msg = KWList
-        else:
-            Msg = dict
-
+    @mapcls_attributes_and_array_like
+    def test_struct_gc_false_always_untracked_on_decode(
+        self, mapcls, attributes, array_like
+    ):
         class Test(Struct, array_like=array_like, gc=False):
             x: Any
             y: Any
 
         ts = [
-            Msg(x=1, y=2),
-            Msg(x=[], y=[]),
-            Msg(x={}, y={}),
+            mapcls(x=1, y=2),
+            mapcls(x=[], y=[]),
+            mapcls(x={}, y={}),
         ]
         for obj in from_builtins(ts, List[Test], attributes=attributes):
             assert not gc.is_tracked(obj)
 
     @pytest.mark.parametrize("tag", ["Test", 123, -123])
-    @pytest.mark.parametrize("attributes", [False, True])
-    def test_tagged_struct(self, tag, attributes):
-        Msg = AttrDict if attributes else dict
-
+    @mapcls_and_attributes
+    def test_tagged_struct(self, tag, mapcls, attributes):
         class Test(Struct, tag=tag):
             a: int
             b: int
 
         # Test with and without tag
         for msg in [
-            Msg(a=1, b=2),
-            Msg(type=tag, a=1, b=2),
-            Msg(a=1, type=tag, b=2),
+            mapcls(a=1, b=2),
+            mapcls(type=tag, a=1, b=2),
+            mapcls(a=1, type=tag, b=2),
         ]:
             res = from_builtins(msg, Test, attributes=attributes)
             assert res == Test(1, 2)
 
         # Tag incorrect type
         with pytest.raises(ValidationError) as rec:
-            from_builtins(Msg(type=123.456), Test, attributes=attributes)
+            from_builtins(mapcls(type=123.456), Test, attributes=attributes)
         assert f"Expected `{type(tag).__name__}`" in str(rec.value)
         assert "`$.type`" in str(rec.value)
 
         # Tag incorrect value
         bad = -3 if isinstance(tag, int) else "bad"
         with pytest.raises(ValidationError) as rec:
-            from_builtins(Msg(type=bad), Test, attributes=attributes)
+            from_builtins(mapcls(type=bad), Test, attributes=attributes)
         assert f"Invalid value {bad!r}" in str(rec.value)
         assert "`$.type`" in str(rec.value)
 
     @pytest.mark.parametrize("tag_val", [2**64 - 1, 2**64, -(2**63) - 1])
-    @pytest.mark.parametrize("attributes", [False, True])
-    def test_tagged_struct_int_tag_not_int64_always_invalid(self, tag_val, attributes):
+    @mapcls_and_attributes
+    def test_tagged_struct_int_tag_not_int64_always_invalid(
+        self, tag_val, mapcls, attributes
+    ):
         """Tag values that don't fit in an int64 are currently unsupported, but
         we still want to raise a good error message."""
-
-        Msg = AttrDict if attributes else dict
 
         class Test(Struct, tag=123):
             pass
 
         with pytest.raises(ValidationError) as rec:
-            from_builtins(Msg(type=tag_val), Test, attributes=attributes)
+            from_builtins(mapcls(type=tag_val), Test, attributes=attributes)
 
         assert f"Invalid value {tag_val}" in str(rec.value)
         assert "`$.type`" in str(rec.value)
 
     @pytest.mark.parametrize("tag", ["Test", 123, -123])
-    @pytest.mark.parametrize("attributes", [False, True])
-    def test_tagged_empty_struct(self, tag, attributes):
-        Msg = AttrDict if attributes else dict
-
+    @mapcls_and_attributes
+    def test_tagged_empty_struct(self, tag, mapcls, attributes):
         class Test(Struct, tag=tag):
             pass
 
         # Tag missing
-        res = from_builtins(Msg(), Test, attributes=attributes)
+        res = from_builtins(mapcls(), Test, attributes=attributes)
         assert res == Test()
 
         # Tag present
-        res = from_builtins(Msg(type=tag), Test, attributes=attributes)
+        res = from_builtins(mapcls(type=tag), Test, attributes=attributes)
         assert res == Test()
 
 
@@ -1626,12 +1624,12 @@ class TestStructUnion:
             (123, -123, 0),
         ],
     )
-    @pytest.mark.parametrize("attributes", [False, True])
-    def test_struct_union(self, tag1, tag2, unknown, attributes):
+    @mapcls_and_attributes
+    def test_struct_union(self, tag1, tag2, unknown, mapcls, attributes):
         def decode(msg):
-            if attributes:
-                msg = AttrDict(msg)
-            return from_builtins(msg, Union[Test1, Test2], attributes=attributes)
+            return from_builtins(
+                mapcls(msg), Union[Test1, Test2], attributes=attributes
+            )
 
         class Test1(Struct, tag=tag1):
             a: int
@@ -1730,23 +1728,14 @@ class TestStructUnion:
 
 
 class TestGenericStruct:
-    @pytest.mark.parametrize(
-        "array_like, attributes", [(False, False), (True, False), (False, True)]
-    )
-    def test_generic_struct(self, array_like, attributes):
-        if attributes:
-            Msg = AttrDict
-        elif array_like:
-            Msg = KWList
-        else:
-            Msg = dict
-
+    @mapcls_attributes_and_array_like
+    def test_generic_struct(self, mapcls, attributes, array_like):
         class Ex(Struct, Generic[T], array_like=array_like):
             x: T
             y: List[T]
 
         sol = Ex(1, [1, 2])
-        msg = Msg(x=1, y=[1, 2])
+        msg = mapcls(x=1, y=[1, 2])
 
         res = from_builtins(msg, Ex, attributes=attributes)
         assert res == sol
@@ -1763,17 +1752,8 @@ class TestGenericStruct:
         with pytest.raises(ValidationError, match="Expected `str`, got `int`"):
             from_builtins(msg, Ex[str], attributes=attributes)
 
-    @pytest.mark.parametrize(
-        "array_like, attributes", [(False, False), (True, False), (False, True)]
-    )
-    def test_generic_struct_union(self, array_like, attributes):
-        if attributes:
-            Msg = AttrDict
-        elif array_like:
-            Msg = KWList
-        else:
-            Msg = dict
-
+    @mapcls_attributes_and_array_like
+    def test_generic_struct_union(self, mapcls, attributes, array_like):
         class Test1(Struct, Generic[T], tag=True, array_like=array_like):
             a: Union[T, None]
             b: int
@@ -1785,11 +1765,11 @@ class TestGenericStruct:
         typ = Union[Test1[T], Test2[T]]
 
         msg1 = Test1(1, 2)
-        s1 = Msg(type="Test1", a=1, b=2)
+        s1 = mapcls(type="Test1", a=1, b=2)
         msg2 = Test2("three", 4)
-        s2 = Msg(type="Test2", x="three", y=4)
+        s2 = mapcls(type="Test2", x="three", y=4)
         msg3 = Test1(None, 4)
-        s3 = Msg(type="Test1", a=None, b=4)
+        s3 = mapcls(type="Test1", a=None, b=4)
 
         assert from_builtins(s1, typ, attributes=attributes) == msg1
         assert from_builtins(s2, typ, attributes=attributes) == msg2
