@@ -150,7 +150,7 @@ def to_builtins(
     enc_hook: Optional[Callable[[Any], Any]] = None,
 ) -> Any: ...
 @overload
-def from_builtins(
+def convert(
     obj: Any,
     type: Type[T],
     *,
@@ -161,13 +161,34 @@ def from_builtins(
     dec_hook: Optional[Callable[[type, Any], Any]] = None,
 ) -> T: ...
 @overload
-def from_builtins(
+def convert(
     obj: Any,
     type: Any,
     *,
     str_keys: bool = False,
     builtin_types: Union[Iterable[type], None] = None,
     attributes: bool = False,
+    dec_hook: Optional[Callable[[type, Any], Any]] = None,
+) -> Any: ...
+
+# TODO: deprecated
+@overload
+def from_builtins(
+    obj: Any,
+    type: Type[T],
+    *,
+    str_keys: bool = False,
+    str_values: bool = False,
+    builtin_types: Union[Iterable[type], None] = None,
+    dec_hook: Optional[Callable[[type, Any], Any]] = None,
+) -> T: ...
+@overload
+def from_builtins(
+    obj: Any,
+    type: Any,
+    *,
+    str_keys: bool = False,
+    builtin_types: Union[Iterable[type], None] = None,
     dec_hook: Optional[Callable[[type, Any], Any]] = None,
 ) -> Any: ...
 

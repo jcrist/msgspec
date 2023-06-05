@@ -3,7 +3,7 @@ from typing import Any, Callable, Optional, Type, TypeVar, Union, overload
 
 from . import (
     DecodeError as _DecodeError,
-    from_builtins as _from_builtins,
+    convert as _convert,
     to_builtins as _to_builtins,
 )
 
@@ -149,6 +149,6 @@ def decode(buf, *, type=Any, dec_hook=None):
 
     if type is Any:
         return obj
-    return _from_builtins(
+    return _convert(
         obj, type, builtin_types=(_datetime.datetime, _datetime.date), dec_hook=dec_hook
     )

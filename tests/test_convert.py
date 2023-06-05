@@ -26,7 +26,8 @@ from typing import (
 import pytest
 from utils import temp_module
 
-from msgspec import Meta, Struct, ValidationError, from_builtins, to_builtins
+import msgspec
+from msgspec import Meta, Struct, ValidationError, convert, to_builtins
 
 try:
     from typing import Annotated
@@ -149,46 +150,56 @@ def max_call_depth(n):
 
 
 def roundtrip(obj, typ):
-    return from_builtins(to_builtins(obj), typ)
+    return convert(to_builtins(obj), typ)
 
 
 class TestFromBuiltins:
+    """TODO: deprecated"""
+
+    def test_from_builtins(self):
+        with pytest.warns(UserWarning, match="deprecated"):
+            res = msgspec.from_builtins([1, 2], List[float])
+        assert res == [1.0, 2.0]
+        assert type(res[0]) is float
+
+
+class TestConvert:
     def test_bad_calls(self):
         with pytest.raises(TypeError):
-            from_builtins()
+            convert()
 
         with pytest.raises(TypeError):
-            from_builtins(1)
+            convert(1)
 
         with pytest.raises(
             TypeError, match="builtin_types must be an iterable of types"
         ):
-            from_builtins(1, int, builtin_types=1)
+            convert(1, int, builtin_types=1)
 
         with pytest.raises(TypeError) as rec:
-            from_builtins(1, int, builtin_types=(int,))
+            convert(1, int, builtin_types=(int,))
         assert "Cannot treat" in str(rec.value)
         assert "int" in str(rec.value)
 
         with pytest.raises(TypeError, match="dec_hook must be callable"):
-            from_builtins(1, int, dec_hook=1)
+            convert(1, int, dec_hook=1)
 
     def test_dec_hook_explicit_none(self):
-        assert from_builtins(1, int, dec_hook=None) == 1
+        assert convert(1, int, dec_hook=None) == 1
 
     def test_custom_input_type(self):
         class Custom:
             pass
 
         with pytest.raises(ValidationError, match="Expected `int`, got `Custom`"):
-            from_builtins(Custom(), int)
+            convert(Custom(), int)
 
     def test_custom_input_type_works_with_any(self):
         class Custom:
             pass
 
         x = Custom()
-        res = from_builtins(x, Any)
+        res = convert(x, Any)
         assert res is x
         assert sys.getrefcount(x) == 3  # x + res + 1
 
@@ -197,7 +208,7 @@ class TestFromBuiltins:
             pass
 
         x = Custom()
-        res = from_builtins(x, Custom)
+        res = convert(x, Custom)
         assert res is x
         assert sys.getrefcount(x) == 3  # x + res + 1
 
@@ -215,14 +226,14 @@ class TestFromBuiltins:
             raise TypeError
 
         x = Custom()
-        res = from_builtins(x, Custom2, dec_hook=dec_hook)
+        res = convert(x, Custom2, dec_hook=dec_hook)
         assert isinstance(res, Custom2)
         assert sys.getrefcount(res) == 2  # res + 1
         assert sys.getrefcount(x) == 2  # x + 1
 
     def test_unsupported_output_type(self):
         with pytest.raises(TypeError, match="more than one array-like"):
-            from_builtins({}, Union[List[int], Tuple[str, ...]])
+            convert({}, Union[List[int], Tuple[str, ...]])
 
     @pytest.mark.parametrize(
         "val, got",
@@ -254,42 +265,42 @@ class TestFromBuiltins:
             expected = "int"
         msg = f"Expected `{expected}`, got `{got}`"
         with pytest.raises(ValidationError, match=msg):
-            from_builtins(val, typ)
+            convert(val, typ)
 
 
 class TestNone:
     def test_none(self):
-        assert from_builtins(None, Any) is None
-        assert from_builtins(None, None) is None
+        assert convert(None, Any) is None
+        assert convert(None, None) is None
         with pytest.raises(ValidationError, match="Expected `null`, got `int`"):
-            from_builtins(1, None)
+            convert(1, None)
 
 
 class TestBool:
     @pytest.mark.parametrize("val", [True, False])
     def test_bool(self, val):
-        assert from_builtins(val, Any) is val
-        assert from_builtins(val, bool) is val
+        assert convert(val, Any) is val
+        assert convert(val, bool) is val
 
     def test_bool_invalid(self):
         with pytest.raises(ValidationError, match="Expected `bool`, got `int`"):
-            from_builtins(1, bool)
+            convert(1, bool)
 
         with pytest.raises(ValidationError, match="Expected `bool`, got `str`"):
-            from_builtins("true", bool)
+            convert("true", bool)
 
 
 class TestInt:
     def test_int(self):
-        assert from_builtins(1, Any) == 1
-        assert from_builtins(1, int) == 1
+        assert convert(1, Any) == 1
+        assert convert(1, int) == 1
         with pytest.raises(ValidationError, match="Expected `int`, got `float`"):
-            from_builtins(1.5, int)
+            convert(1.5, int)
 
     @pytest.mark.parametrize("val", [2**64, -(2**63) - 1])
     def test_int_out_of_range(self, val):
         with pytest.raises(ValidationError, match="Integer value out of range"):
-            from_builtins(val, int)
+            convert(val, int)
 
     @pytest.mark.parametrize(
         "name, bound, good, bad",
@@ -306,14 +317,14 @@ class TestInt:
             x: Annotated[int, Meta(**{name: bound})]
 
         for x in good:
-            assert from_builtins({"x": x}, Ex).x == x
+            assert convert({"x": x}, Ex).x == x
 
         op = ">=" if name.startswith("g") else "<="
         offset = {"lt": -1, "gt": 1}.get(name, 0)
         err_msg = rf"Expected `int` {op} {bound + offset} - at `\$.x`"
         for x in bad:
             with pytest.raises(ValidationError, match=err_msg):
-                from_builtins({"x": x}, Ex)
+                convert({"x": x}, Ex)
 
     @uses_annotated
     def test_int_constr_multiple_of(self):
@@ -321,12 +332,12 @@ class TestInt:
             x: Annotated[int, Meta(multiple_of=2)]
 
         for x in [-2, 0, 2, 40, 2**63 + 2]:
-            assert from_builtins({"x": x}, Ex).x == x
+            assert convert({"x": x}, Ex).x == x
 
         err_msg = r"Expected `int` that's a multiple of 2 - at `\$.x`"
         for x in [1, -1, 2**63 + 1]:
             with pytest.raises(ValidationError, match=err_msg):
-                from_builtins({"x": x}, Ex)
+                convert({"x": x}, Ex)
 
     @pytest.mark.parametrize(
         "meta, good, bad",
@@ -343,36 +354,36 @@ class TestInt:
             x: Annotated[int, meta]
 
         for x in good:
-            assert from_builtins({"x": x}, Ex).x == x
+            assert convert({"x": x}, Ex).x == x
 
         for x in bad:
             with pytest.raises(ValidationError):
-                from_builtins({"x": x}, Ex)
+                convert({"x": x}, Ex)
 
     def test_int_subclass(self):
         class MyInt(int):
             pass
 
         for val in [10, 0, -10]:
-            sol = from_builtins(MyInt(val), int)
+            sol = convert(MyInt(val), int)
             assert type(sol) is int
             assert sol == val
 
         x = MyInt(100)
-        sol = from_builtins(x, MyInt)
+        sol = convert(x, MyInt)
         assert sol is x
         assert sys.getrefcount(x) == 3  # x + sol + 1
 
 
 class TestFloat:
     def test_float(self):
-        assert from_builtins(1.5, Any) == 1.5
-        assert from_builtins(1.5, float) == 1.5
-        res = from_builtins(1, float)
+        assert convert(1.5, Any) == 1.5
+        assert convert(1.5, float) == 1.5
+        res = convert(1, float)
         assert res == 1.0
         assert isinstance(res, float)
         with pytest.raises(ValidationError, match="Expected `float`, got `null`"):
-            from_builtins(None, float)
+            convert(None, float)
 
     @pytest.mark.parametrize(
         "meta, good, bad",
@@ -389,19 +400,19 @@ class TestFloat:
             x: Annotated[float, meta]
 
         for x in good:
-            assert from_builtins({"x": x}, Ex).x == x
+            assert convert({"x": x}, Ex).x == x
 
         for x in bad:
             with pytest.raises(ValidationError):
-                from_builtins({"x": x}, Ex)
+                convert({"x": x}, Ex)
 
 
 class TestStr:
     def test_str(self):
-        assert from_builtins("test", Any) == "test"
-        assert from_builtins("test", str) == "test"
+        assert convert("test", Any) == "test"
+        assert convert("test", str) == "test"
         with pytest.raises(ValidationError, match="Expected `str`, got `bytes`"):
-            from_builtins(b"test", str)
+            convert(b"test", str)
 
     @pytest.mark.parametrize(
         "meta, good, bad",
@@ -422,36 +433,36 @@ class TestStr:
             x: Annotated[str, meta]
 
         for x in good:
-            assert from_builtins({"x": x}, Ex).x == x
+            assert convert({"x": x}, Ex).x == x
 
         for x in bad:
             with pytest.raises(ValidationError):
-                from_builtins({"x": x}, Ex)
+                convert({"x": x}, Ex)
 
 
 class TestBinary:
     @pytest.mark.parametrize("out_type", [bytes, bytearray])
     def test_binary_wrong_type(self, out_type):
         with pytest.raises(ValidationError, match="Expected `bytes`, got `int`"):
-            from_builtins(1, out_type)
+            convert(1, out_type)
 
     @pytest.mark.parametrize("in_type", [bytes, bytearray])
     @pytest.mark.parametrize("out_type", [bytes, bytearray])
     def test_binary_builtin(self, in_type, out_type):
-        res = from_builtins(in_type(b"test"), out_type)
+        res = convert(in_type(b"test"), out_type)
         assert res == b"test"
         assert isinstance(res, out_type)
 
     @pytest.mark.parametrize("out_type", [bytes, bytearray])
     def test_binary_base64(self, out_type):
-        res = from_builtins("AQI=", out_type)
+        res = convert("AQI=", out_type)
         assert res == b"\x01\x02"
         assert isinstance(res, out_type)
 
     @pytest.mark.parametrize("out_type", [bytes, bytearray])
     def test_binary_base64_disabled(self, out_type):
         with pytest.raises(ValidationError, match="Expected `bytes`, got `str`"):
-            from_builtins("AQI=", out_type, builtin_types=(bytes, bytearray))
+            convert("AQI=", out_type, builtin_types=(bytes, bytearray))
 
     @pytest.mark.parametrize("in_type", [bytes, bytearray, str])
     @pytest.mark.parametrize("out_type", [bytes, bytearray])
@@ -465,7 +476,7 @@ class TestBinary:
                 msg = {"x": b64encode(x).decode("utf-8")}
             else:
                 msg = {"x": in_type(x)}
-            assert from_builtins(msg, Ex).x == x
+            assert convert(msg, Ex).x == x
 
         for x in [b"x", b"xxxxx"]:
             if in_type is str:
@@ -473,7 +484,7 @@ class TestBinary:
             else:
                 msg = {"x": in_type(x)}
             with pytest.raises(ValidationError):
-                from_builtins(msg, Ex)
+                convert(msg, Ex)
 
     def test_bytes_subclass(self):
         class MyBytes(bytes):
@@ -482,12 +493,12 @@ class TestBinary:
         msg = MyBytes(b"abc")
 
         for typ in [bytes, bytearray]:
-            sol = from_builtins(msg, typ)
+            sol = convert(msg, typ)
             assert type(sol) is typ
             assert sol == b"abc"
 
         assert sys.getrefcount(msg) == 2  # msg + 1
-        sol = from_builtins(msg, MyBytes)
+        sol = convert(msg, MyBytes)
         assert sol is msg
         assert sys.getrefcount(msg) == 3  # msg + sol + 1
 
@@ -495,23 +506,23 @@ class TestBinary:
 class TestDateTime:
     def test_datetime_wrong_type(self):
         with pytest.raises(ValidationError, match="Expected `datetime`, got `int`"):
-            from_builtins(1, datetime.datetime)
+            convert(1, datetime.datetime)
 
     @pytest.mark.parametrize("tz", [False, True])
     def test_datetime_builtin(self, tz):
         dt = datetime.datetime.now(UTC if tz else None)
-        assert from_builtins(dt, datetime.datetime) is dt
+        assert convert(dt, datetime.datetime) is dt
 
     @pytest.mark.parametrize("tz", [False, True])
     def test_datetime_str(self, tz):
         sol = datetime.datetime(1, 2, 3, 4, 5, 6, 7, UTC if tz else None)
         msg = "0001-02-03T04:05:06.000007" + ("Z" if tz else "")
-        res = from_builtins(msg, datetime.datetime)
+        res = convert(msg, datetime.datetime)
         assert res == sol
 
     def test_datetime_str_disabled(self):
         with pytest.raises(ValidationError, match="Expected `datetime`, got `str`"):
-            from_builtins(
+            convert(
                 "0001-02-03T04:05:06.000007Z",
                 datetime.datetime,
                 builtin_types=(datetime.datetime,),
@@ -530,31 +541,31 @@ class TestDateTime:
         naive = Ex(datetime.datetime(1, 2, 3, 4, 5, 6, 7))
         naive_msg = to_builtins(naive, builtin_types=builtin_types)
 
-        assert from_builtins(aware_msg, Ex) == aware
+        assert convert(aware_msg, Ex) == aware
         with pytest.raises(ValidationError):
-            from_builtins(naive_msg, Ex)
+            convert(naive_msg, Ex)
 
 
 class TestTime:
     def test_time_wrong_type(self):
         with pytest.raises(ValidationError, match="Expected `time`, got `int`"):
-            from_builtins(1, datetime.time)
+            convert(1, datetime.time)
 
     @pytest.mark.parametrize("tz", [False, True])
     def test_time_builtin(self, tz):
         t = datetime.time(12, 34, tzinfo=(UTC if tz else None))
-        assert from_builtins(t, datetime.time) is t
+        assert convert(t, datetime.time) is t
 
     @pytest.mark.parametrize("tz", [False, True])
     def test_time_str(self, tz):
         sol = datetime.time(12, 34, tzinfo=(UTC if tz else None))
         msg = "12:34:00" + ("Z" if tz else "")
-        res = from_builtins(msg, datetime.time)
+        res = convert(msg, datetime.time)
         assert res == sol
 
     def test_time_str_disabled(self):
         with pytest.raises(ValidationError, match="Expected `time`, got `str`"):
-            from_builtins("12:34:00Z", datetime.time, builtin_types=(datetime.time,))
+            convert("12:34:00Z", datetime.time, builtin_types=(datetime.time,))
 
     @pytest.mark.parametrize("as_str", [False, True])
     @uses_annotated
@@ -569,68 +580,68 @@ class TestTime:
         naive = Ex(datetime.time(12, 34))
         naive_msg = to_builtins(naive, builtin_types=builtin_types)
 
-        assert from_builtins(aware_msg, Ex) == aware
+        assert convert(aware_msg, Ex) == aware
         with pytest.raises(ValidationError):
-            from_builtins(naive_msg, Ex)
+            convert(naive_msg, Ex)
 
 
 class TestDate:
     def test_date_wrong_type(self):
         with pytest.raises(ValidationError, match="Expected `date`, got `int`"):
-            from_builtins(1, datetime.date)
+            convert(1, datetime.date)
 
     def test_date_builtin(self):
         dt = datetime.date.today()
-        assert from_builtins(dt, datetime.date) is dt
+        assert convert(dt, datetime.date) is dt
 
     def test_date_str(self):
         sol = datetime.date.today()
-        res = from_builtins(sol.isoformat(), datetime.date)
+        res = convert(sol.isoformat(), datetime.date)
         assert res == sol
 
     def test_date_str_disabled(self):
         with pytest.raises(ValidationError, match="Expected `date`, got `str`"):
-            from_builtins("2022-01-02", datetime.date, builtin_types=(datetime.date,))
+            convert("2022-01-02", datetime.date, builtin_types=(datetime.date,))
 
 
 class TestUUID:
     def test_uuid_wrong_type(self):
         with pytest.raises(ValidationError, match="Expected `uuid`, got `int`"):
-            from_builtins(1, uuid.UUID)
+            convert(1, uuid.UUID)
 
     def test_uuid_builtin(self):
         x = uuid.uuid4()
-        assert from_builtins(x, uuid.UUID) is x
+        assert convert(x, uuid.UUID) is x
 
     def test_uuid_str(self):
         sol = uuid.uuid4()
-        res = from_builtins(str(sol), uuid.UUID)
+        res = convert(str(sol), uuid.UUID)
         assert res == sol
 
     def test_uuid_str_disabled(self):
         msg = str(uuid.uuid4())
         with pytest.raises(ValidationError, match="Expected `uuid`, got `str`"):
-            from_builtins(msg, uuid.UUID, builtin_types=(uuid.UUID,))
+            convert(msg, uuid.UUID, builtin_types=(uuid.UUID,))
 
 
 class TestDecimal:
     def test_decimal_wrong_type(self):
         with pytest.raises(ValidationError, match="Expected `decimal`, got `float`"):
-            from_builtins(1.5, decimal.Decimal)
+            convert(1.5, decimal.Decimal)
 
     def test_decimal_builtin(self):
         x = decimal.Decimal("1.5")
-        assert from_builtins(x, decimal.Decimal) is x
+        assert convert(x, decimal.Decimal) is x
 
     def test_decimal_str(self):
         sol = decimal.Decimal("1.5")
-        res = from_builtins("1.5", decimal.Decimal)
+        res = convert("1.5", decimal.Decimal)
         assert res == sol
         assert type(res) is decimal.Decimal
 
     def test_decimal_str_disabled(self):
         with pytest.raises(ValidationError, match="Expected `decimal`, got `str`"):
-            from_builtins("1.5", decimal.Decimal, builtin_types=(decimal.Decimal,))
+            convert("1.5", decimal.Decimal, builtin_types=(decimal.Decimal,))
 
 
 class TestEnum:
@@ -639,24 +650,24 @@ class TestEnum:
             x = "A"
             y = "B"
 
-        assert from_builtins("A", Ex) is Ex.x
-        assert from_builtins("B", Ex) is Ex.y
+        assert convert("A", Ex) is Ex.x
+        assert convert("B", Ex) is Ex.y
         with pytest.raises(ValidationError, match="Invalid enum value 'C'"):
-            from_builtins("C", Ex)
+            convert("C", Ex)
         with pytest.raises(ValidationError, match="Expected `str`, got `int`"):
-            from_builtins(1, Ex)
+            convert(1, Ex)
 
     def test_int_enum(self):
         class Ex(enum.IntEnum):
             x = 1
             y = 2
 
-        assert from_builtins(1, Ex) is Ex.x
-        assert from_builtins(2, Ex) is Ex.y
+        assert convert(1, Ex) is Ex.x
+        assert convert(2, Ex) is Ex.y
         with pytest.raises(ValidationError, match="Invalid enum value 3"):
-            from_builtins(3, Ex)
+            convert(3, Ex)
         with pytest.raises(ValidationError, match="Expected `int`, got `str`"):
-            from_builtins("A", Ex)
+            convert("A", Ex)
 
     def test_int_enum_int_subclass(self):
         class MyInt(int):
@@ -667,41 +678,41 @@ class TestEnum:
             y = 2
 
         msg = MyInt(1)
-        assert from_builtins(msg, Ex) is Ex.x
+        assert convert(msg, Ex) is Ex.x
         assert sys.getrefcount(msg) == 2  # msg + 1
-        assert from_builtins(MyInt(2), Ex) is Ex.y
+        assert convert(MyInt(2), Ex) is Ex.y
 
 
 class TestLiteral:
     def test_str_literal(self):
         typ = Literal["A", "B"]
-        assert from_builtins("A", typ) == "A"
-        assert from_builtins("B", typ) == "B"
+        assert convert("A", typ) == "A"
+        assert convert("B", typ) == "B"
         with pytest.raises(ValidationError, match="Invalid enum value 'C'"):
-            from_builtins("C", typ)
+            convert("C", typ)
         with pytest.raises(ValidationError, match="Expected `str`, got `int`"):
-            from_builtins(1, typ)
+            convert(1, typ)
 
     def test_int_literal(self):
         typ = Literal[1, -2]
-        assert from_builtins(1, typ) == 1
-        assert from_builtins(-2, typ) == -2
+        assert convert(1, typ) == 1
+        assert convert(-2, typ) == -2
         with pytest.raises(ValidationError, match="Invalid enum value 3"):
-            from_builtins(3, typ)
+            convert(3, typ)
         with pytest.raises(ValidationError, match="Invalid enum value -3"):
-            from_builtins(-3, typ)
+            convert(-3, typ)
         with pytest.raises(ValidationError, match="Expected `int`, got `str`"):
-            from_builtins("A", typ)
+            convert("A", typ)
 
 
 class TestSequences:
     def test_any_sequence(self):
-        assert from_builtins((1, 2, 3), Any) == [1, 2, 3]
+        assert convert((1, 2, 3), Any) == [1, 2, 3]
 
     @pytest.mark.parametrize("in_type", [list, tuple, set, frozenset])
     @pytest.mark.parametrize("out_type", [list, tuple, set, frozenset])
     def test_empty_sequence(self, in_type, out_type):
-        assert from_builtins(in_type(), out_type) == out_type()
+        assert convert(in_type(), out_type) == out_type()
 
     @pytest.mark.parametrize("in_type", [list, tuple, set, frozenset])
     @pytest.mark.parametrize(
@@ -716,7 +727,7 @@ class TestSequences:
                 out_annot = out_annot[item_annot, ...]
             else:
                 out_annot = out_annot[item_annot]
-        res = from_builtins(in_type([1, 2]), out_annot)
+        res = convert(in_type([1, 2]), out_annot)
         sol = out_type([1, 2])
         assert res == sol
         assert isinstance(res, out_type)
@@ -729,12 +740,12 @@ class TestSequences:
         with pytest.raises(
             ValidationError, match=r"Expected `int`, got `str` - at `\$\[0\]`"
         ):
-            assert from_builtins(in_type(["bad"]), out_annot)
+            assert convert(in_type(["bad"]), out_annot)
 
     @pytest.mark.parametrize("out_type", [list, tuple, set, frozenset])
     def test_sequence_wrong_type(self, out_type):
         with pytest.raises(ValidationError, match=r"Expected `array`, got `int`"):
-            assert from_builtins(1, out_type)
+            assert convert(1, out_type)
 
     @pytest.mark.parametrize("kind", ["list", "tuple", "fixtuple", "set"])
     def test_sequence_cyclic_recursion(self, kind):
@@ -760,7 +771,7 @@ class TestSequences:
         msg.append(msg)
         with pytest.raises(RecursionError):
             with max_call_depth(5):
-                assert from_builtins(msg, typ)
+                assert convert(msg, typ)
 
     @pytest.mark.parametrize("out_type", [list, tuple, set, frozenset])
     @uses_annotated
@@ -770,42 +781,42 @@ class TestSequences:
 
         for n in [2, 4]:
             x = out_type(range(n))
-            assert from_builtins({"x": list(range(n))}, Ex).x == x
+            assert convert({"x": list(range(n))}, Ex).x == x
 
         for n in [1, 5]:
             x = out_type(range(n))
             with pytest.raises(ValidationError):
-                from_builtins({"x": list(range(n))}, Ex)
+                convert({"x": list(range(n))}, Ex)
 
     def test_fixtuple_any(self):
         typ = Tuple[Any, Any, Any]
         sol = (1, "two", False)
-        res = from_builtins([1, "two", False], typ)
+        res = convert([1, "two", False], typ)
         assert res == sol
 
         with pytest.raises(ValidationError, match="Expected `array`, got `int`"):
-            from_builtins(1, typ)
+            convert(1, typ)
 
         with pytest.raises(ValidationError, match="Expected `array`, got `set`"):
-            from_builtins({1, 2, 3}, typ)
+            convert({1, 2, 3}, typ)
 
         with pytest.raises(ValidationError, match="Expected `array` of length 3"):
-            from_builtins((1, "two"), typ)
+            convert((1, "two"), typ)
 
     def test_fixtuple_typed(self):
         typ = Tuple[int, str, bool]
         sol = (1, "two", False)
-        res = from_builtins([1, "two", False], typ)
+        res = convert([1, "two", False], typ)
         assert res == sol
 
         with pytest.raises(ValidationError, match="Expected `bool`"):
-            from_builtins([1, "two", "three"], typ)
+            convert([1, "two", "three"], typ)
 
         with pytest.raises(ValidationError, match="Expected `array`, got `set`"):
-            from_builtins({1, 2, 3}, typ)
+            convert({1, 2, 3}, typ)
 
         with pytest.raises(ValidationError, match="Expected `array` of length 3"):
-            from_builtins((1, "two"), typ)
+            convert((1, "two"), typ)
 
 
 class TestNamedTuple:
@@ -816,14 +827,14 @@ class TestNamedTuple:
             c: int
 
         msg = Example(1, 2, 3)
-        res = from_builtins([1, 2, 3], Example)
+        res = convert([1, 2, 3], Example)
         assert res == msg
 
         with pytest.raises(ValidationError, match="length 3, got 1"):
-            from_builtins([1], Example)
+            convert([1], Example)
 
         with pytest.raises(ValidationError, match="length 3, got 6"):
-            from_builtins([1, 2, 3, 4, 5, 6], Example)
+            convert([1, 2, 3, 4, 5, 6], Example)
 
     def test_namedtuple_with_defaults(self):
         class Example(NamedTuple):
@@ -835,14 +846,14 @@ class TestNamedTuple:
 
         for args in [(1, 2), (1, 2, 3), (1, 2, 3, 4), (1, 2, 3, 4, 5)]:
             msg = Example(*args)
-            res = from_builtins(args, Example)
+            res = convert(args, Example)
             assert res == msg
 
         with pytest.raises(ValidationError, match="length 2 to 5, got 1"):
-            from_builtins([1], Example)
+            convert([1], Example)
 
         with pytest.raises(ValidationError, match="length 2 to 5, got 6"):
-            from_builtins([1, 2, 3, 4, 5, 6], Example)
+            convert([1, 2, 3, 4, 5, 6], Example)
 
     def test_namedtuple_field_wrong_type(self):
         class Example(NamedTuple):
@@ -852,7 +863,7 @@ class TestNamedTuple:
         with pytest.raises(
             ValidationError, match=r"Expected `int`, got `str` - at `\$\[0\]`"
         ):
-            from_builtins(("bad", 1), Example)
+            convert(("bad", 1), Example)
 
     def test_namedtuple_not_array(self):
         class Example(NamedTuple):
@@ -860,7 +871,7 @@ class TestNamedTuple:
             b: str
 
         with pytest.raises(ValidationError, match="Expected `array`, got `object`"):
-            from_builtins({"a": 1, "b": "two"}, Example)
+            convert({"a": 1, "b": "two"}, Example)
 
     def test_namedtuple_cyclic_recursion(self):
         source = """
@@ -875,39 +886,39 @@ class TestNamedTuple:
             msg = [1]
             msg.append(msg)
             with pytest.raises(RecursionError):
-                assert from_builtins(msg, mod.Ex)
+                assert convert(msg, mod.Ex)
 
 
 class TestDict:
     def test_any_dict(self, dictcls):
-        assert from_builtins(dictcls({"one": 1, 2: "two"}), Any) == {"one": 1, 2: "two"}
+        assert convert(dictcls({"one": 1, 2: "two"}), Any) == {"one": 1, 2: "two"}
 
     def test_empty_dict(self, dictcls):
-        assert from_builtins(dictcls({}), dict) == {}
-        assert from_builtins(dictcls({}), Dict[int, int]) == {}
+        assert convert(dictcls({}), dict) == {}
+        assert convert(dictcls({}), Dict[int, int]) == {}
 
     def test_typed_dict(self, dictcls):
-        res = from_builtins(dictcls({"x": 1, "y": 2}), Dict[str, float])
+        res = convert(dictcls({"x": 1, "y": 2}), Dict[str, float])
         assert res == {"x": 1.0, "y": 2.0}
         assert all(type(v) is float for v in res.values())
 
         with pytest.raises(
             ValidationError, match=r"Expected `str`, got `int` - at `\$\[\.\.\.\]`"
         ):
-            from_builtins(dictcls({"x": 1}), Dict[str, str])
+            convert(dictcls({"x": 1}), Dict[str, str])
 
         with pytest.raises(
             ValidationError, match=r"Expected `int`, got `str` - at `key` in `\$`"
         ):
-            from_builtins(dictcls({"x": 1}), Dict[int, str])
+            convert(dictcls({"x": 1}), Dict[int, str])
 
     def test_dict_wrong_type(self):
         with pytest.raises(ValidationError, match=r"Expected `object`, got `int`"):
-            assert from_builtins(1, dict)
+            assert convert(1, dict)
 
     def test_str_formatted_keys(self):
         msg = {uuid.uuid4(): 1, uuid.uuid4(): 2}
-        res = from_builtins(to_builtins(msg), Dict[uuid.UUID, int])
+        res = convert(to_builtins(msg), Dict[uuid.UUID, int])
         assert res == msg
 
     @pytest.mark.parametrize("key_type", ["int", "enum", "literal"])
@@ -923,26 +934,26 @@ class TestDict:
             Key = int
             sol = msg
 
-        res = from_builtins(msg, Dict[Key, str])
+        res = convert(msg, Dict[Key, str])
         assert res == sol
 
-        res = from_builtins(msg, Dict[Key, str], str_keys=True)
+        res = convert(msg, Dict[Key, str], str_keys=True)
         assert res == sol
 
         str_msg = dictcls(to_builtins(dict(msg), str_keys=True))
-        res = from_builtins(str_msg, Dict[Key, str], str_keys=True)
+        res = convert(str_msg, Dict[Key, str], str_keys=True)
         assert res == sol
 
         with pytest.raises(
             ValidationError, match=r"Expected `int`, got `str` - at `key` in `\$`"
         ):
-            from_builtins(str_msg, Dict[Key, str])
+            convert(str_msg, Dict[Key, str])
 
     def test_non_str_keys(self, dictcls):
-        from_builtins(dictcls({1.5: 1}), Dict[float, int]) == {1.5: 1}
+        convert(dictcls({1.5: 1}), Dict[float, int]) == {1.5: 1}
 
         with pytest.raises(ValidationError):
-            from_builtins(dictcls({"x": 1}), Dict[Tuple[int, int], int], str_keys=True)
+            convert(dictcls({"x": 1}), Dict[Tuple[int, int], int], str_keys=True)
 
     def test_dict_cyclic_recursion(self, dictcls):
         depth = 50
@@ -953,7 +964,7 @@ class TestDict:
         msg["x"] = msg
         with pytest.raises(RecursionError):
             with max_call_depth(5):
-                assert from_builtins(msg, typ)
+                assert convert(msg, typ)
 
     @uses_annotated
     def test_dict_constrs(self, dictcls):
@@ -962,12 +973,12 @@ class TestDict:
 
         for n in [2, 4]:
             x = dictcls({str(i): i for i in range(n)})
-            assert from_builtins(dictcls({"x": x}), Ex).x == x
+            assert convert(dictcls({"x": x}), Ex).x == x
 
         for n in [1, 5]:
             x = {str(i): i for i in range(n)}
             with pytest.raises(ValidationError):
-                from_builtins(dictcls({"x": x}), Ex)
+                convert(dictcls({"x": x}), Ex)
 
 
 @pytest.mark.skipif(TypedDict is None, reason="TypedDict not available")
@@ -978,21 +989,21 @@ class TestTypedDict:
             b: str
 
         x = {"a": 1, "b": "two"}
-        assert from_builtins(x, Ex) == x
+        assert convert(x, Ex) == x
 
         x2 = {"a": 1, "b": "two", "c": "extra"}
-        assert from_builtins(x2, Ex) == x
+        assert convert(x2, Ex) == x
 
         with pytest.raises(ValidationError) as rec:
-            from_builtins({"b": "two"}, Ex)
+            convert({"b": "two"}, Ex)
         assert "Object missing required field `a`" == str(rec.value)
 
         with pytest.raises(ValidationError) as rec:
-            from_builtins({"a": 1, "b": 2}, Ex)
+            convert({"a": 1, "b": 2}, Ex)
         assert "Expected `str`, got `int` - at `$.b`" == str(rec.value)
 
         with pytest.raises(ValidationError) as rec:
-            from_builtins({"a": 1, 1: 2}, Ex)
+            convert({"a": 1, 1: 2}, Ex)
         assert "Expected `str` - at `key` in `$`" == str(rec.value)
 
     def test_typeddict_total_false(self):
@@ -1001,16 +1012,16 @@ class TestTypedDict:
             b: str
 
         x = {"a": 1, "b": "two"}
-        assert from_builtins(x, Ex) == x
+        assert convert(x, Ex) == x
 
         x2 = {"a": 1, "b": "two", "c": "extra"}
-        assert from_builtins(x2, Ex) == x
+        assert convert(x2, Ex) == x
 
         x3 = {"b": "two"}
-        assert from_builtins(x3, Ex) == x3
+        assert convert(x3, Ex) == x3
 
         x4 = {}
-        assert from_builtins(x4, Ex) == x4
+        assert convert(x4, Ex) == x4
 
     def test_typeddict_total_partially_optional(self):
         class Base(TypedDict):
@@ -1025,13 +1036,13 @@ class TestTypedDict:
             pytest.skip("partially optional TypedDict not supported")
 
         x = {"a": 1, "b": "two", "c": "extra"}
-        assert from_builtins(x, Ex) == x
+        assert convert(x, Ex) == x
 
         x2 = {"a": 1, "b": "two"}
-        assert from_builtins(x2, Ex) == x2
+        assert convert(x2, Ex) == x2
 
         with pytest.raises(ValidationError) as rec:
-            from_builtins({"b": "two"}, Ex)
+            convert({"b": "two"}, Ex)
         assert "Object missing required field `a`" == str(rec.value)
 
 
@@ -1054,11 +1065,11 @@ class TestDataclass:
 
         sol = Example(1, 2, 3)
         msg = mapcls(a=1, b=2, c=3)
-        res = from_builtins(msg, Example, attributes=attributes)
+        res = convert(msg, Example, attributes=attributes)
         assert res == sol
 
         # Extra fields ignored
-        res = from_builtins(
+        res = convert(
             mapcls({"x": -1, "a": 1, "y": -2, "b": 2, "z": -3, "c": 3, "": -4}),
             Example,
             attributes=attributes,
@@ -1067,13 +1078,13 @@ class TestDataclass:
 
         # Missing fields error
         with pytest.raises(ValidationError, match="missing required field `b`"):
-            from_builtins(mapcls(a=1), Example, attributes=attributes)
+            convert(mapcls(a=1), Example, attributes=attributes)
 
         # Incorrect field types error
         with pytest.raises(
             ValidationError, match=r"Expected `int`, got `str` - at `\$.a`"
         ):
-            from_builtins(mapcls(a="bad"), Example, attributes=attributes)
+            convert(mapcls(a="bad"), Example, attributes=attributes)
 
     def test_dict_to_dataclass_errors(self):
         @dataclass
@@ -1081,7 +1092,7 @@ class TestDataclass:
             a: int
 
         with pytest.raises(ValidationError, match=r"Expected `str` - at `key` in `\$`"):
-            from_builtins({"a": 1, 1: 2}, Example)
+            convert({"a": 1, 1: 2}, Example)
 
     def test_attributes_option_disables_attribute_coercion(self):
         class Bad:
@@ -1095,9 +1106,9 @@ class TestDataclass:
             x: int
 
         with pytest.raises(ValidationError, match="Expected `object`, got `Bad`"):
-            from_builtins(msg, Ex)
+            convert(msg, Ex)
 
-        assert from_builtins(msg, Ex, attributes=True) == Ex(1)
+        assert convert(msg, Ex, attributes=True) == Ex(1)
 
     @pytest.mark.parametrize("slots", [False, True])
     @mapcls_and_attributes
@@ -1120,12 +1131,12 @@ class TestDataclass:
         for args in [(1, 2), (1, 2, 3), (1, 2, 3, 4), (1, 2, 3, 4, 5)]:
             sol = Example(*args)
             msg = mapcls(dict(zip("abcde", args)))
-            res = from_builtins(msg, Example, attributes=attributes)
+            res = convert(msg, Example, attributes=attributes)
             assert res == sol
 
         # Missing fields error
         with pytest.raises(ValidationError, match="missing required field `a`"):
-            from_builtins(mapcls(c=1, d=2, e=3), Example, attributes=attributes)
+            convert(mapcls(c=1, d=2, e=3), Example, attributes=attributes)
 
     @mapcls_and_attributes
     def test_dataclass_default_factory_errors(self, mapcls, attributes):
@@ -1139,7 +1150,7 @@ class TestDataclass:
         msg = mapcls()
 
         with pytest.raises(ValueError, match="Oh no!"):
-            from_builtins(msg, Example, attributes=attributes)
+            convert(msg, Example, attributes=attributes)
 
     @mapcls_and_attributes
     def test_dataclass_post_init(self, mapcls, attributes):
@@ -1154,7 +1165,7 @@ class TestDataclass:
                 called = True
 
         msg = mapcls(a=1)
-        res = from_builtins(msg, Example, attributes=attributes)
+        res = convert(msg, Example, attributes=attributes)
         assert res.a == 1
         assert called
 
@@ -1170,7 +1181,7 @@ class TestDataclass:
         msg = mapcls(a=1)
 
         with pytest.raises(ValueError, match="Oh no!"):
-            from_builtins(msg, Example, attributes=attributes)
+            convert(msg, Example, attributes=attributes)
 
     @mapcls_and_attributes
     def test_dataclass_not_object(self, mapcls, attributes):
@@ -1180,7 +1191,7 @@ class TestDataclass:
             b: int
 
         with pytest.raises(ValidationError, match="Expected `object`, got `array`"):
-            from_builtins([], Example, attributes=attributes)
+            convert([], Example, attributes=attributes)
 
 
 @pytest.mark.skipif(attrs is None, reason="attrs is not installed")
@@ -1196,11 +1207,11 @@ class TestAttrs:
 
         sol = Example(1, 2, 3)
         msg = mapcls(a=1, b=2, c=3)
-        res = from_builtins(msg, Example, attributes=attributes)
+        res = convert(msg, Example, attributes=attributes)
         assert res == sol
 
         # Extra fields ignored
-        res = from_builtins(
+        res = convert(
             mapcls({"x": -1, "a": 1, "y": -2, "b": 2, "z": -3, "c": 3, "": -4}),
             Example,
             attributes=attributes,
@@ -1209,13 +1220,13 @@ class TestAttrs:
 
         # Missing fields error
         with pytest.raises(ValidationError, match="missing required field `b`"):
-            from_builtins(mapcls(a=1), Example, attributes=attributes)
+            convert(mapcls(a=1), Example, attributes=attributes)
 
         # Incorrect field types error
         with pytest.raises(
             ValidationError, match=r"Expected `int`, got `str` - at `\$.a`"
         ):
-            from_builtins({"a": "bad"}, Example, attributes=attributes)
+            convert({"a": "bad"}, Example, attributes=attributes)
 
     def test_dict_to_attrs_errors(self):
         @attrs.define
@@ -1223,7 +1234,7 @@ class TestAttrs:
             a: int
 
         with pytest.raises(ValidationError, match=r"Expected `str` - at `key` in `\$`"):
-            from_builtins({"a": 1, 1: 2}, Example)
+            convert({"a": 1, 1: 2}, Example)
 
     def test_attributes_option_disables_attribute_coercion(self):
         class Bad:
@@ -1237,9 +1248,9 @@ class TestAttrs:
             x: int
 
         with pytest.raises(ValidationError, match="Expected `object`, got `Bad`"):
-            from_builtins(msg, Ex)
+            convert(msg, Ex)
 
-        assert from_builtins(msg, Ex, attributes=True) == Ex(1)
+        assert convert(msg, Ex, attributes=True) == Ex(1)
 
     @pytest.mark.parametrize("slots", [False, True])
     @mapcls_and_attributes
@@ -1255,12 +1266,12 @@ class TestAttrs:
         for args in [(1, 2), (1, 2, 3), (1, 2, 3, 4), (1, 2, 3, 4, 5)]:
             sol = Example(*args)
             msg = mapcls(dict(zip("abcde", args)))
-            res = from_builtins(msg, Example, attributes=attributes)
+            res = convert(msg, Example, attributes=attributes)
             assert res == sol
 
         # Missing fields error
         with pytest.raises(ValidationError, match="missing required field `a`"):
-            from_builtins(mapcls(c=1, d=2, e=3), Example, attributes=attributes)
+            convert(mapcls(c=1, d=2, e=3), Example, attributes=attributes)
 
     @mapcls_and_attributes
     def test_attrs_frozen(self, mapcls, attributes):
@@ -1271,7 +1282,7 @@ class TestAttrs:
 
         sol = Example(1, 2)
         msg = mapcls(x=1, y=2)
-        res = from_builtins(msg, Example, attributes=attributes)
+        res = convert(msg, Example, attributes=attributes)
         assert res == sol
 
     @mapcls_and_attributes
@@ -1286,7 +1297,7 @@ class TestAttrs:
                 nonlocal called
                 called = True
 
-        res = from_builtins(mapcls(a=1), Example, attributes=attributes)
+        res = convert(mapcls(a=1), Example, attributes=attributes)
         assert res.a == 1
         assert called
 
@@ -1300,7 +1311,7 @@ class TestAttrs:
                 raise ValueError("Oh no!")
 
         with pytest.raises(ValueError, match="Oh no!"):
-            from_builtins(mapcls(a=1), Example, attributes=attributes)
+            convert(mapcls(a=1), Example, attributes=attributes)
 
     @mapcls_and_attributes
     def test_attrs_post_init(self, mapcls, attributes):
@@ -1314,7 +1325,7 @@ class TestAttrs:
                 nonlocal called
                 called = True
 
-        res = from_builtins(mapcls(a=1), Example, attributes=attributes)
+        res = convert(mapcls(a=1), Example, attributes=attributes)
         assert res.a == 1
         assert called
 
@@ -1328,7 +1339,7 @@ class TestAttrs:
                 raise ValueError("Oh no!")
 
         with pytest.raises(ValueError, match="Oh no!"):
-            from_builtins(mapcls(a=1), Example, attributes=attributes)
+            convert(mapcls(a=1), Example, attributes=attributes)
 
 
 class TestStruct:
@@ -1342,29 +1353,27 @@ class TestStruct:
     def test_struct(self, mapcls, attributes):
         msg = mapcls(first="alice", last="munro", age=91, verified=True)
         sol = self.Account("alice", "munro", 91, True)
-        res = from_builtins(msg, self.Account, attributes=attributes)
+        res = convert(msg, self.Account, attributes=attributes)
         assert res == sol
 
         with pytest.raises(ValidationError, match="Expected `object`, got `array`"):
-            from_builtins([], self.Account, attributes=attributes)
+            convert([], self.Account, attributes=attributes)
 
         with pytest.raises(
             ValidationError, match=r"Expected `str`, got `int` - at `\$.last`"
         ):
-            from_builtins(
-                mapcls(first="alice", last=1), self.Account, attributes=attributes
-            )
+            convert(mapcls(first="alice", last=1), self.Account, attributes=attributes)
 
         with pytest.raises(
             ValidationError, match="Object missing required field `age`"
         ):
-            from_builtins(
+            convert(
                 mapcls(first="alice", last="munro"), self.Account, attributes=attributes
             )
 
     def test_dict_to_struct_errors(self):
         with pytest.raises(ValidationError, match=r"Expected `str` - at `key` in `\$`"):
-            from_builtins({"age": 1, 1: 2}, self.Account)
+            convert({"age": 1, 1: 2}, self.Account)
 
     def test_attributes_option_disables_attribute_coercion(self):
         class Bad:
@@ -1377,9 +1386,9 @@ class TestStruct:
             x: int
 
         with pytest.raises(ValidationError, match="Expected `object`, got `Bad`"):
-            from_builtins(msg, Ex)
+            convert(msg, Ex)
 
-        assert from_builtins(msg, Ex, attributes=True) == Ex(1)
+        assert convert(msg, Ex, attributes=True) == Ex(1)
 
     @pytest.mark.parametrize("forbid_unknown_fields", [False, True])
     @mapcls_and_attributes
@@ -1391,15 +1400,15 @@ class TestStruct:
         msg = mapcls(x=1, a=2, y=3, b=4, z=5)
         if forbid_unknown_fields and mapcls is dict:
             with pytest.raises(ValidationError, match="unknown field `x`"):
-                from_builtins(msg, Ex, attributes=attributes)
+                convert(msg, Ex, attributes=attributes)
         else:
-            res = from_builtins(msg, Ex, attributes=attributes)
+            res = convert(msg, Ex, attributes=attributes)
             assert res == Ex(2, 4)
 
     @mapcls_and_attributes
     def test_struct_defaults_missing_fields(self, mapcls, attributes):
         msg = mapcls(first="alice", last="munro", age=91)
-        res = from_builtins(msg, self.Account, attributes=attributes)
+        res = convert(msg, self.Account, attributes=attributes)
         assert res == self.Account("alice", "munro", 91)
 
     @mapcls_attributes_and_array_like
@@ -1416,7 +1425,7 @@ class TestStruct:
             mapcls(x={}, y={}),
             mapcls(x=None, y=None, z=()),
         ]
-        a, b, c, d, e = from_builtins(ts, List[Test], attributes=attributes)
+        a, b, c, d, e = convert(ts, List[Test], attributes=attributes)
         assert not gc.is_tracked(a)
         assert not gc.is_tracked(b)
         assert gc.is_tracked(c)
@@ -1436,7 +1445,7 @@ class TestStruct:
             mapcls(x=[], y=[]),
             mapcls(x={}, y={}),
         ]
-        for obj in from_builtins(ts, List[Test], attributes=attributes):
+        for obj in convert(ts, List[Test], attributes=attributes):
             assert not gc.is_tracked(obj)
 
     @pytest.mark.parametrize("tag", ["Test", 123, -123])
@@ -1452,19 +1461,19 @@ class TestStruct:
             mapcls(type=tag, a=1, b=2),
             mapcls(a=1, type=tag, b=2),
         ]:
-            res = from_builtins(msg, Test, attributes=attributes)
+            res = convert(msg, Test, attributes=attributes)
             assert res == Test(1, 2)
 
         # Tag incorrect type
         with pytest.raises(ValidationError) as rec:
-            from_builtins(mapcls(type=123.456), Test, attributes=attributes)
+            convert(mapcls(type=123.456), Test, attributes=attributes)
         assert f"Expected `{type(tag).__name__}`" in str(rec.value)
         assert "`$.type`" in str(rec.value)
 
         # Tag incorrect value
         bad = -3 if isinstance(tag, int) else "bad"
         with pytest.raises(ValidationError) as rec:
-            from_builtins(mapcls(type=bad), Test, attributes=attributes)
+            convert(mapcls(type=bad), Test, attributes=attributes)
         assert f"Invalid value {bad!r}" in str(rec.value)
         assert "`$.type`" in str(rec.value)
 
@@ -1480,7 +1489,7 @@ class TestStruct:
             pass
 
         with pytest.raises(ValidationError) as rec:
-            from_builtins(mapcls(type=tag_val), Test, attributes=attributes)
+            convert(mapcls(type=tag_val), Test, attributes=attributes)
 
         assert f"Invalid value {tag_val}" in str(rec.value)
         assert "`$.type`" in str(rec.value)
@@ -1492,11 +1501,11 @@ class TestStruct:
             pass
 
         # Tag missing
-        res = from_builtins(mapcls(), Test, attributes=attributes)
+        res = convert(mapcls(), Test, attributes=attributes)
         assert res == Test()
 
         # Tag present
-        res = from_builtins(mapcls(type=tag), Test, attributes=attributes)
+        res = convert(mapcls(type=tag), Test, attributes=attributes)
         assert res == Test()
 
 
@@ -1627,9 +1636,7 @@ class TestStructUnion:
     @mapcls_and_attributes
     def test_struct_union(self, tag1, tag2, unknown, mapcls, attributes):
         def decode(msg):
-            return from_builtins(
-                mapcls(msg), Union[Test1, Test2], attributes=attributes
-            )
+            return convert(mapcls(msg), Union[Test1, Test2], attributes=attributes)
 
         class Test1(Struct, tag=tag1):
             a: int
@@ -1737,20 +1744,20 @@ class TestGenericStruct:
         sol = Ex(1, [1, 2])
         msg = mapcls(x=1, y=[1, 2])
 
-        res = from_builtins(msg, Ex, attributes=attributes)
+        res = convert(msg, Ex, attributes=attributes)
         assert res == sol
 
-        res = from_builtins(msg, Ex[int], attributes=attributes)
+        res = convert(msg, Ex[int], attributes=attributes)
         assert res == sol
 
-        res = from_builtins(msg, Ex[Union[int, str]], attributes=attributes)
+        res = convert(msg, Ex[Union[int, str]], attributes=attributes)
         assert res == sol
 
-        res = from_builtins(msg, Ex[float], attributes=attributes)
+        res = convert(msg, Ex[float], attributes=attributes)
         assert type(res.x) is float
 
         with pytest.raises(ValidationError, match="Expected `str`, got `int`"):
-            from_builtins(msg, Ex[str], attributes=attributes)
+            convert(msg, Ex[str], attributes=attributes)
 
     @mapcls_attributes_and_array_like
     def test_generic_struct_union(self, mapcls, attributes, array_like):
@@ -1771,23 +1778,23 @@ class TestGenericStruct:
         msg3 = Test1(None, 4)
         s3 = mapcls(type="Test1", a=None, b=4)
 
-        assert from_builtins(s1, typ, attributes=attributes) == msg1
-        assert from_builtins(s2, typ, attributes=attributes) == msg2
-        assert from_builtins(s3, typ, attributes=attributes) == msg3
+        assert convert(s1, typ, attributes=attributes) == msg1
+        assert convert(s2, typ, attributes=attributes) == msg2
+        assert convert(s3, typ, attributes=attributes) == msg3
 
-        assert from_builtins(s1, typ[int], attributes=attributes) == msg1
-        assert from_builtins(s3, typ[int], attributes=attributes) == msg3
-        assert from_builtins(s2, typ[str], attributes=attributes) == msg2
-        assert from_builtins(s3, typ[str], attributes=attributes) == msg3
+        assert convert(s1, typ[int], attributes=attributes) == msg1
+        assert convert(s3, typ[int], attributes=attributes) == msg3
+        assert convert(s2, typ[str], attributes=attributes) == msg2
+        assert convert(s3, typ[str], attributes=attributes) == msg3
 
         with pytest.raises(ValidationError) as rec:
-            from_builtins(s1, typ[str], attributes=attributes)
+            convert(s1, typ[str], attributes=attributes)
         assert "Expected `str | null`, got `int`" in str(rec.value)
         loc = "$[1]" if array_like else "$.a"
         assert loc in str(rec.value)
 
         with pytest.raises(ValidationError) as rec:
-            from_builtins(s2, typ[int], attributes=attributes)
+            convert(s2, typ[int], attributes=attributes)
         assert "Expected `int`, got `str`" in str(rec.value)
         loc = "$[1]" if array_like else "$.x"
         assert loc in str(rec.value)
@@ -1796,95 +1803,93 @@ class TestGenericStruct:
 class TestStrValues:
     def test_str_values_none(self):
         for x in ["null", "Null", "nUll", "nuLl", "nulL"]:
-            assert from_builtins(x, None, str_values=True) is None
+            assert convert(x, None, str_values=True) is None
 
         for x in ["xull", "nxll", "nuxl", "nulx"]:
             with pytest.raises(ValidationError, match="Expected `null`, got `str`"):
-                from_builtins(x, None, str_values=True)
+                convert(x, None, str_values=True)
 
     def test_str_values_bool_true(self):
         for x in ["1", "true", "True", "tRue", "trUe", "truE"]:
-            assert from_builtins(x, bool, str_values=True) is True
+            assert convert(x, bool, str_values=True) is True
 
     def test_str_values_bool_false(self):
         for x in ["0", "false", "False", "fAlse", "faLse", "falSe", "falsE"]:
-            assert from_builtins(x, bool, str_values=True) is False
+            assert convert(x, bool, str_values=True) is False
 
     def test_str_values_bool_true_invalid(self):
         for x in ["x", "xx", "xrue", "txue", "trxe", "trux"]:
             with pytest.raises(ValidationError, match="Expected `bool`, got `str`"):
-                assert from_builtins(x, bool, str_values=True)
+                assert convert(x, bool, str_values=True)
 
     def test_str_values_bool_false_invalid(self):
         for x in ["x", "xx", "xalse", "fxlse", "faxse", "falxe", "falsx"]:
             with pytest.raises(ValidationError, match="Expected `bool`, got `str`"):
-                assert from_builtins(x, bool, str_values=True)
+                assert convert(x, bool, str_values=True)
 
     def test_str_values_int(self):
         for x in ["1", "-1", "123456"]:
-            assert from_builtins(x, int, str_values=True) == int(x)
+            assert convert(x, int, str_values=True) == int(x)
 
         for x in ["a", "1a", "1.0", "1.."]:
             with pytest.raises(ValidationError, match="Expected `int`, got `str`"):
-                from_builtins(x, int, str_values=True)
+                convert(x, int, str_values=True)
 
     @uses_annotated
     def test_str_values_int_constr(self):
         typ = Annotated[int, Meta(ge=0)]
-        assert from_builtins("1", typ, str_values=True) == 1
+        assert convert("1", typ, str_values=True) == 1
 
         with pytest.raises(ValidationError):
-            from_builtins("-1", typ, str_values=True)
+            convert("-1", typ, str_values=True)
 
     def test_str_values_int_enum(self):
         class Ex(enum.IntEnum):
             x = 1
             y = -2
 
-        assert from_builtins("1", Ex, str_values=True) is Ex.x
-        assert from_builtins("-2", Ex, str_values=True) is Ex.y
+        assert convert("1", Ex, str_values=True) is Ex.x
+        assert convert("-2", Ex, str_values=True) is Ex.y
         with pytest.raises(ValidationError, match="Invalid enum value 3"):
-            from_builtins("3", Ex, str_values=True)
+            convert("3", Ex, str_values=True)
         with pytest.raises(ValidationError, match="Expected `int`, got `str`"):
-            from_builtins("A", Ex, str_values=True)
+            convert("A", Ex, str_values=True)
 
     def test_str_values_int_literal(self):
         typ = Literal[1, -2]
-        assert from_builtins("1", typ, str_values=True) == 1
-        assert from_builtins("-2", typ, str_values=True) == -2
+        assert convert("1", typ, str_values=True) == 1
+        assert convert("-2", typ, str_values=True) == -2
         with pytest.raises(ValidationError, match="Invalid enum value 3"):
-            from_builtins("3", typ, str_values=True)
+            convert("3", typ, str_values=True)
         with pytest.raises(ValidationError, match="Expected `int`, got `str`"):
-            from_builtins("A", typ, str_values=True)
+            convert("A", typ, str_values=True)
 
     def test_str_values_float(self):
         for x in ["1", "-1", "123456", "1.5", "-1.5", "inf"]:
-            assert from_builtins(x, float, str_values=True) == float(x)
+            assert convert(x, float, str_values=True) == float(x)
 
         for x in ["a", "1a", "1.0.0", "1.."]:
             with pytest.raises(ValidationError, match="Expected `float`, got `str`"):
-                from_builtins(x, float, str_values=True)
+                convert(x, float, str_values=True)
 
     @uses_annotated
     def test_str_values_float_constr(self):
-        assert (
-            from_builtins("1.5", Annotated[float, Meta(ge=0)], str_values=True) == 1.5
-        )
+        assert convert("1.5", Annotated[float, Meta(ge=0)], str_values=True) == 1.5
 
         with pytest.raises(ValidationError):
-            from_builtins("-1.0", Annotated[float, Meta(ge=0)], str_values=True)
+            convert("-1.0", Annotated[float, Meta(ge=0)], str_values=True)
 
     def test_str_values_str(self):
         for x in ["1", "1.5", "false", "null"]:
-            assert from_builtins(x, str, str_values=True) == x
+            assert convert(x, str, str_values=True) == x
 
     @uses_annotated
     def test_str_values_str_constr(self):
         typ = Annotated[str, Meta(max_length=10)]
-        assert from_builtins("xxx", typ, str_values=True) == "xxx"
+        assert convert("xxx", typ, str_values=True) == "xxx"
 
         with pytest.raises(ValidationError):
-            from_builtins("x" * 20, typ, str_values=True)
+            convert("x" * 20, typ, str_values=True)
 
     @pytest.mark.parametrize(
         "msg, sol",
@@ -1904,7 +1909,7 @@ class TestStrValues:
     )
     def test_str_values_union_valid(self, msg, sol):
         typ = Union[int, float, bool, None, str]
-        assert_eq(from_builtins(msg, typ, str_values=True), sol)
+        assert_eq(convert(msg, typ, str_values=True), sol)
 
     @pytest.mark.parametrize("msg", ["1a", "1.5a", "falsx", "trux", "nulx"])
     def test_str_values_union_invalid(self, msg):
@@ -1912,7 +1917,7 @@ class TestStrValues:
         with pytest.raises(
             ValidationError, match="Expected `int | float | bool | null`"
         ):
-            from_builtins(msg, typ, str_values=True)
+            convert(msg, typ, str_values=True)
 
     @pytest.mark.parametrize(
         "msg, err",
@@ -1935,16 +1940,16 @@ class TestStrValues:
             Annotated[str, Meta(max_length=10)],
         ]
         with pytest.raises(ValidationError, match=err):
-            from_builtins(msg, typ, str_values=True)
+            convert(msg, typ, str_values=True)
 
     def test_str_values_union_extended(self):
         typ = Union[int, float, bool, None, datetime.datetime]
         dt = datetime.datetime.now()
-        assert_eq(from_builtins("1", typ, str_values=True), 1)
-        assert_eq(from_builtins("1.5", typ, str_values=True), 1.5)
-        assert_eq(from_builtins("false", typ, str_values=True), False)
-        assert_eq(from_builtins("null", typ, str_values=True), None)
-        assert_eq(from_builtins(dt.isoformat(), typ, str_values=True), dt)
+        assert_eq(convert("1", typ, str_values=True), 1)
+        assert_eq(convert("1.5", typ, str_values=True), 1.5)
+        assert_eq(convert("false", typ, str_values=True), False)
+        assert_eq(convert("null", typ, str_values=True), None)
+        assert_eq(convert(dt.isoformat(), typ, str_values=True), dt)
 
 
 class TestCustom:
@@ -1955,16 +1960,16 @@ class TestCustom:
 
         msg = {"x": (1, 2)}
         sol = {"x": complex(1, 2)}
-        res = from_builtins(msg, Dict[str, complex], dec_hook=dec_hook)
+        res = convert(msg, Dict[str, complex], dec_hook=dec_hook)
         assert res == sol
 
     def test_custom_no_dec_hook(self):
         with pytest.raises(ValidationError, match="Expected `complex`, got `str`"):
-            from_builtins({"x": "oh no"}, Dict[str, complex])
+            convert({"x": "oh no"}, Dict[str, complex])
 
     def test_custom_dec_hook_errors(self):
         def dec_hook(typ, x):
             raise TypeError("Oops!")
 
         with pytest.raises(TypeError, match="Oops!"):
-            from_builtins({"x": (1, 2)}, Dict[str, complex], dec_hook=dec_hook)
+            convert({"x": (1, 2)}, Dict[str, complex], dec_hook=dec_hook)
