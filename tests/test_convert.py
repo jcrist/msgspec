@@ -1800,96 +1800,96 @@ class TestGenericStruct:
         assert loc in str(rec.value)
 
 
-class TestStrValues:
-    def test_str_values_none(self):
+class TestLax:
+    def test_lax_none(self):
         for x in ["null", "Null", "nUll", "nuLl", "nulL"]:
-            assert convert(x, None, str_values=True) is None
+            assert convert(x, None, strict=False) is None
 
         for x in ["xull", "nxll", "nuxl", "nulx"]:
             with pytest.raises(ValidationError, match="Expected `null`, got `str`"):
-                convert(x, None, str_values=True)
+                convert(x, None, strict=False)
 
-    def test_str_values_bool_true(self):
+    def test_lax_bool_true(self):
         for x in ["1", "true", "True", "tRue", "trUe", "truE"]:
-            assert convert(x, bool, str_values=True) is True
+            assert convert(x, bool, strict=False) is True
 
-    def test_str_values_bool_false(self):
+    def test_lax_bool_false(self):
         for x in ["0", "false", "False", "fAlse", "faLse", "falSe", "falsE"]:
-            assert convert(x, bool, str_values=True) is False
+            assert convert(x, bool, strict=False) is False
 
-    def test_str_values_bool_true_invalid(self):
+    def test_lax_bool_true_invalid(self):
         for x in ["x", "xx", "xrue", "txue", "trxe", "trux"]:
             with pytest.raises(ValidationError, match="Expected `bool`, got `str`"):
-                assert convert(x, bool, str_values=True)
+                assert convert(x, bool, strict=False)
 
-    def test_str_values_bool_false_invalid(self):
+    def test_lax_bool_false_invalid(self):
         for x in ["x", "xx", "xalse", "fxlse", "faxse", "falxe", "falsx"]:
             with pytest.raises(ValidationError, match="Expected `bool`, got `str`"):
-                assert convert(x, bool, str_values=True)
+                assert convert(x, bool, strict=False)
 
-    def test_str_values_int(self):
+    def test_lax_int(self):
         for x in ["1", "-1", "123456"]:
-            assert convert(x, int, str_values=True) == int(x)
+            assert convert(x, int, strict=False) == int(x)
 
         for x in ["a", "1a", "1.0", "1.."]:
             with pytest.raises(ValidationError, match="Expected `int`, got `str`"):
-                convert(x, int, str_values=True)
+                convert(x, int, strict=False)
 
     @uses_annotated
-    def test_str_values_int_constr(self):
+    def test_lax_int_constr(self):
         typ = Annotated[int, Meta(ge=0)]
-        assert convert("1", typ, str_values=True) == 1
+        assert convert("1", typ, strict=False) == 1
 
         with pytest.raises(ValidationError):
-            convert("-1", typ, str_values=True)
+            convert("-1", typ, strict=False)
 
-    def test_str_values_int_enum(self):
+    def test_lax_int_enum(self):
         class Ex(enum.IntEnum):
             x = 1
             y = -2
 
-        assert convert("1", Ex, str_values=True) is Ex.x
-        assert convert("-2", Ex, str_values=True) is Ex.y
+        assert convert("1", Ex, strict=False) is Ex.x
+        assert convert("-2", Ex, strict=False) is Ex.y
         with pytest.raises(ValidationError, match="Invalid enum value 3"):
-            convert("3", Ex, str_values=True)
+            convert("3", Ex, strict=False)
         with pytest.raises(ValidationError, match="Expected `int`, got `str`"):
-            convert("A", Ex, str_values=True)
+            convert("A", Ex, strict=False)
 
-    def test_str_values_int_literal(self):
+    def test_lax_int_literal(self):
         typ = Literal[1, -2]
-        assert convert("1", typ, str_values=True) == 1
-        assert convert("-2", typ, str_values=True) == -2
+        assert convert("1", typ, strict=False) == 1
+        assert convert("-2", typ, strict=False) == -2
         with pytest.raises(ValidationError, match="Invalid enum value 3"):
-            convert("3", typ, str_values=True)
+            convert("3", typ, strict=False)
         with pytest.raises(ValidationError, match="Expected `int`, got `str`"):
-            convert("A", typ, str_values=True)
+            convert("A", typ, strict=False)
 
-    def test_str_values_float(self):
+    def test_lax_float(self):
         for x in ["1", "-1", "123456", "1.5", "-1.5", "inf"]:
-            assert convert(x, float, str_values=True) == float(x)
+            assert convert(x, float, strict=False) == float(x)
 
         for x in ["a", "1a", "1.0.0", "1.."]:
             with pytest.raises(ValidationError, match="Expected `float`, got `str`"):
-                convert(x, float, str_values=True)
+                convert(x, float, strict=False)
 
     @uses_annotated
-    def test_str_values_float_constr(self):
-        assert convert("1.5", Annotated[float, Meta(ge=0)], str_values=True) == 1.5
+    def test_lax_float_constr(self):
+        assert convert("1.5", Annotated[float, Meta(ge=0)], strict=False) == 1.5
 
         with pytest.raises(ValidationError):
-            convert("-1.0", Annotated[float, Meta(ge=0)], str_values=True)
+            convert("-1.0", Annotated[float, Meta(ge=0)], strict=False)
 
-    def test_str_values_str(self):
+    def test_lax_str(self):
         for x in ["1", "1.5", "false", "null"]:
-            assert convert(x, str, str_values=True) == x
+            assert convert(x, str, strict=False) == x
 
     @uses_annotated
-    def test_str_values_str_constr(self):
+    def test_lax_str_constr(self):
         typ = Annotated[str, Meta(max_length=10)]
-        assert convert("xxx", typ, str_values=True) == "xxx"
+        assert convert("xxx", typ, strict=False) == "xxx"
 
         with pytest.raises(ValidationError):
-            convert("x" * 20, typ, str_values=True)
+            convert("x" * 20, typ, strict=False)
 
     @pytest.mark.parametrize(
         "msg, sol",
@@ -1907,17 +1907,17 @@ class TestStrValues:
             ("nulx", "nulx"),
         ],
     )
-    def test_str_values_union_valid(self, msg, sol):
+    def test_lax_union_valid(self, msg, sol):
         typ = Union[int, float, bool, None, str]
-        assert_eq(convert(msg, typ, str_values=True), sol)
+        assert_eq(convert(msg, typ, strict=False), sol)
 
     @pytest.mark.parametrize("msg", ["1a", "1.5a", "falsx", "trux", "nulx"])
-    def test_str_values_union_invalid(self, msg):
+    def test_lax_union_invalid(self, msg):
         typ = Union[int, float, bool, None]
         with pytest.raises(
             ValidationError, match="Expected `int | float | bool | null`"
         ):
-            convert(msg, typ, str_values=True)
+            convert(msg, typ, strict=False)
 
     @pytest.mark.parametrize(
         "msg, err",
@@ -1931,7 +1931,7 @@ class TestStrValues:
         ],
     )
     @uses_annotated
-    def test_str_values_union_invalid_constr(self, msg, err):
+    def test_lax_union_invalid_constr(self, msg, err):
         """Ensure that values that parse properly but don't meet the specified
         constraints error with a specific constraint error"""
         typ = Union[
@@ -1940,16 +1940,16 @@ class TestStrValues:
             Annotated[str, Meta(max_length=10)],
         ]
         with pytest.raises(ValidationError, match=err):
-            convert(msg, typ, str_values=True)
+            convert(msg, typ, strict=False)
 
-    def test_str_values_union_extended(self):
+    def test_lax_union_extended(self):
         typ = Union[int, float, bool, None, datetime.datetime]
         dt = datetime.datetime.now()
-        assert_eq(convert("1", typ, str_values=True), 1)
-        assert_eq(convert("1.5", typ, str_values=True), 1.5)
-        assert_eq(convert("false", typ, str_values=True), False)
-        assert_eq(convert("null", typ, str_values=True), None)
-        assert_eq(convert(dt.isoformat(), typ, str_values=True), dt)
+        assert_eq(convert("1", typ, strict=False), 1)
+        assert_eq(convert("1.5", typ, strict=False), 1.5)
+        assert_eq(convert("false", typ, strict=False), False)
+        assert_eq(convert("null", typ, strict=False), None)
+        assert_eq(convert(dt.isoformat(), typ, strict=False), dt)
 
 
 class TestCustom:

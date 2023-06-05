@@ -39,10 +39,10 @@ def from_builtins(
     return convert(
         obj,
         type,
-        str_keys=str_keys,
-        str_values=str_values,
-        builtin_types=builtin_types,
+        strict=not str_values,
         dec_hook=dec_hook,
+        builtin_types=builtin_types,
+        str_keys=str_keys,
     )
 
 

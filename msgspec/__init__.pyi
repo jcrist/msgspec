@@ -154,21 +154,22 @@ def convert(
     obj: Any,
     type: Type[T],
     *,
-    str_keys: bool = False,
-    str_values: bool = False,
-    builtin_types: Union[Iterable[type], None] = None,
+    strict: bool = True,
     attributes: bool = False,
     dec_hook: Optional[Callable[[type, Any], Any]] = None,
+    builtin_types: Union[Iterable[type], None] = None,
+    str_keys: bool = False,
 ) -> T: ...
 @overload
 def convert(
     obj: Any,
     type: Any,
     *,
-    str_keys: bool = False,
-    builtin_types: Union[Iterable[type], None] = None,
+    strict: bool = True,
     attributes: bool = False,
     dec_hook: Optional[Callable[[type, Any], Any]] = None,
+    builtin_types: Union[Iterable[type], None] = None,
+    str_keys: bool = False,
 ) -> Any: ...
 
 # TODO: deprecated
@@ -188,6 +189,7 @@ def from_builtins(
     type: Any,
     *,
     str_keys: bool = False,
+    str_values: bool = False,
     builtin_types: Union[Iterable[type], None] = None,
     dec_hook: Optional[Callable[[type, Any], Any]] = None,
 ) -> Any: ...
