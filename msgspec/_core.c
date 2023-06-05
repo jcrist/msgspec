@@ -18363,7 +18363,7 @@ convert_object_to_struct(
 ) {
     StructMetaObject *struct_type = info->class;
 
-    Py_ssize_t nfields = PyTuple_GET_SIZE(struct_type->struct_fields);
+    Py_ssize_t nfields = PyTuple_GET_SIZE(struct_type->struct_encode_fields);
     Py_ssize_t ndefaults = PyTuple_GET_SIZE(struct_type->struct_defaults);
 
     if (struct_type->struct_tag_value != NULL && !tag_already_read) {
@@ -18391,7 +18391,7 @@ convert_object_to_struct(
     bool should_untrack = is_gc;
 
     for (Py_ssize_t i = 0; i < nfields; i++) {
-        PyObject *field = PyTuple_GET_ITEM(struct_type->struct_fields, i);
+        PyObject *field = PyTuple_GET_ITEM(struct_type->struct_encode_fields, i);
         PyObject *attr = getter(obj, field);
         PyObject *val;
         if (attr == NULL) {
