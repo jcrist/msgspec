@@ -946,7 +946,7 @@ def check_convert() -> None:
     o3 = msgspec.convert(1, int, strict=False)
     reveal_type(o3)  # assert "int" in typ.lower()
 
-    o4 = msgspec.convert(1, int, attributes=True)
+    o4 = msgspec.convert(1, int, from_attributes=True)
     reveal_type(o4)  # assert "int" in typ.lower()
 
     o5 = msgspec.convert(1, int, dec_hook=lambda typ, x: None)

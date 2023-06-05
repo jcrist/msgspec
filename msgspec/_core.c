@@ -17359,7 +17359,7 @@ typedef struct ConvertState {
     PyObject *dec_hook;
     uint32_t builtin_types;
     bool str_keys;
-    bool attributes;
+    bool from_attributes;
     PyObject* (*convert_str)(
         struct ConvertState*, PyObject*, bool, TypeNode*, PathNode*
     );
@@ -18534,7 +18534,7 @@ convert_object(
         }
         getter = PyObject_GetItem;
     }
-    else if (self->attributes) {
+    else if (self->from_attributes) {
         getter = PyObject_GetAttr;
     }
     else {
@@ -18617,7 +18617,7 @@ convert(
 }
 
 PyDoc_STRVAR(msgspec_convert__doc__,
-"convert(obj, type, *, strict=True, attributes=False, dec_hook=None, str_keys=False, builtin_types=None)\n"
+"convert(obj, type, *, strict=True, from_attributes=False, dec_hook=None, str_keys=False, builtin_types=None)\n"
 "--\n"
 "\n"
 "Convert the input object to the specified type, or error accordingly\n."
@@ -18632,7 +18632,7 @@ PyDoc_STRVAR(msgspec_convert__doc__,
 "    Whether type coercion rules should be strict. Setting to False enables a\n"
 "    wider set of coercion rules from string to non-string types for all values.\n"
 "    Setting ``strict=False`` implies ``str_keys=False``. Default is True.\n"
-"attributes: bool, optional\n"
+"from_attributes: bool, optional\n"
 "    If True, input objects may be coerced to ``Struct``/``dataclass``/``attrs``\n"
 "    types by extracting attributes from the input matching fields in the output\n"
 "    type. One use case is converting database query results (ORM or otherwise)\n"
@@ -18683,25 +18683,25 @@ static PyObject*
 msgspec_convert(PyObject *self, PyObject *args, PyObject *kwargs)
 {
     PyObject *obj = NULL, *pytype = NULL, *builtin_types = NULL, *dec_hook = NULL;
-    int str_keys = false, strict = true, attributes = false;
+    int str_keys = false, strict = true, from_attributes = false;
     ConvertState state;
 
     char *kwlist[] = {
-        "obj", "type", "strict", "attributes", "dec_hook", "builtin_types",
+        "obj", "type", "strict", "from_attributes", "dec_hook", "builtin_types",
         "str_keys", NULL
     };
 
     /* Parse arguments */
     if (!PyArg_ParseTupleAndKeywords(
         args, kwargs, "OO|$ppOOp", kwlist,
-        &obj, &pytype, &strict, &attributes, &dec_hook, &builtin_types, &str_keys
+        &obj, &pytype, &strict, &from_attributes, &dec_hook, &builtin_types, &str_keys
     )) {
         return NULL;
     }
 
     state.mod = msgspec_get_global_state();
     state.builtin_types = 0;
-    state.attributes = attributes;
+    state.from_attributes = from_attributes;
     state.str_keys = str_keys;
     if (strict) {
         state.convert_str = &(convert_str_strict);
