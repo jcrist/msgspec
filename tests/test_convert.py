@@ -1094,7 +1094,7 @@ class TestDataclass:
         with pytest.raises(ValidationError, match=r"Expected `str` - at `key` in `\$`"):
             convert({"a": 1, 1: 2}, Example)
 
-    def test_attributes_option_disables_attribute_coercion(self):
+    def test_from_attributes_option_disables_attribute_coercion(self):
         class Bad:
             def __init__(self):
                 self.x = 1
@@ -1236,7 +1236,7 @@ class TestAttrs:
         with pytest.raises(ValidationError, match=r"Expected `str` - at `key` in `\$`"):
             convert({"a": 1, 1: 2}, Example)
 
-    def test_attributes_option_disables_attribute_coercion(self):
+    def test_from_attributes_option_disables_attribute_coercion(self):
         class Bad:
             def __init__(self):
                 self.x = 1
@@ -1381,7 +1381,7 @@ class TestStruct:
         with pytest.raises(ValidationError, match=r"Expected `str` - at `key` in `\$`"):
             convert({"age": 1, 1: 2}, self.Account)
 
-    def test_attributes_option_disables_attribute_coercion(self):
+    def test_from_attributes_option_disables_attribute_coercion(self):
         class Bad:
             def __init__(self):
                 self.x = 1
@@ -1395,6 +1395,13 @@ class TestStruct:
             convert(msg, Ex)
 
         assert convert(msg, Ex, from_attributes=True) == Ex(1)
+
+    def test_from_attributes_option_uses_renamed_fields(self):
+        class Ex(Struct, rename="camel"):
+            field_one: int
+
+        msg = GetAttrObj(fieldOne=2)
+        assert convert(msg, Ex, from_attributes=True) == Ex(2)
 
     @pytest.mark.parametrize("forbid_unknown_fields", [False, True])
     @mapcls_and_from_attributes
