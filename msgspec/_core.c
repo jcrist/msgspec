@@ -17635,7 +17635,7 @@ convert_immutable(
 }
 
 static PyObject *
-convert_list(
+convert_seq_to_list(
     ConvertState *self, PyObject **items, Py_ssize_t size,
     TypeNode *item_type, PathNode *path
 ) {
@@ -17661,7 +17661,7 @@ convert_list(
 }
 
 static PyObject *
-convert_set(
+convert_seq_to_set(
     ConvertState *self, PyObject **items, Py_ssize_t size,
     bool mutable, TypeNode *item_type, PathNode *path
 ) {
@@ -17688,7 +17688,7 @@ convert_set(
 }
 
 static PyObject *
-convert_vartuple(
+convert_seq_to_vartuple(
     ConvertState *self, PyObject **items, Py_ssize_t size,
     TypeNode *item_type, PathNode *path
 ) {
@@ -17714,7 +17714,7 @@ convert_vartuple(
 }
 
 static PyObject *
-convert_fixtuple(
+convert_seq_to_fixtuple(
     ConvertState *self, PyObject **items, Py_ssize_t size,
     TypeNode *type, PathNode *path
 ) {
@@ -17757,7 +17757,7 @@ convert_fixtuple(
 }
 
 static PyObject *
-convert_namedtuple(
+convert_seq_to_namedtuple(
     ConvertState *self, PyObject **items, Py_ssize_t size,
     TypeNode *type, PathNode *path
 ) {
@@ -17880,7 +17880,7 @@ wrong_type:
 }
 
 static PyObject *
-convert_struct_array_inner(
+convert_seq_to_struct_array_inner(
     ConvertState *self, PyObject **items, Py_ssize_t size,
     bool tag_already_read, StructInfo *info, PathNode *path
 ) {
@@ -17967,17 +17967,17 @@ error:
 }
 
 static PyObject *
-convert_struct_array(
+convert_seq_to_struct_array(
     ConvertState *self, PyObject **items, Py_ssize_t size,
     TypeNode *type, PathNode *path
 ) {
-    return convert_struct_array_inner(
+    return convert_seq_to_struct_array_inner(
         self, items, size, false, TypeNode_get_struct_info(type), path
     );
 }
 
 static PyObject *
-convert_struct_array_union(
+convert_seq_to_struct_array_union(
     ConvertState *self, PyObject **items, Py_ssize_t size,
     TypeNode *type, PathNode *path
 ) {
@@ -17991,13 +17991,11 @@ convert_struct_array_union(
     PathNode tag_path = {path, 0};
     StructInfo *info = convert_lookup_tag(self, lookup, items[0], &tag_path);
     if (info == NULL) return NULL;
-    return convert_struct_array_inner(self, items, size, true, info, path);
+    return convert_seq_to_struct_array_inner(self, items, size, true, info, path);
 }
 
 static PyObject *
-convert_sequence(
-    ConvertState *self, PyObject *obj, TypeNode *type, PathNode *path
-) {
+convert_seq(ConvertState *self, PyObject *obj, TypeNode *type, PathNode *path) {
     PyObject **items = PySequence_Fast_ITEMS(obj);
     Py_ssize_t size = PySequence_Fast_GET_SIZE(obj);
 
@@ -18005,31 +18003,35 @@ convert_sequence(
 
     if (type->types & MS_TYPE_ANY) {
         TypeNode type_any = {MS_TYPE_ANY};
-        return convert_list(self, items, size, &type_any, path);
+        return convert_seq_to_list(self, items, size, &type_any, path);
     }
     else if (type->types & MS_TYPE_LIST) {
-        return convert_list(self, items, size, TypeNode_get_array(type), path);
+        return convert_seq_to_list(
+            self, items, size, TypeNode_get_array(type), path
+        );
     }
     else if (type->types & (MS_TYPE_SET | MS_TYPE_FROZENSET)) {
-        return convert_set(
+        return convert_seq_to_set(
             self, items, size,
             (type->types & MS_TYPE_SET), TypeNode_get_array(type), path
         );
     }
     else if (type->types & MS_TYPE_VARTUPLE) {
-        return convert_vartuple(self, items, size, TypeNode_get_array(type), path);
+        return convert_seq_to_vartuple(
+            self, items, size, TypeNode_get_array(type), path
+        );
     }
     else if (type->types & MS_TYPE_FIXTUPLE) {
-        return convert_fixtuple(self, items, size, type, path);
+        return convert_seq_to_fixtuple(self, items, size, type, path);
     }
     else if (type->types & MS_TYPE_NAMEDTUPLE) {
-        return convert_namedtuple(self, items, size, type, path);
+        return convert_seq_to_namedtuple(self, items, size, type, path);
     }
     else if (type->types & MS_TYPE_STRUCT_ARRAY) {
-        return convert_struct_array(self, items, size, type, path);
+        return convert_seq_to_struct_array(self, items, size, type, path);
     }
     else if (type->types & MS_TYPE_STRUCT_ARRAY_UNION) {
-        return convert_struct_array_union(self, items, size, type, path);
+        return convert_seq_to_struct_array_union(self, items, size, type, path);
     }
     return ms_validation_error("array", type, path);
 }
@@ -18054,17 +18056,21 @@ convert_any_set(
     if (!ms_passes_array_constraints(size, type, path)) goto done;
 
     if (type->types & MS_TYPE_LIST) {
-        out = convert_list(self, items, size, TypeNode_get_array(type), path);
+        out = convert_seq_to_list(
+            self, items, size, TypeNode_get_array(type), path
+        );
     }
     else if (type->types & (MS_TYPE_SET | MS_TYPE_FROZENSET)) {
-        out = convert_set(
+        out = convert_seq_to_set(
             self, items, size,
             (type->types & MS_TYPE_SET),
             TypeNode_get_array(type), path
         );
     }
     else if (type->types & MS_TYPE_VARTUPLE) {
-        out = convert_vartuple(self, items, size, TypeNode_get_array(type), path);
+        out = convert_seq_to_vartuple(
+            self, items, size, TypeNode_get_array(type), path
+        );
     }
     else {
         ms_validation_error("set", type, path);
@@ -18518,7 +18524,7 @@ error:
 }
 
 static PyObject *
-convert_object(
+convert_other(
     ConvertState *self, PyObject *obj, TypeNode *type, PathNode *path
 ) {
     if (type->types & MS_TYPE_ANY) {
@@ -18579,7 +18585,7 @@ convert(
         return convert_float(self, obj, type, path);
     }
     else if (pytype == &PyList_Type || pytype == &PyTuple_Type) {
-        return convert_sequence(self, obj, type, path);
+        return convert_seq(self, obj, type, path);
     }
     else if (pytype == &PyDict_Type) {
         return convert_dict(self, obj, type, path);
@@ -18612,7 +18618,7 @@ convert(
         return convert_immutable(self, MS_TYPE_DECIMAL, "decimal", obj, type, path);
     }
     else {
-        return convert_object(self, obj, type, path);
+        return convert_other(self, obj, type, path);
     }
 }
 
