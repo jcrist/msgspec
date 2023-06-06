@@ -172,6 +172,13 @@ class TestToBuiltins:
         msg = uuid.uuid4()
         assert to_builtins(msg) == str(msg)
 
+    def test_uuid_subclass(self):
+        class Ex(uuid.UUID):
+            pass
+
+        s = "4184defa-4d1a-4497-a140-fd1ec0b22383"
+        assert to_builtins(Ex(s)) == s
+
     def test_uuid_builtin_types(self):
         msg = uuid.uuid4()
         res = to_builtins(msg, builtin_types=(uuid.UUID,))
