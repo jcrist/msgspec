@@ -650,24 +650,67 @@ class TestEnum:
             x = "A"
             y = "B"
 
+        class Ex2(enum.Enum):
+            x = "A"
+
+        assert convert(Ex.x, Ex) is Ex.x
         assert convert("A", Ex) is Ex.x
         assert convert("B", Ex) is Ex.y
         with pytest.raises(ValidationError, match="Invalid enum value 'C'"):
             convert("C", Ex)
         with pytest.raises(ValidationError, match="Expected `str`, got `int`"):
             convert(1, Ex)
+        with pytest.raises(ValidationError, match="got `Ex2`"):
+            convert(Ex2.x, Ex)
 
     def test_int_enum(self):
         class Ex(enum.IntEnum):
             x = 1
             y = 2
 
+        class Ex2(enum.IntEnum):
+            a = 1
+            b = 3
+
+        assert convert(Ex.x, Ex) is Ex.x
         assert convert(1, Ex) is Ex.x
         assert convert(2, Ex) is Ex.y
+        assert convert(Ex2.a, Ex) is Ex.x
+
         with pytest.raises(ValidationError, match="Invalid enum value 3"):
             convert(3, Ex)
+
+        with pytest.raises(ValidationError, match="Invalid enum value 3"):
+            convert(Ex2.b, Ex)
+
         with pytest.raises(ValidationError, match="Expected `int`, got `str`"):
             convert("A", Ex)
+
+    def test_str_enum(self):
+        if not hasattr(enum, "StrEnum"):
+            pytest.skip(reason="StrEnum not available")
+
+        class Ex(enum.StrEnum):
+            x = "A"
+            y = "B"
+
+        class Ex2(enum.StrEnum):
+            a = "A"
+            b = "C"
+
+        assert convert(Ex.x, Ex) is Ex.x
+        assert convert("A", Ex) is Ex.x
+        assert convert("B", Ex) is Ex.y
+        assert convert(Ex2.a, Ex) is Ex.x
+
+        with pytest.raises(ValidationError, match="Invalid enum value 'C'"):
+            convert("C", Ex)
+
+        with pytest.raises(ValidationError, match="Invalid enum value 'C'"):
+            convert(Ex2.b, Ex)
+
+        with pytest.raises(ValidationError, match="Expected `str`, got `int`"):
+            convert(3, Ex)
 
     def test_int_enum_int_subclass(self):
         class MyInt(int):
