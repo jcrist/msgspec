@@ -18603,7 +18603,8 @@ convert_other(
 
     PyTypeObject *pytype = Py_TYPE(obj);
 
-    /* First check if instance matches requested type */
+    /* First check if instance matches requested type for builtin user-defined
+     * collection types. */
     if (type->types & (MS_TYPE_STRUCT | MS_TYPE_STRUCT_ARRAY)) {
         StructInfo *info = TypeNode_get_struct_info(type);
         if (pytype == (PyTypeObject *)(info->class)) {
@@ -18620,6 +18621,13 @@ convert_other(
     }
     else if (type->types & MS_TYPE_DATACLASS) {
         DataclassInfo *info = TypeNode_get_dataclass_info(type);
+        if (pytype == (PyTypeObject *)(info->class)) {
+            Py_INCREF(obj);
+            return obj;
+        }
+    }
+    else if (type->types & MS_TYPE_NAMEDTUPLE) {
+        NamedTupleInfo *info = TypeNode_get_namedtuple_info(type);
         if (pytype == (PyTypeObject *)(info->class)) {
             Py_INCREF(obj);
             return obj;
