@@ -644,6 +644,19 @@ class TestDecimal:
             convert("1.5", decimal.Decimal, builtin_types=(decimal.Decimal,))
 
 
+class TestExt:
+    def test_ext(self):
+        x = msgspec.msgpack.Ext(1, b"123")
+        assert convert(x, msgspec.msgpack.Ext) is x
+
+    def test_ext_errors(self):
+        with pytest.raises(ValidationError, match="Expected `ext`, got `int`"):
+            convert(1, msgspec.msgpack.Ext)
+
+        with pytest.raises(ValidationError, match="Expected `int`, got `ext`"):
+            convert(msgspec.msgpack.Ext(1, b"123"), int)
+
+
 class TestEnum:
     def test_enum(self):
         class Ex(enum.Enum):

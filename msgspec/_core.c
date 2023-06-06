@@ -18655,6 +18655,9 @@ convert(
     else if (Py_TYPE(pytype) == self->mod->EnumMetaType) {
         return convert_enum(self, obj, type, path);
     }
+    else if (pytype == &Ext_Type) {
+        return convert_immutable(self, MS_TYPE_EXT, "ext", obj, type, path);
+    }
     else {
         return convert_other(self, obj, type, path);
     }
