@@ -18752,7 +18752,8 @@ PyDoc_STRVAR(msgspec_convert__doc__,
 "strict: bool, optional\n"
 "    Whether type coercion rules should be strict. Setting to False enables a\n"
 "    wider set of coercion rules from string to non-string types for all values.\n"
-"    Setting ``strict=False`` implies ``str_keys=False``. Default is True.\n"
+"    Setting ``strict=False`` implies ``str_keys=True, builtin_types=None``.\n"
+"    Default is True.\n"
 "from_attributes: bool, optional\n"
 "    If True, input objects may be coerced to ``Struct``/``dataclass``/``attrs``\n"
 "    types by extracting attributes from the input matching fields in the output\n"
@@ -18765,18 +18766,19 @@ PyDoc_STRVAR(msgspec_convert__doc__,
 "    of only basic MessagePack types. This hook should transform ``obj`` into\n"
 "    type ``type``, or raise a ``TypeError`` if unsupported.\n"
 "builtin_types: Iterable[type], optional\n"
-"    An iterable of types to treat as additional builtin types. Passing a type\n"
-"    here indicates that the wrapped protocol natively supports that type,\n"
-"    disabling any coercion to that type provided by `convert`. For\n"
-"    example, passing in ``builtin_types=(datetime,)`` disables the default\n"
-"    ``str`` to ``datetime`` conversion; the wrapped protocol must provide\n"
-"    a ``datetime`` object directly. Currently only supports `bytes`,\n"
-"    `bytearray`, `datetime.datetime`, `datetime.time`, `datetime.date`,\n"
-"    `uuid.UUID`, and `decimal.Decimal`.\n"
+"    Useful for wrapping other serialization protocols. An iterable of types to\n"
+"    treat as additional builtin types. Passing a type here indicates that the\n"
+"    wrapped protocol natively supports that type, disabling any coercion to\n"
+"    that type provided by `convert`. For example, passing\n"
+"    ``builtin_types=(datetime,)`` disables the default ``str`` to ``datetime``\n"
+"    conversion; the wrapped protocol must provide a ``datetime`` object\n"
+"    directly. Currently supports `bytes`, `bytearray`, `datetime.datetime`,\n"
+"    `datetime.time`, `datetime.date`, `uuid.UUID`, and `decimal.Decimal`.\n"
 "str_keys: bool, optional\n"
-"    Whether the wrapped protocol only supports string keys. Setting to True\n"
-"    enables a wider set of coercion rules from string to non-string types for\n"
-"    dict keys. Default is False.\n"
+"    Useful for wrapping other serialization protocols. Indicates whether the\n"
+"    wrapped protocol only supports string keys. Setting to True enables a wider\n"
+"    set of coercion rules from string to non-string types for dict keys.\n"
+"    Default is False.\n"
 "\n"
 "Returns\n"
 "-------\n"
@@ -18823,12 +18825,16 @@ msgspec_convert(PyObject *self, PyObject *args, PyObject *kwargs)
     state.mod = msgspec_get_global_state();
     state.builtin_types = 0;
     state.from_attributes = from_attributes;
-    state.str_keys = str_keys;
     if (strict) {
         state.convert_str = &(convert_str_strict);
+        state.str_keys = str_keys;
+        if (ms_process_builtin_types(state.mod, builtin_types, &(state.builtin_types)) < 0) {
+            return NULL;
+        }
     }
     else {
         state.convert_str = &(convert_str_lax);
+        state.str_keys = true;
     }
 
     if (dec_hook == Py_None) {
@@ -18839,7 +18845,6 @@ msgspec_convert(PyObject *self, PyObject *args, PyObject *kwargs)
         return NULL;
     }
     state.dec_hook = dec_hook;
-    if (ms_process_builtin_types(state.mod, builtin_types, &(state.builtin_types)) < 0) return NULL;
 
     /* Avoid allocating a new TypeNode for struct types */
     if (Py_TYPE(pytype) == &StructMetaType) {

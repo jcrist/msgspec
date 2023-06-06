@@ -2138,6 +2138,16 @@ class TestLax:
         assert_eq(convert("null", typ, strict=False), None)
         assert_eq(convert(dt.isoformat(), typ, strict=False), dt)
 
+    def test_lax_implies_str_keys(self):
+        res = convert({"1": False}, Dict[int, bool], strict=False)
+        assert res == {1: False}
+
+    def test_lax_implies_no_builtin_types(self):
+        sol = uuid.uuid4()
+        msg = str(sol)
+        res = convert(msg, uuid.UUID, strict=False, builtin_types=(uuid.UUID,))
+        assert res == sol
+
 
 class TestCustom:
     def test_custom(self):
