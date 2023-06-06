@@ -106,6 +106,7 @@ mapcls_from_attributes_and_array_like = pytest.mark.parametrize(
     [
         (dict, False, False),
         (KWList, False, True),
+        (GetAttrObj, True, True),
         (GetAttrObj, True, False),
         (GetItemObj, False, False),
     ],
@@ -1249,6 +1250,33 @@ class TestDataclass:
         with pytest.raises(ValidationError, match="Expected `object`, got `array`"):
             convert([], Example, from_attributes=from_attributes)
 
+    def test_dataclass_to_dataclass(self):
+        @dataclass
+        class Ex1:
+            x: int
+
+        @dataclass
+        class Ex2:
+            x: int
+
+        msg = Ex1(1)
+        assert convert(msg, Ex1) is msg
+
+        with pytest.raises(ValidationError, match="got `Ex1`"):
+            convert(msg, Ex2)
+
+        assert convert(msg, Ex2, from_attributes=True) == Ex2(1)
+
+    def test_struct_to_dataclass(self):
+        @dataclass
+        class Ex1:
+            x: int
+
+        class Ex2(Struct):
+            x: int
+
+        assert convert(Ex1(1), Ex2, from_attributes=True) == Ex2(1)
+
 
 @pytest.mark.skipif(attrs is None, reason="attrs is not installed")
 class TestAttrs:
@@ -1396,6 +1424,33 @@ class TestAttrs:
 
         with pytest.raises(ValueError, match="Oh no!"):
             convert(mapcls(a=1), Example, from_attributes=from_attributes)
+
+    def test_attrs_to_attrs(self):
+        @attrs.define
+        class Ex1:
+            x: int
+
+        @attrs.define
+        class Ex2:
+            x: int
+
+        msg = Ex1(1)
+        assert convert(msg, Ex1) is msg
+
+        with pytest.raises(ValidationError, match="got `Ex1`"):
+            convert(msg, Ex2)
+
+        assert convert(msg, Ex2, from_attributes=True) == Ex2(1)
+
+    def test_struct_to_attrs(self):
+        @attrs.define
+        class Ex1:
+            x: int
+
+        class Ex2(Struct):
+            x: int
+
+        assert convert(Ex1(1), Ex2, from_attributes=True) == Ex2(1)
 
 
 class TestStruct:
@@ -1591,6 +1646,19 @@ class TestStruct:
         assert convert(msg, Ex1) is msg
         with pytest.raises(ValidationError, match="got `Ex1`"):
             convert(msg, Ex2)
+
+        assert convert(msg, Ex2, from_attributes=True) == Ex2(1)
+
+    @pytest.mark.parametrize("array_like", [False, True])
+    def test_dataclass_to_struct(self, array_like):
+        @dataclass
+        class Ex1:
+            x: int
+
+        class Ex2(Struct, array_like=array_like):
+            x: int
+
+        assert convert(Ex1(1), Ex2, from_attributes=True) == Ex2(1)
 
 
 class TestStructArray:
@@ -1896,13 +1964,13 @@ class TestGenericStruct:
         with pytest.raises(ValidationError) as rec:
             convert(s1, typ[str], from_attributes=from_attributes)
         assert "Expected `str | null`, got `int`" in str(rec.value)
-        loc = "$[1]" if array_like else "$.a"
+        loc = "$[1]" if array_like and not from_attributes else "$.a"
         assert loc in str(rec.value)
 
         with pytest.raises(ValidationError) as rec:
             convert(s2, typ[int], from_attributes=from_attributes)
         assert "Expected `int`, got `str`" in str(rec.value)
-        loc = "$[1]" if array_like else "$.x"
+        loc = "$[1]" if array_like and not from_attributes else "$.x"
         assert loc in str(rec.value)
 
 

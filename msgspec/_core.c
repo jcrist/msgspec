@@ -17658,48 +17658,6 @@ convert_enum(
 }
 
 static PyObject *
-convert_struct(
-    ConvertState *self, PyObject *obj, TypeNode *type, PathNode *path
-) {
-    StructMetaObject *struct_type = (StructMetaObject *)Py_TYPE(obj);
-
-    if (type->types & (MS_TYPE_STRUCT | MS_TYPE_STRUCT_ARRAY)) {
-        StructInfo *info = TypeNode_get_struct_info(type);
-        if (struct_type == info->class) goto ok;
-    }
-    else if (type->types & (MS_TYPE_STRUCT_UNION | MS_TYPE_STRUCT_ARRAY_UNION)) {
-        Lookup *lookup = TypeNode_get_struct_union(type);
-        if (Lookup_IsStrLookup(lookup)) {
-            StrLookup *lk = (StrLookup *)lookup;
-            for (Py_ssize_t i = 0; i < Py_SIZE(lk); i++) {
-                StructInfo *info = (StructInfo *)(lk->table[i].value);
-                if (info != NULL && info->class == struct_type) goto ok;
-            }
-        }
-        else {
-            if (((IntLookup *)lookup)->compact) {
-                IntLookupCompact *lk = (IntLookupCompact *)lookup;
-                for (Py_ssize_t i = 0; i < Py_SIZE(lk); i++) {
-                    StructInfo *info = (StructInfo *)(lk->table[i]);
-                    if (info != NULL && info->class == struct_type) goto ok;
-                }
-            }
-            else {
-                IntLookupHashmap *lk = (IntLookupHashmap *)lookup;
-                for (Py_ssize_t i = 0; i < Py_SIZE(lk); i++) {
-                    StructInfo *info = (StructInfo *)(lk->table[i].value);
-                    if (info != NULL && info->class == struct_type) goto ok;
-                }
-            }
-        }
-    }
-    return ms_validation_error(Py_TYPE(obj)->tp_name, type, path);
-ok:
-    Py_INCREF(obj);
-    return obj;
-}
-
-static PyObject *
 convert_immutable(
     ConvertState *self, uint64_t mask, const char *expected,
     PyObject *obj, TypeNode *type, PathNode *path
@@ -18600,6 +18558,40 @@ error:
     return NULL;
 }
 
+static bool
+Lookup_union_contains_type(Lookup *lookup, PyTypeObject *cls) {
+    if (Lookup_IsStrLookup(lookup)) {
+        StrLookup *lk = (StrLookup *)lookup;
+        for (Py_ssize_t i = 0; i < Py_SIZE(lk); i++) {
+            StructInfo *info = (StructInfo *)(lk->table[i].value);
+            if (info != NULL && ((PyTypeObject *)(info->class) == cls)) {
+                return true;
+            }
+        }
+    }
+    else {
+        if (((IntLookup *)lookup)->compact) {
+            IntLookupCompact *lk = (IntLookupCompact *)lookup;
+            for (Py_ssize_t i = 0; i < Py_SIZE(lk); i++) {
+                StructInfo *info = (StructInfo *)(lk->table[i]);
+                if (info != NULL && ((PyTypeObject *)(info->class) == cls)) {
+                    return true;
+                }
+            }
+        }
+        else {
+            IntLookupHashmap *lk = (IntLookupHashmap *)lookup;
+            for (Py_ssize_t i = 0; i < Py_SIZE(lk); i++) {
+                StructInfo *info = (StructInfo *)(lk->table[i].value);
+                if (info != NULL && ((PyTypeObject *)(info->class) == cls)) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
 static PyObject *
 convert_other(
     ConvertState *self, PyObject *obj, TypeNode *type, PathNode *path
@@ -18609,33 +18601,65 @@ convert_other(
         return obj;
     }
 
-    PyObject* (*getter)(PyObject *, PyObject *);
+    PyTypeObject *pytype = Py_TYPE(obj);
 
-    if (PyMapping_Check(obj)) {
-        if (type->types & MS_TYPE_DICT) {
-            return convert_mapping_to_dict(self, obj, type, path);
-        }
-        getter = PyObject_GetItem;
-    }
-    else if (self->from_attributes) {
-        getter = PyObject_GetAttr;
-    }
-    else {
-        goto error;
-    }
-
-    if (type->types & MS_TYPE_STRUCT) {
+    /* First check if instance matches requested type */
+    if (type->types & (MS_TYPE_STRUCT | MS_TYPE_STRUCT_ARRAY)) {
         StructInfo *info = TypeNode_get_struct_info(type);
-        return convert_object_to_struct(self, obj, info, path, getter, false);
+        if (pytype == (PyTypeObject *)(info->class)) {
+            Py_INCREF(obj);
+            return obj;
+        }
     }
-    else if (type->types & MS_TYPE_STRUCT_UNION) {
-        return convert_object_to_struct_union(self, obj, type, path, getter);
+    else if (type->types & (MS_TYPE_STRUCT_UNION | MS_TYPE_STRUCT_ARRAY_UNION)) {
+        Lookup *lookup = TypeNode_get_struct_union(type);
+        if (Lookup_union_contains_type(lookup, pytype)) {
+            Py_INCREF(obj);
+            return obj;
+        }
     }
     else if (type->types & MS_TYPE_DATACLASS) {
-        return convert_object_to_dataclass(self, obj, type, path, getter);
+        DataclassInfo *info = TypeNode_get_dataclass_info(type);
+        if (pytype == (PyTypeObject *)(info->class)) {
+            Py_INCREF(obj);
+            return obj;
+        }
     }
 
-error:
+    /* No luck. Next try converting from a mapping or by attribute */
+    bool is_mapping = PyMapping_Check(obj);
+    if (is_mapping && type->types & MS_TYPE_DICT) {
+        return convert_mapping_to_dict(self, obj, type, path);
+    }
+
+    if (is_mapping || self->from_attributes) {
+        PyObject* (*getter)(PyObject *, PyObject *);
+        /* We want to exclude array_like structs when converting from a
+         * mapping, but include them when converting by attribute */
+        bool matches_struct, matches_struct_union;
+        if (is_mapping) {
+            getter = PyObject_GetItem;
+            matches_struct = type->types & MS_TYPE_STRUCT;
+            matches_struct_union = type->types & MS_TYPE_STRUCT_UNION;
+        }
+        else {
+            getter = PyObject_GetAttr;
+            matches_struct = type->types & (MS_TYPE_STRUCT | MS_TYPE_STRUCT_ARRAY);
+            matches_struct_union = type->types & (MS_TYPE_STRUCT_UNION | MS_TYPE_STRUCT_ARRAY_UNION);
+        }
+
+        if (matches_struct) {
+            StructInfo *info = TypeNode_get_struct_info(type);
+            return convert_object_to_struct(self, obj, info, path, getter, false);
+        }
+        else if (matches_struct_union) {
+            return convert_object_to_struct_union(self, obj, type, path, getter);
+        }
+        else if (type->types & MS_TYPE_DATACLASS) {
+            return convert_object_to_dataclass(self, obj, type, path, getter);
+        }
+    }
+
     return ms_validation_error(Py_TYPE(obj)->tp_name, type, path);
 }
 
@@ -18693,9 +18717,6 @@ convert(
     }
     else if (pytype == (PyTypeObject *)self->mod->DecimalType) {
         return convert_immutable(self, MS_TYPE_DECIMAL, "decimal", obj, type, path);
-    }
-    else if (Py_TYPE(pytype) == &StructMetaType) {
-        return convert_struct(self, obj, type, path);
     }
     else if (Py_TYPE(pytype) == self->mod->EnumMetaType) {
         return convert_enum(self, obj, type, path);
