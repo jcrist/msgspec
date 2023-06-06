@@ -2951,6 +2951,13 @@ class TestUUID:
         sol = proto.encode(str(u))
         assert res == sol
 
+    def test_encode_uuid_subclass(self, proto):
+        class Ex(uuid.UUID):
+            pass
+
+        s = "4184defa-4d1a-4497-a140-fd1ec0b22383"
+        assert proto.encode(Ex(s)) == proto.encode(s)
+
     def test_encode_uuid_malformed_internals(self, proto):
         """Ensure that if some other code mutates the uuid object, we error
         nicely rather than segfaulting"""

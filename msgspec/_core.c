@@ -10660,11 +10660,11 @@ mpack_encode_uncommon(EncoderState *self, PyTypeObject *type, PyObject *obj)
     else if (Py_TYPE(type) == self->mod->EnumMetaType) {
         return mpack_encode_enum(self, obj);
     }
-    else if (type == (PyTypeObject *)(self->mod->UUIDType)) {
-        return mpack_encode_uuid(self, obj);
-    }
     else if (type == (PyTypeObject *)(self->mod->DecimalType)) {
         return mpack_encode_decimal(self, obj);
+    }
+    else if (PyType_IsSubtype(type, (PyTypeObject *)(self->mod->UUIDType))) {
+        return mpack_encode_uuid(self, obj);
     }
     else if (PyAnySet_Check(obj)) {
         return mpack_encode_set(self, obj);
@@ -11209,9 +11209,6 @@ json_encode_dict_key(EncoderState *self, PyObject *obj) {
     else if (Py_TYPE(type) == self->mod->EnumMetaType) {
         return json_encode_enum(self, obj, true);
     }
-    else if (type == (PyTypeObject *)(self->mod->UUIDType)) {
-        return json_encode_uuid(self, obj);
-    }
     else if (type == PyDateTimeAPI->DateTimeType) {
         return json_encode_datetime(self, obj);
     }
@@ -11226,6 +11223,9 @@ json_encode_dict_key(EncoderState *self, PyObject *obj) {
     }
     else if (type == (PyTypeObject *)(self->mod->DecimalType)) {
         return json_encode_decimal(self, obj);
+    }
+    else if (PyType_IsSubtype(type, (PyTypeObject *)(self->mod->UUIDType))) {
+        return json_encode_uuid(self, obj);
     }
     else {
         PyErr_SetString(
@@ -11495,7 +11495,7 @@ json_encode_uncommon(EncoderState *self, PyTypeObject *type, PyObject *obj) {
     else if (Py_TYPE(type) == self->mod->EnumMetaType) {
         return json_encode_enum(self, obj, false);
     }
-    else if (type == (PyTypeObject *)(self->mod->UUIDType)) {
+    else if (PyType_IsSubtype(type, (PyTypeObject *)(self->mod->UUIDType))) {
         return json_encode_uuid(self, obj);
     }
     else if (type == (PyTypeObject *)(self->mod->DecimalType)) {
@@ -17162,10 +17162,6 @@ to_builtins(ToBuiltinsState *self, PyObject *obj, bool is_key) {
         if (self->builtin_types & MS_BUILTIN_TIME) goto builtin;
         return to_builtins_time(self, obj);
     }
-    else if (type == (PyTypeObject *)(self->mod->UUIDType)) {
-        if (self->builtin_types & MS_BUILTIN_UUID) goto builtin;
-        return to_builtins_uuid(self, obj);
-    }
     else if (type == (PyTypeObject *)(self->mod->DecimalType)) {
         if (self->builtin_types & MS_BUILTIN_DECIMAL) goto builtin;
         return to_builtins_decimal(self, obj);
@@ -17184,6 +17180,10 @@ to_builtins(ToBuiltinsState *self, PyObject *obj, bool is_key) {
     }
     else if (Py_TYPE(type) == self->mod->EnumMetaType) {
         return to_builtins_enum(self, obj);
+    }
+    else if (PyType_IsSubtype(type, (PyTypeObject *)(self->mod->UUIDType))) {
+        if (self->builtin_types & MS_BUILTIN_UUID) goto builtin;
+        return to_builtins_uuid(self, obj);
     }
     else if (PyAnySet_Check(obj)) {
         return to_builtins_set(self, obj, is_key);
