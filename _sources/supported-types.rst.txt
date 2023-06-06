@@ -330,6 +330,8 @@ timezone-naive by specifying a ``tz`` constraint (see
 --------
 
 `uuid.UUID` values are serialized as RFC4122_ encoded strings in all protocols.
+Subclasses of `uuid.UUID` are also supported for encoding only.
+
 When decoding, both hyphenated and unhyphenated forms are supported.
 
 .. code-block:: python
