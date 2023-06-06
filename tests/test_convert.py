@@ -1579,6 +1579,19 @@ class TestStruct:
         res = convert(mapcls(type=tag), Test, from_attributes=from_attributes)
         assert res == Test()
 
+    @pytest.mark.parametrize("array_like", [False, True])
+    def test_struct_to_struct(self, array_like):
+        class Ex1(Struct, array_like=array_like):
+            x: int
+
+        class Ex2(Struct, array_like=array_like):
+            x: int
+
+        msg = Ex1(1)
+        assert convert(msg, Ex1) is msg
+        with pytest.raises(ValidationError, match="got `Ex1`"):
+            convert(msg, Ex2)
+
 
 class TestStructArray:
     class Account(Struct, array_like=True):
@@ -1805,6 +1818,26 @@ class TestStructUnion:
         with pytest.raises(ValidationError) as rec:
             roundtrip([unknown, 1, 2, 3], typ)
         assert f"Invalid value {unknown!r} - at `$[0]`" == str(rec.value)
+
+    @pytest.mark.parametrize("tags", [(1, 2), (-10000, 10000), ("A", "B")])
+    @pytest.mark.parametrize("array_like", [False, True])
+    def test_struct_to_struct_union(self, tags, array_like):
+        class Ex1(Struct, array_like=array_like, tag=tags[0]):
+            x: int
+
+        class Ex2(Struct, array_like=array_like, tag=tags[1]):
+            x: int
+
+        class Ex3(Struct, array_like=array_like):
+            x: int
+
+        typ = Union[Ex1, Ex2]
+
+        msg = Ex1(1)
+        assert convert(msg, typ) is msg
+
+        with pytest.raises(ValidationError, match="got `Ex3`"):
+            convert(Ex3(1), typ)
 
 
 class TestGenericStruct:
