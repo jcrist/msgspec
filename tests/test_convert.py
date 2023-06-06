@@ -945,6 +945,19 @@ class TestNamedTuple:
             with pytest.raises(RecursionError):
                 assert convert(msg, mod.Ex)
 
+    def test_namedtuple_to_namedtuple(self):
+        class Ex1(NamedTuple):
+            x: int
+
+        class Ex2(NamedTuple):
+            x: int
+
+        msg = Ex1(1)
+        assert convert(msg, Ex1) is msg
+
+        with pytest.raises(ValidationError, match="got `Ex1`"):
+            convert(msg, Ex2)
+
 
 class TestDict:
     def test_any_dict(self, dictcls):
