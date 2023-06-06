@@ -538,6 +538,7 @@ strbuilder_build(strbuilder *self) {
 typedef struct Lookup {
     PyObject_VAR_HEAD
     PyObject *tag_field;  /* used for struct lookup table only */
+    PyObject *cls;  /* Used for enum lookup table only */
     bool array_like;
 } Lookup;
 
@@ -606,7 +607,7 @@ _IntLookupHashmap_Set(IntLookupHashmap *self, int64_t key, PyObject *value) {
 }
 
 static PyObject *
-IntLookup_New(PyObject *arg, PyObject *tag_field, bool array_like) {
+IntLookup_New(PyObject *arg, PyObject *tag_field, PyObject *cls, bool array_like) {
     Py_ssize_t nitems;
     PyObject *item, *items = NULL;
     IntLookup *self = NULL;
@@ -775,6 +776,8 @@ IntLookup_New(PyObject *arg, PyObject *tag_field, bool array_like) {
     /* Store extra metadata (struct lookup only) */
     Py_XINCREF(tag_field);
     self->common.tag_field = tag_field;
+    Py_XINCREF(cls);
+    self->common.cls = cls;
     self->common.array_like = array_like;
 
 cleanup:
@@ -788,6 +791,7 @@ cleanup:
 static int
 IntLookup_traverse(IntLookup *self, visitproc visit, void *arg)
 {
+    Py_VISIT(self->common.cls);
     if (self->compact) {
         IntLookupCompact *lk = (IntLookupCompact *)self;
         for (Py_ssize_t i = 0; i < Py_SIZE(lk); i++) {
@@ -818,6 +822,7 @@ IntLookup_clear(IntLookup *self)
             Py_CLEAR(lk->table[i].value);
         }
     }
+    Py_CLEAR(self->common.cls);
     Py_CLEAR(self->common.tag_field);
     return 0;
 }
@@ -898,7 +903,7 @@ StrLookup_Set(StrLookup *self, PyObject *key, PyObject *value) {
 }
 
 static PyObject *
-StrLookup_New(PyObject *arg, PyObject *tag_field, bool array_like) {
+StrLookup_New(PyObject *arg, PyObject *tag_field, PyObject *cls, bool array_like) {
     Py_ssize_t nitems;
     PyObject *item, *items = NULL;
     StrLookup *self = NULL;
@@ -930,6 +935,7 @@ StrLookup_New(PyObject *arg, PyObject *tag_field, bool array_like) {
     self = PyObject_GC_NewVar(StrLookup, &StrLookup_Type, size);
     if (self == NULL) goto cleanup;
     /* Zero out memory */
+    self->common.cls = NULL;
     self->common.tag_field = NULL;
     for (size_t i = 0; i < size; i++) {
         self->table[i].key = NULL;
@@ -967,7 +973,8 @@ StrLookup_New(PyObject *arg, PyObject *tag_field, bool array_like) {
         }
     }
 
-    /* Store extra metadata (struct lookup only) */
+    Py_XINCREF(cls);
+    self->common.cls = cls;
     Py_XINCREF(tag_field);
     self->common.tag_field = tag_field;
     self->common.array_like = array_like;
@@ -983,6 +990,7 @@ cleanup:
 static int
 StrLookup_traverse(StrLookup *self, visitproc visit, void *arg)
 {
+    Py_VISIT(self->common.cls);
     for (Py_ssize_t i = 0; i < Py_SIZE(self); i++) {
         Py_VISIT(self->table[i].key);
         Py_VISIT(self->table[i].value);
@@ -997,6 +1005,7 @@ StrLookup_clear(StrLookup *self)
         Py_CLEAR(self->table[i].key);
         Py_CLEAR(self->table[i].value);
     }
+    Py_CLEAR(self->common.cls);
     Py_CLEAR(self->common.tag_field);
     return 0;
 }
@@ -3270,7 +3279,7 @@ typenode_from_collect_state(TypeNodeCollectState *state) {
             PyErr_Clear();
             PyObject *member_map = PyObject_GetAttr(state->intenum_obj, state->mod->str__value2member_map_);
             if (member_map == NULL) goto error;
-            lookup = IntLookup_New(member_map, NULL, false);
+            lookup = IntLookup_New(member_map, NULL, state->intenum_obj, false);
             Py_DECREF(member_map);
             if (lookup == NULL) goto error;
             if (PyObject_SetAttr(state->intenum_obj, state->mod->str___msgspec_cache__, lookup) < 0) {
@@ -3301,7 +3310,7 @@ typenode_from_collect_state(TypeNodeCollectState *state) {
             PyErr_Clear();
             PyObject *member_map = PyObject_GetAttr(state->enum_obj, state->mod->str__value2member_map_);
             if (member_map == NULL) goto error;
-            lookup = StrLookup_New(member_map, NULL, false);
+            lookup = StrLookup_New(member_map, NULL, state->enum_obj, false);
             Py_DECREF(member_map);
             if (lookup == NULL) goto error;
             if (PyObject_SetAttr(state->enum_obj, state->mod->str___msgspec_cache__, lookup) < 0) {
@@ -3861,12 +3870,16 @@ typenode_collect_convert_literals(TypeNodeCollectState *state) {
     /* Convert values to lookup objects (if values exist for each type) */
     if (state->literal_int_values != NULL) {
         state->types |= MS_TYPE_INTLITERAL;
-        state->literal_int_lookup = IntLookup_New(state->literal_int_values, NULL, false);
+        state->literal_int_lookup = IntLookup_New(
+            state->literal_int_values, NULL, NULL, false
+        );
         if (state->literal_int_lookup == NULL) return -1;
     }
     if (state->literal_str_values != NULL) {
         state->types |= MS_TYPE_STRLITERAL;
-        state->literal_str_lookup = StrLookup_New(state->literal_str_values, NULL, false);
+        state->literal_str_lookup = StrLookup_New(
+            state->literal_str_values, NULL, NULL, false
+        );
         if (state->literal_str_lookup == NULL) return -1;
     }
     if (state->literal_none) {
@@ -4027,10 +4040,10 @@ typenode_collect_convert_structs(TypeNodeCollectState *state) {
     }
     /* Build a lookup from tag_value -> struct_info */
     if (tags_are_strings) {
-        lookup = StrLookup_New(tag_mapping, tag_field, array_like);
+        lookup = StrLookup_New(tag_mapping, tag_field, NULL, array_like);
     }
     else {
-        lookup = IntLookup_New(tag_mapping, tag_field, array_like);
+        lookup = IntLookup_New(tag_mapping, tag_field, NULL, array_like);
     }
     if (lookup == NULL) goto cleanup;
 
@@ -8505,7 +8518,10 @@ ms_decode_int_enum_or_literal_pyint(PyObject *obj, TypeNode *type, PathNode *pat
         }
     }
     if (out == NULL) {
-        ms_raise_validation_error(path, "Invalid enum value %R%U", obj);
+        PyObject *temp = PyLong_Type.tp_repr(obj);
+        if (temp == NULL) return NULL;
+        ms_raise_validation_error(path, "Invalid enum value %U%U", temp);
+        Py_DECREF(temp);
         return NULL;
     }
     Py_INCREF(out);
@@ -17623,6 +17639,25 @@ convert_time(
 }
 
 static PyObject *
+convert_enum(
+    ConvertState *self, PyObject *obj, TypeNode *type, PathNode *path
+) {
+    if (type->types & MS_TYPE_ENUM) {
+        StrLookup *lookup = TypeNode_get_str_enum_or_literal(type);
+
+        /* Check that the type matches. Note that enums that are also int or
+         * str subclasses will be handled by `convert_int`/`convert_str`, not
+         * here */
+        if (lookup->common.cls != NULL && Py_TYPE(obj) == (PyTypeObject *)(lookup->common.cls)) {
+            Py_INCREF(obj);
+            return obj;
+        }
+    }
+
+    return ms_validation_error(Py_TYPE(obj)->tp_name, type, path);
+}
+
+static PyObject *
 convert_immutable(
     ConvertState *self, uint64_t mask, const char *expected,
     PyObject *obj, TypeNode *type, PathNode *path
@@ -18572,7 +18607,7 @@ convert(
     }
 
     PyTypeObject *pytype = Py_TYPE(obj);
-    if (pytype == &PyUnicode_Type) {
+    if (PyUnicode_Check(obj)) {
         return self->convert_str(self, obj, false, type, path);
     }
     else if (pytype == &PyBool_Type) {
@@ -18616,6 +18651,9 @@ convert(
     }
     else if (pytype == (PyTypeObject *)self->mod->DecimalType) {
         return convert_immutable(self, MS_TYPE_DECIMAL, "decimal", obj, type, path);
+    }
+    else if (Py_TYPE(pytype) == self->mod->EnumMetaType) {
+        return convert_enum(self, obj, type, path);
     }
     else {
         return convert_other(self, obj, type, path);
