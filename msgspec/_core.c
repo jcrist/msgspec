@@ -355,6 +355,7 @@ typedef struct {
     PyObject *str_enc_hook;
     PyObject *str_dec_hook;
     PyObject *str_ext_hook;
+    PyObject *str_strict;
     PyObject *str_utcoffset;
     PyObject *str___origin__;
     PyObject *str___args__;
@@ -13700,6 +13701,7 @@ typedef struct JSONDecoderState {
     /* Configuration */
     TypeNode *type;
     PyObject *dec_hook;
+    bool strict;
 
     /* Temporary scratch space */
     unsigned char *scratch;
@@ -13719,6 +13721,7 @@ typedef struct JSONDecoder {
 
     /* Configuration */
     TypeNode *type;
+    char strict;
     PyObject *dec_hook;
 } JSONDecoder;
 
@@ -13735,6 +13738,10 @@ PyDoc_STRVAR(JSONDecoder__doc__,
 "    provided, the message will be type checked and decoded as the specified\n"
 "    type. Defaults to `Any`, in which case the message will be decoded using\n"
 "    the default JSON types.\n"
+"strict : bool, optional\n"
+"    Whether type coercion rules should be strict. Setting to False enables a\n"
+"    wider set of coercion rules from string to non-string types for all values.\n"
+"    Default is True.\n"
 "dec_hook : callable, optional\n"
 "    An optional callback for handling decoding custom types. Should have the\n"
 "    signature ``dec_hook(type: Type, obj: Any) -> Any``, where ``type`` is the\n"
@@ -13745,12 +13752,15 @@ PyDoc_STRVAR(JSONDecoder__doc__,
 static int
 JSONDecoder_init(JSONDecoder *self, PyObject *args, PyObject *kwds)
 {
-    char *kwlist[] = {"type", "dec_hook", NULL};
+    char *kwlist[] = {"type", "strict", "dec_hook", NULL};
     MsgspecState *st = msgspec_get_global_state();
     PyObject *type = st->typing_any;
     PyObject *dec_hook = NULL;
+    int strict = 1;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|O$O", kwlist, &type, &dec_hook)) {
+    if (!PyArg_ParseTupleAndKeywords(
+        args, kwds, "|O$pO", kwlist, &type, &strict, &dec_hook)
+    ) {
         return -1;
     }
 
@@ -13766,6 +13776,9 @@ JSONDecoder_init(JSONDecoder *self, PyObject *args, PyObject *kwds)
         Py_INCREF(dec_hook);
     }
     self->dec_hook = dec_hook;
+
+    /* Handle strict */
+    self->strict = strict;
 
     /* Handle type */
     self->type = TypeNode_Convert(type);
@@ -14476,52 +14489,48 @@ invalid:
 
 static PyObject *
 json_decode_string(JSONDecoderState *self, TypeNode *type, PathNode *path) {
-    if (
-        MS_LIKELY(
-            type->types & (
-                MS_TYPE_ANY | MS_TYPE_STR | MS_TYPE_ENUM | MS_TYPE_STRLITERAL |
-                MS_TYPE_BYTES | MS_TYPE_BYTEARRAY |
-                MS_TYPE_DATETIME | MS_TYPE_DATE | MS_TYPE_TIME |
-                MS_TYPE_UUID | MS_TYPE_DECIMAL
-            )
-        )
-    ) {
-        char *view = NULL;
-        bool is_ascii = true;
-        Py_ssize_t size = json_decode_string_view(self, &view, &is_ascii);
-        if (size < 0) return NULL;
-        if (MS_LIKELY(type->types & (MS_TYPE_STR | MS_TYPE_ANY))) {
-            PyObject *out;
-            if (MS_LIKELY(is_ascii)) {
-                out = PyUnicode_New(size, 127);
-                memcpy(ascii_get_buffer(out), view, size);
-            }
-            else {
-                out = PyUnicode_DecodeUTF8(view, size, NULL);
-            }
-            return ms_check_str_constraints(out, type, path);
-        }
-        else if (MS_UNLIKELY(type->types & MS_TYPE_DATETIME)) {
-            return ms_decode_datetime(view, size, type, path);
-        }
-        else if (MS_UNLIKELY(type->types & MS_TYPE_DATE)) {
-            return ms_decode_date(view, size, path);
-        }
-        else if (MS_UNLIKELY(type->types & MS_TYPE_TIME)) {
-            return ms_decode_time(view, size, type, path);
-        }
-        else if (MS_UNLIKELY(type->types & MS_TYPE_UUID)) {
-            return ms_decode_uuid(view, size, path);
-        }
-        else if (MS_UNLIKELY(type->types & MS_TYPE_DECIMAL)) {
-            return ms_decode_decimal(view, size, is_ascii, path);
-        }
-        else if (MS_UNLIKELY(type->types & (MS_TYPE_BYTES | MS_TYPE_BYTEARRAY))) {
-            return json_decode_binary(view, size, type, path);
+    char *view = NULL;
+    bool is_ascii = true;
+    Py_ssize_t size = json_decode_string_view(self, &view, &is_ascii);
+    if (size < 0) return NULL;
+
+    if (MS_UNLIKELY(!self->strict)) {
+        bool invalid = false;
+        PyObject *out = ms_decode_str_lax(view, size, type, path, &invalid);
+        if (!invalid) return out;
+    }
+
+    if (MS_LIKELY(type->types & (MS_TYPE_STR | MS_TYPE_ANY))) {
+        PyObject *out;
+        if (MS_LIKELY(is_ascii)) {
+            out = PyUnicode_New(size, 127);
+            memcpy(ascii_get_buffer(out), view, size);
         }
         else {
-            return ms_decode_str_enum_or_literal(view, size, type, path);
+            out = PyUnicode_DecodeUTF8(view, size, NULL);
         }
+        return ms_check_str_constraints(out, type, path);
+    }
+    else if (MS_UNLIKELY(type->types & MS_TYPE_DATETIME)) {
+        return ms_decode_datetime(view, size, type, path);
+    }
+    else if (MS_UNLIKELY(type->types & MS_TYPE_DATE)) {
+        return ms_decode_date(view, size, path);
+    }
+    else if (MS_UNLIKELY(type->types & MS_TYPE_TIME)) {
+        return ms_decode_time(view, size, type, path);
+    }
+    else if (MS_UNLIKELY(type->types & MS_TYPE_UUID)) {
+        return ms_decode_uuid(view, size, path);
+    }
+    else if (MS_UNLIKELY(type->types & MS_TYPE_DECIMAL)) {
+        return ms_decode_decimal(view, size, is_ascii, path);
+    }
+    else if (MS_UNLIKELY(type->types & (MS_TYPE_BYTES | MS_TYPE_BYTEARRAY))) {
+        return json_decode_binary(view, size, type, path);
+    }
+    else if (MS_UNLIKELY(type->types & (MS_TYPE_ENUM | MS_TYPE_STRLITERAL))) {
+        return ms_decode_str_enum_or_literal(view, size, type, path);
     }
     return ms_validation_error("str", type, path);
 }
@@ -16641,6 +16650,7 @@ JSONDecoder_decode(JSONDecoder *self, PyObject *const *args, Py_ssize_t nargs)
 
     JSONDecoderState state = {
         .type = self->type,
+        .strict = self->strict,
         .dec_hook = self->dec_hook,
         .scratch = NULL,
         .scratch_capacity = 0,
@@ -16684,6 +16694,7 @@ static struct PyMethodDef JSONDecoder_methods[] = {
 
 static PyMemberDef JSONDecoder_members[] = {
     {"type", T_OBJECT_EX, offsetof(JSONDecoder, orig_type), READONLY, "The Decoder type"},
+    {"strict", T_BOOL, offsetof(JSONDecoder, strict), READONLY, "The Decoder strict setting"},
     {"dec_hook", T_OBJECT, offsetof(JSONDecoder, dec_hook), READONLY, "The Decoder dec_hook"},
     {NULL},
 };
@@ -16718,6 +16729,10 @@ PyDoc_STRVAR(msgspec_json_decode__doc__,
 "    provided, the message will be type checked and decoded as the specified\n"
 "    type. Defaults to `Any`, in which case the message will be decoded using\n"
 "    the default JSON types.\n"
+"strict : bool, optional\n"
+"    Whether type coercion rules should be strict. Setting to False enables a\n"
+"    wider set of coercion rules from string to non-string types for all values.\n"
+"    Default is True.\n"
 "dec_hook : callable, optional\n"
 "    An optional callback for handling decoding custom types. Should have the\n"
 "    signature ``dec_hook(type: Type, obj: Any) -> Any``, where ``type`` is the\n"
@@ -16737,7 +16752,8 @@ PyDoc_STRVAR(msgspec_json_decode__doc__,
 static PyObject*
 msgspec_json_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
 {
-    PyObject *res = NULL, *buf = NULL, *type = NULL, *dec_hook = NULL;
+    PyObject *res = NULL, *buf = NULL, *type = NULL, *dec_hook = NULL, *strict_obj = NULL;
+    int strict = 1; 
     MsgspecState *mod = msgspec_get_global_state();
 
     /* Parse arguments */
@@ -16746,6 +16762,7 @@ msgspec_json_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyO
     if (kwnames != NULL) {
         Py_ssize_t nkwargs = PyTuple_GET_SIZE(kwnames);
         if ((type = find_keyword(kwnames, args + nargs, mod->str_type)) != NULL) nkwargs--;
+        if ((strict_obj = find_keyword(kwnames, args + nargs, mod->str_strict)) != NULL) nkwargs--;
         if ((dec_hook = find_keyword(kwnames, args + nargs, mod->str_dec_hook)) != NULL) nkwargs--;
         if (nkwargs > 0) {
             PyErr_SetString(
@@ -16767,7 +16784,14 @@ msgspec_json_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyO
         }
     }
 
+    /* Handle strict */
+    if (strict_obj != NULL) {
+        strict = PyObject_IsTrue(strict_obj);
+        if (strict < 0) return NULL;
+    }
+
     JSONDecoderState state = {
+        .strict = strict,
         .dec_hook = dec_hook,
         .scratch = NULL,
         .scratch_capacity = 0,
@@ -18941,6 +18965,7 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->str_enc_hook);
     Py_CLEAR(st->str_dec_hook);
     Py_CLEAR(st->str_ext_hook);
+    Py_CLEAR(st->str_strict);
     Py_CLEAR(st->str_utcoffset);
     Py_CLEAR(st->str___origin__);
     Py_CLEAR(st->str___args__);
@@ -19330,6 +19355,7 @@ PyInit__core(void)
     CACHED_STRING(str_enc_hook, "enc_hook");
     CACHED_STRING(str_dec_hook, "dec_hook");
     CACHED_STRING(str_ext_hook, "ext_hook");
+    CACHED_STRING(str_strict, "strict");
     CACHED_STRING(str_utcoffset, "utcoffset");
     CACHED_STRING(str___origin__, "__origin__");
     CACHED_STRING(str___args__, "__args__");
