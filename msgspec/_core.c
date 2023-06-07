@@ -11825,6 +11825,7 @@ typedef struct DecoderState {
     TypeNode *type;
     PyObject *dec_hook;
     PyObject *ext_hook;
+    bool strict;
 
     /* Per-message attributes */
     PyObject *buffer_obj;
@@ -11839,12 +11840,13 @@ typedef struct Decoder {
 
     /* Configuration */
     TypeNode *type;
+    char strict;
     PyObject *dec_hook;
     PyObject *ext_hook;
 } Decoder;
 
 PyDoc_STRVAR(Decoder__doc__,
-"Decoder(type='Any', *, dec_hook=None, ext_hook=None)\n"
+"Decoder(type='Any', *, strict=True, dec_hook=None, ext_hook=None)\n"
 "--\n"
 "\n"
 "A MessagePack decoder.\n"
@@ -11856,6 +11858,10 @@ PyDoc_STRVAR(Decoder__doc__,
 "    provided, the message will be type checked and decoded as the specified\n"
 "    type. Defaults to `Any`, in which case the message will be decoded using\n"
 "    the default MessagePack types.\n"
+"strict : bool, optional\n"
+"    Whether type coercion rules should be strict. Setting to False enables a\n"
+"    wider set of coercion rules from string to non-string types for all values.\n"
+"    Default is True.\n"
 "dec_hook : callable, optional\n"
 "    An optional callback for handling decoding custom types. Should have the\n"
 "    signature ``dec_hook(type: Type, obj: Any) -> Any``, where ``type`` is the\n"
@@ -11874,17 +11880,21 @@ PyDoc_STRVAR(Decoder__doc__,
 static int
 Decoder_init(Decoder *self, PyObject *args, PyObject *kwds)
 {
-    char *kwlist[] = {"type", "dec_hook", "ext_hook", NULL};
+    char *kwlist[] = {"type", "strict", "dec_hook", "ext_hook", NULL};
     MsgspecState *st = msgspec_get_global_state();
     PyObject *type = st->typing_any;
     PyObject *ext_hook = NULL;
     PyObject *dec_hook = NULL;
+    int strict = 1;
 
     if (!PyArg_ParseTupleAndKeywords(
-            args, kwds, "|O$OO", kwlist, &type, &dec_hook, &ext_hook
+            args, kwds, "|O$pOO", kwlist, &type, &strict, &dec_hook, &ext_hook
         )) {
         return -1;
     }
+
+    /* Handle strict */
+    self->strict = strict;
 
     /* Handle dec_hook */
     if (dec_hook == Py_None) {
@@ -12401,37 +12411,37 @@ mpack_decode_float(DecoderState *self, double val, TypeNode *type, PathNode *pat
 
 static PyObject *
 mpack_decode_str(DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *path) {
-    if (MS_LIKELY(
-            type->types & (
-                MS_TYPE_ANY | MS_TYPE_STR | MS_TYPE_ENUM | MS_TYPE_STRLITERAL |
-                MS_TYPE_DATETIME | MS_TYPE_DATE | MS_TYPE_TIME |
-                MS_TYPE_UUID | MS_TYPE_DECIMAL
-            )
-        )
-    ) {
-        char *s = NULL;
-        if (MS_UNLIKELY(mpack_read(self, &s, size) < 0)) return NULL;
-        if (MS_UNLIKELY(type->types & (MS_TYPE_ENUM | MS_TYPE_STRLITERAL))) {
-            return ms_decode_str_enum_or_literal(s, size, type, path);
-        }
-        if (MS_UNLIKELY(type->types & MS_TYPE_DATETIME)) {
-            return ms_decode_datetime(s, size, type, path);
-        }
-        if (MS_UNLIKELY(type->types & MS_TYPE_DATE)) {
-            return ms_decode_date(s, size, path);
-        }
-        if (MS_UNLIKELY(type->types & MS_TYPE_TIME)) {
-            return ms_decode_time(s, size, type, path);
-        }
-        if (MS_UNLIKELY(type->types & MS_TYPE_UUID)) {
-            return ms_decode_uuid(s, size, path);
-        }
-        if (MS_UNLIKELY(type->types & MS_TYPE_DECIMAL)) {
-            return ms_decode_decimal(s, size, false, path);
-        }
+    char *s = NULL;
+    if (MS_UNLIKELY(mpack_read(self, &s, size) < 0)) return NULL;
+
+    if (MS_UNLIKELY(!self->strict)) {
+        bool invalid = false;
+        PyObject *out = ms_decode_str_lax(s, size, type, path, &invalid);
+        if (!invalid) return out;
+    }
+
+    if (MS_LIKELY(type->types & (MS_TYPE_STR | MS_TYPE_ANY))) {
         return ms_check_str_constraints(
             PyUnicode_DecodeUTF8(s, size, NULL), type, path
         );
+    }
+    else if (MS_UNLIKELY(type->types & (MS_TYPE_ENUM | MS_TYPE_STRLITERAL))) {
+        return ms_decode_str_enum_or_literal(s, size, type, path);
+    }
+    else if (MS_UNLIKELY(type->types & MS_TYPE_DATETIME)) {
+        return ms_decode_datetime(s, size, type, path);
+    }
+    else if (MS_UNLIKELY(type->types & MS_TYPE_DATE)) {
+        return ms_decode_date(s, size, path);
+    }
+    else if (MS_UNLIKELY(type->types & MS_TYPE_TIME)) {
+        return ms_decode_time(s, size, type, path);
+    }
+    else if (MS_UNLIKELY(type->types & MS_TYPE_UUID)) {
+        return ms_decode_uuid(s, size, path);
+    }
+    else if (MS_UNLIKELY(type->types & MS_TYPE_DECIMAL)) {
+        return ms_decode_decimal(s, size, false, path);
     }
     return ms_validation_error("str", type, path);
 }
@@ -13503,6 +13513,7 @@ Decoder_decode(Decoder *self, PyObject *const *args, Py_ssize_t nargs)
 
     DecoderState state = {
         .type = self->type,
+        .strict = self->strict,
         .dec_hook = self->dec_hook,
         .ext_hook = self->ext_hook
     };
@@ -13562,7 +13573,7 @@ static PyTypeObject Decoder_Type = {
 
 
 PyDoc_STRVAR(msgspec_msgpack_decode__doc__,
-"msgpack_decode(buf, *, type='Any', dec_hook=None, ext_hook=None)\n"
+"msgpack_decode(buf, *, type='Any', strict=True, dec_hook=None, ext_hook=None)\n"
 "--\n"
 "\n"
 "Deserialize an object from bytes.\n"
@@ -13576,6 +13587,10 @@ PyDoc_STRVAR(msgspec_msgpack_decode__doc__,
 "    provided, the message will be type checked and decoded as the specified\n"
 "    type. Defaults to `Any`, in which case the message will be decoded using\n"
 "    the default MessagePack types.\n"
+"strict : bool, optional\n"
+"    Whether type coercion rules should be strict. Setting to False enables a\n"
+"    wider set of coercion rules from string to non-string types for all values.\n"
+"    Default is True.\n"
 "dec_hook : callable, optional\n"
 "    An optional callback for handling decoding custom types. Should have the\n"
 "    signature ``dec_hook(type: Type, obj: Any) -> Any``, where ``type`` is the\n"
@@ -13603,8 +13618,10 @@ PyDoc_STRVAR(msgspec_msgpack_decode__doc__,
 static PyObject*
 msgspec_msgpack_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
 {
-    PyObject *res = NULL, *buf = NULL, *type = NULL, *dec_hook = NULL, *ext_hook = NULL;
+    PyObject *res = NULL, *buf = NULL, *type = NULL, *strict_obj = NULL;
+    PyObject *dec_hook = NULL, *ext_hook = NULL;
     MsgspecState *mod = msgspec_get_global_state();
+    int strict = 1;
 
     /* Parse arguments */
     if (!check_positional_nargs(nargs, 1, 1)) return NULL;
@@ -13612,6 +13629,7 @@ msgspec_msgpack_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, 
     if (kwnames != NULL) {
         Py_ssize_t nkwargs = PyTuple_GET_SIZE(kwnames);
         if ((type = find_keyword(kwnames, args + nargs, mod->str_type)) != NULL) nkwargs--;
+        if ((strict_obj = find_keyword(kwnames, args + nargs, mod->str_strict)) != NULL) nkwargs--;
         if ((dec_hook = find_keyword(kwnames, args + nargs, mod->str_dec_hook)) != NULL) nkwargs--;
         if ((ext_hook = find_keyword(kwnames, args + nargs, mod->str_ext_hook)) != NULL) nkwargs--;
         if (nkwargs > 0) {
@@ -13621,6 +13639,12 @@ msgspec_msgpack_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, 
             );
             return NULL;
         }
+    }
+
+    /* Handle strict */
+    if (strict_obj != NULL) {
+        strict = PyObject_IsTrue(strict_obj);
+        if (strict < 0) return NULL;
     }
 
     /* Handle dec_hook */
@@ -13646,6 +13670,7 @@ msgspec_msgpack_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, 
     }
 
     DecoderState state = {
+        .strict = strict,
         .dec_hook = dec_hook,
         .ext_hook = ext_hook
     };
@@ -13726,7 +13751,7 @@ typedef struct JSONDecoder {
 } JSONDecoder;
 
 PyDoc_STRVAR(JSONDecoder__doc__,
-"Decoder(type='Any', *, dec_hook=None)\n"
+"Decoder(type='Any', *, strict=True, dec_hook=None)\n"
 "--\n"
 "\n"
 "A JSON decoder.\n"
@@ -16715,7 +16740,7 @@ static PyTypeObject JSONDecoder_Type = {
 };
 
 PyDoc_STRVAR(msgspec_json_decode__doc__,
-"json_decode(buf, *, type='Any', dec_hook=None)\n"
+"json_decode(buf, *, type='Any', strict=True, dec_hook=None)\n"
 "--\n"
 "\n"
 "Deserialize an object from bytes.\n"
@@ -16753,7 +16778,7 @@ static PyObject*
 msgspec_json_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
 {
     PyObject *res = NULL, *buf = NULL, *type = NULL, *dec_hook = NULL, *strict_obj = NULL;
-    int strict = 1; 
+    int strict = 1;
     MsgspecState *mod = msgspec_get_global_state();
 
     /* Parse arguments */
