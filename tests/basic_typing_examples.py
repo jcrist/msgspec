@@ -654,6 +654,16 @@ def check_msgpack_decode_ext_hook() -> None:
     msgspec.msgpack.Decoder(ext_hook=ext_hook)
 
 
+def check_msgpack_Decoder_strict() -> None:
+    dec = msgspec.msgpack.Decoder(List[int], strict=False)
+    reveal_type(dec.strict)  # assert "bool" in typ
+
+
+def check_msgpack_decode_strict() -> None:
+    out = msgspec.msgpack.decode(b'', type=List[int], strict=False)
+    reveal_type(out)  # assert "list" in typ.lower()
+
+
 def check_msgpack_Ext() -> None:
     ext = msgspec.msgpack.Ext(1, b"test")
     reveal_type(ext.code)  # assert "int" in typ
@@ -765,6 +775,16 @@ def check_json_decode_dec_hook() -> None:
     msgspec.json.Decoder(dec_hook=dec_hook)
 
 
+def check_json_Decoder_strict() -> None:
+    dec = msgspec.json.Decoder(List[int], strict=False)
+    reveal_type(dec.strict)  # assert "bool" in typ
+
+
+def check_json_decode_strict() -> None:
+    out = msgspec.json.decode(b'', type=List[int], strict=False)
+    reveal_type(out)  # assert "list" in typ.lower()
+
+
 def check_json_format() -> None:
     reveal_type(msgspec.json.format(b"test"))  # assert "bytes" in typ
     reveal_type(msgspec.json.format(b"test", indent=4))  # assert "bytes" in typ
@@ -812,6 +832,12 @@ def check_yaml_decode_dec_hook() -> None:
 
     msgspec.yaml.decode(b"test", dec_hook=dec_hook)
 
+
+def check_yaml_decode_strict() -> None:
+    out = msgspec.yaml.decode(b'', type=List[int], strict=False)
+    reveal_type(out)  # assert "list" in typ.lower()
+
+
 ##########################################################
 # TOML                                                   #
 ##########################################################
@@ -847,6 +873,11 @@ def check_toml_decode_dec_hook() -> None:
         return typ(obj)
 
     msgspec.toml.decode(b"a = 1", dec_hook=dec_hook)
+
+
+def check_toml_decode_strict() -> None:
+    out = msgspec.toml.decode(b'', type=List[int], strict=False)
+    reveal_type(out)  # assert "list" in typ.lower()
 
 
 ##########################################################

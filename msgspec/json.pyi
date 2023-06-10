@@ -33,12 +33,14 @@ class Encoder:
 
 class Decoder(Generic[T]):
     type: Type[T]
+    strict: bool
     dec_hook: dec_hook_sig
 
     @overload
     def __init__(
         self: Decoder[Any],
         *,
+        strict: bool = True,
         dec_hook: dec_hook_sig = None,
     ) -> None: ...
     @overload
@@ -46,6 +48,7 @@ class Decoder(Generic[T]):
         self: Decoder[T],
         type: Type[T] = ...,
         *,
+        strict: bool = True,
         dec_hook: dec_hook_sig = None,
     ) -> None: ...
     @overload
@@ -53,6 +56,7 @@ class Decoder(Generic[T]):
         self: Decoder[Any],
         type: Any = ...,
         *,
+        strict: bool = True,
         dec_hook: dec_hook_sig = None,
     ) -> None: ...
     def decode(self, data: Union[bytes, str]) -> T: ...
@@ -61,6 +65,7 @@ class Decoder(Generic[T]):
 def decode(
     buf: Union[bytes, str],
     *,
+    strict: bool = True,
     dec_hook: dec_hook_sig = None,
 ) -> Any: ...
 @overload
@@ -68,6 +73,7 @@ def decode(
     buf: Union[bytes, str],
     *,
     type: Type[T] = ...,
+    strict: bool = True,
     dec_hook: dec_hook_sig = None,
 ) -> T: ...
 @overload
@@ -75,6 +81,7 @@ def decode(
     buf: Union[bytes, str],
     *,
     type: Any = ...,
+    strict: bool = True,
     dec_hook: dec_hook_sig = None,
 ) -> Any: ...
 def encode(obj: Any, *, enc_hook: enc_hook_sig = None) -> bytes: ...

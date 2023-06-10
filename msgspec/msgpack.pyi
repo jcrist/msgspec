@@ -24,12 +24,14 @@ class Ext:
 
 class Decoder(Generic[T]):
     type: Type[T]
+    strict: bool
     dec_hook: dec_hook_sig
     ext_hook: ext_hook_sig
     @overload
     def __init__(
         self: Decoder[Any],
         *,
+        strict: bool = True,
         dec_hook: dec_hook_sig = None,
         ext_hook: ext_hook_sig = None,
     ) -> None: ...
@@ -38,6 +40,7 @@ class Decoder(Generic[T]):
         self: Decoder[T],
         type: Type[T] = ...,
         *,
+        strict: bool = True,
         dec_hook: dec_hook_sig = None,
         ext_hook: ext_hook_sig = None,
     ) -> None: ...
@@ -46,6 +49,7 @@ class Decoder(Generic[T]):
         self: Decoder[Any],
         type: Any = ...,
         *,
+        strict: bool = True,
         dec_hook: dec_hook_sig = None,
         ext_hook: ext_hook_sig = None,
     ) -> None: ...
@@ -69,6 +73,7 @@ class Encoder:
 def decode(
     buf: bytes,
     *,
+    strict: bool = True,
     dec_hook: dec_hook_sig = None,
     ext_hook: ext_hook_sig = None,
 ) -> Any: ...
@@ -77,6 +82,7 @@ def decode(
     buf: bytes,
     *,
     type: Type[T] = ...,
+    strict: bool = True,
     dec_hook: dec_hook_sig = None,
     ext_hook: ext_hook_sig = None,
 ) -> T: ...
@@ -85,6 +91,7 @@ def decode(
     buf: bytes,
     *,
     type: Any = ...,
+    strict: bool = True,
     dec_hook: dec_hook_sig = None,
     ext_hook: ext_hook_sig = None,
 ) -> Any: ...
