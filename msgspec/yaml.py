@@ -78,7 +78,10 @@ T = TypeVar("T")
 
 @overload
 def decode(
-    buf: Union[bytes, str], *, dec_hook: Optional[Callable[[type, Any], Any]] = None
+    buf: Union[bytes, str],
+    *,
+    strict: bool = True,
+    dec_hook: Optional[Callable[[type, Any], Any]] = None,
 ) -> Any:
     pass
 
@@ -88,6 +91,7 @@ def decode(
     buf: Union[bytes, str],
     *,
     type: Type[T] = ...,
+    strict: bool = True,
     dec_hook: Optional[Callable[[type, Any], Any]] = None,
 ) -> T:
     pass
@@ -98,12 +102,13 @@ def decode(
     buf: Union[bytes, str],
     *,
     type: Any = ...,
+    strict: bool = True,
     dec_hook: Optional[Callable[[type, Any], Any]] = None,
 ) -> Any:
     pass
 
 
-def decode(buf, *, type=Any, dec_hook=None):
+def decode(buf, *, type=Any, strict=True, dec_hook=None):
     """Deserialize an object from YAML.
 
     Parameters
@@ -115,6 +120,10 @@ def decode(buf, *, type=Any, dec_hook=None):
         provided, the message will be type checked and decoded as the specified
         type. Defaults to `Any`, in which case the message will be decoded
         using the default YAML types.
+    strict : bool, optional
+        Whether type coercion rules should be strict. Setting to False enables
+        a wider set of coercion rules from string to non-string types for all
+        values. Default is True.
     dec_hook : callable, optional
         An optional callback for handling decoding custom types. Should have
         the signature ``dec_hook(type: Type, obj: Any) -> Any``, where ``type``
@@ -150,5 +159,9 @@ def decode(buf, *, type=Any, dec_hook=None):
     if type is Any:
         return obj
     return _convert(
-        obj, type, builtin_types=(_datetime.datetime, _datetime.date), dec_hook=dec_hook
+        obj,
+        type,
+        builtin_types=(_datetime.datetime, _datetime.date),
+        strict=strict,
+        dec_hook=dec_hook,
     )

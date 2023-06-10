@@ -145,6 +145,19 @@ def test_decode_validation_error():
         msgspec.yaml.decode(b"[1, 2, 3]", type=List[str])
 
 
+@pytest.mark.parametrize("strict", [True, False])
+def test_decode_strict_or_lax(strict):
+    msg = b"a: ['1', '2']"
+    typ = Dict[str, List[int]]
+
+    if strict:
+        with pytest.raises(msgspec.ValidationError, match="Expected `int`"):
+            msgspec.yaml.decode(msg, type=typ, strict=strict)
+    else:
+        res = msgspec.yaml.decode(msg, type=typ, strict=strict)
+        assert res == {"a": [1, 2]}
+
+
 def test_decode_dec_hook():
     def dec_hook(typ, val):
         if typ is Decimal:
