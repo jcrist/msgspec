@@ -87,6 +87,15 @@ lacks a ``null`` value, attempted to encode a message containing ``None`` to
     >>> msgspec.json.decode(b'null')
     None
 
+If ``strict=False`` is specified, a string value of ``"null"`` (case
+insensitive) may also be coerced to ``None``. See :ref:`strict-vs-lax` for more
+information.
+
+.. code-block:: python
+
+   >>> msgspec.json.decode(b'"null"', type=None, strict=False)
+   None
+
 ``bool``
 --------
 
@@ -100,6 +109,18 @@ supported protocols.
 
     >>> msgspec.json.decode(b'true')
     True
+
+If ``strict=False`` is specified, string values of ``"true"``/``"1"`` or
+``"false"``/``"0"`` (case insensitive) may also be coerced to
+``True``/``False`` respectively. See :ref:`strict-vs-lax` for more information.
+
+.. code-block:: python
+
+   >>> msgspec.json.decode(b'"false"', type=bool, strict=False)
+   False
+
+   >>> msgspec.json.decode(b'"TRUE"', type=bool, strict=False)
+   True
 
 ``int``
 -------
@@ -121,6 +142,15 @@ Support for large integers varies by protocol:
 
     >>> msgspec.json.decode(b"123", type=int)
     123
+
+If ``strict=False`` is specified, string values may also be coerced to
+integers, following the same restrictions as above. See :ref:`strict-vs-lax`
+for more information.
+
+.. code-block:: python
+
+   >>> msgspec.json.decode(b'"123"', type=int, strict=False)
+   123
 
 
 ``float``
@@ -150,6 +180,19 @@ provided, the `int` will be automatically converted.
     >>> # Ints are automatically converted to floats
     ... msgspec.json.decode(b"123", type=float)
     123.0
+
+If ``strict=False`` is specified, string values may also be coerced to floats.
+Note that in this case the strings ``"nan"``, ``"inf"``/``"infinity"``,
+``"-inf"``/``"-infinity"`` (case insensitive) will coerce to
+``nan``/``inf``/``-inf``. See :ref:`strict-vs-lax` for more information.
+
+.. code-block:: python
+
+   >>> msgspec.json.decode(b'"123.45"', type=float, strict=False)
+   123.45
+
+   >>> msgspec.json.decode(b'"-inf"', type=float, strict=False)
+   -inf
 
 ``str``
 -------
