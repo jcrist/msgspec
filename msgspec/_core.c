@@ -13551,6 +13551,7 @@ static struct PyMethodDef Decoder_methods[] = {
 
 static PyMemberDef Decoder_members[] = {
     {"type", T_OBJECT_EX, offsetof(Decoder, orig_type), READONLY, "The Decoder type"},
+    {"strict", T_BOOL, offsetof(Decoder, strict), READONLY, "The Decoder strict setting"},
     {"dec_hook", T_OBJECT, offsetof(Decoder, dec_hook), READONLY, "The Decoder dec_hook"},
     {"ext_hook", T_OBJECT, offsetof(Decoder, ext_hook), READONLY, "The Decoder ext_hook"},
     {NULL},

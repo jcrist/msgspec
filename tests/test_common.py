@@ -38,6 +38,7 @@ except ImportError:
     attrs = None
 
 import msgspec
+from msgspec import Meta, ValidationError
 
 UTC = datetime.timezone.utc
 
@@ -50,6 +51,11 @@ py310_plus = pytest.mark.skipif(not PY310, reason="3.10+ only")
 py311_plus = pytest.mark.skipif(not PY311, reason="3.11+ only")
 
 T = TypeVar("T")
+
+
+def assert_eq(x, y):
+    assert x == y
+    assert type(x) is type(y)
 
 
 @pytest.fixture(params=["json", "msgpack"])
@@ -215,7 +221,7 @@ class TestIntEnum:
         assert dec.decode(proto.encode(1)) is Test.A
         assert dec.decode(proto.encode(2)) is Test.B
 
-        with pytest.raises(msgspec.ValidationError, match="Invalid enum value 3"):
+        with pytest.raises(ValidationError, match="Invalid enum value 3"):
             dec.decode(proto.encode(3))
 
     def test_decode_nested(self, proto):
@@ -227,7 +233,7 @@ class TestIntEnum:
         dec.decode(proto.encode({"fruit": 1})) == Test(FruitInt.APPLE)
 
         with pytest.raises(
-            msgspec.ValidationError, match=r"Invalid enum value 3 - at `\$.fruit`"
+            ValidationError, match=r"Invalid enum value 3 - at `\$.fruit`"
         ):
             dec.decode(proto.encode({"fruit": 3}))
 
@@ -312,7 +318,7 @@ class TestIntEnum:
             assert val == val2
 
         for bad in [-1000, min(values) - 1, max(values) + 1, 1000]:
-            with pytest.raises(msgspec.ValidationError):
+            with pytest.raises(ValidationError):
                 dec.decode(msgspec.msgpack.encode(bad))
 
     @pytest.mark.parametrize(
@@ -335,7 +341,7 @@ class TestIntEnum:
             assert val == val2
 
         for bad in [-2000, -1, 1, 2000]:
-            with pytest.raises(msgspec.ValidationError):
+            with pytest.raises(ValidationError):
                 dec.decode(msgspec.msgpack.encode(bad))
 
     @pytest.mark.parametrize(
@@ -355,7 +361,7 @@ class TestIntEnum:
             assert val == val2
 
         for bad in [0, 7, 9, 56, -min(values), -max(values), 2**64 - 1, -(2**63)]:
-            with pytest.raises(msgspec.ValidationError):
+            with pytest.raises(ValidationError):
                 dec.decode(msgspec.msgpack.encode(bad))
 
 
@@ -416,9 +422,7 @@ class TestEnum:
         assert dec.decode(proto.encode("apple")) is Test.A
         assert dec.decode(proto.encode("banana")) is Test.B
 
-        with pytest.raises(
-            msgspec.ValidationError, match="Invalid enum value 'cherry'"
-        ):
+        with pytest.raises(ValidationError, match="Invalid enum value 'cherry'"):
             dec.decode(proto.encode("cherry"))
 
     def test_decode_nested(self, proto):
@@ -430,7 +434,7 @@ class TestEnum:
         dec.decode(proto.encode({"fruit": "apple"})) == Test(FruitStr.APPLE)
 
         with pytest.raises(
-            msgspec.ValidationError,
+            ValidationError,
             match=r"Invalid enum value 'cherry' - at `\$.fruit`",
         ):
             dec.decode(proto.encode({"fruit": "cherry"}))
@@ -503,14 +507,14 @@ class TestEnum:
 
         for _ in range(10):
             key = unique_str()
-            with pytest.raises(msgspec.ValidationError):
+            with pytest.raises(ValidationError):
                 dec.decode(msgspec.msgpack.encode(key))
 
         # Try bad of different lengths
         for bad_length in [1, 7, 15, 30]:
             assert bad_length != length
             key = rand.str(bad_length)
-            with pytest.raises(msgspec.ValidationError):
+            with pytest.raises(ValidationError):
                 dec.decode(msgspec.msgpack.encode(key))
 
     @pytest.mark.parametrize("nitems", [1, 3, 6, 12, 24, 48])
@@ -539,7 +543,7 @@ class TestEnum:
 
         for _ in range(10):
             key = unique_str()
-            with pytest.raises(msgspec.ValidationError):
+            with pytest.raises(ValidationError):
                 dec.decode(msgspec.msgpack.encode(key))
 
 
@@ -625,12 +629,10 @@ class TestLiterals:
         for val in [-1, -2, -3, "apple", "banana"]:
             assert dec.decode(msgspec.msgpack.encode(val)) == val
 
-        with pytest.raises(msgspec.ValidationError, match="Invalid enum value 4"):
+        with pytest.raises(ValidationError, match="Invalid enum value 4"):
             dec.decode(msgspec.msgpack.encode(4))
 
-        with pytest.raises(
-            msgspec.ValidationError, match="Invalid enum value 'carrot'"
-        ):
+        with pytest.raises(ValidationError, match="Invalid enum value 'carrot'"):
             dec.decode(msgspec.msgpack.encode("carrot"))
 
     def test_nested_literals(self):
@@ -647,12 +649,10 @@ class TestLiterals:
         for val in [-1, -2, -3, "apple", "banana"]:
             assert dec.decode(msgspec.msgpack.encode(val)) == val
 
-        with pytest.raises(msgspec.ValidationError, match="Invalid enum value 4"):
+        with pytest.raises(ValidationError, match="Invalid enum value 4"):
             dec.decode(msgspec.msgpack.encode(4))
 
-        with pytest.raises(
-            msgspec.ValidationError, match="Invalid enum value 'carrot'"
-        ):
+        with pytest.raises(ValidationError, match="Invalid enum value 'carrot'"):
             dec.decode(msgspec.msgpack.encode("carrot"))
 
     def test_mix_int_and_int_literal(self):
@@ -769,7 +769,7 @@ class TestUnionTypeErrors:
         dec = proto.Decoder(int | str | None)
         for msg in [1, "abc", None]:
             assert dec.decode(proto.encode(msg)) == msg
-        with pytest.raises(msgspec.ValidationError):
+        with pytest.raises(ValidationError):
             assert dec.decode(proto.encode(1.5))
 
 
@@ -935,18 +935,18 @@ class TestStructUnion:
         )
 
         # Tag missing
-        with pytest.raises(msgspec.ValidationError) as rec:
+        with pytest.raises(ValidationError) as rec:
             dec.decode(enc.encode({"a": 1, "b": 2}))
         assert "missing required field `type`" in str(rec.value)
 
         # Tag wrong type
-        with pytest.raises(msgspec.ValidationError) as rec:
+        with pytest.raises(ValidationError) as rec:
             dec.decode(enc.encode({"type": 123.456, "a": 1, "b": 2}))
         assert f"Expected `{type(tag1).__name__}`" in str(rec.value)
         assert "`$.type`" in str(rec.value)
 
         # Tag unknown
-        with pytest.raises(msgspec.ValidationError) as rec:
+        with pytest.raises(ValidationError) as rec:
             dec.decode(enc.encode({"type": unknown, "a": 1, "b": 2}))
         assert f"Invalid value {unknown!r} - at `$.type`" == str(rec.value)
 
@@ -984,28 +984,28 @@ class TestStructUnion:
         assert dec.decode(enc.encode([tag1, 1, 2, 3, 4])) == Test1(1, 2, 3)
 
         # Missing required field
-        with pytest.raises(msgspec.ValidationError) as rec:
+        with pytest.raises(ValidationError) as rec:
             dec.decode(enc.encode([tag1, 1]))
         assert "Expected `array` of at least length 3, got 2" in str(rec.value)
 
         # Type error has correct field index
-        with pytest.raises(msgspec.ValidationError) as rec:
+        with pytest.raises(ValidationError) as rec:
             dec.decode(enc.encode([tag1, 1, "bad", 2]))
         assert "Expected `int`, got `str` - at `$[2]`" == str(rec.value)
 
         # Tag missing
-        with pytest.raises(msgspec.ValidationError) as rec:
+        with pytest.raises(ValidationError) as rec:
             dec.decode(enc.encode([]))
         assert "Expected `array` of at least length 1, got 0" == str(rec.value)
 
         # Tag wrong type
-        with pytest.raises(msgspec.ValidationError) as rec:
+        with pytest.raises(ValidationError) as rec:
             dec.decode(enc.encode([123.456, 2, 3, 4]))
         assert f"Expected `{type(tag1).__name__}`" in str(rec.value)
         assert "`$[0]`" in str(rec.value)
 
         # Tag unknown
-        with pytest.raises(msgspec.ValidationError) as rec:
+        with pytest.raises(ValidationError) as rec:
             dec.decode(enc.encode([unknown, 1, 2, 3]))
         assert f"Invalid value {unknown!r} - at `$[0]`" == str(rec.value)
 
@@ -1025,7 +1025,7 @@ class TestStructUnion:
         for msg in [Test1(1, 2), Test2(3, 4), None, 5, 6]:
             assert dec.decode(enc.encode(msg)) == msg
 
-        with pytest.raises(msgspec.ValidationError) as rec:
+        with pytest.raises(ValidationError) as rec:
             dec.decode(enc.encode(True))
 
         typ = "array" if array_like else "object"
@@ -1159,7 +1159,7 @@ class TestGenericStruct:
         res = proto.decode(msg, type=Ex[float])
         assert type(res.x) is float
 
-        with pytest.raises(msgspec.ValidationError, match="Expected `str`, got `int`"):
+        with pytest.raises(ValidationError, match="Expected `str`, got `int`"):
             proto.decode(msg, type=Ex[str])
 
     @pytest.mark.parametrize("array_like", [False, True])
@@ -1183,7 +1183,7 @@ class TestGenericStruct:
             assert proto.decode(proto.encode(msg2), type=mod.Ex) == msg2
             assert proto.decode(proto.encode(msg), type=mod.Ex[int]) == msg
 
-            with pytest.raises(msgspec.ValidationError) as rec:
+            with pytest.raises(ValidationError) as rec:
                 proto.decode(proto.encode(msg2), type=mod.Ex[int])
             if array_like:
                 assert "`$[1][0]`" in str(rec.value)
@@ -1219,13 +1219,13 @@ class TestGenericStruct:
         assert proto.decode(s2, type=typ[str]) == msg2
         assert proto.decode(s3, type=typ[str]) == msg3
 
-        with pytest.raises(msgspec.ValidationError) as rec:
+        with pytest.raises(ValidationError) as rec:
             proto.decode(s1, type=typ[str])
         assert "Expected `str | null`, got `int`" in str(rec.value)
         loc = "$[1]" if array_like else "$.a"
         assert loc in str(rec.value)
 
-        with pytest.raises(msgspec.ValidationError) as rec:
+        with pytest.raises(ValidationError) as rec:
             proto.decode(s2, type=typ[int])
         assert "Expected `int`, got `str`" in str(rec.value)
         loc = "$[1]" if array_like else "$.x"
@@ -1241,7 +1241,7 @@ class TestGenericStruct:
 
         bad = proto.encode([1, {}])
         with pytest.raises(
-            msgspec.ValidationError,
+            ValidationError,
             match=r"Expected `int \| str`, got `object` - at `\$\[1\]`",
         ):
             dec.decode(bad)
@@ -1329,7 +1329,7 @@ class TestGenericDataclassOrAttrs:
         res = proto.decode(msg, type=Ex[float])
         assert type(res.x) is float
 
-        with pytest.raises(msgspec.ValidationError, match="Expected `str`, got `int`"):
+        with pytest.raises(ValidationError, match="Expected `str`, got `int`"):
             proto.decode(msg, type=Ex[str])
 
     @pytest.mark.parametrize("module", ["dataclasses", "attrs"])
@@ -1361,7 +1361,7 @@ class TestGenericDataclassOrAttrs:
             assert proto.decode(proto.encode(msg2), type=mod.Ex) == msg2
             assert proto.decode(proto.encode(msg), type=mod.Ex[int]) == msg
 
-            with pytest.raises(msgspec.ValidationError) as rec:
+            with pytest.raises(ValidationError) as rec:
                 proto.decode(proto.encode(msg2), type=mod.Ex[int])
             assert "`$.b.a`" in str(rec.value)
             assert "Expected `int`, got `str`" in str(rec.value)
@@ -1376,7 +1376,7 @@ class TestGenericDataclassOrAttrs:
 
         bad = proto.encode([1, {}])
         with pytest.raises(
-            msgspec.ValidationError,
+            ValidationError,
             match=r"Expected `int \| str`, got `object` - at `\$\[1\]`",
         ):
             dec.decode(bad)
@@ -1472,9 +1472,7 @@ class TestStructForbidUnknownFields:
         assert proto.decode(proto.encode(good), type=Test) == good
 
         bad = proto.encode({"x": 1, "y": 2, "z": 3})
-        with pytest.raises(
-            msgspec.ValidationError, match="Object contains unknown field `z`"
-        ):
+        with pytest.raises(ValidationError, match="Object contains unknown field `z`"):
             proto.decode(bad, type=Test)
 
     def test_forbid_unknown_fields_array_like(self, proto):
@@ -1487,7 +1485,7 @@ class TestStructForbidUnknownFields:
 
         bad = proto.encode([1, 2, 3])
         with pytest.raises(
-            msgspec.ValidationError, match="Expected `array` of at most length 2"
+            ValidationError, match="Expected `array` of at most length 2"
         ):
             proto.decode(bad, type=Test)
 
@@ -1510,13 +1508,13 @@ class TestStructRename:
 
     def test_rename_decode_struct_wrong_type(self, proto):
         msg = proto.encode({"X": 1, "Y": "bad"})
-        with pytest.raises(msgspec.ValidationError) as rec:
+        with pytest.raises(ValidationError) as rec:
             proto.decode(msg, type=PointUpper)
         assert "Expected `int`, got `str` - at `$.Y`" == str(rec.value)
 
     def test_rename_decode_struct_missing_field(self, proto):
         msg = proto.encode({"X": 1})
-        with pytest.raises(msgspec.ValidationError) as rec:
+        with pytest.raises(ValidationError) as rec:
             proto.decode(msg, type=PointUpper)
         assert "Object missing required field `Y`" == str(rec.value)
 
@@ -1545,14 +1543,14 @@ class TestStructKeywordOnly:
 
         msg = proto.encode({"a": 1, "b": 2})
         with pytest.raises(
-            msgspec.ValidationError,
+            ValidationError,
             match="missing required field `c`",
         ):
             proto.decode(msg, type=Test)
 
         msg = proto.encode({"c": 1, "b": 2})
         with pytest.raises(
-            msgspec.ValidationError,
+            ValidationError,
             match="missing required field `a`",
         ):
             proto.decode(msg, type=Test)
@@ -1574,14 +1572,14 @@ class TestStructKeywordOnly:
 
         msg = proto.encode([5, 6])
         with pytest.raises(
-            msgspec.ValidationError,
+            ValidationError,
             match="Expected `array` of at least length 3, got 2",
         ):
             proto.decode(msg, type=Test)
 
         msg = proto.encode([])
         with pytest.raises(
-            msgspec.ValidationError,
+            ValidationError,
             match="Expected `array` of at least length 3, got 0",
         ):
             proto.decode(msg, type=Test)
@@ -1675,7 +1673,7 @@ class TestTypedDict:
             dec = proto.Decoder(mod.Ex)
             assert dec.decode(proto.encode(msg)) == msg
 
-            with pytest.raises(msgspec.ValidationError) as rec:
+            with pytest.raises(ValidationError) as rec:
                 dec.decode(proto.encode({"a": 1, "b": {"a": "bad"}}))
             assert "`$.b.a`" in str(rec.value)
             assert "Expected `int`, got `str`" in str(rec.value)
@@ -1693,11 +1691,11 @@ class TestTypedDict:
         x2 = {"a": 1, "b": "two", "c": "extra"}
         assert dec.decode(proto.encode(x2)) == x
 
-        with pytest.raises(msgspec.ValidationError) as rec:
+        with pytest.raises(ValidationError) as rec:
             dec.decode(proto.encode({"b": "two"}))
         assert "Object missing required field `a`" == str(rec.value)
 
-        with pytest.raises(msgspec.ValidationError) as rec:
+        with pytest.raises(ValidationError) as rec:
             dec.decode(proto.encode({"a": 1, "b": 2}))
         assert "Expected `str`, got `int` - at `$.b`" == str(rec.value)
 
@@ -1718,7 +1716,7 @@ class TestTypedDict:
         assert dec.decode(msg) == {"a": 2, "b": "two"}
 
         msg = temp.replace(b"x", b"a").replace(b"b", b"c")
-        with pytest.raises(msgspec.ValidationError) as rec:
+        with pytest.raises(ValidationError) as rec:
             dec.decode(msg)
         assert "Object missing required field `b`" == str(rec.value)
 
@@ -1768,7 +1766,7 @@ class TestTypedDict:
         x2 = {"a": 1, "b": "two"}
         assert dec.decode(proto.encode(x2)) == x2
 
-        with pytest.raises(msgspec.ValidationError) as rec:
+        with pytest.raises(ValidationError) as rec:
             dec.decode(proto.encode({"b": "two"}))
         assert "Object missing required field `a`" == str(rec.value)
 
@@ -1810,11 +1808,11 @@ class TestTypedDict:
             x2 = {"a": 1, "d": False}
             assert dec.decode(proto.encode(x2)) == x2
 
-            with pytest.raises(msgspec.ValidationError) as rec:
+            with pytest.raises(ValidationError) as rec:
                 dec.decode(proto.encode({"d": False}))
             assert "Object missing required field `a`" == str(rec.value)
 
-            with pytest.raises(msgspec.ValidationError) as rec:
+            with pytest.raises(ValidationError) as rec:
                 dec.decode(proto.encode({"a": 2}))
             assert "Object missing required field `d`" == str(rec.value)
 
@@ -1887,7 +1885,7 @@ class TestTypedDict:
         res = proto.decode(msg, type=Ex[float])
         assert type(res["x"]) is float
 
-        with pytest.raises(msgspec.ValidationError, match="Expected `str`, got `int`"):
+        with pytest.raises(ValidationError, match="Expected `str`, got `int`"):
             proto.decode(msg, type=Ex[str])
 
     def test_recursive_generic_typeddict(self, proto):
@@ -1912,7 +1910,7 @@ class TestTypedDict:
             assert proto.decode(proto.encode(msg2), type=mod.Ex) == msg2
             assert proto.decode(proto.encode(msg), type=mod.Ex[int]) == msg
 
-            with pytest.raises(msgspec.ValidationError) as rec:
+            with pytest.raises(ValidationError) as rec:
                 proto.decode(proto.encode(msg2), type=mod.Ex[int])
             assert "`$.b.a`" in str(rec.value)
             assert "Expected `int`, got `str`" in str(rec.value)
@@ -1978,7 +1976,7 @@ class TestNamedTuple:
             dec = proto.Decoder(mod.Ex)
             assert dec.decode(proto.encode(msg)) == msg
 
-            with pytest.raises(msgspec.ValidationError) as rec:
+            with pytest.raises(ValidationError) as rec:
                 dec.decode(proto.encode(mod.Ex(1, ("bad", "two"))))
             assert "`$[1][0]`" in str(rec.value)
             assert "Expected `int`, got `str`" in str(rec.value)
@@ -2001,11 +1999,11 @@ class TestNamedTuple:
         assert res == msg
 
         suffix = ", got 1" if proto is msgspec.msgpack else ""
-        with pytest.raises(msgspec.ValidationError, match=f"length 3{suffix}"):
+        with pytest.raises(ValidationError, match=f"length 3{suffix}"):
             dec.decode(proto.encode((1,)))
 
         suffix = ", got 6" if proto is msgspec.msgpack else ""
-        with pytest.raises(msgspec.ValidationError, match=f"length 3{suffix}"):
+        with pytest.raises(ValidationError, match=f"length 3{suffix}"):
             dec.decode(proto.encode((1, 2, 3, 4, 5, 6)))
 
     @pytest.mark.parametrize("use_typing", [True, False])
@@ -2029,27 +2027,25 @@ class TestNamedTuple:
             assert res == msg
 
         suffix = ", got 1" if proto is msgspec.msgpack else ""
-        with pytest.raises(msgspec.ValidationError, match=f"length 2 to 5{suffix}"):
+        with pytest.raises(ValidationError, match=f"length 2 to 5{suffix}"):
             dec.decode(proto.encode((1,)))
 
         suffix = ", got 6" if proto is msgspec.msgpack else ""
-        with pytest.raises(msgspec.ValidationError, match=f"length 2 to 5{suffix}"):
+        with pytest.raises(ValidationError, match=f"length 2 to 5{suffix}"):
             dec.decode(proto.encode((1, 2, 3, 4, 5, 6)))
 
     def test_decode_namedtuple_field_wrong_type(self, proto):
         dec = proto.Decoder(PersonTuple)
         msg = proto.encode((1, "bad", 2))
         with pytest.raises(
-            msgspec.ValidationError, match=r"Expected `str`, got `int` - at `\$\[0\]`"
+            ValidationError, match=r"Expected `str`, got `int` - at `\$\[0\]`"
         ):
             dec.decode(msg)
 
     def test_decode_namedtuple_not_array(self, proto):
         dec = proto.Decoder(PersonTuple)
         msg = proto.encode({})
-        with pytest.raises(
-            msgspec.ValidationError, match="Expected `array`, got `object`"
-        ):
+        with pytest.raises(ValidationError, match="Expected `array`, got `object`"):
             dec.decode(msg)
 
     def test_generic_namedtuple_info_cached(self, proto):
@@ -2108,7 +2104,7 @@ class TestNamedTuple:
         res = proto.decode(msg, type=Ex[float])
         assert type(res.x) is float
 
-        with pytest.raises(msgspec.ValidationError, match="Expected `str`, got `int`"):
+        with pytest.raises(ValidationError, match="Expected `str`, got `int`"):
             proto.decode(msg, type=Ex[str])
 
     def test_recursive_generic_namedtuple(self, proto):
@@ -2133,7 +2129,7 @@ class TestNamedTuple:
             assert proto.decode(proto.encode(msg2), type=mod.Ex) == msg2
             assert proto.decode(proto.encode(msg), type=mod.Ex[int]) == msg
 
-            with pytest.raises(msgspec.ValidationError) as rec:
+            with pytest.raises(ValidationError) as rec:
                 proto.decode(proto.encode(msg2), type=mod.Ex[int])
             assert "`$[1][0]`" in str(rec.value)
             assert "Expected `int`, got `str`" in str(rec.value)
@@ -2285,7 +2281,7 @@ class TestDataclass:
             dec = proto.Decoder(mod.Ex)
             assert dec.decode(proto.encode(msg)) == msg
 
-            with pytest.raises(msgspec.ValidationError) as rec:
+            with pytest.raises(ValidationError) as rec:
                 dec.decode(proto.encode({"a": 1, "b": {"a": "bad"}}))
             assert "`$.b.a`" in str(rec.value)
             assert "Expected `int`, got `str`" in str(rec.value)
@@ -2349,12 +2345,12 @@ class TestDataclass:
         assert res == msg
 
         # Missing fields error
-        with pytest.raises(msgspec.ValidationError, match="missing required field `b`"):
+        with pytest.raises(ValidationError, match="missing required field `b`"):
             dec.decode(proto.encode({"a": 1}))
 
         # Incorrect field types error
         with pytest.raises(
-            msgspec.ValidationError, match=r"Expected `int`, got `str` - at `\$.a`"
+            ValidationError, match=r"Expected `int`, got `str` - at `\$.a`"
         ):
             dec.decode(proto.encode({"a": "bad"}))
 
@@ -2383,7 +2379,7 @@ class TestDataclass:
             assert res == sol
 
         # Missing fields error
-        with pytest.raises(msgspec.ValidationError, match="missing required field `a`"):
+        with pytest.raises(ValidationError, match="missing required field `a`"):
             dec.decode(proto.encode({"c": 1, "d": 2, "e": 3}))
 
     def test_decode_dataclass_default_factory_errors(self, proto):
@@ -2441,9 +2437,7 @@ class TestDataclass:
 
         dec = proto.Decoder(Example)
         msg = proto.encode([])
-        with pytest.raises(
-            msgspec.ValidationError, match="Expected `object`, got `array`"
-        ):
+        with pytest.raises(ValidationError, match="Expected `object`, got `array`"):
             dec.decode(msg)
 
 
@@ -2553,12 +2547,12 @@ class TestAttrs:
         assert res == msg
 
         # Missing fields error
-        with pytest.raises(msgspec.ValidationError, match="missing required field `b`"):
+        with pytest.raises(ValidationError, match="missing required field `b`"):
             dec.decode(proto.encode({"a": 1}))
 
         # Incorrect field types error
         with pytest.raises(
-            msgspec.ValidationError, match=r"Expected `int`, got `str` - at `\$.a`"
+            ValidationError, match=r"Expected `int`, got `str` - at `\$.a`"
         ):
             dec.decode(proto.encode({"a": "bad"}))
 
@@ -2579,7 +2573,7 @@ class TestAttrs:
             assert res == msg
 
         # Missing fields error
-        with pytest.raises(msgspec.ValidationError, match="missing required field `a`"):
+        with pytest.raises(ValidationError, match="missing required field `a`"):
             dec.decode(proto.encode({"c": 1, "d": 2, "e": 3}))
 
     def test_decode_attrs_default_factory_errors(self, proto):
@@ -2663,9 +2657,7 @@ class TestAttrs:
 
         dec = proto.Decoder(Example)
         msg = proto.encode([])
-        with pytest.raises(
-            msgspec.ValidationError, match="Expected `object`, got `array`"
-        ):
+        with pytest.raises(ValidationError, match="Expected `object`, got `array`"):
             dec.decode(msg)
 
 
@@ -2698,9 +2690,7 @@ class TestDate:
 
     def test_decode_date_wrong_type(self, proto):
         msg = proto.encode([])
-        with pytest.raises(
-            msgspec.ValidationError, match="Expected `date`, got `array`"
-        ):
+        with pytest.raises(ValidationError, match="Expected `date`, got `array`"):
             proto.decode(msg, type=datetime.date)
 
     @pytest.mark.parametrize(
@@ -2731,7 +2721,7 @@ class TestDate:
     )
     def test_decode_date_malformed(self, proto, s):
         msg = proto.encode(s)
-        with pytest.raises(msgspec.ValidationError, match="Invalid RFC3339"):
+        with pytest.raises(ValidationError, match="Invalid RFC3339"):
             proto.decode(msg, type=datetime.date)
 
 
@@ -2774,9 +2764,7 @@ class TestTime:
 
     def test_decode_time_wrong_type(self, proto):
         msg = proto.encode([])
-        with pytest.raises(
-            msgspec.ValidationError, match="Expected `time`, got `array`"
-        ):
+        with pytest.raises(ValidationError, match="Expected `time`, got `array`"):
             proto.decode(msg, type=datetime.time)
 
     @pytest.mark.parametrize(
@@ -2940,7 +2928,7 @@ class TestTime:
     )
     def test_decode_time_malformed(self, proto, s):
         msg = proto.encode(s)
-        with pytest.raises(msgspec.ValidationError, match="Invalid RFC3339"):
+        with pytest.raises(ValidationError, match="Invalid RFC3339"):
             proto.decode(msg, type=datetime.time)
 
 
@@ -3017,7 +3005,7 @@ class TestUUID:
     )
     def test_decode_uuid_malformed(self, proto, uuid_str):
         msg = proto.encode(uuid_str)
-        with pytest.raises(msgspec.ValidationError, match="Invalid UUID"):
+        with pytest.raises(ValidationError, match="Invalid UUID"):
             proto.decode(msg, type=uuid.UUID)
 
 
@@ -3026,14 +3014,14 @@ class TestNewType:
         UserId = NewType("UserId", int)
         assert proto.decode(proto.encode(1), type=UserId) == 1
 
-        with pytest.raises(msgspec.ValidationError):
+        with pytest.raises(ValidationError):
             proto.decode(proto.encode("bad"), type=UserId)
 
         # Nested NewId works
         UserId2 = NewType("UserId2", UserId)
         assert proto.decode(proto.encode(1), type=UserId2) == 1
 
-        with pytest.raises(msgspec.ValidationError):
+        with pytest.raises(ValidationError):
             proto.decode(proto.encode("bad"), type=UserId2)
 
     def test_decode_annotated_newtype(self, proto, Annotated):
@@ -3041,7 +3029,7 @@ class TestNewType:
         dec = proto.Decoder(Annotated[UserId, msgspec.Meta(ge=0)])
         assert dec.decode(proto.encode(1)) == 1
 
-        with pytest.raises(msgspec.ValidationError):
+        with pytest.raises(ValidationError):
             dec.decode(proto.encode(-1))
 
     def test_decode_newtype_annotated(self, proto, Annotated):
@@ -3049,7 +3037,7 @@ class TestNewType:
         dec = proto.Decoder(UserId)
         assert dec.decode(proto.encode(1)) == 1
 
-        with pytest.raises(msgspec.ValidationError):
+        with pytest.raises(ValidationError):
             dec.decode(proto.encode(-1))
 
     def test_decode_annotated_newtype_annotated(self, proto, Annotated):
@@ -3060,7 +3048,7 @@ class TestNewType:
         assert dec.decode(proto.encode(1)) == 1
 
         for bad in [-1, 11]:
-            with pytest.raises(msgspec.ValidationError):
+            with pytest.raises(ValidationError):
                 dec.decode(proto.encode(bad))
 
 
@@ -3079,7 +3067,7 @@ class TestDecimal:
 
     def test_decode_decimal_invalid(self, proto):
         msg = proto.encode("1..5")
-        with pytest.raises(msgspec.ValidationError, match="Invalid decimal string"):
+        with pytest.raises(ValidationError, match="Invalid decimal string"):
             proto.decode(msg, type=decimal.Decimal)
 
 
@@ -3107,16 +3095,12 @@ class TestAbstractTypes:
             sol = [1, 2]
         msg = proto.encode(sol)
         assert proto.decode(msg, type=typ) == sol
-        with pytest.raises(
-            msgspec.ValidationError, match="Expected `array`, got `str`"
-        ):
+        with pytest.raises(ValidationError, match="Expected `array`, got `str`"):
             proto.decode(proto.encode("a"), type=typ)
 
         if PY39 or type(typ) is not abc.ABCMeta:
             assert proto.decode(msg, type=typ[int]) == sol
-            with pytest.raises(
-                msgspec.ValidationError, match="Expected `int`, got `str`"
-            ):
+            with pytest.raises(ValidationError, match="Expected `int`, got `str`"):
                 proto.decode(proto.encode(["a"]), type=typ[int])
 
     @pytest.mark.parametrize(
@@ -3132,16 +3116,12 @@ class TestAbstractTypes:
         sol = {"x": 1, "y": 2}
         msg = proto.encode(sol)
         assert proto.decode(msg, type=typ) == sol
-        with pytest.raises(
-            msgspec.ValidationError, match="Expected `object`, got `str`"
-        ):
+        with pytest.raises(ValidationError, match="Expected `object`, got `str`"):
             proto.decode(proto.encode("a"), type=typ)
 
         if PY39 or type(typ) is not abc.ABCMeta:
             assert proto.decode(msg, type=typ[str, int]) == sol
-            with pytest.raises(
-                msgspec.ValidationError, match="Expected `int`, got `str`"
-            ):
+            with pytest.raises(ValidationError, match="Expected `int`, got `str`"):
                 proto.decode(proto.encode({"a": "b"}), type=typ[str, int])
 
 
@@ -3210,14 +3190,14 @@ class TestFinal:
         dec = proto.Decoder(Final[int])
 
         assert dec.decode(proto.encode(1)) == 1
-        with pytest.raises(msgspec.ValidationError):
+        with pytest.raises(ValidationError):
             dec.decode(proto.encode("bad"))
 
     def test_decode_final_annotated(self, proto, Annotated):
         dec = proto.Decoder(Final[Annotated[int, msgspec.Meta(ge=0)]])
 
         assert dec.decode(proto.encode(1)) == 1
-        with pytest.raises(msgspec.ValidationError):
+        with pytest.raises(ValidationError):
             dec.decode(proto.encode(-1))
 
     def test_decode_final_newtype(self, proto):
@@ -3225,5 +3205,199 @@ class TestFinal:
         dec = proto.Decoder(Final[UserId])
 
         assert dec.decode(proto.encode(1)) == 1
-        with pytest.raises(msgspec.ValidationError):
+        with pytest.raises(ValidationError):
             dec.decode(proto.encode("bad"))
+
+
+class TestLax:
+    @pytest.mark.parametrize("strict", [True, False])
+    def test_strict_lax_decoder(self, proto, strict):
+        dec = proto.Decoder(list[int], strict=strict)
+
+        assert dec.strict is strict
+
+        msg = proto.encode(["1", "2"])
+
+        if strict:
+            with pytest.raises(ValidationError):
+                dec.decode(msg)
+        else:
+            assert dec.decode(msg) == [1, 2]
+
+    def test_lax_none(self, proto):
+        for x in ["null", "Null", "nUll", "nuLl", "nulL"]:
+            msg = proto.encode(x)
+            assert proto.decode(msg, type=None, strict=False) is None
+
+        for x in ["xull", "nxll", "nuxl", "nulx"]:
+            msg = proto.encode(x)
+            with pytest.raises(ValidationError, match="Expected `null`, got `str`"):
+                proto.decode(msg, type=None, strict=False)
+
+    def test_lax_bool_true(self, proto):
+        for x in ["1", "true", "True", "tRue", "trUe", "truE"]:
+            msg = proto.encode(x)
+            assert proto.decode(msg, type=bool, strict=False) is True
+
+        for x in ["x", "xx", "xrue", "txue", "trxe", "trux"]:
+            msg = proto.encode(x)
+            with pytest.raises(ValidationError, match="Expected `bool`, got `str`"):
+                assert proto.decode(msg, type=bool, strict=False)
+
+    def test_lax_bool_false(self, proto):
+        for x in ["0", "false", "False", "fAlse", "faLse", "falSe", "falsE"]:
+            msg = proto.encode(x)
+            assert proto.decode(msg, type=bool, strict=False) is False
+
+        for x in ["x", "xx", "xalse", "fxlse", "faxse", "falxe", "falsx"]:
+            msg = proto.encode(x)
+            with pytest.raises(ValidationError, match="Expected `bool`, got `str`"):
+                assert proto.decode(msg, type=bool, strict=False)
+
+    def test_lax_int(self, proto):
+        for x in ["1", "-1", "123456"]:
+            msg = proto.encode(x)
+            assert proto.decode(msg, type=int, strict=False) == int(x)
+
+        for x in ["a", "1a", "1.0", "1.."]:
+            msg = proto.encode(x)
+            with pytest.raises(ValidationError, match="Expected `int`, got `str`"):
+                proto.decode(msg, type=int, strict=False)
+
+    def test_lax_int_constr(self, proto, Annotated):
+        typ = Annotated[int, Meta(ge=0)]
+        msg = proto.encode("1")
+        assert proto.decode(msg, type=typ, strict=False) == 1
+
+        msg = proto.encode("-1")
+        with pytest.raises(ValidationError):
+            proto.decode(msg, type=typ, strict=False)
+
+    def test_lax_int_enum(self, proto):
+        class Ex(enum.IntEnum):
+            x = 1
+            y = -2
+
+        def roundtrip(msg):
+            return proto.decode(proto.encode(msg), type=Ex, strict=False)
+
+        assert roundtrip("1") is Ex.x
+        assert roundtrip("-2") is Ex.y
+        with pytest.raises(ValidationError, match="Invalid enum value 3"):
+            roundtrip("3")
+        with pytest.raises(ValidationError, match="Expected `int`, got `str`"):
+            roundtrip("A")
+
+    def test_lax_int_literal(self, proto):
+        typ = Literal[1, -2]
+
+        def roundtrip(msg):
+            return proto.decode(proto.encode(msg), type=typ, strict=False)
+
+        assert roundtrip("1") == 1
+        assert roundtrip("-2") == -2
+        with pytest.raises(ValidationError, match="Invalid enum value 3"):
+            roundtrip("3")
+        with pytest.raises(ValidationError, match="Expected `int`, got `str`"):
+            roundtrip("A")
+
+    def test_lax_float(self, proto):
+        for x in ["1", "-1", "123456", "1.5", "-1.5", "inf"]:
+            msg = proto.encode(x)
+            assert proto.decode(msg, type=float, strict=False) == float(x)
+
+        for x in ["a", "1a", "1.0.0", "1.."]:
+            msg = proto.encode(x)
+            with pytest.raises(ValidationError, match="Expected `float`, got `str`"):
+                proto.decode(msg, type=float, strict=False)
+
+    def test_lax_float_constr(self, proto, Annotated):
+        msg = proto.encode("1.5")
+        assert proto.decode(msg, type=Annotated[float, Meta(ge=0)], strict=False) == 1.5
+
+        msg = proto.encode("-1.0")
+        with pytest.raises(ValidationError):
+            proto.decode(msg, type=Annotated[float, Meta(ge=0)], strict=False)
+
+    def test_lax_str(self, proto):
+        for x in ["1", "1.5", "false", "null"]:
+            msg = proto.encode(x)
+            assert proto.decode(msg, type=str, strict=False) == x
+
+    def test_lax_str_constr(self, proto, Annotated):
+        typ = Annotated[str, Meta(max_length=10)]
+        msg = proto.encode("xxx")
+        assert proto.decode(msg, type=typ, strict=False) == "xxx"
+
+        msg = proto.encode("x" * 20)
+        with pytest.raises(ValidationError):
+            proto.decode(msg, type=typ, strict=False)
+
+    @pytest.mark.parametrize(
+        "x, sol",
+        [
+            ("1", 1),
+            ("0", 0),
+            ("-1", -1),
+            ("12.5", 12.5),
+            ("inf", float("inf")),
+            ("true", True),
+            ("false", False),
+            ("null", None),
+            ("1a", "1a"),
+            ("falsx", "falsx"),
+            ("nulx", "nulx"),
+        ],
+    )
+    def test_lax_union_valid(self, x, sol, proto):
+        typ = Union[int, float, bool, None, str]
+        msg = proto.encode(x)
+        assert_eq(proto.decode(msg, type=typ, strict=False), sol)
+
+    @pytest.mark.parametrize("x", ["1a", "1.5a", "falsx", "trux", "nulx"])
+    def test_lax_union_invalid(self, x, proto):
+        typ = Union[int, float, bool, None]
+        msg = proto.encode(x)
+        with pytest.raises(
+            ValidationError, match="Expected `int | float | bool | null`"
+        ):
+            proto.decode(msg, type=typ, strict=False)
+
+    @pytest.mark.parametrize(
+        "x, err",
+        [
+            ("-1", "`int` >= 0"),
+            ("184467440737095516100", "out of range"),
+            ("18446744073709551617", "out of range"),
+            ("-9223372036854775809", "out of range"),
+            ("100.5", "`float` <= 100.0"),
+            ("x" * 11, "length <= 10"),
+        ],
+    )
+    def test_lax_union_invalid_constr(self, x, err, proto, Annotated):
+        """Ensure that values that parse properly but don't meet the specified
+        constraints error with a specific constraint error"""
+        msg = proto.encode(x)
+        typ = Union[
+            Annotated[int, Meta(ge=0)],
+            Annotated[float, Meta(le=100)],
+            Annotated[str, Meta(max_length=10)],
+        ]
+        with pytest.raises(ValidationError, match=err):
+            proto.decode(msg, type=typ, strict=False)
+
+    @pytest.mark.parametrize(
+        "x, sol",
+        [
+            ("1", 1),
+            ("1.5", 1.5),
+            ("false", False),
+            ("true", True),
+            ("null", None),
+            ("2022-05-02", datetime.date(2022, 5, 2)),
+        ],
+    )
+    def test_lax_union_extended(self, proto, x, sol):
+        typ = Union[int, float, bool, None, datetime.date]
+        msg = proto.encode(x)
+        assert_eq(proto.decode(msg, type=typ, strict=False), sol)
