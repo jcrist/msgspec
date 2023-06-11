@@ -126,9 +126,9 @@ Converters
 
 .. currentmodule:: msgspec
 
-.. autofunction:: to_builtins
+.. autofunction:: convert
 
-.. autofunction:: from_builtins
+.. autofunction:: to_builtins
 
 
 Inspect

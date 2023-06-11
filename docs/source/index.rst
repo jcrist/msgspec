@@ -159,6 +159,7 @@ few:
     supported-types.rst
     structs.rst
     constraints.rst
+    converters.rst
     jsonschema.rst
     schema-evolution.rst
 
@@ -167,7 +168,6 @@ few:
     :maxdepth: 2
     :caption: Advanced
 
-    converters.rst
     extending.rst
     inspect.rst
     perf-tips.rst
