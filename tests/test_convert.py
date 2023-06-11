@@ -269,6 +269,12 @@ class TestConvert:
             convert(val, typ)
 
 
+class TestAny:
+    @pytest.mark.parametrize("msg", [(1, 2), {"a": 1}, object(), {1, 2}])
+    def test_any_passthrough(self, msg):
+        assert convert(msg, Any) is msg
+
+
 class TestNone:
     def test_none(self):
         assert convert(None, Any) is None
@@ -764,7 +770,8 @@ class TestLiteral:
 
 class TestSequences:
     def test_any_sequence(self):
-        assert convert((1, 2, 3), Any) == [1, 2, 3]
+        msg = (1, 2, 3)
+        assert convert(msg, Any) is msg
 
     @pytest.mark.parametrize("in_type", [list, tuple, set, frozenset])
     @pytest.mark.parametrize("out_type", [list, tuple, set, frozenset])

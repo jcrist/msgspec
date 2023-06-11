@@ -17497,7 +17497,7 @@ static PyObject *
 convert_int(
     ConvertState *self, PyObject *obj, TypeNode *type, PathNode *path
 ) {
-    if (type->types & (MS_TYPE_ANY | MS_TYPE_INT)) {
+    if (type->types & MS_TYPE_INT) {
         return ms_decode_pyint(obj, type, path);
     }
     else if (type->types & (MS_TYPE_INTENUM | MS_TYPE_INTLITERAL)) {
@@ -17513,7 +17513,7 @@ static PyObject *
 convert_float(
     ConvertState *self, PyObject *obj, TypeNode *type, PathNode *path
 ) {
-    if (type->types & (MS_TYPE_ANY | MS_TYPE_FLOAT)) {
+    if (type->types & MS_TYPE_FLOAT) {
         Py_INCREF(obj);
         return ms_check_float_constraints(obj, type, path);
     }
@@ -17524,7 +17524,7 @@ static PyObject *
 convert_bool(
     ConvertState *self, PyObject *obj, TypeNode *type, PathNode *path
 ) {
-    if (type->types & (MS_TYPE_ANY | MS_TYPE_BOOL)) {
+    if (type->types & MS_TYPE_BOOL) {
         Py_INCREF(obj);
         return obj;
     }
@@ -17535,7 +17535,7 @@ static PyObject *
 convert_none(
     ConvertState *self, PyObject *obj, TypeNode *type, PathNode *path
 ) {
-    if (type->types & (MS_TYPE_ANY | MS_TYPE_NONE)) {
+    if (type->types & MS_TYPE_NONE) {
         Py_INCREF(obj);
         return obj;
     }
@@ -17627,7 +17627,7 @@ convert_str_lax(
     PyObject *out = ms_decode_str_lax(view, size, type, path, &invalid);
     if (!invalid) return out;
 
-    if (type->types & (MS_TYPE_ANY | MS_TYPE_STR)) {
+    if (type->types & MS_TYPE_STR) {
         Py_INCREF(obj);
         return ms_check_str_constraints(obj, type, path);
     }
@@ -18091,11 +18091,7 @@ convert_seq(ConvertState *self, PyObject *obj, TypeNode *type, PathNode *path) {
 
     if (!ms_passes_array_constraints(size, type, path)) return NULL;
 
-    if (type->types & MS_TYPE_ANY) {
-        TypeNode type_any = {MS_TYPE_ANY};
-        return convert_seq_to_list(self, items, size, &type_any, path);
-    }
-    else if (type->types & MS_TYPE_LIST) {
+    if (type->types & MS_TYPE_LIST) {
         return convert_seq_to_list(
             self, items, size, TypeNode_get_array(type), path
         );
@@ -18130,11 +18126,6 @@ static PyObject *
 convert_any_set(
     ConvertState *self, PyObject *obj, TypeNode *type, PathNode *path
 ) {
-    if (MS_UNLIKELY(type->types & MS_TYPE_ANY)) {
-        Py_INCREF(obj);
-        return obj;
-    }
-
     PyObject *seq = PySequence_Tuple(obj);
     if (seq == NULL) return NULL;
 
@@ -18178,14 +18169,7 @@ convert_dict_to_dict(
     Py_ssize_t size = PyDict_GET_SIZE(obj);
     if (!ms_passes_map_constraints(size, type, path)) return NULL;
     TypeNode *key_type, *val_type;
-    TypeNode type_any = {MS_TYPE_ANY};
-    if (type->types & MS_TYPE_ANY) {
-        key_type = &type_any;
-        val_type = &type_any;
-    }
-    else {
-        TypeNode_get_dict(type, &key_type, &val_type);
-    }
+    TypeNode_get_dict(type, &key_type, &val_type);
 
     PathNode key_path = {path, PATH_KEY, NULL};
     PathNode val_path = {path, PATH_ELLIPSIS, NULL};
@@ -18427,7 +18411,7 @@ static PyObject *
 convert_dict(
     ConvertState *self, PyObject *obj, TypeNode *type, PathNode *path
 ) {
-    if (type->types & (MS_TYPE_DICT | MS_TYPE_ANY)) {
+    if (type->types & MS_TYPE_DICT) {
         return convert_dict_to_dict(self, obj, type, path);
     }
     else if (type->types & MS_TYPE_STRUCT) {
@@ -18651,11 +18635,6 @@ static PyObject *
 convert_other(
     ConvertState *self, PyObject *obj, TypeNode *type, PathNode *path
 ) {
-    if (type->types & MS_TYPE_ANY) {
-        Py_INCREF(obj);
-        return obj;
-    }
-
     PyTypeObject *pytype = Py_TYPE(obj);
 
     /* First check if instance matches requested type for builtin user-defined
@@ -18730,9 +18709,12 @@ static PyObject *
 convert(
     ConvertState *self, PyObject *obj, TypeNode *type, PathNode *path
 ) {
-    if (MS_UNLIKELY(type->types & (MS_TYPE_CUSTOM | MS_TYPE_CUSTOM_GENERIC))) {
+    if (MS_UNLIKELY(type->types & (MS_TYPE_CUSTOM | MS_TYPE_CUSTOM_GENERIC | MS_TYPE_ANY))) {
         Py_INCREF(obj);
-        return ms_decode_custom(obj, self->dec_hook, type, path);
+        if (MS_UNLIKELY(type->types & (MS_TYPE_CUSTOM | MS_TYPE_CUSTOM_GENERIC))) {
+            return ms_decode_custom(obj, self->dec_hook, type, path);
+        }
+        return obj;
     }
 
     PyTypeObject *pytype = Py_TYPE(obj);
