@@ -31,7 +31,7 @@ class Directory(msgspec.Struct, tag="directory"):
 def bench(dumps, loads, ndata, schema=None):
     data = make_filesystem_data(ndata)
     if schema:
-        data = msgspec.from_builtins(data, schema)
+        data = msgspec.convert(data, schema)
     timer = timeit.Timer("func(data)", globals={"func": dumps, "data": data})
     n, t = timer.autorange()
     dumps_time = t / n
