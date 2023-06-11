@@ -35,6 +35,7 @@ Most combinations of the following types are supported (with a few restrictions)
 - `decimal.Decimal`
 - `enum.Enum` types
 - `enum.IntEnum` types
+- `enum.StrEnum` types
 - `dataclasses.dataclass` types
 
 **Typing module types**
@@ -796,10 +797,10 @@ other than a field for one of these types.
 ``Enum`` / ``IntEnum``
 ----------------------
 
-`enum.Enum` and `enum.IntEnum` types encode as their member *values* in all
-protocols. Only enums composed of all string or all integer values are
-supported. An error is raised during decoding if the value isn't the proper
-type, or doesn't match any valid member.
+`enum.Enum`, `enum.StrEnum`, and `enum.IntEnum` types encode as their member
+*values* in all protocols. Only enums composed of all string or all integer
+values are supported. An error is raised during decoding if the value isn't the
+proper type, or doesn't match any valid member.
 
 .. code-block:: python
 
