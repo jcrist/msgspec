@@ -131,10 +131,15 @@ If a message doesn't match the expected type, an error is raised.
       File "<stdin>", line 1, in <module>
     msgspec.ValidationError: Expected `str`, got `int` - at `$.groups[1]`
 
+.. _strict-vs-lax:
+
+"Strict" vs "Lax" Mode
+~~~~~~~~~~~~~~~~~~~~~~
+
 Unlike some other libraries (e.g. pydantic_), ``msgspec`` won't perform any
-unsafe implicit conversion. For example, if an integer is specified and a
-string is decoded instead, an error is raised rather than attempting to cast
-the string to an int.
+unsafe implicit conversion by default ("strict" mode). For example, if an
+integer is specified and a string is provided instead, an error is raised
+rather than attempting to cast the string to an int.
 
 .. code-block:: python
 
@@ -142,6 +147,17 @@ the string to an int.
     Traceback (most recent call last):
       File "<stdin>", line 1, in <module>
     msgspec.ValidationError: Expected `int`, got `str` - at `$[2]`
+
+For cases where you'd like a more lax set of conversion rules, you can pass
+``strict=False`` to any ``decode`` function or ``Decoder`` class ("lax" mode).
+See :doc:`supported-types` for information on how this affects individual
+types.
+
+.. code-block:: python
+
+    >>> msgspec.json.decode(b'[1, 2, "3"]', type=list[int], strict=False)
+    [1, 2, 3]
+
 
 .. _JSON: https://json.org
 .. _MessagePack: https://msgpack.org

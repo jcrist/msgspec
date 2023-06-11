@@ -749,7 +749,7 @@ to start writing at the end of the buffer.</p></li>
 
 <dl class="py class">
 <dt class="sig sig-object py" id="msgspec.json.Decoder">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">msgspec.json.</span></span><span class="sig-name descname"><span class="pre">Decoder</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'Any'</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dec_hook</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.json.Decoder" title="Permalink to this definition">#</a></dt>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">msgspec.json.</span></span><span class="sig-name descname"><span class="pre">Decoder</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'Any'</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">strict</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dec_hook</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.json.Decoder" title="Permalink to this definition">#</a></dt>
 <dd><p>A JSON decoder.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -758,6 +758,9 @@ to start writing at the end of the buffer.</p></li>
 provided, the message will be type checked and decoded as the specified
 type. Defaults to <code class="xref py py-obj docutils literal notranslate"><span class="pre">Any</span></code>, in which case the message will be decoded using
 the default JSON types.</p></li>
+<li><p><strong>strict</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.11)"><em>bool</em></a><em>, </em><em>optional</em>) – Whether type coercion rules should be strict. Setting to False enables a
+wider set of coercion rules from string to non-string types for all values.
+Default is True.</p></li>
 <li><p><strong>dec_hook</strong> (<em>callable</em><em>, </em><em>optional</em>) – An optional callback for handling decoding custom types. Should have the
 signature <code class="docutils literal notranslate"><span class="pre">dec_hook(type:</span> <span class="pre">Type,</span> <span class="pre">obj:</span> <span class="pre">Any)</span> <span class="pre">-&gt;</span> <span class="pre">Any</span></code>, where <code class="docutils literal notranslate"><span class="pre">type</span></code> is the
 expected message type, and <code class="docutils literal notranslate"><span class="pre">obj</span></code> is the decoded representation composed
@@ -806,7 +809,7 @@ unsupported object and should return a supported object, or raise a TypeError.</
 
 <dl class="py function">
 <dt class="sig sig-object py" id="msgspec.json.decode">
-<span class="sig-prename descclassname"><span class="pre">msgspec.json.</span></span><span class="sig-name descname"><span class="pre">decode</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">buf</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'Any'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dec_hook</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.json.decode" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">msgspec.json.</span></span><span class="sig-name descname"><span class="pre">decode</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">buf</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'Any'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">strict</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dec_hook</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.json.decode" title="Permalink to this definition">#</a></dt>
 <dd><p>Deserialize an object from bytes.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -816,6 +819,9 @@ unsupported object and should return a supported object, or raise a TypeError.</
 provided, the message will be type checked and decoded as the specified
 type. Defaults to <code class="xref py py-obj docutils literal notranslate"><span class="pre">Any</span></code>, in which case the message will be decoded using
 the default JSON types.</p></li>
+<li><p><strong>strict</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.11)"><em>bool</em></a><em>, </em><em>optional</em>) – Whether type coercion rules should be strict. Setting to False enables a
+wider set of coercion rules from string to non-string types for all values.
+Default is True.</p></li>
 <li><p><strong>dec_hook</strong> (<em>callable</em><em>, </em><em>optional</em>) – An optional callback for handling decoding custom types. Should have the
 signature <code class="docutils literal notranslate"><span class="pre">dec_hook(type:</span> <span class="pre">Type,</span> <span class="pre">obj:</span> <span class="pre">Any)</span> <span class="pre">-&gt;</span> <span class="pre">Any</span></code>, where <code class="docutils literal notranslate"><span class="pre">type</span></code> is the
 expected message type, and <code class="docutils literal notranslate"><span class="pre">obj</span></code> is the decoded representation composed
@@ -906,7 +912,7 @@ to start writing at the end of the buffer.</p></li>
 
 <dl class="py class">
 <dt class="sig sig-object py" id="msgspec.msgpack.Decoder">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">msgspec.msgpack.</span></span><span class="sig-name descname"><span class="pre">Decoder</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'Any'</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dec_hook</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ext_hook</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.msgpack.Decoder" title="Permalink to this definition">#</a></dt>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">msgspec.msgpack.</span></span><span class="sig-name descname"><span class="pre">Decoder</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'Any'</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">strict</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dec_hook</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ext_hook</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.msgpack.Decoder" title="Permalink to this definition">#</a></dt>
 <dd><p>A MessagePack decoder.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -915,6 +921,9 @@ to start writing at the end of the buffer.</p></li>
 provided, the message will be type checked and decoded as the specified
 type. Defaults to <code class="xref py py-obj docutils literal notranslate"><span class="pre">Any</span></code>, in which case the message will be decoded using
 the default MessagePack types.</p></li>
+<li><p><strong>strict</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.11)"><em>bool</em></a><em>, </em><em>optional</em>) – Whether type coercion rules should be strict. Setting to False enables a
+wider set of coercion rules from string to non-string types for all values.
+Default is True.</p></li>
 <li><p><strong>dec_hook</strong> (<em>callable</em><em>, </em><em>optional</em>) – An optional callback for handling decoding custom types. Should have the
 signature <code class="docutils literal notranslate"><span class="pre">dec_hook(type:</span> <span class="pre">Type,</span> <span class="pre">obj:</span> <span class="pre">Any)</span> <span class="pre">-&gt;</span> <span class="pre">Any</span></code>, where <code class="docutils literal notranslate"><span class="pre">type</span></code> is the
 expected message type, and <code class="docutils literal notranslate"><span class="pre">obj</span></code> is the decoded representation composed
@@ -997,7 +1006,7 @@ unsupported object and should return a supported object, or raise a TypeError.</
 
 <dl class="py function">
 <dt class="sig sig-object py" id="msgspec.msgpack.decode">
-<span class="sig-prename descclassname"><span class="pre">msgspec.msgpack.</span></span><span class="sig-name descname"><span class="pre">decode</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">buf</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'Any'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dec_hook</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ext_hook</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.msgpack.decode" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">msgspec.msgpack.</span></span><span class="sig-name descname"><span class="pre">decode</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">buf</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'Any'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">strict</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dec_hook</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ext_hook</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.msgpack.decode" title="Permalink to this definition">#</a></dt>
 <dd><p>Deserialize an object from bytes.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -1007,6 +1016,9 @@ unsupported object and should return a supported object, or raise a TypeError.</
 provided, the message will be type checked and decoded as the specified
 type. Defaults to <code class="xref py py-obj docutils literal notranslate"><span class="pre">Any</span></code>, in which case the message will be decoded using
 the default MessagePack types.</p></li>
+<li><p><strong>strict</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.11)"><em>bool</em></a><em>, </em><em>optional</em>) – Whether type coercion rules should be strict. Setting to False enables a
+wider set of coercion rules from string to non-string types for all values.
+Default is True.</p></li>
 <li><p><strong>dec_hook</strong> (<em>callable</em><em>, </em><em>optional</em>) – An optional callback for handling decoding custom types. Should have the
 signature <code class="docutils literal notranslate"><span class="pre">dec_hook(type:</span> <span class="pre">Type,</span> <span class="pre">obj:</span> <span class="pre">Any)</span> <span class="pre">-&gt;</span> <span class="pre">Any</span></code>, where <code class="docutils literal notranslate"><span class="pre">type</span></code> is the
 expected message type, and <code class="docutils literal notranslate"><span class="pre">obj</span></code> is the decoded representation composed
@@ -1061,7 +1073,7 @@ raise a TypeError.</p></li>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="msgspec.yaml.decode">
-<span class="sig-prename descclassname"><span class="pre">msgspec.yaml.</span></span><span class="sig-name descname"><span class="pre">decode</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">buf</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">typing.Any</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dec_hook</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.yaml.decode" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">msgspec.yaml.</span></span><span class="sig-name descname"><span class="pre">decode</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">buf</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">typing.Any</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">strict</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dec_hook</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.yaml.decode" title="Permalink to this definition">#</a></dt>
 <dd><p>Deserialize an object from YAML.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -1071,6 +1083,9 @@ raise a TypeError.</p></li>
 provided, the message will be type checked and decoded as the specified
 type. Defaults to <code class="xref py py-obj docutils literal notranslate"><span class="pre">Any</span></code>, in which case the message will be decoded
 using the default YAML types.</p></li>
+<li><p><strong>strict</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.11)"><em>bool</em></a><em>, </em><em>optional</em>) – Whether type coercion rules should be strict. Setting to False enables
+a wider set of coercion rules from string to non-string types for all
+values. Default is True.</p></li>
 <li><p><strong>dec_hook</strong> (<em>callable</em><em>, </em><em>optional</em>) – An optional callback for handling decoding custom types. Should have
 the signature <code class="docutils literal notranslate"><span class="pre">dec_hook(type:</span> <span class="pre">Type,</span> <span class="pre">obj:</span> <span class="pre">Any)</span> <span class="pre">-&gt;</span> <span class="pre">Any</span></code>, where <code class="docutils literal notranslate"><span class="pre">type</span></code>
 is the expected message type, and <code class="docutils literal notranslate"><span class="pre">obj</span></code> is the decoded representation
@@ -1118,7 +1133,7 @@ raise a TypeError.</p></li>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="msgspec.toml.decode">
-<span class="sig-prename descclassname"><span class="pre">msgspec.toml.</span></span><span class="sig-name descname"><span class="pre">decode</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">buf</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">typing.Any</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dec_hook</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.toml.decode" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">msgspec.toml.</span></span><span class="sig-name descname"><span class="pre">decode</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">buf</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">typing.Any</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">strict</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dec_hook</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.toml.decode" title="Permalink to this definition">#</a></dt>
 <dd><p>Deserialize an object from TOML.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -1128,6 +1143,9 @@ raise a TypeError.</p></li>
 provided, the message will be type checked and decoded as the specified
 type. Defaults to <code class="xref py py-obj docutils literal notranslate"><span class="pre">Any</span></code>, in which case the message will be decoded
 using the default TOML types.</p></li>
+<li><p><strong>strict</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.11)"><em>bool</em></a><em>, </em><em>optional</em>) – Whether type coercion rules should be strict. Setting to False enables
+a wider set of coercion rules from string to non-string types for all
+values. Default is True.</p></li>
 <li><p><strong>dec_hook</strong> (<em>callable</em><em>, </em><em>optional</em>) – An optional callback for handling decoding custom types. Should have
 the signature <code class="docutils literal notranslate"><span class="pre">dec_hook(type:</span> <span class="pre">Type,</span> <span class="pre">obj:</span> <span class="pre">Any)</span> <span class="pre">-&gt;</span> <span class="pre">Any</span></code>, where <code class="docutils literal notranslate"><span class="pre">type</span></code>
 is the expected message type, and <code class="docutils literal notranslate"><span class="pre">obj</span></code> is the decoded representation
