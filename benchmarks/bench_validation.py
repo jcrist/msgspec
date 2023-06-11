@@ -40,7 +40,7 @@ def bench_msgspec(n):
     dec = msgspec.json.Decoder(Directory)
 
     def convert(data):
-        return msgspec.from_builtins(data, Directory)
+        return msgspec.convert(data, Directory)
 
     return bench(enc.encode, dec.decode, n, convert)
 
