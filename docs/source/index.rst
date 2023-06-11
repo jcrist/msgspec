@@ -104,11 +104,6 @@ few:
 
 .. grid:: 2 2 4 4
 
-    .. grid-item-card:: Pioreactor
-        :link: https://pioreactor.com/
-
-        .. image:: _static/pioreactor.png
-
     .. grid-item-card:: NautilusTrader
         :link: https://nautilustrader.io/
 
@@ -123,6 +118,16 @@ few:
         :link: https://mosecorg.github.io/mosec/
 
         .. image:: _static/mosec.png
+
+    .. grid-item-card:: Pioreactor
+        :link: https://pioreactor.com/
+
+        .. image:: _static/pioreactor.png
+
+    .. grid-item-card:: Zero
+        :link: https://github.com/Ananto30/zero
+
+        .. image:: _static/zero.png
 
     .. grid-item-card:: anywidget
         :link: https://anywidget.dev/
