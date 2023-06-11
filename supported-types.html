@@ -202,12 +202,12 @@
 <li class="toctree-l1 current current-page"><a class="current reference internal" href="#">Supported Types</a></li>
 <li class="toctree-l1"><a class="reference internal" href="structs.html">Structs</a></li>
 <li class="toctree-l1"><a class="reference internal" href="constraints.html">Constraints</a></li>
+<li class="toctree-l1"><a class="reference internal" href="converters.html">Converters</a></li>
 <li class="toctree-l1"><a class="reference internal" href="jsonschema.html">JSON Schema</a></li>
 <li class="toctree-l1"><a class="reference internal" href="schema-evolution.html">Schema Evolution</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Advanced</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="converters.html">Converters</a></li>
 <li class="toctree-l1"><a class="reference internal" href="extending.html">Extending</a></li>
 <li class="toctree-l1"><a class="reference internal" href="inspect.html">Inspecting Types</a></li>
 <li class="toctree-l1"><a class="reference internal" href="perf-tips.html">Performance Tips</a></li>
@@ -293,6 +293,7 @@ Most combinations of the following types are supported (with a few restrictions)
 <li><p><a class="reference external" href="https://docs.python.org/3/library/decimal.html#decimal.Decimal" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">decimal.Decimal</span></code></a></p></li>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.Enum" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enum.Enum</span></code></a> types</p></li>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.IntEnum" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enum.IntEnum</span></code></a> types</p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.StrEnum" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enum.StrEnum</span></code></a> types</p></li>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#dataclasses.dataclass" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses.dataclass</span></code></a> types</p></li>
 </ul>
 <p><strong>Typing module types</strong></p>
@@ -970,10 +971,10 @@ other than a field for one of these types.</p>
 </section>
 <section id="enum-intenum">
 <h2><code class="docutils literal notranslate"><span class="pre">Enum</span></code> / <code class="docutils literal notranslate"><span class="pre">IntEnum</span></code><a class="headerlink" href="#enum-intenum" title="Permalink to this heading">#</a></h2>
-<p><a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.Enum" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enum.Enum</span></code></a> and <a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.IntEnum" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enum.IntEnum</span></code></a> types encode as their member <em>values</em> in all
-protocols. Only enums composed of all string or all integer values are
-supported. An error is raised during decoding if the value isn’t the proper
-type, or doesn’t match any valid member.</p>
+<p><a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.Enum" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enum.Enum</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.StrEnum" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enum.StrEnum</span></code></a>, and <a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.IntEnum" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enum.IntEnum</span></code></a> types encode as their member
+<em>values</em> in all protocols. Only enums composed of all string or all integer
+values are supported. An error is raised during decoding if the value isn’t the
+proper type, or doesn’t match any valid member.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">enum</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">Fruit</span><span class="p">(</span><span class="n">enum</span><span class="o">.</span><span class="n">Enum</span><span class="p">):</span>

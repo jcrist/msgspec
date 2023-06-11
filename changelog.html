@@ -202,12 +202,12 @@
 <li class="toctree-l1"><a class="reference internal" href="supported-types.html">Supported Types</a></li>
 <li class="toctree-l1"><a class="reference internal" href="structs.html">Structs</a></li>
 <li class="toctree-l1"><a class="reference internal" href="constraints.html">Constraints</a></li>
+<li class="toctree-l1"><a class="reference internal" href="converters.html">Converters</a></li>
 <li class="toctree-l1"><a class="reference internal" href="jsonschema.html">JSON Schema</a></li>
 <li class="toctree-l1"><a class="reference internal" href="schema-evolution.html">Schema Evolution</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Advanced</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="converters.html">Converters</a></li>
 <li class="toctree-l1"><a class="reference internal" href="extending.html">Extending</a></li>
 <li class="toctree-l1"><a class="reference internal" href="inspect.html">Inspecting Types</a></li>
 <li class="toctree-l1"><a class="reference internal" href="perf-tips.html">Performance Tips</a></li>
@@ -332,9 +332,9 @@ Struct (<a class="reference external" href="https://github.com/jcrist/msgspec/pu
 type (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/335">PR #335</a>).</p></li>
 <li><p>Fix a bug supporting fields defined with <a class="reference internal" href="api.html#msgspec.field" title="msgspec.field"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.field()</span></code></a> with no arguments
 (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/343">PR #343</a>).</p></li>
-<li><p>Allow arbitrary input types to <a class="reference internal" href="api.html#msgspec.from_builtins" title="msgspec.from_builtins"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.from_builtins</span></code></a> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/346">PR #346</a>).</p></li>
+<li><p>Allow arbitrary input types to <code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.from_builtins</span></code> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/346">PR #346</a>).</p></li>
 <li><p>Support decoding into subclasses of <code class="docutils literal notranslate"><span class="pre">int</span></code> &amp; <code class="docutils literal notranslate"><span class="pre">bytes</span></code> in
-<a class="reference internal" href="api.html#msgspec.from_builtins" title="msgspec.from_builtins"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.from_builtins</span></code></a> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/346">PR #346</a>).</p></li>
+<code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.from_builtins</span></code> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/346">PR #346</a>).</p></li>
 <li><p>Add <a class="reference internal" href="api.html#msgspec.UNSET" title="msgspec.UNSET"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.UNSET</span></code></a> and <a class="reference internal" href="api.html#msgspec.UnsetType" title="msgspec.UnsetType"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.UnsetType</span></code></a> for tracking unset fields. See the
 <a class="reference internal" href="supported-types.html#unset-type"><span class="std std-ref">docs</span></a> for more information (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/350">PR #350</a>).</p></li>
 <li><p><strong>BREAKING</strong>: In the unlikely event you were using the previous
@@ -363,7 +363,7 @@ reference counting bug when decoding into <code class="docutils literal notransl
 <li><p>Add <a class="reference internal" href="api.html#msgspec.to_builtins" title="msgspec.to_builtins"><code class="xref py py-obj docutils literal notranslate"><span class="pre">to_builtins</span></code></a> function for converting messages composed of any supported
 type to ones composed of only simple builtin types commonly supported by
 Python serialization libraries (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/258">PR #258</a>).</p></li>
-<li><p>Add <a class="reference internal" href="api.html#msgspec.from_builtins" title="msgspec.from_builtins"><code class="xref py py-obj docutils literal notranslate"><span class="pre">from_builtins</span></code></a> function for converting and validating messages composed
+<li><p>Add <code class="xref py py-obj docutils literal notranslate"><span class="pre">from_builtins</span></code> function for converting and validating messages composed
 of simple builtin types to ones composed of any type msgspec supports
 (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/266">PR #266</a>, <a class="reference external" href="https://github.com/jcrist/msgspec/pull/302">PR #302</a>).</p></li>
 <li><p>Add <code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.yaml</span></code> module for encoding/decoding YAML (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/267">PR #267</a>).</p></li>
