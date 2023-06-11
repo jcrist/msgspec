@@ -3212,7 +3212,7 @@ class TestFinal:
 class TestLax:
     @pytest.mark.parametrize("strict", [True, False])
     def test_strict_lax_decoder(self, proto, strict):
-        dec = proto.Decoder(list[int], strict=strict)
+        dec = proto.Decoder(List[int], strict=strict)
 
         assert dec.strict is strict
 
