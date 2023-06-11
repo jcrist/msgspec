@@ -18778,7 +18778,7 @@ PyDoc_STRVAR(msgspec_convert__doc__,
 "convert(obj, type, *, strict=True, from_attributes=False, dec_hook=None, str_keys=False, builtin_types=None)\n"
 "--\n"
 "\n"
-"Convert the input object to the specified type, or error accordingly\n."
+"Convert the input object to the specified type, or error accordingly.\n"
 "\n"
 "Parameters\n"
 "----------\n"

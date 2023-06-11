@@ -6,17 +6,16 @@ Converters
 ``msgspec`` provides builtin support for several common protocols (``json``,
 ``msgpack``, ``yaml``, and ``toml``). Support for additional protocols may be
 added by combining a serialization library with msgspec's *converter
-functions*: `msgspec.to_builtins` and `msgspec.from_builtins`.
+functions*: `msgspec.to_builtins` and `msgspec.convert`.
 
-- `msgspec.to_builtins`: takes an object composed of any type msgspec supports
-  and converts it into one composed of only simple builtin types typically
-  supported by Python serialization libraries.
+- `msgspec.to_builtins`: takes an object composed of any :doc:`supported type
+  <supported-types>` and converts it into one composed of only simple builtin
+  types typically supported by Python serialization libraries.
 
-- `msgspec.from_builtins`: takes an object composed of simple builtin types
-  typically supported by Python serialization libraries, and converts it into a
-  object composed of any type msgspec supports (validating along the way). If
-  the conversion fails due to a schema mismatch, a nice error message is
-  raised.
+- `msgspec.convert`: takes an object composed of any :doc:`supported type
+  <supported-types>`, and converts it to match a specified schema (validating
+  along the way). If the conversion fails due to a schema mismatch, a nice
+  error message is raised.
 
 These functions are designed to be paired with a Python serialization library as
 pre/post processors for typical ``dumps`` and ``loads`` functions.
@@ -43,7 +42,7 @@ could add support by wrapping the standard library's `json` module as follows:
        ...:     return json.dumps(msgspec.to_builtins(obj))
 
     In [3]: def decode(msg, type=Any):
-       ...:     return msgspec.from_builtins(json.loads(msg), type=type)
+       ...:     return msgspec.convert(json.loads(msg), type=type)
 
     In [4]: class Point(msgspec.Struct):
        ...:     x: int
@@ -67,12 +66,12 @@ could add support by wrapping the standard library's `json` module as follows:
 
     Cell In[3], line 2, in decode(msg, type)
          1 def decode(msg, type=Any):
-    ---> 2     return msgspec.from_builtins(json.loads(msg), type=type)
+    ---> 2     return msgspec.convert(json.loads(msg), type=type)
 
     ValidationError: Expected `int`, got `str` - at `$.x`
 
 
-Since all protocols are different, `to_builtins` and `from_builtins` have a few
+Since all protocols are different, `to_builtins` and `convert` have a few
 configuration options:
 
 - ``builtin_types``: an iterable of additional types to treat as builtin types,
@@ -82,11 +81,13 @@ configuration options:
 - ``str_keys``: whether the wrapped protocol only supports strings for object
   keys, rather than any hashable type.
 
-- ``str_values``: `from_builtins` only. Whether the wrapped protocol only
-  supports string values. This is useful for completely untyped protocols like
-  URL querystrings, where only string values exist.
+- ``strict``: `convert` only. Whether type coercion rules should be strict.
+  Defaults is True, setting to False enables a wider set of coercion rules from
+  string to non-string types for all values. Among other uses, this may be used
+  to handle completely untyped protocols like URL querystrings, where only
+  string values exist. See :ref:`strict-vs-lax` for more information.
 
-- ``attributes``: `from_builtins` only. If True, input objects may be coerced
+- ``from_attributes``: `convert` only. If True, input objects may be coerced
   to ``Struct``/``dataclass``/``attrs`` types by extracting attributes from the
   input matching fields in the output type. One use case is converting database
   query results (ORM or otherwise) to msgspec structured types. The default is
@@ -94,6 +95,8 @@ configuration options:
 
 - ``enc_hook``/``dec_hook``: the standard keyword arguments used for
   :doc:`extending` msgspec to support additional types.
+
+-----
 
 Taking a look at another protocol - TOML_. This protocol
 
@@ -113,7 +116,7 @@ support by wrapping the standard library's `tomllib` module as follows:
     import msgspec
 
     def decode(msg, *, type=Any, dec_hook=None):
-        return msgspec.from_builtins(
+        return msgspec.convert(
             toml.loads(msg),
             type,
             builtin_types=(datetime.datetime, datetime.date, datetime.time),
