@@ -260,6 +260,32 @@
         <article role="main">
           <section id="changelog">
 <h1>Changelog<a class="headerlink" href="#changelog" title="Permalink to this heading">#</a></h1>
+<section id="version-0-16-0-2023-06-12">
+<h2>Version 0.16.0 (2023-06-12)<a class="headerlink" href="#version-0-16-0-2023-06-12" title="Permalink to this heading">#</a></h2>
+<ul class="simple">
+<li><p>Deprecate <code class="docutils literal notranslate"><span class="pre">msgspec.from_builtins</span></code> in favor of <a class="reference internal" href="api.html#msgspec.convert" title="msgspec.convert"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.convert</span></code></a>. The new
+<code class="docutils literal notranslate"><span class="pre">convert</span></code> function provides a superset of the functionality available in
+the old <code class="docutils literal notranslate"><span class="pre">from_builtins</span></code> function (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/431">PR #431</a>).</p></li>
+<li><p>Add a <code class="docutils literal notranslate"><span class="pre">from_attributes</span></code> argument to <a class="reference internal" href="api.html#msgspec.convert" title="msgspec.convert"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.convert</span></code></a> for allowing
+conversion between object types with matching attribute names. One use case
+for this is converting ORM objects to <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code></a> or <a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#module-dataclasses" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses</span></code></a> types
+(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/419">PR #419</a>).</p></li>
+<li><p>Support passing generic <code class="docutils literal notranslate"><span class="pre">Mapping</span></code> objects as inputs to <a class="reference internal" href="api.html#msgspec.convert" title="msgspec.convert"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.convert</span></code></a>.
+These may be coerced to <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a>/<a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code></a>/<a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#module-dataclasses" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses</span></code></a>/<a class="reference external" href="https://www.attrs.org/en/stable/api.html#module-attrs" title="(in attrs v23.1)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">attrs</span></code></a> types
+(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/427">PR #427</a>).</p></li>
+<li><p>Add a new <code class="docutils literal notranslate"><span class="pre">strict</span></code> keyword argument to all <code class="docutils literal notranslate"><span class="pre">decode</span></code> functions,
+<code class="docutils literal notranslate"><span class="pre">Decoder</span></code> classes, as well as <a class="reference internal" href="api.html#msgspec.convert" title="msgspec.convert"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.convert</span></code></a>. This defaults to <code class="docutils literal notranslate"><span class="pre">True</span></code>,
+setting it to false enables a wider set of coercion rules (e.g. coercing a
+<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">str</span></code></a> input to an <a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">int</span></code></a>). See <a class="reference internal" href="usage.html#strict-vs-lax"><span class="std std-ref">“Strict” vs “Lax” Mode</span></a> for more information
+(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/434">PR #434</a>).</p></li>
+<li><p>Support all <a class="reference internal" href="supported-types.html"><span class="doc">Supported Types</span></a> as inputs to <a class="reference internal" href="api.html#msgspec.convert" title="msgspec.convert"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.convert</span></code></a> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/431">PR #431</a>,
+<a class="reference external" href="https://github.com/jcrist/msgspec/pull/418">PR #418</a>).</p></li>
+<li><p>Passthrough input unchanged when coercing to <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.Any</span></code></a> type in
+<a class="reference internal" href="api.html#msgspec.convert" title="msgspec.convert"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.convert</span></code></a> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/435">PR #435</a>).</p></li>
+<li><p>Support parametrizing <code class="docutils literal notranslate"><span class="pre">Decoder</span></code> types at runtime (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/415">PR #415</a>).</p></li>
+<li><p>Support encoding subclasses of <code class="docutils literal notranslate"><span class="pre">UUID</span></code> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/429">PR #429</a>).</p></li>
+</ul>
+</section>
 <section id="version-0-15-1-2023-05-19">
 <h2>Version 0.15.1 (2023-05-19)<a class="headerlink" href="#version-0-15-1-2023-05-19" title="Permalink to this heading">#</a></h2>
 <ul class="simple">
@@ -711,6 +737,7 @@ faster decoding.</p></li>
           <div class="toc-tree">
             <ul>
 <li><a class="reference internal" href="#">Changelog</a><ul>
+<li><a class="reference internal" href="#version-0-16-0-2023-06-12">Version 0.16.0 (2023-06-12)</a></li>
 <li><a class="reference internal" href="#version-0-15-1-2023-05-19">Version 0.15.1 (2023-05-19)</a></li>
 <li><a class="reference internal" href="#version-0-15-0-2023-05-10">Version 0.15.0 (2023-05-10)</a></li>
 <li><a class="reference internal" href="#version-0-14-2-2023-04-19">Version 0.14.2 (2023-04-19)</a></li>
