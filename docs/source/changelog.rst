@@ -3,6 +3,31 @@ Changelog
 
 .. currentmodule:: msgspec
 
+Version 0.16.0 (2023-06-12)
+---------------------------
+
+- Deprecate ``msgspec.from_builtins`` in favor of `msgspec.convert`. The new
+  ``convert`` function provides a superset of the functionality available in
+  the old ``from_builtins`` function (:pr:`431`).
+- Add a ``from_attributes`` argument to `msgspec.convert` for allowing
+  conversion between object types with matching attribute names. One use case
+  for this is converting ORM objects to `Struct` or `dataclasses` types
+  (:pr:`419`).
+- Support passing generic ``Mapping`` objects as inputs to `msgspec.convert`.
+  These may be coerced to `dict`/`Struct`/`dataclasses`/`attrs` types
+  (:pr:`427`).
+- Add a new ``strict`` keyword argument to all ``decode`` functions,
+  ``Decoder`` classes, as well as `msgspec.convert`. This defaults to ``True``,
+  setting it to false enables a wider set of coercion rules (e.g. coercing a
+  `str` input to an `int`). See :ref:`strict-vs-lax` for more information
+  (:pr:`434`).
+- Support all :doc:`supported-types` as inputs to `msgspec.convert` (:pr:`431`,
+  :pr:`418`).
+- Passthrough input unchanged when coercing to `typing.Any` type in
+  `msgspec.convert` (:pr:`435`).
+- Support parametrizing ``Decoder`` types at runtime (:pr:`415`).
+- Support encoding subclasses of ``UUID`` (:pr:`429`).
+
 Version 0.15.1 (2023-05-19)
 ---------------------------
 
