@@ -5930,7 +5930,7 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
 
 
 PyDoc_STRVAR(msgspec_defstruct__doc__,
-"defstruct(name, fields, *, bases=(), module=None, namespace=None, "
+"defstruct(name, fields, *, bases=None, module=None, namespace=None, "
 "tag_field=None, tag=None, rename=None, omit_defaults=False, "
 "forbid_unknown_fields=False, frozen=False, eq=True, order=False, "
 "kw_only=False, repr_omit_defaults=False, array_like=False, gc=True, "
@@ -5986,8 +5986,8 @@ msgspec_defstruct(PyObject *self, PyObject *args, PyObject *kwargs)
 
     /* Parse arguments: (name, bases, dict) */
     if (!PyArg_ParseTupleAndKeywords(
-            args, kwargs, "UO|$O!UO!OOOppppppppppp:defstruct", kwlist,
-            &name, &fields, &PyTuple_Type, &bases, &module, &PyDict_Type, &namespace,
+            args, kwargs, "UO|$OOOOOOppppppppppp:defstruct", kwlist,
+            &name, &fields, &bases, &module, &namespace,
             &arg_tag_field, &arg_tag, &arg_rename,
             &arg_omit_defaults, &arg_forbid_unknown_fields,
             &arg_frozen, &arg_eq, &arg_order, &arg_kw_only,
@@ -5998,19 +5998,39 @@ msgspec_defstruct(PyObject *self, PyObject *args, PyObject *kwargs)
 
     MsgspecState *mod = msgspec_get_global_state();
 
-    namespace = (namespace == NULL) ? PyDict_New() : PyDict_Copy(namespace);
+    /* Handle namespace */
+    if (namespace == NULL || namespace == Py_None) {
+        namespace = PyDict_New();
+    }
+    else {
+        if (!PyDict_Check(namespace)) {
+            PyErr_SetString(PyExc_TypeError, "namespace must be a dict or None");
+            return NULL;
+        }
+        namespace = PyDict_Copy(namespace);
+    }
     if (namespace == NULL) return NULL;
 
-    if (module != NULL) {
+    /* Handle module */
+    if (module != NULL && module != Py_None) {
+        if (!PyUnicode_CheckExact(module)) {
+            PyErr_SetString(PyExc_TypeError, "module must be a str or None");
+            goto cleanup;
+        }
         if (PyDict_SetItemString(namespace, "__module__", module) < 0) goto cleanup;
     }
 
-    if (bases == NULL) {
+    /* Handle bases */
+    if (bases == NULL || bases == Py_None) {
         new_bases = PyTuple_New(1);
         if (new_bases == NULL) goto cleanup;
         Py_INCREF(mod->StructType);
         PyTuple_SET_ITEM(new_bases, 0, mod->StructType);
         bases = new_bases;
+    }
+    else if (!PyTuple_CheckExact(bases)) {
+        PyErr_SetString(PyExc_TypeError, "bases must be a tuple or None");
+        goto cleanup;
     }
 
     annotations = PyDict_New();

@@ -376,15 +376,18 @@ def check_defstruct_bases() -> None:
     class Base(msgspec.Struct):
         pass
 
-    Test = msgspec.defstruct("Test", ["x", "y"], bases=(Base,))
+    msgspec.defstruct("Test", ["x", "y"], bases=(Base,))
+    msgspec.defstruct("Test2", ["x", "y"], bases=None)
 
 
 def check_defstruct_namespace() -> None:
     msgspec.defstruct("Test", ["x", "y"], namespace={"classval": 1})
+    msgspec.defstruct("Test2", ["x", "y"], namespace=None)
 
 
 def check_defstruct_module() -> None:
     msgspec.defstruct("Test", ["x", "y"], module="mymod")
+    msgspec.defstruct("Test2", ["x", "y"], module=None)
 
 
 def check_defstruct_config_options() -> None:

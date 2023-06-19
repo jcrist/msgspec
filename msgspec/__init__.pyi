@@ -74,7 +74,7 @@ def defstruct(
     name: str,
     fields: Iterable[Union[str, Tuple[str, type], Tuple[str, type, Any]]],
     *,
-    bases: Tuple[Type[Struct], ...] = (),
+    bases: Optional[Tuple[Type[Struct], ...]] = None,
     module: Optional[str] = None,
     namespace: Optional[Dict[str, Any]] = None,
     tag: Union[None, bool, str, int, Callable[[str], Union[str, int]]] = None,
