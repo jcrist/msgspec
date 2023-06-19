@@ -1996,6 +1996,15 @@ class TestDefStruct:
         with pytest.raises(TypeError, match="items in `fields` must be one of"):
             defstruct("Test", ["x", (1, 2)])
 
+        with pytest.raises(TypeError, match="must be a tuple or None"):
+            defstruct("Test", [], bases=[])
+
+        with pytest.raises(TypeError, match="must be a str or None"):
+            defstruct("Test", [], module=1)
+
+        with pytest.raises(TypeError, match="must be a dict or None"):
+            defstruct("Test", [], namespace=1)
+
     def test_defstruct_bases(self):
         class Base(Struct):
             z: int
@@ -2006,9 +2015,18 @@ class TestDefStruct:
         assert as_tuple(Point(1, 2, 0)) == (1, 2, 0)
         assert as_tuple(Point(1, 2, 3)) == (1, 2, 3)
 
+    def test_defstruct_bases_none(self):
+        Point = defstruct("Point", ["x", "y"], bases=None)
+        assert Point.mro() == [Point, *Struct.mro()]
+        assert Point(1, 2) == Point(1, 2)
+
     def test_defstruct_module(self):
         Test = defstruct("Test", [], module="testmod")
         assert Test.__module__ == "testmod"
+
+    def test_defstruct_module_none(self):
+        Test = defstruct("Test", [], module=None)
+        assert Test.__module__ == "test_struct"
 
     def test_defstruct_namespace(self):
         Test = defstruct(
@@ -2016,6 +2034,10 @@ class TestDefStruct:
         )
         t = Test(1, 2)
         assert t.add() == 3
+
+    def test_defstruct_namespace_none(self):
+        Test = defstruct("Test", [], namespace=None)
+        assert Test() == Test()  # smoketest
 
     def test_defstruct_kw_only(self):
         Test = defstruct("Test", ["x", "y"], kw_only=True)
