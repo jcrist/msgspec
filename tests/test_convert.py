@@ -97,14 +97,36 @@ def KWList(**kwargs):
     return list(kwargs.values())
 
 
+class SubList(list):
+    pass
+
+
+class SubTuple(tuple):
+    pass
+
+
+class SubSet(set):
+    pass
+
+
+class SubFrozenSet(frozenset):
+    pass
+
+
+class SubDict(dict):
+    pass
+
+
 mapcls_and_from_attributes = pytest.mark.parametrize(
-    "mapcls, from_attributes", [(dict, False), (GetAttrObj, True), (GetItemObj, False)]
+    "mapcls, from_attributes",
+    [(dict, False), (SubDict, False), (GetAttrObj, True), (GetItemObj, False)],
 )
 
 mapcls_from_attributes_and_array_like = pytest.mark.parametrize(
     "mapcls, from_attributes, array_like",
     [
         (dict, False, False),
+        (SubDict, False, False),
         (KWList, False, True),
         (GetAttrObj, True, True),
         (GetAttrObj, True, False),
@@ -112,10 +134,29 @@ mapcls_from_attributes_and_array_like = pytest.mark.parametrize(
     ],
 )
 
+seq_in_type = pytest.mark.parametrize(
+    "in_type",
+    [
+        list,
+        tuple,
+        set,
+        frozenset,
+        SubList,
+        SubTuple,
+        SubSet,
+        SubFrozenSet,
+    ],
+)
 
-@pytest.fixture(params=["dict", "mapping"])
+
+@pytest.fixture(params=["dict", "subclass", "mapping"])
 def dictcls(request):
-    return dict if request.param == "dict" else GetItemObj
+    if request.param == "dict":
+        return dict
+    elif request.param == "subclass":
+        return SubDict
+    else:
+        return GetItemObj
 
 
 def assert_eq(x, y):
@@ -773,12 +814,12 @@ class TestSequences:
         msg = (1, 2, 3)
         assert convert(msg, Any) is msg
 
-    @pytest.mark.parametrize("in_type", [list, tuple, set, frozenset])
+    @seq_in_type
     @pytest.mark.parametrize("out_type", [list, tuple, set, frozenset])
     def test_empty_sequence(self, in_type, out_type):
         assert convert(in_type(), out_type) == out_type()
 
-    @pytest.mark.parametrize("in_type", [list, tuple, set, frozenset])
+    @seq_in_type
     @pytest.mark.parametrize(
         "out_type_annot",
         [(list, List), (tuple, Tuple), (set, Set), (frozenset, FrozenSet)],
@@ -796,7 +837,7 @@ class TestSequences:
         assert res == sol
         assert isinstance(res, out_type)
 
-    @pytest.mark.parametrize("in_type", [list, tuple, set, frozenset])
+    @seq_in_type
     @pytest.mark.parametrize(
         "out_annot", [List[int], Tuple[int, ...], Set[int], FrozenSet[int]]
     )
@@ -959,11 +1000,15 @@ class TestNamedTuple:
         class Ex2(NamedTuple):
             x: int
 
+        class Ex3(NamedTuple):
+            x: str
+
         msg = Ex1(1)
         assert convert(msg, Ex1) is msg
+        assert convert(msg, Ex2) == Ex2(1)
 
-        with pytest.raises(ValidationError, match="got `Ex1`"):
-            convert(msg, Ex2)
+        with pytest.raises(ValidationError, match="Expected `str`, got `int`"):
+            convert(msg, Ex3)
 
 
 class TestDict:
@@ -1542,7 +1587,7 @@ class TestStruct:
             b: int
 
         msg = mapcls(x=1, a=2, y=3, b=4, z=5)
-        if forbid_unknown_fields and mapcls is dict:
+        if forbid_unknown_fields and issubclass(mapcls, dict):
             with pytest.raises(ValidationError, match="unknown field `x`"):
                 convert(msg, Ex, from_attributes=from_attributes)
         else:
