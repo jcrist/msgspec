@@ -518,6 +518,19 @@ timezone-naive by specifying a <code class="docutils literal notranslate"><span 
 <span class="gr">msgspec.ValidationError</span>: <span class="n">Invalid RFC3339 encoded datetime</span>
 </pre></div>
 </div>
+<p>Additionally, if <code class="docutils literal notranslate"><span class="pre">strict=False</span></code> is specified, all protocols will decode ints,
+floats, or strings containing ints/floats as timezone-aware datetimes,
+interpreting the value as seconds since the epoch in UTC (a <a class="reference external" href="https://en.wikipedia.org/wiki/Unix_time">Unix Timestamp</a>). See <a class="reference internal" href="usage.html#strict-vs-lax"><span class="std std-ref">“Strict” vs “Lax” Mode</span></a> for
+more information.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;1617405490.000123&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="p">)</span>
+<span class="gt">Traceback (most recent call last):</span>
+  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+<span class="gr">msgspec.ValidationError</span>: <span class="n">Expected `datetime`, got `float`</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;1617405490.000123&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<span class="go">datetime.datetime(2021, 4, 2, 18, 18, 10, 123, tzinfo=datetime.timezone.utc)</span>
+</pre></div>
+</div>
 </section>
 <section id="date">
 <h2><code class="docutils literal notranslate"><span class="pre">date</span></code><a class="headerlink" href="#date" title="Permalink to this heading">#</a></h2>

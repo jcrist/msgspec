@@ -292,6 +292,23 @@ timezone-naive by specifying a ``tz`` constraint (see
       File "<stdin>", line 1, in <module>
     msgspec.ValidationError: Invalid RFC3339 encoded datetime
 
+
+Additionally, if ``strict=False`` is specified, all protocols will decode ints,
+floats, or strings containing ints/floats as timezone-aware datetimes,
+interpreting the value as seconds since the epoch in UTC (a `Unix Timestamp
+<https://en.wikipedia.org/wiki/Unix_time>`__). See :ref:`strict-vs-lax` for
+more information.
+
+.. code-block:: python
+
+    >>> msgspec.json.decode(b"1617405490.000123", type=datetime.datetime)
+    Traceback (most recent call last):
+      File "<stdin>", line 1, in <module>
+    msgspec.ValidationError: Expected `datetime`, got `float`
+
+    >>> msgspec.json.decode(b"1617405490.000123", type=datetime.datetime, strict=False)
+    datetime.datetime(2021, 4, 2, 18, 18, 10, 123, tzinfo=datetime.timezone.utc)
+
 ``date``
 --------
 
