@@ -59,6 +59,10 @@ ms_popcount(uint64_t i) {                            \
 /* Capacity of a list */
 #define LIST_CAPACITY(x) (((PyListObject *)x)->allocated)
 
+/* Get the raw items pointer for a list and tuple */
+#define LIST_ITEMS(x) (((PyListObject *)(x))->ob_item)
+#define TUPLE_ITEMS(x) (((PyTupleObject *)(x))->ob_item)
+
 /* Fast shrink of bytes & bytearray objects. This doesn't do any memory
  * allocations, it just shrinks the size of the view presented to Python. Since
  * outputs of `encode` should be short lived (immediately written to a
@@ -18241,10 +18245,10 @@ convert_seq_to_struct_array_union(
 }
 
 static PyObject *
-convert_seq(ConvertState *self, PyObject *obj, TypeNode *type, PathNode *path) {
-    PyObject **items = PySequence_Fast_ITEMS(obj);
-    Py_ssize_t size = PySequence_Fast_GET_SIZE(obj);
-
+convert_seq(
+    ConvertState *self, PyObject **items, Py_ssize_t size,
+    TypeNode *type, PathNode *path
+) {
     if (!ms_passes_array_constraints(size, type, path)) return NULL;
 
     if (type->types & MS_TYPE_LIST) {
@@ -18824,7 +18828,13 @@ convert_other(
         }
     }
 
-    /* No luck. Next try converting from a mapping or by attribute */
+    /* No luck. Next check if it's a tuple subclass (standard tuples are
+     * handled earlier), and if so try converting it as a sequence */
+    if (PyTuple_Check(obj)) {
+        return convert_seq(self, TUPLE_ITEMS(obj), PyTuple_GET_SIZE(obj), type, path);
+    }
+
+    /* Next try converting from a mapping or by attribute */
     bool is_mapping = PyMapping_Check(obj);
     if (is_mapping && type->types & MS_TYPE_DICT) {
         return convert_mapping_to_dict(self, obj, type, path);
@@ -18886,10 +18896,14 @@ convert(
     else if (pytype == &PyFloat_Type) {
         return convert_float(self, obj, type, path);
     }
-    else if (pytype == &PyList_Type || pytype == &PyTuple_Type) {
-        return convert_seq(self, obj, type, path);
+    else if (PyList_Check(obj)) {
+        return convert_seq(self, LIST_ITEMS(obj), PyList_GET_SIZE(obj), type, path);
     }
-    else if (pytype == &PyDict_Type) {
+    else if (pytype == &PyTuple_Type) {
+        /* Tuple subclasses are handled later on */
+        return convert_seq(self, TUPLE_ITEMS(obj), PyTuple_GET_SIZE(obj), type, path);
+    }
+    else if (PyDict_Check(obj)) {
         return convert_dict(self, obj, type, path);
     }
     else if (obj == Py_None) {
@@ -18910,9 +18924,6 @@ convert(
     else if (pytype == PyDateTimeAPI->DateType) {
         return convert_immutable(self, MS_TYPE_DATE, "date", obj, type, path);
     }
-    else if (pytype == &PySet_Type || pytype == &PyFrozenSet_Type) {
-        return convert_any_set(self, obj, type, path);
-    }
     else if (pytype == (PyTypeObject *)self->mod->UUIDType) {
         return convert_immutable(self, MS_TYPE_UUID, "uuid", obj, type, path);
     }
@@ -18924,6 +18935,9 @@ convert(
     }
     else if (pytype == &Ext_Type) {
         return convert_immutable(self, MS_TYPE_EXT, "ext", obj, type, path);
+    }
+    else if (PyAnySet_Check(obj)) {
+        return convert_any_set(self, obj, type, path);
     }
     else {
         return convert_other(self, obj, type, path);
