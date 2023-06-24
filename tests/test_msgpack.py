@@ -1476,6 +1476,20 @@ class TestTimestampExt:
         msg = b"\xc7\x0c\xff\x00\x00\x00\x00\x00\x00\x00\x04\x00\x00\x00\x00"
         self.check(dt, msg)
 
+    @pytest.mark.parametrize(
+        "msg, secs, micros",
+        [
+            (b"\xd7\xff\x00\x00\x07\xd0\x00\x00\x00\x00", 0, 1),
+            (b"\xd7\xff\x00\x00\x07\xcc\x00\x00\x00\x00", 0, 0),
+            (b"\xd7\xff\xeek 0\x00\x00\x00\x00", 1, 0),
+            (b"\xd7\xff\xeek ,\x00\x00\x00\x00", 0, 999999),
+        ],
+    )
+    def test_timestamp_rounds_nanos(self, msg, secs, micros):
+        res = msgspec.msgpack.decode(msg)
+        assert res.second == secs
+        assert res.microsecond == micros
+
 
 class CommonTypeTestBase:
     """Test msgspec untyped encode/decode"""

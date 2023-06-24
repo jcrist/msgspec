@@ -3334,6 +3334,59 @@ class TestLax:
             proto.decode(msg, type=typ, strict=False)
 
     @pytest.mark.parametrize(
+        "x",
+        [
+            1234.0000004,
+            1234.0000006,
+            1234.000567,
+            1234.567,
+            1234.0,
+            0.123,
+            0.0,
+            1234,
+            0,
+        ],
+    )
+    @pytest.mark.parametrize("sign", [-1, 1])
+    @pytest.mark.parametrize("transform", [None, str])
+    def test_lax_datetime(self, x, sign, transform, proto):
+        timestamp = x * sign
+        msg = proto.encode(transform(timestamp) if transform else timestamp)
+        sol = datetime.datetime.fromtimestamp(timestamp, UTC)
+        res = proto.decode(msg, type=datetime.datetime, strict=False)
+        assert res == sol
+
+    def test_lax_datetime_nonfinite_values(self, proto):
+        values = ["nan", "-inf", "inf"]
+        if proto is msgspec.msgpack:
+            values.extend([float(v) for v in values])
+        for val in values:
+            msg = proto.encode(val)
+            with pytest.raises(ValidationError, match="Invalid epoch timestamp"):
+                proto.decode(msg, type=datetime.datetime, strict=False)
+
+    @pytest.mark.parametrize("val", [-62135596801, 253402300801])
+    @pytest.mark.parametrize("type", [int, float, str])
+    def test_lax_datetime_out_of_range(self, val, type, proto):
+        msg = proto.encode(type(val))
+        with pytest.raises(ValidationError, match="out of range"):
+            proto.decode(msg, type=datetime.datetime, strict=False)
+
+    def test_lax_datetime_invalid_numeric_str(self, proto):
+        for bad in ["", "12e", "1234a", "1234-1", "1234.a"]:
+            msg = proto.encode(bad)
+            with pytest.raises(ValidationError, match="Invalid"):
+                proto.decode(msg, type=datetime.datetime, strict=False)
+
+    @pytest.mark.parametrize("val", [123, -123, 123.456, "123.456"])
+    def test_lax_datetime_naive_required(self, val, proto, Annotated):
+        msg = proto.encode(val)
+        with pytest.raises(ValidationError, match="no timezone component"):
+            proto.decode(
+                msg, type=Annotated[datetime.datetime, Meta(tz=False)], strict=False
+            )
+
+    @pytest.mark.parametrize(
         "x, sol",
         [
             ("1", 1),

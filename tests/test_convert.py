@@ -2086,6 +2086,53 @@ class TestLax:
             convert("x" * 20, typ, strict=False)
 
     @pytest.mark.parametrize(
+        "x",
+        [
+            1234.0000004,
+            1234.0000006,
+            1234.000567,
+            1234.567,
+            1234.0,
+            0.123,
+            0.0,
+            1234,
+            0,
+        ],
+    )
+    @pytest.mark.parametrize("sign", [-1, 1])
+    @pytest.mark.parametrize("transform", [None, str])
+    def test_lax_datetime(self, x, sign, transform):
+        timestamp = x * sign
+        msg = transform(timestamp) if transform else timestamp
+        sol = datetime.datetime.fromtimestamp(timestamp, UTC)
+        res = convert(msg, type=datetime.datetime, strict=False)
+        assert res == sol
+
+    def test_lax_datetime_nonfinite_values(self):
+        for msg in ["nan", "-inf", "inf", float("nan"), float("inf"), float("-inf")]:
+            with pytest.raises(ValidationError, match="Invalid epoch timestamp"):
+                convert(msg, type=datetime.datetime, strict=False)
+
+    @pytest.mark.parametrize("val", [-62135596801, 253402300801])
+    @pytest.mark.parametrize("type", [int, float, str])
+    def test_lax_datetime_out_of_range(self, val, type):
+        msg = type(val)
+        with pytest.raises(ValidationError, match="out of range"):
+            convert(msg, type=datetime.datetime, strict=False)
+
+    def test_lax_datetime_invalid_numeric_str(self):
+        for msg in ["", "12e", "1234a", "1234-1", "1234.a"]:
+            with pytest.raises(ValidationError, match="Invalid"):
+                convert(msg, type=datetime.datetime, strict=False)
+
+    @pytest.mark.parametrize("msg", [123, -123, 123.456, "123.456"])
+    def test_lax_datetime_naive_required(self, msg, Annotated):
+        with pytest.raises(ValidationError, match="no timezone component"):
+            convert(
+                msg, type=Annotated[datetime.datetime, Meta(tz=False)], strict=False
+            )
+
+    @pytest.mark.parametrize(
         "msg, sol",
         [
             ("1", 1),

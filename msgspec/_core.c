@@ -49,6 +49,8 @@ ms_popcount(uint64_t i) {                            \
 #define SET_SIZE(obj, size) Py_SET_SIZE(obj, size)
 #endif
 
+#define DIV_ROUND_CLOSEST(n, d) ((((n) < 0) == ((d) < 0)) ? (((n) + (d)/2)/(d)) : (((n) - (d)/2)/(d)))
+
 #define is_digit(c) (c >= '0' && c <= '9')
 
 /* Easy access to NoneType object */
@@ -9185,9 +9187,23 @@ static PyObject *
 datetime_from_epoch(
     int64_t epoch_secs, uint32_t epoch_nanos, TypeNode *type, PathNode *path
 ) {
-    int64_t days, secs, years;
-    int months, remdays, remsecs, remyears;
+    /* Error on out-of-bounds datetimes. This leaves ample space in an int, so
+     * no need to check for overflow later. */
+    if (epoch_secs < MS_EPOCH_SECS_MIN || epoch_secs > MS_EPOCH_SECS_MAX) {
+        return ms_error_with_path("Timestamp is out of range %U", path);
+    }
+
+    int64_t years, days, secs;
+    int micros, months, remdays, remsecs, remyears;
     int qc_cycles, c_cycles, q_cycles;
+
+    /* Round nanos to nearest microsecond, adjusting seconds as needed */
+    micros = DIV_ROUND_CLOSEST(epoch_nanos, 1000);
+    if (micros == 1000000) {
+        micros = 0;
+        epoch_secs++;
+    }
+
     /* Start in Mar not Jan, so leap day is on end */
     static const char days_in_month[] = {31, 30, 31, 30, 31, 31, 30, 31, 30, 31, 31, 29};
 
@@ -9237,7 +9253,7 @@ datetime_from_epoch(
         remsecs / 3600,
         remsecs / 60 % 60,
         remsecs % 60,
-        epoch_nanos / 1000,
+        micros,
         PyDateTime_TimeZone_UTC,
         PyDateTimeAPI->DateTimeType
     );
@@ -9534,7 +9550,69 @@ error:
 }
 
 static PyObject *
-ms_decode_datetime(const char *buf, Py_ssize_t size, TypeNode *type, PathNode *path) {
+ms_decode_datetime_from_int64(
+    int64_t timestamp, TypeNode *type, PathNode *path
+) {
+    return datetime_from_epoch(timestamp, 0, type, path);
+}
+
+static PyObject *
+ms_decode_datetime_from_uint64(
+    uint64_t timestamp, TypeNode *type, PathNode *path
+) {
+    if (timestamp > LLONG_MAX) {
+        timestamp = LLONG_MAX; /* will raise out of range error later */
+    }
+    return datetime_from_epoch((int64_t)timestamp, 0, type, path);
+}
+
+static PyObject *
+ms_decode_datetime_from_float(
+    double timestamp, TypeNode *type, PathNode *path
+) {
+    if (MS_UNLIKELY(!isfinite(timestamp))) {
+        return ms_error_with_path("Invalid epoch timestamp%U", path);
+    }
+    int64_t secs = trunc(timestamp);
+    int32_t nanos = 1000000000 * (timestamp - secs);
+    if (nanos && timestamp < 0) {
+        secs--;
+        nanos += 1000000000;
+    }
+    return datetime_from_epoch(secs, nanos, type, path);
+}
+
+static PyObject *
+ms_decode_datetime_from_pyint(PyObject *obj, TypeNode *type, PathNode *path)
+{
+    bool overflow, neg;
+    uint64_t ux;
+    int64_t seconds;
+    overflow = fast_long_extract_parts(obj, &neg, &ux);
+    if (overflow || ux > LLONG_MAX) {
+        seconds = LLONG_MAX;
+    }
+    else {
+        seconds = ux;
+        if (neg) {
+            seconds *= -1;
+        }
+    }
+    return datetime_from_epoch(seconds, 0, type, path);
+}
+
+static PyObject *
+ms_decode_datetime_from_pyfloat(PyObject *obj, TypeNode *type, PathNode *path)
+{
+    return ms_decode_datetime_from_float(PyFloat_AS_DOUBLE(obj), type, path);
+}
+
+static PyObject *
+ms_decode_datetime_from_str(
+    const char *buf, Py_ssize_t size,
+    TypeNode *type, PathNode *path,
+    bool strict
+) {
     int year, month, day, hour, minute, second, microsecond = 0;
     const char *buf_end = buf + size;
     bool round_up_micros = false;
@@ -9542,11 +9620,11 @@ ms_decode_datetime(const char *buf, Py_ssize_t size, TypeNode *type, PathNode *p
     char c;
 
     /* A valid datetime is at least 19 characters in length */
-    if (size < 19) goto invalid;
+    if (size < 19) goto maybe_timestamp;
 
     /* Parse date */
-    if ((buf = ms_read_fixint(buf, 4, &year)) == NULL) goto invalid;
-    if (*buf++ != '-') goto invalid;
+    if ((buf = ms_read_fixint(buf, 4, &year)) == NULL) goto maybe_timestamp;
+    if (*buf++ != '-') goto maybe_timestamp;
     if ((buf = ms_read_fixint(buf, 2, &month)) == NULL) goto invalid;
     if (*buf++ != '-') goto invalid;
     if ((buf = ms_read_fixint(buf, 2, &day)) == NULL) goto invalid;
@@ -9670,6 +9748,20 @@ end_decimal:
     );
     Py_XDECREF(tz);
     return out;
+
+maybe_timestamp:
+    if (!strict) {
+        /* TODO: with some refactoring, we should be able to use our own str ->
+         * float routine rather than relying on CPython's */
+        PyObject *temp = PyBytes_FromStringAndSize(buf, size);
+        if (temp == NULL) goto error;
+        PyObject *timestamp = PyFloat_FromString(temp);
+        Py_DECREF(temp);
+        if (timestamp == NULL) goto invalid;
+        PyObject *out = ms_decode_datetime_from_pyfloat(timestamp, type, path);
+        Py_DECREF(timestamp);
+        return out;
+    }
 
 invalid:
     ms_error_with_path("Invalid RFC3339 encoded datetime%U", path);
@@ -12217,7 +12309,6 @@ mpack_decode_datetime(
     uint64_t data64;
     uint32_t nanoseconds;
     int64_t seconds;
-    char *err_msg;
 
     switch (size) {
         case 4:
@@ -12234,24 +12325,19 @@ mpack_decode_datetime(
             seconds = _msgspec_load64(uint64_t, data_buf + 4);
             break;
         default:
-            err_msg = "Invalid MessagePack timestamp%U";
-            goto invalid;
+            return ms_error_with_path(
+                "Invalid MessagePack timestamp%U",
+                path
+            );
     }
 
     if (nanoseconds > 999999999) {
-        err_msg = "Invalid MessagePack timestamp: nanoseconds out of range%U";
-        goto invalid;
-    }
-    /* Error on out-of-bounds datetimes. This leaves ample space in an int, so
-     * no need to check for overflow later. */
-    if (seconds < MS_EPOCH_SECS_MIN || seconds > MS_EPOCH_SECS_MAX) {
-        err_msg = "Timestamp is out of range%U";
-        goto invalid;
+        return ms_error_with_path(
+            "Invalid MessagePack timestamp: nanoseconds out of range%U",
+            path
+        );
     }
     return datetime_from_epoch(seconds, nanoseconds, type, path);
-
-invalid:
-    return ms_error_with_path(err_msg, path);
 }
 
 static int mpack_skip(DecoderState *self);
@@ -12377,28 +12463,34 @@ static PyObject * mpack_decode(
 
 static PyObject *
 mpack_decode_int(DecoderState *self, int64_t x, TypeNode *type, PathNode *path) {
-    if (type->types & (MS_TYPE_INTENUM | MS_TYPE_INTLITERAL)) {
-        return ms_decode_int_enum_or_literal_int64(x, type, path);
-    }
-    else if (type->types & (MS_TYPE_ANY | MS_TYPE_INT)) {
+    if (type->types & (MS_TYPE_ANY | MS_TYPE_INT)) {
         return ms_decode_int(x, type, path);
+    }
+    else if (type->types & (MS_TYPE_INTENUM | MS_TYPE_INTLITERAL)) {
+        return ms_decode_int_enum_or_literal_int64(x, type, path);
     }
     else if (type->types & MS_TYPE_FLOAT) {
         return ms_decode_float(x, type, path);
+    }
+    else if (!self->strict && (type->types & MS_TYPE_DATETIME)) {
+        return ms_decode_datetime_from_int64(x, type, path);
     }
     return ms_validation_error("int", type, path);
 }
 
 static PyObject *
 mpack_decode_uint(DecoderState *self, uint64_t x, TypeNode *type, PathNode *path) {
-    if (type->types & (MS_TYPE_INTENUM | MS_TYPE_INTLITERAL)) {
-        return ms_decode_int_enum_or_literal_uint64(x, type, path);
-    }
-    else if (type->types & (MS_TYPE_ANY | MS_TYPE_INT)) {
+    if (type->types & (MS_TYPE_ANY | MS_TYPE_INT)) {
         return ms_decode_uint(x, type, path);
+    }
+    else if (type->types & (MS_TYPE_INTENUM | MS_TYPE_INTLITERAL)) {
+        return ms_decode_int_enum_or_literal_uint64(x, type, path);
     }
     else if (type->types & MS_TYPE_FLOAT) {
         return ms_decode_float(x, type, path);
+    }
+    else if (!self->strict && (type->types & MS_TYPE_DATETIME)) {
+        return ms_decode_datetime_from_uint64(x, type, path);
     }
     return ms_validation_error("int", type, path);
 }
@@ -12422,9 +12514,12 @@ mpack_decode_bool(DecoderState *self, PyObject *val, TypeNode *type, PathNode *p
 }
 
 static PyObject *
-mpack_decode_float(DecoderState *self, double val, TypeNode *type, PathNode *path) {
+mpack_decode_float(DecoderState *self, double x, TypeNode *type, PathNode *path) {
     if (type->types & (MS_TYPE_ANY | MS_TYPE_FLOAT)) {
-        return ms_decode_float(val, type, path);
+        return ms_decode_float(x, type, path);
+    }
+    else if (!self->strict && (type->types & MS_TYPE_DATETIME)) {
+        return ms_decode_datetime_from_float(x, type, path);
     }
     return ms_validation_error("float", type, path);
 }
@@ -12449,7 +12544,7 @@ mpack_decode_str(DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *
         return ms_decode_str_enum_or_literal(s, size, type, path);
     }
     else if (MS_UNLIKELY(type->types & MS_TYPE_DATETIME)) {
-        return ms_decode_datetime(s, size, type, path);
+        return ms_decode_datetime_from_str(s, size, type, path, self->strict);
     }
     else if (MS_UNLIKELY(type->types & MS_TYPE_DATE)) {
         return ms_decode_date(s, size, path);
@@ -14558,7 +14653,7 @@ json_decode_string(JSONDecoderState *self, TypeNode *type, PathNode *path) {
         return ms_check_str_constraints(out, type, path);
     }
     else if (MS_UNLIKELY(type->types & MS_TYPE_DATETIME)) {
-        return ms_decode_datetime(view, size, type, path);
+        return ms_decode_datetime_from_str(view, size, type, path, self->strict);
     }
     else if (MS_UNLIKELY(type->types & MS_TYPE_DATE)) {
         return ms_decode_date(view, size, path);
@@ -14583,6 +14678,7 @@ json_decode_string(JSONDecoderState *self, TypeNode *type, PathNode *path) {
 
 static PyObject *
 json_decode_dict_key_fallback(
+    JSONDecoderState *self,
     const char *view, Py_ssize_t size, bool is_ascii, TypeNode *type, PathNode *path
 ) {
     if (type->types & (MS_TYPE_STR | MS_TYPE_ANY)) {
@@ -14607,7 +14703,7 @@ json_decode_dict_key_fallback(
         return ms_decode_uuid(view, size, path);
     }
     else if (type->types & MS_TYPE_DATETIME) {
-        return ms_decode_datetime(view, size, type, path);
+        return ms_decode_datetime_from_str(view, size, type, path, self->strict);
     }
     else if (type->types & MS_TYPE_DATE) {
         return ms_decode_date(view, size, path);
@@ -14638,7 +14734,7 @@ json_decode_dict_key(JSONDecoderState *self, TypeNode *type, PathNode *path) {
 
     bool cacheable = is_str && is_ascii && size > 0 && size <= STRING_CACHE_MAX_STRING_LENGTH;
     if (MS_UNLIKELY(!cacheable)) {
-        return json_decode_dict_key_fallback(view, size, is_ascii, type, path);
+        return json_decode_dict_key_fallback(self, view, size, is_ascii, type, path);
     }
 
     uint32_t hash = murmur2(view, size);
@@ -15879,6 +15975,51 @@ json_decode_object(
     return ms_validation_error("object", type, path);
 }
 
+static PyObject *
+json_decode_int(JSONDecoderState *self, int64_t x, TypeNode *type, PathNode *path) {
+    if (type->types & (MS_TYPE_ANY | MS_TYPE_INT)) {
+        return ms_decode_int(x, type, path);
+    }
+    else if (type->types & (MS_TYPE_INTENUM | MS_TYPE_INTLITERAL)) {
+        return ms_decode_int_enum_or_literal_int64(x, type, path);
+    }
+    else if (type->types & MS_TYPE_FLOAT) {
+        return ms_decode_float(x, type, path);
+    }
+    else if (!self->strict && (type->types & MS_TYPE_DATETIME)) {
+        return ms_decode_datetime_from_int64(x, type, path);
+    }
+    return ms_validation_error("int", type, path);
+}
+
+static PyObject *
+json_decode_uint(JSONDecoderState *self, uint64_t x, TypeNode *type, PathNode *path) {
+    if (type->types & (MS_TYPE_ANY | MS_TYPE_INT)) {
+        return ms_decode_uint(x, type, path);
+    }
+    else if (type->types & (MS_TYPE_INTENUM | MS_TYPE_INTLITERAL)) {
+        return ms_decode_int_enum_or_literal_uint64(x, type, path);
+    }
+    else if (type->types & MS_TYPE_FLOAT) {
+        return ms_decode_float(x, type, path);
+    }
+    else if (!self->strict && (type->types & MS_TYPE_DATETIME)) {
+        return ms_decode_datetime_from_uint64(x, type, path);
+    }
+    return ms_validation_error("int", type, path);
+}
+
+static PyObject *
+json_decode_float(JSONDecoderState *self, double x, TypeNode *type, PathNode *path) {
+    if (type->types & (MS_TYPE_ANY | MS_TYPE_FLOAT)) {
+        return ms_decode_float(x, type, path);
+    }
+    else if (!self->strict && (type->types & MS_TYPE_DATETIME)) {
+        return ms_decode_datetime_from_float(x, type, path);
+    }
+    return ms_validation_error("float", type, path);
+}
+
 static MS_NOINLINE PyObject *
 json_decode_extended_float(JSONDecoderState *self, TypeNode *type, PathNode *path) {
     uint32_t nd = 0;
@@ -16001,7 +16142,7 @@ json_decode_extended_float(JSONDecoderState *self, TypeNode *type, PathNode *pat
     if (Py_IS_INFINITY(res)) {
         return ms_error_with_path("Number out of range%U", path);
     }
-    return ms_decode_float(res, type, path);
+    return json_decode_float(self, res, type, path);
 }
 
 static PyObject *
@@ -16133,30 +16274,18 @@ end_integer:
     }
 
     if (!is_float) {
-        if (MS_LIKELY(type->types & (MS_TYPE_ANY | MS_TYPE_INT))) {
-            if (is_negative) {
-                return ms_decode_int(-1 * (int64_t)mantissa, type, path);
-            }
-            return ms_decode_uint(mantissa, type, path);
+        if (is_negative) {
+            return json_decode_int(self, -1 * (int64_t)mantissa, type, path);
         }
-        else if (MS_UNLIKELY(type->types & (MS_TYPE_INTENUM | MS_TYPE_INTLITERAL))) {
-            if (is_negative) {
-                return ms_decode_int_enum_or_literal_int64(-1 * (int64_t)mantissa, type, path);
-            }
-            return ms_decode_int_enum_or_literal_uint64(mantissa, type, path);
-        }
+        return json_decode_uint(self, mantissa, type, path);
     }
-    if (type->types & (MS_TYPE_ANY | MS_TYPE_FLOAT)) {
+    else {
         double val;
         if (MS_UNLIKELY(!reconstruct_double(mantissa, exponent, is_negative, &val))) {
             goto fallback_extended;
         }
-        return ms_decode_float(val, type, path);
+        return json_decode_float(self, val, type, path);
     }
-    if (!is_float) {
-        return ms_validation_error("int", type, path);
-    }
-    return ms_validation_error("float", type, path);
 
 fallback_extended:
     self->input_pos = initial_pos;
@@ -17506,6 +17635,7 @@ typedef struct ConvertState {
     uint32_t builtin_types;
     bool str_keys;
     bool from_attributes;
+    bool strict;
     PyObject* (*convert_str)(
         struct ConvertState*, PyObject*, bool, TypeNode*, PathNode*
     );
@@ -17526,6 +17656,9 @@ convert_int(
     else if (type->types & MS_TYPE_FLOAT) {
         return ms_decode_float(PyLong_AsDouble(obj), type, path);
     }
+    else if (!self->strict && (type->types & MS_TYPE_DATETIME)) {
+        return ms_decode_datetime_from_pyint(obj, type, path);
+    }
     return ms_validation_error("int", type, path);
 }
 
@@ -17536,6 +17669,9 @@ convert_float(
     if (type->types & MS_TYPE_FLOAT) {
         Py_INCREF(obj);
         return ms_check_float_constraints(obj, type, path);
+    }
+    else if (!self->strict && (type->types & MS_TYPE_DATETIME)) {
+        return ms_decode_datetime_from_pyfloat(obj, type, path);
     }
     return ms_validation_error("float", type, path);
 }
@@ -17574,7 +17710,7 @@ convert_str_uncommon(
         (type->types & MS_TYPE_DATETIME)
         && !(self->builtin_types & MS_BUILTIN_DATETIME)
     ) {
-        return ms_decode_datetime(view, size, type, path);
+        return ms_decode_datetime_from_str(view, size, type, path, self->strict);
     }
     else if (
         (type->types & MS_TYPE_DATE)
@@ -18882,6 +19018,7 @@ msgspec_convert(PyObject *self, PyObject *args, PyObject *kwargs)
     state.mod = msgspec_get_global_state();
     state.builtin_types = 0;
     state.from_attributes = from_attributes;
+    state.strict = strict;
     if (strict) {
         state.convert_str = &(convert_str_strict);
         state.str_keys = str_keys;
