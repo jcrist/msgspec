@@ -1840,6 +1840,13 @@ class TestDict:
         with pytest.raises(msgspec.ValidationError, match="Invalid enum value 3"):
             dec.decode(b'{"-1": 10, "3": 20}')
 
+    def test_encode_dict_str_subclass_key(self):
+        class mystr(str):
+            pass
+
+        msg = msgspec.json.encode({mystr("test"): 1})
+        assert msg == b'{"test":1}'
+
     @pytest.mark.parametrize(
         "s, error",
         [
