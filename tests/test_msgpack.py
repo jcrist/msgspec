@@ -1026,6 +1026,14 @@ class TestTypedDecoder:
         ):
             dec.decode(enc.encode({1: 2}))
 
+    def test_dict_str_subclass_key(self):
+        class mystr(str):
+            pass
+
+        msg1 = msgspec.msgpack.encode({mystr("test"): 1})
+        msg2 = msgspec.msgpack.encode({"test": 1})
+        assert msg1 == msg2
+
     def test_dict_typed(self):
         enc = msgspec.msgpack.Encoder()
         dec = msgspec.msgpack.Decoder(Dict[str, int])

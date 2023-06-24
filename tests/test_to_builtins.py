@@ -262,6 +262,14 @@ class TestToBuiltins:
         res = to_builtins(in_type())
         assert res == {}
 
+    def test_dict_str_subclass_key(self):
+        class mystr(str):
+            pass
+
+        msg = to_builtins({mystr("test"): 1})
+        assert msg == {"test": 1}
+        assert type(list(msg.keys())[0]) is str
+
     def test_dict_unsupported_key(self):
         msg = {Bad(): 1}
         with pytest.raises(TypeError, match="Encoding objects of type Bad"):

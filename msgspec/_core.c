@@ -10174,6 +10174,7 @@ enum mpack_code {
 };
 
 static int mpack_encode_inline(EncoderState *self, PyObject *obj);
+static int mpack_encode_dict_key_inline(EncoderState *self, PyObject *obj);
 static int mpack_encode(EncoderState *self, PyObject *obj);
 
 static int
@@ -10532,7 +10533,7 @@ mpack_encode_dict(EncoderState *self, PyObject *obj)
     if (len == 0) return 0;
     if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
     while (PyDict_Next(obj, &pos, &key, &val)) {
-        if (mpack_encode_inline(self, key) < 0) goto error;
+        if (mpack_encode_dict_key_inline(self, key) < 0) goto error;
         if (mpack_encode_inline(self, val) < 0) goto error;
     }
     status = 0;
@@ -11004,6 +11005,31 @@ mpack_encode_inline(EncoderState *self, PyObject *obj)
     PyTypeObject *type = Py_TYPE(obj);
 
     if (type == &PyUnicode_Type) {
+        return mpack_encode_str(self, obj);
+    }
+    else if (type == &PyLong_Type) {
+        return mpack_encode_long(self, obj);
+    }
+    else if (type == &PyFloat_Type) {
+        return mpack_encode_float(self, obj);
+    }
+    else if (PyList_Check(obj)) {
+        return mpack_encode_list(self, obj);
+    }
+    else if (PyDict_Check(obj)) {
+        return mpack_encode_dict(self, obj);
+    }
+    else {
+        return mpack_encode_uncommon(self, type, obj);
+    }
+}
+
+static MS_INLINE int
+mpack_encode_dict_key_inline(EncoderState *self, PyObject *obj)
+{
+    PyTypeObject *type = Py_TYPE(obj);
+
+    if (PyUnicode_Check(obj)) {
         return mpack_encode_str(self, obj);
     }
     else if (type == &PyLong_Type) {
@@ -11555,7 +11581,7 @@ json_encode_dict(EncoderState *self, PyObject *obj)
     if (ms_write(self, "{", 1) < 0) return -1;
     if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
     while (PyDict_Next(obj, &pos, &key, &val)) {
-        if (MS_LIKELY(PyUnicode_CheckExact(key))) {
+        if (MS_LIKELY(PyUnicode_Check(key))) {
             if (json_encode_str(self, key) < 0) goto cleanup;
         }
         else {
@@ -17459,6 +17485,9 @@ to_builtins(ToBuiltinsState *self, PyObject *obj, bool is_key) {
     }
     else if (Py_TYPE(type) == self->mod->EnumMetaType) {
         return to_builtins_enum(self, obj);
+    }
+    else if (is_key & PyUnicode_Check(obj)) {
+        return PyObject_Str(obj);
     }
     else if (PyType_IsSubtype(type, (PyTypeObject *)(self->mod->UUIDType))) {
         if (self->builtin_types & MS_BUILTIN_UUID) goto builtin;
