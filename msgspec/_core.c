@@ -11432,7 +11432,7 @@ json_encode_decimal(EncoderState *self, PyObject *obj)
 {
     PyObject *str = PyObject_Str(obj);
     if (str == NULL) return -1;
-    int out = json_encode_str(self, str);
+    int out = json_encode_str_nocheck(self, str);
     Py_DECREF(str);
     return out;
 }
