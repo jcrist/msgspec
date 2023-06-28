@@ -595,6 +595,40 @@ class TestStrings:
     def test_encode_str(self, decoded, encoded):
         assert msgspec.json.encode(decoded) == encoded
 
+    @pytest.mark.parametrize("length", [*range(1, 17), 25, 33, 63, 255])
+    @pytest.mark.parametrize("esc1", ["\n", "\x01"])
+    @pytest.mark.parametrize("esc2", ["\n", "\x01"])
+    @pytest.mark.parametrize("adjacent", [False, True])
+    def test_encode_str_unroll_escapes(self, length, esc1, esc2, adjacent):
+        """Exercise all the branches in the unrolled loops in the JSON str
+        encoding functions"""
+        base = list(itertools.islice(itertools.cycle(string.ascii_letters), length))
+        if adjacent:
+
+            def gen():
+                for i in range(length - 1):
+                    s = base.copy()
+                    s[i] = esc1
+                    s[i + 1] = esc2
+                    yield "".join(s)
+
+        else:
+
+            def gen():
+                for i in range(length):
+                    s = base.copy()
+                    s[i] = esc1
+                    if i + 2 < length:
+                        s[i + 2] = esc2
+                    else:
+                        s[0] = esc2
+                    yield "".join(s)
+
+        for s in gen():
+            sol = json.dumps(s, ensure_ascii=False).encode("utf-8")
+            res = msgspec.json.encode(s)
+            assert res == sol
+
     @pytest.mark.parametrize("decoded, encoded", STRINGS)
     def test_decode_str(self, decoded, encoded):
         assert msgspec.json.decode(encoded) == decoded
