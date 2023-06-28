@@ -52,6 +52,9 @@ ms_popcount(uint64_t i) {                            \
 
 #define DIV_ROUND_CLOSEST(n, d) ((((n) < 0) == ((d) < 0)) ? (((n) + (d)/2)/(d)) : (((n) - (d)/2)/(d)))
 
+/* These macros are used to manually unroll some loops */
+#define repeat8(x) { x(0) x(1) x(2) x(3) x(4) x(5) x(6) x(7) }
+
 #define is_digit(c) (c >= '0' && c <= '9')
 
 /* Easy access to NoneType object */
@@ -8245,7 +8248,7 @@ ms_resize(EncoderState *self, Py_ssize_t size)
 static MS_INLINE int
 ms_ensure_space(EncoderState *self, Py_ssize_t size) {
     Py_ssize_t required = self->output_len + size;
-    if (required > self->max_output_len) {
+    if (MS_UNLIKELY(required > self->max_output_len)) {
         return ms_resize(self, required);
     }
     return 0;
@@ -11263,54 +11266,78 @@ json_str_requires_escaping(PyObject *obj) {
     return 0;
 }
 
-/* GCC generates better code if the uncommon path in the str encoding loop is
- * pulled out into a separate function. Clang generates the same code either
- * way. */
-static MS_NOINLINE int
-json_write_str_fragment(
-    EncoderState *self, const char *buf, Py_ssize_t start, Py_ssize_t i, char c, char escape
-) {
-    if (MS_LIKELY(start < i)) {
-        if (MS_UNLIKELY(ms_write(self, buf + start, i - start) < 0)) return -1;
-    }
-
-    /* Write the escaped character */
-    char escaped[6] = {'\\', escape, '0', '0'};
-    if (MS_UNLIKELY(escape == 'u')) {
-        escaped[4] = hex_encode_table[c >> 4];
-        escaped[5] = hex_encode_table[c & 0xF];
-        if (MS_UNLIKELY(ms_write(self, escaped, 6) < 0)) return -1;
-    }
-    else {
-        if (MS_UNLIKELY(ms_write(self, escaped, 2) < 0)) return -1;
-    }
-    return i + 1;
-}
-
 static MS_NOINLINE int
 json_encode_str(EncoderState *self, PyObject *obj) {
-    Py_ssize_t i, len, start = 0;
-    const char* buf = unicode_str_and_size(obj, &len);
-    if (buf == NULL) return -1;
+    Py_ssize_t len;
+    const char* src = unicode_str_and_size(obj, &len);
+    if (src == NULL) return -1;
+    const char* src_end = src + len;
 
-    if (ms_write(self, "\"", 1) < 0) return -1;
+    if (ms_ensure_space(self, len + 2) < 0) return -1;
 
-    for (i = 0; i < len; i++) {
-        /* Scan through until a character needs to be escaped */
-        char c = buf[i];
+    char *out = self->output_buffer_raw + self->output_len;
+    char *out_end = self->output_buffer_raw + self->max_output_len;
+    *out++ = '"';
+
+noescape:
+
+#define write_ascii_pre(i) \
+    if (MS_UNLIKELY(escape_table[(uint8_t)src[i]])) goto write_ascii_##i;
+
+#define write_ascii_post(i) \
+    write_ascii_##i: \
+    memcpy(out, src, i); \
+    out += i; \
+    src += i; \
+    goto escape;
+
+    while (src_end - src >= 8) {
+        repeat8(write_ascii_pre);
+        memcpy(out, src, 8);
+        out += 8;
+        src += 8;
+    }
+
+    while (MS_LIKELY(src_end > src)) {
+        write_ascii_pre(0);
+        *out++ = *src++;
+    }
+
+    *out++ = '"';
+    self->output_len = out - self->output_buffer_raw;
+    return 0;
+
+repeat8(write_ascii_post);
+
+escape:
+    {
+        char c = *src++;
         char escape = escape_table[(uint8_t)c];
-        if (MS_UNLIKELY(escape != 0)) {
-            if (MS_UNLIKELY((start = json_write_str_fragment(self, buf, start, i, c, escape)) < 0)) {
-                return -1;
-            }
-        }
-    }
-    /* Write the last unescaped fragment (if any) */
-    if (start != len) {
-        if (ms_write(self, buf + start, i - start) < 0) return -1;
-    }
 
-    return ms_write(self, "\"", 1);
+        /* Ensure enough space for the escape, final quote, and any remaining characters */
+        Py_ssize_t remaining = 7 + src_end - src;
+        if (MS_UNLIKELY(remaining > out_end - out)) {
+            Py_ssize_t output_len = out - self->output_buffer_raw;
+            if (MS_UNLIKELY(ms_resize(self, remaining + output_len) < 0)) return -1;
+            out = self->output_buffer_raw + output_len;
+            out_end = self->output_buffer_raw + self->max_output_len;
+        }
+
+        /* Write the escaped character */
+        char escaped[6] = {'\\', escape, '0', '0'};
+        if (MS_UNLIKELY(escape == 'u')) {
+            escaped[4] = hex_encode_table[c >> 4];
+            escaped[5] = hex_encode_table[c & 0xF];
+            memcpy(out, escaped, 6);
+            out += 6;
+        }
+        else {
+            memcpy(out, escaped, 2);
+            out += 2;
+        }
+
+        goto noescape;
+    }
 }
 
 static int
@@ -14275,9 +14302,6 @@ json_handle_unicode_escape(JSONDecoderState *self) {
     return 0;
 }
 
-/* These macros are used to manually unroll some ascii scanning loops below */
-#define repeat8(x)  { x(0) x(1) x(2) x(3) x(4) x(5) x(6) x(7) }
-
 #define parse_ascii_pre(i) \
     if (MS_UNLIKELY(char_is_special_or_nonascii(self->input_pos[i]))) goto parse_ascii_##i;
 
@@ -14555,8 +14579,6 @@ parse_unicode_end:
     }
 }
 
-
-#undef repeat8
 #undef parse_ascii_pre
 #undef parse_ascii_post
 #undef parse_unicode_pre
