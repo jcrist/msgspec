@@ -30,6 +30,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "common.h"
+#include "itoa.h"
+
 #define DOUBLE_MANTISSA_BITS 52
 #define DOUBLE_EXPONENT_BITS 11
 #define DOUBLE_BIAS 1023
@@ -39,19 +42,6 @@
 
 #define DOUBLE_POW5_INV_TABLE_SIZE 342
 #define DOUBLE_POW5_TABLE_SIZE 326
-
-static const char DIGIT_TABLE[200] = {
-  '0','0','0','1','0','2','0','3','0','4','0','5','0','6','0','7','0','8','0','9',
-  '1','0','1','1','1','2','1','3','1','4','1','5','1','6','1','7','1','8','1','9',
-  '2','0','2','1','2','2','2','3','2','4','2','5','2','6','2','7','2','8','2','9',
-  '3','0','3','1','3','2','3','3','3','4','3','5','3','6','3','7','3','8','3','9',
-  '4','0','4','1','4','2','4','3','4','4','4','5','4','6','4','7','4','8','4','9',
-  '5','0','5','1','5','2','5','3','5','4','5','5','5','6','5','7','5','8','5','9',
-  '6','0','6','1','6','2','6','3','6','4','6','5','6','6','6','7','6','8','6','9',
-  '7','0','7','1','7','2','7','3','7','4','7','5','7','6','7','7','7','8','7','9',
-  '8','0','8','1','8','2','8','3','8','4','8','5','8','6','8','7','8','8','8','9',
-  '9','0','9','1','9','2','9','3','9','4','9','5','9','6','9','7','9','8','9','9'
-};
 
 static const uint64_t DOUBLE_POW5_INV_SPLIT[DOUBLE_POW5_INV_TABLE_SIZE][2] = {
   {                    1u, 2305843009213693952u }, { 11068046444225730970u, 1844674407370955161u },
@@ -725,31 +715,6 @@ static inline uint64_t double_to_bits(const double d) {
   return bits;
 }
 
-static inline uint32_t decimalLength17(const uint64_t v) {
-  // This is slightly faster than a loop.
-  // The average output length is 16.38 digits, so we check high-to-low.
-  // Function precondition: v is not an 18, 19, or 20-digit number.
-  // (17 digits are sufficient for round-tripping.)
-  assert(v < 100000000000000000L);
-  if (v >= 10000000000000000L) { return 17; }
-  if (v >= 1000000000000000L) { return 16; }
-  if (v >= 100000000000000L) { return 15; }
-  if (v >= 10000000000000L) { return 14; }
-  if (v >= 1000000000000L) { return 13; }
-  if (v >= 100000000000L) { return 12; }
-  if (v >= 10000000000L) { return 11; }
-  if (v >= 1000000000L) { return 10; }
-  if (v >= 100000000L) { return 9; }
-  if (v >= 10000000L) { return 8; }
-  if (v >= 1000000L) { return 7; }
-  if (v >= 100000L) { return 6; }
-  if (v >= 10000L) { return 5; }
-  if (v >= 1000L) { return 4; }
-  if (v >= 100L) { return 3; }
-  if (v >= 10L) { return 2; }
-  return 1;
-}
-
 // A floating decimal representing m * 10^e.
 typedef struct floating_decimal_64 {
   uint64_t mantissa;
@@ -929,78 +894,32 @@ static inline floating_decimal_64 d2d(const uint64_t ieeeMantissa, const uint32_
   return fd;
 }
 
-static inline void
-write_mantissa(uint32_t output, char *result) {
-    while (output >= 10000) {
-        uint32_t c = (output - 10000 * (output / 10000));
-        output /= 10000;
-        uint32_t c0 = (c % 100) << 1;
-        uint32_t c1 = (c / 100) << 1;
-        memcpy(result - 2, DIGIT_TABLE + c0, 2);
-        memcpy(result - 4, DIGIT_TABLE + c1, 2);
-        result -= 4;
-    }
-    if (output >= 100) {
-        uint32_t c = (output % 100) << 1;
-        output /= 100;
-        memcpy(result - 2, DIGIT_TABLE + c, 2);
-        result -= 2;
-    }
-    if (output >= 10) {
-        uint32_t c = output << 1;
-        memcpy(result - 2, DIGIT_TABLE + c, 2);
-    }
-    else {
-        *(result - 1) = '0' + output;
-    }
-}
-
-static inline void
-write_mantissa_long(uint64_t output, char* result) {
-    if ((output >> 32) != 0) {
-        uint32_t output2 = (output - 100000000 * (output / 100000000));
-        output /= 100000000;
-        uint32_t c = output2 % 10000;
-        output2 /= 10000;
-        uint32_t d = output2 % 10000;
-        uint32_t c0 = (c % 100) << 1;
-        uint32_t c1 = (c / 100) << 1;
-        uint32_t d0 = (d % 100) << 1;
-        uint32_t d1 = (d / 100) << 1;
-        memcpy(result - 2, DIGIT_TABLE + c0, 2);
-        memcpy(result - 4, DIGIT_TABLE + c1, 2);
-        memcpy(result - 6, DIGIT_TABLE + d0, 2);
-        memcpy(result - 8, DIGIT_TABLE + d1, 2);
-        result -= 8;
-    }
-    write_mantissa(output, result);
-}
-
 static inline int
-write_exponent(int32_t k, char* result) {
+write_exponent(int32_t k, char* buf) {
     int sign = k < 0;
     if (sign) {
-        *result++ = '-';
+        *buf++ = '-';
         k = -k;
     }
     if (k >= 100) {
-        *result++ = '0' + (k / 100);
+        *buf++ = '0' + (k / 100);
         k %= 100;
-        memcpy(result, DIGIT_TABLE + (k * 2), 2);
+        memcpy(buf, DIGIT_TABLE + (k * 2), 2);
         return sign + 3;
     }
     else if (k >= 10) {
-        memcpy(result, DIGIT_TABLE + (k * 2), 2);
+        memcpy(buf, DIGIT_TABLE + (k * 2), 2);
         return sign + 2;
     }
     else {
-        *result = '0' + k;
+        *buf = '0' + k;
         return sign + 1;
     }
 }
 
+/* Write a double to buf, requires 24 bytes of space */
 static inline int
-format_double(double f, char* result) {
+write_f64(double f, char* buf) {
     const uint64_t bits = double_to_bits(f);
     const int sign = ((bits >> (DOUBLE_MANTISSA_BITS + DOUBLE_EXPONENT_BITS)) & 1) != 0;
     const uint64_t ieee_mantissa = bits & ((1ull << DOUBLE_MANTISSA_BITS) - 1);
@@ -1008,61 +927,55 @@ format_double(double f, char* result) {
 
     /* Serialize all non-finite numbers as null */
     if (ieee_exponent == ((1 << DOUBLE_EXPONENT_BITS) - 1)) {
-        memcpy(result, "null", 4);
+        memcpy(buf, "null", 4);
         return 4;
     }
 
     if (sign) {
-        *result = '-';
+        *buf = '-';
     }
 
     if (ieee_exponent == 0 && ieee_mantissa == 0) {
-        memcpy(result + sign, "0.0", 3);
+        memcpy(buf + sign, "0.0", 3);
         return sign + 3;
     }
 
     floating_decimal_64 v = d2d(ieee_mantissa, ieee_exponent);
 
-    int length = decimalLength17(v.mantissa);
+    int length = write_u64(v.mantissa, buf + sign);
     int32_t k = v.exponent;
     int32_t kk = length + k;
 
     if (0 <= k && kk <= 16) {
-        write_mantissa_long(v.mantissa, result + sign + length);
-        for (int i = 0; i < kk - length; i++) {
-            *(result + sign + length + i) = '0';
-        }
-        *(result + sign + kk) = '.';
-        *(result + sign + kk + 1) = '0';
+        /* XYZ00.0 */
+        memset(buf + sign + length, '0', k + 2);
+        *(buf + sign + kk) = '.';
         return sign + kk + 2;
     }
     else if (0 < kk && kk <= 16) {
-        write_mantissa_long(v.mantissa, result + sign + length + 1);
-        memmove(result + sign, result + sign + 1, kk);
-        *(result + sign + kk) = '.';
+        /* XY.Z */
+        memmove(buf + sign + kk + 1, buf + sign + kk, length - kk);
+        *(buf + sign + kk) = '.';
         return sign + length + 1;
     }
     else if (-5 < kk && kk <= 0) {
-        *(result + sign) = '0';
-        *(result + sign + 1) = '.';
+        /* 0.0XYZ */
         int offset = 2 - kk;
-        for (int i = 0; i < offset - 2; i++) {
-            *(result + sign + 2 + i) = '0';
-        }
-        write_mantissa_long(v.mantissa, result + sign + length + offset);
+        memmove(buf + sign + offset, buf + sign, length);
+        memset(buf + sign, '0', offset);
+        *(buf + sign + 1) = '.';
         return sign + length + offset;
     }
-    else if (length == 1) {
-        *(result + sign) = '0' + v.mantissa;
-        *(result + sign + 1) = 'e';
-        return sign + 2 + write_exponent(kk - 1, result + sign + 2);
-    }
     else {
-        write_mantissa_long(v.mantissa, result + sign + length + 1);
-        *(result + sign) = *(result + sign + 1);
-        *(result + sign + 1) = '.';
-        *(result + sign + length + 1) = 'e';
-        return sign + length + 2 + write_exponent(kk - 1, result + sign + length + 2);
+        /* X.YZe123 if length > 1 else Xe123 */
+        int offset = 0;
+        if (length > 1) {
+            offset = length;
+            memmove(buf + sign + 2, buf + sign + 1, length - 1);
+            *(buf + sign + 1) = '.';
+        }
+        *(buf + sign + offset + 1) = 'e';
+        return sign + offset + 2 + write_exponent(kk - 1, buf + sign + offset + 2);
     }
 }
 #endif // RYU_H

@@ -11,6 +11,7 @@
 #include "structmember.h"
 
 #include "common.h"
+#include "itoa.h"
 #include "ryu.h"
 #include "atof.h"
 
@@ -11181,30 +11182,18 @@ json_encode_long_fallback(EncoderState *self, PyObject *obj) {
 static MS_NOINLINE int
 json_encode_long(EncoderState *self, PyObject *obj) {
     char buf[20];
-    char *p = &buf[20];
+    char *p = buf;
     uint64_t x;
     bool neg, overflow;
     overflow = fast_long_extract_parts(obj, &neg, &x);
     if (MS_UNLIKELY(overflow)) {
         return json_encode_long_fallback(self, obj);
     }
-    while (x >= 100) {
-        uint64_t const old = x;
-        p -= 2;
-        x /= 100;
-        memcpy(p, DIGIT_TABLE + ((old - (x * 100)) << 1), 2);
-    }
-    if (x >= 10) {
-        p -= 2;
-        memcpy(p, DIGIT_TABLE + (x << 1), 2);
-    }
-    else {
-        *--p = x + '0';
-    }
     if (neg) {
-        *--p = '-';
+        *p++ = '-';
     }
-    return ms_write(self, p, &buf[20] - p);
+    int n = write_u64(x, p);
+    return ms_write(self, buf, n + neg);
 }
 
 static int
@@ -11218,7 +11207,7 @@ static MS_NOINLINE int
 json_encode_float(EncoderState *self, PyObject *obj) {
     char buf[24];
     double x = PyFloat_AS_DOUBLE(obj);
-    int n = format_double(x, buf);
+    int n = write_f64(x, buf);
     return ms_write(self, buf, n);
 }
 
