@@ -2267,5 +2267,8 @@ class TestCustom:
         def dec_hook(typ, x):
             raise TypeError("Oops!")
 
-        with pytest.raises(TypeError, match="Oops!"):
+        with pytest.raises(ValidationError, match="Oops!") as rec:
             convert({"x": (1, 2)}, Dict[str, complex], dec_hook=dec_hook)
+
+        assert rec.value.__cause__ is rec.value.__context__
+        assert type(rec.value.__cause__) is TypeError

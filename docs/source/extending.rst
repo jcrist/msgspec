@@ -24,7 +24,12 @@ These should have the following signatures:
 
     def dec_hook(type: Type, obj: Any) -> Any:
         """Given a type in a schema, convert ``obj`` (composed of natively
-        supported objects) into an object of type ``type``"""
+        supported objects) into an object of type ``type``.
+
+        Any `TypeError` or `ValueError` exceptions raised by this method will
+        be considered "user facing" and converted into a `ValidationError` with
+        additional context. All other exceptions will be raised directly.
+        """
         pass
 
     def ext_hook(code: int, data: memoryview) -> Any:
@@ -78,8 +83,8 @@ objects to/from objects, which are then natively handled by ``msgspec``.
             # convert the complex to a tuple of real, imag
             return (obj.real, obj.imag)
         else:
-            # Raise a TypeError for other types
-            raise TypeError(f"Objects of type {type(obj)} are not supported")
+            # Raise a NotImplementedError for other types
+            raise NotImplementedError(f"Objects of type {type(obj)} are not supported")
 
 
     def dec_hook(type: Type, obj: Any) -> Any:
@@ -89,8 +94,8 @@ objects to/from objects, which are then natively handled by ``msgspec``.
             real, imag = obj
             return complex(real, imag)
         else:
-            # Raise a TypeError for other types
-            raise TypeError(f"Objects of type {type} are not supported")
+            # Raise a NotImplementedError for other types
+            raise NotImplementedError(f"Objects of type {type} are not supported")
 
 
     # Define a message that contains a complex type
@@ -161,8 +166,8 @@ buffer.
     +---------+---------+
     |  real   |  imag   |
     +---------+---------+
-      8 bytes   8 bytes 
-    
+      8 bytes   8 bytes
+
 
 Here we define ``enc_hook`` and ``ext_hook`` callbacks to convert `complex`
 objects to/from this binary representation as a MessagePack extension.
@@ -186,8 +191,8 @@ objects to/from this binary representation as a MessagePack extension.
             # Return an `Ext` object so msgspec serializes it as an extension type.
             return msgspec.msgpack.Ext(COMPLEX_TYPE_CODE, data)
         else:
-            # Raise a TypeError for other types
-            raise TypeError(f"Objects of type {type(obj)} are not supported")
+            # Raise a NotImplementedError for other types
+            raise NotImplementedError(f"Objects of type {type(obj)} are not supported")
 
 
     def ext_hook(code: int, data: memoryview) -> Any:
@@ -197,8 +202,8 @@ objects to/from this binary representation as a MessagePack extension.
             real, imag = struct.unpack('dd', data)
             return complex(real, imag)
         else:
-            # Raise a TypeError for other extension type codes
-            raise TypeError(f"Extension type code {code} is not supported")
+            # Raise a NotImplementedError for other extension type codes
+            raise NotImplementedError(f"Extension type code {code} is not supported")
 
 
     # Create an encoder and a decoder using the custom callbacks
