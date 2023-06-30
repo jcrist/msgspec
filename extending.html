@@ -279,7 +279,12 @@ back into custom types.</p></li>
 
 <span class="k">def</span> <span class="nf">dec_hook</span><span class="p">(</span><span class="nb">type</span><span class="p">:</span> <span class="n">Type</span><span class="p">,</span> <span class="n">obj</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Given a type in a schema, convert ``obj`` (composed of natively</span>
-<span class="sd">    supported objects) into an object of type ``type``&quot;&quot;&quot;</span>
+<span class="sd">    supported objects) into an object of type ``type``.</span>
+
+<span class="sd">    Any `TypeError` or `ValueError` exceptions raised by this method will</span>
+<span class="sd">    be considered &quot;user facing&quot; and converted into a `ValidationError` with</span>
+<span class="sd">    additional context. All other exceptions will be raised directly.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">pass</span>
 
 <span class="k">def</span> <span class="nf">ext_hook</span><span class="p">(</span><span class="n">code</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="nb">memoryview</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
@@ -326,8 +331,8 @@ objects to/from objects, which are then natively handled by <code class="docutil
         <span class="c1"># convert the complex to a tuple of real, imag</span>
         <span class="k">return</span> <span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">real</span><span class="p">,</span> <span class="n">obj</span><span class="o">.</span><span class="n">imag</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="c1"># Raise a TypeError for other types</span>
-        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Objects of type </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span><span class="si">}</span><span class="s2"> are not supported&quot;</span><span class="p">)</span>
+        <span class="c1"># Raise a NotImplementedError for other types</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Objects of type </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span><span class="si">}</span><span class="s2"> are not supported&quot;</span><span class="p">)</span>
 
 
 <span class="k">def</span> <span class="nf">dec_hook</span><span class="p">(</span><span class="nb">type</span><span class="p">:</span> <span class="n">Type</span><span class="p">,</span> <span class="n">obj</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
@@ -337,8 +342,8 @@ objects to/from objects, which are then natively handled by <code class="docutil
         <span class="n">real</span><span class="p">,</span> <span class="n">imag</span> <span class="o">=</span> <span class="n">obj</span>
         <span class="k">return</span> <span class="nb">complex</span><span class="p">(</span><span class="n">real</span><span class="p">,</span> <span class="n">imag</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="c1"># Raise a TypeError for other types</span>
-        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Objects of type </span><span class="si">{</span><span class="nb">type</span><span class="si">}</span><span class="s2"> are not supported&quot;</span><span class="p">)</span>
+        <span class="c1"># Raise a NotImplementedError for other types</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Objects of type </span><span class="si">{</span><span class="nb">type</span><span class="si">}</span><span class="s2"> are not supported&quot;</span><span class="p">)</span>
 
 
 <span class="c1"># Define a message that contains a complex type</span>
@@ -423,8 +428,8 @@ objects to/from this binary representation as a MessagePack extension.</p>
         <span class="c1"># Return an `Ext` object so msgspec serializes it as an extension type.</span>
         <span class="k">return</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">msgpack</span><span class="o">.</span><span class="n">Ext</span><span class="p">(</span><span class="n">COMPLEX_TYPE_CODE</span><span class="p">,</span> <span class="n">data</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="c1"># Raise a TypeError for other types</span>
-        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Objects of type </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span><span class="si">}</span><span class="s2"> are not supported&quot;</span><span class="p">)</span>
+        <span class="c1"># Raise a NotImplementedError for other types</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Objects of type </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span><span class="si">}</span><span class="s2"> are not supported&quot;</span><span class="p">)</span>
 
 
 <span class="k">def</span> <span class="nf">ext_hook</span><span class="p">(</span><span class="n">code</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="nb">memoryview</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
@@ -434,8 +439,8 @@ objects to/from this binary representation as a MessagePack extension.</p>
         <span class="n">real</span><span class="p">,</span> <span class="n">imag</span> <span class="o">=</span> <span class="n">struct</span><span class="o">.</span><span class="n">unpack</span><span class="p">(</span><span class="s1">&#39;dd&#39;</span><span class="p">,</span> <span class="n">data</span><span class="p">)</span>
         <span class="k">return</span> <span class="nb">complex</span><span class="p">(</span><span class="n">real</span><span class="p">,</span> <span class="n">imag</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="c1"># Raise a TypeError for other extension type codes</span>
-        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Extension type code </span><span class="si">{</span><span class="n">code</span><span class="si">}</span><span class="s2"> is not supported&quot;</span><span class="p">)</span>
+        <span class="c1"># Raise a NotImplementedError for other extension type codes</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Extension type code </span><span class="si">{</span><span class="n">code</span><span class="si">}</span><span class="s2"> is not supported&quot;</span><span class="p">)</span>
 
 
 <span class="c1"># Create an encoder and a decoder using the custom callbacks</span>

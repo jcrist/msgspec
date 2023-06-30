@@ -705,8 +705,9 @@ determine whether a field was left unset, or explicitly set to <code class="docu
 <dd><p>A JSON encoder.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>enc_hook</strong> (<em>callable</em><em>, </em><em>optional</em>) – A callable to call for objects that aren’t supported msgspec types. Takes the
-unsupported object and should return a supported object, or raise a TypeError.</p>
+<dd class="field-odd"><p><strong>enc_hook</strong> (<em>callable</em><em>, </em><em>optional</em>) – A callable to call for objects that aren’t supported msgspec types. Takes
+the unsupported object and should return a supported object, or raise a
+<code class="docutils literal notranslate"><span class="pre">NotImplementedError</span></code> if unsupported.</p>
 </dd>
 </dl>
 <dl class="py method">
@@ -765,7 +766,7 @@ Default is True.</p></li>
 signature <code class="docutils literal notranslate"><span class="pre">dec_hook(type:</span> <span class="pre">Type,</span> <span class="pre">obj:</span> <span class="pre">Any)</span> <span class="pre">-&gt;</span> <span class="pre">Any</span></code>, where <code class="docutils literal notranslate"><span class="pre">type</span></code> is the
 expected message type, and <code class="docutils literal notranslate"><span class="pre">obj</span></code> is the decoded representation composed
 of only basic JSON types. This hook should transform <code class="docutils literal notranslate"><span class="pre">obj</span></code> into type
-<code class="docutils literal notranslate"><span class="pre">type</span></code>, or raise a <code class="docutils literal notranslate"><span class="pre">TypeError</span></code> if unsupported.</p></li>
+<code class="docutils literal notranslate"><span class="pre">type</span></code>, or raise a <code class="docutils literal notranslate"><span class="pre">NotImplementedError</span></code> if unsupported.</p></li>
 </ul>
 </dd>
 </dl>
@@ -793,8 +794,9 @@ of only basic JSON types. This hook should transform <code class="docutils liter
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>obj</strong> (<em>Any</em>) – The object to serialize.</p></li>
-<li><p><strong>enc_hook</strong> (<em>callable</em><em>, </em><em>optional</em>) – A callable to call for objects that aren’t supported msgspec types. Takes the
-unsupported object and should return a supported object, or raise a TypeError.</p></li>
+<li><p><strong>enc_hook</strong> (<em>callable</em><em>, </em><em>optional</em>) – A callable to call for objects that aren’t supported msgspec types. Takes
+the unsupported object and should return a supported object, or raise a
+<code class="docutils literal notranslate"><span class="pre">NotImplementedError</span></code> if unsupported.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -868,8 +870,9 @@ whitespace, minimizing the message size.</p></li>
 <dd><p>A MessagePack encoder.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>enc_hook</strong> (<em>callable</em><em>, </em><em>optional</em>) – A callable to call for objects that aren’t supported msgspec types. Takes the
-unsupported object and should return a supported object, or raise a TypeError.</p>
+<dd class="field-odd"><p><strong>enc_hook</strong> (<em>callable</em><em>, </em><em>optional</em>) – A callable to call for objects that aren’t supported msgspec types. Takes
+the unsupported object and should return a supported object, or raise a
+<code class="docutils literal notranslate"><span class="pre">NotImplementedError</span></code> if unsupported.</p>
 </dd>
 </dl>
 <dl class="py method">
@@ -928,7 +931,7 @@ Default is True.</p></li>
 signature <code class="docutils literal notranslate"><span class="pre">dec_hook(type:</span> <span class="pre">Type,</span> <span class="pre">obj:</span> <span class="pre">Any)</span> <span class="pre">-&gt;</span> <span class="pre">Any</span></code>, where <code class="docutils literal notranslate"><span class="pre">type</span></code> is the
 expected message type, and <code class="docutils literal notranslate"><span class="pre">obj</span></code> is the decoded representation composed
 of only basic MessagePack types. This hook should transform <code class="docutils literal notranslate"><span class="pre">obj</span></code> into
-type <code class="docutils literal notranslate"><span class="pre">type</span></code>, or raise a <code class="docutils literal notranslate"><span class="pre">TypeError</span></code> if unsupported.</p></li>
+type <code class="docutils literal notranslate"><span class="pre">type</span></code>, or raise a <code class="docutils literal notranslate"><span class="pre">NotImplementedError</span></code> if unsupported.</p></li>
 <li><p><strong>ext_hook</strong> (<em>callable</em><em>, </em><em>optional</em>) – An optional callback for decoding MessagePack extensions. Should have the
 signature <code class="docutils literal notranslate"><span class="pre">ext_hook(code:</span> <span class="pre">int,</span> <span class="pre">data:</span> <span class="pre">memoryview)</span> <span class="pre">-&gt;</span> <span class="pre">Any</span></code>. If provided,
 this will be called to deserialize all extension types found in the
@@ -990,8 +993,9 @@ or any object that implements the buffer protocol.</p></li>
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>obj</strong> (<em>Any</em>) – The object to serialize.</p></li>
-<li><p><strong>enc_hook</strong> (<em>callable</em><em>, </em><em>optional</em>) – A callable to call for objects that aren’t supported msgspec types. Takes the
-unsupported object and should return a supported object, or raise a TypeError.</p></li>
+<li><p><strong>enc_hook</strong> (<em>callable</em><em>, </em><em>optional</em>) – A callable to call for objects that aren’t supported msgspec types. Takes
+the unsupported object and should return a supported object, or raise a
+<code class="docutils literal notranslate"><span class="pre">NotImplementedError</span></code> if unsupported.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -1023,7 +1027,7 @@ Default is True.</p></li>
 signature <code class="docutils literal notranslate"><span class="pre">dec_hook(type:</span> <span class="pre">Type,</span> <span class="pre">obj:</span> <span class="pre">Any)</span> <span class="pre">-&gt;</span> <span class="pre">Any</span></code>, where <code class="docutils literal notranslate"><span class="pre">type</span></code> is the
 expected message type, and <code class="docutils literal notranslate"><span class="pre">obj</span></code> is the decoded representation composed
 of only basic MessagePack types. This hook should transform <code class="docutils literal notranslate"><span class="pre">obj</span></code> into
-type <code class="docutils literal notranslate"><span class="pre">type</span></code>, or raise a <code class="docutils literal notranslate"><span class="pre">TypeError</span></code> if unsupported.</p></li>
+type <code class="docutils literal notranslate"><span class="pre">type</span></code>, or raise a <code class="docutils literal notranslate"><span class="pre">NotImplementedError</span></code> if unsupported.</p></li>
 <li><p><strong>ext_hook</strong> (<em>callable</em><em>, </em><em>optional</em>) – An optional callback for decoding MessagePack extensions. Should have the
 signature <code class="docutils literal notranslate"><span class="pre">ext_hook(code:</span> <span class="pre">int,</span> <span class="pre">data:</span> <span class="pre">memoryview)</span> <span class="pre">-&gt;</span> <span class="pre">Any</span></code>. If provided,
 this will be called to deserialize all extension types found in the
@@ -1056,7 +1060,7 @@ If not provided, extension types will decode as <code class="docutils literal no
 <li><p><strong>obj</strong> (<em>Any</em>) – The object to serialize.</p></li>
 <li><p><strong>enc_hook</strong> (<em>callable</em><em>, </em><em>optional</em>) – A callable to call for objects that aren’t supported msgspec types.
 Takes the unsupported object and should return a supported object, or
-raise a TypeError.</p></li>
+raise a <code class="docutils literal notranslate"><span class="pre">NotImplementedError</span></code> if unsupported.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -1090,7 +1094,7 @@ values. Default is True.</p></li>
 the signature <code class="docutils literal notranslate"><span class="pre">dec_hook(type:</span> <span class="pre">Type,</span> <span class="pre">obj:</span> <span class="pre">Any)</span> <span class="pre">-&gt;</span> <span class="pre">Any</span></code>, where <code class="docutils literal notranslate"><span class="pre">type</span></code>
 is the expected message type, and <code class="docutils literal notranslate"><span class="pre">obj</span></code> is the decoded representation
 composed of only basic YAML types. This hook should transform <code class="docutils literal notranslate"><span class="pre">obj</span></code>
-into type <code class="docutils literal notranslate"><span class="pre">type</span></code>, or raise a <code class="docutils literal notranslate"><span class="pre">TypeError</span></code> if unsupported.</p></li>
+into type <code class="docutils literal notranslate"><span class="pre">type</span></code>, or raise a <code class="docutils literal notranslate"><span class="pre">NotImplementedError</span></code> if unsupported.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -1118,7 +1122,7 @@ into type <code class="docutils literal notranslate"><span class="pre">type</spa
 <li><p><strong>obj</strong> (<em>Any</em>) – The object to serialize.</p></li>
 <li><p><strong>enc_hook</strong> (<em>callable</em><em>, </em><em>optional</em>) – A callable to call for objects that aren’t supported msgspec types.
 Takes the unsupported object and should return a supported object, or
-raise a TypeError.</p></li>
+raise a <code class="docutils literal notranslate"><span class="pre">NotImplementedError</span></code> if unsupported.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -1150,7 +1154,7 @@ values. Default is True.</p></li>
 the signature <code class="docutils literal notranslate"><span class="pre">dec_hook(type:</span> <span class="pre">Type,</span> <span class="pre">obj:</span> <span class="pre">Any)</span> <span class="pre">-&gt;</span> <span class="pre">Any</span></code>, where <code class="docutils literal notranslate"><span class="pre">type</span></code>
 is the expected message type, and <code class="docutils literal notranslate"><span class="pre">obj</span></code> is the decoded representation
 composed of only basic TOML types. This hook should transform <code class="docutils literal notranslate"><span class="pre">obj</span></code>
-into type <code class="docutils literal notranslate"><span class="pre">type</span></code>, or raise a <code class="docutils literal notranslate"><span class="pre">TypeError</span></code> if unsupported.</p></li>
+into type <code class="docutils literal notranslate"><span class="pre">type</span></code>, or raise a <code class="docutils literal notranslate"><span class="pre">NotImplementedError</span></code> if unsupported.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -1245,7 +1249,7 @@ to msgspec structured types. Default is False.</p></li>
 signature <code class="docutils literal notranslate"><span class="pre">dec_hook(type:</span> <span class="pre">Type,</span> <span class="pre">obj:</span> <span class="pre">Any)</span> <span class="pre">-&gt;</span> <span class="pre">Any</span></code>, where <code class="docutils literal notranslate"><span class="pre">type</span></code> is the
 expected message type, and <code class="docutils literal notranslate"><span class="pre">obj</span></code> is the decoded representation composed
 of only basic MessagePack types. This hook should transform <code class="docutils literal notranslate"><span class="pre">obj</span></code> into
-type <code class="docutils literal notranslate"><span class="pre">type</span></code>, or raise a <code class="docutils literal notranslate"><span class="pre">TypeError</span></code> if unsupported.</p></li>
+type <code class="docutils literal notranslate"><span class="pre">type</span></code>, or raise a <code class="docutils literal notranslate"><span class="pre">NotImplementedError</span></code> if unsupported.</p></li>
 <li><p><strong>builtin_types</strong> (<em>Iterable</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/functions.html#type" title="(in Python v3.11)"><em>type</em></a><em>]</em><em>, </em><em>optional</em>) – Useful for wrapping other serialization protocols. An iterable of types to
 treat as additional builtin types. Passing a type here indicates that the
 wrapped protocol natively supports that type, disabling any coercion to
@@ -1298,8 +1302,9 @@ be passed through <code class="docutils literal notranslate"><span class="pre">t
 <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytes</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytearray" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytearray</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#memoryview" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">memoryview</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.datetime" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.datetime</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.time" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.time</span></code></a>,
 <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.date" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.date</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/uuid.html#uuid.UUID" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">uuid.UUID</span></code></a>, and <a class="reference external" href="https://docs.python.org/3/library/decimal.html#decimal.Decimal" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">decimal.Decimal</span></code></a>.</p></li>
 <li><p><strong>str_keys</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.11)"><em>bool</em></a><em>, </em><em>optional</em>) – Whether to convert all object keys to strings. Default is False.</p></li>
-<li><p><strong>enc_hook</strong> (<em>callable</em><em>, </em><em>optional</em>) – A callable to call for objects that aren’t supported msgspec types. Takes the
-unsupported object and should return a supported object, or raise a TypeError.</p></li>
+<li><p><strong>enc_hook</strong> (<em>callable</em><em>, </em><em>optional</em>) – A callable to call for objects that aren’t supported msgspec types. Takes
+the unsupported object and should return a supported object, or raise a
+<code class="docutils literal notranslate"><span class="pre">NotImplementedError</span></code> if unsupported.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
