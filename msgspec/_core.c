@@ -8574,8 +8574,59 @@ ms_decode_custom(PyObject *obj, PyObject *dec_hook, TypeNode* type, PathNode *pa
     if (dec_hook != NULL) {
         out = PyObject_CallFunctionObjArgs(dec_hook, custom_obj, obj, NULL);
         Py_DECREF(obj);
-        if (out == NULL)
+        if (out == NULL) {
+            PyObject *exc_type, *exc, *tb;
+
+            /* Fetch the exception state */
+            PyErr_Fetch(&exc_type, &exc, &tb);
+
+            /* If null, some other c-extension has borked, just return */
+            if (exc_type == NULL) return NULL;
+
+            /* If it's a TypeError or ValueError, wrap it in a ValidationError.
+             * Otherwise we reraise the original error below */
+            if (
+                PyType_IsSubtype(
+                    (PyTypeObject *)exc_type, (PyTypeObject *)PyExc_ValueError
+                ) ||
+                PyType_IsSubtype(
+                    (PyTypeObject *)exc_type, (PyTypeObject *)PyExc_TypeError
+                )
+            ) {
+                PyObject *exc_type2, *exc2, *tb2;
+
+                /* Normalize the original exception */
+                PyErr_NormalizeException(&exc_type, &exc, &tb);
+                if (tb != NULL) {
+                    PyException_SetTraceback(exc, tb);
+                    Py_DECREF(tb);
+                }
+                Py_DECREF(exc_type);
+
+                /* Raise a new validation error with context based on the
+                 * original exception */
+                ms_raise_validation_error(path, "%S%U", exc);
+
+                /* Fetch the new exception */
+                PyErr_Fetch(&exc_type2, &exc2, &tb2);
+                /* Normalize the new exception */
+                PyErr_NormalizeException(&exc_type2, &exc2, &tb2);
+                /* Set the original exception as the cause and context */
+                Py_INCREF(exc);
+                PyException_SetCause(exc2, exc);
+                PyException_SetContext(exc2, exc);
+
+                /* At this point the original exc_type/exc/tb are all dropped,
+                 * replace them with the new values */
+                exc_type = exc_type2;
+                exc = exc2;
+                tb = tb2;
+            }
+            /* Restore the new exception state */
+            PyErr_Restore(exc_type, exc, tb);
+
             return NULL;
+        }
     }
     else {
         out = obj;
@@ -10136,8 +10187,9 @@ PyDoc_STRVAR(Encoder__doc__,
 "Parameters\n"
 "----------\n"
 "enc_hook : callable, optional\n"
-"    A callable to call for objects that aren't supported msgspec types. Takes the\n"
-"    unsupported object and should return a supported object, or raise a TypeError."
+"    A callable to call for objects that aren't supported msgspec types. Takes\n"
+"    the unsupported object and should return a supported object, or raise a\n"
+"    ``NotImplementedError`` if unsupported."
 );
 
 enum mpack_code {
@@ -11108,8 +11160,9 @@ PyDoc_STRVAR(msgspec_msgpack_encode__doc__,
 "obj : Any\n"
 "    The object to serialize.\n"
 "enc_hook : callable, optional\n"
-"    A callable to call for objects that aren't supported msgspec types. Takes the\n"
-"    unsupported object and should return a supported object, or raise a TypeError.\n"
+"    A callable to call for objects that aren't supported msgspec types. Takes\n"
+"    the unsupported object and should return a supported object, or raise a\n"
+"    ``NotImplementedError`` if unsupported.\n"
 "\n"
 "Returns\n"
 "-------\n"
@@ -11139,8 +11192,9 @@ PyDoc_STRVAR(JSONEncoder__doc__,
 "Parameters\n"
 "----------\n"
 "enc_hook : callable, optional\n"
-"    A callable to call for objects that aren't supported msgspec types. Takes the\n"
-"    unsupported object and should return a supported object, or raise a TypeError."
+"    A callable to call for objects that aren't supported msgspec types. Takes\n"
+"    the unsupported object and should return a supported object, or raise a\n"
+"    ``NotImplementedError`` if unsupported."
 );
 
 static int json_encode_inline(EncoderState*, PyObject*);
@@ -11956,8 +12010,9 @@ PyDoc_STRVAR(msgspec_json_encode__doc__,
 "obj : Any\n"
 "    The object to serialize.\n"
 "enc_hook : callable, optional\n"
-"    A callable to call for objects that aren't supported msgspec types. Takes the\n"
-"    unsupported object and should return a supported object, or raise a TypeError.\n"
+"    A callable to call for objects that aren't supported msgspec types. Takes\n"
+"    the unsupported object and should return a supported object, or raise a\n"
+"    ``NotImplementedError`` if unsupported.\n"
 "\n"
 "Returns\n"
 "-------\n"
@@ -12025,7 +12080,7 @@ PyDoc_STRVAR(Decoder__doc__,
 "    signature ``dec_hook(type: Type, obj: Any) -> Any``, where ``type`` is the\n"
 "    expected message type, and ``obj`` is the decoded representation composed\n"
 "    of only basic MessagePack types. This hook should transform ``obj`` into\n"
-"    type ``type``, or raise a ``TypeError`` if unsupported.\n"
+"    type ``type``, or raise a ``NotImplementedError`` if unsupported.\n"
 "ext_hook : callable, optional\n"
 "    An optional callback for decoding MessagePack extensions. Should have the\n"
 "    signature ``ext_hook(code: int, data: memoryview) -> Any``. If provided,\n"
@@ -13758,7 +13813,7 @@ PyDoc_STRVAR(msgspec_msgpack_decode__doc__,
 "    signature ``dec_hook(type: Type, obj: Any) -> Any``, where ``type`` is the\n"
 "    expected message type, and ``obj`` is the decoded representation composed\n"
 "    of only basic MessagePack types. This hook should transform ``obj`` into\n"
-"    type ``type``, or raise a ``TypeError`` if unsupported.\n"
+"    type ``type``, or raise a ``NotImplementedError`` if unsupported.\n"
 "ext_hook : callable, optional\n"
 "    An optional callback for decoding MessagePack extensions. Should have the\n"
 "    signature ``ext_hook(code: int, data: memoryview) -> Any``. If provided,\n"
@@ -13934,7 +13989,7 @@ PyDoc_STRVAR(JSONDecoder__doc__,
 "    signature ``dec_hook(type: Type, obj: Any) -> Any``, where ``type`` is the\n"
 "    expected message type, and ``obj`` is the decoded representation composed\n"
 "    of only basic JSON types. This hook should transform ``obj`` into type\n"
-"    ``type``, or raise a ``TypeError`` if unsupported."
+"    ``type``, or raise a ``NotImplementedError`` if unsupported."
 );
 static int
 JSONDecoder_init(JSONDecoder *self, PyObject *args, PyObject *kwds)
@@ -17602,8 +17657,9 @@ PyDoc_STRVAR(msgspec_to_builtins__doc__,
 "str_keys: bool, optional\n"
 "    Whether to convert all object keys to strings. Default is False.\n"
 "enc_hook : callable, optional\n"
-"    A callable to call for objects that aren't supported msgspec types. Takes the\n"
-"    unsupported object and should return a supported object, or raise a TypeError.\n"
+"    A callable to call for objects that aren't supported msgspec types. Takes\n"
+"    the unsupported object and should return a supported object, or raise a\n"
+"    ``NotImplementedError`` if unsupported.\n"
 "\n"
 "Returns\n"
 "-------\n"
@@ -19011,7 +19067,7 @@ PyDoc_STRVAR(msgspec_convert__doc__,
 "    signature ``dec_hook(type: Type, obj: Any) -> Any``, where ``type`` is the\n"
 "    expected message type, and ``obj`` is the decoded representation composed\n"
 "    of only basic MessagePack types. This hook should transform ``obj`` into\n"
-"    type ``type``, or raise a ``TypeError`` if unsupported.\n"
+"    type ``type``, or raise a ``NotImplementedError`` if unsupported.\n"
 "builtin_types: Iterable[type], optional\n"
 "    Useful for wrapping other serialization protocols. An iterable of types to\n"
 "    treat as additional builtin types. Passing a type here indicates that the\n"

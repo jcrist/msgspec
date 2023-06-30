@@ -10,7 +10,6 @@ import struct
 import sys
 from typing import (
     Any,
-    Deque,
     Dict,
     FrozenSet,
     List,
@@ -262,16 +261,6 @@ class TestDecodeFunction:
 
         with pytest.raises(TypeError, match="Extra keyword arguments"):
             msgspec.msgpack.decode(self.buf, type=List[int], extra=1)
-
-    def test_decode_dec_hook(self):
-        def dec_hook(typ, obj):
-            assert typ is Custom
-            return typ(*obj)
-
-        buf = msgspec.msgpack.encode((1, 2))
-        res = msgspec.msgpack.decode(buf, type=Custom, dec_hook=dec_hook)
-        assert res == Custom(1, 2)
-        assert isinstance(res, Custom)
 
     def test_decode_with_trailing_characters_errors(self):
         msg = msgspec.msgpack.encode([1, 2, 3]) + b"trailing"
@@ -529,108 +518,6 @@ class TestDecoderMisc:
     def test_decoder_ext_hook_not_callable(self):
         with pytest.raises(TypeError):
             msgspec.msgpack.Decoder(ext_hook=1)
-
-    def test_decoder_dec_hook_attribute(self):
-        def dec_hook(typ, obj):
-            pass
-
-        dec = msgspec.msgpack.Decoder()
-        assert dec.dec_hook is None
-
-        dec = msgspec.msgpack.Decoder(dec_hook=None)
-        assert dec.dec_hook is None
-
-        dec = msgspec.msgpack.Decoder(dec_hook=dec_hook)
-        assert dec.dec_hook is dec_hook
-
-    def test_decoder_dec_hook_not_callable(self):
-        with pytest.raises(TypeError):
-            msgspec.msgpack.Decoder(dec_hook=1)
-
-    def test_decoder_dec_hook(self):
-        called = False
-
-        def dec_hook(typ, obj):
-            nonlocal called
-            called = True
-            assert typ is Custom
-            return Custom(*obj)
-
-        dec = msgspec.msgpack.Decoder(type=List[Custom], dec_hook=dec_hook)
-        buf = msgspec.msgpack.encode([(1, 2), (3, 4), (5, 6)])
-        msg = dec.decode(buf)
-        assert called
-        assert msg == [Custom(1, 2), Custom(3, 4), Custom(5, 6)]
-        assert isinstance(msg[0], Custom)
-
-    def test_decoder_dec_hook_optional_custom_type(self):
-        called = False
-
-        def dec_hook(typ, obj):
-            nonlocal called
-            called = True
-
-        dec = msgspec.msgpack.Decoder(type=Optional[Custom], dec_hook=dec_hook)
-        msg = dec.decode(msgspec.msgpack.encode(None))
-        assert not called
-        assert msg is None
-
-    def test_decode_dec_hook_errors(self):
-        def dec_hook(typ, obj):
-            assert obj == "some string"
-            raise TypeError("Oh no!")
-
-        buf = msgspec.msgpack.encode("some string")
-        dec = msgspec.msgpack.Decoder(type=Custom, dec_hook=dec_hook)
-
-        with pytest.raises(TypeError, match="Oh no!"):
-            dec.decode(buf)
-
-    def test_decode_dec_hook_wrong_type(self):
-        dec = msgspec.msgpack.Decoder(type=Custom, dec_hook=lambda t, o: o)
-        buf = msgspec.msgpack.encode((1, 2))
-
-        with pytest.raises(
-            msgspec.ValidationError,
-            match="Expected `Custom`, got `list`",
-        ):
-            dec.decode(buf)
-
-    def test_decode_dec_hook_wrong_type_in_struct(self):
-        class Test(msgspec.Struct):
-            point: Custom
-            other: int
-
-        dec = msgspec.msgpack.Decoder(type=Test, dec_hook=lambda t, o: o)
-        buf = msgspec.msgpack.encode(Test((1, 2), 3))
-
-        with pytest.raises(msgspec.ValidationError) as rec:
-            dec.decode(buf)
-
-        assert "Expected `Custom`, got `list` - at `$.point`" == str(rec.value)
-
-    def test_decode_dec_hook_wrong_type_generic(self):
-        dec = msgspec.msgpack.Decoder(type=Deque[int], dec_hook=lambda t, o: o)
-        buf = msgspec.msgpack.encode([1, 2, 3])
-
-        with pytest.raises(msgspec.ValidationError) as rec:
-            dec.decode(buf)
-
-        assert "Expected `collections.deque`, got `list`" == str(rec.value)
-
-    def test_decode_dec_hook_isinstance_errors(self):
-        class Metaclass(type):
-            def __instancecheck__(self, obj):
-                raise TypeError("Oh no!")
-
-        class Custom(metaclass=Metaclass):
-            pass
-
-        dec = msgspec.msgpack.Decoder(type=Custom)
-        buf = msgspec.msgpack.encode(1)
-
-        with pytest.raises(TypeError, match="Oh no!"):
-            dec.decode(buf)
 
     def test_decoder_repr(self):
         typ = List[Dict[int, float]]

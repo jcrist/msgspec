@@ -59,7 +59,7 @@ def encode(obj: Any, *, enc_hook: Optional[Callable[[Any], Any]] = None) -> byte
     enc_hook : callable, optional
         A callable to call for objects that aren't supported msgspec types.
         Takes the unsupported object and should return a supported object, or
-        raise a TypeError.
+        raise a ``NotImplementedError`` if unsupported.
 
     Returns
     -------
@@ -137,7 +137,7 @@ def decode(buf, *, type=Any, strict=True, dec_hook=None):
         the signature ``dec_hook(type: Type, obj: Any) -> Any``, where ``type``
         is the expected message type, and ``obj`` is the decoded representation
         composed of only basic TOML types. This hook should transform ``obj``
-        into type ``type``, or raise a ``TypeError`` if unsupported.
+        into type ``type``, or raise a ``NotImplementedError`` if unsupported.
 
     Returns
     -------
