@@ -16,7 +16,7 @@ on:
 
 jobs:
   lint:
-    name: Lint and flake code
+    name: Lint and ruff code
     runs-on: ubuntu-latest
 
     steps:
