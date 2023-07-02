@@ -1,0 +1,25 @@
+[tool.ruff]
+exclude = [
+    "*.pyi",
+    "__init__.py",
+    "_version.py",
+    "versioneer.py",
+    "basic_typing_examples.py",
+    "json.py",
+    "msgpack.py",
+    "test_JSONTestSuite.py",
+    "conf.py",
+]
+ignore = [
+    "E721", # Comparing types instead of isinstance
+    "E741", # Ambiguous variable names
+]
+select = [
+    "E", # PEP8 Errors
+    "F", # Pyflakes
+    "W", # PEP8 Warnings
+]
+line-length = 100
+
+[tool.ruff.isort]
+combine-as-imports = true
