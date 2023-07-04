@@ -139,9 +139,9 @@ Default values may be one of 3 kinds:
 
 - Builtin *empty* mutable collections (``[]``, ``{}``, ``set()``, and
   ``bytearray()``) may be used as default values (as in ``c`` above). Since
-  defaults of these types are so common, they're these are "syntactic sugar"
-  for specifying the corresponding ``default_factory`` (to avoid accidental
-  sharing of mutable values). A default of ``[]`` is identical to a default of
+  defaults of these types are so common, these are "syntactic sugar" for
+  specifying the corresponding ``default_factory`` (to avoid accidental sharing
+  of mutable values). A default of ``[]`` is identical to a default of
   ``field(default_factory=list)``, with a new list instance used each time.
   Specifying a non-empty mutable collection (e.g. ``[1, 2, 3]``) as a default
   value will cause the struct definition to error (you should manually define a
