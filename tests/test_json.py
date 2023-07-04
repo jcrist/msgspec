@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import base64
 import datetime
-import decimal
 import enum
 import gc
 import itertools
@@ -12,6 +11,7 @@ import string
 import sys
 import uuid
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import (
     Any,
     Dict,
@@ -1436,6 +1436,91 @@ class TestFloat:
             msgspec.json.decode(s, type=int)
 
 
+class TestDecimal:
+    """Most decimal tests are in test_common.py, the ones here are for json
+    specific behaviors"""
+
+    @pytest.mark.parametrize(
+        "msg",
+        [
+            "123",
+            "-123",
+            "1e3",
+            "-1e3",
+            "1.0100",
+            "-1.0100",
+            "0.123456789123456789123456789",
+            "-0.123456789123456789123456789",
+            "123456789123456789123456789",
+            "-123456789123456789123456789",
+        ],
+    )
+    def test_decimal_from_number_keeps_precision(self, msg):
+        res = msgspec.json.decode(msg, type=Decimal)
+        sol = Decimal(msg)
+        assert res == sol
+        assert str(res) == str(sol)  # check trailing 0s
+
+    @pytest.mark.parametrize(
+        "msg",
+        [
+            "123_",
+            "123_45",
+            "123._",
+            "123.",
+            "123.45_",
+            "123.45_6",
+            "123456789123456789123456789_",
+            "123456789123456789123456789.",
+            "0.123456789123456789123456789_",
+        ],
+    )
+    def test_decimal_from_number_still_errors_on_invalid_number(self, msg):
+        """Check that decimal strings that `decimal.Decimal` will happily parse
+        but aren't valid JSON still error as invalid JSON"""
+        Decimal(msg)
+        with pytest.raises(msgspec.DecodeError) as rec:
+            msgspec.json.decode(msg)
+
+        # not ValidationError, a subclass
+        assert type(rec.value) is msgspec.DecodeError
+        assert "JSON is malformed" in str(rec.value)
+
+    def test_decimal_from_number_priority(self):
+        posint = "123"
+        negint = "-123"
+        bigint = "123456789" * 3
+        double = "123.45"
+        extdouble = "123." + ("123456789" * 3)
+
+        cases = [
+            (posint, Decimal, Decimal),
+            (negint, Decimal, Decimal),
+            (bigint, Decimal, Decimal),
+            (double, Decimal, Decimal),
+            (extdouble, Decimal, Decimal),
+            (posint, Union[Decimal, int], int),
+            (negint, Union[Decimal, int], int),
+            (bigint, Union[Decimal, int], Decimal),  # TODO: should probably be int
+            (double, Union[Decimal, int], Decimal),
+            (extdouble, Union[Decimal, int], Decimal),
+            (posint, Union[Decimal, float], float),
+            (negint, Union[Decimal, float], float),
+            (bigint, Union[Decimal, float], float),
+            (double, Union[Decimal, float], float),
+            (extdouble, Union[Decimal, float], float),
+            (posint, Union[Decimal, int, float], int),
+            (negint, Union[Decimal, int, float], int),
+            (bigint, Union[Decimal, int, float], float),  # TODO: should probably be int
+            (double, Union[Decimal, int, float], float),
+            (extdouble, Union[Decimal, int, float], float),
+        ]
+
+        for msg, request_type, out_type in cases:
+            out = msgspec.json.decode(msg, type=request_type)
+            assert type(out) is out_type
+
+
 class TestSequences:
     @pytest.mark.parametrize("x", [[], [1], [1, "two", False]])
     @pytest.mark.parametrize("type", [list, set, frozenset, tuple])
@@ -1680,7 +1765,7 @@ class TestDict:
             datetime.date.today(),
             datetime.datetime.now().time(),
             b"test",
-            decimal.Decimal("1.5"),
+            Decimal("1.5"),
         ],
     )
     def test_roundtrip_dict_key_types(self, key):

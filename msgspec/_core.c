@@ -9969,11 +9969,33 @@ invalid:
 }
 
 static PyObject *
-ms_decode_decimal_pyobj(MsgspecState *mod, PyObject *str, PathNode *path) {
+ms_decode_decimal_from_pyobj(MsgspecState *mod, PyObject *str, PathNode *path) {
     PyObject *out = CALL_ONE_ARG(mod->DecimalType, str);
     if (out == NULL) {
         ms_error_with_path("Invalid decimal string%U", path);
     }
+    return out;
+}
+
+static PyObject *
+ms_decode_decimal_from_int64(int64_t x, PathNode *path) {
+    PyObject *temp = PyLong_FromLongLong(x);
+    if (temp == NULL) return NULL;
+    PyObject *out = ms_decode_decimal_from_pyobj(
+        msgspec_get_global_state(), temp, path
+    );
+    Py_DECREF(temp);
+    return out;
+}
+
+static PyObject *
+ms_decode_decimal_from_uint64(uint64_t x, PathNode *path) {
+    PyObject *temp = PyLong_FromUnsignedLongLong(x);
+    if (temp == NULL) return NULL;
+    PyObject *out = ms_decode_decimal_from_pyobj(
+        msgspec_get_global_state(), temp, path
+    );
+    Py_DECREF(temp);
     return out;
 }
 
@@ -9990,7 +10012,7 @@ ms_decode_decimal(const char *view, Py_ssize_t size, bool is_ascii, PathNode *pa
         str = PyUnicode_DecodeUTF8(view, size, NULL);
         if (str == NULL) return NULL;
     }
-    PyObject *out = ms_decode_decimal_pyobj(
+    PyObject *out = ms_decode_decimal_from_pyobj(
         msgspec_get_global_state(), str, path
     );
     Py_DECREF(str);
@@ -16082,6 +16104,9 @@ json_decode_int(JSONDecoderState *self, int64_t x, TypeNode *type, PathNode *pat
     else if (type->types & MS_TYPE_FLOAT) {
         return ms_decode_float(x, type, path);
     }
+    else if (type->types & MS_TYPE_DECIMAL) {
+        return ms_decode_decimal_from_int64(x, path);
+    }
     else if (!self->strict && (type->types & MS_TYPE_DATETIME)) {
         return ms_decode_datetime_from_int64(x, type, path);
     }
@@ -16098,6 +16123,9 @@ json_decode_uint(JSONDecoderState *self, uint64_t x, TypeNode *type, PathNode *p
     }
     else if (type->types & MS_TYPE_FLOAT) {
         return ms_decode_float(x, type, path);
+    }
+    else if (type->types & MS_TYPE_DECIMAL) {
+        return ms_decode_decimal_from_uint64(x, path);
     }
     else if (!self->strict && (type->types & MS_TYPE_DATETIME)) {
         return ms_decode_datetime_from_uint64(x, type, path);
@@ -16126,6 +16154,8 @@ json_decode_extended_float(JSONDecoderState *self, TypeNode *type, PathNode *pat
     dec.decimal_point = 0;
     dec.negative = false;
     dec.truncated = false;
+
+    unsigned char *initial_pos = self->input_pos;
 
     /* We know there is at least one byte available when this function is
      * called */
@@ -16221,6 +16251,17 @@ json_decode_extended_float(JSONDecoderState *self, TypeNode *type, PathNode *pat
         if (MS_UNLIKELY(cur_pos == self->input_pos)) return json_err_invalid(self, "invalid number");
 
         dp += exp_sign * exp_part;
+    }
+
+    if (
+        MS_UNLIKELY(
+            !(type->types & (MS_TYPE_ANY | MS_TYPE_FLOAT))
+            && type->types & MS_TYPE_DECIMAL
+        )
+    ) {
+        return ms_decode_decimal(
+            (char *)initial_pos, self->input_pos - initial_pos, true, path
+        );
     }
 
     dec.num_digits = nd;
@@ -16375,6 +16416,16 @@ end_integer:
         }
         return json_decode_uint(self, mantissa, type, path);
     }
+    else if (
+        MS_UNLIKELY(
+            !(type->types & (MS_TYPE_ANY | MS_TYPE_FLOAT))
+            && type->types & MS_TYPE_DECIMAL
+        )
+    ) {
+        return ms_decode_decimal(
+            (char *)initial_pos, self->input_pos - initial_pos, true, path
+        );
+    }
     else {
         double val;
         if (MS_UNLIKELY(!reconstruct_double(mantissa, exponent, is_negative, &val))) {
@@ -16385,9 +16436,6 @@ end_integer:
 
 fallback_extended:
     self->input_pos = initial_pos;
-    if (MS_UNLIKELY(!(type->types & (MS_TYPE_ANY | MS_TYPE_FLOAT)))) {
-        return ms_validation_error("float", type, path);
-    }
     return json_decode_extended_float(self, type, path);
 }
 
@@ -17834,7 +17882,7 @@ convert_str_uncommon(
         (type->types & MS_TYPE_DECIMAL)
         && !(self->builtin_types & MS_BUILTIN_DECIMAL)
     ) {
-        return ms_decode_decimal_pyobj(self->mod, obj, path);
+        return ms_decode_decimal_from_pyobj(self->mod, obj, path);
     }
     else if (
         (type->types & MS_TYPE_BYTES)
