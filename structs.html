@@ -383,9 +383,9 @@ arguments, you might need to make use of a <a class="reference external" href="h
 forward any additional parameters needed to the default factory.</p></li>
 <li><p>Builtin <em>empty</em> mutable collections (<code class="docutils literal notranslate"><span class="pre">[]</span></code>, <code class="docutils literal notranslate"><span class="pre">{}</span></code>, <code class="docutils literal notranslate"><span class="pre">set()</span></code>, and
 <code class="docutils literal notranslate"><span class="pre">bytearray()</span></code>) may be used as default values (as in <code class="docutils literal notranslate"><span class="pre">c</span></code> above). Since
-defaults of these types are so common, they’re these are “syntactic sugar”
-for specifying the corresponding <code class="docutils literal notranslate"><span class="pre">default_factory</span></code> (to avoid accidental
-sharing of mutable values). A default of <code class="docutils literal notranslate"><span class="pre">[]</span></code> is identical to a default of
+defaults of these types are so common, these are “syntactic sugar” for
+specifying the corresponding <code class="docutils literal notranslate"><span class="pre">default_factory</span></code> (to avoid accidental sharing
+of mutable values). A default of <code class="docutils literal notranslate"><span class="pre">[]</span></code> is identical to a default of
 <code class="docutils literal notranslate"><span class="pre">field(default_factory=list)</span></code>, with a new list instance used each time.
 Specifying a non-empty mutable collection (e.g. <code class="docutils literal notranslate"><span class="pre">[1,</span> <span class="pre">2,</span> <span class="pre">3]</span></code>) as a default
 value will cause the struct definition to error (you should manually define a
