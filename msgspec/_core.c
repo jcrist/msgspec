@@ -8205,6 +8205,7 @@ static PyTypeObject Ext_Type = {
 typedef struct EncoderState {
     MsgspecState *mod;          /* module reference */
     PyObject *enc_hook;         /* `enc_hook` callback */
+    bool decimal_as_string;     /* true if decimals should encode as strings */
     char* (*resize_buffer)(PyObject**, Py_ssize_t);  /* callback for resizing buffer */
 
     char *output_buffer_raw;    /* raw pointer to output_buffer internal buffer */
@@ -8217,6 +8218,7 @@ typedef struct Encoder {
     PyObject_HEAD
     PyObject *enc_hook;
     MsgspecState *mod;
+    bool decimal_as_string;     /* true if decimals should encode as strings */
 } Encoder;
 
 static char*
@@ -8269,10 +8271,14 @@ ms_write(EncoderState *self, const char *s, Py_ssize_t n)
 static int
 Encoder_init(Encoder *self, PyObject *args, PyObject *kwds)
 {
-    char *kwlist[] = {"enc_hook", NULL};
-    PyObject *enc_hook = NULL;
+    char *kwlist[] = {"enc_hook", "decimal_format", NULL};
+    PyObject *enc_hook = NULL, *decimal_format = NULL;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|$O", kwlist, &enc_hook)) {
+    if (
+        !PyArg_ParseTupleAndKeywords(
+            args, kwds, "|$OO", kwlist, &enc_hook, &decimal_format
+        )
+    ) {
         return -1;
     }
 
@@ -8287,6 +8293,30 @@ Encoder_init(Encoder *self, PyObject *args, PyObject *kwds)
         Py_INCREF(enc_hook);
     }
 
+    if (decimal_format == NULL) {
+        self->decimal_as_string = true;
+    }
+    else {
+        bool ok = false;
+        if (PyUnicode_CheckExact(decimal_format)) {
+            if (PyUnicode_CompareWithASCIIString(decimal_format, "string") == 0) {
+                self->decimal_as_string = true;
+                ok = true;
+            }
+            else if (PyUnicode_CompareWithASCIIString(decimal_format, "number") == 0) {
+                self->decimal_as_string = false;
+                ok = true;
+            }
+        }
+        if (!ok) {
+            PyErr_Format(
+                PyExc_ValueError,
+                "`decimal_format` must be 'string' or 'number', got %R",
+                decimal_format
+            );
+            return -1;
+        }
+    }
     self->mod = msgspec_get_global_state();
     self->enc_hook = enc_hook;
     return 0;
@@ -8374,6 +8404,7 @@ encoder_encode_into_common(
     EncoderState state = {
         .mod = self->mod,
         .enc_hook = self->enc_hook,
+        .decimal_as_string = self->decimal_as_string,
         .output_buffer = buf,
         .output_buffer_raw = PyByteArray_AS_STRING(buf),
         .output_len = offset,
@@ -8416,6 +8447,7 @@ encoder_encode_common(
     EncoderState state = {
         .mod = self->mod,
         .enc_hook = self->enc_hook,
+        .decimal_as_string = self->decimal_as_string,
         .output_len = 0,
         .max_output_len = ENC_INIT_BUFSIZE,
         .resize_buffer = &ms_resize_bytes
@@ -8469,6 +8501,7 @@ encode_common(
     EncoderState state = {
         .mod = mod,
         .enc_hook = enc_hook,
+        .decimal_as_string = true,
         .output_len = 0,
         .max_output_len = ENC_INIT_BUFSIZE,
         .resize_buffer = &ms_resize_bytes
@@ -8487,6 +8520,20 @@ encode_common(
 
 static PyMemberDef Encoder_members[] = {
     {"enc_hook", T_OBJECT, offsetof(Encoder, enc_hook), READONLY, "The encoder enc_hook"},
+    {NULL},
+};
+
+static PyObject*
+Encoder_decimal_format(Encoder *self, void *closure)
+{
+    if (self->decimal_as_string) {
+        return PyUnicode_InternFromString("string");
+    }
+    return PyUnicode_InternFromString("number");
+}
+
+static PyGetSetDef Encoder_getset[] = {
+    {"decimal_format", (getter) Encoder_decimal_format, NULL, NULL, NULL},
     {NULL},
 };
 
@@ -10234,7 +10281,7 @@ ms_decode_str_lax(
  *************************************************************************/
 
 PyDoc_STRVAR(Encoder__doc__,
-"Encoder(*, enc_hook=None)\n"
+"Encoder(*, enc_hook=None, decimal_format='string')\n"
 "--\n"
 "\n"
 "A MessagePack encoder.\n"
@@ -10244,7 +10291,12 @@ PyDoc_STRVAR(Encoder__doc__,
 "enc_hook : callable, optional\n"
 "    A callable to call for objects that aren't supported msgspec types. Takes\n"
 "    the unsupported object and should return a supported object, or raise a\n"
-"    ``NotImplementedError`` if unsupported."
+"    ``NotImplementedError`` if unsupported.\n"
+"decimal_format : {'string', 'number'}, optional\n"
+"    The format to use for encoding `decimal.Decimal` objects. If 'string'\n"
+"    they're encoded as strings, if 'number', they're encoded as floats.\n"
+"    Defaults to 'string', which is the recommended value since 'number'\n"
+"    may result in precision loss when decoding."
 );
 
 enum mpack_code {
@@ -10955,10 +11007,20 @@ mpack_encode_uuid(EncoderState *self, PyObject *obj)
 static int
 mpack_encode_decimal(EncoderState *self, PyObject *obj)
 {
-    PyObject *str = PyObject_Str(obj);
-    if (str == NULL) return -1;
-    int out = mpack_encode_str(self, str);
-    Py_DECREF(str);
+    PyObject *temp;
+    int out;
+
+    if (MS_LIKELY(self->decimal_as_string)) {
+        temp = PyObject_Str(obj);
+        if (temp == NULL) return -1;
+        out = mpack_encode_str(self, temp);
+    }
+    else {
+        temp = PyNumber_Float(obj);
+        if (temp == NULL) return -1;
+        out = mpack_encode_float(self, temp);
+    }
+    Py_DECREF(temp);
     return out;
 }
 
@@ -11202,6 +11264,7 @@ static PyTypeObject Encoder_Type = {
     .tp_init = (initproc)Encoder_init,
     .tp_methods = Encoder_methods,
     .tp_members = Encoder_members,
+    .tp_getset = Encoder_getset,
 };
 
 PyDoc_STRVAR(msgspec_msgpack_encode__doc__,
@@ -11239,7 +11302,7 @@ msgspec_msgpack_encode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, 
  *************************************************************************/
 
 PyDoc_STRVAR(JSONEncoder__doc__,
-"Encoder(*, enc_hook=None)\n"
+"Encoder(*, enc_hook=None, decimal_format='string')\n"
 "--\n"
 "\n"
 "A JSON encoder.\n"
@@ -11249,7 +11312,13 @@ PyDoc_STRVAR(JSONEncoder__doc__,
 "enc_hook : callable, optional\n"
 "    A callable to call for objects that aren't supported msgspec types. Takes\n"
 "    the unsupported object and should return a supported object, or raise a\n"
-"    ``NotImplementedError`` if unsupported."
+"    ``NotImplementedError`` if unsupported.\n"
+"decimal_format : {'string', 'number'}, optional\n"
+"    The format to use for encoding `decimal.Decimal` objects. If 'string'\n"
+"    they're encoded as strings, if 'number', they're encoded as floats.\n"
+"    Defaults to 'string', which is the recommended value since 'number'\n"
+"    may result in precision loss when decoding for some JSON library\n"
+"    implementations."
 );
 
 static int json_encode_inline(EncoderState*, PyObject*);
@@ -11555,11 +11624,28 @@ json_encode_uuid(EncoderState *self, PyObject *obj)
 static int
 json_encode_decimal(EncoderState *self, PyObject *obj)
 {
-    PyObject *str = PyObject_Str(obj);
-    if (str == NULL) return -1;
-    int out = json_encode_str_nocheck(self, str);
-    Py_DECREF(str);
-    return out;
+    PyObject *temp = PyObject_Str(obj);
+    if (temp == NULL) return -1;
+
+    Py_ssize_t size;
+    const char* buf = unicode_str_and_size_nocheck(temp, &size);
+
+    Py_ssize_t required = size + (2 * self->decimal_as_string);
+    if (ms_ensure_space(self, size + 2) < 0) {
+        Py_DECREF(temp);
+        return -1;
+    }
+
+    char *p = self->output_buffer_raw + self->output_len;
+    if (MS_LIKELY(self->decimal_as_string)) *p++ = '"';
+    memcpy(p, buf, size);
+    if (MS_LIKELY(self->decimal_as_string)) *(p + size) = '"';
+
+    self->output_len += required;
+
+    Py_DECREF(temp);
+
+    return 0;
 }
 
 static int
@@ -12052,6 +12138,7 @@ static PyTypeObject JSONEncoder_Type = {
     .tp_init = (initproc)Encoder_init,
     .tp_methods = JSONEncoder_methods,
     .tp_members = Encoder_members,
+    .tp_getset = Encoder_getset,
 };
 
 PyDoc_STRVAR(msgspec_json_encode__doc__,

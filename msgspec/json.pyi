@@ -4,6 +4,7 @@ from typing import (
     Callable,
     Dict,
     Generic,
+    Literal,
     Optional,
     Tuple,
     Type,
@@ -19,12 +20,13 @@ dec_hook_sig = Optional[Callable[[type, Any], Any]]
 
 class Encoder:
     enc_hook: enc_hook_sig
-    write_buffer_size: int
+    decimal_format: Literal["string", "number"]
+
     def __init__(
         self,
         *,
         enc_hook: enc_hook_sig = None,
-        write_buffer_size: int = ...,
+        decimal_format: Literal["string", "number"] = "string",
     ): ...
     def encode(self, obj: Any) -> bytes: ...
     def encode_into(

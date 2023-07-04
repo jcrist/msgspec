@@ -641,6 +641,12 @@ def check_msgpack_Encoder_enc_hook() -> None:
     msgspec.msgpack.Encoder(enc_hook=lambda x: None)
 
 
+def check_msgpack_Encoder_decimal_format() -> None:
+    enc = msgspec.msgpack.Encoder(decimal_format="string")
+    msgspec.msgpack.Encoder(decimal_format="number")
+    reveal_type(enc.decimal_format)  # assert "string" in typ.lower() and "number" in typ.lower()
+
+
 def check_msgpack_decode_dec_hook() -> None:
     def dec_hook(typ: Type, obj: Any) -> Any:
         return typ(obj)
@@ -768,6 +774,12 @@ def check_json_encode_enc_hook() -> None:
 
 def check_json_Encoder_enc_hook() -> None:
     msgspec.json.Encoder(enc_hook=lambda x: None)
+
+
+def check_json_Encoder_decimal_format() -> None:
+    enc = msgspec.json.Encoder(decimal_format="string")
+    msgspec.json.Encoder(decimal_format="number")
+    reveal_type(enc.decimal_format)  # assert "string" in typ.lower() and "number" in typ.lower()
 
 
 def check_json_decode_dec_hook() -> None:

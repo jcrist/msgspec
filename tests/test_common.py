@@ -3184,6 +3184,46 @@ class TestNewType:
 
 
 class TestDecimal:
+    def test_encoder_decimal_format(self, proto):
+        assert proto.Encoder().decimal_format == "string"
+        assert proto.Encoder(decimal_format="string").decimal_format == "string"
+        assert proto.Encoder(decimal_format="number").decimal_format == "number"
+
+    def test_encoder_invalid_decimal_format(self, proto):
+        with pytest.raises(ValueError, match="must be 'string' or 'number', got 'bad'"):
+            proto.Encoder(decimal_format="bad")
+
+        with pytest.raises(ValueError, match="must be 'string' or 'number', got 1"):
+            proto.Encoder(decimal_format=1)
+
+    def test_encoder_encode_decimal(self, proto):
+        enc = proto.Encoder()
+        d = decimal.Decimal("1.5")
+        s = str(d)
+        assert enc.encode(d) == enc.encode(s)
+
+    def test_Encoder_encode_decimal_string(self, proto):
+        enc = proto.Encoder(decimal_format="string")
+        d = decimal.Decimal("1.5")
+        sol = enc.encode(str(d))
+
+        assert enc.encode(d) == sol
+
+        buf = bytearray()
+        enc.encode_into(d, buf)
+        assert buf == sol
+
+    def test_Encoder_encode_decimal_number(self, proto):
+        enc = proto.Encoder(decimal_format="number")
+        d = decimal.Decimal("1.5")
+        sol = enc.encode(float(d))
+
+        assert enc.encode(d) == sol
+
+        buf = bytearray()
+        enc.encode_into(d, buf)
+        assert buf == sol
+
     def test_encode_decimal(self, proto):
         d = decimal.Decimal("1.5")
         s = str(d)

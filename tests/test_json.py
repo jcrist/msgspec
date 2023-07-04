@@ -1440,6 +1440,11 @@ class TestDecimal:
     """Most decimal tests are in test_common.py, the ones here are for json
     specific behaviors"""
 
+    def test_decimal_to_number_keeps_precision(self):
+        enc = msgspec.json.Encoder(decimal_format="number")
+        msg = enc.encode(Decimal("1.3000"))
+        assert msg == b"1.3000"
+
     @pytest.mark.parametrize(
         "msg",
         [

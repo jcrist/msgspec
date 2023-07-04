@@ -419,8 +419,8 @@ When decoding, both hyphenated and unhyphenated forms are supported.
 -----------
 
 `decimal.Decimal` values are encoded as their string representation in all
-protocols. This ensures no precision loss during serialization, as would happen
-with a float representation.
+protocols by default. This ensures no precision loss during serialization, as
+would happen with a float representation.
 
 .. code-block:: python
 
@@ -440,6 +440,19 @@ with a float representation.
     Traceback (most recent call last):
         File "<stdin>", line 1, in <module>
     msgspec.ValidationError: Invalid decimal string
+
+For JSON and MessagePack you may instead encode decimal values the same as
+numbers by creating a ``Encoder`` and specifying ``decimal_format='number'``.
+
+.. code-block:: python
+
+    >>> encoder = msgspec.json.Encoder(decimal_format="number")
+
+    >>> encoder.encode(x)
+    b'1.2345'
+
+This setting is not yet supported for YAML or TOML - if this option is
+important for you please `open an issue`_.
 
 All protocols will also decode `decimal.Decimal` values from ``int`` or
 ``float`` inputs. For JSON the value is parsed directly from the serialized
@@ -1123,8 +1136,7 @@ Union restrictions are as follows:
 - Unions may contain at most one type that encodes to a string (`str`,
   `enum.Enum`, `bytes`, `bytearray`, `datetime.datetime`, `datetime.date`,
   `datetime.time`, `uuid.UUID`, `decimal.Decimal`). Note that this restriction
-  is fixable with some work, if this is a feature you need please `open an
-  issue <https://github.com/jcrist/msgspec/issues>`__.
+  is fixable with some work, if this is a feature you need please `open an issue`_.
 
 - Unions may contain at most one type that encodes to an object (`dict`,
   `typing.TypedDict`, dataclasses_, attrs_, `Struct` with ``array_like=False``)
@@ -1339,3 +1351,4 @@ TOML_ types are decoded to Python types as follows:
 .. _pyright: https://github.com/microsoft/pyright
 .. _generic types:
 .. _user-defined generic types: https://docs.python.org/3/library/typing.html#user-defined-generic-types
+.. _open an issue: https://github.com/jcrist/msgspec/issues>
