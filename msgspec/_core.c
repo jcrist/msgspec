@@ -9968,9 +9968,21 @@ invalid:
     return ms_error_with_path("Invalid UUID%U", path);
 }
 
+/*************************************************************************
+ * Decimal Utilities                                                     *
+ *************************************************************************/
+
 static PyObject *
-ms_decode_decimal_from_pyobj(MsgspecState *mod, PyObject *str, PathNode *path) {
-    PyObject *out = CALL_ONE_ARG(mod->DecimalType, str);
+ms_decode_decimal_from_pyobj(PyObject *str, PathNode *path, MsgspecState *mod) {
+    if (mod == NULL) {
+        mod = msgspec_get_global_state();
+    }
+    return CALL_ONE_ARG(mod->DecimalType, str);
+}
+
+static PyObject *
+ms_decode_decimal_from_pystr(PyObject *str, PathNode *path, MsgspecState *mod) {
+    PyObject *out = ms_decode_decimal_from_pyobj(str, path, mod);
     if (out == NULL) {
         ms_error_with_path("Invalid decimal string%U", path);
     }
@@ -9978,29 +9990,9 @@ ms_decode_decimal_from_pyobj(MsgspecState *mod, PyObject *str, PathNode *path) {
 }
 
 static PyObject *
-ms_decode_decimal_from_int64(int64_t x, PathNode *path) {
-    PyObject *temp = PyLong_FromLongLong(x);
-    if (temp == NULL) return NULL;
-    PyObject *out = ms_decode_decimal_from_pyobj(
-        msgspec_get_global_state(), temp, path
-    );
-    Py_DECREF(temp);
-    return out;
-}
-
-static PyObject *
-ms_decode_decimal_from_uint64(uint64_t x, PathNode *path) {
-    PyObject *temp = PyLong_FromUnsignedLongLong(x);
-    if (temp == NULL) return NULL;
-    PyObject *out = ms_decode_decimal_from_pyobj(
-        msgspec_get_global_state(), temp, path
-    );
-    Py_DECREF(temp);
-    return out;
-}
-
-static PyObject *
-ms_decode_decimal(const char *view, Py_ssize_t size, bool is_ascii, PathNode *path) {
+ms_decode_decimal(
+    const char *view, Py_ssize_t size, bool is_ascii, PathNode *path, MsgspecState *mod
+) {
     PyObject *str;
 
     if (MS_LIKELY(is_ascii)) {
@@ -10012,12 +10004,53 @@ ms_decode_decimal(const char *view, Py_ssize_t size, bool is_ascii, PathNode *pa
         str = PyUnicode_DecodeUTF8(view, size, NULL);
         if (str == NULL) return NULL;
     }
-    PyObject *out = ms_decode_decimal_from_pyobj(
-        msgspec_get_global_state(), str, path
-    );
+    PyObject *out = ms_decode_decimal_from_pystr(str, path, mod);
     Py_DECREF(str);
     return out;
 }
+
+static PyObject *
+ms_decode_decimal_from_int64(int64_t x, PathNode *path) {
+    PyObject *temp = PyLong_FromLongLong(x);
+    if (temp == NULL) return NULL;
+    PyObject *out = ms_decode_decimal_from_pyobj(temp, path, NULL);
+    Py_DECREF(temp);
+    return out;
+}
+
+static PyObject *
+ms_decode_decimal_from_uint64(uint64_t x, PathNode *path) {
+    PyObject *temp = PyLong_FromUnsignedLongLong(x);
+    if (temp == NULL) return NULL;
+    PyObject *out = ms_decode_decimal_from_pyobj(temp, path, NULL);
+    Py_DECREF(temp);
+    return out;
+}
+
+static PyObject *
+ms_decode_decimal_from_float(double val, PathNode *path, MsgspecState *mod) {
+    if (MS_LIKELY(isfinite(val))) {
+        /* For finite values, render as the nearest IEEE754 double in string
+         * form, then call decimal.Decimal to parse */
+        char buf[24];
+        int n = write_f64(val, buf);
+        return ms_decode_decimal(buf, n, true, path, mod);
+    }
+    else {
+        /* For nonfinite values, convert to float obj and go through python */
+        PyObject *temp = PyFloat_FromDouble(val);
+        if (temp == NULL) return NULL;
+        PyObject *out = ms_decode_decimal_from_pyobj(temp, path, mod);
+        Py_DECREF(temp);
+        return out;
+    }
+}
+
+static PyObject *
+ms_decode_decimal_from_pyfloat(PyObject *obj, PathNode *path, MsgspecState *mod) {
+    return ms_decode_decimal_from_float(PyFloat_AS_DOUBLE(obj), path, mod);
+}
+
 
 /*************************************************************************
  * strict=False Utilities                                                *
@@ -12595,6 +12628,9 @@ mpack_decode_int(DecoderState *self, int64_t x, TypeNode *type, PathNode *path) 
     else if (type->types & MS_TYPE_FLOAT) {
         return ms_decode_float(x, type, path);
     }
+    else if (type->types & MS_TYPE_DECIMAL) {
+        return ms_decode_decimal_from_int64(x, path);
+    }
     else if (!self->strict && (type->types & MS_TYPE_DATETIME)) {
         return ms_decode_datetime_from_int64(x, type, path);
     }
@@ -12611,6 +12647,9 @@ mpack_decode_uint(DecoderState *self, uint64_t x, TypeNode *type, PathNode *path
     }
     else if (type->types & MS_TYPE_FLOAT) {
         return ms_decode_float(x, type, path);
+    }
+    else if (type->types & MS_TYPE_DECIMAL) {
+        return ms_decode_decimal_from_uint64(x, path);
     }
     else if (!self->strict && (type->types & MS_TYPE_DATETIME)) {
         return ms_decode_datetime_from_uint64(x, type, path);
@@ -12638,8 +12677,11 @@ mpack_decode_bool(DecoderState *self, PyObject *val, TypeNode *type, PathNode *p
 
 static PyObject *
 mpack_decode_float(DecoderState *self, double x, TypeNode *type, PathNode *path) {
-    if (type->types & (MS_TYPE_ANY | MS_TYPE_FLOAT)) {
+    if (MS_LIKELY(type->types & (MS_TYPE_ANY | MS_TYPE_FLOAT))) {
         return ms_decode_float(x, type, path);
+    }
+    else if (type->types & MS_TYPE_DECIMAL) {
+        return ms_decode_decimal_from_float(x, path, NULL);
     }
     else if (!self->strict && (type->types & MS_TYPE_DATETIME)) {
         return ms_decode_datetime_from_float(x, type, path);
@@ -12679,7 +12721,7 @@ mpack_decode_str(DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *
         return ms_decode_uuid(s, size, path);
     }
     else if (MS_UNLIKELY(type->types & MS_TYPE_DECIMAL)) {
-        return ms_decode_decimal(s, size, false, path);
+        return ms_decode_decimal(s, size, false, path, NULL);
     }
     return ms_validation_error("str", type, path);
 }
@@ -14783,7 +14825,7 @@ json_decode_string(JSONDecoderState *self, TypeNode *type, PathNode *path) {
         return ms_decode_uuid(view, size, path);
     }
     else if (MS_UNLIKELY(type->types & MS_TYPE_DECIMAL)) {
-        return ms_decode_decimal(view, size, is_ascii, path);
+        return ms_decode_decimal(view, size, is_ascii, path, NULL);
     }
     else if (MS_UNLIKELY(type->types & (MS_TYPE_BYTES | MS_TYPE_BYTEARRAY))) {
         return json_decode_binary(view, size, type, path);
@@ -14830,7 +14872,7 @@ json_decode_dict_key_fallback(
         return ms_decode_time(view, size, type, path);
     }
     else if (type->types & MS_TYPE_DECIMAL) {
-        return ms_decode_decimal(view, size, is_ascii, path);
+        return ms_decode_decimal(view, size, is_ascii, path, NULL);
     }
     else if (type->types & MS_TYPE_BYTES) {
         return json_decode_binary(view, size, type, path);
@@ -16260,7 +16302,7 @@ json_decode_extended_float(JSONDecoderState *self, TypeNode *type, PathNode *pat
         )
     ) {
         return ms_decode_decimal(
-            (char *)initial_pos, self->input_pos - initial_pos, true, path
+            (char *)initial_pos, self->input_pos - initial_pos, true, path, NULL
         );
     }
 
@@ -16423,7 +16465,7 @@ end_integer:
         )
     ) {
         return ms_decode_decimal(
-            (char *)initial_pos, self->input_pos - initial_pos, true, path
+            (char *)initial_pos, self->input_pos - initial_pos, true, path, NULL
         );
     }
     else {
@@ -17804,6 +17846,12 @@ convert_int(
     else if (type->types & MS_TYPE_FLOAT) {
         return ms_decode_float(PyLong_AsDouble(obj), type, path);
     }
+    else if (
+        type->types & MS_TYPE_DECIMAL
+        && !(self->builtin_types & MS_BUILTIN_DECIMAL)
+    ) {
+        return ms_decode_decimal_from_pyobj(obj, path, self->mod);
+    }
     else if (!self->strict && (type->types & MS_TYPE_DATETIME)) {
         return ms_decode_datetime_from_pyint(obj, type, path);
     }
@@ -17817,6 +17865,12 @@ convert_float(
     if (type->types & MS_TYPE_FLOAT) {
         Py_INCREF(obj);
         return ms_check_float_constraints(obj, type, path);
+    }
+    else if (
+        type->types & MS_TYPE_DECIMAL
+        && !(self->builtin_types & MS_BUILTIN_DECIMAL)
+    ) {
+        return ms_decode_decimal_from_pyfloat(obj, path, self->mod);
     }
     else if (!self->strict && (type->types & MS_TYPE_DATETIME)) {
         return ms_decode_datetime_from_pyfloat(obj, type, path);
@@ -17882,7 +17936,7 @@ convert_str_uncommon(
         (type->types & MS_TYPE_DECIMAL)
         && !(self->builtin_types & MS_BUILTIN_DECIMAL)
     ) {
-        return ms_decode_decimal_from_pyobj(self->mod, obj, path);
+        return ms_decode_decimal_from_pystr(obj, path, self->mod);
     }
     else if (
         (type->types & MS_TYPE_BYTES)

@@ -3189,17 +3189,37 @@ class TestDecimal:
         s = str(d)
         assert proto.encode(d) == proto.encode(s)
 
-    def test_decode_decimal(self, proto):
+    def test_decode_decimal_str(self, proto):
         d = decimal.Decimal("1.5")
         msg = proto.encode(d)
         res = proto.decode(msg, type=decimal.Decimal)
         assert type(res) is decimal.Decimal
         assert res == d
 
-    def test_decode_decimal_invalid(self, proto):
+    def test_decode_decimal_str_invalid(self, proto):
         msg = proto.encode("1..5")
         with pytest.raises(ValidationError, match="Invalid decimal string"):
             proto.decode(msg, type=decimal.Decimal)
+
+    @pytest.mark.parametrize("val", [-1, -1234, 1, 1234])
+    def test_decode_decimal_int(self, val, proto):
+        msg = proto.encode(val)
+        sol = decimal.Decimal(str(val))
+        res = proto.decode(msg, type=decimal.Decimal)
+        assert type(res) is decimal.Decimal
+        assert res == sol
+
+    @pytest.mark.parametrize(
+        "val", [0.0, 1.3, float("nan"), float("inf"), float("-inf")]
+    )
+    def test_decode_decimal_float(self, val, proto):
+        msg = proto.encode(val)
+        if msg == b"null":
+            pytest.skip("nonfinite values not supported")
+        sol = decimal.Decimal(str(val))
+        res = proto.decode(msg, type=decimal.Decimal)
+        assert str(res) == str(sol)
+        assert type(res) is decimal.Decimal
 
 
 class TestAbstractTypes:

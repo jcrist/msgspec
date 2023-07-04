@@ -674,8 +674,8 @@ class TestUUID:
 
 class TestDecimal:
     def test_decimal_wrong_type(self):
-        with pytest.raises(ValidationError, match="Expected `decimal`, got `float`"):
-            convert(1.5, decimal.Decimal)
+        with pytest.raises(ValidationError, match="Expected `decimal`, got `array`"):
+            convert([], decimal.Decimal)
 
     def test_decimal_builtin(self):
         x = decimal.Decimal("1.5")
@@ -687,9 +687,24 @@ class TestDecimal:
         assert res == sol
         assert type(res) is decimal.Decimal
 
-    def test_decimal_str_disabled(self):
-        with pytest.raises(ValidationError, match="Expected `decimal`, got `str`"):
-            convert("1.5", decimal.Decimal, builtin_types=(decimal.Decimal,))
+    @pytest.mark.parametrize("val", [1.3, float("nan"), float("inf"), float("-inf")])
+    def test_decimal_float(self, val):
+        sol = decimal.Decimal(str(val))
+        res = convert(val, decimal.Decimal)
+        assert str(res) == str(sol)  # compare strs to support NaN
+        assert type(res) is decimal.Decimal
+
+    @pytest.mark.parametrize("val", [0, 1234, -1234])
+    def test_decimal_int(self, val):
+        sol = decimal.Decimal(val)
+        res = convert(val, decimal.Decimal)
+        assert res == sol
+        assert type(res) is decimal.Decimal
+
+    @pytest.mark.parametrize("val, typ", [("1.5", "str"), (123, "int"), (1.3, "float")])
+    def test_decimal_conversion_disabled(self, val, typ):
+        with pytest.raises(ValidationError, match=f"Expected `decimal`, got `{typ}`"):
+            convert(val, decimal.Decimal, builtin_types=(decimal.Decimal,))
 
 
 class TestExt:
