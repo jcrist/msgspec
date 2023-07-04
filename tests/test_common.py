@@ -1913,7 +1913,7 @@ class TestTypedDict:
         if not hasattr(ns, "Required"):
             pytest.skip(f"{module}.Required is not available")
 
-        if not hasattr(ns.TypedDict("C"), "__required_keys__"):
+        if not hasattr(ns.TypedDict("C", {}), "__required_keys__"):
             # This should be Python 3.8, builtin typing only
             pytest.skip("partially optional TypedDict not supported")
 
