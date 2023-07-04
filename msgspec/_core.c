@@ -18158,6 +18158,25 @@ convert_enum(
 }
 
 static PyObject *
+convert_decimal(
+    ConvertState *self, PyObject *obj, TypeNode *type, PathNode *path
+) {
+    if (type->types & MS_TYPE_DECIMAL) {
+        Py_INCREF(obj);
+        return obj;
+    }
+    else if (type->types & MS_TYPE_FLOAT) {
+        PyObject *temp = PyNumber_Float(obj);
+        if (temp == NULL) return NULL;
+        PyObject *out = convert_float(self, temp, type, path);
+        Py_DECREF(temp);
+        return out;
+    }
+    return ms_validation_error("decimal", type, path);
+}
+
+
+static PyObject *
 convert_immutable(
     ConvertState *self, uint64_t mask, const char *expected,
     PyObject *obj, TypeNode *type, PathNode *path
@@ -19213,7 +19232,7 @@ convert(
         return convert_immutable(self, MS_TYPE_UUID, "uuid", obj, type, path);
     }
     else if (pytype == (PyTypeObject *)self->mod->DecimalType) {
-        return convert_immutable(self, MS_TYPE_DECIMAL, "decimal", obj, type, path);
+        return convert_decimal(self, obj, type, path);
     }
     else if (Py_TYPE(pytype) == self->mod->EnumMetaType) {
         return convert_enum(self, obj, type, path);

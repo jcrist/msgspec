@@ -454,6 +454,21 @@ class TestFloat:
             with pytest.raises(ValidationError):
                 convert({"x": x}, Ex)
 
+    def test_float_from_decimal(self):
+        res = convert(decimal.Decimal("1.5"), float)
+        assert res == 1.5
+        assert type(res) is float
+
+    @uses_annotated
+    def test_constr_float_from_decimal(self):
+        typ = Annotated[float, Meta(ge=0)]
+        res = convert(decimal.Decimal("1.5"), typ)
+        assert res == 1.5
+        assert type(res) is float
+
+        with pytest.raises(ValidationError, match="Expected `float` >= 0.0"):
+            convert(decimal.Decimal("-1.5"), typ)
+
 
 class TestStr:
     def test_str(self):
