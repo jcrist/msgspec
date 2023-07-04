@@ -690,6 +690,16 @@ def check_json_Encoder_encode() -> None:
     reveal_type(b)  # assert "bytes" in typ
 
 
+def check_json_Encoder_encode_lines() -> None:
+    enc = msgspec.json.Encoder()
+    items = [{"x": 1}, 2]
+    b = enc.encode_lines(items)
+    b2 = enc.encode_lines((i for i in items))
+
+    reveal_type(b)  # assert "bytes" in typ
+    reveal_type(b2)  # assert "bytes" in typ
+
+
 def check_json_Encoder_encode_into() -> None:
     enc = msgspec.json.Encoder()
     buf = bytearray(48)

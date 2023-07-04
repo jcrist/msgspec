@@ -4,6 +4,7 @@ from typing import (
     Callable,
     Dict,
     Generic,
+    Iterable,
     Literal,
     Optional,
     Tuple,
@@ -29,6 +30,7 @@ class Encoder:
         decimal_format: Literal["string", "number"] = "string",
     ): ...
     def encode(self, obj: Any) -> bytes: ...
+    def encode_lines(self, items: Iterable) -> bytes: ...
     def encode_into(
         self, obj: Any, buffer: bytearray, offset: Optional[int] = 0
     ) -> None: ...
