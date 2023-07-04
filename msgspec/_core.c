@@ -8201,6 +8201,7 @@ static PyTypeObject Ext_Type = {
  *************************************************************************/
 
 #define ENC_INIT_BUFSIZE 32
+#define ENC_LINES_INIT_BUFSIZE 1024
 
 typedef struct EncoderState {
     MsgspecState *mod;          /* module reference */
@@ -12113,6 +12114,74 @@ JSONEncoder_encode(Encoder *self, PyObject *const *args, Py_ssize_t nargs)
     return encoder_encode_common(self, args, nargs, &json_encode);
 }
 
+PyDoc_STRVAR(JSONEncoder_encode_lines__doc__,
+"encode_lines(self, items)\n"
+"--\n"
+"\n"
+"Encode an iterable of items as newline-delimited JSON, one item per line.\n"
+"\n"
+"Parameters\n"
+"----------\n"
+"items : iterable\n"
+"    An iterable of items to encode.\n"
+"\n"
+"Returns\n"
+"-------\n"
+"data : bytes\n"
+"    The items encoded as newline-delimited JSON, one item per line.\n"
+"\n"
+"Examples\n"
+"--------\n"
+">>> import msgspec\n"
+">>> items = [{\"name\": \"alice\"}, {\"name\": \"ben\"}]\n"
+">>> encoder = msgspec.json.Encoder()\n"
+">>> encoder.encode_lines(items)\n"
+"b'{\"name\":\"alice\"}\\n{\"name\":\"ben\"}\\n'"
+);
+static PyObject *
+JSONEncoder_encode_lines(Encoder *self, PyObject *const *args, Py_ssize_t nargs)
+{
+    if (!check_positional_nargs(nargs, 1, 1)) return NULL;
+
+    EncoderState state = {
+        .mod = self->mod,
+        .enc_hook = self->enc_hook,
+        .decimal_as_string = self->decimal_as_string,
+        .output_len = 0,
+        .max_output_len = ENC_LINES_INIT_BUFSIZE,
+        .resize_buffer = &ms_resize_bytes
+    };
+    state.output_buffer = PyBytes_FromStringAndSize(NULL, state.max_output_len);
+    if (state.output_buffer == NULL) return NULL;
+    state.output_buffer_raw = PyBytes_AS_STRING(state.output_buffer);
+
+    PyObject *input = args[0];
+    if (MS_LIKELY(PyList_Check(input))) {
+        for (Py_ssize_t i = 0; i < PyList_GET_SIZE(input); i++) {
+            if (json_encode(&state, PyList_GET_ITEM(input, i)) < 0) goto error;
+            if (ms_write(&state, "\n", 1) < 0) goto error;
+        }
+    }
+    else {
+        PyObject *iter = PyObject_GetIter(input);
+        if (iter == NULL) goto error;
+
+        PyObject *item;
+        while ((item = PyIter_Next(iter))) {
+            if (json_encode(&state, item) < 0) goto error;
+            if (ms_write(&state, "\n", 1) < 0) goto error;
+        }
+        if (PyErr_Occurred()) goto error;
+    }
+
+    FAST_BYTES_SHRINK(state.output_buffer, state.output_len);
+    return state.output_buffer;
+
+error:
+    Py_DECREF(state.output_buffer);
+    return NULL;
+}
+
 static struct PyMethodDef JSONEncoder_methods[] = {
     {
         "encode", (PyCFunction) JSONEncoder_encode, METH_FASTCALL,
@@ -12121,6 +12190,10 @@ static struct PyMethodDef JSONEncoder_methods[] = {
     {
         "encode_into", (PyCFunction) JSONEncoder_encode_into, METH_FASTCALL,
         Encoder_encode_into__doc__,
+    },
+    {
+        "encode_lines", (PyCFunction) JSONEncoder_encode_lines, METH_FASTCALL,
+        JSONEncoder_encode_lines__doc__,
     },
     {NULL, NULL}                /* sentinel */
 };

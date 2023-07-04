@@ -319,6 +319,59 @@ class TestEncoderMisc:
         out2 = enc.encode([1, 2, 3])
         assert out1 == out2
 
+    @pytest.mark.parametrize("n", range(3))
+    @pytest.mark.parametrize("iterable", [False, True])
+    def test_encode_lines(self, n, iterable):
+        class custom:
+            def __init__(self, x):
+                self.x = x
+
+            def __str__(self):
+                return f"<{self.x}>"
+
+        enc = msgspec.json.Encoder(enc_hook=str)
+
+        items = [{"x": i, "y": custom(i)} for i in range(n)]
+        sol = b"".join(enc.encode(i) + b"\n" for i in items)
+        if iterable:
+            items = (i for i in items)
+
+        res = enc.encode_lines(items)
+        assert res == sol
+
+    @pytest.mark.parametrize("iterable", [False, True])
+    def test_encode_lines_iterable_unsupported_item_errors(self, iterable):
+        enc = msgspec.json.Encoder()
+
+        def gen():
+            yield 1
+            yield object()
+
+        items = gen() if iterable else list(gen())
+
+        with pytest.raises(TypeError):
+            enc.encode_lines(items)
+
+    def test_encode_lines_iterable_iter_error(self):
+        enc = msgspec.json.Encoder()
+
+        class noiter:
+            def __iter__(self):
+                raise ValueError("Oh no!")
+
+        with pytest.raises(ValueError, match="Oh no!"):
+            enc.encode_lines(noiter())
+
+    def test_encode_lines_iterable_next_error(self):
+        enc = msgspec.json.Encoder()
+
+        def gen():
+            yield 1
+            raise ValueError("Oh no!")
+
+        with pytest.raises(ValueError, match="Oh no!"):
+            enc.encode_lines(gen())
+
 
 class TestDecodeFunction:
     def test_decode(self):

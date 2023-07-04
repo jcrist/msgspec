@@ -57,7 +57,7 @@ JSON
 .. currentmodule:: msgspec.json
 
 .. autoclass:: Encoder
-    :members: encode, encode_into
+    :members: encode, encode_lines, encode_into
 
 .. autoclass:: Decoder
     :members: decode
