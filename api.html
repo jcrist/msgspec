@@ -701,13 +701,20 @@ determine whether a field was left unset, or explicitly set to <code class="docu
 <h2>JSON<a class="headerlink" href="#json" title="Permalink to this heading">#</a></h2>
 <dl class="py class">
 <dt class="sig sig-object py" id="msgspec.json.Encoder">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">msgspec.json.</span></span><span class="sig-name descname"><span class="pre">Encoder</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">enc_hook</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.json.Encoder" title="Permalink to this definition">#</a></dt>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">msgspec.json.</span></span><span class="sig-name descname"><span class="pre">Encoder</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">enc_hook</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">decimal_format</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'string'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.json.Encoder" title="Permalink to this definition">#</a></dt>
 <dd><p>A JSON encoder.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>enc_hook</strong> (<em>callable</em><em>, </em><em>optional</em>) – A callable to call for objects that aren’t supported msgspec types. Takes
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>enc_hook</strong> (<em>callable</em><em>, </em><em>optional</em>) – A callable to call for objects that aren’t supported msgspec types. Takes
 the unsupported object and should return a supported object, or raise a
-<code class="docutils literal notranslate"><span class="pre">NotImplementedError</span></code> if unsupported.</p>
+<code class="docutils literal notranslate"><span class="pre">NotImplementedError</span></code> if unsupported.</p></li>
+<li><p><strong>decimal_format</strong> (<em>{'string'</em><em>, </em><em>'number'}</em><em>, </em><em>optional</em>) – The format to use for encoding <a class="reference external" href="https://docs.python.org/3/library/decimal.html#decimal.Decimal" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">decimal.Decimal</span></code></a> objects. If ‘string’
+they’re encoded as strings, if ‘number’, they’re encoded as floats.
+Defaults to ‘string’, which is the recommended value since ‘number’
+may result in precision loss when decoding for some JSON library
+implementations.</p></li>
+</ul>
 </dd>
 </dl>
 <dl class="py method">
@@ -866,13 +873,19 @@ whitespace, minimizing the message size.</p></li>
 <h2>MessagePack<a class="headerlink" href="#messagepack" title="Permalink to this heading">#</a></h2>
 <dl class="py class">
 <dt class="sig sig-object py" id="msgspec.msgpack.Encoder">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">msgspec.msgpack.</span></span><span class="sig-name descname"><span class="pre">Encoder</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">enc_hook</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.msgpack.Encoder" title="Permalink to this definition">#</a></dt>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">msgspec.msgpack.</span></span><span class="sig-name descname"><span class="pre">Encoder</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">enc_hook</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">decimal_format</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'string'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.msgpack.Encoder" title="Permalink to this definition">#</a></dt>
 <dd><p>A MessagePack encoder.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>enc_hook</strong> (<em>callable</em><em>, </em><em>optional</em>) – A callable to call for objects that aren’t supported msgspec types. Takes
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>enc_hook</strong> (<em>callable</em><em>, </em><em>optional</em>) – A callable to call for objects that aren’t supported msgspec types. Takes
 the unsupported object and should return a supported object, or raise a
-<code class="docutils literal notranslate"><span class="pre">NotImplementedError</span></code> if unsupported.</p>
+<code class="docutils literal notranslate"><span class="pre">NotImplementedError</span></code> if unsupported.</p></li>
+<li><p><strong>decimal_format</strong> (<em>{'string'</em><em>, </em><em>'number'}</em><em>, </em><em>optional</em>) – The format to use for encoding <a class="reference external" href="https://docs.python.org/3/library/decimal.html#decimal.Decimal" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">decimal.Decimal</span></code></a> objects. If ‘string’
+they’re encoded as strings, if ‘number’, they’re encoded as floats.
+Defaults to ‘string’, which is the recommended value since ‘number’
+may result in precision loss when decoding.</p></li>
+</ul>
 </dd>
 </dl>
 <dl class="py method">
