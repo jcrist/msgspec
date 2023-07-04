@@ -418,7 +418,7 @@ When decoding, both hyphenated and unhyphenated forms are supported.
 ``decimal``
 -----------
 
-`decimal.Decimal` values are serialized as their string representation in all
+`decimal.Decimal` values are encoded as their string representation in all
 protocols. This ensures no precision loss during serialization, as would happen
 with a float representation.
 
@@ -440,6 +440,39 @@ with a float representation.
     Traceback (most recent call last):
         File "<stdin>", line 1, in <module>
     msgspec.ValidationError: Invalid decimal string
+
+All protocols will also decode `decimal.Decimal` values from ``int`` or
+``float`` inputs. For JSON the value is parsed directly from the serialized
+bytes, avoiding any precision loss:
+
+.. code-block:: python
+
+   >>> msgspec.json.decode(b"1.3", type=decimal.Decimal)
+   Decimal('1.3')
+
+   >>> msgspec.json.decode(b"1.300", type=decimal.Decimal)
+   Decimal('1.300')
+
+   >>> msgspec.json.decode(b"0.1234567891234567811", type=decimal.Decimal)
+   Decimal('0.1234567891234567811')
+
+Other protocols will coerce float inputs to the shortest decimal value that
+roundtrips back to the corresponding IEEE754 float representation (this is
+effectively equivalent to ``decimal.Decimal(str(float_val))``). This may result
+in precision loss for some inputs! In general we recommend avoiding parsing
+`decimal.Decimal` values from anything but strings.
+
+.. code-block:: python
+
+   >>> msgspec.yaml.decode(b"1.3", type=decimal.Decimal)
+   Decimal('1.3')
+
+   >>> msgspec.yaml.decode(b"1.300", type=decimal.Decimal)  # trailing 0s truncated!
+   Decimal('1.3')
+
+   >>> msgspec.yaml.decode(b"0.1234567891234567811", type=decimal.Decimal)  # precision loss!
+   Decimal('0.12345678912345678')
+
 
 ``list`` / ``tuple`` / ``set`` / ``frozenset``
 ----------------------------------------------
