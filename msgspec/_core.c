@@ -153,10 +153,34 @@ ms_release_buffer(Py_buffer *view) {
  */
 static inline bool
 fast_long_extract_parts(PyObject *vv, bool *neg, uint64_t *scale) {
-    uint64_t prev, x = 0;
     PyLongObject *v = (PyLongObject *)vv;
+    uint64_t prev, x = 0;
+    bool negative;
+
+#if PY_VERSION_HEX >= 0x030c0000
+    /* CPython 3.12 changed int internal representation */
+    int sign = 1 - (v->long_value.lv_tag & _PyLong_SIGN_MASK);
+    negative = sign == -1;
+
+    if (_PyLong_IsCompact(v)) {
+        x = v->long_value.ob_digit[0];
+    }
+    else {
+        Py_ssize_t i = v->long_value.lv_tag >> _PyLong_NON_SIZE_BITS;
+        while (--i >= 0) {
+            prev = x;
+            x = (x << PyLong_SHIFT) + v->long_value.ob_digit[i];
+            if ((x >> PyLong_SHIFT) != prev) {
+                return true;
+            }
+        }
+        if (negative && x > (1ull << 63)) {
+            return true;
+        }
+    }
+#else
     Py_ssize_t i = Py_SIZE(v);
-    bool negative = false;
+    negative = false;
 
     if (MS_LIKELY(i == 1)) {
         x = v->ob_digit[0];
@@ -175,6 +199,7 @@ fast_long_extract_parts(PyObject *vv, bool *neg, uint64_t *scale) {
             return true;
         }
     }
+#endif
 
     *neg = negative;
     *scale = x;
@@ -1879,7 +1904,15 @@ PyTypeObject NoDefault_Type = {
     .tp_basicsize = 0
 };
 
+#if PY_VERSION_HEX >= 0x030c0000
+PyObject _NoDefault_Object = {
+    _PyObject_EXTRA_INIT
+    { _Py_IMMORTAL_REFCNT },
+    &NoDefault_Type
+};
+#else
 PyObject _NoDefault_Object = {1, &NoDefault_Type};
+#endif
 
 /*************************************************************************
  * UNSET singleton                                                       *
@@ -1975,7 +2008,16 @@ PyTypeObject Unset_Type = {
     .tp_basicsize = 0
 };
 
+#if PY_VERSION_HEX >= 0x030c0000
+PyObject _Unset_Object = {
+    _PyObject_EXTRA_INIT
+    { _Py_IMMORTAL_REFCNT },
+    &Unset_Type
+};
+#else
 PyObject _Unset_Object = {1, &Unset_Type};
+#endif
+
 
 /*************************************************************************
  * Factory                                                               *
@@ -11150,10 +11192,10 @@ mpack_encode_uncommon(EncoderState *self, PyTypeObject *type, PyObject *obj)
     else if (PyAnySet_Check(obj)) {
         return mpack_encode_set(self, obj);
     }
-    else if (PyDict_Contains(type->tp_dict, self->mod->str___dataclass_fields__)) {
+    else if (type->tp_dict != NULL && PyDict_Contains(type->tp_dict, self->mod->str___dataclass_fields__)) {
         return mpack_encode_object(self, obj);
     }
-    else if (PyDict_Contains(type->tp_dict, self->mod->str___attrs_attrs__)) {
+    else if (type->tp_dict != NULL && PyDict_Contains(type->tp_dict, self->mod->str___attrs_attrs__)) {
         return mpack_encode_object(self, obj);
     }
 
@@ -12048,10 +12090,10 @@ json_encode_uncommon(EncoderState *self, PyTypeObject *type, PyObject *obj) {
     else if (PyAnySet_Check(obj)) {
         return json_encode_set(self, obj);
     }
-    else if (PyDict_Contains(type->tp_dict, self->mod->str___dataclass_fields__)) {
+    else if (type->tp_dict != NULL && PyDict_Contains(type->tp_dict, self->mod->str___dataclass_fields__)) {
         return json_encode_object(self, obj);
     }
-    else if (PyDict_Contains(type->tp_dict, self->mod->str___attrs_attrs__)) {
+    else if (type->tp_dict != NULL && PyDict_Contains(type->tp_dict, self->mod->str___attrs_attrs__)) {
         return json_encode_object(self, obj);
     }
 
@@ -17739,10 +17781,10 @@ to_builtins(ToBuiltinsState *self, PyObject *obj, bool is_key) {
     else if (PyAnySet_Check(obj)) {
         return to_builtins_set(self, obj, is_key);
     }
-    else if (PyDict_Contains(type->tp_dict, self->mod->str___dataclass_fields__)) {
+    else if (type->tp_dict != NULL && PyDict_Contains(type->tp_dict, self->mod->str___dataclass_fields__)) {
         return to_builtins_object(self, obj);
     }
-    else if (PyDict_Contains(type->tp_dict, self->mod->str___attrs_attrs__)) {
+    else if (type->tp_dict != NULL && PyDict_Contains(type->tp_dict, self->mod->str___attrs_attrs__)) {
         return to_builtins_object(self, obj);
     }
     else if (self->enc_hook != NULL) {

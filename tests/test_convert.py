@@ -52,6 +52,7 @@ except ImportError:
 
 PY310 = sys.version_info[:2] >= (3, 10)
 PY311 = sys.version_info[:2] >= (3, 11)
+PY312 = sys.version_info[:2] >= (3, 12)
 
 uses_annotated = pytest.mark.skipif(Annotated is None, reason="Annotated not available")
 
@@ -883,6 +884,10 @@ class TestSequences:
             assert convert(1, out_type)
 
     @pytest.mark.parametrize("kind", ["list", "tuple", "fixtuple", "set"])
+    @pytest.mark.skipif(
+        PY312,
+        reason="CPython 3.12 internal changes prevent testing for recursion issues this way",
+    )
     def test_sequence_cyclic_recursion(self, kind):
         depth = 50
         if kind == "list":
@@ -1107,6 +1112,10 @@ class TestDict:
         with pytest.raises(ValidationError):
             convert(dictcls({"x": 1}), Dict[Tuple[int, int], int], str_keys=True)
 
+    @pytest.mark.skipif(
+        PY312,
+        reason="CPython 3.12 internal changes prevent testing for recursion issues this way",
+    )
     def test_dict_cyclic_recursion(self, dictcls):
         depth = 50
         typ = Dict[str, int]
