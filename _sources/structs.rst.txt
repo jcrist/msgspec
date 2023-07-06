@@ -67,7 +67,8 @@ annotations:
     True
 
 Note that it is forbidden to override ``__init__``/``__new__`` in a struct
-definition, but other methods can be overridden or added as needed.
+definition, but other methods can be overridden or added as needed. If you need
+to customize the generated ``__init__``, see :ref:`struct-post-init`.
 
 The struct fields are available via the ``__struct_fields__`` attribute (a
 tuple of the fields in argument order ) if you need them. Here we add a method
@@ -146,6 +147,59 @@ Default values may be one of 3 kinds:
   Specifying a non-empty mutable collection (e.g. ``[1, 2, 3]``) as a default
   value will cause the struct definition to error (you should manually define a
   ``default_factory`` in this case).
+
+.. _struct-post-init:
+
+Post-Init Processing
+--------------------
+
+If a struct type defines a ``__post_init__(self)`` method, this will be called
+at the end of the generated ``__init__`` method. It has the same semantics as the
+``dataclasses`` method `of the same name
+<https://docs.python.org/3/library/dataclasses.html#post-init-processing>`__.
+This method may be useful for adding additional logic to the init (such as
+custom validation).
+
+In addition to in ``__init__``, the ``__post_init__`` hook is also called when:
+
+- Decoding into a struct type (e.g. ``msgspec.json.decode(..., type=MyStruct)``)
+- Converting into a struct type (e.g. ``msgspec.convert(..., type=MyStruct)``)
+
+In these cases any `TypeError` or `ValueError` exceptions raised by this method
+will be considered "user facing" and converted into a `msgspec.ValidationError`
+with additional context. All other exceptions will be raised directly.
+
+.. code-block:: python
+
+    >>> import msgspec
+
+    >>> class Interval(msgspec.Struct):
+    ...     low: float
+    ...     high: float
+    ...
+    ...     def __post_init__(self):
+    ...         if self.low > self.high:
+    ...             raise ValueError("`low` may not be greater than `high`")
+
+    >>> Interval(1, 2)  # valid interval
+    Interval(low=1, high=2)
+
+    >>> Interval(2, 1)  # invalid interval
+    Traceback (most recent call last):
+      File "<stdin>", line 1, in <module>
+      File "<stdin>", line 6, in __post_init__
+    ValueError: `low` may not be greater than `high`
+
+    >>> msgspec.json.decode(b'{"low": 2, "high": 1}', type=Interval)  # invalid interval from JSON
+    Traceback (most recent call last):
+      File "<stdin>", line 6, in __post_init__
+    ValueError: `low` may not be greater than `high`
+
+    The above exception was the direct cause of the following exception:
+
+    Traceback (most recent call last):
+      File "<stdin>", line 1, in <module>
+    msgspec.ValidationError: `low` may not be greater than `high`
 
 .. _struct-field-ordering:
 

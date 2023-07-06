@@ -321,7 +321,8 @@ annotations:</p>
 </pre></div>
 </div>
 <p>Note that it is forbidden to override <code class="docutils literal notranslate"><span class="pre">__init__</span></code>/<code class="docutils literal notranslate"><span class="pre">__new__</span></code> in a struct
-definition, but other methods can be overridden or added as needed.</p>
+definition, but other methods can be overridden or added as needed. If you need
+to customize the generated <code class="docutils literal notranslate"><span class="pre">__init__</span></code>, see <a class="reference internal" href="#struct-post-init"><span class="std std-ref">Post-Init Processing</span></a>.</p>
 <p>The struct fields are available via the <code class="docutils literal notranslate"><span class="pre">__struct_fields__</span></code> attribute (a
 tuple of the fields in argument order ) if you need them. Here we add a method
 for converting a struct to a dict.</p>
@@ -391,6 +392,53 @@ Specifying a non-empty mutable collection (e.g. <code class="docutils literal no
 value will cause the struct definition to error (you should manually define a
 <code class="docutils literal notranslate"><span class="pre">default_factory</span></code> in this case).</p></li>
 </ul>
+</section>
+<section id="post-init-processing">
+<span id="struct-post-init"></span><h2>Post-Init Processing<a class="headerlink" href="#post-init-processing" title="Permalink to this heading">#</a></h2>
+<p>If a struct type defines a <code class="docutils literal notranslate"><span class="pre">__post_init__(self)</span></code> method, this will be called
+at the end of the generated <code class="docutils literal notranslate"><span class="pre">__init__</span></code> method. It has the same semantics as the
+<code class="docutils literal notranslate"><span class="pre">dataclasses</span></code> method <a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#post-init-processing">of the same name</a>.
+This method may be useful for adding additional logic to the init (such as
+custom validation).</p>
+<p>In addition to in <code class="docutils literal notranslate"><span class="pre">__init__</span></code>, the <code class="docutils literal notranslate"><span class="pre">__post_init__</span></code> hook is also called when:</p>
+<ul class="simple">
+<li><p>Decoding into a struct type (e.g. <code class="docutils literal notranslate"><span class="pre">msgspec.json.decode(...,</span> <span class="pre">type=MyStruct)</span></code>)</p></li>
+<li><p>Converting into a struct type (e.g. <code class="docutils literal notranslate"><span class="pre">msgspec.convert(...,</span> <span class="pre">type=MyStruct)</span></code>)</p></li>
+</ul>
+<p>In these cases any <a class="reference external" href="https://docs.python.org/3/library/exceptions.html#TypeError" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">TypeError</span></code></a> or <a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ValueError</span></code></a> exceptions raised by this method
+will be considered “user facing” and converted into a <a class="reference internal" href="api.html#msgspec.ValidationError" title="msgspec.ValidationError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.ValidationError</span></code></a>
+with additional context. All other exceptions will be raised directly.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">msgspec</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">Interval</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="n">low</span><span class="p">:</span> <span class="nb">float</span>
+<span class="gp">... </span>    <span class="n">high</span><span class="p">:</span> <span class="nb">float</span>
+<span class="gp">...</span>
+<span class="gp">... </span>    <span class="k">def</span> <span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="gp">... </span>        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">low</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">high</span><span class="p">:</span>
+<span class="gp">... </span>            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;`low` may not be greater than `high`&quot;</span><span class="p">)</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">Interval</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>  <span class="c1"># valid interval</span>
+<span class="go">Interval(low=1, high=2)</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">Interval</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>  <span class="c1"># invalid interval</span>
+<span class="gt">Traceback (most recent call last):</span>
+  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">6</span>, in <span class="n">__post_init__</span>
+<span class="gr">ValueError</span>: <span class="n">`low` may not be greater than `high`</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;{&quot;low&quot;: 2, &quot;high&quot;: 1}&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">Interval</span><span class="p">)</span>  <span class="c1"># invalid interval from JSON</span>
+<span class="gt">Traceback (most recent call last):</span>
+  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">6</span>, in <span class="n">__post_init__</span>
+<span class="gr">ValueError</span>: <span class="n">`low` may not be greater than `high`</span>
+
+<span class="gt">The above exception was the direct cause of the following exception:</span>
+
+<span class="gt">Traceback (most recent call last):</span>
+  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+<span class="gr">msgspec.ValidationError</span>: <span class="n">`low` may not be greater than `high`</span>
+</pre></div>
+</div>
 </section>
 <section id="field-ordering">
 <span id="struct-field-ordering"></span><h2>Field Ordering<a class="headerlink" href="#field-ordering" title="Permalink to this heading">#</a></h2>
@@ -1151,6 +1199,7 @@ collected (leading to a memory leak).</p>
             <ul>
 <li><a class="reference internal" href="#">Structs</a><ul>
 <li><a class="reference internal" href="#default-values">Default Values</a></li>
+<li><a class="reference internal" href="#post-init-processing">Post-Init Processing</a></li>
 <li><a class="reference internal" href="#field-ordering">Field Ordering</a></li>
 <li><a class="reference internal" href="#class-variables">Class Variables</a></li>
 <li><a class="reference internal" href="#type-validation">Type Validation</a></li>
