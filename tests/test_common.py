@@ -3494,23 +3494,25 @@ class TestLax:
                 proto.decode(msg, type=None, strict=False)
 
     def test_lax_bool_true(self, proto):
-        for x in ["1", "true", "True", "tRue", "trUe", "truE"]:
+        for x in [1, "1", "true", "True", "tRue", "trUe", "truE"]:
             msg = proto.encode(x)
             assert proto.decode(msg, type=bool, strict=False) is True
 
-        for x in ["x", "xx", "xrue", "txue", "trxe", "trux"]:
+        for x in [-1, 3, "x", "xx", "xrue", "txue", "trxe", "trux"]:
             msg = proto.encode(x)
-            with pytest.raises(ValidationError, match="Expected `bool`, got `str`"):
+            typ = type(x).__name__
+            with pytest.raises(ValidationError, match=f"Expected `bool`, got `{typ}`"):
                 assert proto.decode(msg, type=bool, strict=False)
 
     def test_lax_bool_false(self, proto):
-        for x in ["0", "false", "False", "fAlse", "faLse", "falSe", "falsE"]:
+        for x in [0, "0", "false", "False", "fAlse", "faLse", "falSe", "falsE"]:
             msg = proto.encode(x)
             assert proto.decode(msg, type=bool, strict=False) is False
 
-        for x in ["x", "xx", "xalse", "fxlse", "faxse", "falxe", "falsx"]:
+        for x in [-1, 3, "x", "xx", "xalse", "fxlse", "faxse", "falxe", "falsx"]:
             msg = proto.encode(x)
-            with pytest.raises(ValidationError, match="Expected `bool`, got `str`"):
+            typ = type(x).__name__
+            with pytest.raises(ValidationError, match=f"Expected `bool`, got `{typ}`"):
                 assert proto.decode(msg, type=bool, strict=False)
 
     def test_lax_int(self, proto):

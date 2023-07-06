@@ -8676,6 +8676,37 @@ static PyGetSetDef Encoder_getset[] = {
  * Shared Decoding Utilities                                             *
  *************************************************************************/
 
+static PyObject *
+ms_maybe_decode_bool_from_uint64(uint64_t x) {
+    if (x == 0) {
+        Py_RETURN_FALSE;
+    }
+    else if (x == 1) {
+        Py_RETURN_TRUE;
+    }
+    return NULL;
+}
+
+static PyObject *
+ms_maybe_decode_bool_from_int64(int64_t x) {
+    if (x == 0) {
+        Py_RETURN_FALSE;
+    }
+    else if (x == 1) {
+        Py_RETURN_TRUE;
+    }
+    return NULL;
+}
+
+static PyObject *
+ms_maybe_decode_bool_from_pyint(PyObject *obj) {
+    uint64_t scale;
+    bool neg, overflow;
+    overflow = fast_long_extract_parts(obj, &neg, &scale);
+    if (overflow || neg) return NULL;
+    return ms_maybe_decode_bool_from_uint64(scale);
+}
+
 static MS_NOINLINE PyObject *
 ms_decode_str_enum_or_literal(const char *name, Py_ssize_t size, TypeNode *type, PathNode *path) {
     StrLookup *lookup = TypeNode_get_str_enum_or_literal(type);
@@ -10463,6 +10494,63 @@ ms_decode_str_lax(
     *invalid = true;
     return NULL;
 }
+
+/*************************************************************************
+ * Shared Post-Decode Handlers                                           *
+ *************************************************************************/
+
+static PyObject *
+ms_post_decode_int64(int64_t x, TypeNode *type, PathNode *path, bool strict) {
+    if (MS_LIKELY(type->types & (MS_TYPE_ANY | MS_TYPE_INT))) {
+        return ms_decode_int(x, type, path);
+    }
+    else if (type->types & (MS_TYPE_INTENUM | MS_TYPE_INTLITERAL)) {
+        return ms_decode_int_enum_or_literal_int64(x, type, path);
+    }
+    else if (type->types & MS_TYPE_FLOAT) {
+        return ms_decode_float(x, type, path);
+    }
+    else if (type->types & MS_TYPE_DECIMAL) {
+        return ms_decode_decimal_from_int64(x, path);
+    }
+    else if (!strict) {
+        if (type->types & MS_TYPE_BOOL) {
+            PyObject *out = ms_maybe_decode_bool_from_int64(x);
+            if (out != NULL) return out;
+        }
+        if (type->types & MS_TYPE_DATETIME) {
+            return ms_decode_datetime_from_int64(x, type, path);
+        }
+    }
+    return ms_validation_error("int", type, path);
+}
+
+static PyObject *
+ms_post_decode_uint64(uint64_t x, TypeNode *type, PathNode *path, bool strict) {
+    if (MS_LIKELY(type->types & (MS_TYPE_ANY | MS_TYPE_INT))) {
+        return ms_decode_uint(x, type, path);
+    }
+    else if (type->types & (MS_TYPE_INTENUM | MS_TYPE_INTLITERAL)) {
+        return ms_decode_int_enum_or_literal_uint64(x, type, path);
+    }
+    else if (type->types & MS_TYPE_FLOAT) {
+        return ms_decode_float(x, type, path);
+    }
+    else if (type->types & MS_TYPE_DECIMAL) {
+        return ms_decode_decimal_from_uint64(x, path);
+    }
+    else if (!strict) {
+        if (type->types & MS_TYPE_BOOL) {
+            PyObject *out = ms_maybe_decode_bool_from_uint64(x);
+            if (out != NULL) return out;
+        }
+        if (type->types & MS_TYPE_DATETIME) {
+            return ms_decode_datetime_from_uint64(x, type, path);
+        }
+    }
+    return ms_validation_error("int", type, path);
+}
+
 
 /*************************************************************************
  * MessagePack Encoder                                                   *
@@ -12893,46 +12981,6 @@ static PyObject * mpack_decode(
 );
 
 static PyObject *
-mpack_decode_int(DecoderState *self, int64_t x, TypeNode *type, PathNode *path) {
-    if (type->types & (MS_TYPE_ANY | MS_TYPE_INT)) {
-        return ms_decode_int(x, type, path);
-    }
-    else if (type->types & (MS_TYPE_INTENUM | MS_TYPE_INTLITERAL)) {
-        return ms_decode_int_enum_or_literal_int64(x, type, path);
-    }
-    else if (type->types & MS_TYPE_FLOAT) {
-        return ms_decode_float(x, type, path);
-    }
-    else if (type->types & MS_TYPE_DECIMAL) {
-        return ms_decode_decimal_from_int64(x, path);
-    }
-    else if (!self->strict && (type->types & MS_TYPE_DATETIME)) {
-        return ms_decode_datetime_from_int64(x, type, path);
-    }
-    return ms_validation_error("int", type, path);
-}
-
-static PyObject *
-mpack_decode_uint(DecoderState *self, uint64_t x, TypeNode *type, PathNode *path) {
-    if (type->types & (MS_TYPE_ANY | MS_TYPE_INT)) {
-        return ms_decode_uint(x, type, path);
-    }
-    else if (type->types & (MS_TYPE_INTENUM | MS_TYPE_INTLITERAL)) {
-        return ms_decode_int_enum_or_literal_uint64(x, type, path);
-    }
-    else if (type->types & MS_TYPE_FLOAT) {
-        return ms_decode_float(x, type, path);
-    }
-    else if (type->types & MS_TYPE_DECIMAL) {
-        return ms_decode_decimal_from_uint64(x, path);
-    }
-    else if (!self->strict && (type->types & MS_TYPE_DATETIME)) {
-        return ms_decode_datetime_from_uint64(x, type, path);
-    }
-    return ms_validation_error("int", type, path);
-}
-
-static PyObject *
 mpack_decode_none(DecoderState *self, TypeNode *type, PathNode *path) {
     if (type->types & (MS_TYPE_ANY | MS_TYPE_NONE)) {
         Py_INCREF(Py_None);
@@ -13904,7 +13952,7 @@ mpack_decode_nocustom(
     }
 
     if (('\x00' <= op && op <= '\x7f') || ('\xe0' <= op && op <= '\xff')) {
-        return mpack_decode_int(self, *((int8_t *)(&op)), type, path);
+        return ms_post_decode_int64(*((int8_t *)(&op)), type, path, self->strict);
     }
     else if ('\xa0' <= op && op <= '\xbf') {
         return mpack_decode_str(self, op & 0x1f, type, path);
@@ -13924,28 +13972,28 @@ mpack_decode_nocustom(
             return mpack_decode_bool(self, Py_False, type, path);
         case MP_UINT8:
             if (MS_UNLIKELY(mpack_read(self, &s, 1) < 0)) return NULL;
-            return mpack_decode_uint(self, *(uint8_t *)s, type, path);
+            return ms_post_decode_uint64(*(uint8_t *)s, type, path, self->strict);
         case MP_UINT16:
             if (MS_UNLIKELY(mpack_read(self, &s, 2) < 0)) return NULL;
-            return mpack_decode_uint(self, _msgspec_load16(uint16_t, s), type, path);
+            return ms_post_decode_uint64(_msgspec_load16(uint16_t, s), type, path, self->strict);
         case MP_UINT32:
             if (MS_UNLIKELY(mpack_read(self, &s, 4) < 0)) return NULL;
-            return mpack_decode_uint(self, _msgspec_load32(uint32_t, s), type, path);
+            return ms_post_decode_uint64(_msgspec_load32(uint32_t, s), type, path, self->strict);
         case MP_UINT64:
             if (MS_UNLIKELY(mpack_read(self, &s, 8) < 0)) return NULL;
-            return mpack_decode_uint(self, _msgspec_load64(uint64_t, s), type, path);
+            return ms_post_decode_uint64(_msgspec_load64(uint64_t, s), type, path, self->strict);
         case MP_INT8:
             if (MS_UNLIKELY(mpack_read(self, &s, 1) < 0)) return NULL;
-            return mpack_decode_int(self, *(int8_t *)s, type, path);
+            return ms_post_decode_int64(*(int8_t *)s, type, path, self->strict);
         case MP_INT16:
             if (MS_UNLIKELY(mpack_read(self, &s, 2) < 0)) return NULL;
-            return mpack_decode_int(self, _msgspec_load16(int16_t, s), type, path);
+            return ms_post_decode_int64(_msgspec_load16(int16_t, s), type, path, self->strict);
         case MP_INT32:
             if (MS_UNLIKELY(mpack_read(self, &s, 4) < 0)) return NULL;
-            return mpack_decode_int(self, _msgspec_load32(int32_t, s), type, path);
+            return ms_post_decode_int64(_msgspec_load32(int32_t, s), type, path, self->strict);
         case MP_INT64:
             if (MS_UNLIKELY(mpack_read(self, &s, 8) < 0)) return NULL;
-            return mpack_decode_int(self, _msgspec_load64(int64_t, s), type, path);
+            return ms_post_decode_int64(_msgspec_load64(int64_t, s), type, path, self->strict);
         case MP_FLOAT32: {
             float f = 0;
             uint32_t uf;
@@ -16413,46 +16461,6 @@ json_decode_object(
 }
 
 static PyObject *
-json_decode_int(JSONDecoderState *self, int64_t x, TypeNode *type, PathNode *path) {
-    if (type->types & (MS_TYPE_ANY | MS_TYPE_INT)) {
-        return ms_decode_int(x, type, path);
-    }
-    else if (type->types & (MS_TYPE_INTENUM | MS_TYPE_INTLITERAL)) {
-        return ms_decode_int_enum_or_literal_int64(x, type, path);
-    }
-    else if (type->types & MS_TYPE_FLOAT) {
-        return ms_decode_float(x, type, path);
-    }
-    else if (type->types & MS_TYPE_DECIMAL) {
-        return ms_decode_decimal_from_int64(x, path);
-    }
-    else if (!self->strict && (type->types & MS_TYPE_DATETIME)) {
-        return ms_decode_datetime_from_int64(x, type, path);
-    }
-    return ms_validation_error("int", type, path);
-}
-
-static PyObject *
-json_decode_uint(JSONDecoderState *self, uint64_t x, TypeNode *type, PathNode *path) {
-    if (type->types & (MS_TYPE_ANY | MS_TYPE_INT)) {
-        return ms_decode_uint(x, type, path);
-    }
-    else if (type->types & (MS_TYPE_INTENUM | MS_TYPE_INTLITERAL)) {
-        return ms_decode_int_enum_or_literal_uint64(x, type, path);
-    }
-    else if (type->types & MS_TYPE_FLOAT) {
-        return ms_decode_float(x, type, path);
-    }
-    else if (type->types & MS_TYPE_DECIMAL) {
-        return ms_decode_decimal_from_uint64(x, path);
-    }
-    else if (!self->strict && (type->types & MS_TYPE_DATETIME)) {
-        return ms_decode_datetime_from_uint64(x, type, path);
-    }
-    return ms_validation_error("int", type, path);
-}
-
-static PyObject *
 json_decode_float(JSONDecoderState *self, double x, TypeNode *type, PathNode *path) {
     if (type->types & (MS_TYPE_ANY | MS_TYPE_FLOAT)) {
         return ms_decode_float(x, type, path);
@@ -16736,9 +16744,9 @@ end_integer:
     if (!is_float) {
         if (is_negative) {
             if (MS_UNLIKELY(mantissa > 1ull << 63)) goto fallback_extended;
-            return json_decode_int(self, -1 * (int64_t)mantissa, type, path);
+            return ms_post_decode_int64(-1 * (int64_t)mantissa, type, path, self->strict);
         }
-        return json_decode_uint(self, mantissa, type, path);
+        return ms_post_decode_uint64(mantissa, type, path, self->strict);
     }
     else if (
         MS_UNLIKELY(
@@ -18119,7 +18127,7 @@ static PyObject *
 convert_int(
     ConvertState *self, PyObject *obj, TypeNode *type, PathNode *path
 ) {
-    if (type->types & MS_TYPE_INT) {
+    if (MS_LIKELY(type->types & MS_TYPE_INT)) {
         return ms_decode_pyint(obj, type, path);
     }
     else if (type->types & (MS_TYPE_INTENUM | MS_TYPE_INTLITERAL)) {
@@ -18134,8 +18142,15 @@ convert_int(
     ) {
         return ms_decode_decimal_from_pyobj(obj, path, self->mod);
     }
-    else if (!self->strict && (type->types & MS_TYPE_DATETIME)) {
-        return ms_decode_datetime_from_pyint(obj, type, path);
+
+    if (!self->strict) {
+        if (type->types & MS_TYPE_BOOL) {
+            PyObject *out = ms_maybe_decode_bool_from_pyint(obj);
+            if (out != NULL) return out;
+        }
+        if (type->types & MS_TYPE_DATETIME) {
+            return ms_decode_datetime_from_pyint(obj, type, path);
+        }
     }
     return ms_validation_error("int", type, path);
 }

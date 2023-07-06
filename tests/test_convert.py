@@ -2159,21 +2159,23 @@ class TestLax:
                 convert(x, None, strict=False)
 
     def test_lax_bool_true(self):
-        for x in ["1", "true", "True", "tRue", "trUe", "truE"]:
+        for x in [1, "1", "true", "True", "tRue", "trUe", "truE"]:
             assert convert(x, bool, strict=False) is True
 
     def test_lax_bool_false(self):
-        for x in ["0", "false", "False", "fAlse", "faLse", "falSe", "falsE"]:
+        for x in [0, "0", "false", "False", "fAlse", "faLse", "falSe", "falsE"]:
             assert convert(x, bool, strict=False) is False
 
     def test_lax_bool_true_invalid(self):
-        for x in ["x", "xx", "xrue", "txue", "trxe", "trux"]:
-            with pytest.raises(ValidationError, match="Expected `bool`, got `str`"):
+        for x in [-1, 3, "x", "xx", "xrue", "txue", "trxe", "trux"]:
+            typ = type(x).__name__
+            with pytest.raises(ValidationError, match=f"Expected `bool`, got `{typ}`"):
                 assert convert(x, bool, strict=False)
 
     def test_lax_bool_false_invalid(self):
-        for x in ["x", "xx", "xalse", "fxlse", "faxse", "falxe", "falsx"]:
-            with pytest.raises(ValidationError, match="Expected `bool`, got `str`"):
+        for x in [-1, 3, "x", "xx", "xalse", "fxlse", "faxse", "falxe", "falsx"]:
+            typ = type(x).__name__
+            with pytest.raises(ValidationError, match=f"Expected `bool`, got `{typ}`"):
                 assert convert(x, bool, strict=False)
 
     def test_lax_int(self):
