@@ -1344,7 +1344,7 @@ class TestDataclass:
 
         msg = mapcls(a=1)
 
-        with pytest.raises(ValueError, match="Oh no!"):
+        with pytest.raises(ValidationError, match="Oh no!"):
             convert(msg, Example, from_attributes=from_attributes)
 
     @mapcls_and_from_attributes
@@ -1529,7 +1529,7 @@ class TestAttrs:
             def __attrs_post_init__(self):
                 raise ValueError("Oh no!")
 
-        with pytest.raises(ValueError, match="Oh no!"):
+        with pytest.raises(ValidationError, match="Oh no!"):
             convert(mapcls(a=1), Example, from_attributes=from_attributes)
 
     def test_attrs_to_attrs(self):

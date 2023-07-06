@@ -2617,16 +2617,24 @@ class TestDataclass:
         assert res.a == 1
         assert called
 
-    def test_decode_dataclass_post_init_errors(self, proto):
+    @pytest.mark.parametrize("exc_class", [ValueError, TypeError, OSError])
+    def test_decode_dataclass_post_init_errors(self, proto, exc_class):
         @dataclass
         class Example:
             a: int
 
             def __post_init__(self):
-                raise ValueError("Oh no!")
+                raise exc_class("Oh no!")
 
-        with pytest.raises(ValueError, match="Oh no!"):
-            proto.decode(proto.encode({"a": 1}), type=Example)
+        expected = (
+            ValidationError if exc_class in (ValueError, TypeError) else exc_class
+        )
+
+        with pytest.raises(expected, match="Oh no!") as rec:
+            proto.decode(proto.encode([{"a": 1}]), type=List[Example])
+
+        if expected is ValidationError:
+            assert "- at `$[0]`" in str(rec.value)
 
     def test_decode_dataclass_not_object(self, proto):
         @dataclass
@@ -2811,16 +2819,24 @@ class TestAttrs:
         assert res.a == 1
         assert called
 
-    def test_decode_attrs_post_init_errors(self, proto):
+    @pytest.mark.parametrize("exc_class", [ValueError, TypeError, OSError])
+    def test_decode_attrs_post_init_errors(self, proto, exc_class):
         @attrs.define
         class Example:
             a: int
 
             def __attrs_post_init__(self):
-                raise ValueError("Oh no!")
+                raise exc_class("Oh no!")
 
-        with pytest.raises(ValueError, match="Oh no!"):
-            proto.decode(proto.encode({"a": 1}), type=Example)
+        expected = (
+            ValidationError if exc_class in (ValueError, TypeError) else exc_class
+        )
+
+        with pytest.raises(expected, match="Oh no!") as rec:
+            proto.decode(proto.encode([{"a": 1}]), type=List[Example])
+
+        if expected is ValidationError:
+            assert "- at `$[0]`" in str(rec.value)
 
     def test_decode_attrs_pre_init(self, proto):
         called = False
