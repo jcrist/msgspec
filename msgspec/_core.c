@@ -4746,7 +4746,6 @@ ms_error_with_path(const char *msg, PathNode *path) {
     return NULL;
 }
 
-/* TODO */
 static MS_NOINLINE void
 ms_maybe_wrap_validation_error(PathNode *path) {
     PyObject *exc_type, *exc, *tb;
@@ -7972,7 +7971,10 @@ DataclassInfo_post_decode(DataclassInfo *self, PyObject *obj, PathNode *path) {
     }
     if (self->post_init != NULL) {
         PyObject *res = CALL_ONE_ARG(self->post_init, obj);
-        if (res == NULL) return -1;
+        if (res == NULL) {
+            ms_maybe_wrap_validation_error(path);
+            return -1;
+        }
         Py_DECREF(res);
     }
     return 0;
@@ -19260,7 +19262,10 @@ convert_object_to_dataclass(
     }
     if (info->post_init != NULL) {
         PyObject *res = CALL_ONE_ARG(info->post_init, out);
-        if (res == NULL) goto error;
+        if (res == NULL) {
+            ms_maybe_wrap_validation_error(path);
+            goto error;
+        }
         Py_DECREF(res);
     }
     Py_LeaveRecursiveCall();
