@@ -359,13 +359,16 @@ supported protocols.</p>
 <span class="go">True</span>
 </pre></div>
 </div>
-<p>If <code class="docutils literal notranslate"><span class="pre">strict=False</span></code> is specified, string values of <code class="docutils literal notranslate"><span class="pre">&quot;true&quot;</span></code>/<code class="docutils literal notranslate"><span class="pre">&quot;1&quot;</span></code> or
-<code class="docutils literal notranslate"><span class="pre">&quot;false&quot;</span></code>/<code class="docutils literal notranslate"><span class="pre">&quot;0&quot;</span></code> (case insensitive) may also be coerced to
+<p>If <code class="docutils literal notranslate"><span class="pre">strict=False</span></code> is specified, values of <code class="docutils literal notranslate"><span class="pre">&quot;true&quot;</span></code>/<code class="docutils literal notranslate"><span class="pre">&quot;1&quot;</span></code>/<code class="docutils literal notranslate"><span class="pre">1</span></code> or
+<code class="docutils literal notranslate"><span class="pre">&quot;false&quot;</span></code>/<code class="docutils literal notranslate"><span class="pre">&quot;0&quot;</span></code>/<code class="docutils literal notranslate"><span class="pre">0</span></code> (case insensitive for strings) may also be coerced to
 <code class="docutils literal notranslate"><span class="pre">True</span></code>/<code class="docutils literal notranslate"><span class="pre">False</span></code> respectively. See <a class="reference internal" href="usage.html#strict-vs-lax"><span class="std std-ref">“Strict” vs “Lax” Mode</span></a> for more information.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;&quot;false&quot;&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">bool</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 <span class="go">False</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;&quot;TRUE&quot;&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">bool</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<span class="go">True</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;1&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">bool</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 <span class="go">True</span>
 </pre></div>
 </div>

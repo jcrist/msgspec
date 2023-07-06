@@ -111,8 +111,8 @@ supported protocols.
     >>> msgspec.json.decode(b'true')
     True
 
-If ``strict=False`` is specified, string values of ``"true"``/``"1"`` or
-``"false"``/``"0"`` (case insensitive) may also be coerced to
+If ``strict=False`` is specified, values of ``"true"``/``"1"``/``1`` or
+``"false"``/``"0"``/``0`` (case insensitive for strings) may also be coerced to
 ``True``/``False`` respectively. See :ref:`strict-vs-lax` for more information.
 
 .. code-block:: python
@@ -121,6 +121,9 @@ If ``strict=False`` is specified, string values of ``"true"``/``"1"`` or
    False
 
    >>> msgspec.json.decode(b'"TRUE"', type=bool, strict=False)
+   True
+
+   >>> msgspec.json.decode(b'1', type=bool, strict=False)
    True
 
 ``int``
