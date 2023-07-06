@@ -377,9 +377,7 @@ supported protocols.</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">msgpack</span></code> only supports encoding/decoding integers within
 <code class="docutils literal notranslate"><span class="pre">[-2**63,</span> <span class="pre">2**64</span> <span class="pre">-</span> <span class="pre">1]</span></code>, inclusive.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">json</span></code> will encode any integer, but will decode large integers (outside of
-<code class="docutils literal notranslate"><span class="pre">[-2**63,</span> <span class="pre">2**64</span> <span class="pre">-</span> <span class="pre">1]</span></code>, inclusive) as floats.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">yaml</span></code> and <code class="docutils literal notranslate"><span class="pre">toml</span></code> have no restrictions on encode or decode.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">json</span></code>, <code class="docutils literal notranslate"><span class="pre">yaml</span></code>, and <code class="docutils literal notranslate"><span class="pre">toml</span></code> have no restrictions on encode or decode.</p></li>
 </ul>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="mi">123</span><span class="p">)</span>
 <span class="go">b&quot;123&quot;</span>
@@ -1404,9 +1402,8 @@ map to Python types in a protocol specific manner.</p>
 <aside class="footnote brackets" id="number-json" role="note">
 <span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id1">1</a><span class="fn-bracket">]</span></span>
 <p>Numbers are decoded as integers if they contain no decimal or
-exponent components (e.g. <code class="docutils literal notranslate"><span class="pre">1</span></code> but not <code class="docutils literal notranslate"><span class="pre">1.0</span></code> or <code class="docutils literal notranslate"><span class="pre">1e10</span></code>), and fit in either
-an <code class="docutils literal notranslate"><span class="pre">int64</span></code> or <code class="docutils literal notranslate"><span class="pre">uint64</span></code> (within <code class="docutils literal notranslate"><span class="pre">[-2**63,</span> <span class="pre">2**64</span> <span class="pre">-</span> <span class="pre">1]</span></code>, inclusive). All
-other numbers decode as floats.</p>
+exponent components (e.g. <code class="docutils literal notranslate"><span class="pre">1</span></code> but not <code class="docutils literal notranslate"><span class="pre">1.0</span></code> or <code class="docutils literal notranslate"><span class="pre">1e10</span></code>). All other
+numbers decode as floats.</p>
 </aside>
 </aside>
 <p><strong>MessagePack</strong></p>

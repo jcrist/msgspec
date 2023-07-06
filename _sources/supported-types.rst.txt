@@ -132,9 +132,7 @@ Support for large integers varies by protocol:
 
 - ``msgpack`` only supports encoding/decoding integers within
   ``[-2**63, 2**64 - 1]``, inclusive.
-- ``json`` will encode any integer, but will decode large integers (outside of
-  ``[-2**63, 2**64 - 1]``, inclusive) as floats.
-- ``yaml`` and ``toml`` have no restrictions on encode or decode.
+- ``json``, ``yaml``, and ``toml`` have no restrictions on encode or decode.
 
 .. code-block:: python
 
@@ -1282,9 +1280,8 @@ JSON_ types are decoded to Python types as follows:
 - ``object``: `dict`
 
 .. [#number_json] Numbers are decoded as integers if they contain no decimal or
-   exponent components (e.g. ``1`` but not ``1.0`` or ``1e10``), and fit in either
-   an ``int64`` or ``uint64`` (within ``[-2**63, 2**64 - 1]``, inclusive). All
-   other numbers decode as floats.
+   exponent components (e.g. ``1`` but not ``1.0`` or ``1e10``). All other
+   numbers decode as floats.
 
 **MessagePack**
 
