@@ -2369,3 +2369,88 @@ class TestClassVar:
         with temp_module(source) as mod:
             assert mod.Ex.__struct_fields__ == ("a", "b")
             assert mod.Ex.cv2 == 1
+
+
+class TestPostInit:
+    def test_post_init(self):
+        called = False
+        singleton = object()
+
+        class Ex(Struct):
+            x: int
+
+            def __post_init__(self):
+                nonlocal called
+                called = True
+                return singleton
+
+        Ex(1)
+        assert called
+        # Return value is decref'd
+        assert sys.getrefcount(singleton) == 2  # 1 for ref, 1 for call
+
+    def test_post_init_errors(self):
+        class Ex(Struct):
+            x: int
+
+            def __post_init__(self):
+                raise ValueError("Oh no!")
+
+        with pytest.raises(ValueError, match="Oh no!"):
+            Ex(1)
+
+    def test_post_init_invalid(self):
+        class Bad1(Struct):
+            __post_init__ = 1
+
+        class Bad2(Struct):
+            def __post_init__(self, other):
+                pass
+
+        with pytest.raises(TypeError):
+            Bad1()
+
+        with pytest.raises(TypeError):
+            Bad2()
+
+    def test_post_init_inheritance(self):
+        called = False
+
+        class Base:
+            def __post_init__(self):
+                nonlocal called
+                called = True
+
+        class Ex(Struct, Base):
+            x: int
+
+        Ex(1)
+        assert called
+
+    def test_post_init_not_called_on_copy(self):
+        count = 0
+
+        class Ex(Struct):
+            def __post_init__(self):
+                nonlocal count
+                count += 1
+
+        x1 = Ex()
+        assert count == 1
+        x2 = x1.__copy__()
+        assert x1 == x2
+        assert count == 1
+
+    def test_post_init_not_called_on_replace(self):
+        count = 0
+
+        class Ex(Struct):
+            def __post_init__(self):
+                nonlocal count
+                count += 1
+
+        x1 = Ex()
+        assert count == 1
+        x2 = replace(x1)
+        assert x1 == x2
+        assert count == 1

@@ -399,6 +399,7 @@ typedef struct {
     PyObject *str___required_keys__;
     PyObject *str__fields;
     PyObject *str__field_defaults;
+    PyObject *str___post_init__;
     PyObject *str___dataclass_fields__;
     PyObject *str___attrs_attrs__;
     PyObject *str___supertype__;
@@ -2467,6 +2468,7 @@ typedef struct {
     PyObject *struct_tag;        /* True, str, or NULL */
     PyObject *match_args;
     PyObject *rename;
+    PyObject *post_init;
     int8_t frozen;
     int8_t order;
     int8_t eq;
@@ -4744,6 +4746,60 @@ ms_error_with_path(const char *msg, PathNode *path) {
     return NULL;
 }
 
+/* TODO */
+static MS_NOINLINE void
+ms_maybe_wrap_validation_error(PathNode *path) {
+    PyObject *exc_type, *exc, *tb;
+
+    /* Fetch the exception state */
+    PyErr_Fetch(&exc_type, &exc, &tb);
+
+    /* If null, some other c-extension has borked, just return */
+    if (exc_type == NULL) return;
+
+    /* If it's a TypeError or ValueError, wrap it in a ValidationError.
+     * Otherwise we reraise the original error below */
+    if (
+        PyType_IsSubtype(
+            (PyTypeObject *)exc_type, (PyTypeObject *)PyExc_ValueError
+        ) ||
+        PyType_IsSubtype(
+            (PyTypeObject *)exc_type, (PyTypeObject *)PyExc_TypeError
+        )
+    ) {
+        PyObject *exc_type2, *exc2, *tb2;
+
+        /* Normalize the original exception */
+        PyErr_NormalizeException(&exc_type, &exc, &tb);
+        if (tb != NULL) {
+            PyException_SetTraceback(exc, tb);
+            Py_DECREF(tb);
+        }
+        Py_DECREF(exc_type);
+
+        /* Raise a new validation error with context based on the
+            * original exception */
+        ms_raise_validation_error(path, "%S%U", exc);
+
+        /* Fetch the new exception */
+        PyErr_Fetch(&exc_type2, &exc2, &tb2);
+        /* Normalize the new exception */
+        PyErr_NormalizeException(&exc_type2, &exc2, &tb2);
+        /* Set the original exception as the cause and context */
+        Py_INCREF(exc);
+        PyException_SetCause(exc2, exc);
+        PyException_SetContext(exc2, exc);
+
+        /* At this point the original exc_type/exc/tb are all dropped,
+            * replace them with the new values */
+        exc_type = exc_type2;
+        exc = exc2;
+        tb = tb2;
+    }
+    /* Restore the new exception state */
+    PyErr_Restore(exc_type, exc, tb);
+}
+
 static PyTypeObject StructMixinType;
 
 
@@ -5881,6 +5937,17 @@ StructMeta_new_inner(
     /* Fill in struct offsets */
     if (structmeta_construct_offsets(&info, cls) < 0) goto cleanup;
 
+    /* Cache access to __post_init__ (if defined).
+     * XXX: When StructMeta is defined, the module hasn't finished initializing
+     * yet so `mod` will be NULL here. */
+    if (mod != NULL) {
+        cls->post_init = PyObject_GetAttr((PyObject *)cls, mod->str___post_init__);
+        PyErr_Clear();
+    }
+    else {
+        cls->post_init = NULL;
+    }
+
     cls->nkwonly = info.nkwonly;
     cls->n_trailing_defaults = info.n_trailing_defaults;
     cls->struct_offsets = info.offsets;
@@ -6305,6 +6372,7 @@ StructMeta_traverse(StructMetaObject *self, visitproc visit, void *arg)
     Py_VISIT(self->struct_encode_fields);
     Py_VISIT(self->struct_tag);  /* May be a function */
     Py_VISIT(self->rename);  /* May be a function */
+    Py_VISIT(self->post_init);
     Py_VISIT(self->struct_info);
     return PyType_Type.tp_traverse((PyObject *)self, visit, arg);
 }
@@ -6322,6 +6390,7 @@ StructMeta_clear(StructMetaObject *self)
     Py_CLEAR(self->struct_tag_value);
     Py_CLEAR(self->struct_tag);
     Py_CLEAR(self->rename);
+    Py_CLEAR(self->post_init);
     Py_CLEAR(self->struct_info);
     if (self->struct_offsets != NULL) {
         PyMem_Free(self->struct_offsets);
@@ -6707,6 +6776,25 @@ Struct_get_index(PyObject *obj, Py_ssize_t index) {
     return val;
 }
 
+static MS_INLINE int
+Struct_post_init(StructMetaObject *st_type, PyObject *obj) {
+    if (st_type->post_init != NULL) {
+        PyObject *res = CALL_ONE_ARG(st_type->post_init, obj);
+        if (res == NULL) return -1;
+        Py_DECREF(res);
+    }
+    return 0;
+}
+
+static MS_INLINE int
+Struct_decode_post_init(StructMetaObject *st_type, PyObject *obj, PathNode *path) {
+    if (MS_UNLIKELY(Struct_post_init(st_type, obj) < 0)) {
+        ms_maybe_wrap_validation_error(path);
+        return -1;
+    }
+    return 0;
+}
+
 /* ASSUMPTION - obj is untracked and allocated via Struct_alloc */
 static int
 Struct_fill_in_defaults(StructMetaObject *st_type, PyObject *obj, PathNode *path) {
@@ -6737,6 +6825,9 @@ Struct_fill_in_defaults(StructMetaObject *st_type, PyObject *obj, PathNode *path
 
     if (is_gc && !should_untrack)
         PyObject_GC_Track(obj);
+
+    if (Struct_decode_post_init(st_type, obj, path) < 0) return -1;
+
     return 0;
 
 missing_required:
@@ -6856,6 +6947,8 @@ kw_found:
 
     if (is_gc && !should_untrack)
         PyObject_GC_Track(self);
+
+    if (Struct_post_init(st_type, self) < 0) goto error;
     return self;
 
 error:
@@ -8664,56 +8757,7 @@ ms_decode_custom(PyObject *obj, PyObject *dec_hook, TypeNode* type, PathNode *pa
         out = PyObject_CallFunctionObjArgs(dec_hook, custom_obj, obj, NULL);
         Py_DECREF(obj);
         if (out == NULL) {
-            PyObject *exc_type, *exc, *tb;
-
-            /* Fetch the exception state */
-            PyErr_Fetch(&exc_type, &exc, &tb);
-
-            /* If null, some other c-extension has borked, just return */
-            if (exc_type == NULL) return NULL;
-
-            /* If it's a TypeError or ValueError, wrap it in a ValidationError.
-             * Otherwise we reraise the original error below */
-            if (
-                PyType_IsSubtype(
-                    (PyTypeObject *)exc_type, (PyTypeObject *)PyExc_ValueError
-                ) ||
-                PyType_IsSubtype(
-                    (PyTypeObject *)exc_type, (PyTypeObject *)PyExc_TypeError
-                )
-            ) {
-                PyObject *exc_type2, *exc2, *tb2;
-
-                /* Normalize the original exception */
-                PyErr_NormalizeException(&exc_type, &exc, &tb);
-                if (tb != NULL) {
-                    PyException_SetTraceback(exc, tb);
-                    Py_DECREF(tb);
-                }
-                Py_DECREF(exc_type);
-
-                /* Raise a new validation error with context based on the
-                 * original exception */
-                ms_raise_validation_error(path, "%S%U", exc);
-
-                /* Fetch the new exception */
-                PyErr_Fetch(&exc_type2, &exc2, &tb2);
-                /* Normalize the new exception */
-                PyErr_NormalizeException(&exc_type2, &exc2, &tb2);
-                /* Set the original exception as the cause and context */
-                Py_INCREF(exc);
-                PyException_SetCause(exc2, exc);
-                PyException_SetContext(exc2, exc);
-
-                /* At this point the original exc_type/exc/tb are all dropped,
-                 * replace them with the new values */
-                exc_type = exc_type2;
-                exc = exc2;
-                tb = tb2;
-            }
-            /* Restore the new exception state */
-            PyErr_Restore(exc_type, exc, tb);
-
+            ms_maybe_wrap_validation_error(path);
             return NULL;
         }
     }
@@ -13360,6 +13404,7 @@ mpack_decode_struct_array_inner(
             }
         }
     }
+    if (Struct_decode_post_init(st_type, res, path) < 0) goto error;
     Py_LeaveRecursiveCall();
     if (is_gc && !should_untrack)
         PyObject_GC_Track(res);
@@ -15575,6 +15620,7 @@ json_decode_struct_array_inner(
             should_untrack = !MS_MAYBE_TRACKED(item);
         }
     }
+    if (Struct_decode_post_init(st_type, out, path) < 0) goto error;
     Py_LeaveRecursiveCall();
     if (is_gc && !should_untrack)
         PyObject_GC_Track(out);
@@ -18659,6 +18705,7 @@ convert_seq_to_struct_array_inner(
             goto error;
         }
     }
+    if (Struct_decode_post_init(st_type, out, path) < 0) goto error;
     Py_LeaveRecursiveCall();
     if (is_gc && !should_untrack)
         PyObject_GC_Track(out);
@@ -19606,6 +19653,7 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->str___required_keys__);
     Py_CLEAR(st->str__fields);
     Py_CLEAR(st->str__field_defaults);
+    Py_CLEAR(st->str___post_init__);
     Py_CLEAR(st->str___dataclass_fields__);
     Py_CLEAR(st->str___attrs_attrs__);
     Py_CLEAR(st->str___supertype__);
@@ -19996,6 +20044,7 @@ PyInit__core(void)
     CACHED_STRING(str___required_keys__, "__required_keys__");
     CACHED_STRING(str__fields, "_fields");
     CACHED_STRING(str__field_defaults, "_field_defaults");
+    CACHED_STRING(str___post_init__, "__post_init__");
     CACHED_STRING(str___dataclass_fields__, "__dataclass_fields__");
     CACHED_STRING(str___attrs_attrs__, "__attrs_attrs__");
     CACHED_STRING(str___supertype__, "__supertype__");
