@@ -3611,9 +3611,9 @@ class TestLax:
         "x, err",
         [
             ("-1", "`int` >= 0"),
-            ("184467440737095516100", "out of range"),
-            ("18446744073709551617", "out of range"),
-            ("-9223372036854775809", "out of range"),
+            ("2000", "`int` <= 1000"),
+            ("18446744073709551616", "`int` <= 1000"),
+            ("-9223372036854775809", "`int` >= 0"),
             ("100.5", "`float` <= 100.0"),
             ("x" * 11, "length <= 10"),
         ],
@@ -3623,7 +3623,7 @@ class TestLax:
         constraints error with a specific constraint error"""
         msg = proto.encode(x)
         typ = Union[
-            Annotated[int, Meta(ge=0)],
+            Annotated[int, Meta(ge=0), Meta(le=1000)],
             Annotated[float, Meta(le=100)],
             Annotated[str, Meta(max_length=10)],
         ]

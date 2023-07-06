@@ -957,19 +957,44 @@ class TestIntegers:
         assert x2 == x
 
     @pytest.mark.parametrize("x", [-(2**63) - 1, 2**64])
-    def test_decode_int_out_of_range_convert_to_float(self, x):
+    def test_decode_big_int_as_any(self, x):
         s = str(x).encode()
         x2 = msgspec.json.decode(s)
-        assert isinstance(x2, float)
-        assert x2 == float(x)
+        assert isinstance(x2, int)
+        assert x2 == x
 
     @pytest.mark.parametrize("x", [-(2**63) - 1, 2**64])
-    def test_decode_int_out_of_range_errors_if_int_requested(self, x):
+    def test_decode_big_int_as_int(self, x):
         s = str(x).encode()
-        with pytest.raises(
-            msgspec.ValidationError, match="Expected `int`, got `float`"
-        ):
-            msgspec.json.decode(s, type=int)
+        x2 = msgspec.json.decode(s, type=int)
+        assert isinstance(x2, int)
+        assert x2 == x
+
+    @pytest.mark.parametrize("max_length", [None, 1000])
+    def test_decode_big_int_max_length(self, max_length):
+        if max_length is not None:
+            try:
+                orig = sys.get_int_max_str_digits()
+                sys.set_int_max_str_digits(max_length)
+            except AttributeError:
+                pytest.skip(reason="sys.set_int_max_str_digits is not available")
+
+            def cleanup():
+                sys.set_int_max_str_digits(orig)
+
+            s = "1" * (max_length + 1)
+        else:
+            cleanup = None
+            s = "1" * 4301
+
+        try:
+            with pytest.raises(
+                msgspec.ValidationError, match="Integer value out of range"
+            ):
+                msgspec.json.decode(s, type=int)
+        finally:
+            if cleanup:
+                cleanup()
 
     @pytest.mark.parametrize("s", [b"   123   ", b"   -123   "])
     def test_decode_int_whitespace(self, s):
@@ -1337,7 +1362,7 @@ class TestFloat:
     def test_decode_float_cases_from_fastfloat(self, s):
         """Some tricky test cases from
         https://github.com/fastfloat/fast_float/blob/main/tests/basictest.cpp"""
-        x = msgspec.json.decode(s.encode())
+        x = msgspec.json.decode(s.encode(), type=float)
         assert x == float(s)
 
     @pytest.mark.parametrize("negative", [True, False])
@@ -1506,7 +1531,7 @@ class TestDecimal:
             (extdouble, Decimal, Decimal),
             (posint, Union[Decimal, int], int),
             (negint, Union[Decimal, int], int),
-            (bigint, Union[Decimal, int], Decimal),  # TODO: should probably be int
+            (bigint, Union[Decimal, int], int),
             (double, Union[Decimal, int], Decimal),
             (extdouble, Union[Decimal, int], Decimal),
             (posint, Union[Decimal, float], float),
@@ -1516,7 +1541,7 @@ class TestDecimal:
             (extdouble, Union[Decimal, float], float),
             (posint, Union[Decimal, int, float], int),
             (negint, Union[Decimal, int, float], int),
-            (bigint, Union[Decimal, int, float], float),  # TODO: should probably be int
+            (bigint, Union[Decimal, int, float], int),
             (double, Union[Decimal, int, float], float),
             (extdouble, Union[Decimal, int, float], float),
         ]
@@ -1834,10 +1859,12 @@ class TestDict:
             msgspec.json.decode(bad, type=Dict[int, int])
 
     @pytest.mark.parametrize("x", [-(2**63) - 1, 2**64, 2**65])
-    def test_decode_dict_int_out_of_range(self, x):
-        bad = ('{"%d": 1}' % x).encode("utf-8")
-        with pytest.raises(msgspec.ValidationError, match="Integer value out of range"):
-            msgspec.json.decode(bad, type=Dict[int, int])
+    def test_decode_dict_big_int(self, x):
+        msg = {str(x): 1}
+        buf = msgspec.json.encode(msg)
+        res = msgspec.json.decode(buf, type=Dict[int, int])
+        assert res == {x: 1}
+        assert type(list(res)[0]) is int
 
     def test_decode_dict_int_key_constraints(self):
         try:

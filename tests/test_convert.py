@@ -347,17 +347,20 @@ class TestInt:
             convert(1.5, int)
 
     @pytest.mark.parametrize("val", [2**64, -(2**63) - 1])
-    def test_int_out_of_range(self, val):
-        with pytest.raises(ValidationError, match="Integer value out of range"):
-            convert(val, int)
+    def test_convert_big_ints(self, val):
+        class myint(int):
+            pass
+
+        assert_eq(convert(val, int), val)
+        assert_eq(convert(myint(val), int), val)
 
     @pytest.mark.parametrize(
         "name, bound, good, bad",
         [
-            ("ge", -1, [-1, 2**63], [-2]),
-            ("gt", -1, [0, 2**63], [-1]),
-            ("le", -1, [-1], [0, 2**63]),
-            ("lt", -1, [-2], [-1, 2**63]),
+            ("ge", -1, [-1, 2**63, 2**65], [-(2**64), -2]),
+            ("gt", -1, [0, 2**63, 2**65], [-(2**64), -1]),
+            ("le", -1, [-(2**64), -1], [0, 2**63, 2**65]),
+            ("lt", -1, [-(2**64), -2], [-1, 2**63, 2**65]),
         ],
     )
     @uses_annotated
@@ -380,11 +383,11 @@ class TestInt:
         class Ex(Struct):
             x: Annotated[int, Meta(multiple_of=2)]
 
-        for x in [-2, 0, 2, 40, 2**63 + 2]:
+        for x in [-(2**64), -2, 0, 2, 40, 2**63 + 2, 2**65]:
             assert convert({"x": x}, Ex).x == x
 
         err_msg = r"Expected `int` that's a multiple of 2 - at `\$.x`"
-        for x in [1, -1, 2**63 + 1]:
+        for x in [1, -(2**64) + 1, -1, 2**63 + 1, 2**65 + 1]:
             with pytest.raises(ValidationError, match=err_msg):
                 convert({"x": x}, Ex)
 
@@ -2248,9 +2251,9 @@ class TestLax:
         "msg, err",
         [
             ("-1", "`int` >= 0"),
-            ("184467440737095516100", "out of range"),
-            ("18446744073709551617", "out of range"),
-            ("-9223372036854775809", "out of range"),
+            ("2000", "`int` <= 1000"),
+            ("18446744073709551616", "`int` <= 1000"),
+            ("-9223372036854775809", "`int` >= 0"),
             ("100.5", "`float` <= 100.0"),
             ("x" * 11, "length <= 10"),
         ],
@@ -2260,7 +2263,7 @@ class TestLax:
         """Ensure that values that parse properly but don't meet the specified
         constraints error with a specific constraint error"""
         typ = Union[
-            Annotated[int, Meta(ge=0)],
+            Annotated[int, Meta(ge=0), Meta(le=1000)],
             Annotated[float, Meta(le=100)],
             Annotated[str, Meta(max_length=10)],
         ]
