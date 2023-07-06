@@ -302,13 +302,18 @@ class TestIntConstraints:
     @pytest.mark.parametrize(
         "name, bound, good, bad",
         [
-            ("ge", -1, [-1, 2**63], [-2]),
-            ("gt", -1, [0, 2**63], [-1]),
-            ("le", -1, [-1], [0, 2**63]),
-            ("lt", -1, [-2], [-1, 2**63]),
+            ("ge", -1, [-1, 2**63, 2**65], [-(2**64), -2]),
+            ("gt", -1, [0, 2**63, 2**65], [-(2**64), -1]),
+            ("le", -1, [-(2**64), -1], [0, 2**63, 2**65]),
+            ("lt", -1, [-(2**64), -2], [-1, 2**63, 2**65]),
         ],
     )
     def test_bounds(self, proto, name, bound, good, bad):
+        if proto is msgspec.msgpack:
+            # msgpack only supports int64/uint64 values
+            good = [i for i in good if -(2**63) - 1 <= i <= 2**64]
+            bad = [i for i in bad if -(2**63) - 1 <= i <= 2**64]
+
         class Ex(msgspec.Struct):
             x: Annotated[int, Meta(**{name: bound})]
 
@@ -325,16 +330,23 @@ class TestIntConstraints:
                 dec.decode(proto.encode(Ex(x)))
 
     def test_multiple_of(self, proto):
+        good = [-(2**64), -2, 0, 2, 40, 2**63 + 2, 2**65]
+        bad = [1, -1, 2**63 + 1, 2**65 + 1]
+        if proto is msgspec.msgpack:
+            # msgpack only supports int64/uint64 values
+            good = [i for i in good if -(2**63) - 1 <= i <= 2**64]
+            bad = [i for i in bad if -(2**63) - 1 <= i <= 2**64]
+
         class Ex(msgspec.Struct):
             x: Annotated[int, Meta(multiple_of=2)]
 
         dec = proto.Decoder(Ex)
 
-        for x in [-2, 0, 2, 40, 2**63 + 2]:
+        for x in good:
             assert dec.decode(proto.encode(Ex(x))).x == x
 
         err_msg = r"Expected `int` that's a multiple of 2 - at `\$.x`"
-        for x in [1, -1, 2**63 + 1]:
+        for x in bad:
             with pytest.raises(msgspec.ValidationError, match=err_msg):
                 dec.decode(proto.encode(Ex(x)))
 

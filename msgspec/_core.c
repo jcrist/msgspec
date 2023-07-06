@@ -8863,13 +8863,64 @@ ms_passes_int_constraints(uint64_t ux, bool neg, TypeNode *type, PathNode *path)
     return true;
 }
 
+/* Constraint checks for a PyLong that is known not to fit into a uint64/int64 */
+static bool
+ms_passes_big_int_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
+    bool neg = _PyLong_Sign(obj) < 0;
+
+    if (type->types & MS_CONSTR_INT_MIN) {
+        if (neg) {
+            int64_t c = TypeNode_get_constr_int_min(type);
+            _err_int_constraint("Expected `int` >= %lld%U", c, path);
+            return false;
+        }
+    }
+    if (type->types & MS_CONSTR_INT_MAX) {
+        if (!neg) {
+            int64_t c = TypeNode_get_constr_int_max(type);
+            _err_int_constraint("Expected `int` <= %lld%U", c, path);
+            return false;
+        }
+    }
+    if (MS_UNLIKELY(type->types & MS_CONSTR_INT_MULTIPLE_OF)) {
+        int64_t c = TypeNode_get_constr_int_multiple_of(type);
+        PyObject *base = PyLong_FromLongLong(c);
+        if (base == NULL) return false;
+        PyObject *remainder = PyNumber_Remainder(obj, base);
+        Py_DECREF(base);
+        if (remainder == NULL) return false;
+        long iremainder = PyLong_AsLong(remainder);
+        if (iremainder != 0) {
+            _err_int_constraint(
+                "Expected `int` that's a multiple of %lld%U", c, path
+            );
+            return false;
+        }
+    }
+    return true;
+}
+
+static MS_NOINLINE PyObject *
+ms_decode_big_pyint(PyObject *obj, TypeNode *type, PathNode *path) {
+    if (MS_UNLIKELY(type->types & MS_INT_CONSTRS)) {
+        if (!ms_passes_big_int_constraints(obj, type, path)) return NULL;
+    }
+    if (MS_LIKELY(PyLong_CheckExact(obj))) {
+        Py_INCREF(obj);
+        return obj;
+    }
+    else {
+        return PyNumber_Long(obj);
+    }
+}
+
 static MS_INLINE PyObject *
 ms_decode_pyint(PyObject *obj, TypeNode *type, PathNode *path) {
     uint64_t ux;
     bool neg, overflow;
     overflow = fast_long_extract_parts(obj, &neg, &ux);
     if (MS_UNLIKELY(overflow)) {
-        return ms_error_with_path("Integer value out of range%U", path);
+        return ms_decode_big_pyint(obj, type, path);
     }
     if (MS_UNLIKELY(type->types & MS_INT_CONSTRS)) {
         if (!ms_passes_int_constraints(ux, neg, type, path)) return NULL;
@@ -8882,6 +8933,51 @@ ms_decode_pyint(PyObject *obj, TypeNode *type, PathNode *path) {
         return PyLong_FromUnsignedLongLong(ux);
     }
     return PyLong_FromLongLong(-(int64_t)ux);
+}
+
+static MS_NOINLINE PyObject *
+ms_decode_bigint(const char *buf, Py_ssize_t size, TypeNode *type, PathNode *path) {
+    if (size > 4300) goto out_of_range;
+    /* CPython int parsing routine requires NULL terminated buffer */
+    char *temp = (char *)PyMem_Malloc(size + 1);
+    if (temp == NULL) return NULL;
+    memcpy(temp, buf, size);
+    temp[size] = '\0';
+    PyObject *out = PyLong_FromString(temp, NULL, 10);
+    PyMem_Free(temp);
+
+    /* We already know the int is a valid integer string. An error here is
+     * either a ValueError due to the int being too big (to prevent DDOS
+     * issues), or some issue in the VM. We convert the former to out-of-range
+     * errors for uniformity, and raise the latter directly. */
+    if (MS_UNLIKELY(out == NULL)) {
+        PyObject *exc_type, *exc, *tb;
+
+        /* Fetch the exception state */
+        PyErr_Fetch(&exc_type, &exc, &tb);
+
+        if (exc_type == NULL) {
+            /* Some other c-extension has borked, just return */
+            return NULL;
+        }
+        else if (exc_type == PyExc_ValueError) {
+            goto out_of_range;
+        }
+        else {
+            /* Restore the exception state */
+            PyErr_Restore(exc_type, exc, tb);
+        }
+    }
+
+    if (MS_UNLIKELY(type->types & MS_INT_CONSTRS)) {
+        if (!ms_passes_big_int_constraints(out, type, path)) {
+            Py_CLEAR(out);
+        }
+    }
+    return out;
+
+out_of_range:
+    return ms_error_with_path("Integer value out of range%U", path);
 }
 
 static MS_NOINLINE PyObject *
@@ -10151,6 +10247,7 @@ ms_maybe_decode_int_from_str(
 ) {
     uint64_t mantissa = 0;
     bool is_negative = false;
+    const char *start = p;
     const char *end = p + size;
 
     if (size == 0) goto invalid_int;
@@ -10188,12 +10285,17 @@ ms_maybe_decode_int_from_str(
         if (MS_UNLIKELY(is_digit(c))) {
             p++;
             uint64_t mantissa2 = mantissa * 10 + (uint64_t)(c - '0');
-            bool out_of_range = (
+            bool overflow = (
                 (mantissa2 < mantissa) ||
                 ((mantissa2 - (uint64_t)(c - '0')) / 10) != mantissa ||
                 (p != end)
             );
-            if (out_of_range) goto out_of_range;
+            if (overflow) {
+                /* Check remaining characters are valid */
+                while (is_digit(*p)) p++;
+                if (p != end) goto invalid_int;
+                goto bigint;
+            }
             mantissa = mantissa2;
         }
     }
@@ -10208,7 +10310,7 @@ end_digits:
 done:
     if (MS_UNLIKELY(is_negative)) {
         if (MS_UNLIKELY(mantissa > 1ull << 63)) {
-            goto out_of_range;
+            goto bigint;
         }
         if (MS_LIKELY(type->types & MS_TYPE_INT)) {
             return ms_decode_int(-1 * (int64_t)mantissa, type, path);
@@ -10220,8 +10322,8 @@ done:
     }
     return ms_decode_int_enum_or_literal_uint64(mantissa, type, path);
 
-out_of_range:
-    return ms_error_with_path("Integer value out of range%U", path);
+bigint:
+    return ms_decode_bigint(start, size, type, path);
 
 invalid_int:
     *invalid = true;
@@ -16317,6 +16419,7 @@ json_decode_float(JSONDecoderState *self, double x, TypeNode *type, PathNode *pa
 
 static MS_NOINLINE PyObject *
 json_decode_extended_float(JSONDecoderState *self, TypeNode *type, PathNode *path) {
+    bool is_float = false;
     uint32_t nd = 0;
     int32_t dp = 0;
 
@@ -16367,6 +16470,7 @@ json_decode_extended_float(JSONDecoderState *self, TypeNode *type, PathNode *pat
     c = json_peek_or_null(self);
     if (c == '.') {
         self->input_pos++;
+        is_float = true;
         /* Parse remaining digits until invalid/unknown character */
         unsigned char *cur_pos = self->input_pos;
         while (self->input_pos < self->input_end && is_digit(*self->input_pos)) {
@@ -16396,6 +16500,7 @@ json_decode_extended_float(JSONDecoderState *self, TypeNode *type, PathNode *pat
     }
     if (c == 'e' || c == 'E') {
         self->input_pos++;
+        is_float = true;
 
         int64_t exp_sign = 1, exp_part = 0;
 
@@ -16424,7 +16529,12 @@ json_decode_extended_float(JSONDecoderState *self, TypeNode *type, PathNode *pat
         dp += exp_sign * exp_part;
     }
 
-    if (
+    if ((!is_float) && (type->types & (MS_TYPE_ANY | MS_TYPE_INT))) {
+        return ms_decode_bigint(
+            (char *)initial_pos, self->input_pos - initial_pos, type, path
+        );
+    }
+    else if (
         MS_UNLIKELY(
             !(type->types & (MS_TYPE_ANY | MS_TYPE_FLOAT))
             && type->types & MS_TYPE_DECIMAL
@@ -16577,12 +16687,9 @@ end_integer:
         exponent += exp_sign * exp_part;
     }
 
-    if (MS_UNLIKELY(is_negative && mantissa > 1ull << 63)) {
-        is_float = true;
-    }
-
     if (!is_float) {
         if (is_negative) {
+            if (MS_UNLIKELY(mantissa > 1ull << 63)) goto fallback_extended;
             return json_decode_int(self, -1 * (int64_t)mantissa, type, path);
         }
         return json_decode_uint(self, mantissa, type, path);
