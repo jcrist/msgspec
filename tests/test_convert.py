@@ -2081,6 +2081,74 @@ class TestGenericStruct:
         assert loc in str(rec.value)
 
 
+class TestStructPostInit:
+    @pytest.mark.parametrize("array_like", [False, True])
+    @pytest.mark.parametrize("union", [False, True])
+    def test_struct_post_init(self, array_like, union):
+        count = 0
+        singleton = object()
+
+        class Ex(Struct, array_like=array_like, tag=union):
+            x: int
+
+            def __post_init__(self):
+                nonlocal count
+                count += 1
+                return singleton
+
+        if union:
+
+            class Ex2(Struct, array_like=array_like, tag=True):
+                pass
+
+            typ = Union[Ex, Ex2]
+        else:
+            typ = Ex
+
+        msg = Ex(1)
+        buf = to_builtins(msg)
+        res = convert(buf, type=typ)
+        assert res == msg
+        assert count == 2  # 1 for Ex(), 1 for decode
+        assert sys.getrefcount(singleton) == 2  # 1 for ref, 1 for call
+
+    @pytest.mark.parametrize("array_like", [False, True])
+    @pytest.mark.parametrize("union", [False, True])
+    @pytest.mark.parametrize("exc_class", [ValueError, TypeError, OSError])
+    def test_struct_post_init_errors(self, array_like, union, exc_class):
+        error = False
+
+        class Ex(Struct, array_like=array_like, tag=union):
+            x: int
+
+            def __post_init__(self):
+                if error:
+                    raise exc_class("Oh no!")
+
+        if union:
+
+            class Ex2(Struct, array_like=array_like, tag=True):
+                pass
+
+            typ = Union[Ex, Ex2]
+        else:
+            typ = Ex
+
+        msg = to_builtins([Ex(1)])
+        error = True
+
+        if exc_class in (ValueError, TypeError):
+            expected = ValidationError
+        else:
+            expected = exc_class
+
+        with pytest.raises(expected, match="Oh no!") as rec:
+            convert(msg, type=List[typ])
+
+        if expected is ValidationError:
+            assert "- at `$[0]`" in str(rec.value)
+
+
 class TestLax:
     def test_lax_none(self):
         for x in ["null", "Null", "nUll", "nuLl", "nulL"]:
