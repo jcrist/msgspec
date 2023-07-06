@@ -130,6 +130,9 @@ class FileMashumaro(DataClassORJSONMixin):
     nbytes: int
     type: Literal["file"] = "file"
 
+    class Config:
+        lazy_compilation = True
+
 
 @dataclasses.dataclass
 class DirectoryMashumaro(DataClassORJSONMixin):
@@ -140,13 +143,16 @@ class DirectoryMashumaro(DataClassORJSONMixin):
     contents: List[Union[FileMashumaro, DirectoryMashumaro]]
     type: Literal["directory"] = "directory"
 
+    class Config:
+        lazy_compilation = True
+
 
 def bench_mashumaro(n):
     return bench(
-        lambda x: x.to_jsonb(),
-        DirectoryMashumaro.from_json,
+        lambda x: x.to_json(),
+        lambda x: DirectoryMashumaro.from_json(x),
         n,
-        DirectoryMashumaro.from_dict,
+        lambda x: DirectoryMashumaro.from_dict(x),
     )
 
 
