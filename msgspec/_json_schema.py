@@ -244,6 +244,9 @@ def _to_schema(
     elif isinstance(t, mi.DateType):
         schema["type"] = "string"
         schema["format"] = "date"
+    elif isinstance(t, mi.TimeDeltaType):
+        schema["type"] = "string"
+        schema["format"] = "duration"
     elif isinstance(t, mi.UUIDType):
         schema["type"] = "string"
         schema["format"] = "uuid"

@@ -139,6 +139,13 @@ def test_date():
     }
 
 
+def test_timedelta():
+    assert msgspec.json.schema(datetime.timedelta) == {
+        "type": "string",
+        "format": "duration",
+    }
+
+
 def test_uuid():
     assert msgspec.json.schema(uuid.UUID) == {
         "type": "string",

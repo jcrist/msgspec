@@ -162,6 +162,10 @@ def test_date():
     assert mi.type_info(datetime.date) == mi.DateType()
 
 
+def test_timedelta():
+    assert mi.type_info(datetime.timedelta) == mi.TimeDeltaType()
+
+
 def test_uuid():
     assert mi.type_info(uuid.UUID) == mi.UUIDType()
 
