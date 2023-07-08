@@ -13,6 +13,7 @@ import uuid
 import weakref
 from collections import namedtuple
 from dataclasses import dataclass, field
+from datetime import timedelta
 from typing import (
     Deque,
     Dict,
@@ -3145,6 +3146,183 @@ class TestTime:
         msg = proto.encode(s)
         with pytest.raises(ValidationError, match="Invalid RFC3339"):
             proto.decode(msg, type=datetime.time)
+
+
+class TestTimeDelta:
+    @pytest.mark.parametrize("neg", [False, True])
+    @pytest.mark.parametrize(
+        "td, msg",
+        [
+            (timedelta(), "P0D"),
+            (timedelta(1), "P1D"),
+            (timedelta(10), "P10D"),
+            (timedelta(123456789), "P123456789D"),
+            (timedelta(0, 1), "PT1S"),
+            (timedelta(0, 10), "PT10S"),
+            (timedelta(0, 12345), "PT12345S"),
+            (timedelta(0, 0, 1), "PT0.000001S"),
+            (timedelta(0, 0, 10), "PT0.00001S"),
+            (timedelta(0, 0, 100), "PT0.0001S"),
+            (timedelta(0, 0, 1000), "PT0.001S"),
+            (timedelta(0, 0, 10000), "PT0.01S"),
+            (timedelta(0, 0, 100000), "PT0.1S"),
+            (timedelta(123456789, 54321, 123456), "P123456789DT54321.123456S"),
+            (timedelta(0, 86399, 999999), "PT86399.999999S"),
+        ],
+    )
+    def test_roundtrip_timedelta(self, proto, td, msg, neg):
+        if neg and td:
+            td = -td
+            msg = "-" + msg
+
+        buf = proto.encode(td)
+
+        res = proto.decode(buf)
+        assert res == msg
+
+        td2 = proto.decode(buf, type=timedelta)
+        assert td2 == td
+
+    @pytest.mark.parametrize(
+        "msg, sol",
+        [
+            ("PT0S", timedelta()),
+            ("+P1DT2S", timedelta(1, 2)),
+            ("-P1DT2S", -timedelta(1, 2)),
+            ("P000DT000.000S", timedelta()),
+            ("-P000DT000.000S", timedelta()),
+            ("P00012DT0045.670000000S", timedelta(12, 45, 670000)),
+            ("P123456789.12345678912D", timedelta(123456789, 10666, 666580)),
+            ("P123456789.12345678912999D", timedelta(123456789, 10666, 666580)),
+            ("P123456789.12345678913D", timedelta(123456789, 10666, 666581)),
+            ("PT0123H", timedelta(0, 123 * 60 * 60)),
+            ("PT0123.456H", timedelta(0, 123.456 * 60 * 60)),
+            ("PT0123M", timedelta(0, 123 * 60)),
+            ("PT0123.456M", timedelta(0, 123.456 * 60)),
+        ],
+    )
+    def test_decode_timedelta(self, proto, msg, sol):
+        buf = proto.encode(msg)
+        res = proto.decode(buf, type=timedelta)
+        assert res == sol
+
+    def test_decode_timedelta_case_insensitive(self, proto):
+        buf = proto.encode("p1dt2h3m4s")
+        res = proto.decode(buf, type=timedelta)
+        assert res == timedelta(1, 2 * 60 * 60 + 3 * 60 + 4)
+
+    @pytest.mark.parametrize(
+        "msg",
+        [
+            "P999999999DT86399.999999S",
+            "P999999998DT24H86399.999999S",
+            "P999999999DT86399.9999994S",
+        ],
+    )
+    def test_decode_timedelta_max(self, proto, msg):
+        buf = proto.encode(msg)
+        res = proto.decode(buf, type=timedelta)
+        assert res == timedelta.max
+
+    @pytest.mark.parametrize(
+        "msg",
+        [
+            "-P999999999D",
+            "-P999999998DT24H",
+            "-P999999998DT23H3600S",
+            "-P999999998DT86399.9999995S",
+        ],
+    )
+    def test_decode_timedelta_min(self, proto, msg):
+        buf = proto.encode(msg)
+        res = proto.decode(buf, type=timedelta)
+        assert res == timedelta.min
+
+    def test_decode_timedelta_wrong_type(self, proto):
+        bad = proto.encode([])
+        with pytest.raises(ValidationError, match="Expected `duration`, got `array`"):
+            proto.decode(bad, type=timedelta)
+
+    @pytest.mark.parametrize(
+        "msg",
+        [
+            # No P
+            "",
+            "-",
+            "+",
+            # Just P
+            "P",
+            "-P",
+            "+P",
+            # Missing Number
+            "PD",
+            "P.0D",
+            # Missing digit after decimal place
+            "P123.",
+            "P123.D",
+            # Missing Unit
+            "P0",
+            "P0.0",
+            "P0.00",
+            "P0.000000000000123",
+            # Trailing T
+            "PT",
+            "P0DT",
+            # Missing T
+            "P1D2H",
+            "P1D2S",
+            # Repeat T
+            "PTT0S",
+            # Repeat Units
+            "P1D2D",
+            "PT1H2H",
+            "PT1M2M",
+            "PT1S2S",
+            # Units in wrong order
+            "PT1H1D",
+            "PT1M1H",
+            "PT1S1M",
+            # Non-fractional after fractional
+            "PT1.2H1M",
+            "P1.2DT1H",
+            "PT1.2H0S",
+            # Invalid characters
+            "1P1D",
+            "P-1D",
+            "P1.-D",
+            "P1.0-D",
+            "P1.000000000000123-D",
+            "P1D-",
+        ],
+    )
+    def test_decode_timedelta_malformed(self, proto, msg):
+        encoded = proto.encode(msg)
+        with pytest.raises(ValidationError, match="Invalid ISO8601 duration"):
+            proto.decode(encoded, type=timedelta)
+
+    @pytest.mark.parametrize(
+        "msg",
+        [
+            "P1000000000D",
+            "PT140737488355329S",
+            "P999999999DT86399.9999995S",
+            "-P999999999DT0.0000005S",
+            "P999999998DT48H",
+            "-P999999998DT24H01S",
+        ],
+    )
+    def test_decode_timedelta_out_of_range(self, proto, msg):
+        encoded = proto.encode(msg)
+        with pytest.raises(ValidationError, match="Duration is out of range"):
+            proto.decode(encoded, type=timedelta)
+
+    @pytest.mark.parametrize("unit", ["Y", "M", "W"])
+    def test_decode_timedelta_unsupported_unit(self, proto, unit):
+        upper = f"P1{unit}"
+        for msg in [upper, upper.lower()]:
+            encoded = proto.encode(msg)
+            with pytest.raises(ValidationError, match="Only units 'D'"):
+                proto.decode(encoded, type=timedelta)
 
 
 class TestUUID:

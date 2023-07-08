@@ -2273,28 +2273,29 @@ static PyTypeObject Field_Type = {
 #define MS_TYPE_DATETIME            (1ull << 8)
 #define MS_TYPE_DATE                (1ull << 9)
 #define MS_TYPE_TIME                (1ull << 10)
-#define MS_TYPE_UUID                (1ull << 11)
-#define MS_TYPE_EXT                 (1ull << 12)
-#define MS_TYPE_STRUCT              (1ull << 13)
-#define MS_TYPE_STRUCT_ARRAY        (1ull << 14)
-#define MS_TYPE_STRUCT_UNION        (1ull << 15)
-#define MS_TYPE_STRUCT_ARRAY_UNION  (1ull << 16)
-#define MS_TYPE_ENUM                (1ull << 17)
-#define MS_TYPE_INTENUM             (1ull << 18)
-#define MS_TYPE_CUSTOM              (1ull << 19)
-#define MS_TYPE_CUSTOM_GENERIC      (1ull << 20)
-#define MS_TYPE_DICT                ((1ull << 21) | (1ull << 22))
-#define MS_TYPE_LIST                (1ull << 23)
-#define MS_TYPE_SET                 (1ull << 24)
-#define MS_TYPE_FROZENSET           (1ull << 25)
-#define MS_TYPE_VARTUPLE            (1ull << 26)
-#define MS_TYPE_FIXTUPLE            (1ull << 27)
-#define MS_TYPE_INTLITERAL          (1ull << 28)
-#define MS_TYPE_STRLITERAL          (1ull << 29)
-#define MS_TYPE_TYPEDDICT           (1ull << 30)
-#define MS_TYPE_DATACLASS           (1ull << 31)
-#define MS_TYPE_NAMEDTUPLE          (1ull << 32)
-#define MS_TYPE_DECIMAL             (1ull << 33)
+#define MS_TYPE_TIMEDELTA           (1ull << 11)
+#define MS_TYPE_UUID                (1ull << 12)
+#define MS_TYPE_DECIMAL             (1ull << 13)
+#define MS_TYPE_EXT                 (1ull << 14)
+#define MS_TYPE_STRUCT              (1ull << 15)
+#define MS_TYPE_STRUCT_ARRAY        (1ull << 16)
+#define MS_TYPE_STRUCT_UNION        (1ull << 17)
+#define MS_TYPE_STRUCT_ARRAY_UNION  (1ull << 18)
+#define MS_TYPE_ENUM                (1ull << 19)
+#define MS_TYPE_INTENUM             (1ull << 20)
+#define MS_TYPE_CUSTOM              (1ull << 21)
+#define MS_TYPE_CUSTOM_GENERIC      (1ull << 22)
+#define MS_TYPE_DICT                ((1ull << 23) | (1ull << 24))
+#define MS_TYPE_LIST                (1ull << 25)
+#define MS_TYPE_SET                 (1ull << 26)
+#define MS_TYPE_FROZENSET           (1ull << 27)
+#define MS_TYPE_VARTUPLE            (1ull << 28)
+#define MS_TYPE_FIXTUPLE            (1ull << 29)
+#define MS_TYPE_INTLITERAL          (1ull << 30)
+#define MS_TYPE_STRLITERAL          (1ull << 31)
+#define MS_TYPE_TYPEDDICT           (1ull << 32)
+#define MS_TYPE_DATACLASS           (1ull << 33)
+#define MS_TYPE_NAMEDTUPLE          (1ull << 34)
 /* Constraints */
 #define MS_CONSTR_INT_MIN           (1ull << 42)
 #define MS_CONSTR_INT_MAX           (1ull << 43)
@@ -2880,6 +2881,9 @@ typenode_simple_repr(TypeNode *self) {
     }
     if (self->types & MS_TYPE_TIME) {
         if (!strbuilder_extend_literal(&builder, "time")) return NULL;
+    }
+    if (self->types & MS_TYPE_TIMEDELTA) {
+        if (!strbuilder_extend_literal(&builder, "duration")) return NULL;
     }
     if (self->types & MS_TYPE_UUID) {
         if (!strbuilder_extend_literal(&builder, "uuid")) return NULL;
@@ -3600,15 +3604,15 @@ typenode_collect_check_invariants(TypeNodeCollectState *state) {
                 MS_TYPE_STR | MS_TYPE_STRLITERAL | MS_TYPE_ENUM |
                 MS_TYPE_BYTES | MS_TYPE_BYTEARRAY |
                 MS_TYPE_DATETIME | MS_TYPE_DATE | MS_TYPE_TIME |
-                MS_TYPE_UUID | MS_TYPE_DECIMAL
+                MS_TYPE_TIMEDELTA | MS_TYPE_UUID | MS_TYPE_DECIMAL
             )
         ) > 1
     ) {
         PyErr_Format(
             PyExc_TypeError,
             "Type unions may not contain more than one str-like type (`str`, "
-            "`Enum`, `Literal[str values]`, `datetime`, `date`, `time`, `uuid`, "
-            "`decimal`, `bytes`, `bytearray`) - type `%R` is not supported",
+            "`Enum`, `Literal[str values]`, `datetime`, `date`, `time`, `timedelta`, "
+            "`uuid`, `decimal`, `bytes`, `bytearray`) - type `%R` is not supported",
             state->context
         );
         return -1;
@@ -4369,12 +4373,15 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
         state->types |= MS_TYPE_DATETIME;
         kind = CK_TIME;
     }
+    else if (t == (PyObject *)(PyDateTimeAPI->DateType)) {
+        state->types |= MS_TYPE_DATE;
+    }
     else if (t == (PyObject *)(PyDateTimeAPI->TimeType)) {
         state->types |= MS_TYPE_TIME;
         kind = CK_TIME;
     }
-    else if (t == (PyObject *)(PyDateTimeAPI->DateType)) {
-        state->types |= MS_TYPE_DATE;
+    else if (t == (PyObject *)(PyDateTimeAPI->DeltaType)) {
+        state->types |= MS_TYPE_TIMEDELTA;
     }
     else if (t == state->mod->UUIDType) {
         state->types |= MS_TYPE_UUID;
@@ -10091,6 +10098,286 @@ error:
     return NULL;
 }
 
+/* Requires 26 bytes of scratch space */
+static int
+ms_encode_timedelta(PyObject *obj, char *out) {
+    const char *start = out;
+
+    int days = PyDateTime_DELTA_GET_DAYS(obj);
+    int secs = PyDateTime_DELTA_GET_SECONDS(obj);
+    int micros = PyDateTime_DELTA_GET_MICROSECONDS(obj);
+
+    if (days < 0) {
+        *out++ = '-';
+        days = -days;
+        if (secs != 0 || micros != 0) {
+            days--;
+            if (micros != 0) {
+                micros = 1000000 - micros;
+                secs += 1;
+            }
+            secs = 86400 - secs;
+        }
+    }
+    *out++ = 'P';
+
+    if (days != 0) {
+        int n = write_u64(days, out);
+        out += n;
+        *out++ = 'D';
+    }
+    if (secs != 0 || micros != 0) {
+        *out++ = 'T';
+        int n = write_u64(secs, out);
+        out += n;
+        if (micros != 0) {
+            *out++ = '.';
+            out = ms_write_fixint(out, micros, 6);
+            while (*(out - 1) == '0') {
+                out--;
+            }
+        }
+        *out++ = 'S';
+    }
+    else if (days == 0) {
+        *out++ = '0';
+        *out++ = 'D';
+    }
+    return out - start;
+}
+
+#define MS_TIMEDELTA_MAX_SECONDS  86399999999999LL
+#define MS_TIMEDELTA_MIN_SECONDS -86399999913600LL
+enum timedelta_parse_state {
+    TIMEDELTA_START = 0,
+    TIMEDELTA_D = 1,
+    TIMEDELTA_T = 2,
+    TIMEDELTA_H = 3,
+    TIMEDELTA_M = 4,
+    TIMEDELTA_S = 5,
+};
+
+/* Parses a timedelta from an extended ISO8601 Duration. We try to follow the
+ * ISO8601-2 spec as closely as possible, extrapolating as needed when the spec
+ * is vague. We've also limited support for some units/ranges as needed to fit
+ * python's timedelta model.
+ *
+ * Values parsed here are compatible with Java's `Time.Duration.parse`, as well
+ * as the proposed javascript `Temporal.Duration.from` API.
+ *
+ * We accept the following format: [-/+]P#DT#H#M#S
+ *
+ * where # is a number with optional decimal component. Characters are case
+ * insensitive.
+ *
+ * Additional restrictions, mostly taken from the ISO spec. Extrapolations or
+ * self-imposed restrictions are noted.
+ *
+ * - The units D (days), H (hours), M (minutes) and S (seconds) may be omitted
+ *   if their value is 0.
+ *
+ * - At least one value must be present (`P0D` is a valid 0 duration, but `P`
+ *   is not).
+ *
+ * - If present, the values must be in the proper unit order (D, H, M, S).
+ *
+ * - If a unit value contains a fractional number, it must be the last unit.
+ *   `PT1H1.5S` and `PT1.5H` are valid but `PT1.5H1S` is not.
+ *
+ * - Unlike JSON numbers, leading 0s are fine. `P001D` and `P1D` are
+ *   equivalent.
+ *
+ * - If `T` is present, there must be at least one time component after it.
+ *   This isn't explicitly said in the spec, but is enforced by both Java and
+ *   Temporal APIs.
+ *
+ * - A leading `-` or `+` may be used to indicate a negative or positive
+ *   duration. This is part of the extended spec in ISO8601-2, and is supported
+ *   by both Java and Temporal apis.
+ *
+ * - We don't support relative duration units (Y (year), M (month), W (week)).
+ *   Python's timedeltas are absolute deltas composed of fixed-length days,
+ *   seconds, and microseconds. There's no way to accurately store a relative
+ *   quantity like "months". Java's Duration implementation has the same
+ *   restriction.
+ *
+ * - This implementation will error for durations that exceed python's
+ *   timedelta range limits. The ISO spec provides no restrictions on duration
+ *   range.
+ */
+static PyObject *
+ms_decode_timedelta(const char *p, Py_ssize_t size, TypeNode *type, PathNode *path) {
+    bool neg = false;
+    const char *end = p + size;
+
+    if (p == end) goto invalid;
+
+    if (*p == '-') {
+        neg = true;
+        p++;
+        if (p == end) goto invalid;
+    }
+    else if (*p == '+') {
+        p++;
+        if (p == end) goto invalid;
+    }
+
+    if (*p != 'P' && *p != 'p') goto invalid;
+    p++;
+    if (p == end) goto invalid;
+
+    int64_t seconds = 0;
+    int micros = 0;
+    enum timedelta_parse_state parse_state = TIMEDELTA_START;
+
+    while (true) {
+        if (p == end) goto invalid;  /* Missing segment */
+
+        if (*p == 'T' || *p == 't') {
+            if (parse_state >= TIMEDELTA_T) goto invalid;
+            parse_state = TIMEDELTA_T;
+            p++;
+            continue;
+        }
+
+        uint32_t scale;
+        bool has_frac = false;
+        uint64_t x = 0, frac_num = 0, frac_den = 10;
+
+        /* Read integral part */
+        if (!is_digit(*p)) goto invalid;
+        x = *p - '0';
+        p++;
+
+        while (true) {
+            if (p == end) goto invalid;  /* missing unit */
+            if (!is_digit(*p)) break;
+            x = x * 10 + (uint64_t)(*p - '0');
+            if (x > (1ULL << 47)) goto out_of_range;
+            p++;
+        }
+
+        if (*p == '.') {
+            /* Read fractional part */
+            has_frac = true;
+            p++;
+            if (p == end) goto invalid;
+            if (!is_digit(*p)) goto invalid;
+            frac_num = *p - '0';
+            p++;
+
+            /* Parse up to 10 more decimal digits.
+             *
+             * Since the largest unit we support is days, and python's
+             * timedelta has microsecond precision, only 11 decimal digits need
+             * to be read. Any further precision will have no effect on the
+             * output. */
+            for (int i = 0; i < 10; i++) {
+                if (p == end) goto invalid;  /* missing unit */
+                if (!is_digit(*p)) goto parse_unit;
+                frac_num = frac_num * 10 + (uint64_t)(*p - '0');
+                frac_den *= 10;
+                p++;
+            }
+            /* Remaining digits won't have any effect on output, skip them */
+            while (true) {
+                if (p == end) goto invalid;  /* missing unit */
+                if (!is_digit(*p)) goto parse_unit;
+                p++;
+            }
+        }
+
+    parse_unit:
+
+        switch (*p++) {
+            case 'D':
+            case 'd': {
+                if (parse_state >= TIMEDELTA_D) goto invalid;
+                parse_state = TIMEDELTA_D;
+                scale = 24 * 60 * 60;
+                break;
+            };
+            case 'H':
+            case 'h': {
+                if (parse_state < TIMEDELTA_T || parse_state >= TIMEDELTA_H) goto invalid;
+                parse_state = TIMEDELTA_H;
+                scale = 60 * 60;
+                break;
+            }
+            case 'M':
+            case 'm': {
+                if (parse_state < TIMEDELTA_T) goto unsupported;
+                if (parse_state >= TIMEDELTA_M) goto invalid;
+                parse_state = TIMEDELTA_M;
+                scale = 60;
+                break;
+            };
+            case 'S':
+            case 's': {
+                if (parse_state < TIMEDELTA_T || parse_state >= TIMEDELTA_S) goto invalid;
+                parse_state = TIMEDELTA_S;
+                scale = 1;
+                break;
+            };
+            case 'W':
+            case 'w':
+            case 'Y':
+            case 'y':
+                goto unsupported;
+            default:
+                goto invalid;
+        }
+
+        /* Apply integral part */
+        seconds += scale * x;
+
+        if (has_frac) {
+            /* Apply fractional part */
+            frac_num *= scale;
+            int64_t extra_secs = frac_num / frac_den;
+            int extra_micros = DIV_ROUND_CLOSEST(1000000 * (frac_num - (extra_secs * frac_den)), frac_den);
+            micros += extra_micros;
+            if (micros >= 1000000) {
+                extra_secs++;
+                micros -= 1000000;
+            }
+            seconds += extra_secs;
+        }
+
+        /* Ensure seconds are still in-bounds */
+        if (seconds > MS_TIMEDELTA_MAX_SECONDS) goto out_of_range;
+
+        if (p == end) {
+            break;
+        }
+        else if (has_frac) {
+            goto invalid; /* decimal segment must be last */
+        }
+    }
+    if (neg) {
+        seconds = -seconds;
+        if (micros) {
+            micros = 1000000 - micros;
+            seconds -= 1;
+        }
+        /* abs(lower_limit) < upper_limit, so we need to recheck it here */
+        if (seconds < MS_TIMEDELTA_MIN_SECONDS) goto out_of_range;
+    }
+    int64_t days = seconds / (24 * 60 * 60);
+    seconds -= days * (24 * 60 * 60);
+    return PyDelta_FromDSU(days, seconds, micros);
+
+invalid:
+    return ms_error_with_path("Invalid ISO8601 duration%U", path);
+out_of_range:
+    return ms_error_with_path("Duration is out of range%U", path);
+unsupported:
+    return ms_error_with_path(
+        "Only units 'D', 'H', 'M', and 'S' are supported when parsing ISO8601 durations%U",
+        path
+    );
+}
+
 /*************************************************************************
  * Base64 Encoder                                                        *
  *************************************************************************/
@@ -11320,6 +11607,14 @@ mpack_encode_time(EncoderState *self, PyObject *obj)
 }
 
 static int
+mpack_encode_timedelta(EncoderState *self, PyObject *obj)
+{
+    char buf[26];
+    int size = ms_encode_timedelta(obj, buf);
+    return mpack_encode_cstr(self, buf, size);
+}
+
+static int
 mpack_encode_datetime(EncoderState *self, PyObject *obj)
 {
     int64_t seconds;
@@ -11409,6 +11704,9 @@ mpack_encode_uncommon(EncoderState *self, PyTypeObject *type, PyObject *obj)
     }
     else if (type == PyDateTimeAPI->TimeType) {
         return mpack_encode_time(self, obj);
+    }
+    else if (type == PyDateTimeAPI->DeltaType) {
+        return mpack_encode_timedelta(self, obj);
     }
     else if (type == &Ext_Type) {
         return mpack_encode_ext(self, obj);
@@ -11958,6 +12256,16 @@ json_encode_datetime(EncoderState *self, PyObject *obj)
     return ms_write(self, buf, size + 2);
 }
 
+static int
+json_encode_timedelta(EncoderState *self, PyObject *obj)
+{
+    char buf[28];
+    buf[0] = '"';
+    int n = ms_encode_timedelta(obj, buf + 1);
+    buf[1 + n] = '"';
+    return ms_write(self, buf, 2 + n);
+}
+
 static MS_INLINE int
 json_encode_sequence(EncoderState *self, Py_ssize_t size, PyObject **arr)
 {
@@ -12039,6 +12347,9 @@ json_encode_dict_key(EncoderState *self, PyObject *obj) {
     }
     else if (type == PyDateTimeAPI->TimeType) {
         return json_encode_time(self, obj);
+    }
+    else if (type == PyDateTimeAPI->DeltaType) {
+        return json_encode_timedelta(self, obj);
     }
     else if (type == &PyBytes_Type) {
         return json_encode_bytes(self, obj);
@@ -12301,6 +12612,9 @@ json_encode_uncommon(EncoderState *self, PyTypeObject *type, PyObject *obj) {
     }
     else if (type == PyDateTimeAPI->TimeType) {
         return json_encode_time(self, obj);
+    }
+    else if (type == PyDateTimeAPI->DeltaType) {
+        return json_encode_timedelta(self, obj);
     }
     else if (type == &PyBytes_Type) {
         return json_encode_bytes(self, obj);
@@ -13041,6 +13355,9 @@ mpack_decode_str(DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *
     }
     else if (MS_UNLIKELY(type->types & MS_TYPE_TIME)) {
         return ms_decode_time(s, size, type, path);
+    }
+    else if (MS_UNLIKELY(type->types & MS_TYPE_TIMEDELTA)) {
+        return ms_decode_timedelta(s, size, type, path);
     }
     else if (MS_UNLIKELY(type->types & MS_TYPE_UUID)) {
         return ms_decode_uuid(s, size, path);
@@ -15147,6 +15464,9 @@ json_decode_string(JSONDecoderState *self, TypeNode *type, PathNode *path) {
     else if (MS_UNLIKELY(type->types & MS_TYPE_TIME)) {
         return ms_decode_time(view, size, type, path);
     }
+    else if (MS_UNLIKELY(type->types & MS_TYPE_TIMEDELTA)) {
+        return ms_decode_timedelta(view, size, type, path);
+    }
     else if (MS_UNLIKELY(type->types & MS_TYPE_UUID)) {
         return ms_decode_uuid(view, size, path);
     }
@@ -15196,6 +15516,9 @@ json_decode_dict_key_fallback(
     }
     else if (type->types & MS_TYPE_TIME) {
         return ms_decode_time(view, size, type, path);
+    }
+    else if (type->types & MS_TYPE_TIMEDELTA) {
+        return ms_decode_timedelta(view, size, type, path);
     }
     else if (type->types & MS_TYPE_DECIMAL) {
         return ms_decode_decimal(view, size, is_ascii, path, NULL);
@@ -17512,6 +17835,7 @@ msgspec_json_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyO
 #define MS_BUILTIN_TIME       (1ull << 5)
 #define MS_BUILTIN_UUID       (1ull << 6)
 #define MS_BUILTIN_DECIMAL    (1ull << 7)
+#define MS_BUILTIN_TIMEDELTA  (1ull << 8)
 
 typedef struct {
     MsgspecState *mod;
@@ -17571,6 +17895,15 @@ to_builtins_time(ToBuiltinsState *self, PyObject *obj) {
     char buf[21];
     int size = ms_encode_time(self->mod, obj, buf);
     if (size < 0) return NULL;
+    PyObject *out = PyUnicode_New(size, 127);
+    memcpy(ascii_get_buffer(out), buf, size);
+    return out;
+}
+
+static PyObject *
+to_builtins_timedelta(ToBuiltinsState *self, PyObject *obj) {
+    char buf[26];
+    int size = ms_encode_timedelta(obj, buf);
     PyObject *out = PyUnicode_New(size, 127);
     memcpy(ascii_get_buffer(out), buf, size);
     return out;
@@ -17915,6 +18248,10 @@ to_builtins(ToBuiltinsState *self, PyObject *obj, bool is_key) {
         if (self->builtin_types & MS_BUILTIN_TIME) goto builtin;
         return to_builtins_time(self, obj);
     }
+    else if (type == PyDateTimeAPI->DeltaType) {
+        if (self->builtin_types & MS_BUILTIN_TIMEDELTA) goto builtin;
+        return to_builtins_timedelta(self, obj);
+    }
     else if (type == (PyTypeObject *)(self->mod->DecimalType)) {
         if (self->builtin_types & MS_BUILTIN_DECIMAL) goto builtin;
         return to_builtins_decimal(self, obj);
@@ -18000,6 +18337,9 @@ ms_process_builtin_types(MsgspecState *mod, PyObject *builtin_types, uint32_t *m
             else if (type == (PyObject *)(PyDateTimeAPI->TimeType)) {
                 *mask |= MS_BUILTIN_TIME;
             }
+            else if (type == (PyObject *)(PyDateTimeAPI->DeltaType)) {
+                *mask |= MS_BUILTIN_TIMEDELTA;
+            }
             else if (type == mod->UUIDType) {
                 *mask |= MS_BUILTIN_UUID;
             }
@@ -18035,7 +18375,7 @@ PyDoc_STRVAR(msgspec_to_builtins__doc__,
 "    An iterable of types to treat as additional builtin types. These types will\n"
 "    be passed through ``to_builtins`` unchanged. Currently only supports\n"
 "    `bytes`, `bytearray`, `memoryview`, `datetime.datetime`, `datetime.time`,\n"
-"    `datetime.date`, `uuid.UUID`, and `decimal.Decimal`.\n"
+"    `datetime.date`, `datetime.timedelta`, `uuid.UUID`, and `decimal.Decimal`.\n"
 "str_keys: bool, optional\n"
 "    Whether to convert all object keys to strings. Default is False.\n"
 "enc_hook : callable, optional\n"
@@ -18224,6 +18564,12 @@ convert_str_uncommon(
         && !(self->builtin_types & MS_BUILTIN_TIME)
     ) {
         return ms_decode_time(view, size, type, path);
+    }
+    else if (
+        (type->types & MS_TYPE_TIMEDELTA)
+        && !(self->builtin_types & MS_BUILTIN_TIMEDELTA)
+    ) {
+        return ms_decode_timedelta(view, size, type, path);
     }
     else if (
         (type->types & MS_TYPE_UUID)
@@ -19444,6 +19790,9 @@ convert(
     else if (pytype == PyDateTimeAPI->DateType) {
         return convert_immutable(self, MS_TYPE_DATE, "date", obj, type, path);
     }
+    else if (pytype == PyDateTimeAPI->DeltaType) {
+        return convert_immutable(self, MS_TYPE_TIMEDELTA, "duration", obj, type, path);
+    }
     else if (pytype == (PyTypeObject *)self->mod->UUIDType) {
         return convert_immutable(self, MS_TYPE_UUID, "uuid", obj, type, path);
     }
@@ -19500,7 +19849,8 @@ PyDoc_STRVAR(msgspec_convert__doc__,
 "    ``builtin_types=(datetime,)`` disables the default ``str`` to ``datetime``\n"
 "    conversion; the wrapped protocol must provide a ``datetime`` object\n"
 "    directly. Currently supports `bytes`, `bytearray`, `datetime.datetime`,\n"
-"    `datetime.time`, `datetime.date`, `uuid.UUID`, and `decimal.Decimal`.\n"
+"    `datetime.time`, `datetime.date`, `datetime.timedelta`, `uuid.UUID`, and\n"
+"    `decimal.Decimal`.\n"
 "str_keys: bool, optional\n"
 "    Useful for wrapping other serialization protocols. Indicates whether the\n"
 "    wrapped protocol only supports string keys. Setting to True enables a wider\n"
