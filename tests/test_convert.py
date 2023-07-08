@@ -671,6 +671,25 @@ class TestDate:
             convert("2022-01-02", datetime.date, builtin_types=(datetime.date,))
 
 
+class TestTimeDelta:
+    def test_timedelta_wrong_type(self):
+        with pytest.raises(ValidationError, match="Expected `duration`, got `array`"):
+            convert([], datetime.timedelta)
+
+    def test_timedelta_builtin(self):
+        td = datetime.timedelta(1)
+        assert convert(td, datetime.timedelta) is td
+
+    def test_timedelta_str(self):
+        sol = datetime.timedelta(1, 2)
+        res = convert("P1DT2S", datetime.timedelta)
+        assert res == sol
+
+    def test_timedelta_str_disabled(self):
+        with pytest.raises(ValidationError, match="Expected `duration`, got `str`"):
+            convert("P1DT2S", datetime.timedelta, builtin_types=(datetime.timedelta,))
+
+
 class TestUUID:
     def test_uuid_wrong_type(self):
         with pytest.raises(ValidationError, match="Expected `uuid`, got `int`"):

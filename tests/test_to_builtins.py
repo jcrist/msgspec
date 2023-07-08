@@ -168,6 +168,16 @@ class TestToBuiltins:
         res = to_builtins(msg, builtin_types=(datetime.time,))
         assert res is msg
 
+    def test_timedelta(self):
+        msg = datetime.timedelta(1, 2, 300)
+        res = to_builtins(msg)
+        assert res == "P1DT2.0003S"
+
+    def test_timedelta_builtin_types(self):
+        msg = datetime.timedelta(1, 2, 300)
+        res = to_builtins(msg, builtin_types=(datetime.timedelta,))
+        assert res is msg
+
     def test_uuid(self):
         msg = uuid.uuid4()
         assert to_builtins(msg) == str(msg)
