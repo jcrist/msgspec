@@ -51,6 +51,7 @@ __all__ = (
     "DateTimeType",
     "TimeType",
     "DateType",
+    "TimeDeltaType",
     "UUIDType",
     "DecimalType",
     "ExtType",
@@ -248,6 +249,10 @@ class TimeType(Type):
 
 class DateType(Type):
     """A type corresponding to `datetime.date`."""
+
+
+class TimeDeltaType(Type):
+    """A type corresponding to `datetime.timedelta`."""
 
 
 class UUIDType(Type):
@@ -798,6 +803,8 @@ class _Translator:
             return TimeType(tz=tz)
         elif t is datetime.date:
             return DateType()
+        elif t is datetime.timedelta:
+            return TimeDeltaType()
         elif t is uuid.UUID:
             return UUIDType()
         elif t is decimal.Decimal:
