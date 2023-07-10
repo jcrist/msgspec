@@ -114,6 +114,11 @@ few:
 
         .. image:: _static/litestar.png
 
+    .. grid-item-card:: Sanic
+        :link: https://sanic.dev/en/
+
+        .. image:: _static/sanic.png
+
     .. grid-item-card:: Mosec
         :link: https://mosecorg.github.io/mosec/
 
