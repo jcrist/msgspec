@@ -289,6 +289,7 @@ Most combinations of the following types are supported (with a few restrictions)
 <li><p><a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.datetime" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.datetime</span></code></a></p></li>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.date" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.date</span></code></a></p></li>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.time" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.time</span></code></a></p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.timedelta" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.timedelta</span></code></a></p></li>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/uuid.html#uuid.UUID" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">uuid.UUID</span></code></a></p></li>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/decimal.html#decimal.Decimal" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">decimal.Decimal</span></code></a></p></li>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.Enum" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enum.Enum</span></code></a> types</p></li>
@@ -604,6 +605,89 @@ timezone-naive by specifying a <code class="docutils literal notranslate"><span 
 <span class="gt">Traceback (most recent call last):</span>
   File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
 <span class="gr">msgspec.ValidationError</span>: <span class="n">Invalid RFC3339 encoded time</span>
+</pre></div>
+</div>
+</section>
+<section id="timedelta">
+<h2><code class="docutils literal notranslate"><span class="pre">timedelta</span></code><a class="headerlink" href="#timedelta" title="Permalink to this heading">#</a></h2>
+<p><a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.timedelta" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.timedelta</span></code></a> values map to extended <a class="reference external" href="https://en.wikipedia.org/wiki/ISO_8601#Durations">ISO 8601 duration strings</a> in all
+protocols.</p>
+<p>The format as described in the ISO specification is fairly lax and a bit
+underspecified, leading most real-world implementations to implement a stricter
+subset.</p>
+<p>The duration format used here is as follows:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>[+/-]P[#D][T[#H][#M][#S]]
+</pre></div>
+</div>
+<ul class="simple">
+<li><p>The format starts with an optional sign (<code class="docutils literal notranslate"><span class="pre">-</span></code> or <code class="docutils literal notranslate"><span class="pre">+</span></code>). If negative, the
+whole duration is negated.</p></li>
+<li><p>The letter <code class="docutils literal notranslate"><span class="pre">P</span></code> follows (case insensitive)</p></li>
+<li><p>There are then four segments, each consisting of a number and unit. The units
+are <code class="docutils literal notranslate"><span class="pre">D</span></code>, <code class="docutils literal notranslate"><span class="pre">H</span></code>, <code class="docutils literal notranslate"><span class="pre">M</span></code>, <code class="docutils literal notranslate"><span class="pre">S</span></code> (case insensitive) for days, hours, minutes,
+and seconds respectively. These segments must occur in this order.</p>
+<ul>
+<li><p>If a segment would have a 0 value it may be omitted, with the caveat that at
+least one segment must be present.</p></li>
+<li><p>If a time (hour, minute, or second) segment is present then the letter <code class="docutils literal notranslate"><span class="pre">T</span></code>
+(case insensitive) must precede the first time segment. Likewise if a <code class="docutils literal notranslate"><span class="pre">T</span></code>
+is present, there must be at least 1 segment after the <code class="docutils literal notranslate"><span class="pre">T</span></code>.</p></li>
+<li><p>Each segment is composed of 1 or more digits, followed by the unit. Leading
+0s are accepted. The <em>final</em> segment may include a decimal component if
+needed.</p></li>
+</ul>
+</li>
+</ul>
+<p>A few examples:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="s2">&quot;P0D&quot;</span>                <span class="c1"># 0 days</span>
+<span class="s2">&quot;P1D&quot;</span>                <span class="c1"># 1 Day</span>
+<span class="s2">&quot;PT1H30S&quot;</span>            <span class="c1"># 1 Hour and 30 minutes</span>
+<span class="s2">&quot;PT1.5H&quot;</span>             <span class="c1"># 1 Hour and 30 minutes</span>
+<span class="s2">&quot;-PT1M30S&quot;</span>           <span class="c1"># -90 seconds</span>
+<span class="s2">&quot;PT1H30M25.5S&quot;</span>       <span class="c1"># 1 Hour, 30 minutes, and 25.5 seconds</span>
+</pre></div>
+</div>
+<p>While msgspec will decode duration strings making use of the <code class="docutils literal notranslate"><span class="pre">H</span></code> (hour) or
+<code class="docutils literal notranslate"><span class="pre">M</span></code> (minute) units, durations encoded by msgspec will only consist of <code class="docutils literal notranslate"><span class="pre">D</span></code>
+(day) and <code class="docutils literal notranslate"><span class="pre">S</span></code> (second) segments.</p>
+<p>The implementation in <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> is compatible with the ones in:</p>
+<ul class="simple">
+<li><p>Java’s <code class="docutils literal notranslate"><span class="pre">time.Duration.parse</span></code> (<a class="reference external" href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/Duration.html#parse(java.lang.CharSequence)">docs</a>)</p></li>
+<li><p>Javascript’s proposed <code class="docutils literal notranslate"><span class="pre">Temporal.Duration</span></code> standard API (<a class="reference external" href="https://tc39.es/proposal-temporal/docs/duration.html">docs</a>)</p></li>
+<li><p>Python libraries like <a class="reference external" href="https://pendulum.eustace.io/">pendulum</a> or <a class="reference external" href="https://pydantic-docs.helpmanual.io/">pydantic</a>.</p></li>
+</ul>
+<p>Duration strings produced by msgspec should be interchangeable with these
+libraries, as well as similar ones in other language ecosystems.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">timedelta</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">timedelta</span><span class="p">(</span><span class="n">seconds</span><span class="o">=</span><span class="mi">123</span><span class="p">))</span>
+<span class="go">b&#39;&quot;PT123S&quot;&#39;</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">timedelta</span><span class="p">(</span><span class="n">days</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">seconds</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span> <span class="n">microseconds</span><span class="o">=</span><span class="mi">123</span><span class="p">))</span>
+<span class="go">b&#39;&quot;P1DT30.000123S&quot;&#39;</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;&quot;PT123S&quot;&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">timedelta</span><span class="p">)</span>
+<span class="go">datetime.timedelta(seconds=123)</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;&quot;PT1.5M&quot;&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">timedelta</span><span class="p">)</span>
+<span class="go">datetime.timedelta(seconds=90)</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;&quot;oops&quot;&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">timedelta</span><span class="p">)</span>
+<span class="gt">Traceback (most recent call last):</span>
+  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+<span class="gr">msgspec.ValidationError</span>: <span class="n">Invalid ISO8601 duration</span>
+</pre></div>
+</div>
+<p>Additionally, if <code class="docutils literal notranslate"><span class="pre">strict=False</span></code> is specified, all protocols will decode ints,
+floats, or strings containing ints/floats as timedeltas, interpreting the value
+as total seconds. See <a class="reference internal" href="usage.html#strict-vs-lax"><span class="std std-ref">“Strict” vs “Lax” Mode</span></a> for more information.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;123.4&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">timedelta</span><span class="p">)</span>
+<span class="gt">Traceback (most recent call last):</span>
+  File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+<span class="gr">msgspec.ValidationError</span>: <span class="n">Expected `duration`, got `float`</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;123.4&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">timedelta</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<span class="go">datetime.timedelta(seconds=123, microseconds=400000)</span>
 </pre></div>
 </div>
 </section>
@@ -1529,6 +1613,7 @@ by default.</p>
 <li><a class="reference internal" href="#datetime"><code class="docutils literal notranslate"><span class="pre">datetime</span></code></a></li>
 <li><a class="reference internal" href="#date"><code class="docutils literal notranslate"><span class="pre">date</span></code></a></li>
 <li><a class="reference internal" href="#time"><code class="docutils literal notranslate"><span class="pre">time</span></code></a></li>
+<li><a class="reference internal" href="#timedelta"><code class="docutils literal notranslate"><span class="pre">timedelta</span></code></a></li>
 <li><a class="reference internal" href="#uuid"><code class="docutils literal notranslate"><span class="pre">uuid</span></code></a></li>
 <li><a class="reference internal" href="#decimal"><code class="docutils literal notranslate"><span class="pre">decimal</span></code></a></li>
 <li><a class="reference internal" href="#list-tuple-set-frozenset"><code class="docutils literal notranslate"><span class="pre">list</span></code> / <code class="docutils literal notranslate"><span class="pre">tuple</span></code> / <code class="docutils literal notranslate"><span class="pre">set</span></code> / <code class="docutils literal notranslate"><span class="pre">frozenset</span></code></a></li>

@@ -151,6 +151,7 @@ Inspect
 .. autoclass:: DateTimeType
 .. autoclass:: TimeType
 .. autoclass:: DateType
+.. autoclass:: TimeDeltaType
 .. autoclass:: UUIDType
 .. autoclass:: DecimalType
 .. autoclass:: ExtType

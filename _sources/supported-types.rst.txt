@@ -31,6 +31,7 @@ Most combinations of the following types are supported (with a few restrictions)
 - `datetime.datetime`
 - `datetime.date`
 - `datetime.time`
+- `datetime.timedelta`
 - `uuid.UUID`
 - `decimal.Decimal`
 - `enum.Enum` types
@@ -387,6 +388,101 @@ timezone-naive by specifying a ``tz`` constraint (see
     Traceback (most recent call last):
       File "<stdin>", line 1, in <module>
     msgspec.ValidationError: Invalid RFC3339 encoded time
+
+``timedelta``
+-------------
+
+`datetime.timedelta` values map to extended `ISO 8601 duration strings`_ in all
+protocols.
+
+The format as described in the ISO specification is fairly lax and a bit
+underspecified, leading most real-world implementations to implement a stricter
+subset.
+
+The duration format used here is as follows:
+
+.. code-block:: text
+
+   [+/-]P[#D][T[#H][#M][#S]]
+
+- The format starts with an optional sign (``-`` or ``+``). If negative, the
+  whole duration is negated.
+
+- The letter ``P`` follows (case insensitive)
+
+- There are then four segments, each consisting of a number and unit. The units
+  are ``D``, ``H``, ``M``, ``S`` (case insensitive) for days, hours, minutes,
+  and seconds respectively. These segments must occur in this order.
+
+  - If a segment would have a 0 value it may be omitted, with the caveat that at
+    least one segment must be present.
+
+  - If a time (hour, minute, or second) segment is present then the letter ``T``
+    (case insensitive) must precede the first time segment. Likewise if a ``T``
+    is present, there must be at least 1 segment after the ``T``.
+
+  - Each segment is composed of 1 or more digits, followed by the unit. Leading
+    0s are accepted. The *final* segment may include a decimal component if
+    needed.
+
+A few examples:
+
+.. code-block:: python
+
+   "P0D"                # 0 days
+   "P1D"                # 1 Day
+   "PT1H30S"            # 1 Hour and 30 minutes
+   "PT1.5H"             # 1 Hour and 30 minutes
+   "-PT1M30S"           # -90 seconds
+   "PT1H30M25.5S"       # 1 Hour, 30 minutes, and 25.5 seconds
+
+While msgspec will decode duration strings making use of the ``H`` (hour) or
+``M`` (minute) units, durations encoded by msgspec will only consist of ``D``
+(day) and ``S`` (second) segments.
+
+The implementation in ``msgspec`` is compatible with the ones in:
+
+- Java's ``time.Duration.parse`` (`docs <https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/Duration.html#parse(java.lang.CharSequence)>`__)
+- Javascript's proposed ``Temporal.Duration`` standard API (`docs <https://tc39.es/proposal-temporal/docs/duration.html>`__)
+- Python libraries like pendulum_ or pydantic_.
+
+Duration strings produced by msgspec should be interchangeable with these
+libraries, as well as similar ones in other language ecosystems.
+
+.. code-block:: python
+
+    >>> from datetime import timedelta
+
+    >>> msgspec.json.encode(timedelta(seconds=123))
+    b'"PT123S"'
+
+    >>> msgspec.json.encode(timedelta(days=1, seconds=30, microseconds=123))
+    b'"P1DT30.000123S"'
+
+    >>> msgspec.json.decode(b'"PT123S"', type=timedelta)
+    datetime.timedelta(seconds=123)
+
+    >>> msgspec.json.decode(b'"PT1.5M"', type=timedelta)
+    datetime.timedelta(seconds=90)
+
+    >>> msgspec.json.decode(b'"oops"', type=datetime.timedelta)
+    Traceback (most recent call last):
+      File "<stdin>", line 1, in <module>
+    msgspec.ValidationError: Invalid ISO8601 duration
+
+Additionally, if ``strict=False`` is specified, all protocols will decode ints,
+floats, or strings containing ints/floats as timedeltas, interpreting the value
+as total seconds. See :ref:`strict-vs-lax` for more information.
+
+.. code-block:: python
+
+    >>> msgspec.json.decode(b"123.4", type=datetime.timedelta)
+    Traceback (most recent call last):
+      File "<stdin>", line 1, in <module>
+    msgspec.ValidationError: Expected `duration`, got `float`
+
+    >>> msgspec.json.decode(b"123.4", type=datetime.timedelta, strict=False)
+    datetime.timedelta(seconds=123, microseconds=400000)
 
 ``uuid``
 --------
@@ -1339,6 +1435,7 @@ TOML_ types are decoded to Python types as follows:
 .. _YAML: https://yaml.org
 .. _TOML: https://toml.io
 .. _pydantic: https://pydantic-docs.helpmanual.io/
+.. _pendulum: https://pendulum.eustace.io/
 .. _RFC8259: https://datatracker.ietf.org/doc/html/rfc8259
 .. _RFC3339: https://datatracker.ietf.org/doc/html/rfc3339
 .. _RFC4122: https://datatracker.ietf.org/doc/html/rfc4122
@@ -1352,3 +1449,4 @@ TOML_ types are decoded to Python types as follows:
 .. _generic types:
 .. _user-defined generic types: https://docs.python.org/3/library/typing.html#user-defined-generic-types
 .. _open an issue: https://github.com/jcrist/msgspec/issues>
+.. _ISO 8601 duration strings: https://en.wikipedia.org/wiki/ISO_8601#Durations
