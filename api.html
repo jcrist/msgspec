@@ -753,6 +753,28 @@ to start writing at the end of the buffer.</p></li>
 </dl>
 </dd></dl>
 
+<dl class="py method">
+<dt class="sig sig-object py" id="msgspec.json.Encoder.encode_lines">
+<span class="sig-name descname"><span class="pre">encode_lines</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">items</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.json.Encoder.encode_lines" title="Permalink to this definition">#</a></dt>
+<dd><p>Encode an iterable of items as newline-delimited JSON, one item per line.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>items</strong> (<em>iterable</em>) – An iterable of items to encode.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>data</strong> (<em>bytes</em>) – The items encoded as newline-delimited JSON, one item per line.</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">msgspec</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">items</span> <span class="o">=</span> <span class="p">[{</span><span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;alice&quot;</span><span class="p">},</span> <span class="p">{</span><span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;ben&quot;</span><span class="p">}]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">encoder</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">Encoder</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">encoder</span><span class="o">.</span><span class="n">encode_lines</span><span class="p">(</span><span class="n">items</span><span class="p">)</span>
+<span class="go">b&#39;{&quot;name&quot;:&quot;alice&quot;}\n{&quot;name&quot;:&quot;ben&quot;}\n&#39;</span>
+</pre></div>
+</div>
+</dd></dl>
+
 </dd></dl>
 
 <dl class="py class">
@@ -1982,6 +2004,7 @@ is set.</p></li>
 <li><a class="reference internal" href="#msgspec.json.Encoder"><code class="docutils literal notranslate"><span class="pre">Encoder</span></code></a><ul>
 <li><a class="reference internal" href="#msgspec.json.Encoder.encode"><code class="docutils literal notranslate"><span class="pre">Encoder.encode()</span></code></a></li>
 <li><a class="reference internal" href="#msgspec.json.Encoder.encode_into"><code class="docutils literal notranslate"><span class="pre">Encoder.encode_into()</span></code></a></li>
+<li><a class="reference internal" href="#msgspec.json.Encoder.encode_lines"><code class="docutils literal notranslate"><span class="pre">Encoder.encode_lines()</span></code></a></li>
 </ul>
 </li>
 <li><a class="reference internal" href="#msgspec.json.Decoder"><code class="docutils literal notranslate"><span class="pre">Decoder</span></code></a><ul>
