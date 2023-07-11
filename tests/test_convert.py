@@ -2309,6 +2309,46 @@ class TestLax:
             )
 
     @pytest.mark.parametrize(
+        "x",
+        [
+            1234.0000004,
+            1234.0000006,
+            1234.000567,
+            1234.567,
+            1234.0,
+            0.123,
+            0.0,
+            1234,
+            0,
+        ],
+    )
+    @pytest.mark.parametrize("sign", [-1, 1])
+    @pytest.mark.parametrize("transform", [None, str])
+    def test_lax_timedelta(self, x, sign, transform):
+        timestamp = x * sign
+        msg = transform(timestamp) if transform else timestamp
+        sol = datetime.timedelta(seconds=timestamp)
+        res = convert(msg, type=datetime.timedelta, strict=False)
+        assert res == sol
+
+    def test_lax_timedelta_nonfinite_values(self):
+        for msg in ["nan", "-inf", "inf", float("nan"), float("inf"), float("-inf")]:
+            with pytest.raises(ValidationError, match="Duration is out of range"):
+                convert(msg, type=datetime.timedelta, strict=False)
+
+    @pytest.mark.parametrize("val", [86400000000001, -86399999913601])
+    @pytest.mark.parametrize("type", [int, float, str])
+    def test_lax_timedelta_out_of_range(self, val, type):
+        msg = type(val)
+        with pytest.raises(ValidationError, match="out of range"):
+            convert(msg, type=datetime.timedelta, strict=False)
+
+    def test_lax_timedelta_invalid_numeric_str(self):
+        for msg in ["", "12e", "1234a", "1234-1", "1234.a"]:
+            with pytest.raises(ValidationError, match="Invalid"):
+                convert(msg, type=datetime.timedelta, strict=False)
+
+    @pytest.mark.parametrize(
         "msg, sol",
         [
             ("1", 1),

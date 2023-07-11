@@ -3842,6 +3842,51 @@ class TestLax:
             )
 
     @pytest.mark.parametrize(
+        "x",
+        [
+            1234.0000004,
+            1234.0000006,
+            1234.000567,
+            1234.567,
+            1234.0,
+            0.123,
+            0.0,
+            1234,
+            0,
+        ],
+    )
+    @pytest.mark.parametrize("sign", [-1, 1])
+    @pytest.mark.parametrize("transform", [None, str])
+    def test_lax_timedelta(self, x, sign, transform, proto):
+        timestamp = x * sign
+        msg = proto.encode(transform(timestamp) if transform else timestamp)
+        sol = datetime.timedelta(seconds=timestamp)
+        res = proto.decode(msg, type=datetime.timedelta, strict=False)
+        assert res == sol
+
+    def test_lax_timedelta_nonfinite_values(self, proto):
+        values = ["nan", "-inf", "inf"]
+        if proto is msgspec.msgpack:
+            values.extend([float(v) for v in values])
+        for val in values:
+            msg = proto.encode(val)
+            with pytest.raises(ValidationError, match="out of range"):
+                proto.decode(msg, type=datetime.timedelta, strict=False)
+
+    @pytest.mark.parametrize("val", [86400000000001, -86399999913601])
+    @pytest.mark.parametrize("type", [int, float, str])
+    def test_lax_timedelta_out_of_range(self, val, type, proto):
+        msg = proto.encode(type(val))
+        with pytest.raises(ValidationError, match="out of range"):
+            proto.decode(msg, type=datetime.timedelta, strict=False)
+
+    def test_lax_timedelta_invalid_numeric_str(self, proto):
+        for bad in ["", "12e", "1234a", "1234-1", "1234.a"]:
+            msg = proto.encode(bad)
+            with pytest.raises(ValidationError, match="Invalid"):
+                proto.decode(msg, type=datetime.timedelta, strict=False)
+
+    @pytest.mark.parametrize(
         "x, sol",
         [
             ("1", 1),

@@ -8707,15 +8707,6 @@ ms_maybe_decode_bool_from_int64(int64_t x) {
     return NULL;
 }
 
-static PyObject *
-ms_maybe_decode_bool_from_pyint(PyObject *obj) {
-    uint64_t scale;
-    bool neg, overflow;
-    overflow = fast_long_extract_parts(obj, &neg, &scale);
-    if (overflow || neg) return NULL;
-    return ms_maybe_decode_bool_from_uint64(scale);
-}
-
 static MS_NOINLINE PyObject *
 ms_decode_str_enum_or_literal(const char *name, Py_ssize_t size, TypeNode *type, PathNode *path) {
     StrLookup *lookup = TypeNode_get_str_enum_or_literal(type);
@@ -9911,28 +9902,14 @@ ms_decode_datetime_from_float(
 }
 
 static PyObject *
-ms_decode_datetime_from_pyint(PyObject *obj, TypeNode *type, PathNode *path)
-{
-    bool overflow, neg;
-    uint64_t ux;
-    int64_t seconds;
-    overflow = fast_long_extract_parts(obj, &neg, &ux);
-    if (overflow || ux > LLONG_MAX) {
-        seconds = LLONG_MAX;
-    }
-    else {
-        seconds = ux;
-        if (neg) {
-            seconds *= -1;
-        }
-    }
-    return datetime_from_epoch(seconds, 0, type, path);
-}
-
-static PyObject *
-ms_decode_datetime_from_pyfloat(PyObject *obj, TypeNode *type, PathNode *path)
-{
-    return ms_decode_datetime_from_float(PyFloat_AS_DOUBLE(obj), type, path);
+ms_parse_pyfloat(const char *buf, Py_ssize_t size) {
+    /* TODO: with some refactoring, we should be able to use our own
+     * str -> float routine rather than relying on CPython's */
+    PyObject *temp = PyBytes_FromStringAndSize(buf, size);
+    if (temp == NULL) return NULL;
+    PyObject *out = PyFloat_FromString(temp);
+    Py_DECREF(temp);
+    return out;
 }
 
 static PyObject *
@@ -10079,14 +10056,11 @@ end_decimal:
 
 maybe_timestamp:
     if (!strict) {
-        /* TODO: with some refactoring, we should be able to use our own str ->
-         * float routine rather than relying on CPython's */
-        PyObject *temp = PyBytes_FromStringAndSize(buf, size);
-        if (temp == NULL) goto error;
-        PyObject *timestamp = PyFloat_FromString(temp);
-        Py_DECREF(temp);
+        PyObject *timestamp = ms_parse_pyfloat(buf, size);
         if (timestamp == NULL) goto invalid;
-        PyObject *out = ms_decode_datetime_from_pyfloat(timestamp, type, path);
+        PyObject *out = ms_decode_datetime_from_float(
+            PyFloat_AS_DOUBLE(timestamp), type, path
+        );
         Py_DECREF(timestamp);
         return out;
     }
@@ -10146,8 +10120,46 @@ ms_encode_timedelta(PyObject *obj, char *out) {
     return out - start;
 }
 
-#define MS_TIMEDELTA_MAX_SECONDS  86399999999999LL
-#define MS_TIMEDELTA_MIN_SECONDS -86399999913600LL
+#define MS_TIMEDELTA_MAX_SECONDS (86399999999999LL)
+#define MS_TIMEDELTA_MIN_SECONDS (-86399999913600LL)
+
+static PyObject *
+ms_timedelta_from_parts(int64_t secs, int micros) {
+    int64_t days = secs / (24 * 60 * 60);
+    secs -= days * (24 * 60 * 60);
+    return PyDelta_FromDSU(days, secs, micros);
+}
+
+static PyObject *
+ms_decode_timedelta_from_uint64(uint64_t x, PathNode *path) {
+    if (x > (uint64_t)MS_TIMEDELTA_MAX_SECONDS) {
+        return ms_error_with_path("Duration is out of range%U", path);
+    }
+    return ms_timedelta_from_parts((int64_t)x, 0);
+}
+
+static PyObject *
+ms_decode_timedelta_from_int64(int64_t x, PathNode *path) {
+    if ((x > MS_TIMEDELTA_MAX_SECONDS) || (x < MS_TIMEDELTA_MIN_SECONDS)) {
+        return ms_error_with_path("Duration is out of range%U", path);
+    }
+    return ms_timedelta_from_parts(x, 0);
+}
+
+static PyObject *
+ms_decode_timedelta_from_float(double x, PathNode *path) {
+    if (
+        (!isfinite(x)) ||
+        (x > (double)MS_TIMEDELTA_MAX_SECONDS) ||
+        (x < (double)MS_TIMEDELTA_MIN_SECONDS)
+    ) {
+        return ms_error_with_path("Duration is out of range%U", path);
+    }
+    int64_t secs = trunc(x);
+    long micros = lround(1000000 * (x - secs));
+    return ms_timedelta_from_parts(secs, micros);
+}
+
 enum timedelta_parse_state {
     TIMEDELTA_START = 0,
     TIMEDELTA_D = 1,
@@ -10206,8 +10218,13 @@ enum timedelta_parse_state {
  *   range.
  */
 static PyObject *
-ms_decode_timedelta(const char *p, Py_ssize_t size, TypeNode *type, PathNode *path) {
+ms_decode_timedelta(
+    const char *p, Py_ssize_t size,
+    TypeNode *type, PathNode *path,
+    bool strict
+) {
     bool neg = false;
+    const char *start = p;
     const char *end = p + size;
 
     if (p == end) goto invalid;
@@ -10222,7 +10239,7 @@ ms_decode_timedelta(const char *p, Py_ssize_t size, TypeNode *type, PathNode *pa
         if (p == end) goto invalid;
     }
 
-    if (*p != 'P' && *p != 'p') goto invalid;
+    if (*p != 'P' && *p != 'p') goto maybe_strict_false;
     p++;
     if (p == end) goto invalid;
 
@@ -10366,6 +10383,17 @@ ms_decode_timedelta(const char *p, Py_ssize_t size, TypeNode *type, PathNode *pa
     int64_t days = seconds / (24 * 60 * 60);
     seconds -= days * (24 * 60 * 60);
     return PyDelta_FromDSU(days, seconds, micros);
+
+maybe_strict_false:
+    if (!strict) {
+        PyObject *timestamp = ms_parse_pyfloat(start, size);
+        if (timestamp == NULL) goto invalid;
+        PyObject *out = ms_decode_timedelta_from_float(
+            PyFloat_AS_DOUBLE(timestamp), path
+        );
+        Py_DECREF(timestamp);
+        return out;
+    }
 
 invalid:
     return ms_error_with_path("Invalid ISO8601 duration%U", path);
@@ -10595,11 +10623,6 @@ ms_decode_decimal_from_float(double val, PathNode *path, MsgspecState *mod) {
     }
 }
 
-static PyObject *
-ms_decode_decimal_from_pyfloat(PyObject *obj, PathNode *path, MsgspecState *mod) {
-    return ms_decode_decimal_from_float(PyFloat_AS_DOUBLE(obj), path, mod);
-}
-
 
 /*************************************************************************
  * strict=False Utilities                                                *
@@ -10724,12 +10747,7 @@ ms_decode_str_lax(
     }
 
     if (type->types & MS_TYPE_FLOAT) {
-        /* TODO: with some refactoring, we should be able to use our own str ->
-         * float routine rather than relying on CPython's */
-        PyObject *temp = PyBytes_FromStringAndSize(view, size);
-        if (temp == NULL) return NULL;
-        PyObject *out = PyFloat_FromString(temp);
-        Py_DECREF(temp);
+        PyObject *out = ms_parse_pyfloat(view, size);
         if (out == NULL) {
             PyErr_Clear();
         }
@@ -10810,6 +10828,9 @@ ms_post_decode_int64(int64_t x, TypeNode *type, PathNode *path, bool strict) {
         if (type->types & MS_TYPE_DATETIME) {
             return ms_decode_datetime_from_int64(x, type, path);
         }
+        if (type->types & MS_TYPE_TIMEDELTA) {
+            return ms_decode_timedelta_from_int64(x, path);
+        }
     }
     return ms_validation_error("int", type, path);
 }
@@ -10835,6 +10856,9 @@ ms_post_decode_uint64(uint64_t x, TypeNode *type, PathNode *path, bool strict) {
         }
         if (type->types & MS_TYPE_DATETIME) {
             return ms_decode_datetime_from_uint64(x, type, path);
+        }
+        if (type->types & MS_TYPE_TIMEDELTA) {
+            return ms_decode_timedelta_from_uint64(x, path);
         }
     }
     return ms_validation_error("int", type, path);
@@ -13322,8 +13346,13 @@ mpack_decode_float(DecoderState *self, double x, TypeNode *type, PathNode *path)
     else if (type->types & MS_TYPE_DECIMAL) {
         return ms_decode_decimal_from_float(x, path, NULL);
     }
-    else if (!self->strict && (type->types & MS_TYPE_DATETIME)) {
-        return ms_decode_datetime_from_float(x, type, path);
+    else if (!self->strict) {
+        if (type->types & MS_TYPE_DATETIME) {
+            return ms_decode_datetime_from_float(x, type, path);
+        }
+        if (type->types & MS_TYPE_TIMEDELTA) {
+            return ms_decode_timedelta_from_float(x, path);
+        }
     }
     return ms_validation_error("float", type, path);
 }
@@ -13357,7 +13386,7 @@ mpack_decode_str(DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *
         return ms_decode_time(s, size, type, path);
     }
     else if (MS_UNLIKELY(type->types & MS_TYPE_TIMEDELTA)) {
-        return ms_decode_timedelta(s, size, type, path);
+        return ms_decode_timedelta(s, size, type, path, self->strict);
     }
     else if (MS_UNLIKELY(type->types & MS_TYPE_UUID)) {
         return ms_decode_uuid(s, size, path);
@@ -15465,7 +15494,7 @@ json_decode_string(JSONDecoderState *self, TypeNode *type, PathNode *path) {
         return ms_decode_time(view, size, type, path);
     }
     else if (MS_UNLIKELY(type->types & MS_TYPE_TIMEDELTA)) {
-        return ms_decode_timedelta(view, size, type, path);
+        return ms_decode_timedelta(view, size, type, path, self->strict);
     }
     else if (MS_UNLIKELY(type->types & MS_TYPE_UUID)) {
         return ms_decode_uuid(view, size, path);
@@ -15518,7 +15547,7 @@ json_decode_dict_key_fallback(
         return ms_decode_time(view, size, type, path);
     }
     else if (type->types & MS_TYPE_TIMEDELTA) {
-        return ms_decode_timedelta(view, size, type, path);
+        return ms_decode_timedelta(view, size, type, path, self->strict);
     }
     else if (type->types & MS_TYPE_DECIMAL) {
         return ms_decode_decimal(view, size, is_ascii, path, NULL);
@@ -16790,8 +16819,13 @@ json_decode_float(JSONDecoderState *self, double x, TypeNode *type, PathNode *pa
     if (type->types & (MS_TYPE_ANY | MS_TYPE_FLOAT)) {
         return ms_decode_float(x, type, path);
     }
-    else if (!self->strict && (type->types & MS_TYPE_DATETIME)) {
-        return ms_decode_datetime_from_float(x, type, path);
+    else if (!self->strict) {
+        if (type->types & MS_TYPE_DATETIME) {
+            return ms_decode_datetime_from_float(x, type, path);
+        }
+        if (type->types & MS_TYPE_TIMEDELTA) {
+            return ms_decode_timedelta_from_float(x, path);
+        }
     }
     return ms_validation_error("float", type, path);
 }
@@ -18466,6 +18500,43 @@ typedef struct ConvertState {
 static PyObject * convert(ConvertState *, PyObject *, TypeNode *, PathNode *);
 
 static PyObject *
+convert_int_uncommon(
+    ConvertState *self, PyObject *obj, TypeNode *type, PathNode *path
+) {
+    if (!self->strict) {
+        uint64_t ux;
+        bool neg, overflow;
+        overflow = fast_long_extract_parts(obj, &neg, &ux);
+
+        if ((type->types & MS_TYPE_BOOL) && !overflow && !neg) {
+            if (ux == 0) {
+                Py_RETURN_FALSE;
+            }
+            else if (ux == 1) {
+                Py_RETURN_TRUE;
+            }
+        }
+        if (type->types & (MS_TYPE_DATETIME | MS_TYPE_TIMEDELTA)) {
+            int64_t seconds;
+            if (overflow || ux > LLONG_MAX) {
+                seconds = LLONG_MAX;
+            }
+            else {
+                seconds = ux;
+                if (neg) {
+                    seconds *= -1;
+                }
+            }
+            if (type->types & MS_TYPE_DATETIME) {
+                return datetime_from_epoch(seconds, 0, type, path);
+            }
+            return ms_decode_timedelta_from_int64(seconds, path);
+        }
+    }
+    return ms_validation_error("int", type, path);
+}
+
+static PyObject *
 convert_int(
     ConvertState *self, PyObject *obj, TypeNode *type, PathNode *path
 ) {
@@ -18484,17 +18555,7 @@ convert_int(
     ) {
         return ms_decode_decimal_from_pyobj(obj, path, self->mod);
     }
-
-    if (!self->strict) {
-        if (type->types & MS_TYPE_BOOL) {
-            PyObject *out = ms_maybe_decode_bool_from_pyint(obj);
-            if (out != NULL) return out;
-        }
-        if (type->types & MS_TYPE_DATETIME) {
-            return ms_decode_datetime_from_pyint(obj, type, path);
-        }
-    }
-    return ms_validation_error("int", type, path);
+    return convert_int_uncommon(self, obj, type, path);
 }
 
 static PyObject *
@@ -18509,10 +18570,18 @@ convert_float(
         type->types & MS_TYPE_DECIMAL
         && !(self->builtin_types & MS_BUILTIN_DECIMAL)
     ) {
-        return ms_decode_decimal_from_pyfloat(obj, path, self->mod);
+        return ms_decode_decimal_from_float(
+            PyFloat_AS_DOUBLE(obj), path, self->mod
+        );
     }
-    else if (!self->strict && (type->types & MS_TYPE_DATETIME)) {
-        return ms_decode_datetime_from_pyfloat(obj, type, path);
+    else if (!self->strict) {
+        double seconds = PyFloat_AS_DOUBLE(obj);
+        if (type->types & MS_TYPE_DATETIME) {
+            return ms_decode_datetime_from_float(seconds, type, path);
+        }
+        else if (type->types & MS_TYPE_TIMEDELTA) {
+            return ms_decode_timedelta_from_float(seconds, path);
+        }
     }
     return ms_validation_error("float", type, path);
 }
@@ -18569,7 +18638,7 @@ convert_str_uncommon(
         (type->types & MS_TYPE_TIMEDELTA)
         && !(self->builtin_types & MS_BUILTIN_TIMEDELTA)
     ) {
-        return ms_decode_timedelta(view, size, type, path);
+        return ms_decode_timedelta(view, size, type, path, self->strict);
     }
     else if (
         (type->types & MS_TYPE_UUID)
