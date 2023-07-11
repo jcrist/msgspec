@@ -405,7 +405,6 @@ The duration format used here is as follows:
 
    [+/-]P[#D][T[#H][#M][#S]]
 
-
 - The format starts with an optional sign (``-`` or ``+``). If negative, the
   whole duration is negated.
 
@@ -450,7 +449,6 @@ The implementation in ``msgspec`` is compatible with the ones in:
 Duration strings produced by msgspec should be interchangeable with these
 libraries, as well as similar ones in other language ecosystems.
 
-
 .. code-block:: python
 
     >>> from datetime import timedelta
@@ -472,6 +470,19 @@ libraries, as well as similar ones in other language ecosystems.
       File "<stdin>", line 1, in <module>
     msgspec.ValidationError: Invalid ISO8601 duration
 
+Additionally, if ``strict=False`` is specified, all protocols will decode ints,
+floats, or strings containing ints/floats as timedeltas, interpreting the value
+as total seconds. See :ref:`strict-vs-lax` for more information.
+
+.. code-block:: python
+
+    >>> msgspec.json.decode(b"123.4", type=datetime.timedelta)
+    Traceback (most recent call last):
+      File "<stdin>", line 1, in <module>
+    msgspec.ValidationError: Expected `duration`, got `float`
+
+    >>> msgspec.json.decode(b"123.4", type=datetime.timedelta, strict=False)
+    datetime.timedelta(seconds=123, microseconds=400000)
 
 ``uuid``
 --------
