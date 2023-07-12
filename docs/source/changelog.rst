@@ -3,6 +3,39 @@ Changelog
 
 .. currentmodule:: msgspec
 
+Version 0.17.0 (2023-07-11)
+---------------------------
+
+- Ensure ``None`` may be explicitly passed to `defstruct` for
+  ``module``/``namespace``/``bases`` (:pr:`445`).
+- Support decoding `datetime.datetime` values from ``int``/``float`` values
+  (interpreted as seconds since the Unix epoch) when ``strict=False``
+  (:pr:`452`).
+- Support subclasses of collection types (``list``, ``dict``, ...) as inputs to
+  `convert` (:pr:`453`).
+- Support ``str`` subclasses as keys in `to_builtins` and all protocol
+  ``encode`` methods (:pr:`454`).
+- Improved performance when JSON encoding `decimal.Decimal` values (:pr:`455`).
+- Improved performance when JSON encoding ``int``/``float`` values (:pr:`458`).
+- Improved performance when JSON encoding ``str`` values (:pr:`459`).
+- Wrap errors in ``dec_hook`` with a `ValidationError` (:pr:`460`).
+- Support decoding `decimal.Decimal` values from numeric values (:pr:`463`)
+- Support encoding `decimal.Decimal` values as numeric values (:pr:`465`).
+- Support converting `decimal.Decimal` values to ``float`` in `convert`
+  (:pr:`466`).
+- Preliminary support for CPython 3.12 beta releases (:pr:`467`).
+- Support decoding integers that don't fit into an ``int64``/``uint64``
+  (:pr:`469`).
+- Add a new optional ``__post_init__`` method for `Struct` types (:pr:`470`).
+- Support decoding ``0``/``1`` into ``bool`` types when ``strict=False``
+  (:pr:`471`).
+- Wrap errors raised in ``__post_init__``/``__attrs_post_init__`` in a
+  `ValidationError` when decoding (:pr:`472`).
+- Add native support for encoding/decoding `datetime.timedelta` types
+  (:pr:`475`).
+- Add a new `msgspec.json.Encoder.encode_lines` method for encoding an iterable
+  of values as newline-delimited JSON (:pr:`479`).
+
 Version 0.16.0 (2023-06-12)
 ---------------------------
 
