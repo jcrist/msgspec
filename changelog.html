@@ -260,6 +260,40 @@
         <article role="main">
           <section id="changelog">
 <h1>Changelog<a class="headerlink" href="#changelog" title="Permalink to this heading">#</a></h1>
+<section id="version-0-17-0-2023-07-11">
+<h2>Version 0.17.0 (2023-07-11)<a class="headerlink" href="#version-0-17-0-2023-07-11" title="Permalink to this heading">#</a></h2>
+<ul class="simple">
+<li><p>Ensure <code class="docutils literal notranslate"><span class="pre">None</span></code> may be explicitly passed to <a class="reference internal" href="api.html#msgspec.defstruct" title="msgspec.defstruct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">defstruct</span></code></a> for
+<code class="docutils literal notranslate"><span class="pre">module</span></code>/<code class="docutils literal notranslate"><span class="pre">namespace</span></code>/<code class="docutils literal notranslate"><span class="pre">bases</span></code> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/445">PR #445</a>).</p></li>
+<li><p>Support decoding <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.datetime" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.datetime</span></code></a> values from <code class="docutils literal notranslate"><span class="pre">int</span></code>/<code class="docutils literal notranslate"><span class="pre">float</span></code> values
+(interpreted as seconds since the Unix epoch) when <code class="docutils literal notranslate"><span class="pre">strict=False</span></code>
+(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/452">PR #452</a>).</p></li>
+<li><p>Support subclasses of collection types (<code class="docutils literal notranslate"><span class="pre">list</span></code>, <code class="docutils literal notranslate"><span class="pre">dict</span></code>, …) as inputs to
+<a class="reference internal" href="api.html#msgspec.convert" title="msgspec.convert"><code class="xref py py-obj docutils literal notranslate"><span class="pre">convert</span></code></a> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/453">PR #453</a>).</p></li>
+<li><p>Support <code class="docutils literal notranslate"><span class="pre">str</span></code> subclasses as keys in <a class="reference internal" href="api.html#msgspec.to_builtins" title="msgspec.to_builtins"><code class="xref py py-obj docutils literal notranslate"><span class="pre">to_builtins</span></code></a> and all protocol
+<code class="docutils literal notranslate"><span class="pre">encode</span></code> methods (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/454">PR #454</a>).</p></li>
+<li><p>Improved performance when JSON encoding <a class="reference external" href="https://docs.python.org/3/library/decimal.html#decimal.Decimal" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">decimal.Decimal</span></code></a> values (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/455">PR #455</a>).</p></li>
+<li><p>Improved performance when JSON encoding <code class="docutils literal notranslate"><span class="pre">int</span></code>/<code class="docutils literal notranslate"><span class="pre">float</span></code> values (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/458">PR #458</a>).</p></li>
+<li><p>Improved performance when JSON encoding <code class="docutils literal notranslate"><span class="pre">str</span></code> values (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/459">PR #459</a>).</p></li>
+<li><p>Wrap errors in <code class="docutils literal notranslate"><span class="pre">dec_hook</span></code> with a <a class="reference internal" href="api.html#msgspec.ValidationError" title="msgspec.ValidationError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ValidationError</span></code></a> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/460">PR #460</a>).</p></li>
+<li><p>Support decoding <a class="reference external" href="https://docs.python.org/3/library/decimal.html#decimal.Decimal" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">decimal.Decimal</span></code></a> values from numeric values (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/463">PR #463</a>)</p></li>
+<li><p>Support encoding <a class="reference external" href="https://docs.python.org/3/library/decimal.html#decimal.Decimal" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">decimal.Decimal</span></code></a> values as numeric values (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/465">PR #465</a>).</p></li>
+<li><p>Support converting <a class="reference external" href="https://docs.python.org/3/library/decimal.html#decimal.Decimal" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">decimal.Decimal</span></code></a> values to <code class="docutils literal notranslate"><span class="pre">float</span></code> in <a class="reference internal" href="api.html#msgspec.convert" title="msgspec.convert"><code class="xref py py-obj docutils literal notranslate"><span class="pre">convert</span></code></a>
+(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/466">PR #466</a>).</p></li>
+<li><p>Preliminary support for CPython 3.12 beta releases (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/467">PR #467</a>).</p></li>
+<li><p>Support decoding integers that don’t fit into an <code class="docutils literal notranslate"><span class="pre">int64</span></code>/<code class="docutils literal notranslate"><span class="pre">uint64</span></code>
+(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/469">PR #469</a>).</p></li>
+<li><p>Add a new optional <code class="docutils literal notranslate"><span class="pre">__post_init__</span></code> method for <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code></a> types (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/470">PR #470</a>).</p></li>
+<li><p>Support decoding <code class="docutils literal notranslate"><span class="pre">0</span></code>/<code class="docutils literal notranslate"><span class="pre">1</span></code> into <code class="docutils literal notranslate"><span class="pre">bool</span></code> types when <code class="docutils literal notranslate"><span class="pre">strict=False</span></code>
+(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/471">PR #471</a>).</p></li>
+<li><p>Wrap errors raised in <code class="docutils literal notranslate"><span class="pre">__post_init__</span></code>/<code class="docutils literal notranslate"><span class="pre">__attrs_post_init__</span></code> in a
+<a class="reference internal" href="api.html#msgspec.ValidationError" title="msgspec.ValidationError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ValidationError</span></code></a> when decoding (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/472">PR #472</a>).</p></li>
+<li><p>Add native support for encoding/decoding <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.timedelta" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.timedelta</span></code></a> types
+(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/475">PR #475</a>).</p></li>
+<li><p>Add a new <a class="reference internal" href="api.html#msgspec.json.Encoder.encode_lines" title="msgspec.json.Encoder.encode_lines"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.json.Encoder.encode_lines</span></code></a> method for encoding an iterable
+of values as newline-delimited JSON (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/479">PR #479</a>).</p></li>
+</ul>
+</section>
 <section id="version-0-16-0-2023-06-12">
 <h2>Version 0.16.0 (2023-06-12)<a class="headerlink" href="#version-0-16-0-2023-06-12" title="Permalink to this heading">#</a></h2>
 <ul class="simple">
@@ -737,6 +771,7 @@ faster decoding.</p></li>
           <div class="toc-tree">
             <ul>
 <li><a class="reference internal" href="#">Changelog</a><ul>
+<li><a class="reference internal" href="#version-0-17-0-2023-07-11">Version 0.17.0 (2023-07-11)</a></li>
 <li><a class="reference internal" href="#version-0-16-0-2023-06-12">Version 0.16.0 (2023-06-12)</a></li>
 <li><a class="reference internal" href="#version-0-15-1-2023-05-19">Version 0.15.1 (2023-05-19)</a></li>
 <li><a class="reference internal" href="#version-0-15-0-2023-05-10">Version 0.15.0 (2023-05-10)</a></li>
