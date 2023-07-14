@@ -813,6 +813,31 @@ of only basic JSON types. This hook should transform <code class="docutils liter
 </dl>
 </dd></dl>
 
+<dl class="py method">
+<dt class="sig sig-object py" id="msgspec.json.Decoder.decode_lines">
+<span class="sig-name descname"><span class="pre">decode_lines</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">buf</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.json.Decoder.decode_lines" title="Permalink to this definition">#</a></dt>
+<dd><p>Decode a list of items from newline-delimited JSON.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>buf</strong> (<em>bytes-like</em><em> or </em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.11)"><em>str</em></a>) – The message to decode.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>items</strong> (<em>list</em>) – A list of decoded objects.</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">msgspec</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;</span>
+<span class="gp">... </span><span class="s2">{&quot;x&quot;: 1, &quot;y&quot;: 2}</span>
+<span class="gp">... </span><span class="s2">{&quot;x&quot;: 3, &quot;y&quot;: 4}</span>
+<span class="gp">... </span><span class="s2">&quot;&quot;&quot;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">dec</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">Decoder</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">dec</span><span class="o">.</span><span class="n">decode_lines</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+<span class="go">[{&quot;x&quot;: 1, &quot;y&quot;: 2}, {&quot;x&quot;: 3, &quot;y&quot;: 4}]</span>
+</pre></div>
+</div>
+</dd></dl>
+
 </dd></dl>
 
 <dl class="py function">
@@ -2009,6 +2034,7 @@ is set.</p></li>
 </li>
 <li><a class="reference internal" href="#msgspec.json.Decoder"><code class="docutils literal notranslate"><span class="pre">Decoder</span></code></a><ul>
 <li><a class="reference internal" href="#msgspec.json.Decoder.decode"><code class="docutils literal notranslate"><span class="pre">Decoder.decode()</span></code></a></li>
+<li><a class="reference internal" href="#msgspec.json.Decoder.decode_lines"><code class="docutils literal notranslate"><span class="pre">Decoder.decode_lines()</span></code></a></li>
 </ul>
 </li>
 <li><a class="reference internal" href="#msgspec.json.encode"><code class="docutils literal notranslate"><span class="pre">encode()</span></code></a></li>
