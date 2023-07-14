@@ -470,6 +470,60 @@ class TestDecoderMisc:
         with pytest.raises(msgspec.DecodeError):
             dec.decode(b'[1, 2, 3]"trailing"')
 
+    @pytest.mark.parametrize(
+        "msg",
+        ["", "\n", "1", "  1", "1\t\r\n", "1\n\r\t 2", "1\n2\n", "1\n2\n3\n"],
+    )
+    def test_decode_lines(self, msg):
+        dec = msgspec.json.Decoder()
+        sol = []
+        for part in msg.splitlines():
+            if part := part.strip():
+                sol.append(dec.decode(part))
+
+        res = dec.decode_lines(msg)
+        assert res == sol
+
+    def test_decode_lines_typed(self):
+        class Ex(msgspec.Struct):
+            x: int
+
+        sol = [Ex(1), Ex(2)]
+        buf = msgspec.json.Encoder().encode_lines(sol)
+        res = msgspec.json.Decoder(Ex).decode_lines(buf)
+        assert res == sol
+
+    def test_decode_lines_typed_error(self):
+        class Ex(msgspec.Struct):
+            x: int
+
+        buf = b'{"x": 1}\n{"x": "bad"}\n'
+
+        dec = msgspec.json.Decoder(Ex)
+        with pytest.raises(msgspec.ValidationError) as rec:
+            dec.decode_lines(buf)
+
+        assert "Expected `int`, got `str`" in str(rec.value)
+        assert "`$[1].x" in str(rec.value)
+
+    def test_decode_lines_malformed(self):
+        buf = b'{"x": 1}\n{"x": efg'
+        dec = msgspec.json.Decoder()
+        with pytest.raises(msgspec.DecodeError, match="malformed"):
+            dec.decode_lines(buf)
+
+    def test_decode_lines_bad_call(self):
+        dec = msgspec.json.Decoder()
+
+        with pytest.raises(TypeError):
+            dec.decode()
+
+        with pytest.raises(TypeError):
+            dec.decode("{}", 2)
+
+        with pytest.raises(TypeError):
+            dec.decode(1)
+
 
 class TestBoolAndNone:
     def test_encode_none(self):

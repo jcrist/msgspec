@@ -60,7 +60,7 @@ JSON
     :members: encode, encode_lines, encode_into
 
 .. autoclass:: Decoder
-    :members: decode
+    :members: decode, decode_lines
 
 .. autofunction:: encode
 
