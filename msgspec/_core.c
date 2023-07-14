@@ -17764,10 +17764,108 @@ JSONDecoder_decode(JSONDecoder *self, PyObject *const *args, Py_ssize_t nargs)
     return NULL;
 }
 
+PyDoc_STRVAR(JSONDecoder_decode_lines__doc__,
+"decode_lines(self, buf)\n"
+"--\n"
+"\n"
+"Decode a list of items from newline-delimited JSON.\n"
+"\n"
+"Parameters\n"
+"----------\n"
+"buf : bytes-like or str\n"
+"    The message to decode.\n"
+"\n"
+"Returns\n"
+"-------\n"
+"items : list\n"
+"    A list of decoded objects.\n"
+"Examples\n"
+"--------\n"
+">>> import msgspec\n"
+">>> msg = \"\"\"\n"
+"... {\"x\": 1, \"y\": 2}\n"
+"... {\"x\": 3, \"y\": 4}\n"
+"... \"\"\"\n"
+">>> dec = msgspec.json.Decoder()\n"
+">>> dec.decode_lines(msg)\n"
+"[{\"x\": 1, \"y\": 2}, {\"x\": 3, \"y\": 4}]"
+);
+static PyObject*
+JSONDecoder_decode_lines(JSONDecoder *self, PyObject *const *args, Py_ssize_t nargs)
+{
+    if (!check_positional_nargs(nargs, 1, 1)) {
+        return NULL;
+    }
+
+    JSONDecoderState state = {
+        .type = self->type,
+        .strict = self->strict,
+        .dec_hook = self->dec_hook,
+        .scratch = NULL,
+        .scratch_capacity = 0,
+        .scratch_len = 0
+    };
+
+    Py_buffer buffer;
+    buffer.buf = NULL;
+    if (ms_get_buffer(args[0], &buffer) >= 0) {
+
+        state.buffer_obj = args[0];
+        state.input_start = buffer.buf;
+        state.input_pos = buffer.buf;
+        state.input_end = state.input_pos + buffer.len;
+
+        PathNode path = {NULL, 0, NULL};
+
+        PyObject *out = PyList_New(0);
+        if (out == NULL) return NULL;
+        while (true) {
+            /* Skip until first non-whitespace character, or return if buffer
+             * exhausted */
+            while (true) {
+                if (state.input_pos == state.input_end) {
+                    goto done;
+                }
+                unsigned char c = *state.input_pos;
+                if (MS_LIKELY(c != ' ' && c != '\n' && c != '\r' && c != '\t')) {
+                    break;
+                }
+                state.input_pos++;
+            }
+
+            /* Read and append next item */
+            PyObject *item = json_decode(&state, state.type, &path);
+            path.index++;
+            if (item == NULL) {
+                Py_CLEAR(out);
+                goto done;
+            }
+            int status = PyList_Append(out, item);
+            Py_DECREF(item);
+            if (status < 0) {
+                Py_CLEAR(out);
+                goto done;
+            }
+        }
+    done:
+
+        ms_release_buffer(&buffer);
+
+        PyMem_Free(state.scratch);
+        return out;
+    }
+
+    return NULL;
+}
+
 static struct PyMethodDef JSONDecoder_methods[] = {
     {
         "decode", (PyCFunction) JSONDecoder_decode, METH_FASTCALL,
         JSONDecoder_decode__doc__,
+    },
+    {
+        "decode_lines", (PyCFunction) JSONDecoder_decode_lines, METH_FASTCALL,
+        JSONDecoder_decode_lines__doc__,
     },
 #if PY_VERSION_HEX >= 0x03090000
     {"__class_getitem__", Py_GenericAlias, METH_O|METH_CLASS},

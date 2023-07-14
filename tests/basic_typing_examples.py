@@ -752,6 +752,19 @@ def check_json_Decoder_decode_from_str() -> None:
     reveal_type(o)  # assert ("List" in typ or "list" in typ) and "int" in typ
 
 
+def check_json_Decoder_decode_lines_any() -> None:
+    dec = msgspec.json.Decoder()
+    o = dec.decode_lines(b'1\n2\n3')
+
+    reveal_type(o)  # assert "list" in typ.lower() and "any" in typ.lower()
+
+
+def check_json_Decoder_decode_lines_typed() -> None:
+    dec = msgspec.json.Decoder(int)
+    o = dec.decode_lines(b'1\n2\n3')
+    reveal_type(o)  # assert "list" in typ.lower() and "int" in typ.lower()
+
+
 def check_json_decode_any() -> None:
     b = msgspec.json.encode([1, 2, 3])
     o = msgspec.json.decode(b)
