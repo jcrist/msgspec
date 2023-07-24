@@ -114,7 +114,7 @@ the type to ``decode`` via the ``type`` keyword argument:
     ...     email: str | None = None
 
     >>> msgspec.json.decode(
-    ...     b'{"name": "alice", "groups": ["admin", "engineering"]}'
+    ...     b'{"name": "alice", "groups": ["admin", "engineering"]}',
     ...     type=User
     ... )
     User(name='alice', groups={'admin', 'engineering'}, email=None)
