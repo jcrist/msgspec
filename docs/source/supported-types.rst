@@ -239,7 +239,7 @@ Bytes-like objects map to base64-encoded strings in JSON, YAML, and TOML. The
 ``datetime``
 ------------
 
-The encoding used for `datetime.datetime` objects dependends on both the
+The encoding used for `datetime.datetime` objects depends on both the
 protocol and whether these objects are timezone-aware_ or timezone-naive:
 
 - **JSON**: Timezone-aware datetimes are encoded as RFC3339_ compatible
