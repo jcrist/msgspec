@@ -22,12 +22,14 @@ dec_hook_sig = Optional[Callable[[type, Any], Any]]
 class Encoder:
     enc_hook: enc_hook_sig
     decimal_format: Literal["string", "number"]
+    uuid_format: Literal["canonical", "hex"]
 
     def __init__(
         self,
         *,
         enc_hook: enc_hook_sig = None,
         decimal_format: Literal["string", "number"] = "string",
+        uuid_format: Literal["canonical", "hex"] = "canonical",
     ): ...
     def encode(self, obj: Any) -> bytes: ...
     def encode_lines(self, items: Iterable) -> bytes: ...

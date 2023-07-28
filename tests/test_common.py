@@ -3326,10 +3326,46 @@ class TestTimeDelta:
 
 
 class TestUUID:
-    def test_encode_uuid(self, proto):
+    def test_encoder_uuid_format(self, proto):
+        assert proto.Encoder().uuid_format == "canonical"
+        assert proto.Encoder(uuid_format="canonical").uuid_format == "canonical"
+        assert proto.Encoder(uuid_format="hex").uuid_format == "hex"
+
+        if proto is msgspec.msgpack:
+            assert proto.Encoder(uuid_format="bytes").uuid_format == "bytes"
+        else:
+            with pytest.raises(
+                ValueError,
+                match="`uuid_format` must be 'canonical' or 'hex', got 'bytes'",
+            ):
+                proto.Encoder(uuid_format="bytes")
+
+    def test_encoder_invalid_uuid_format(self, proto):
+        if proto is msgspec.json:
+            msg = "`uuid_format` must be 'canonical' or 'hex', got {!r}"
+        else:
+            msg = "`uuid_format` must be 'canonical', 'hex', or 'bytes', got {!r}"
+
+        for bad in ["bad", 1]:
+            with pytest.raises(ValueError, match=msg.format(bad)):
+                proto.Encoder(uuid_format=bad)
+
+    @pytest.mark.parametrize("format", ["canonical", "hex"])
+    def test_encode_uuid(self, format, proto):
         u = uuid.uuid4()
-        res = proto.encode(u)
-        sol = proto.encode(str(u))
+        enc = proto.Encoder(uuid_format=format)
+        res = enc.encode(u)
+        if format == "canonical":
+            sol = enc.encode(str(u))
+        else:
+            sol = enc.encode(u.hex)
+        assert res == sol
+
+    def test_encode_uuid_bytes(self):
+        u = uuid.uuid4()
+        enc = msgspec.msgpack.Encoder(uuid_format="bytes")
+        res = enc.encode(u)
+        sol = enc.encode(u.bytes)
         assert res == sol
 
     def test_encode_uuid_subclass(self, proto):
@@ -3365,6 +3401,21 @@ class TestUUID:
         res = proto.decode(msg, type=uuid.UUID)
         assert res == u
         assert res.is_safe == u.is_safe
+
+    def test_decode_uuid_from_bytes_lax(self):
+        sol = uuid.uuid4()
+        msg = msgspec.msgpack.encode(sol.bytes)
+        res = msgspec.msgpack.decode(msg, type=uuid.UUID, strict=False)
+        assert res == sol
+
+        bad_msg = msgspec.msgpack.encode(b"x" * 8)
+        with pytest.raises(msgspec.ValidationError, match="Invalid UUID bytes"):
+            msgspec.msgpack.decode(bad_msg, type=uuid.UUID, strict=False)
+
+        with pytest.raises(
+            msgspec.ValidationError, match="Expected `uuid`, got `bytes`"
+        ):
+            msgspec.msgpack.decode(msg, type=uuid.UUID)
 
     @pytest.mark.parametrize(
         "uuid_str",

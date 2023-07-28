@@ -8347,10 +8347,22 @@ static PyTypeObject Ext_Type = {
 #define ENC_INIT_BUFSIZE 32
 #define ENC_LINES_INIT_BUFSIZE 1024
 
+enum decimal_format {
+    DECIMAL_FORMAT_STRING = 0,
+    DECIMAL_FORMAT_NUMBER = 1,
+};
+
+enum uuid_format {
+    UUID_FORMAT_CANONICAL = 0,
+    UUID_FORMAT_HEX = 1,
+    UUID_FORMAT_BYTES = 2,
+};
+
 typedef struct EncoderState {
     MsgspecState *mod;          /* module reference */
     PyObject *enc_hook;         /* `enc_hook` callback */
-    bool decimal_as_string;     /* true if decimals should encode as strings */
+    enum decimal_format decimal_format;
+    enum uuid_format uuid_format;
     char* (*resize_buffer)(PyObject**, Py_ssize_t);  /* callback for resizing buffer */
 
     char *output_buffer_raw;    /* raw pointer to output_buffer internal buffer */
@@ -8363,8 +8375,11 @@ typedef struct Encoder {
     PyObject_HEAD
     PyObject *enc_hook;
     MsgspecState *mod;
-    bool decimal_as_string;     /* true if decimals should encode as strings */
+    enum decimal_format decimal_format;
+    enum uuid_format uuid_format;
 } Encoder;
+
+static PyTypeObject Encoder_Type;
 
 static char*
 ms_resize_bytes(PyObject** output_buffer, Py_ssize_t size)
@@ -8416,12 +8431,12 @@ ms_write(EncoderState *self, const char *s, Py_ssize_t n)
 static int
 Encoder_init(Encoder *self, PyObject *args, PyObject *kwds)
 {
-    char *kwlist[] = {"enc_hook", "decimal_format", NULL};
-    PyObject *enc_hook = NULL, *decimal_format = NULL;
+    char *kwlist[] = {"enc_hook", "decimal_format", "uuid_format", NULL};
+    PyObject *enc_hook = NULL, *decimal_format = NULL, *uuid_format = NULL;
 
     if (
         !PyArg_ParseTupleAndKeywords(
-            args, kwds, "|$OO", kwlist, &enc_hook, &decimal_format
+            args, kwds, "|$OOO", kwlist, &enc_hook, &decimal_format, &uuid_format
         )
     ) {
         return -1;
@@ -8438,18 +8453,19 @@ Encoder_init(Encoder *self, PyObject *args, PyObject *kwds)
         Py_INCREF(enc_hook);
     }
 
+    /* Process decimal format */
     if (decimal_format == NULL) {
-        self->decimal_as_string = true;
+        self->decimal_format = DECIMAL_FORMAT_STRING;
     }
     else {
         bool ok = false;
         if (PyUnicode_CheckExact(decimal_format)) {
             if (PyUnicode_CompareWithASCIIString(decimal_format, "string") == 0) {
-                self->decimal_as_string = true;
+                self->decimal_format = DECIMAL_FORMAT_STRING;
                 ok = true;
             }
             else if (PyUnicode_CompareWithASCIIString(decimal_format, "number") == 0) {
-                self->decimal_as_string = false;
+                self->decimal_format = DECIMAL_FORMAT_NUMBER;
                 ok = true;
             }
         }
@@ -8462,6 +8478,39 @@ Encoder_init(Encoder *self, PyObject *args, PyObject *kwds)
             return -1;
         }
     }
+
+    /* Process uuid format */
+    if (uuid_format == NULL) {
+        self->uuid_format = UUID_FORMAT_CANONICAL;
+    }
+    else {
+        bool is_msgpack = Py_TYPE(self) == &Encoder_Type;
+        bool ok = false;
+        if (PyUnicode_CheckExact(uuid_format)) {
+            if (PyUnicode_CompareWithASCIIString(uuid_format, "canonical") == 0) {
+                self->uuid_format = UUID_FORMAT_CANONICAL;
+                ok = true;
+            }
+            else if (PyUnicode_CompareWithASCIIString(uuid_format, "hex") == 0) {
+                self->uuid_format = UUID_FORMAT_HEX;
+                ok = true;
+            }
+            else if (is_msgpack && PyUnicode_CompareWithASCIIString(uuid_format, "bytes") == 0) {
+                self->uuid_format = UUID_FORMAT_BYTES;
+                ok = true;
+            }
+        }
+        if (!ok) {
+            const char *errmsg = (
+                is_msgpack ?
+                "`uuid_format` must be 'canonical', 'hex', or 'bytes', got %R" :
+                "`uuid_format` must be 'canonical' or 'hex', got %R"
+            );
+            PyErr_Format(PyExc_ValueError, errmsg, uuid_format);
+            return -1;
+        }
+    }
+
     self->mod = msgspec_get_global_state();
     self->enc_hook = enc_hook;
     return 0;
@@ -8549,7 +8598,8 @@ encoder_encode_into_common(
     EncoderState state = {
         .mod = self->mod,
         .enc_hook = self->enc_hook,
-        .decimal_as_string = self->decimal_as_string,
+        .decimal_format = self->decimal_format,
+        .uuid_format = self->uuid_format,
         .output_buffer = buf,
         .output_buffer_raw = PyByteArray_AS_STRING(buf),
         .output_len = offset,
@@ -8592,7 +8642,8 @@ encoder_encode_common(
     EncoderState state = {
         .mod = self->mod,
         .enc_hook = self->enc_hook,
-        .decimal_as_string = self->decimal_as_string,
+        .decimal_format = self->decimal_format,
+        .uuid_format = self->uuid_format,
         .output_len = 0,
         .max_output_len = ENC_INIT_BUFSIZE,
         .resize_buffer = &ms_resize_bytes
@@ -8646,7 +8697,8 @@ encode_common(
     EncoderState state = {
         .mod = mod,
         .enc_hook = enc_hook,
-        .decimal_as_string = true,
+        .decimal_format = DECIMAL_FORMAT_STRING,
+        .uuid_format = UUID_FORMAT_CANONICAL,
         .output_len = 0,
         .max_output_len = ENC_INIT_BUFSIZE,
         .resize_buffer = &ms_resize_bytes
@@ -8669,16 +8721,29 @@ static PyMemberDef Encoder_members[] = {
 };
 
 static PyObject*
-Encoder_decimal_format(Encoder *self, void *closure)
-{
-    if (self->decimal_as_string) {
+Encoder_decimal_format(Encoder *self, void *closure) {
+    if (self->decimal_format == DECIMAL_FORMAT_STRING) {
         return PyUnicode_InternFromString("string");
     }
     return PyUnicode_InternFromString("number");
 }
 
+static PyObject*
+Encoder_uuid_format(Encoder *self, void *closure) {
+    if (self->uuid_format == UUID_FORMAT_CANONICAL) {
+        return PyUnicode_InternFromString("canonical");
+    }
+    else if (self->uuid_format == UUID_FORMAT_HEX) {
+        return PyUnicode_InternFromString("hex");
+    }
+    else {
+        return PyUnicode_InternFromString("bytes");
+    }
+}
+
 static PyGetSetDef Encoder_getset[] = {
     {"decimal_format", (getter) Encoder_decimal_format, NULL, NULL, NULL},
+    {"uuid_format", (getter) Encoder_uuid_format, NULL, NULL, NULL},
     {NULL},
 };
 
@@ -10453,44 +10518,16 @@ ms_encode_base64(const char *input, Py_ssize_t input_size, char *out) {
  *************************************************************************/
 
 static int
-ms_encode_uuid(MsgspecState *mod, PyObject *obj, char *out) {
-    int status = -1;
+ms_uuid_to_16_bytes(MsgspecState *mod, PyObject *obj, unsigned char *buf) {
     PyObject *int128 = PyObject_GetAttr(obj, mod->str_int);
     if (int128 == NULL) return -1;
     if (MS_UNLIKELY(!PyLong_CheckExact(int128))) {
         PyErr_SetString(PyExc_TypeError, "uuid.int must be an int");
         return -1;
     }
-    unsigned char scratch[16];
-    unsigned char *buf = scratch;
-
-    if (_PyLong_AsByteArray((PyLongObject *)int128, scratch, 16, 0, 0) < 0) {
-        goto cleanup;
-    }
-
-    for (int i = 0; i < 4; i++) {
-        unsigned char c = *buf++;
-        *out++ = hex_encode_table[c >> 4];
-        *out++ = hex_encode_table[c & 0xF];
-    }
-    *out++ = '-';
-    for (int j = 0; j < 3; j++) {
-        for (int i = 0; i < 2; i++) {
-            unsigned char c = *buf++;
-            *out++ = hex_encode_table[c >> 4];
-            *out++ = hex_encode_table[c & 0xF];
-        }
-        *out++ = '-';
-    }
-    for (int i = 0; i < 6; i++) {
-        unsigned char c = *buf++;
-        *out++ = hex_encode_table[c >> 4];
-        *out++ = hex_encode_table[c & 0xF];
-    }
-    status = 0;
-cleanup:
+    int out = _PyLong_AsByteArray((PyLongObject *)int128, buf, 16, 0, 0);
     Py_DECREF(int128);
-    return status;
+    return out;
 }
 
 static PyObject *
@@ -10514,6 +10551,36 @@ error:
     Py_DECREF(int128);
     Py_XDECREF(out);
     return NULL;
+}
+
+/* Requires up to 36 bytes of space */
+static int
+ms_encode_uuid(MsgspecState *mod, PyObject *obj, char *out, bool canonical) {
+    unsigned char scratch[16];
+    unsigned char *buf = scratch;
+
+    if (ms_uuid_to_16_bytes(mod, obj, scratch) < 0) return -1;
+
+    for (int i = 0; i < 4; i++) {
+        unsigned char c = *buf++;
+        *out++ = hex_encode_table[c >> 4];
+        *out++ = hex_encode_table[c & 0xF];
+    }
+    if (canonical) *out++ = '-';
+    for (int j = 0; j < 3; j++) {
+        for (int i = 0; i < 2; i++) {
+            unsigned char c = *buf++;
+            *out++ = hex_encode_table[c >> 4];
+            *out++ = hex_encode_table[c & 0xF];
+        }
+        if (canonical) *out++ = '-';
+    }
+    for (int i = 0; i < 6; i++) {
+        unsigned char c = *buf++;
+        *out++ = hex_encode_table[c >> 4];
+        *out++ = hex_encode_table[c & 0xF];
+    }
+    return 0;
 }
 
 static PyObject *
@@ -10883,7 +10950,7 @@ ms_post_decode_uint64(uint64_t x, TypeNode *type, PathNode *path, bool strict) {
  *************************************************************************/
 
 PyDoc_STRVAR(Encoder__doc__,
-"Encoder(*, enc_hook=None, decimal_format='string')\n"
+"Encoder(*, enc_hook=None, decimal_format='string', uuid_format='canonical')\n"
 "--\n"
 "\n"
 "A MessagePack encoder.\n"
@@ -10898,7 +10965,13 @@ PyDoc_STRVAR(Encoder__doc__,
 "    The format to use for encoding `decimal.Decimal` objects. If 'string'\n"
 "    they're encoded as strings, if 'number', they're encoded as floats.\n"
 "    Defaults to 'string', which is the recommended value since 'number'\n"
-"    may result in precision loss when decoding."
+"    may result in precision loss when decoding.\n"
+"uuid_format : {'canonical', 'hex', 'bytes'}, optional\n"
+"    The format to use for encoding `uuid.UUID` objects. The 'canonical'\n"
+"    and 'hex' formats encode them as strings with and without hyphens\n"
+"    respectively. The 'bytes' format encodes them as big-endian binary\n"
+"    representations of the corresponding 128-bit integers. Defaults to\n"
+"    'canonical'."
 );
 
 enum mpack_code {
@@ -11602,8 +11675,13 @@ static int
 mpack_encode_uuid(EncoderState *self, PyObject *obj)
 {
     char buf[36];
-    if (ms_encode_uuid(self->mod, obj, buf) < 0) return -1;
-    return mpack_encode_cstr(self, buf, 36);
+    if (MS_UNLIKELY(self->uuid_format == UUID_FORMAT_BYTES)) {
+        if (ms_uuid_to_16_bytes(self->mod, obj, (unsigned char *)buf) < 0) return -1;
+        return mpack_encode_bin(self, buf, 16);
+    }
+    bool canonical = self->uuid_format == UUID_FORMAT_CANONICAL;
+    if (ms_encode_uuid(self->mod, obj, buf, canonical) < 0) return -1;
+    return mpack_encode_cstr(self, buf, canonical ? 36 : 32);
 }
 
 static int
@@ -11612,7 +11690,7 @@ mpack_encode_decimal(EncoderState *self, PyObject *obj)
     PyObject *temp;
     int out;
 
-    if (MS_LIKELY(self->decimal_as_string)) {
+    if (MS_LIKELY(self->decimal_format == DECIMAL_FORMAT_STRING)) {
         temp = PyObject_Str(obj);
         if (temp == NULL) return -1;
         out = mpack_encode_str(self, temp);
@@ -11915,7 +11993,7 @@ msgspec_msgpack_encode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, 
  *************************************************************************/
 
 PyDoc_STRVAR(JSONEncoder__doc__,
-"Encoder(*, enc_hook=None, decimal_format='string')\n"
+"Encoder(*, enc_hook=None, decimal_format='string', uuid_format='canonical')\n"
 "--\n"
 "\n"
 "A JSON encoder.\n"
@@ -11931,7 +12009,11 @@ PyDoc_STRVAR(JSONEncoder__doc__,
 "    they're encoded as strings, if 'number', they're encoded as floats.\n"
 "    Defaults to 'string', which is the recommended value since 'number'\n"
 "    may result in precision loss when decoding for some JSON library\n"
-"    implementations."
+"    implementations.\n"
+"uuid_format : {'canonical', 'hex'}, optional\n"
+"    The format to use for encoding `uuid.UUID` objects. The 'canonical'\n"
+"    and 'hex' formats encode them as strings with and without hyphens\n"
+"    respectively. Defaults to 'canonical'."
 );
 
 static int json_encode_inline(EncoderState*, PyObject*);
@@ -12229,9 +12311,11 @@ json_encode_uuid(EncoderState *self, PyObject *obj)
 {
     char buf[38];
     buf[0] = '"';
-    buf[37] = '"';
-    if (ms_encode_uuid(self->mod, obj, buf + 1) < 0) return -1;
-    return ms_write(self, buf, 38);
+    bool canonical = self->uuid_format == UUID_FORMAT_CANONICAL;
+    if (ms_encode_uuid(self->mod, obj, buf + 1, canonical) < 0) return -1;
+    int size = canonical ? 36 : 32;
+    buf[size + 1] = '"';
+    return ms_write(self, buf, size + 2);
 }
 
 static int
@@ -12242,17 +12326,18 @@ json_encode_decimal(EncoderState *self, PyObject *obj)
 
     Py_ssize_t size;
     const char* buf = unicode_str_and_size_nocheck(temp, &size);
+    bool decimal_as_string = (self->decimal_format == DECIMAL_FORMAT_STRING);
 
-    Py_ssize_t required = size + (2 * self->decimal_as_string);
+    Py_ssize_t required = size + (2 * decimal_as_string);
     if (ms_ensure_space(self, size + 2) < 0) {
         Py_DECREF(temp);
         return -1;
     }
 
     char *p = self->output_buffer_raw + self->output_len;
-    if (MS_LIKELY(self->decimal_as_string)) *p++ = '"';
+    if (MS_LIKELY(decimal_as_string)) *p++ = '"';
     memcpy(p, buf, size);
-    if (MS_LIKELY(self->decimal_as_string)) *(p + size) = '"';
+    if (MS_LIKELY(decimal_as_string)) *(p + size) = '"';
 
     self->output_len += required;
 
@@ -12774,7 +12859,8 @@ JSONEncoder_encode_lines(Encoder *self, PyObject *const *args, Py_ssize_t nargs)
     EncoderState state = {
         .mod = self->mod,
         .enc_hook = self->enc_hook,
-        .decimal_as_string = self->decimal_as_string,
+        .decimal_format = self->decimal_format,
+        .uuid_format = self->uuid_format,
         .output_len = 0,
         .max_output_len = ENC_LINES_INIT_BUFSIZE,
         .resize_buffer = &ms_resize_bytes
@@ -18134,7 +18220,7 @@ static PyObject *
 to_builtins_uuid(ToBuiltinsState *self, PyObject *obj) {
     PyObject *out = PyUnicode_New(36, 127);
     if (out == NULL) return NULL;
-    if (ms_encode_uuid(self->mod, obj, ascii_get_buffer(out)) < 0) {
+    if (ms_encode_uuid(self->mod, obj, ascii_get_buffer(out), true) < 0) {
         Py_CLEAR(out);
     }
     return out;
