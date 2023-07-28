@@ -5,7 +5,7 @@
     <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Structs" href="structs.html" /><link rel="prev" title="Usage" href="usage.html" />
 
-    <!-- Generated with Sphinx 7.1.0 and Furo 2023.07.26 -->
+    <!-- Generated with Sphinx 7.1.1 and Furo 2023.07.26 -->
         <title>Supported Types</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=92fd9be5" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=135e06be" />
@@ -693,9 +693,9 @@ as total seconds. See <a class="reference internal" href="usage.html#strict-vs-l
 </section>
 <section id="uuid">
 <h2><code class="docutils literal notranslate"><span class="pre">uuid</span></code><a class="headerlink" href="#uuid" title="Permalink to this heading">#</a></h2>
-<p><a class="reference external" href="https://docs.python.org/3/library/uuid.html#uuid.UUID" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">uuid.UUID</span></code></a> values are serialized as <a class="reference external" href="https://datatracker.ietf.org/doc/html/rfc4122">RFC4122</a> encoded strings in all protocols.
-Subclasses of <a class="reference external" href="https://docs.python.org/3/library/uuid.html#uuid.UUID" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">uuid.UUID</span></code></a> are also supported for encoding only.</p>
-<p>When decoding, both hyphenated and unhyphenated forms are supported.</p>
+<p><a class="reference external" href="https://docs.python.org/3/library/uuid.html#uuid.UUID" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">uuid.UUID</span></code></a> values are serialized as <a class="reference external" href="https://datatracker.ietf.org/doc/html/rfc4122">RFC4122</a> encoded canonical strings in all
+protocols by default. Subclasses of <a class="reference external" href="https://docs.python.org/3/library/uuid.html#uuid.UUID" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">uuid.UUID</span></code></a> are also supported for encoding
+only.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">uuid</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">u</span> <span class="o">=</span> <span class="n">uuid</span><span class="o">.</span><span class="n">UUID</span><span class="p">(</span><span class="s2">&quot;c4524ac0-e81e-4aa8-a595-0aec605a659a&quot;</span><span class="p">)</span>
@@ -706,13 +706,40 @@ Subclasses of <a class="reference external" href="https://docs.python.org/3/libr
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;&quot;c4524ac0-e81e-4aa8-a595-0aec605a659a&quot;&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">uuid</span><span class="o">.</span><span class="n">UUID</span><span class="p">)</span>
 <span class="go">UUID(&#39;c4524ac0-e81e-4aa8-a595-0aec605a659a&#39;)</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;&quot;c4524ac0e81e4aa8a5950aec605a659a&quot;&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">uuid</span><span class="o">.</span><span class="n">UUID</span><span class="p">)</span>
-<span class="go">UUID(&#39;c4524ac0-e81e-4aa8-a595-0aec605a659a&#39;)</span>
-
 <span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;&quot;oops&quot;&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">uuid</span><span class="o">.</span><span class="n">UUID</span><span class="p">)</span>
 <span class="gt">Traceback (most recent call last):</span>
 <span class="w">    </span><span class="n">File</span> <span class="s2">&quot;&lt;stdin&gt;&quot;</span><span class="p">,</span> <span class="n">line</span> <span class="mi">1</span><span class="p">,</span> <span class="ow">in</span> <span class="o">&lt;</span><span class="n">module</span><span class="o">&gt;</span>
 <span class="gr">msgspec.ValidationError</span>: <span class="n">Invalid UUID</span>
+</pre></div>
+</div>
+<p>Alternative formats are also supported by the JSON and MessagePack encoders.
+The format may be selected by passing it to <code class="docutils literal notranslate"><span class="pre">uuid_format</span></code> when creating an
+<code class="docutils literal notranslate"><span class="pre">Encoder</span></code>. The following options are supported:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">canonical</span></code>: UUIDs are encoded as <a class="reference external" href="https://datatracker.ietf.org/doc/html/rfc4122">RFC4122</a> canonical strings (same as
+<code class="docutils literal notranslate"><span class="pre">str(uuid)</span></code>). This is the default.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">hex</span></code>: UUIDs are encoded as <a class="reference external" href="https://datatracker.ietf.org/doc/html/rfc4122">RFC4122</a> hex strings (same as <code class="docutils literal notranslate"><span class="pre">uuid.hex</span></code>).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">bytes</span></code>: UUIDs are encoded as binary values of the uuid’s big-endian
+128-bit integer representation (same as <code class="docutils literal notranslate"><span class="pre">uuid.bytes</span></code>). This is only supported
+by the MessagePack encoder.</p></li>
+</ul>
+<p>When decoding, any of the above formats are accepted.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">enc</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">Encoder</span><span class="p">(</span><span class="n">uuid_format</span><span class="o">=</span><span class="s2">&quot;hex&quot;</span><span class="p">)</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">uuid_hex</span> <span class="o">=</span> <span class="n">enc</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">u</span><span class="p">)</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">uuid_hex</span>
+<span class="go">b&#39;&quot;c4524ac0e81e4aa8a5950aec605a659a&quot;&#39;</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">uuid_hex</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">uuid</span><span class="o">.</span><span class="n">UUID</span><span class="p">)</span>
+<span class="go">UUID(&#39;c4524ac0-e81e-4aa8-a595-0aec605a659a&#39;)</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">enc</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">msgpack</span><span class="o">.</span><span class="n">Encoder</span><span class="p">(</span><span class="n">uuid_format</span><span class="o">=</span><span class="s2">&quot;bytes&quot;</span><span class="p">)</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">uuid_bytes</span> <span class="o">=</span> <span class="n">enc</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">u</span><span class="p">)</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">msgpack</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">uuid_bytes</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">uuid</span><span class="o">.</span><span class="n">UUID</span><span class="p">)</span>
+<span class="go">UUID(&#39;c4524ac0-e81e-4aa8-a595-0aec605a659a&#39;)</span>
 </pre></div>
 </div>
 </section>

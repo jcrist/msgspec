@@ -5,7 +5,7 @@
     <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Benchmarks" href="benchmarks.html" /><link rel="prev" title="Performance Tips" href="perf-tips.html" />
 
-    <!-- Generated with Sphinx 7.1.0 and Furo 2023.07.26 -->
+    <!-- Generated with Sphinx 7.1.1 and Furo 2023.07.26 -->
         <title>API Docs</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=92fd9be5" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=135e06be" />
@@ -701,7 +701,7 @@ determine whether a field was left unset, or explicitly set to <code class="docu
 <h2>JSON<a class="headerlink" href="#json" title="Permalink to this heading">#</a></h2>
 <dl class="py class">
 <dt class="sig sig-object py" id="msgspec.json.Encoder">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">msgspec.json.</span></span><span class="sig-name descname"><span class="pre">Encoder</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">enc_hook</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">decimal_format</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'string'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.json.Encoder" title="Permalink to this definition">#</a></dt>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">msgspec.json.</span></span><span class="sig-name descname"><span class="pre">Encoder</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">enc_hook</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">decimal_format</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'string'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">uuid_format</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'canonical'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.json.Encoder" title="Permalink to this definition">#</a></dt>
 <dd><p>A JSON encoder.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -714,6 +714,9 @@ they’re encoded as strings, if ‘number’, they’re encoded as floats.
 Defaults to ‘string’, which is the recommended value since ‘number’
 may result in precision loss when decoding for some JSON library
 implementations.</p></li>
+<li><p><strong>uuid_format</strong> (<em>{'canonical'</em><em>, </em><em>'hex'}</em><em>, </em><em>optional</em>) – The format to use for encoding <a class="reference external" href="https://docs.python.org/3/library/uuid.html#uuid.UUID" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">uuid.UUID</span></code></a> objects. The ‘canonical’
+and ‘hex’ formats encode them as strings with and without hyphens
+respectively. Defaults to ‘canonical’.</p></li>
 </ul>
 </dd>
 </dl>
@@ -920,7 +923,7 @@ whitespace, minimizing the message size.</p></li>
 <h2>MessagePack<a class="headerlink" href="#messagepack" title="Permalink to this heading">#</a></h2>
 <dl class="py class">
 <dt class="sig sig-object py" id="msgspec.msgpack.Encoder">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">msgspec.msgpack.</span></span><span class="sig-name descname"><span class="pre">Encoder</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">enc_hook</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">decimal_format</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'string'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.msgpack.Encoder" title="Permalink to this definition">#</a></dt>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">msgspec.msgpack.</span></span><span class="sig-name descname"><span class="pre">Encoder</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">enc_hook</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">decimal_format</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'string'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">uuid_format</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'canonical'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.msgpack.Encoder" title="Permalink to this definition">#</a></dt>
 <dd><p>A MessagePack encoder.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -932,6 +935,11 @@ the unsupported object and should return a supported object, or raise a
 they’re encoded as strings, if ‘number’, they’re encoded as floats.
 Defaults to ‘string’, which is the recommended value since ‘number’
 may result in precision loss when decoding.</p></li>
+<li><p><strong>uuid_format</strong> (<em>{'canonical'</em><em>, </em><em>'hex'</em><em>, </em><em>'bytes'}</em><em>, </em><em>optional</em>) – The format to use for encoding <a class="reference external" href="https://docs.python.org/3/library/uuid.html#uuid.UUID" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">uuid.UUID</span></code></a> objects. The ‘canonical’
+and ‘hex’ formats encode them as strings with and without hyphens
+respectively. The ‘bytes’ format encodes them as big-endian binary
+representations of the corresponding 128-bit integers. Defaults to
+‘canonical’.</p></li>
 </ul>
 </dd>
 </dl>
