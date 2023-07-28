@@ -2348,6 +2348,20 @@ class TestLax:
             with pytest.raises(ValidationError, match="Invalid"):
                 convert(msg, type=datetime.timedelta, strict=False)
 
+    @pytest.mark.parametrize("input_type", [bytes, bytearray])
+    def test_lax_uuid(self, input_type):
+        sol = uuid.uuid4()
+        msg = input_type(sol.bytes)
+        res = convert(msg, uuid.UUID, strict=False)
+        assert res == sol
+
+        bad_msg = input_type(b"x" * 8)
+        with pytest.raises(msgspec.ValidationError, match="Invalid UUID bytes"):
+            convert(bad_msg, type=uuid.UUID, strict=False)
+
+        with pytest.raises(ValidationError, match="Expected `uuid`, got `bytes`"):
+            convert(msg, uuid.UUID)
+
     @pytest.mark.parametrize(
         "msg, sol",
         [
