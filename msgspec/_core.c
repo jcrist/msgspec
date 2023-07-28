@@ -10493,10 +10493,31 @@ cleanup:
     return status;
 }
 
+static PyObject *
+ms_uuid_from_16_bytes(const unsigned char *buf) {
+    PyObject *int128 = _PyLong_FromByteArray(buf, 16, 0, 0);
+    if (int128 == NULL) return NULL;
+
+    MsgspecState *mod = msgspec_get_global_state();
+    PyTypeObject *uuid_type = (PyTypeObject *)(mod->UUIDType);
+    PyObject *out = uuid_type->tp_alloc(uuid_type, 0);
+    if (out == NULL) goto error;
+
+    /* UUID objects are immutable, use GenericSetAttr instead of SetAttr */
+    if (PyObject_GenericSetAttr(out, mod->str_int, int128) < 0) goto error;
+    if (PyObject_GenericSetAttr(out, mod->str_is_safe, mod->uuid_safeuuid_unknown) < 0) goto error;
+
+    Py_DECREF(int128);
+    return out;
+
+error:
+    Py_DECREF(int128);
+    Py_XDECREF(out);
+    return NULL;
+}
 
 static PyObject *
-ms_decode_uuid(const char *buf, Py_ssize_t size, PathNode *path) {
-    PyObject *out = NULL;
+ms_decode_uuid_from_str(const char *buf, Py_ssize_t size, PathNode *path) {
     unsigned char scratch[16];
     unsigned char *decoded = scratch;
     int segments[] = {4, 2, 2, 2, 6};
@@ -10523,27 +10544,18 @@ ms_decode_uuid(const char *buf, Py_ssize_t size, PathNode *path) {
         }
         if (has_hyphens && i < 4 && *buf++ != '-') goto invalid;
     }
-    PyObject *int128 = _PyLong_FromByteArray(scratch, 16, 0, 0);
-    if (int128 == NULL) return NULL;
-
-    MsgspecState *mod = msgspec_get_global_state();
-    PyTypeObject *uuid_type = (PyTypeObject *)(mod->UUIDType);
-    out = uuid_type->tp_alloc(uuid_type, 0);
-    if (out == NULL) goto error;
-    /* UUID objects are immutable, use GenericSetAttr instead of SetAttr */
-    if (PyObject_GenericSetAttr(out, mod->str_int, int128) < 0) goto error;
-    if (PyObject_GenericSetAttr(out, mod->str_is_safe, mod->uuid_safeuuid_unknown) < 0) goto error;
-
-    Py_DECREF(int128);
-    return out;
-
-error:
-    Py_DECREF(int128);
-    Py_XDECREF(out);
-    return NULL;
+    return ms_uuid_from_16_bytes(scratch);
 
 invalid:
     return ms_error_with_path("Invalid UUID%U", path);
+}
+
+static PyObject *
+ms_decode_uuid_from_bytes(const char *buf, Py_ssize_t size, PathNode *path) {
+    if (size == 16) {
+        return ms_uuid_from_16_bytes((unsigned char *)buf);
+    }
+    return ms_error_with_path("Invalid UUID bytes%U", path);
 }
 
 /*************************************************************************
@@ -13462,7 +13474,7 @@ mpack_decode_str(DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *
         return ms_decode_timedelta(s, size, type, path, self->strict);
     }
     else if (MS_UNLIKELY(type->types & MS_TYPE_UUID)) {
-        return ms_decode_uuid(s, size, path);
+        return ms_decode_uuid_from_str(s, size, path);
     }
     else if (MS_UNLIKELY(type->types & MS_TYPE_DECIMAL)) {
         return ms_decode_decimal(s, size, false, path, NULL);
@@ -13487,6 +13499,10 @@ mpack_decode_bin(
     else if (type->types & MS_TYPE_BYTEARRAY) {
         return PyByteArray_FromStringAndSize(s, size);
     }
+    else if (!self->strict && (type->types & MS_TYPE_UUID)) {
+        return ms_decode_uuid_from_bytes(s, size, path);
+    }
+
     return ms_validation_error("bytes", type, path);
 }
 
@@ -15570,7 +15586,7 @@ json_decode_string(JSONDecoderState *self, TypeNode *type, PathNode *path) {
         return ms_decode_timedelta(view, size, type, path, self->strict);
     }
     else if (MS_UNLIKELY(type->types & MS_TYPE_UUID)) {
-        return ms_decode_uuid(view, size, path);
+        return ms_decode_uuid_from_str(view, size, path);
     }
     else if (MS_UNLIKELY(type->types & MS_TYPE_DECIMAL)) {
         return ms_decode_decimal(view, size, is_ascii, path, NULL);
@@ -15608,7 +15624,7 @@ json_decode_dict_key_fallback(
         return ms_decode_str_enum_or_literal(view, size, type, path);
     }
     else if (type->types & MS_TYPE_UUID) {
-        return ms_decode_uuid(view, size, path);
+        return ms_decode_uuid_from_str(view, size, path);
     }
     else if (type->types & MS_TYPE_DATETIME) {
         return ms_decode_datetime_from_str(view, size, type, path, self->strict);
@@ -18815,7 +18831,7 @@ convert_str_uncommon(
         (type->types & MS_TYPE_UUID)
         && !(self->builtin_types & MS_BUILTIN_UUID)
     ) {
-        return ms_decode_uuid(view, size, path);
+        return ms_decode_uuid_from_str(view, size, path);
     }
     else if (
         (type->types & MS_TYPE_DECIMAL)
@@ -18890,6 +18906,11 @@ convert_bytes(
         }
         return PyByteArray_FromObject(obj);
     }
+    if (!self->strict && (type->types & MS_TYPE_UUID)) {
+        return ms_decode_uuid_from_bytes(
+            PyBytes_AS_STRING(obj), PyBytes_GET_SIZE(obj), path
+        );
+    }
     return ms_validation_error("bytes", type, path);
 }
 
@@ -18906,6 +18927,11 @@ convert_bytearray(
             return obj;
         }
         return PyBytes_FromObject(obj);
+    }
+    if (!self->strict && (type->types & MS_TYPE_UUID)) {
+        return ms_decode_uuid_from_bytes(
+            PyByteArray_AS_STRING(obj), PyByteArray_GET_SIZE(obj), path
+        );
     }
     return ms_validation_error("bytes", type, path);
 }

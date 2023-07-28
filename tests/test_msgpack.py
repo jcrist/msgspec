@@ -8,6 +8,7 @@ import math
 import pickle
 import struct
 import sys
+import uuid
 from typing import (
     Any,
     Dict,
@@ -1980,3 +1981,20 @@ class TestRaw:
         s = msgspec.msgpack.encode({"x": [1, 2]})
         res = msgspec.msgpack.decode(s, type=Test, dec_hook=dec_hook)
         assert res == Test(Custom(1, 2))
+
+
+class TestUUID:
+    def test_lax_uuid(self):
+        sol = uuid.uuid4()
+        msg = msgspec.msgpack.encode(sol.bytes)
+        res = msgspec.msgpack.decode(msg, type=uuid.UUID, strict=False)
+        assert res == sol
+
+        bad_msg = msgspec.msgpack.encode(b"x" * 8)
+        with pytest.raises(msgspec.ValidationError, match="Invalid UUID bytes"):
+            msgspec.msgpack.decode(bad_msg, type=uuid.UUID, strict=False)
+
+        with pytest.raises(
+            msgspec.ValidationError, match="Expected `uuid`, got `bytes`"
+        ):
+            msgspec.msgpack.decode(msg, type=uuid.UUID)
