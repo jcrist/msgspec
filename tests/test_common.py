@@ -3402,20 +3402,15 @@ class TestUUID:
         assert res == u
         assert res.is_safe == u.is_safe
 
-    def test_decode_uuid_from_bytes_lax(self):
+    def test_decode_uuid_from_bytes(self):
         sol = uuid.uuid4()
         msg = msgspec.msgpack.encode(sol.bytes)
-        res = msgspec.msgpack.decode(msg, type=uuid.UUID, strict=False)
+        res = msgspec.msgpack.decode(msg, type=uuid.UUID)
         assert res == sol
 
         bad_msg = msgspec.msgpack.encode(b"x" * 8)
         with pytest.raises(msgspec.ValidationError, match="Invalid UUID bytes"):
-            msgspec.msgpack.decode(bad_msg, type=uuid.UUID, strict=False)
-
-        with pytest.raises(
-            msgspec.ValidationError, match="Expected `uuid`, got `bytes`"
-        ):
-            msgspec.msgpack.decode(msg, type=uuid.UUID)
+            msgspec.msgpack.decode(bad_msg, type=uuid.UUID)
 
     @pytest.mark.parametrize(
         "uuid_str",
