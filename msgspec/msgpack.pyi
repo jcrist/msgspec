@@ -59,11 +59,13 @@ class Decoder(Generic[T]):
 class Encoder:
     enc_hook: enc_hook_sig
     decimal_format: Literal["string", "number"]
+    uuid_format: Literal["canonical", "hex", "bytes"]
     def __init__(
         self,
         *,
         enc_hook: enc_hook_sig = None,
         decimal_format: Literal["string", "number"] = "string",
+        uuid_format: Literal["canonical", "hex", "bytes"] = "canonical",
     ): ...
     def encode(self, obj: Any) -> bytes: ...
     def encode_into(
