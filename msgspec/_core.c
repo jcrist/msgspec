@@ -13585,7 +13585,7 @@ mpack_decode_bin(
     else if (type->types & MS_TYPE_BYTEARRAY) {
         return PyByteArray_FromStringAndSize(s, size);
     }
-    else if (!self->strict && (type->types & MS_TYPE_UUID)) {
+    else if (type->types & MS_TYPE_UUID) {
         return ms_decode_uuid_from_bytes(s, size, path);
     }
 
@@ -18992,7 +18992,10 @@ convert_bytes(
         }
         return PyByteArray_FromObject(obj);
     }
-    if (!self->strict && (type->types & MS_TYPE_UUID)) {
+    if (
+            (type->types & MS_TYPE_UUID) &&
+            !(self->builtin_types & MS_BUILTIN_UUID)
+    ) {
         return ms_decode_uuid_from_bytes(
             PyBytes_AS_STRING(obj), PyBytes_GET_SIZE(obj), path
         );
@@ -19014,7 +19017,10 @@ convert_bytearray(
         }
         return PyBytes_FromObject(obj);
     }
-    if (!self->strict && (type->types & MS_TYPE_UUID)) {
+    if (
+            (type->types & MS_TYPE_UUID) &&
+            !(self->builtin_types & MS_BUILTIN_UUID)
+    ) {
         return ms_decode_uuid_from_bytes(
             PyByteArray_AS_STRING(obj), PyByteArray_GET_SIZE(obj), path
         );

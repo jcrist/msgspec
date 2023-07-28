@@ -519,41 +519,25 @@ The format may be selected by passing it to ``uuid_format`` when creating an
   128-bit integer representation (same as ``uuid.bytes``). This is only supported
   by the MessagePack encoder.
 
-When decoding, both ``canonical`` and ``hex`` formats are supported by all
-protocols.
+When decoding, any of the above formats are accepted.
 
 .. code-block:: python
 
     >>> enc = msgspec.json.Encoder(uuid_format="hex")
 
-    >>> enc.encode(u)
+    >>> uuid_hex = enc.encode(u)
+
+    >>> uuid_hex
     b'"c4524ac0e81e4aa8a5950aec605a659a"'
 
-    >>> u.hex
-    "c4524ac0e81e4aa8a5950aec605a659a"
-
-    >>> msgspec.json.decode(b'"c4524ac0e81e4aa8a5950aec605a659a"', type=uuid.UUID)
+    >>> msgspec.json.decode(uuid_hex, type=uuid.UUID)
     UUID('c4524ac0-e81e-4aa8-a595-0aec605a659a')
-
-Additionally, if ``strict=False`` is specified, the ``bytes`` format may be
-decoded by the MessagePack decoder. See :ref:`strict-vs-lax` for more
-information.
-
-.. code-block:: python
 
     >>> enc = msgspec.msgpack.Encoder(uuid_format="bytes")
 
-    >>> msg = enc.encode(u)
+    >>> uuid_bytes = enc.encode(u)
 
-    >>> msg
-    b'\xc4\x10\xc4RJ\xc0\xe8\x1eJ\xa8\xa5\x95\n\xec`Ze\x9a'
-
-    >>> msgspec.msgpack.decode(msg, type=uuid.UUID)
-    Traceback (most recent call last):
-      File "<stdin>", line 1, in <module>
-    msgspec.ValidationError: Expected `uuid`, got `bytes`
-
-    >>> msgspec.msgpack.decode(msg, type=uuid.UUID, strict=False)
+    >>> msgspec.msgpack.decode(uuid_bytes, type=uuid.UUID)
     UUID('c4524ac0-e81e-4aa8-a595-0aec605a659a')
 
 
