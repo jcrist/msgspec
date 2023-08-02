@@ -5,7 +5,7 @@
     <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Structs" href="structs.html" /><link rel="prev" title="Usage" href="usage.html" />
 
-    <!-- Generated with Sphinx 7.1.1 and Furo 2023.07.26 -->
+    <!-- Generated with Sphinx 7.1.2 and Furo 2023.07.26 -->
         <title>Supported Types</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=92fd9be5" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=135e06be" />
@@ -941,8 +941,6 @@ already using them elsewhere, or if you have downstream code that requires a
 <section id="dataclasses">
 <h2><code class="docutils literal notranslate"><span class="pre">dataclasses</span></code><a class="headerlink" href="#dataclasses" title="Permalink to this heading">#</a></h2>
 <p><a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#module-dataclasses" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses</span></code></a> map to objects/maps in all protocols.</p>
-<p>During encoding, all attributes without a leading underscore (<code class="docutils literal notranslate"><span class="pre">&quot;_&quot;</span></code>) are
-encoded.</p>
 <p>During decoding, any extra fields are ignored. An error is raised if a field’s
 type doesn’t match or if any required fields are missing.</p>
 <p>If a <code class="docutils literal notranslate"><span class="pre">__post_init__</span></code> method is defined on the dataclass, it is called after
