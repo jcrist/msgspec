@@ -419,18 +419,6 @@ class TestToBuiltins:
         assert res == {"x": 1, "y": 2}
 
     @pytest.mark.parametrize("slots", slots_params)
-    def test_dataclass_skip_leading_underscore(self, slots):
-        @dataclass(**({"slots": True} if slots else {}))
-        class Ex:
-            x: int
-            y: int
-            _z: int
-
-        x = Ex(1, 2, 3)
-        res = to_builtins(x)
-        assert res == {"x": 1, "y": 2}
-
-    @pytest.mark.parametrize("slots", slots_params)
     def test_dataclass_unsupported_value(self, slots):
         @dataclass(**({"slots": True} if slots else {}))
         class Ex:
@@ -452,6 +440,20 @@ class TestToBuiltins:
 
         msg = Ex(1, FruitInt.APPLE)
         assert to_builtins(msg) == {"x": 1, "y": -1}
+
+    @pytest.mark.parametrize("slots", [True, False])
+    def test_attrs_skip_leading_underscore(self, slots):
+        attrs = pytest.importorskip("attrs")
+
+        @attrs.define(slots=slots)
+        class Ex:
+            x: int
+            y: int
+            _z: int
+
+        x = Ex(1, 2, 3)
+        res = to_builtins(x)
+        assert res == {"x": 1, "y": 2}
 
     @pytest.mark.parametrize("kind", ["struct", "dataclass", "attrs"])
     def test_unset_fields(self, kind):

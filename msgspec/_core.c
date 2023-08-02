@@ -8339,6 +8339,126 @@ static PyTypeObject Ext_Type = {
     .tp_methods = Ext_methods
 };
 
+/*************************************************************************
+ * Dataclass Utilities                                                   *
+ *************************************************************************/
+
+typedef struct {
+    PyObject *obj;
+    PyObject *fields;
+    PyObject *dict;
+    Py_ssize_t fields_pos;
+    Py_ssize_t dict_pos;
+    bool fastpath;
+    bool standard_getattr;
+} DataclassIter;
+
+static bool
+dataclass_iter_setup(DataclassIter *iter, PyObject *obj, PyObject *fields) {
+    iter->dict = NULL;
+
+    if (MS_UNLIKELY(!PyDict_CheckExact(fields))) {
+        PyErr_Format(PyExc_RuntimeError, "%R.__dataclass_fields__ is not a dict", obj);
+        return false;
+    }
+
+    iter->obj = obj;
+    iter->fields = fields;
+    iter->fields_pos = 0;
+    iter->dict_pos = 0;
+    iter->fastpath = false;
+    iter->standard_getattr = (
+        Py_TYPE(obj)->tp_getattro == PyObject_GenericGetAttr
+    );
+    if (iter->standard_getattr) {
+        iter->dict = PyObject_GenericGetDict(obj, NULL);
+        if (iter->dict == NULL) {
+            PyErr_Clear();
+        }
+        else if (PyDict_GET_SIZE(fields) == PyDict_GET_SIZE(iter->dict)) {
+            iter->fastpath = true;
+        }
+    }
+    return true;
+}
+
+static void
+dataclass_iter_cleanup(DataclassIter *iter) {
+    Py_XDECREF(iter->dict);
+}
+
+static MS_INLINE bool
+dataclass_iter_next(
+    DataclassIter *iter,
+    PyObject **field_name,
+    PyObject **field_val
+) {
+    PyObject *name, *key, *val;
+
+next_field:
+    if (!PyDict_Next(iter->fields, &(iter->fields_pos), &name, NULL)) {
+        return false;
+    }
+    if (MS_UNLIKELY(!PyUnicode_CheckExact(name))) goto next_field;
+
+    if (MS_LIKELY(iter->fastpath)) {
+        if (
+            PyDict_Next(iter->dict, &(iter->dict_pos), &key, &val) &&
+            (key == name)
+        ) {
+            Py_INCREF(val);
+            goto found_val;
+        }
+        else {
+            iter->fastpath = false;
+        }
+    }
+
+    PyTypeObject *type = Py_TYPE(iter->obj);
+
+    if (MS_LIKELY(iter->standard_getattr)) {
+        if (iter->dict != NULL) {
+            /* We know it's already hashed, it came from a dict */
+            Py_hash_t hash = ((PyASCIIObject *)name)->hash;
+            val = _PyDict_GetItem_KnownHash(iter->dict, name, hash);
+            if (val != NULL) {
+                Py_INCREF(val);
+                goto found_val;
+            }
+        }
+
+        PyObject *descr = _PyType_Lookup(type, name);
+        if (descr != NULL) {
+            descrgetfunc get = Py_TYPE(descr)->tp_descr_get;
+            descrsetfunc set = Py_TYPE(descr)->tp_descr_set;
+            if (get != NULL && set != NULL) {
+                Py_INCREF(descr);
+                val = get(descr, iter->obj, (PyObject *)type);
+                Py_DECREF(descr);
+                if (val != NULL) goto found_val;
+                PyErr_Clear();
+            }
+        }
+        goto next_field;
+    }
+    else {
+        val = type->tp_getattro(iter->obj, name);
+        if (val == NULL) {
+            PyErr_Clear();
+            goto next_field;
+        }
+        goto found_val;
+    }
+
+found_val:
+    if (MS_UNLIKELY(val == UNSET)) {
+        Py_DECREF(val);
+        goto next_field;
+    }
+    *field_name = name;
+    *field_val = val;
+    return true;
+}
 
 /*************************************************************************
  * Shared Encoder structs/methods                                        *
@@ -11380,6 +11500,57 @@ error:
     return status;
 }
 
+static int
+mpack_encode_dataclass(EncoderState *self, PyObject *obj, PyObject *fields)
+{
+    if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
+
+    int status = -1;
+    DataclassIter iter;
+    if (!dataclass_iter_setup(&iter, obj, fields)) goto cleanup;
+
+    /* Cache header offset in case we need to adjust the header after writing */
+    Py_ssize_t header_offset = self->output_len;
+    Py_ssize_t max_size = PyDict_GET_SIZE(fields);
+    if (mpack_encode_map_header(self, max_size, "objects") < 0) goto cleanup;
+
+    Py_ssize_t size = 0;
+    PyObject *field, *val;
+    while (dataclass_iter_next(&iter, &field, &val)) {
+        size++;
+        Py_ssize_t field_len;
+        const char* field_buf = unicode_str_and_size(field, &field_len);
+        bool errored = (
+            (field_buf == NULL) ||
+            (mpack_encode_cstr(self, field_buf, field_len) < 0) ||
+            (mpack_encode(self, val) < 0)
+        );
+        Py_DECREF(val);
+        if (errored) goto cleanup;
+    }
+
+    if (MS_UNLIKELY(size != max_size)) {
+        /* Some fields were skipped, need to adjust header. We write the header
+         * using the width type of `max_size`, but the value of `size`. */
+        char *header_loc = self->output_buffer_raw + header_offset;
+        if (max_size < 16) {
+            *header_loc = MP_FIXMAP | size;
+        } else if (max_size < (1 << 16)) {
+            *header_loc++ = MP_MAP16;
+            _msgspec_store16(header_loc, (uint16_t)size);
+        } else {
+            *header_loc++ = MP_MAP32;
+            _msgspec_store32(header_loc, (uint32_t)size);
+        }
+    }
+    status = 0;
+
+cleanup:
+    Py_LeaveRecursiveCall();
+    dataclass_iter_cleanup(&iter);
+    return status;
+}
+
 /* This method encodes an object as a map, with fields taken from `__dict__`,
  * followed by all `__slots__` in the class hierarchy. Any unset slots are
  * ignored, and `__weakref__` is not included. */
@@ -11841,11 +12012,19 @@ mpack_encode_uncommon(EncoderState *self, PyTypeObject *type, PyObject *obj)
     else if (PyAnySet_Check(obj)) {
         return mpack_encode_set(self, obj);
     }
-    else if (type->tp_dict != NULL && PyDict_Contains(type->tp_dict, self->mod->str___dataclass_fields__)) {
-        return mpack_encode_object(self, obj);
-    }
-    else if (type->tp_dict != NULL && PyDict_Contains(type->tp_dict, self->mod->str___attrs_attrs__)) {
-        return mpack_encode_object(self, obj);
+    else if (type->tp_dict != NULL) {
+        PyObject *fields = PyObject_GetAttr(obj, self->mod->str___dataclass_fields__);
+        if (fields != NULL) {
+            int status = mpack_encode_dataclass(self, obj, fields);
+            Py_DECREF(fields);
+            return status;
+        }
+        else {
+            PyErr_Clear();
+        }
+        if (PyDict_Contains(type->tp_dict, self->mod->str___attrs_attrs__)) {
+            return mpack_encode_object(self, obj);
+        }
     }
 
     if (self->enc_hook != NULL) {
@@ -12521,6 +12700,47 @@ cleanup:
     return status;
 }
 
+static int
+json_encode_dataclass(EncoderState *self, PyObject *obj, PyObject *fields)
+{
+    if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
+
+    int status = -1;
+    DataclassIter iter;
+    if (!dataclass_iter_setup(&iter, obj, fields)) goto cleanup;
+
+    if (ms_write(self, "{", 1) < 0) goto cleanup;
+    Py_ssize_t start_offset = self->output_len;
+
+    PyObject *field, *val;
+    while (dataclass_iter_next(&iter, &field, &val)) {
+        Py_ssize_t field_len;
+        const char* field_buf = unicode_str_and_size(field, &field_len);
+        bool errored = (
+            (field_buf == NULL) ||
+            (json_encode_cstr(self, field_buf, field_len) < 0) ||
+            (ms_write(self, ":", 1) < 0) ||
+            (json_encode(self, val) < 0) ||
+            (ms_write(self, ",", 1) < 0)
+        );
+        Py_DECREF(val);
+        if (errored) goto cleanup;
+    }
+
+    /* If any fields written, overwrite trailing comma with }, otherwise append } */
+    if (MS_LIKELY(self->output_len != start_offset)) {
+        *(self->output_buffer_raw + self->output_len - 1) = '}';
+        status = 0;
+    }
+    else {
+        status = ms_write(self, "}", 1);
+    }
+
+cleanup:
+    Py_LeaveRecursiveCall();
+    dataclass_iter_cleanup(&iter);
+    return status;
+}
 
 /* This method encodes an object as a map, with fields taken from `__dict__`,
  * followed by all `__slots__` in the class hierarchy. Any unset slots are
@@ -12762,11 +12982,19 @@ json_encode_uncommon(EncoderState *self, PyTypeObject *type, PyObject *obj) {
     else if (PyAnySet_Check(obj)) {
         return json_encode_set(self, obj);
     }
-    else if (type->tp_dict != NULL && PyDict_Contains(type->tp_dict, self->mod->str___dataclass_fields__)) {
-        return json_encode_object(self, obj);
-    }
-    else if (type->tp_dict != NULL && PyDict_Contains(type->tp_dict, self->mod->str___attrs_attrs__)) {
-        return json_encode_object(self, obj);
+    else if (type->tp_dict != NULL) {
+        PyObject *fields = PyObject_GetAttr(obj, self->mod->str___dataclass_fields__);
+        if (fields != NULL) {
+            int status = json_encode_dataclass(self, obj, fields);
+            Py_DECREF(fields);
+            return status;
+        }
+        else {
+            PyErr_Clear();
+        }
+        if (PyDict_Contains(type->tp_dict, self->mod->str___attrs_attrs__)) {
+            return json_encode_object(self, obj);
+        }
     }
 
     if (self->enc_hook != NULL) {
@@ -18434,6 +18662,41 @@ cleanup:
     return out;
 }
 
+static PyObject *
+to_builtins_dataclass(ToBuiltinsState *self, PyObject *obj, PyObject *fields)
+{
+    if (Py_EnterRecursiveCall(" while serializing an object")) return NULL;
+
+    bool ok = false;
+    PyObject *out = NULL;
+    DataclassIter iter;
+    if (!dataclass_iter_setup(&iter, obj, fields)) goto cleanup;
+
+    out = PyDict_New();
+    if (out == NULL) goto cleanup;
+
+    PyObject *field, *val;
+    while (dataclass_iter_next(&iter, &field, &val)) {
+        PyObject *val2 = to_builtins(self, val, false);
+        int status = (
+            (val2 == NULL) ? -1 : PyDict_SetItem(out, field, val2)
+        );
+        Py_DECREF(val);
+        Py_XDECREF(val2);
+        if (status < 0) goto cleanup;
+    }
+    ok = true;
+
+cleanup:
+    Py_LeaveRecursiveCall();
+    dataclass_iter_cleanup(&iter);
+    if (!ok) {
+        Py_XDECREF(out);
+        return NULL;
+    }
+    return out;
+}
+
 static PyObject*
 to_builtins_object(ToBuiltinsState *self, PyObject *obj) {
     bool ok = false;
@@ -18588,13 +18851,22 @@ to_builtins(ToBuiltinsState *self, PyObject *obj, bool is_key) {
     else if (PyAnySet_Check(obj)) {
         return to_builtins_set(self, obj, is_key);
     }
-    else if (type->tp_dict != NULL && PyDict_Contains(type->tp_dict, self->mod->str___dataclass_fields__)) {
-        return to_builtins_object(self, obj);
+    else if (type->tp_dict != NULL) {
+        PyObject *fields = PyObject_GetAttr(obj, self->mod->str___dataclass_fields__);
+        if (fields != NULL) {
+            PyObject *out = to_builtins_dataclass(self, obj, fields);
+            Py_DECREF(fields);
+            return out;
+        }
+        else {
+            PyErr_Clear();
+        }
+        if (PyDict_Contains(type->tp_dict, self->mod->str___attrs_attrs__)) {
+            return to_builtins_object(self, obj);
+        }
     }
-    else if (type->tp_dict != NULL && PyDict_Contains(type->tp_dict, self->mod->str___attrs_attrs__)) {
-        return to_builtins_object(self, obj);
-    }
-    else if (self->enc_hook != NULL) {
+
+    if (self->enc_hook != NULL) {
         PyObject *out = NULL;
         PyObject *temp;
         temp = CALL_ONE_ARG(self->enc_hook, obj);

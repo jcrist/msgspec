@@ -721,7 +721,7 @@ respective types (if specified).
     msgspec.ValidationError: Expected `int`, got `str` - at `$[...]`
 
 ``TypedDict``
---------------------
+-------------
 
 `typing.TypedDict` provides a way to specify different types for different
 values in a ``dict``, rather than a single value type (the ``int`` in
@@ -766,9 +766,6 @@ already using them elsewhere, or if you have downstream code that requires a
 ---------------
 
 `dataclasses` map to objects/maps in all protocols.
-
-During encoding, all attributes without a leading underscore (``"_"``) are
-encoded.
 
 During decoding, any extra fields are ignored. An error is raised if a field's
 type doesn't match or if any required fields are missing.
