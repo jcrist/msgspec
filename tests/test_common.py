@@ -15,6 +15,7 @@ from collections import namedtuple
 from dataclasses import dataclass, field
 from datetime import timedelta
 from typing import (
+    ClassVar,
     Deque,
     Dict,
     Final,
@@ -2336,6 +2337,16 @@ class TestNamedTuple:
 
 
 class TestDataclass:
+    def test_encode_dataclass_err_invalid_dataclass_fields(self, proto):
+        @dataclass
+        class Ex:
+            x: int
+
+        Ex.__dataclass_fields__ = ()
+
+        with pytest.raises(RuntimeError, match="is not a dict"):
+            proto.encode(Ex(1))
+
     def test_encode_dataclass_no_slots(self, proto):
         @dataclass
         class Test:
@@ -2411,19 +2422,79 @@ class TestDataclass:
         res = proto.decode(proto.encode(x))
         assert res == {"x": 1, "y": 2}
 
-    @py310_plus
-    @pytest.mark.parametrize("slots", [True, False])
-    def test_encode_dataclass_skip_leading_underscore(self, proto, slots):
-        @dataclass(slots=slots)
+    def test_encode_dataclass_classvars_ignored(self, proto):
+        @dataclass
+        class Ex:
+            a: int
+            b: ClassVar[int] = 2
+
+        msg = proto.encode(Ex(a=1))
+        assert msg == proto.encode({"a": 1})
+
+    def test_encode_dataclass_extra_fields_ignored(self, proto):
+        @dataclass
+        class Ex:
+            a: int
+            b: int
+
+        x = Ex(1, 2)
+        x.c = 3
+
+        msg = proto.encode(Ex(1, 2))
+        assert msg == proto.encode({"a": 1, "b": 2})
+
+    @pytest.mark.parametrize("order", ["acb", "bca", "cba"])
+    def test_encode_dataclass_dict_reordered(self, proto, order):
+        @dataclass
+        class Ex:
+            a: int
+            b: int
+            c: int
+
+        x = Ex(1, 2, 3)
+        x.__dict__.clear()
+        x.__dict__.update(dict(zip(order, range(3))))
+        res = proto.encode(x)
+        sol = proto.encode(dict(sorted(zip(order, range(3)))))
+        assert res == sol
+
+    @pytest.mark.parametrize("present", ["ab", "a", "b", ""])
+    def test_encode_dataclass_ducktyped(self, proto, present):
+        """edgedb.Object looks like a dataclass, but the implementation doesn't
+        match the one from dataclasses. This ducktyped implementation tries to
+        mirror the one in edgedb for testing purposes."""
+
+        @dataclass
+        class Ex:
+            a: int
+            b: int
+
+        msg = {k: v for k, v in zip("ab", range(2)) if k in present}
+
+        class Ex2:
+            def __getattr__(self, key):
+                return msg[key]
+
+            __dataclass_fields__ = {}
+
+        x = Ex2()
+        x.__dataclass_fields__ = Ex.__dataclass_fields__
+        res = proto.encode(x)
+        sol = proto.encode(msg)
+        assert res == sol
+
+    @pytest.mark.parametrize("field", "xyz")
+    def test_encode_dataclass_invalid_field_errors(self, proto, field):
+        @dataclass
         class Test:
             x: int
             y: int
-            _z: int
+            z: int
 
         x = Test(1, 2, 3)
-        res = proto.encode(x)
-        sol = proto.encode({"x": 1, "y": 2})
-        assert res == sol
+        setattr(x, field, object())
+        with pytest.raises(TypeError, match="unsupported"):
+            proto.encode(x)
 
     def test_type_cached(self, proto):
         @dataclass
