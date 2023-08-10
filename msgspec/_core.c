@@ -11092,6 +11092,22 @@ done:
     return ms_post_decode_float(val, type, path, strict, true);
 }
 
+static MS_NOINLINE PyObject *
+json_float_hook(
+    const char *buf, Py_ssize_t size, PathNode *path, PyObject *float_hook
+) {
+    PyObject *str = PyUnicode_New(size, 127);
+    if (str == NULL) return NULL;
+    memcpy(ascii_get_buffer(str), buf, size);
+    PyObject *out = CALL_ONE_ARG(float_hook, str);
+    Py_DECREF(str);
+    if (out == NULL) {
+        ms_maybe_wrap_validation_error(path);
+        return NULL;
+    }
+    return out;
+}
+
 static MS_INLINE PyObject *
 parse_number_inline(
     const unsigned char *p,
@@ -11101,6 +11117,7 @@ parse_number_inline(
     TypeNode *type,
     PathNode *path,
     bool strict,
+    PyObject *float_hook,
     bool from_str
 ) {
     uint64_t mantissa = 0;
@@ -11286,6 +11303,9 @@ end_parsing:
             (char *)start, p - start, true, path, NULL
         );
     }
+    else if (MS_UNLIKELY(float_hook != NULL && type->types & MS_TYPE_ANY)) {
+        return json_float_hook((char *)start, p - start, path, float_hook);
+    }
     else {
         if (MS_UNLIKELY(exponent > 288 || exponent < -307)) {
             /* Exponent is out of bounds */
@@ -11363,6 +11383,7 @@ maybe_parse_number(
         type,
         path,
         strict,
+        NULL,
         true
     );
     return (*out != NULL || errmsg == NULL);
@@ -15403,6 +15424,7 @@ typedef struct JSONDecoderState {
     /* Configuration */
     TypeNode *type;
     PyObject *dec_hook;
+    PyObject *float_hook;
     bool strict;
 
     /* Temporary scratch space */
@@ -15425,10 +15447,11 @@ typedef struct JSONDecoder {
     TypeNode *type;
     char strict;
     PyObject *dec_hook;
+    PyObject *float_hook;
 } JSONDecoder;
 
 PyDoc_STRVAR(JSONDecoder__doc__,
-"Decoder(type='Any', *, strict=True, dec_hook=None)\n"
+"Decoder(type='Any', *, strict=True, dec_hook=None, float_hook=None)\n"
 "--\n"
 "\n"
 "A JSON decoder.\n"
@@ -15449,19 +15472,28 @@ PyDoc_STRVAR(JSONDecoder__doc__,
 "    signature ``dec_hook(type: Type, obj: Any) -> Any``, where ``type`` is the\n"
 "    expected message type, and ``obj`` is the decoded representation composed\n"
 "    of only basic JSON types. This hook should transform ``obj`` into type\n"
-"    ``type``, or raise a ``NotImplementedError`` if unsupported."
+"    ``type``, or raise a ``NotImplementedError`` if unsupported.\n"
+"float_hook : callable, optional\n"
+"    An optional callback for handling decoding untyped float literals. Should\n"
+"    have the signature ``float_hook(val: str) -> Any``, where ``val`` is the\n"
+"    raw string value of the JSON float. This hook is called to decode any\n"
+"    \"untyped\" float value (e.g. ``typing.Any`` typed). The default is\n"
+"    equivalent to ``float_hook=float``, where all untyped JSON floats are\n"
+"    decoded as python floats. Specifying ``float_hook=decimal.Decimal``\n"
+"    will decode all untyped JSON floats as decimals instead."
 );
 static int
 JSONDecoder_init(JSONDecoder *self, PyObject *args, PyObject *kwds)
 {
-    char *kwlist[] = {"type", "strict", "dec_hook", NULL};
+    char *kwlist[] = {"type", "strict", "dec_hook", "float_hook", NULL};
     MsgspecState *st = msgspec_get_global_state();
     PyObject *type = st->typing_any;
     PyObject *dec_hook = NULL;
+    PyObject *float_hook = NULL;
     int strict = 1;
 
     if (!PyArg_ParseTupleAndKeywords(
-        args, kwds, "|O$pO", kwlist, &type, &strict, &dec_hook)
+        args, kwds, "|O$pOO", kwlist, &type, &strict, &dec_hook, &float_hook)
     ) {
         return -1;
     }
@@ -15478,6 +15510,19 @@ JSONDecoder_init(JSONDecoder *self, PyObject *args, PyObject *kwds)
         Py_INCREF(dec_hook);
     }
     self->dec_hook = dec_hook;
+
+    /* Handle float_hook */
+    if (float_hook == Py_None) {
+        float_hook = NULL;
+    }
+    if (float_hook != NULL) {
+        if (!PyCallable_Check(float_hook)) {
+            PyErr_SetString(PyExc_TypeError, "float_hook must be callable");
+            return -1;
+        }
+        Py_INCREF(float_hook);
+    }
+    self->float_hook = float_hook;
 
     /* Handle strict */
     self->strict = strict;
@@ -15498,6 +15543,7 @@ JSONDecoder_traverse(JSONDecoder *self, visitproc visit, void *arg)
     if (out != 0) return out;
     Py_VISIT(self->orig_type);
     Py_VISIT(self->dec_hook);
+    Py_VISIT(self->float_hook);
     return 0;
 }
 
@@ -15508,6 +15554,7 @@ JSONDecoder_dealloc(JSONDecoder *self)
     TypeNode_Free(self->type);
     Py_XDECREF(self->orig_type);
     Py_XDECREF(self->dec_hook);
+    Py_XDECREF(self->float_hook);
     Py_TYPE(self)->tp_free((PyObject *)self);
 }
 
@@ -17551,7 +17598,7 @@ json_maybe_decode_number(JSONDecoderState *self, TypeNode *type, PathNode *path)
     PyObject *out = parse_number_inline(
         self->input_pos, self->input_end,
         &pout, &errmsg,
-        type, path, self->strict, false
+        type, path, self->strict, self->float_hook, false
     );
     self->input_pos = (unsigned char *)pout;
 
@@ -18014,6 +18061,7 @@ msgspec_json_format(PyObject *self, PyObject *args, PyObject *kwargs)
 
         /* Init decoder */
         dec.dec_hook = NULL;
+        dec.float_hook = NULL;
         dec.type = NULL;
         dec.scratch = NULL;
         dec.scratch_capacity = 0;
@@ -18095,6 +18143,7 @@ JSONDecoder_decode(JSONDecoder *self, PyObject *const *args, Py_ssize_t nargs)
         .type = self->type,
         .strict = self->strict,
         .dec_hook = self->dec_hook,
+        .float_hook = self->float_hook,
         .scratch = NULL,
         .scratch_capacity = 0,
         .scratch_len = 0
@@ -18161,6 +18210,7 @@ JSONDecoder_decode_lines(JSONDecoder *self, PyObject *const *args, Py_ssize_t na
         .type = self->type,
         .strict = self->strict,
         .dec_hook = self->dec_hook,
+        .float_hook = self->float_hook,
         .scratch = NULL,
         .scratch_capacity = 0,
         .scratch_len = 0
@@ -18237,6 +18287,7 @@ static PyMemberDef JSONDecoder_members[] = {
     {"type", T_OBJECT_EX, offsetof(JSONDecoder, orig_type), READONLY, "The Decoder type"},
     {"strict", T_BOOL, offsetof(JSONDecoder, strict), READONLY, "The Decoder strict setting"},
     {"dec_hook", T_OBJECT, offsetof(JSONDecoder, dec_hook), READONLY, "The Decoder dec_hook"},
+    {"float_hook", T_OBJECT, offsetof(JSONDecoder, float_hook), READONLY, "The Decoder float_hook"},
     {NULL},
 };
 
@@ -18334,6 +18385,7 @@ msgspec_json_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyO
     JSONDecoderState state = {
         .strict = strict,
         .dec_hook = dec_hook,
+        .float_hook = NULL,
         .scratch = NULL,
         .scratch_capacity = 0,
         .scratch_len = 0

@@ -18,6 +18,7 @@ T = TypeVar("T")
 
 enc_hook_sig = Optional[Callable[[Any], Any]]
 dec_hook_sig = Optional[Callable[[type, Any], Any]]
+float_hook_sig = Optional[Callable[[str], Any]]
 
 class Encoder:
     enc_hook: enc_hook_sig
@@ -41,6 +42,7 @@ class Decoder(Generic[T]):
     type: Type[T]
     strict: bool
     dec_hook: dec_hook_sig
+    float_hook: float_hook_sig
 
     @overload
     def __init__(
@@ -48,6 +50,7 @@ class Decoder(Generic[T]):
         *,
         strict: bool = True,
         dec_hook: dec_hook_sig = None,
+        float_hook: float_hook_sig = None,
     ) -> None: ...
     @overload
     def __init__(
@@ -56,6 +59,7 @@ class Decoder(Generic[T]):
         *,
         strict: bool = True,
         dec_hook: dec_hook_sig = None,
+        float_hook: float_hook_sig = None,
     ) -> None: ...
     @overload
     def __init__(
@@ -64,6 +68,7 @@ class Decoder(Generic[T]):
         *,
         strict: bool = True,
         dec_hook: dec_hook_sig = None,
+        float_hook: float_hook_sig = None,
     ) -> None: ...
     def decode(self, data: Union[bytes, str]) -> T: ...
     def decode_lines(self, data: Union[bytes, str]) -> list[T]: ...

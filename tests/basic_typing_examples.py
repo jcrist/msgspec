@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import datetime
+import decimal
 import pickle
 from typing import Any, Dict, Final, List, Type, Union
 
@@ -824,6 +825,14 @@ def check_json_decode_dec_hook() -> None:
 
     msgspec.json.decode(b"test", dec_hook=dec_hook)
     msgspec.json.Decoder(dec_hook=dec_hook)
+
+
+def check_json_Decoder_float_hook() -> None:
+    msgspec.json.Decoder(float_hook=None)
+    msgspec.json.Decoder(float_hook=float)
+    dec = msgspec.json.Decoder(float_hook=decimal.Decimal)
+    if dec.float_hook is not None:
+        dec.float_hook("1.5")
 
 
 def check_json_Decoder_strict() -> None:
