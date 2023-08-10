@@ -919,16 +919,30 @@ write_exponent(int32_t k, char* buf) {
 
 /* Write a double to buf, requires 24 bytes of space */
 static inline int
-write_f64(double f, char* buf) {
+write_f64(double f, char* buf, bool allow_nonfinite) {
     const uint64_t bits = double_to_bits(f);
     const int sign = ((bits >> (DOUBLE_MANTISSA_BITS + DOUBLE_EXPONENT_BITS)) & 1) != 0;
     const uint64_t ieee_mantissa = bits & ((1ull << DOUBLE_MANTISSA_BITS) - 1);
     const uint32_t ieee_exponent = (uint32_t) ((bits >> DOUBLE_MANTISSA_BITS) & ((1u << DOUBLE_EXPONENT_BITS) - 1));
 
     /* Serialize all non-finite numbers as null */
-    if (ieee_exponent == ((1 << DOUBLE_EXPONENT_BITS) - 1)) {
-        memcpy(buf, "null", 4);
-        return 4;
+    if (MS_UNLIKELY(ieee_exponent == ((1 << DOUBLE_EXPONENT_BITS) - 1))) {
+        if (MS_LIKELY(!allow_nonfinite)) {
+            memcpy(buf, "null", 4);
+            return 4;
+        }
+        else {
+            if (ieee_mantissa == 0) {
+                if (sign) {
+                    memcpy(buf, "-inf", 4);
+                    return 4;
+                }
+                memcpy(buf, "inf", 3);
+                return 3;
+            }
+            memcpy(buf, "nan", 3);
+            return 3;
+        }
     }
 
     if (sign) {

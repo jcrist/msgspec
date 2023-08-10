@@ -3608,12 +3608,15 @@ class TestDecimal:
         s = str(d)
         assert proto.encode(d) == proto.encode(s)
 
-    def test_decode_decimal_str(self, proto):
-        d = decimal.Decimal("1.5")
-        msg = proto.encode(d)
+    @pytest.mark.parametrize(
+        "val", ["1.5", "InF", "-iNf", "iNfInItY", "-InFiNiTy", "NaN"]
+    )
+    def test_decode_decimal_str(self, val, proto):
+        sol = decimal.Decimal(val)
+        msg = proto.encode(sol)
         res = proto.decode(msg, type=decimal.Decimal)
+        assert str(res) == str(sol)
         assert type(res) is decimal.Decimal
-        assert res == d
 
     def test_decode_decimal_str_invalid(self, proto):
         msg = proto.encode("1..5")
