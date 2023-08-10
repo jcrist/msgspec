@@ -1800,11 +1800,12 @@ class TestNamedTuple:
 
 
 class TestDict:
-    def test_encode_dict_raises_non_string_or_int_keys(self):
+    def test_encode_dict_raises_non_string_or_numeric_keys(self):
         with pytest.raises(
-            TypeError, match="Only dicts with str-like or int-like keys are supported"
+            TypeError,
+            match="Only dicts with str-like or number-like keys are supported",
         ):
-            msgspec.json.encode({"a": 1, 2.5: "bad"})
+            msgspec.json.encode({"a": 1, (1, 2): "bad"})
 
     @pytest.mark.parametrize("x", [{}, {"a": 1}, {"a": 1, "b": 2}])
     def test_roundtrip_dict(self, x):
@@ -1896,11 +1897,13 @@ class TestDict:
         "key",
         [
             1,
+            1.5,
             FruitInt.APPLE,
             uuid.uuid4(),
             datetime.datetime.now(),
             datetime.date.today(),
             datetime.datetime.now().time(),
+            datetime.timedelta(1.5),
             b"test",
             Decimal("1.5"),
         ],
@@ -1973,12 +1976,32 @@ class TestDict:
         with pytest.raises(msgspec.ValidationError, match="Invalid enum value 3"):
             dec.decode(b'{"-1": 10, "3": 20}')
 
+    def test_encode_dict_float_key(self):
+        msg = {
+            1.5: 1,
+            -1.5: 2,
+            0.0: 3,
+            float("-inf"): 4,
+            float("inf"): 5,
+            float("nan"): 6,
+        }
+        sol = msgspec.json.encode({str(k): v for k, v in msg.items()})
+        res = msgspec.json.encode(msg)
+        assert res == sol
+
     def test_decode_dict_float_key(self):
         msg = {"1.5": 1, "inf": 2, "-inf": 3, "0": 4, "-1.5e12": 5, "123": 6}
         buf = msgspec.json.encode(msg)
         sol = {float(k): v for k, v in msg.items()}
         res = msgspec.json.decode(buf, type=Dict[float, int])
         assert res == sol
+
+    def test_decode_dict_int_or_float_key(self):
+        buf = b'{"1.5": "a", "123": "b"}'
+        sol = {1.5: "a", 123: "b"}
+        res = msgspec.json.decode(buf, type=Dict[Union[int, float], str])
+        assert res == sol
+        assert type(list(res.keys())[-1]) is int
 
     def test_encode_dict_str_subclass_key(self):
         class mystr(str):

@@ -296,17 +296,13 @@ class TestToBuiltins:
         assert to_builtins({FruitInt.BANANA: 1}, str_keys=True) == {"2": 1}
         assert to_builtins({2: 1}, str_keys=True) == {"2": 1}
 
-        with pytest.raises(
-            TypeError, match="Only dicts with `str` or `int` keys are supported"
-        ):
-            to_builtins({(1, 2): 3}, str_keys=True)
-
     def test_dict_sequence_keys(self):
         msg = {frozenset([1, 2]): 1}
         assert to_builtins(msg) == {(1, 2): 1}
 
         with pytest.raises(
-            TypeError, match="Only dicts with `str` or `int` keys are supported"
+            TypeError,
+            match="Only dicts with str-like or number-like keys are supported",
         ):
             to_builtins(msg, str_keys=True)
 

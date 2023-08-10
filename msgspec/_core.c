@@ -10774,7 +10774,7 @@ ms_decode_decimal_from_float(double val, PathNode *path, MsgspecState *mod) {
         /* For finite values, render as the nearest IEEE754 double in string
          * form, then call decimal.Decimal to parse */
         char buf[24];
-        int n = write_f64(val, buf);
+        int n = write_f64(val, buf, false);
         return ms_decode_decimal(buf, n, true, path, mod);
     }
     else {
@@ -11036,7 +11036,7 @@ parse_number_nonfinite(
     PathNode *path,
     bool strict
 ) {
-    ssize_t size = pend - p;
+    size_t size = pend - p;
     double val;
     if (size == 3) {
         if (
@@ -12565,8 +12565,22 @@ static MS_NOINLINE int
 json_encode_float(EncoderState *self, PyObject *obj) {
     char buf[24];
     double x = PyFloat_AS_DOUBLE(obj);
-    int n = write_f64(x, buf);
+    int n = write_f64(x, buf, false);
     return ms_write(self, buf, n);
+}
+
+static MS_NOINLINE int
+json_encode_float_as_str(EncoderState *self, PyObject *obj) {
+    char buf[24];
+    double x = PyFloat_AS_DOUBLE(obj);
+    int size = write_f64(x, buf, true);
+    if (ms_ensure_space(self, size + 2) < 0) return -1;
+    char *p = self->output_buffer_raw + self->output_len;
+    *p++ = '"';
+    memcpy(p, buf, size);
+    *(p + size) = '"';
+    self->output_len += size + 2;
+    return 0;
 }
 
 static MS_INLINE int
@@ -12940,6 +12954,9 @@ json_encode_dict_key(EncoderState *self, PyObject *obj) {
     if (type == &PyLong_Type) {
         return json_encode_long_as_str(self, obj);
     }
+    else if (type == &PyFloat_Type) {
+        return json_encode_float_as_str(self, obj);
+    }
     else if (Py_TYPE(type) == self->mod->EnumMetaType) {
         return json_encode_enum(self, obj, true);
     }
@@ -12967,7 +12984,7 @@ json_encode_dict_key(EncoderState *self, PyObject *obj) {
     else {
         PyErr_SetString(
             PyExc_TypeError,
-            "Only dicts with str-like or int-like keys are supported"
+            "Only dicts with str-like or number-like keys are supported"
         );
         return -1;
     }
@@ -18560,7 +18577,7 @@ to_builtins_dict(ToBuiltinsState *self, PyObject *obj) {
         new_key = to_builtins(self, key, true);
         if (new_key == NULL) goto cleanup;
         if (self->str_keys) {
-            if (PyLong_CheckExact(new_key)) {
+            if (PyLong_CheckExact(new_key) || PyFloat_CheckExact(new_key)) {
                 PyObject *temp = PyObject_Str(new_key);
                 if (temp == NULL) goto cleanup;
                 Py_DECREF(new_key);
@@ -18569,7 +18586,7 @@ to_builtins_dict(ToBuiltinsState *self, PyObject *obj) {
             else if (!PyUnicode_CheckExact(new_key)) {
                 PyErr_SetString(
                     PyExc_TypeError,
-                    "Only dicts with `str` or `int` keys are supported"
+                    "Only dicts with str-like or number-like keys are supported"
                 );
                 goto cleanup;
             }
