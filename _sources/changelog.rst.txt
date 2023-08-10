@@ -3,6 +3,24 @@ Changelog
 
 .. currentmodule:: msgspec
 
+Version 0.18.0 (2023-08-10)
+---------------------------
+
+- Add a new `msgspec.json.Decoder.decode_lines` method for decoding
+  newline-delimited JSON into a list of values (:pr:`485`).
+- Support for decoding UUIDs from binary values (:pr:`499`).
+- Support for encoding UUIDs in alternate formats (:pr:`499`).
+- Overhaul how dataclasses are encoded to support more dataclass-like objects
+  (:pr:`501`).
+- Encode all declared fields on a dataclass (:pr:`501`).
+- Support encoding ``edgedb.Object`` instances as dataclass-like objects
+  (:pr:`501`).
+- Improve performance when json decoding ``float`` values (:pr:`510`).
+- Support for JSON encoding dicts with ``float`` keys (:pr:`510`).
+- Support for JSON decoding dicts with ``float`` keys (:pr:`510`).
+- Add ``float_hook`` to `msgspec.json.Decoder` to support changing the default
+  for how JSON floats are decoded (:pr:`511`).
+
 Version 0.17.0 (2023-07-11)
 ---------------------------
 
