@@ -10088,21 +10088,9 @@ ms_decode_datetime_from_float(
 }
 
 static PyObject *
-ms_parse_pyfloat(const char *buf, Py_ssize_t size) {
-    /* TODO: with some refactoring, we should be able to use our own
-     * str -> float routine rather than relying on CPython's */
-    PyObject *temp = PyBytes_FromStringAndSize(buf, size);
-    if (temp == NULL) return NULL;
-    PyObject *out = PyFloat_FromString(temp);
-    Py_DECREF(temp);
-    return out;
-}
-
-static PyObject *
 ms_decode_datetime_from_str(
     const char *buf, Py_ssize_t size,
-    TypeNode *type, PathNode *path,
-    bool strict
+    TypeNode *type, PathNode *path
 ) {
     int year, month, day, hour, minute, second, microsecond = 0;
     const char *buf_end = buf + size;
@@ -10111,11 +10099,11 @@ ms_decode_datetime_from_str(
     char c;
 
     /* A valid datetime is at least 19 characters in length */
-    if (size < 19) goto maybe_timestamp;
+    if (size < 19) goto invalid;
 
     /* Parse date */
-    if ((buf = ms_read_fixint(buf, 4, &year)) == NULL) goto maybe_timestamp;
-    if (*buf++ != '-') goto maybe_timestamp;
+    if ((buf = ms_read_fixint(buf, 4, &year)) == NULL) goto invalid;
+    if (*buf++ != '-') goto invalid;
     if ((buf = ms_read_fixint(buf, 2, &month)) == NULL) goto invalid;
     if (*buf++ != '-') goto invalid;
     if ((buf = ms_read_fixint(buf, 2, &day)) == NULL) goto invalid;
@@ -10239,17 +10227,6 @@ end_decimal:
     );
     Py_XDECREF(tz);
     return out;
-
-maybe_timestamp:
-    if (!strict) {
-        PyObject *timestamp = ms_parse_pyfloat(buf, size);
-        if (timestamp == NULL) goto invalid;
-        PyObject *out = ms_decode_datetime_from_float(
-            PyFloat_AS_DOUBLE(timestamp), type, path
-        );
-        Py_DECREF(timestamp);
-        return out;
-    }
 
 invalid:
     ms_error_with_path("Invalid RFC3339 encoded datetime%U", path);
@@ -10406,11 +10383,9 @@ enum timedelta_parse_state {
 static PyObject *
 ms_decode_timedelta(
     const char *p, Py_ssize_t size,
-    TypeNode *type, PathNode *path,
-    bool strict
+    TypeNode *type, PathNode *path
 ) {
     bool neg = false;
-    const char *start = p;
     const char *end = p + size;
 
     if (p == end) goto invalid;
@@ -10425,7 +10400,7 @@ ms_decode_timedelta(
         if (p == end) goto invalid;
     }
 
-    if (*p != 'P' && *p != 'p') goto maybe_strict_false;
+    if (*p != 'P' && *p != 'p') goto invalid;
     p++;
     if (p == end) goto invalid;
 
@@ -10569,17 +10544,6 @@ ms_decode_timedelta(
     int64_t days = seconds / (24 * 60 * 60);
     seconds -= days * (24 * 60 * 60);
     return PyDelta_FromDSU(days, seconds, micros);
-
-maybe_strict_false:
-    if (!strict) {
-        PyObject *timestamp = ms_parse_pyfloat(start, size);
-        if (timestamp == NULL) goto invalid;
-        PyObject *out = ms_decode_timedelta_from_float(
-            PyFloat_AS_DOUBLE(timestamp), path
-        );
-        Py_DECREF(timestamp);
-        return out;
-    }
 
 invalid:
     return ms_error_with_path("Invalid ISO8601 duration%U", path);
@@ -10828,107 +10792,10 @@ ms_decode_decimal_from_float(double val, PathNode *path, MsgspecState *mod) {
  * strict=False Utilities                                                *
  *************************************************************************/
 
-static PyObject *
-ms_maybe_decode_int_from_str(
-    const char *p, Py_ssize_t size, TypeNode *type, PathNode *path, bool *invalid
-) {
-    uint64_t mantissa = 0;
-    bool is_negative = false;
-    const char *start = p;
-    const char *end = p + size;
-
-    if (size == 0) goto invalid_int;
-
-    char c = *p;
-    if (c == '-') {
-        p++;
-        is_negative = true;
-        if (p == end) goto invalid_int;
-        c = *p;
-    }
-
-    if (MS_UNLIKELY(c == '0')) {
-        /* Value is either 0 or invalid */
-        p++;
-        if (p == end) goto done;
-        goto invalid_int;
-    }
-
-    /* We can read the first 19 digits safely into a uint64 without checking
-     * for overflow. */
-    size_t remaining = end - p;
-    const char *safe_end = p + Py_MIN(19, remaining);
-    while (p < safe_end) {
-        c = *p;
-        if (!is_digit(c)) goto end_digits;
-        p++;
-        mantissa = mantissa * 10 + (uint64_t)(c - '0');
-    }
-    if (MS_UNLIKELY(remaining > 19)) {
-        /* Reading a 20th digit may or may not cause overflow. Any additional
-         * digits definitely will. Read the 20th digit (and check for a 21st),
-         * erroring upon overflow. */
-        c = *p;
-        if (MS_UNLIKELY(is_digit(c))) {
-            p++;
-            uint64_t mantissa2 = mantissa * 10 + (uint64_t)(c - '0');
-            bool overflow = (
-                (mantissa2 < mantissa) ||
-                ((mantissa2 - (uint64_t)(c - '0')) / 10) != mantissa ||
-                (p != end)
-            );
-            if (overflow) {
-                /* Check remaining characters are valid */
-                while (is_digit(*p)) p++;
-                if (p != end) goto invalid_int;
-                goto bigint;
-            }
-            mantissa = mantissa2;
-        }
-    }
-
-end_digits:
-    /* There must be at least one digit */
-    if (MS_UNLIKELY(mantissa == 0)) goto invalid_int;
-
-    /* Check for trailing characters */
-    if (p != end) goto invalid_int;
-
-done:
-    if (MS_UNLIKELY(is_negative)) {
-        if (MS_UNLIKELY(mantissa > 1ull << 63)) {
-            goto bigint;
-        }
-        if (MS_LIKELY(type->types & MS_TYPE_INT)) {
-            return ms_decode_int(-1 * (int64_t)mantissa, type, path);
-        }
-        return ms_decode_int_enum_or_literal_int64(-1 * (int64_t)mantissa, type, path);
-    }
-    if (MS_LIKELY(type->types & MS_TYPE_INT)) {
-        return ms_decode_uint(mantissa, type, path);
-    }
-    return ms_decode_int_enum_or_literal_uint64(mantissa, type, path);
-
-bigint:
-    return ms_decode_bigint(start, size, type, path);
-
-invalid_int:
-    *invalid = true;
-    return NULL;
-}
-
-static PyObject *
-ms_decode_int_from_str(
-    const char *p, Py_ssize_t size, TypeNode *type, PathNode *path
-) {
-    bool invalid = false;
-    PyObject *out = ms_maybe_decode_int_from_str(p, size, type, path, &invalid);
-    if (MS_UNLIKELY(invalid)) {
-        ms_error_with_path("Invalid integer string%U", path);
-        return NULL;
-    }
-    return out;
-}
+static bool
+maybe_parse_number(
+    const char *, Py_ssize_t, TypeNode *, PathNode *, bool, PyObject **
+);
 
 static PyObject *
 ms_decode_str_lax(
@@ -10938,34 +10805,21 @@ ms_decode_str_lax(
     PathNode *path,
     bool *invalid
 ) {
-    if (type->types & (MS_TYPE_INT | MS_TYPE_INTENUM | MS_TYPE_INTLITERAL)) {
-        bool invalid_int = false;
-        PyObject *out = ms_maybe_decode_int_from_str(
-            view, size, type, path, &invalid_int
-        );
-        if (MS_LIKELY(!invalid_int)) return out;
-    }
-
-    if (type->types & MS_TYPE_FLOAT) {
-        PyObject *out = ms_parse_pyfloat(view, size);
-        if (out == NULL) {
-            PyErr_Clear();
-        }
-        else {
-            return ms_check_float_constraints(out, type, path);
+    if (type->types & (
+            MS_TYPE_INT | MS_TYPE_INTENUM | MS_TYPE_INTLITERAL |
+            MS_TYPE_BOOL |
+            MS_TYPE_FLOAT | MS_TYPE_DECIMAL |
+            MS_TYPE_DATETIME | MS_TYPE_TIMEDELTA
+        )
+    ) {
+        PyObject *out;
+        if (maybe_parse_number(view, size, type, path, false, &out)) {
+            return out;
         }
     }
 
     if (type->types & MS_TYPE_BOOL) {
-        if (size == 1) {
-            if (*view == '0') {
-                Py_RETURN_FALSE;
-            }
-            else if (*view == '1') {
-                Py_RETURN_TRUE;
-            }
-        }
-        else if (size == 4) {
+        if (size == 4) {
             if (
                 (view[0] == 't' || view[0] == 'T') &&
                 (view[1] == 'r' || view[1] == 'R') &&
@@ -11007,7 +10861,9 @@ ms_decode_str_lax(
  *************************************************************************/
 
 static PyObject *
-ms_post_decode_int64(int64_t x, TypeNode *type, PathNode *path, bool strict) {
+ms_post_decode_int64(
+    int64_t x, TypeNode *type, PathNode *path, bool strict, bool from_str
+) {
     if (MS_LIKELY(type->types & (MS_TYPE_ANY | MS_TYPE_INT))) {
         return ms_decode_int(x, type, path);
     }
@@ -11032,11 +10888,13 @@ ms_post_decode_int64(int64_t x, TypeNode *type, PathNode *path, bool strict) {
             return ms_decode_timedelta_from_int64(x, path);
         }
     }
-    return ms_validation_error("int", type, path);
+    return ms_validation_error(from_str ? "str" : "int", type, path);
 }
 
 static PyObject *
-ms_post_decode_uint64(uint64_t x, TypeNode *type, PathNode *path, bool strict) {
+ms_post_decode_uint64(
+    uint64_t x, TypeNode *type, PathNode *path, bool strict, bool from_str
+) {
     if (MS_LIKELY(type->types & (MS_TYPE_ANY | MS_TYPE_INT))) {
         return ms_decode_uint(x, type, path);
     }
@@ -11061,9 +10919,454 @@ ms_post_decode_uint64(uint64_t x, TypeNode *type, PathNode *path, bool strict) {
             return ms_decode_timedelta_from_uint64(x, path);
         }
     }
-    return ms_validation_error("int", type, path);
+    return ms_validation_error(from_str ? "str" : "int", type, path);
 }
 
+static PyObject *
+ms_post_decode_float(
+    double x, TypeNode *type, PathNode *path, bool strict, bool from_str
+) {
+    if (type->types & (MS_TYPE_ANY | MS_TYPE_FLOAT)) {
+        return ms_decode_float(x, type, path);
+    }
+    else if (!strict) {
+        if (type->types & MS_TYPE_DATETIME) {
+            return ms_decode_datetime_from_float(x, type, path);
+        }
+        if (type->types & MS_TYPE_TIMEDELTA) {
+            return ms_decode_timedelta_from_float(x, path);
+        }
+    }
+    return ms_validation_error(from_str ? "str" : "float", type, path);
+}
+
+/*************************************************************************
+ * Number Parser                                                         *
+ *************************************************************************/
+
+#define ONE_E18 1000000000000000000ULL
+
+static MS_NOINLINE PyObject *
+parse_number_fallback(
+    const unsigned char* integer_start,
+    const unsigned char* integer_end,
+    const unsigned char* fraction_start,
+    const unsigned char* fraction_end,
+    int32_t exp_part,
+    bool is_negative,
+    TypeNode *type,
+    PathNode *path,
+    bool strict,
+    bool from_str
+) {
+    uint32_t nd = 0;
+    int32_t dp = 0;
+
+    ms_hpd dec;
+    dec.num_digits = 0;
+    dec.decimal_point = 0;
+    dec.negative = is_negative;
+    dec.truncated = false;
+
+    /* Parse integer */
+    const unsigned char *p = integer_start;
+    if (*p != '0') {
+        while (p < integer_end) {
+            if (MS_LIKELY(nd < MS_HPD_MAX_DIGITS)) {
+                dec.digits[nd++] = (uint8_t)(*p - '0');
+            }
+            else if (*p != '0') {
+                dec.truncated = true;
+            }
+            dp++;
+            p++;
+        }
+    }
+
+    p = fraction_start;
+    while (p < fraction_end) {
+        if (*p == '0') {
+            if (nd == 0) {
+                /* Track leading zeros implicitly */
+                dp--;
+            }
+            else if (nd < MS_HPD_MAX_DIGITS) {
+                dec.digits[nd++] = (uint8_t)(*p - '0');
+            }
+        }
+        else if ('1' <= *p && *p <= '9') {
+            if (nd < MS_HPD_MAX_DIGITS) {
+                dec.digits[nd++] = (uint8_t)(*p - '0');
+            }
+            else {
+                dec.truncated = true;
+            }
+        }
+        p++;
+    }
+
+    dp += exp_part;
+
+    dec.num_digits = nd;
+    if (dp < -MS_HPD_DP_RANGE) {
+        dec.decimal_point = -(MS_HPD_DP_RANGE + 1);
+    }
+    else if (dp > MS_HPD_DP_RANGE) {
+        dec.decimal_point = (MS_HPD_DP_RANGE + 1);
+    }
+    else {
+        dec.decimal_point = dp;
+    }
+    ms_hpd_trim(&dec);
+    double res = ms_hpd_to_double(&dec);
+    if (Py_IS_INFINITY(res)) {
+        return ms_error_with_path("Number out of range%U", path);
+    }
+    return ms_post_decode_float(res, type, path, strict, from_str);
+}
+
+static MS_NOINLINE PyObject *
+parse_number_nonfinite(
+    const unsigned char *start,
+    bool is_negative,
+    const unsigned char *p,
+    const unsigned char *pend,
+    const char **errmsg,
+    TypeNode *type,
+    PathNode *path,
+    bool strict
+) {
+    ssize_t size = pend - p;
+    double val;
+    if (size == 3) {
+        if (
+            (p[0] == 'n' || p[0] == 'N') &&
+            (p[1] == 'a' || p[1] == 'A') &&
+            (p[2] == 'n' || p[2] == 'N')
+        ) {
+            val = NAN;
+            goto done;
+        }
+        else if (
+            (p[0] == 'i' || p[0] == 'I') &&
+            (p[1] == 'n' || p[1] == 'N') &&
+            (p[2] == 'f' || p[2] == 'F')
+        ) {
+            val = INFINITY;
+            goto done;
+        }
+    }
+    else if (size == 8) {
+        if (
+            (p[0] == 'i' || p[0] == 'I') &&
+            (p[1] == 'n' || p[1] == 'N') &&
+            (p[2] == 'f' || p[2] == 'F') &&
+            (p[3] == 'i' || p[3] == 'I') &&
+            (p[4] == 'n' || p[4] == 'N') &&
+            (p[5] == 'i' || p[5] == 'I') &&
+            (p[6] == 't' || p[6] == 'T') &&
+            (p[7] == 'y' || p[7] == 'Y')
+        ) {
+            val = INFINITY;
+            goto done;
+        }
+    }
+
+    *errmsg = "invalid number";
+    return NULL;
+
+done:
+    if (
+        MS_UNLIKELY(
+            !(type->types & (MS_TYPE_ANY | MS_TYPE_FLOAT))
+            && type->types & MS_TYPE_DECIMAL
+        )
+    ) {
+        return ms_decode_decimal(
+            (char *)start, pend - start, true, path, NULL
+        );
+    }
+    if (is_negative) {
+        val = -val;
+    }
+    return ms_post_decode_float(val, type, path, strict, true);
+}
+
+static MS_INLINE PyObject *
+parse_number_inline(
+    const unsigned char *p,
+    const unsigned char *pend,
+    const unsigned char **pout,
+    const char **errmsg,
+    TypeNode *type,
+    PathNode *path,
+    bool strict,
+    bool from_str
+) {
+    uint64_t mantissa = 0;
+    int64_t exponent = 0;
+    int32_t exp_part = 0;
+    bool is_negative = false;
+    bool is_float = false;
+    bool is_truncated = false;
+
+    const unsigned char *start = p;
+
+    /* We know there is at least one byte available when this function is
+     * called */
+    if (*p == '-') {
+        /* Parse minus sign */
+        p++;
+        if (p == pend) goto invalid_number;
+        is_negative = true;
+    }
+
+    const unsigned char *integer_start = p;
+
+    /* Parse integer */
+    if (MS_UNLIKELY(*p == '0')) {
+        p++;
+        if (MS_UNLIKELY(p != pend && is_digit(*p))) goto invalid_number;
+    }
+    else {
+        unsigned char c = *p;
+        while (MS_LIKELY(is_digit(c))) {
+            mantissa = mantissa * 10 + (uint8_t)(c - '0');
+            p++;
+            if (MS_UNLIKELY(p == pend)) break;
+            c = *p;
+        }
+        /* There must be at least one digit */
+        if (MS_UNLIKELY(integer_start == p)) {
+            if (MS_UNLIKELY(from_str)) {
+                return parse_number_nonfinite(
+                    start, is_negative, p, pend, errmsg, type, path, strict
+                );
+            }
+            else {
+                goto invalid_character;
+            }
+        }
+    }
+    const unsigned char *integer_end = p;
+
+    int64_t digit_count = integer_end - integer_start;
+
+    const unsigned char *fraction_start = NULL;
+    const unsigned char *fraction_end = NULL;
+
+    if (MS_UNLIKELY(p == pend)) goto end_parsing;
+
+    if (*p == '.') {
+        is_float = true;
+        p++;
+
+        /* Parse fraction */
+        fraction_start = p;
+        while (MS_LIKELY(p != pend && is_digit(*p))) {
+            mantissa = mantissa * 10 + (uint8_t)(*p - '0');
+            p++;
+        }
+        /* Error if no digits after decimal */
+        if (MS_UNLIKELY(fraction_start == p)) goto invalid_number;
+        fraction_end = p;
+        exponent = fraction_start - p;
+        digit_count -= exponent;
+        if (MS_UNLIKELY(p == pend)) goto end_parsing;
+    }
+
+    if (*p == 'e' || *p == 'E') {
+        is_float = true;
+        int32_t exp_sign = 1;
+
+        p++;
+        if (p == pend) goto invalid_number;
+
+        /* Parse exponent sign (if any) */
+        if (*p == '+') {
+            p++;
+        }
+        else if (*p == '-') {
+            p++;
+            exp_sign = -1;
+        }
+
+        /* Parse exponent digits */
+        const unsigned char *start_exponent = p;
+        while (p != pend && is_digit(*p)) {
+            if (MS_LIKELY(exp_part < 10000)) {
+                exp_part = exp_part * 10 + (uint8_t)(*p - '0');
+            }
+            p++;
+        }
+        /* Error if no digits in exponent */
+        if (MS_UNLIKELY(start_exponent == p)) goto invalid_number;
+
+        exp_part *= exp_sign;
+        exponent += exp_part;
+    }
+
+    if (MS_UNLIKELY(from_str)) {
+        if (MS_UNLIKELY(p != pend)) goto invalid_number;
+    }
+
+end_parsing:
+    /* Check for overflow and maybe reparse if needed */
+    if (MS_UNLIKELY(digit_count > 19)) {
+        const unsigned char *cur = integer_start;
+        while ((cur != pend) && (*cur == '0' || *cur == '.')) {
+            if (*cur == '0') {
+                digit_count--;
+            }
+            cur++;
+        }
+
+        if (
+            (digit_count > 19) &&
+            (
+                (is_float) ||
+                ((integer_end - integer_start) != 20) ||
+                (*integer_start != '1') ||
+                (mantissa <= ONE_E18)
+            )
+        ) {
+            /* We overflowed. Redo parsing, truncating at 19 digits */
+            is_truncated = true;
+            const unsigned char *cur = integer_start;
+            mantissa = 0;
+            while ((mantissa < ONE_E18) && (cur != integer_end)) {
+                mantissa = mantissa * 10 + (uint64_t)(*cur - '0');
+                cur++;
+            }
+            if (mantissa >= ONE_E18) {
+                exponent = integer_end - cur + exp_part;
+            }
+            else {
+                cur = fraction_start;
+                while ((mantissa < ONE_E18) && (cur != fraction_end)) {
+                    mantissa = mantissa * 10 + (uint64_t)(*cur - '0');
+                    cur++;
+                }
+                exponent = fraction_start - cur + exp_part;
+            }
+        }
+    }
+
+    /* Forward output position */
+    *pout = p;
+
+    if (!is_float) {
+        if (is_negative) {
+            is_truncated |= (mantissa > (1ull << 63));
+        }
+        if (MS_UNLIKELY(is_truncated)) {
+            if (type->types & (MS_TYPE_ANY | MS_TYPE_INT)) {
+                return ms_decode_bigint((char *)start, p - start, type, path);
+            }
+        }
+        else {
+            if (is_negative) {
+                return ms_post_decode_int64(
+                    -1 * (int64_t)(mantissa), type, path, strict, from_str
+                );
+            }
+            else {
+                return ms_post_decode_uint64(mantissa, type, path, strict, from_str);
+            }
+        }
+    }
+
+    if (
+        MS_UNLIKELY(
+            !(type->types & (MS_TYPE_ANY | MS_TYPE_FLOAT))
+            && type->types & MS_TYPE_DECIMAL
+        )
+    ) {
+        return ms_decode_decimal(
+            (char *)start, p - start, true, path, NULL
+        );
+    }
+    else {
+        if (MS_UNLIKELY(exponent > 288 || exponent < -307)) {
+            /* Exponent is out of bounds */
+            goto fallback;
+        }
+
+        double val;
+        if (MS_LIKELY((-22 <= exponent) && (exponent <= 22) && ((mantissa >> 53) == 0))) {
+            /* If both `mantissa` and `10 ** exponent` can be exactly
+             * represented as a double, we can take a fast path */
+            val = (double)(mantissa);
+            if (exponent >= 0) {
+                val *= ms_atof_f64_powers_of_10[exponent];
+            } else {
+                val /= ms_atof_f64_powers_of_10[-exponent];
+            }
+        }
+        else if (MS_UNLIKELY(mantissa == 0)) {
+            /* Special case 0 handling. This is only hit if the mantissa is 0
+             * and the exponent is out of bounds above (i.e. rarely) */
+            val = 0.0;
+        }
+        else {
+            int64_t r1 = eisel_lemire(mantissa, exponent);
+            if (MS_UNLIKELY(r1 < 0)) goto fallback;
+            if (MS_UNLIKELY(is_truncated)) {
+                int64_t r2 = eisel_lemire(mantissa + 1, exponent);
+                if (r1 != r2) goto fallback;
+            }
+            uint64_t bits = ((uint64_t)r1);
+            memcpy(&val, &bits, sizeof(double));
+        }
+        if (is_negative) {
+            val = -val;
+        }
+        return ms_post_decode_float(val, type, path, strict, from_str);
+    }
+
+fallback:
+    return parse_number_fallback(
+        integer_start, integer_end,
+        fraction_start, fraction_end,
+        exp_part,
+        is_negative,
+        type, path, strict, from_str
+    );
+
+invalid_number:
+    if (pout != NULL) *pout = p;
+    *errmsg = "invalid number";
+    return NULL;
+
+invalid_character:
+    if (pout != NULL) *pout = p;
+    *errmsg = "invalid character";
+    return NULL;
+}
+
+static MS_NOINLINE bool
+maybe_parse_number(
+    const char *view,
+    Py_ssize_t size,
+    TypeNode *type,
+    PathNode *path,
+    bool strict,
+    PyObject **out
+) {
+    const char *errmsg = NULL;
+    const unsigned char *pout;
+    *out = parse_number_inline(
+        (const unsigned char *)view,
+        (const unsigned char *)(view + size),
+        &pout,
+        &errmsg,
+        type,
+        path,
+        strict,
+        true
+    );
+    return (*out != NULL || errmsg == NULL);
+}
 
 /*************************************************************************
  * MessagePack Encoder                                                   *
@@ -13761,22 +14064,22 @@ mpack_decode_str(DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *
     char *s = NULL;
     if (MS_UNLIKELY(mpack_read(self, &s, size) < 0)) return NULL;
 
-    if (MS_UNLIKELY(!self->strict)) {
-        bool invalid = false;
-        PyObject *out = ms_decode_str_lax(s, size, type, path, &invalid);
-        if (!invalid) return out;
-    }
-
     if (MS_LIKELY(type->types & (MS_TYPE_STR | MS_TYPE_ANY))) {
         return ms_check_str_constraints(
             PyUnicode_DecodeUTF8(s, size, NULL), type, path
         );
     }
-    else if (MS_UNLIKELY(type->types & (MS_TYPE_ENUM | MS_TYPE_STRLITERAL))) {
+    else if (MS_UNLIKELY(!self->strict)) {
+        bool invalid = false;
+        PyObject *out = ms_decode_str_lax(s, size, type, path, &invalid);
+        if (!invalid) return out;
+    }
+
+    if (MS_UNLIKELY(type->types & (MS_TYPE_ENUM | MS_TYPE_STRLITERAL))) {
         return ms_decode_str_enum_or_literal(s, size, type, path);
     }
     else if (MS_UNLIKELY(type->types & MS_TYPE_DATETIME)) {
-        return ms_decode_datetime_from_str(s, size, type, path, self->strict);
+        return ms_decode_datetime_from_str(s, size, type, path);
     }
     else if (MS_UNLIKELY(type->types & MS_TYPE_DATE)) {
         return ms_decode_date(s, size, path);
@@ -13785,7 +14088,7 @@ mpack_decode_str(DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *
         return ms_decode_time(s, size, type, path);
     }
     else if (MS_UNLIKELY(type->types & MS_TYPE_TIMEDELTA)) {
-        return ms_decode_timedelta(s, size, type, path, self->strict);
+        return ms_decode_timedelta(s, size, type, path);
     }
     else if (MS_UNLIKELY(type->types & MS_TYPE_UUID)) {
         return ms_decode_uuid_from_str(s, size, path);
@@ -13793,6 +14096,7 @@ mpack_decode_str(DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *
     else if (MS_UNLIKELY(type->types & MS_TYPE_DECIMAL)) {
         return ms_decode_decimal(s, size, false, path, NULL);
     }
+
     return ms_validation_error("str", type, path);
 }
 
@@ -14703,7 +15007,7 @@ mpack_decode_nocustom(
     }
 
     if (('\x00' <= op && op <= '\x7f') || ('\xe0' <= op && op <= '\xff')) {
-        return ms_post_decode_int64(*((int8_t *)(&op)), type, path, self->strict);
+        return ms_post_decode_int64(*((int8_t *)(&op)), type, path, self->strict, false);
     }
     else if ('\xa0' <= op && op <= '\xbf') {
         return mpack_decode_str(self, op & 0x1f, type, path);
@@ -14723,28 +15027,28 @@ mpack_decode_nocustom(
             return mpack_decode_bool(self, Py_False, type, path);
         case MP_UINT8:
             if (MS_UNLIKELY(mpack_read(self, &s, 1) < 0)) return NULL;
-            return ms_post_decode_uint64(*(uint8_t *)s, type, path, self->strict);
+            return ms_post_decode_uint64(*(uint8_t *)s, type, path, self->strict, false);
         case MP_UINT16:
             if (MS_UNLIKELY(mpack_read(self, &s, 2) < 0)) return NULL;
-            return ms_post_decode_uint64(_msgspec_load16(uint16_t, s), type, path, self->strict);
+            return ms_post_decode_uint64(_msgspec_load16(uint16_t, s), type, path, self->strict, false);
         case MP_UINT32:
             if (MS_UNLIKELY(mpack_read(self, &s, 4) < 0)) return NULL;
-            return ms_post_decode_uint64(_msgspec_load32(uint32_t, s), type, path, self->strict);
+            return ms_post_decode_uint64(_msgspec_load32(uint32_t, s), type, path, self->strict, false);
         case MP_UINT64:
             if (MS_UNLIKELY(mpack_read(self, &s, 8) < 0)) return NULL;
-            return ms_post_decode_uint64(_msgspec_load64(uint64_t, s), type, path, self->strict);
+            return ms_post_decode_uint64(_msgspec_load64(uint64_t, s), type, path, self->strict, false);
         case MP_INT8:
             if (MS_UNLIKELY(mpack_read(self, &s, 1) < 0)) return NULL;
-            return ms_post_decode_int64(*(int8_t *)s, type, path, self->strict);
+            return ms_post_decode_int64(*(int8_t *)s, type, path, self->strict, false);
         case MP_INT16:
             if (MS_UNLIKELY(mpack_read(self, &s, 2) < 0)) return NULL;
-            return ms_post_decode_int64(_msgspec_load16(int16_t, s), type, path, self->strict);
+            return ms_post_decode_int64(_msgspec_load16(int16_t, s), type, path, self->strict, false);
         case MP_INT32:
             if (MS_UNLIKELY(mpack_read(self, &s, 4) < 0)) return NULL;
-            return ms_post_decode_int64(_msgspec_load32(int32_t, s), type, path, self->strict);
+            return ms_post_decode_int64(_msgspec_load32(int32_t, s), type, path, self->strict, false);
         case MP_INT64:
             if (MS_UNLIKELY(mpack_read(self, &s, 8) < 0)) return NULL;
-            return ms_post_decode_int64(_msgspec_load64(int64_t, s), type, path, self->strict);
+            return ms_post_decode_int64(_msgspec_load64(int64_t, s), type, path, self->strict, false);
         case MP_FLOAT32: {
             float f = 0;
             uint32_t uf;
@@ -15870,12 +16174,6 @@ json_decode_string(JSONDecoderState *self, TypeNode *type, PathNode *path) {
     Py_ssize_t size = json_decode_string_view(self, &view, &is_ascii);
     if (size < 0) return NULL;
 
-    if (MS_UNLIKELY(!self->strict)) {
-        bool invalid = false;
-        PyObject *out = ms_decode_str_lax(view, size, type, path, &invalid);
-        if (!invalid) return out;
-    }
-
     if (MS_LIKELY(type->types & (MS_TYPE_STR | MS_TYPE_ANY))) {
         PyObject *out;
         if (MS_LIKELY(is_ascii)) {
@@ -15887,8 +16185,14 @@ json_decode_string(JSONDecoderState *self, TypeNode *type, PathNode *path) {
         }
         return ms_check_str_constraints(out, type, path);
     }
-    else if (MS_UNLIKELY(type->types & MS_TYPE_DATETIME)) {
-        return ms_decode_datetime_from_str(view, size, type, path, self->strict);
+    else if (MS_UNLIKELY(!self->strict)) {
+        bool invalid = false;
+        PyObject *out = ms_decode_str_lax(view, size, type, path, &invalid);
+        if (!invalid) return out;
+    }
+
+    if (MS_UNLIKELY(type->types & MS_TYPE_DATETIME)) {
+        return ms_decode_datetime_from_str(view, size, type, path);
     }
     else if (MS_UNLIKELY(type->types & MS_TYPE_DATE)) {
         return ms_decode_date(view, size, path);
@@ -15897,7 +16201,7 @@ json_decode_string(JSONDecoderState *self, TypeNode *type, PathNode *path) {
         return ms_decode_time(view, size, type, path);
     }
     else if (MS_UNLIKELY(type->types & MS_TYPE_TIMEDELTA)) {
-        return ms_decode_timedelta(view, size, type, path, self->strict);
+        return ms_decode_timedelta(view, size, type, path);
     }
     else if (MS_UNLIKELY(type->types & MS_TYPE_UUID)) {
         return ms_decode_uuid_from_str(view, size, path);
@@ -15931,17 +16235,26 @@ json_decode_dict_key_fallback(
         }
         return ms_check_str_constraints(out, type, path);
     }
-    if (type->types & (MS_TYPE_INT | MS_TYPE_INTENUM | MS_TYPE_INTLITERAL)) {
-        return ms_decode_int_from_str(view, size, type, path);
+    if (type->types & (
+            MS_TYPE_INT | MS_TYPE_INTENUM | MS_TYPE_INTLITERAL |
+            MS_TYPE_FLOAT | MS_TYPE_DECIMAL |
+            ((!self->strict) * (MS_TYPE_DATETIME | MS_TYPE_TIMEDELTA))
+        )
+    ) {
+        PyObject *out;
+        if (maybe_parse_number(view, size, type, path, self->strict, &out)) {
+            return out;
+        }
     }
-    else if (type->types & (MS_TYPE_ENUM | MS_TYPE_STRLITERAL)) {
+
+    if (type->types & (MS_TYPE_ENUM | MS_TYPE_STRLITERAL)) {
         return ms_decode_str_enum_or_literal(view, size, type, path);
     }
     else if (type->types & MS_TYPE_UUID) {
         return ms_decode_uuid_from_str(view, size, path);
     }
     else if (type->types & MS_TYPE_DATETIME) {
-        return ms_decode_datetime_from_str(view, size, type, path, self->strict);
+        return ms_decode_datetime_from_str(view, size, type, path);
     }
     else if (type->types & MS_TYPE_DATE) {
         return ms_decode_date(view, size, path);
@@ -15950,10 +16263,7 @@ json_decode_dict_key_fallback(
         return ms_decode_time(view, size, type, path);
     }
     else if (type->types & MS_TYPE_TIMEDELTA) {
-        return ms_decode_timedelta(view, size, type, path, self->strict);
-    }
-    else if (type->types & MS_TYPE_DECIMAL) {
-        return ms_decode_decimal(view, size, is_ascii, path, NULL);
+        return ms_decode_timedelta(view, size, type, path);
     }
     else if (type->types & MS_TYPE_BYTES) {
         return json_decode_binary(view, size, type, path);
@@ -17218,319 +17528,22 @@ json_decode_object(
 }
 
 static PyObject *
-json_decode_float(JSONDecoderState *self, double x, TypeNode *type, PathNode *path) {
-    if (type->types & (MS_TYPE_ANY | MS_TYPE_FLOAT)) {
-        return ms_decode_float(x, type, path);
-    }
-    else if (!self->strict) {
-        if (type->types & MS_TYPE_DATETIME) {
-            return ms_decode_datetime_from_float(x, type, path);
-        }
-        if (type->types & MS_TYPE_TIMEDELTA) {
-            return ms_decode_timedelta_from_float(x, path);
-        }
-    }
-    return ms_validation_error("float", type, path);
-}
-
-static MS_NOINLINE PyObject *
-json_decode_extended_float(JSONDecoderState *self, TypeNode *type, PathNode *path) {
-    bool is_float = false;
-    uint32_t nd = 0;
-    int32_t dp = 0;
-
-    ms_hpd dec;
-    dec.num_digits = 0;
-    dec.decimal_point = 0;
-    dec.negative = false;
-    dec.truncated = false;
-
-    unsigned char *initial_pos = self->input_pos;
-
-    /* We know there is at least one byte available when this function is
-     * called */
-    char c = *self->input_pos;
-
-    /* Parse minus sign (if present) */
-    if (c == '-') {
-        self->input_pos++;
-        c = json_peek_or_null(self);
-        dec.negative = true;
-    }
-
-    /* Parse integer */
-    if (MS_UNLIKELY(c == '0')) {
-        /* Ensure at most one leading zero */
-        self->input_pos++;
-        /* This _can't_ happen, since it would have been caught in the fast routine first:
-        c = json_peek_or_null(self);
-        if (MS_UNLIKELY(is_digit(c))) return json_err_invalid(self, "invalid number");
-        */
-    }
-    else {
-        /* Parse the integer part of the number. */
-        while (self->input_pos < self->input_end && is_digit(*self->input_pos)) {
-            c = *self->input_pos++;
-            if (MS_LIKELY(nd < MS_HPD_MAX_DIGITS)) {
-                dec.digits[nd++] = (uint8_t)(c - '0');
-            }
-            else if (c != '0') {
-                dec.truncated = true;
-            }
-            dp++;
-        }
-        /* This _can't_ happen, since it would have been caught in the fast routine first */
-        /*if (MS_UNLIKELY(nd == 0)) return json_err_invalid(self, "invalid character");*/
-    }
-
-    c = json_peek_or_null(self);
-    if (c == '.') {
-        self->input_pos++;
-        is_float = true;
-        /* Parse remaining digits until invalid/unknown character */
-        unsigned char *cur_pos = self->input_pos;
-        while (self->input_pos < self->input_end && is_digit(*self->input_pos)) {
-            c = *self->input_pos++;
-            if (c == '0') {
-                if (nd == 0) {
-                    /* Track leading zeros implicitly */
-                    dp--;
-                }
-                else if (nd < MS_HPD_MAX_DIGITS) {
-                    dec.digits[nd++] = (uint8_t)(c - '0');
-                }
-            }
-            else if ('1' <= c && c <= '9') {
-                if (nd < MS_HPD_MAX_DIGITS) {
-                    dec.digits[nd++] = (uint8_t)(c - '0');
-                }
-                else {
-                    dec.truncated = true;
-                }
-            }
-        }
-        /* Error if no digits after decimal */
-        if (MS_UNLIKELY(cur_pos == self->input_pos)) return json_err_invalid(self, "invalid number");
-
-        c = json_peek_or_null(self);
-    }
-    if (c == 'e' || c == 'E') {
-        self->input_pos++;
-        is_float = true;
-
-        int64_t exp_sign = 1, exp_part = 0;
-
-        c = json_peek_or_null(self);
-        /* Parse exponent sign (if any) */
-        if (c == '+') {
-            self->input_pos++;
-        }
-        else if (c == '-') {
-            self->input_pos++;
-            exp_sign = -1;
-        }
-
-        /* Parse exponent digits */
-        unsigned char *cur_pos = self->input_pos;
-        while (self->input_pos < self->input_end && is_digit(*self->input_pos)) {
-            c = *self->input_pos++;
-            if (MS_LIKELY(exp_part < 922337203685477580)) {  /* won't overflow int64_t */
-                exp_part = (int64_t)(exp_part * 10) + (c - '0');
-            }
-        }
-
-        /* Error if no digits in exponent */
-        if (MS_UNLIKELY(cur_pos == self->input_pos)) return json_err_invalid(self, "invalid number");
-
-        dp += exp_sign * exp_part;
-    }
-
-    if ((!is_float) && (type->types & (MS_TYPE_ANY | MS_TYPE_INT))) {
-        return ms_decode_bigint(
-            (char *)initial_pos, self->input_pos - initial_pos, type, path
-        );
-    }
-    else if (
-        MS_UNLIKELY(
-            !(type->types & (MS_TYPE_ANY | MS_TYPE_FLOAT))
-            && type->types & MS_TYPE_DECIMAL
-        )
-    ) {
-        return ms_decode_decimal(
-            (char *)initial_pos, self->input_pos - initial_pos, true, path, NULL
-        );
-    }
-
-    dec.num_digits = nd;
-    if (dp < -MS_HPD_DP_RANGE) {
-        dec.decimal_point = -(MS_HPD_DP_RANGE + 1);
-    }
-    else if (dp > MS_HPD_DP_RANGE) {
-        dec.decimal_point = (MS_HPD_DP_RANGE + 1);
-    }
-    else {
-        dec.decimal_point = dp;
-    }
-    ms_hpd_trim(&dec);
-    double res = ms_hpd_to_double(&dec);
-    if (Py_IS_INFINITY(res)) {
-        return ms_error_with_path("Number out of range%U", path);
-    }
-    return json_decode_float(self, res, type, path);
-}
-
-static PyObject *
 json_maybe_decode_number(JSONDecoderState *self, TypeNode *type, PathNode *path) {
-    uint64_t mantissa = 0;
-    int32_t exponent = 0;
-    bool is_negative = false;
-    bool is_float = false;
+    const char *errmsg = NULL;
+    const unsigned char *pout;
+    PyObject *out = parse_number_inline(
+        self->input_pos, self->input_end,
+        &pout, &errmsg,
+        type, path, self->strict, false
+    );
+    self->input_pos = (unsigned char *)pout;
 
-    unsigned char *initial_pos = self->input_pos;
-
-    /* We know there is at least one byte available when this function is
-     * called */
-    char c = *self->input_pos;
-
-    /* Parse minus sign (if present) */
-    if (c == '-') {
-        self->input_pos++;
-        c = json_peek_or_null(self);
-        is_negative = true;
-    }
-
-    unsigned char *first_digit_pos = self->input_pos;
-
-    /* Parse integer */
-    if (MS_UNLIKELY(c == '0')) {
-        /* Ensure at most one leading zero */
-        self->input_pos++;
-        c = json_peek_or_null(self);
-        if (MS_UNLIKELY(is_digit(c))) return json_err_invalid(self, "invalid number");
-    }
-    else {
-        /* Parse the integer part of the number.
-         *
-         * We can read the first 19 digits safely into a uint64 without
-         * checking for overflow. Removing overflow checks from the loop gives
-         * a measurable performance boost. */
-        size_t remaining = self->input_end - self->input_pos;
-        size_t n_safe = Py_MIN(19, remaining);
-        while (n_safe) {
-            c = *self->input_pos;
-            if (!is_digit(c)) goto end_integer;
-            self->input_pos++;
-            n_safe--;
-            mantissa = mantissa * 10 + (uint64_t)(c - '0');
-        }
-        if (MS_UNLIKELY(remaining > 19)) {
-            /* Reading a 20th digit may or may not cause overflow. Any
-             * additional digits definitely will. Read the 20th digit (and
-             * check for a 21st), taking the slow path upon overflow. */
-            c = *self->input_pos;
-            if (MS_UNLIKELY(is_digit(c))) {
-                self->input_pos++;
-                uint64_t mantissa2 = mantissa * 10 + (uint64_t)(c - '0');
-                bool overflowed = (mantissa2 < mantissa) || ((mantissa2 - (uint64_t)(c - '0')) / 10) != mantissa;
-                if (MS_UNLIKELY(overflowed || is_digit(json_peek_or_null(self)))) {
-                    goto fallback_extended;
-                }
-                mantissa = mantissa2;
-                c = json_peek_or_null(self);
-            }
-        }
-
-end_integer:
-        /* There must be at least one digit */
-        if (MS_UNLIKELY(mantissa == 0)) return json_err_invalid(self, "invalid character");
-    }
-
-    if (c == '.') {
-        self->input_pos++;
-        is_float = true;
-        /* Parse remaining digits until invalid/unknown character */
-        unsigned char *first_dec_digit = self->input_pos;
-        while (self->input_pos < self->input_end && is_digit(*self->input_pos)) {
-            c = *self->input_pos++;
-            mantissa = mantissa * 10 + (uint64_t)(c - '0');
-        }
-        /* Error if no digits after decimal */
-        if (MS_UNLIKELY(first_dec_digit == self->input_pos)) return json_err_invalid(self, "invalid number");
-        exponent = first_dec_digit - self->input_pos;
-
-        c = json_peek_or_null(self);
-
-        /* This is may be an overestimate of significant digits, only fix if it matters */
-        uint32_t ndigits = self->input_pos - first_digit_pos;
-        if (MS_UNLIKELY(ndigits > 19)) {
-            /* Fix ndigits estimate by trimming leading zeros/decimal */
-            const uint8_t* p = first_digit_pos;
-            while (*p == '0' || *p == '.') p++;
-            ndigits -= (p - first_digit_pos);
-            if (ndigits > 19) {
-                goto fallback_extended;
-            }
+    if (MS_UNLIKELY(out == NULL)) {
+        if (errmsg != NULL) {
+            json_err_invalid(self, errmsg);
         }
     }
-
-    if (c == 'e' || c == 'E') {
-        int32_t exp_sign = 1, exp_part = 0;
-        self->input_pos++;
-        is_float = true;
-
-        c = json_peek_or_null(self);
-        /* Parse exponent sign (if any) */
-        if (c == '+') {
-            self->input_pos++;
-        }
-        else if (c == '-') {
-            self->input_pos++;
-            exp_sign = -1;
-        }
-
-        /* Parse exponent digits */
-        unsigned char *cur_pos = self->input_pos;
-        while (self->input_pos < self->input_end && is_digit(*self->input_pos)) {
-            c = *self->input_pos++;
-            if (MS_LIKELY(exp_part < 10000)) {
-                exp_part = (int32_t)(exp_part * 10) + (uint32_t)(c - '0');
-            }
-        }
-
-        /* Error if no digits in exponent */
-        if (MS_UNLIKELY(cur_pos == self->input_pos)) return json_err_invalid(self, "invalid number");
-
-        exponent += exp_sign * exp_part;
-    }
-
-    if (!is_float) {
-        if (is_negative) {
-            if (MS_UNLIKELY(mantissa > 1ull << 63)) goto fallback_extended;
-            return ms_post_decode_int64(-1 * (int64_t)mantissa, type, path, self->strict);
-        }
-        return ms_post_decode_uint64(mantissa, type, path, self->strict);
-    }
-    else if (
-        MS_UNLIKELY(
-            !(type->types & (MS_TYPE_ANY | MS_TYPE_FLOAT))
-            && type->types & MS_TYPE_DECIMAL
-        )
-    ) {
-        return ms_decode_decimal(
-            (char *)initial_pos, self->input_pos - initial_pos, true, path, NULL
-        );
-    }
-    else {
-        double val;
-        if (MS_UNLIKELY(!reconstruct_double(mantissa, exponent, is_negative, &val))) {
-            goto fallback_extended;
-        }
-        return json_decode_float(self, val, type, path);
-    }
-
-fallback_extended:
-    self->input_pos = initial_pos;
-    return json_decode_extended_float(self, type, path);
+    return out;
 }
 
 static MS_NOINLINE PyObject *
@@ -19037,9 +19050,6 @@ typedef struct ConvertState {
     bool str_keys;
     bool from_attributes;
     bool strict;
-    PyObject* (*convert_str)(
-        struct ConvertState*, PyObject*, bool, TypeNode*, PathNode*
-    );
 } ConvertState;
 
 static PyObject * convert(ConvertState *, PyObject *, TypeNode *, PathNode *);
@@ -19158,6 +19168,20 @@ convert_str_uncommon(
     ConvertState *self, PyObject *obj, const char *view, Py_ssize_t size,
     bool is_key, TypeNode *type, PathNode *path
 ) {
+    if (is_key && self->str_keys && (
+            type->types & (
+                MS_TYPE_INT | MS_TYPE_INTENUM | MS_TYPE_INTLITERAL |
+                MS_TYPE_FLOAT | MS_TYPE_DECIMAL |
+                ((!self->strict) * (MS_TYPE_DATETIME | MS_TYPE_TIMEDELTA))
+            )
+        )
+    ) {
+        PyObject *out;
+        if (maybe_parse_number(view, size, type, path, self->strict, &out)) {
+            return out;
+        }
+    }
+
     if (type->types & (MS_TYPE_ENUM | MS_TYPE_STRLITERAL)) {
         return ms_decode_str_enum_or_literal(view, size, type, path);
     }
@@ -19165,7 +19189,7 @@ convert_str_uncommon(
         (type->types & MS_TYPE_DATETIME)
         && !(self->builtin_types & MS_BUILTIN_DATETIME)
     ) {
-        return ms_decode_datetime_from_str(view, size, type, path, self->strict);
+        return ms_decode_datetime_from_str(view, size, type, path);
     }
     else if (
         (type->types & MS_TYPE_DATE)
@@ -19183,7 +19207,7 @@ convert_str_uncommon(
         (type->types & MS_TYPE_TIMEDELTA)
         && !(self->builtin_types & MS_BUILTIN_TIMEDELTA)
     ) {
-        return ms_decode_timedelta(view, size, type, path, self->strict);
+        return ms_decode_timedelta(view, size, type, path);
     }
     else if (
         (type->types & MS_TYPE_UUID)
@@ -19209,16 +19233,11 @@ convert_str_uncommon(
     ) {
         return json_decode_binary(view, size, type, path);
     }
-    else if (
-        is_key && self->str_keys && (type->types & (MS_TYPE_INT | MS_TYPE_INTENUM | MS_TYPE_INTLITERAL))
-    ) {
-        return ms_decode_int_from_str(view, size, type, path);
-    }
     return ms_validation_error("str", type, path);
 }
 
 static PyObject *
-convert_str_strict(
+convert_str(
     ConvertState *self, PyObject *obj,
     bool is_key, TypeNode *type, PathNode *path
 ) {
@@ -19226,29 +19245,17 @@ convert_str_strict(
         Py_INCREF(obj);
         return ms_check_str_constraints(obj, type, path);
     }
+
     Py_ssize_t size;
     const char* view = unicode_str_and_size(obj, &size);
     if (view == NULL) return NULL;
-    return convert_str_uncommon(self, obj, view, size, is_key, type, path);
-}
 
-static PyObject *
-convert_str_lax(
-    ConvertState *self, PyObject *obj,
-    bool is_key, TypeNode *type, PathNode *path
-) {
-    Py_ssize_t size;
-    const char* view = unicode_str_and_size(obj, &size);
-    if (view == NULL) return NULL;
-    bool invalid = false;
-    PyObject *out = ms_decode_str_lax(view, size, type, path, &invalid);
-    if (!invalid) return out;
-
-    if (type->types & MS_TYPE_STR) {
-        Py_INCREF(obj);
-        return ms_check_str_constraints(obj, type, path);
+    if (MS_UNLIKELY(!self->strict)) {
+        bool invalid = false;
+        PyObject *out = ms_decode_str_lax(view, size, type, path, &invalid);
+        if (!invalid) return out;
     }
-    return convert_str_uncommon(self, obj, view, size, false, type, path);
+    return convert_str_uncommon(self, obj, view, size, is_key, type, path);
 }
 
 static PyObject *
@@ -19840,7 +19847,7 @@ convert_dict_to_dict(
     while (PyDict_Next(obj, &pos, &key_obj, &val_obj)) {
         PyObject *key;
         if (PyUnicode_CheckExact(key_obj)) {
-            key = convert_str_strict(self, key_obj, true, key_type, &key_path);
+            key = convert_str(self, key_obj, true, key_type, &key_path);
         }
         else {
             key = convert(self, key_obj, key_type, &key_path);
@@ -20381,7 +20388,7 @@ convert(
 
     PyTypeObject *pytype = Py_TYPE(obj);
     if (PyUnicode_Check(obj)) {
-        return self->convert_str(self, obj, false, type, path);
+        return convert_str(self, obj, false, type, path);
     }
     else if (pytype == &PyBool_Type) {
         return convert_bool(self, obj, type, path);
@@ -20534,14 +20541,12 @@ msgspec_convert(PyObject *self, PyObject *args, PyObject *kwargs)
     state.from_attributes = from_attributes;
     state.strict = strict;
     if (strict) {
-        state.convert_str = &(convert_str_strict);
         state.str_keys = str_keys;
         if (ms_process_builtin_types(state.mod, builtin_types, &(state.builtin_types)) < 0) {
             return NULL;
         }
     }
     else {
-        state.convert_str = &(convert_str_lax);
         state.str_keys = true;
     }
 

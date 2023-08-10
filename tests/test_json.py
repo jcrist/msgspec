@@ -1935,34 +1935,15 @@ class TestDict:
             assert s == f'{{"{x}":"a"}}'.encode("utf-8")
 
     def test_decode_dict_int_key(self):
-        msg = {}
-        sol = {}
-        values = itertools.count()
-
-        for ndigits in range(21):
-            if ndigits == 0:
-                s = "0"
-            else:
-                s = "".join(itertools.islice(itertools.cycle("123456789"), ndigits))
-            key = int(s)
-            msg[s] = sol[key] = next(values)
-            if 0 < ndigits < 20:
-                msg["-" + s] = sol[-key] = next(values)
-
+        msg = {-(2**63): "a", 0: "b", 2**64 - 1: "c"}
         buf = msgspec.json.encode(msg)
-        res = msgspec.json.decode(buf, type=Dict[int, int])
-        assert res == sol
-
-    def test_decode_dict_int_key_19_digit_overflow_boundary(self):
-        sol = {2**63 - 1: "a", 2**63: "b", 2**63 + 1: "c"}
-        buf = msgspec.json.encode(sol)
         res = msgspec.json.decode(buf, type=Dict[int, str])
-        assert res == sol
+        assert res == msg
 
     @pytest.mark.parametrize("s", ['""', '"-"', '"a"', '"-a"', '"01"', '"1a"'])
     def test_decode_dict_int_key_malformed(self, s):
         bad = ("{%s: 1}" % s).encode("utf-8")
-        with pytest.raises(msgspec.ValidationError, match="Invalid integer string"):
+        with pytest.raises(msgspec.ValidationError, match="Expected `int`, got `str`"):
             msgspec.json.decode(bad, type=Dict[int, int])
 
     @pytest.mark.parametrize("x", [-(2**63) - 1, 2**64, 2**65])
@@ -1991,6 +1972,13 @@ class TestDict:
 
         with pytest.raises(msgspec.ValidationError, match="Invalid enum value 3"):
             dec.decode(b'{"-1": 10, "3": 20}')
+
+    def test_decode_dict_float_key(self):
+        msg = {"1.5": 1, "inf": 2, "-inf": 3, "0": 4, "-1.5e12": 5, "123": 6}
+        buf = msgspec.json.encode(msg)
+        sol = {float(k): v for k, v in msg.items()}
+        res = msgspec.json.decode(buf, type=Dict[float, int])
+        assert res == sol
 
     def test_encode_dict_str_subclass_key(self):
         class mystr(str):

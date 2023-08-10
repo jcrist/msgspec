@@ -109,31 +109,8 @@ ms_clzll(uint64_t x) {
 #endif
 }
 
-static inline bool
-reconstruct_double(uint64_t man, int32_t exp, bool is_negative, double *out) {
-    /* If both `man` and `10 ** exp` can be exactly represented as a double, we
-     * can take a fast path */
-    if (MS_LIKELY((-22 <= exp) && (exp <= 22) && ((man >> 53) == 0))) {
-        double d = (double)man;
-        if (exp >= 0) {
-            d *= ms_atof_f64_powers_of_10[exp];
-        } else {
-            d /= ms_atof_f64_powers_of_10[-exp];
-        }
-        *out = is_negative ? -d : d;
-        return true;
-    }
-
-    /* Special case 0 handling. This is only hit if the mantissa is 0 and the
-     * exponent is out of bounds above (i.e. rarely) */
-    if (MS_UNLIKELY(man == 0)) {
-        *out = is_negative ? -0.0 : 0.0;
-        return true;
-    }
-
-    /* Exponent is out of bounds */
-    if (exp > 288 || exp < -307) return false;
-
+static inline int64_t
+eisel_lemire(uint64_t man, int32_t exp) {
     /* The short comment headers below correspond to section titles in Nigel
      * Tao's blogpost. See
      * https://nigeltao.github.io/blog/2020/eisel-lemire.html for a more
@@ -164,7 +141,7 @@ reconstruct_double(uint64_t man, int32_t exp, bool is_negative, double *out) {
 
         /* If the result is still ambiguous at this approximation, abort */
 		if (((merged_hi & 0x1FF) == 0x1FF) && ((merged_lo + 1) == 0) && (y_lo + man < man)) {
-            return false;
+            return -1;
 		}
 
 		x_hi = merged_hi;
@@ -178,7 +155,7 @@ reconstruct_double(uint64_t man, int32_t exp, bool is_negative, double *out) {
 
     /* Check for a half-way ambiguity, and abort if present */
 	if ((x_lo == 0) && ((x_hi & 0x1FF) == 0) && ((ret_mantissa & 3) == 1)) {
-		return false;
+		return -1;
 	}
 
     /* From 54 to 53 bits */
@@ -191,9 +168,7 @@ reconstruct_double(uint64_t man, int32_t exp, bool is_negative, double *out) {
 
     /* Construct final output */
 	ret_mantissa &= 0x000FFFFFFFFFFFFF;
-	uint64_t ret = ret_mantissa | (ret_exp2 << 52) | (((uint64_t)is_negative) << 63);
-    memcpy(out, &ret, sizeof(double));
-    return true;
+    return ((int64_t)(ret_mantissa | (ret_exp2 << 52)));
 }
 
 /* Fallback parsing method using a High Precision Double (HPD) */
