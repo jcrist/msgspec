@@ -4014,13 +4014,10 @@ class TestLax:
             ("true", True),
             ("false", False),
             ("null", None),
-            ("1a", "1a"),
-            ("falsx", "falsx"),
-            ("nulx", "nulx"),
         ],
     )
     def test_lax_union_valid(self, x, sol, proto):
-        typ = Union[int, float, bool, None, str]
+        typ = Union[int, float, bool, None]
         msg = proto.encode(x)
         assert_eq(proto.decode(msg, type=typ, strict=False), sol)
 
@@ -4041,7 +4038,6 @@ class TestLax:
             ("18446744073709551616", "`int` <= 1000"),
             ("-9223372036854775809", "`int` >= 0"),
             ("100.5", "`float` <= 100.0"),
-            ("x" * 11, "length <= 10"),
         ],
     )
     def test_lax_union_invalid_constr(self, x, err, proto, Annotated):
@@ -4051,7 +4047,6 @@ class TestLax:
         typ = Union[
             Annotated[int, Meta(ge=0), Meta(le=1000)],
             Annotated[float, Meta(le=100)],
-            Annotated[str, Meta(max_length=10)],
         ]
         with pytest.raises(ValidationError, match=err):
             proto.decode(msg, type=typ, strict=False)

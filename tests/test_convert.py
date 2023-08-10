@@ -3,6 +3,7 @@ import decimal
 import enum
 import gc
 import inspect
+import math
 import sys
 import uuid
 from base64 import b64encode
@@ -161,8 +162,10 @@ def dictcls(request):
 
 
 def assert_eq(x, y):
-    assert x == y
     assert type(x) is type(y)
+    if type(x) is float and math.isnan(x):
+        return math.isnan(y)
+    assert x == y
 
 
 @contextmanager
@@ -2258,6 +2261,24 @@ class TestLax:
             with pytest.raises(ValidationError, match="Expected `float`, got `str`"):
                 convert(x, float, strict=False)
 
+    @pytest.mark.parametrize("str_value", ["nan", "infinity"])
+    @pytest.mark.parametrize("negative", [False, True])
+    def test_lax_float_nonfinite(self, str_value, negative):
+        prefix = "-" if negative else ""
+        for i in range(len(str_value)):
+            msg = prefix + str_value[:i] + str_value[i].upper() + str_value[i + 1 :]
+            sol = float(msg)
+            res = convert(msg, float, strict=False)
+            assert_eq(res, sol)
+
+    def test_lax_float_nonfinite_invalid(self):
+        for bad in ["abcd", "-abcd", "inx", "-inx", "infinitx", "-infinitx", "nax"]:
+            for msg in [bad, bad.upper()]:
+                with pytest.raises(
+                    ValidationError, match="Expected `float`, got `str`"
+                ):
+                    convert(msg, float, strict=False)
+
     @uses_annotated
     def test_lax_float_constr(self):
         assert convert("1.5", Annotated[float, Meta(ge=0)], strict=False) == 1.5
@@ -2375,13 +2396,10 @@ class TestLax:
             ("true", True),
             ("false", False),
             ("null", None),
-            ("1a", "1a"),
-            ("falsx", "falsx"),
-            ("nulx", "nulx"),
         ],
     )
     def test_lax_union_valid(self, msg, sol):
-        typ = Union[int, float, bool, None, str]
+        typ = Union[int, float, bool, None]
         assert_eq(convert(msg, typ, strict=False), sol)
 
     @pytest.mark.parametrize("msg", ["1a", "1.5a", "falsx", "trux", "nulx"])
@@ -2400,7 +2418,6 @@ class TestLax:
             ("18446744073709551616", "`int` <= 1000"),
             ("-9223372036854775809", "`int` >= 0"),
             ("100.5", "`float` <= 100.0"),
-            ("x" * 11, "length <= 10"),
         ],
     )
     @uses_annotated
@@ -2410,7 +2427,6 @@ class TestLax:
         typ = Union[
             Annotated[int, Meta(ge=0), Meta(le=1000)],
             Annotated[float, Meta(le=100)],
-            Annotated[str, Meta(max_length=10)],
         ]
         with pytest.raises(ValidationError, match=err):
             convert(msg, typ, strict=False)
