@@ -782,7 +782,7 @@ to start writing at the end of the buffer.</p></li>
 
 <dl class="py class">
 <dt class="sig sig-object py" id="msgspec.json.Decoder">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">msgspec.json.</span></span><span class="sig-name descname"><span class="pre">Decoder</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'Any'</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">strict</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dec_hook</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.json.Decoder" title="Permalink to this definition">#</a></dt>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">msgspec.json.</span></span><span class="sig-name descname"><span class="pre">Decoder</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'Any'</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">strict</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dec_hook</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">float_hook</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.json.Decoder" title="Permalink to this definition">#</a></dt>
 <dd><p>A JSON decoder.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -799,6 +799,13 @@ signature <code class="docutils literal notranslate"><span class="pre">dec_hook(
 expected message type, and <code class="docutils literal notranslate"><span class="pre">obj</span></code> is the decoded representation composed
 of only basic JSON types. This hook should transform <code class="docutils literal notranslate"><span class="pre">obj</span></code> into type
 <code class="docutils literal notranslate"><span class="pre">type</span></code>, or raise a <code class="docutils literal notranslate"><span class="pre">NotImplementedError</span></code> if unsupported.</p></li>
+<li><p><strong>float_hook</strong> (<em>callable</em><em>, </em><em>optional</em>) – An optional callback for handling decoding untyped float literals. Should
+have the signature <code class="docutils literal notranslate"><span class="pre">float_hook(val:</span> <span class="pre">str)</span> <span class="pre">-&gt;</span> <span class="pre">Any</span></code>, where <code class="docutils literal notranslate"><span class="pre">val</span></code> is the
+raw string value of the JSON float. This hook is called to decode any
+“untyped” float value (e.g. <code class="docutils literal notranslate"><span class="pre">typing.Any</span></code> typed). The default is
+equivalent to <code class="docutils literal notranslate"><span class="pre">float_hook=float</span></code>, where all untyped JSON floats are
+decoded as python floats. Specifying <code class="docutils literal notranslate"><span class="pre">float_hook=decimal.Decimal</span></code>
+will decode all untyped JSON floats as decimals instead.</p></li>
 </ul>
 </dd>
 </dl>
