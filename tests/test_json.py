@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import datetime
+import decimal
 import enum
 import gc
 import itertools
@@ -523,6 +524,19 @@ class TestDecoderMisc:
 
         with pytest.raises(TypeError):
             dec.decode(1)
+
+    def test_decoder_init_float_hook(self):
+        dec = msgspec.json.Decoder()
+        assert dec.float_hook is None
+
+        dec = msgspec.json.Decoder(float_hook=None)
+        assert dec.float_hook is None
+
+        dec = msgspec.json.Decoder(float_hook=decimal.Decimal)
+        assert dec.float_hook is decimal.Decimal
+
+        with pytest.raises(TypeError):
+            dec = msgspec.json.Decoder(float_hook=1)
 
 
 class TestBoolAndNone:
@@ -1566,6 +1580,42 @@ class TestFloat:
             msgspec.ValidationError, match="Expected `int`, got `float`"
         ):
             msgspec.json.decode(s, type=int)
+
+    def test_float_hook_untyped(self):
+        dec = msgspec.json.Decoder(float_hook=decimal.Decimal)
+        res = dec.decode(b"1.33")
+        assert res == decimal.Decimal("1.33")
+        assert type(res) is decimal.Decimal
+
+    def test_float_hook_typed(self):
+        class Ex(msgspec.Struct):
+            a: float
+            b: decimal.Decimal
+            c: Any
+            d: Any
+
+        class MyFloat(NamedTuple):
+            x: str
+
+        dec = msgspec.json.Decoder(Ex, float_hook=MyFloat)
+        res = dec.decode(b'{"a": 1.5, "b": 1.3, "c": 1.3, "d": 123}')
+        sol = Ex(1.5, decimal.Decimal("1.3"), MyFloat("1.3"), 123)
+        assert res == sol
+
+    def test_float_hook_error(self):
+        def float_hook(val):
+            raise ValueError("Oh no!")
+
+        class Ex(msgspec.Struct):
+            a: float
+            b: Any
+
+        dec = msgspec.json.Decoder(Ex, float_hook=float_hook)
+        assert dec.decode(b'{"a": 1.5, "b": 2}') == Ex(a=1.5, b=2)
+        with pytest.raises(msgspec.ValidationError) as rec:
+            dec.decode(b'{"a": 1.5, "b": 2.5}')
+        assert "Oh no!" in str(rec.value)
+        assert "at `$.b`" in str(rec.value)
 
 
 class TestDecimal:
