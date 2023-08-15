@@ -687,6 +687,26 @@ already using them elsewhere, or if you have downstream code that requires a
       File "<stdin>", line 1, in <module>
     msgspec.ValidationError: Expected `int`, got `str` - at `$[1]`
 
+Other types that duck-type as ``NamedTuple`` (for example
+`edgedb NamedTuples <https://www.edgedb.com/docs/clients/python/api/types#named-tuples>`__)
+are also supported.
+
+.. code-block:: python
+
+    >>> import edgedb
+
+    >>> client = edgedb.create_client()
+
+    >>> alice = client.query_single(
+    ...     "SELECT (name := 'Alice', dob := <cal::local_date>'1984-03-01')"
+    ... )
+
+    >>> alice
+    (name := 'Alice', dob := datetime.date(1984, 3, 1))
+
+    >>> msgspec.json.encode(alice)
+    b'["Alice","1984-03-01"]'
+
 ``dict``
 --------
 
@@ -801,6 +821,28 @@ additional features.
     Traceback (most recent call last):
       File "<stdin>", line 1, in <module>
     msgspec.ValidationError: Expected `int`, got `str` - at `$.age`
+
+Other types that duck-type as ``dataclasses`` (for example
+`edgedb Objects <https://www.edgedb.com/docs/clients/python/api/types#objects>`__ or
+`pydantic dataclasses <https://docs.pydantic.dev/latest/usage/dataclasses/>`__)
+are also supported.
+
+.. code-block:: python
+
+    >>> import edgedb
+
+    >>> client = edgedb.create_client()
+
+    >>> alice = client.query_single(
+    ...     "SELECT User {name, dob} FILTER .name = <str>$name LIMIT 1",
+    ...     name="Alice"
+    ... )
+
+    >>> alice
+    Object{name := 'Alice', dob := datetime.date(1984, 3, 1)}
+
+    >>> msgspec.json.encode(alice)
+    b'{"id":"a6b951cc-2d00-11ee-91aa-b3f17e9898ce","name":"Alice","dob":"1984-03-01"}'
 
 ``attrs``
 ---------
