@@ -871,6 +871,24 @@ already using them elsewhere, or if you have downstream code that requires a
 <span class="gr">msgspec.ValidationError</span>: <span class="n">Expected `int`, got `str` - at `$[1]`</span>
 </pre></div>
 </div>
+<p>Other types that duck-type as <code class="docutils literal notranslate"><span class="pre">NamedTuple</span></code> (for example
+<a class="reference external" href="https://www.edgedb.com/docs/clients/python/api/types#named-tuples">edgedb NamedTuples</a>)
+are also supported.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">edgedb</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">client</span> <span class="o">=</span> <span class="n">edgedb</span><span class="o">.</span><span class="n">create_client</span><span class="p">()</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">alice</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">query_single</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="s2">&quot;SELECT (name := &#39;Alice&#39;, dob := &lt;cal::local_date&gt;&#39;1984-03-01&#39;)&quot;</span>
+<span class="gp">... </span><span class="p">)</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">alice</span>
+<span class="go">(name := &#39;Alice&#39;, dob := datetime.date(1984, 3, 1))</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">alice</span><span class="p">)</span>
+<span class="go">b&#39;[&quot;Alice&quot;,&quot;1984-03-01&quot;]&#39;</span>
+</pre></div>
+</div>
 </section>
 <section id="dict">
 <h2><code class="docutils literal notranslate"><span class="pre">dict</span></code><a class="headerlink" href="#dict" title="Permalink to this heading">#</a></h2>
@@ -969,6 +987,26 @@ additional features.</p>
 <span class="gt">Traceback (most recent call last):</span>
   File <span class="nb">&quot;&lt;stdin&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
 <span class="gr">msgspec.ValidationError</span>: <span class="n">Expected `int`, got `str` - at `$.age`</span>
+</pre></div>
+</div>
+<p>Other types that duck-type as <code class="docutils literal notranslate"><span class="pre">dataclasses</span></code> (for example
+<a class="reference external" href="https://www.edgedb.com/docs/clients/python/api/types#objects">edgedb Objects</a> or
+<a class="reference external" href="https://docs.pydantic.dev/latest/usage/dataclasses/">pydantic dataclasses</a>)
+are also supported.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">edgedb</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">client</span> <span class="o">=</span> <span class="n">edgedb</span><span class="o">.</span><span class="n">create_client</span><span class="p">()</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">alice</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">query_single</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="s2">&quot;SELECT User {name, dob} FILTER .name = &lt;str&gt;$name LIMIT 1&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;Alice&quot;</span>
+<span class="gp">... </span><span class="p">)</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">alice</span>
+<span class="go">Object{name := &#39;Alice&#39;, dob := datetime.date(1984, 3, 1)}</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">alice</span><span class="p">)</span>
+<span class="go">b&#39;{&quot;id&quot;:&quot;a6b951cc-2d00-11ee-91aa-b3f17e9898ce&quot;,&quot;name&quot;:&quot;Alice&quot;,&quot;dob&quot;:&quot;1984-03-01&quot;}&#39;</span>
 </pre></div>
 </div>
 </section>
