@@ -60,13 +60,16 @@ class TestToBuiltins:
         ):
             to_builtins([1], builtin_types=1)
 
-        with pytest.raises(TypeError) as rec:
-            to_builtins([1], builtin_types=(int,))
-        assert "Cannot treat" in str(rec.value)
-        assert "int" in str(rec.value)
+        with pytest.raises(
+            TypeError, match="builtin_types must be an iterable of types"
+        ):
+            to_builtins([1], builtin_types=(1,))
 
         with pytest.raises(TypeError, match="enc_hook must be callable"):
             to_builtins([1], enc_hook=1)
+
+    def test_to_builtins_builtin_types_explicit_none(self):
+        assert to_builtins(1, builtin_types=None) == 1
 
     def test_to_builtins_enc_hook_explicit_none(self):
         assert to_builtins(1, enc_hook=None) == 1
@@ -492,3 +495,22 @@ class TestToBuiltins:
             to_builtins(Bad())
 
         assert to_builtins(Bad(), enc_hook=lambda x: "bad") == "bad"
+
+    @pytest.mark.parametrize("col_type", [tuple, list, set])
+    def test_custom_builtin_types(self, col_type):
+        class C1:
+            pass
+
+        class C2:
+            pass
+
+        builtins = col_type([C1, bytes, C2])
+        count = sys.getrefcount(builtins)
+
+        for msg in [C1(), C2(), b"test"]:
+            assert to_builtins(msg, builtin_types=builtins) is msg
+
+        with pytest.raises(TypeError, match="Encoding objects of type Bad"):
+            to_builtins(Bad(), builtin_types=builtins)
+
+        assert sys.getrefcount(builtins) == count
