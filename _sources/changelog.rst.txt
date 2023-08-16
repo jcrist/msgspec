@@ -3,6 +3,14 @@ Changelog
 
 .. currentmodule:: msgspec
 
+Version 0.18.1 (2023-08-16)
+---------------------------
+
+- Support custom ``builtin_types`` in `msgspec.to_builtins` (:pr:`517`).
+- Try ``getattr`` before ``getitem`` when converting with
+  ``from_attributes=True`` (:pr:`519`).
+- More efficient module state access in top-level functions (:pr:`521`).
+
 Version 0.18.0 (2023-08-10)
 ---------------------------
 

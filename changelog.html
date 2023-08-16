@@ -261,6 +261,15 @@
         <article role="main">
           <section id="changelog">
 <h1>Changelog<a class="headerlink" href="#changelog" title="Permalink to this heading">#</a></h1>
+<section id="version-0-18-1-2023-08-16">
+<h2>Version 0.18.1 (2023-08-16)<a class="headerlink" href="#version-0-18-1-2023-08-16" title="Permalink to this heading">#</a></h2>
+<ul class="simple">
+<li><p>Support custom <code class="docutils literal notranslate"><span class="pre">builtin_types</span></code> in <a class="reference internal" href="api.html#msgspec.to_builtins" title="msgspec.to_builtins"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.to_builtins</span></code></a> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/517">PR #517</a>).</p></li>
+<li><p>Try <code class="docutils literal notranslate"><span class="pre">getattr</span></code> before <code class="docutils literal notranslate"><span class="pre">getitem</span></code> when converting with
+<code class="docutils literal notranslate"><span class="pre">from_attributes=True</span></code> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/519">PR #519</a>).</p></li>
+<li><p>More efficient module state access in top-level functions (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/521">PR #521</a>).</p></li>
+</ul>
+</section>
 <section id="version-0-18-0-2023-08-10">
 <h2>Version 0.18.0 (2023-08-10)<a class="headerlink" href="#version-0-18-0-2023-08-10" title="Permalink to this heading">#</a></h2>
 <ul class="simple">
@@ -791,6 +800,7 @@ faster decoding.</p></li>
           <div class="toc-tree">
             <ul>
 <li><a class="reference internal" href="#">Changelog</a><ul>
+<li><a class="reference internal" href="#version-0-18-1-2023-08-16">Version 0.18.1 (2023-08-16)</a></li>
 <li><a class="reference internal" href="#version-0-18-0-2023-08-10">Version 0.18.0 (2023-08-10)</a></li>
 <li><a class="reference internal" href="#version-0-17-0-2023-07-11">Version 0.17.0 (2023-07-11)</a></li>
 <li><a class="reference internal" href="#version-0-16-0-2023-06-12">Version 0.16.0 (2023-06-12)</a></li>
