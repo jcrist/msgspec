@@ -95,6 +95,25 @@ class GetItemObj(MutableMapping):
         return len(self._data)
 
 
+class GetAttrOrItemObj:
+    def __init__(self, _data=None, **kwargs):
+        self._attrs = _data or {}
+        self._attrs.update(kwargs)
+        self._items = {}
+        if self._attrs:
+            k, v = self._attrs.popitem()
+            self._items[k] = v
+
+    def __getitem__(self, key):
+        return self._items[key]
+
+    def __getattr__(self, key):
+        try:
+            return self._attrs[key]
+        except KeyError:
+            raise AttributeError(key) from None
+
+
 def KWList(**kwargs):
     return list(kwargs.values())
 
@@ -121,7 +140,13 @@ class SubDict(dict):
 
 mapcls_and_from_attributes = pytest.mark.parametrize(
     "mapcls, from_attributes",
-    [(dict, False), (SubDict, False), (GetAttrObj, True), (GetItemObj, False)],
+    [
+        (dict, False),
+        (SubDict, False),
+        (GetAttrObj, True),
+        (GetAttrOrItemObj, True),
+        (GetItemObj, False),
+    ],
 )
 
 mapcls_from_attributes_and_array_like = pytest.mark.parametrize(
@@ -132,6 +157,9 @@ mapcls_from_attributes_and_array_like = pytest.mark.parametrize(
         (KWList, False, True),
         (GetAttrObj, True, True),
         (GetAttrObj, True, False),
+        (GetAttrOrItemObj, True, True),
+        (GetAttrOrItemObj, True, False),
+        (GetAttrOrItemObj, False, False),
         (GetItemObj, False, False),
     ],
 )
