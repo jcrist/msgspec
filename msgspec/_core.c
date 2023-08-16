@@ -6121,7 +6121,7 @@ msgspec_defstruct(PyObject *self, PyObject *args, PyObject *kwargs)
     )
         return NULL;
 
-    MsgspecState *mod = msgspec_get_global_state();
+    MsgspecState *mod = msgspec_get_state(self);
 
     /* Handle namespace */
     if (namespace == NULL || namespace == Py_None) {
@@ -8782,6 +8782,7 @@ encoder_encode_common(
 
 static PyObject*
 encode_common(
+    PyObject *module,
     PyObject *const *args,
     Py_ssize_t nargs,
     PyObject *kwnames,
@@ -8789,7 +8790,7 @@ encode_common(
 )
 {
     PyObject *enc_hook = NULL;
-    MsgspecState *mod = msgspec_get_global_state();
+    MsgspecState *mod = msgspec_get_state(module);
 
     /* Parse arguments */
     if (!check_positional_nargs(nargs, 1, 1)) return NULL;
@@ -12488,7 +12489,7 @@ PyDoc_STRVAR(msgspec_msgpack_encode__doc__,
 static PyObject*
 msgspec_msgpack_encode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
 {
-    return encode_common(args, nargs, kwnames, &mpack_encode);
+    return encode_common(self, args, nargs, kwnames, &mpack_encode);
 }
 
 /*************************************************************************
@@ -13524,7 +13525,7 @@ PyDoc_STRVAR(msgspec_json_encode__doc__,
 static PyObject*
 msgspec_json_encode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
 {
-    return encode_common(args, nargs, kwnames, &json_encode);
+    return encode_common(self, args, nargs, kwnames, &json_encode);
 }
 
 /*************************************************************************
@@ -15318,7 +15319,7 @@ msgspec_msgpack_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, 
 {
     PyObject *res = NULL, *buf = NULL, *type = NULL, *strict_obj = NULL;
     PyObject *dec_hook = NULL, *ext_hook = NULL;
-    MsgspecState *mod = msgspec_get_global_state();
+    MsgspecState *mod = msgspec_get_state(self);
     int strict = 1;
 
     /* Parse arguments */
@@ -18072,7 +18073,7 @@ msgspec_json_format(PyObject *self, PyObject *args, PyObject *kwargs)
         dec.input_end = dec.input_pos + buffer.len;
 
         /* Init encoder */
-        enc.mod = msgspec_get_global_state();
+        enc.mod = msgspec_get_state(self);
         enc.enc_hook = NULL;
         /* Assume pretty-printing will take at least as much space as the
          * input. This is true unless there's existing whitespace. */
@@ -18346,7 +18347,7 @@ msgspec_json_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyO
 {
     PyObject *res = NULL, *buf = NULL, *type = NULL, *dec_hook = NULL, *strict_obj = NULL;
     int strict = 1;
-    MsgspecState *mod = msgspec_get_global_state();
+    MsgspecState *mod = msgspec_get_state(self);
 
     /* Parse arguments */
     if (!check_positional_nargs(nargs, 1, 1)) return NULL;
@@ -19126,7 +19127,7 @@ msgspec_to_builtins(PyObject *self, PyObject *args, PyObject *kwargs)
         return NULL;
     }
 
-    state.mod = msgspec_get_global_state();
+    state.mod = msgspec_get_state(self);
     state.str_keys = str_keys;
     state.builtin_types = 0;
     state.builtin_types_seq = NULL;
@@ -20662,7 +20663,7 @@ msgspec_convert(PyObject *self, PyObject *args, PyObject *kwargs)
         return NULL;
     }
 
-    state.mod = msgspec_get_global_state();
+    state.mod = msgspec_get_state(self);
     state.builtin_types = 0;
     state.from_attributes = from_attributes;
     state.strict = strict;
