@@ -844,6 +844,8 @@ are also supported.
     >>> msgspec.json.encode(alice)
     b'{"id":"a6b951cc-2d00-11ee-91aa-b3f17e9898ce","name":"Alice","dob":"1984-03-01"}'
 
+For a more complete example using EdgeDB, see :doc:`examples/edgedb`.
+
 ``attrs``
 ---------
 

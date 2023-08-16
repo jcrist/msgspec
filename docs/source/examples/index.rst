@@ -9,3 +9,4 @@ Here we provide a few examples using ``msgspec`` to accomplish various tasks.
     asyncio-kv.rst
     conda-repodata.rst
     pyproject-toml.rst
+    edgedb.rst
