@@ -20411,6 +20411,16 @@ Lookup_union_contains_type(Lookup *lookup, PyTypeObject *cls) {
 }
 
 static PyObject *
+getattr_then_getitem(PyObject *obj, PyObject *key) {
+    PyObject *out = PyObject_GetAttr(obj, key);
+    if (out == NULL) {
+        PyErr_Clear();
+        out = PyObject_GetItem(obj, key);
+    }
+    return out;
+}
+
+static PyObject *
 convert_other(
     ConvertState *self, PyObject *obj, TypeNode *type, PathNode *path
 ) {
@@ -20464,15 +20474,15 @@ convert_other(
         /* We want to exclude array_like structs when converting from a
          * mapping, but include them when converting by attribute */
         bool matches_struct, matches_struct_union;
-        if (is_mapping) {
-            getter = PyObject_GetItem;
-            matches_struct = type->types & MS_TYPE_STRUCT;
-            matches_struct_union = type->types & MS_TYPE_STRUCT_UNION;
-        }
-        else {
-            getter = PyObject_GetAttr;
+        if (self->from_attributes) {
+            getter = (is_mapping) ? getattr_then_getitem : PyObject_GetAttr;
             matches_struct = type->types & (MS_TYPE_STRUCT | MS_TYPE_STRUCT_ARRAY);
             matches_struct_union = type->types & (MS_TYPE_STRUCT_UNION | MS_TYPE_STRUCT_ARRAY_UNION);
+        }
+        else {
+            getter = getattr_then_getitem;
+            matches_struct = type->types & MS_TYPE_STRUCT;
+            matches_struct_union = type->types & MS_TYPE_STRUCT_UNION;
         }
 
         if (matches_struct) {
