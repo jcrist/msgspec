@@ -1,0 +1,555 @@
+<!doctype html>
+<html class="no-js" lang="en">
+  <head><meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="index" title="Index" href="../genindex.html" /><link rel="search" title="Search" href="../search.html" /><link rel="next" title="Changelog" href="../changelog.html" /><link rel="prev" title="Parsing pyproject.toml" href="pyproject-toml.html" />
+
+    <!-- Generated with Sphinx 7.1.2 and Furo 2023.07.26 -->
+        <title>Usage with EdgeDB</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=80d5e7a1" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/furo.css?v=135e06be" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/design-style.1e8bd061cd6da7fc9cf755528e8ffc24.min.css?v=0a3b3ea7" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/furo-extensions.css?v=36a5483c" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=6b2c8899" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #f8f8f8;
+  --color-code-foreground: black;
+  --color-brand-primary: black;
+  --color-brand-content: #024bb0;
+  --color-foreground-muted: #808080;
+  --color-highlight-on-target: inherit;
+  --color-highlighted-background: #ffffcc;
+  --color-sidebar-link-text: black;
+  --color-sidebar-link-text--top-level: black;
+  --color-link: #024bb0;
+  --color-link--hover: #024bb0;
+  --color-link-underline: transparent;
+  --color-link-underline--hover: #024bb0;
+  
+  }
+  @media not print {
+    body[data-theme="dark"] {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  --color-brand-primary: #ffffff;
+  --color-brand-content: #5192d2;
+  --color-highlight-on-target: inherit;
+  --color-highlighted-background: #333300;
+  --color-sidebar-link-text: #ffffffcc;
+  --color-sidebar-link-text--top-level: #ffffffcc;
+  --color-link: #5192d2;
+  --color-link--hover: #5192d2;
+  --color-link-underline: transparent;
+  --color-link-underline--hover: #5192d2;
+  
+    }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) {
+        --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  --color-brand-primary: #ffffff;
+  --color-brand-content: #5192d2;
+  --color-highlight-on-target: inherit;
+  --color-highlighted-background: #333300;
+  --color-sidebar-link-text: #ffffffcc;
+  --color-sidebar-link-text--top-level: #ffffffcc;
+  --color-link: #5192d2;
+  --color-link--hover: #5192d2;
+  --color-link-underline: transparent;
+  --color-link-underline--hover: #5192d2;
+  
+      }
+    }
+  }
+</style></head>
+  <body>
+    
+    <script>
+      document.body.dataset.theme = localStorage.getItem("theme") || "auto";
+    </script>
+    
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 1024 1024">
+      <path d="M408 442h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8zm-8 204c0 4.4 3.6 8 8 8h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56zm504-486H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm0 632H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zM115.4 518.9L271.7 642c5.8 4.6 14.4.5 14.4-6.9V388.9c0-7.4-8.5-11.5-14.4-6.9L115.4 505.1a8.74 8.74 0 0 0 0 13.8z"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-half" viewBox="0 0 24 24">
+    <title>Auto light/dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-shadow">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M13 12h5" />
+      <path d="M13 15h4" />
+      <path d="M13 18h1" />
+      <path d="M13 9h4" />
+      <path d="M13 6h1" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc">
+<label class="overlay sidebar-overlay" for="__navigation">
+  <div class="visually-hidden">Hide navigation sidebar</div>
+</label>
+<label class="overlay toc-overlay" for="__toc">
+  <div class="visually-hidden">Hide table of contents sidebar</div>
+</label>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <div class="visually-hidden">Toggle site navigation sidebar</div>
+        <i class="icon"><svg><use href="#svg-menu"></use></svg></i>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="../index.html"><div class="brand">msgspec</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle">
+          <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+          <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
+        <div class="visually-hidden">Toggle table of contents sidebar</div>
+        <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand" href="../index.html">
+  
+  <div class="sidebar-logo-container">
+    <img class="sidebar-logo only-light" src="../_static/msgspec-logo-light.svg" alt="Light Logo"/>
+    <img class="sidebar-logo only-dark" src="../_static/msgspec-logo-dark.svg" alt="Dark Logo"/>
+  </div>
+  
+  
+</a><form class="sidebar-search-container" method="get" action="../search.html" role="search">
+  <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <p class="caption" role="heading"><span class="caption-text">Overview</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../why.html">Why msgspec?</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install.html">Installation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../usage.html">Usage</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../supported-types.html">Supported Types</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../structs.html">Structs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../constraints.html">Constraints</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../converters.html">Converters</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../jsonschema.html">JSON Schema</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../schema-evolution.html">Schema Evolution</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Advanced</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../extending.html">Extending</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../inspect.html">Inspecting Types</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../perf-tips.html">Performance Tips</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../api.html">API Docs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../benchmarks.html">Benchmarks</a></li>
+<li class="toctree-l1 current has-children"><a class="reference internal" href="index.html">Examples</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle navigation of Examples</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="geojson.html">GeoJSON</a></li>
+<li class="toctree-l2"><a class="reference internal" href="asyncio-kv.html">Asyncio TCP Key-Value Server</a></li>
+<li class="toctree-l2"><a class="reference internal" href="conda-repodata.html">Conda Repodata</a></li>
+<li class="toctree-l2"><a class="reference internal" href="pyproject-toml.html">Parsing <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code></a></li>
+<li class="toctree-l2 current current-page"><a class="current reference internal" href="#">Usage with EdgeDB</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../changelog.html">Changelog</a></li>
+</ul>
+
+</div>
+</div>
+
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <div class="article-container">
+        <a href="#" class="back-to-top muted-link">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+          </svg>
+          <span>Back to top</span>
+        </a>
+        <div class="content-icon-container">
+          
+<div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle">
+              <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+              <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
+            <div class="visually-hidden">Toggle table of contents sidebar</div>
+            <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+          </label>
+        </div>
+        <article role="main">
+          <section id="usage-with-edgedb">
+<h1>Usage with EdgeDB<a class="headerlink" href="#usage-with-edgedb" title="Permalink to this heading">#</a></h1>
+<a class="reference internal image-reference" href="../_images/edgedb.svg"><img alt="../_images/edgedb.svg" class="align-center" src="../_images/edgedb.svg" width="60%" /></a>
+<p><a class="reference external" href="https://www.edgedb.com/">EdgeDB</a> is an interesting new <a class="reference external" href="https://www.edgedb.com/blog/the-graph-relational-database-defined">graph-relational
+database</a>
+system. It includes a powerful and ergonomic query language <a class="reference external" href="https://www.edgedb.com/docs/edgeql/index">“EdgeQL”</a>, along with client libraries that
+integrate well with their respective language ecosystems.</p>
+<p>In this example we demonstrate a few ways of integrating EdgeDB’s
+<a class="reference external" href="https://www.edgedb.com/docs/clients/python">Python client library</a>
+with <code class="docutils literal notranslate"><span class="pre">msgspec</span></code>.</p>
+<section id="setup">
+<h2>Setup<a class="headerlink" href="#setup" title="Permalink to this heading">#</a></h2>
+<p>This is not intended to be a complete EdgeDB tutorial; for that we recommend
+going through the <a class="reference external" href="https://www.edgedb.com/docs/intro/quickstart">official EdgeDB quickstart</a>. This example assumes you
+already have the EdgeDB CLI and Python library installed.</p>
+<p>After cloning the <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> repo, navigate to the <code class="docutils literal notranslate"><span class="pre">edgedb</span></code> example
+directory <a class="reference external" href="https://github.com/jcrist/msgspec/blob/main/examples/edgedb">here</a>. Then
+initialize a new <code class="docutils literal notranslate"><span class="pre">edgedb</span></code> project.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>edgedb<span class="w"> </span>project<span class="w"> </span>init<span class="w"> </span>--server-instance<span class="w"> </span>edgedb-msgspec-example<span class="w"> </span>--non-interactive
+</pre></div>
+</div>
+<p>This will setup a new instance and apply the example schema:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">module</span> <span class="n">default</span> <span class="p">{</span>
+  <span class="nb">type</span> <span class="n">Person</span> <span class="p">{</span>
+    <span class="n">required</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">;</span>
+  <span class="p">}</span>
+
+  <span class="nb">type</span> <span class="n">Movie</span> <span class="p">{</span>
+    <span class="n">required</span> <span class="n">title</span><span class="p">:</span> <span class="nb">str</span><span class="p">;</span>
+    <span class="n">multi</span> <span class="n">actors</span><span class="p">:</span> <span class="n">Person</span><span class="p">;</span>
+  <span class="p">}</span>
+<span class="p">};</span>
+</pre></div>
+</div>
+<p>We then need to insert some records. This is done with the following EdgeQL
+query:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">INSERT</span> <span class="n">Movie</span> <span class="p">{</span>
+  <span class="n">title</span> <span class="o">:=</span> <span class="s2">&quot;Dune&quot;</span><span class="p">,</span>
+  <span class="n">actors</span> <span class="o">:=</span> <span class="p">{</span>
+    <span class="p">(</span><span class="n">INSERT</span> <span class="n">Person</span> <span class="p">{</span> <span class="n">name</span> <span class="o">:=</span> <span class="s2">&quot;Timothée Chalamet&quot;</span> <span class="p">}),</span>
+    <span class="p">(</span><span class="n">INSERT</span> <span class="n">Person</span> <span class="p">{</span> <span class="n">name</span> <span class="o">:=</span> <span class="s2">&quot;Zendaya&quot;</span> <span class="p">})</span>
+  <span class="p">}</span>
+<span class="p">};</span>
+</pre></div>
+</div>
+<p>To run this, execute the following:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>edgedb<span class="w"> </span>query<span class="w"> </span>-f<span class="w"> </span>insert_data.edgeql
+</pre></div>
+</div>
+</section>
+<section id="json-encoding-query-results">
+<h2>JSON Encoding Query Results<a class="headerlink" href="#json-encoding-query-results" title="Permalink to this heading">#</a></h2>
+<p>The EdgeDB Python library returns objects as <code class="docutils literal notranslate"><span class="pre">edgedb.Object</span></code> instances
+(<a class="reference external" href="https://www.edgedb.com/docs/clients/python/api/types#edgedb.Object">docs</a>).
+Here we query the movie “Dune” that we inserted above, requesting the movie
+title and actors’ names.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">edgedb</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">msgspec</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">client</span> <span class="o">=</span> <span class="n">edgedb</span><span class="o">.</span><span class="n">create_client</span><span class="p">()</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">dune</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">query_single</span><span class="p">(</span>
+<span class="gp">... </span><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="gp">... </span><span class="sd">    SELECT Movie {</span>
+<span class="gp">... </span><span class="sd">        title,</span>
+<span class="gp">... </span><span class="sd">        actors: {</span>
+<span class="gp">... </span><span class="sd">            name</span>
+<span class="gp">... </span><span class="sd">        }</span>
+<span class="gp">... </span><span class="sd">    }</span>
+<span class="gp">... </span><span class="sd">    FILTER .title = &#39;Dune&#39;</span>
+<span class="gp">... </span><span class="sd">    LIMIT 1</span>
+<span class="gp">... </span><span class="sd">    &quot;&quot;&quot;</span>
+<span class="gp">... </span><span class="p">)</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">dune</span>
+<span class="go">Object{title := &#39;Dune&#39;, actors := [Object{name := &#39;Timothée Chalamet&#39;}, Object{name := &#39;Zendaya&#39;}]}</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">type</span><span class="p">(</span><span class="n">dune</span><span class="p">)</span>
+<span class="go">edgedb.Object</span>
+</pre></div>
+</div>
+<p>These <code class="docutils literal notranslate"><span class="pre">edgedb.Object</span></code> instances are duck-type compatible with <a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#module-dataclasses" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses</span></code></a>,
+which means <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> already knows how to JSON encode them.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">json</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">dune</span><span class="p">)</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">()))</span>  <span class="c1"># pretty-print the JSON</span>
+<span class="go">{</span>
+<span class="go">  &quot;id&quot;: &quot;b21913c4-3b68-11ee-89b0-2f0b6819503d&quot;,</span>
+<span class="go">  &quot;title&quot;: &quot;Dune&quot;,</span>
+<span class="go">  &quot;actors&quot;: [</span>
+<span class="go">    {</span>
+<span class="go">      &quot;id&quot;: &quot;b219195a-3b68-11ee-89b0-5b3794805cc7&quot;,</span>
+<span class="go">      &quot;name&quot;: &quot;Timothée Chalamet&quot;</span>
+<span class="go">    },</span>
+<span class="go">    {</span>
+<span class="go">      &quot;id&quot;: &quot;b2192058-3b68-11ee-89b0-f7d83b95fb13&quot;,</span>
+<span class="go">      &quot;name&quot;: &quot;Zendaya&quot;</span>
+<span class="go">    }</span>
+<span class="go">  ]</span>
+<span class="go">}</span>
+</pre></div>
+</div>
+<p>Note that if you’re immediately JSON encoding the results you may be better
+served by using EdgeDB’s <code class="docutils literal notranslate"><span class="pre">query_json</span></code>/<code class="docutils literal notranslate"><span class="pre">query_single_json</span></code> methods, which
+return JSON strings directly (but strip the <code class="docutils literal notranslate"><span class="pre">id</span></code> fields).</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">edgedb_json</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">query_single_json</span><span class="p">(</span>
+<span class="gp">... </span><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="gp">... </span><span class="sd">    SELECT Movie {</span>
+<span class="gp">... </span><span class="sd">        title,</span>
+<span class="gp">... </span><span class="sd">        actors: {</span>
+<span class="gp">... </span><span class="sd">            name</span>
+<span class="gp">... </span><span class="sd">        }</span>
+<span class="gp">... </span><span class="sd">    }</span>
+<span class="gp">... </span><span class="sd">    FILTER .title = &#39;Dune&#39;</span>
+<span class="gp">... </span><span class="sd">    LIMIT 1</span>
+<span class="gp">... </span><span class="sd">    &quot;&quot;&quot;</span>
+<span class="gp">... </span><span class="p">)</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">edgedb_json</span>
+<span class="go">&#39;{&quot;title&quot; : &quot;Dune&quot;, &quot;actors&quot; : [{&quot;name&quot; : &quot;Timothée Chalamet&quot;},{&quot;name&quot; : &quot;Zendaya&quot;}]}&#39;</span>
+</pre></div>
+</div>
+<p>If needed, this JSON string may be efficiently composed into a larger JSON
+object using <a class="reference internal" href="../api.html#msgspec.Raw" title="msgspec.Raw"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Raw</span></code></a>. Here we add some additional outer structure
+wrapping the query result:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">datetime</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span> <span class="o">=</span> <span class="p">{</span>
+<span class="gp">... </span>    <span class="s2">&quot;timestamp&quot;</span><span class="p">:</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">(</span><span class="n">datetime</span><span class="o">.</span><span class="n">timezone</span><span class="o">.</span><span class="n">utc</span><span class="p">),</span>
+<span class="gp">... </span>    <span class="s2">&quot;server_version&quot;</span><span class="p">:</span> <span class="s2">&quot;3.2&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="s2">&quot;query_result&quot;</span><span class="p">:</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">Raw</span><span class="p">(</span><span class="n">edgedb_json</span><span class="p">),</span>
+<span class="gp">... </span><span class="p">}</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">json</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">()))</span>  <span class="c1"># pretty-print the JSON</span>
+<span class="go">{</span>
+<span class="go">  &quot;timestamp&quot;: &quot;2023-08-15T14:37:12.733731Z&quot;,</span>
+<span class="go">  &quot;server_version&quot;: &quot;3.2&quot;,</span>
+<span class="go">  &quot;query_result&quot;: {</span>
+<span class="go">    &quot;title&quot;: &quot;Dune&quot;,</span>
+<span class="go">    &quot;actors&quot;: [</span>
+<span class="go">      {</span>
+<span class="go">        &quot;name&quot;: &quot;Timothée Chalamet&quot;</span>
+<span class="go">      },</span>
+<span class="go">      {</span>
+<span class="go">        &quot;name&quot;: &quot;Zendaya&quot;</span>
+<span class="go">      }</span>
+<span class="go">    ]</span>
+<span class="go">  }</span>
+<span class="go">}</span>
+</pre></div>
+</div>
+</section>
+<section id="supporting-other-edgedb-types">
+<h2>Supporting Other EdgeDB Types<a class="headerlink" href="#supporting-other-edgedb-types" title="Permalink to this heading">#</a></h2>
+<p>Besides <code class="docutils literal notranslate"><span class="pre">edgedb.Object</span></code>, <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> also includes builtin support for JSON
+encoding <code class="docutils literal notranslate"><span class="pre">edgedb.NamedTuple</span></code> types. There are a few remaining <code class="docutils literal notranslate"><span class="pre">edgedb</span></code>
+types that <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> doesn’t support out-of-the-box:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">edgedb.DateDuration</span></code> (<a class="reference external" href="https://www.edgedb.com/docs/clients/python/api/types#edgedb.DateDuration">docs</a>)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">edgedb.RelativeDuration</span></code> (<a class="reference external" href="https://www.edgedb.com/docs/clients/python/api/types#edgedb.RelativeDuration">docs</a>)</p></li>
+</ul>
+<p>JSON encoding support for these may be added through the use of
+<a class="reference internal" href="../extending.html"><span class="doc">extensions</span></a>.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">def</span> <span class="nf">enc_hook</span><span class="p">(</span><span class="n">obj</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="p">(</span><span class="n">edgedb</span><span class="o">.</span><span class="n">DateDuration</span><span class="p">,</span> <span class="n">edgedb</span><span class="o">.</span><span class="n">RelativeDuration</span><span class="p">)):</span>
+<span class="gp">... </span>        <span class="c1"># The str representation of these types are ISO8601 durations,</span>
+<span class="gp">... </span>        <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span>
+<span class="gp">... </span>    <span class="c1"># Raise a NotImplementedError for unsupported types</span>
+<span class="gp">... </span>    <span class="k">raise</span> <span class="ne">NotImplementedError</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">duration</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">query_single</span><span class="p">(</span><span class="s1">&#39;SELECT &lt;cal::date_duration&gt;&quot;1 year 2 days&quot;&#39;</span><span class="p">)</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">duration</span>
+<span class="go">&lt;edgedb.DateDuration &quot;P1Y2D&quot;&gt;</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">duration</span><span class="p">,</span> <span class="n">enc_hook</span><span class="o">=</span><span class="n">enc_hook</span><span class="p">)</span>
+<span class="go">b&#39;&quot;P1Y2D&quot;&#39;</span>
+</pre></div>
+</div>
+</section>
+<section id="converting-results-to-structs">
+<h2>Converting Results to Structs<a class="headerlink" href="#converting-results-to-structs" title="Permalink to this heading">#</a></h2>
+<p>If your application contains complex server-side logic, you may wish to convert
+the query results into some other application-specific structured type.
+<code class="docutils literal notranslate"><span class="pre">msgspec</span></code> supports automatic conversion to other types <a class="reference internal" href="../api.html#msgspec.convert" title="msgspec.convert"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.convert</span></code></a>.</p>
+<p>Here we’ll define two <a class="reference internal" href="../api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> types mirroring our Schema above:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">Person</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">Movie</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span>
+<span class="gp">... </span>    <span class="n">actors</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Person</span><span class="p">]</span>
+</pre></div>
+</div>
+<p>We can then convert the <code class="docutils literal notranslate"><span class="pre">edgedb.Object</span></code> results into our <code class="docutils literal notranslate"><span class="pre">Struct</span></code> types
+using <a class="reference internal" href="../api.html#msgspec.convert" title="msgspec.convert"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.convert</span></code></a>. Note that the same conversion process would work if
+<code class="docutils literal notranslate"><span class="pre">Person</span></code> or <code class="docutils literal notranslate"><span class="pre">Movie</span></code> were defined as <a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#module-dataclasses" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses</span></code></a> or <a class="reference external" href="https://www.attrs.org/en/stable/api.html#module-attrs" title="(in attrs v23.1)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">attrs</span></code></a> types instead.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">convert</span><span class="p">(</span><span class="n">dune</span><span class="p">,</span> <span class="n">Movie</span><span class="p">,</span> <span class="n">from_attributes</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="go">Movie(title=&#39;Dune&#39;, actors=[Person(name=&#39;Timothée Chalamet&#39;), Person(name=&#39;Zendaya&#39;)])</span>
+</pre></div>
+</div>
+<p>These structs may then be used to implement application logic
+(mutating/combining them as needed) before serializing the output to JSON.</p>
+</section>
+</section>
+
+        </article>
+      </div>
+      <footer>
+        
+        <div class="related-pages">
+          <a class="next-page" href="../changelog.html">
+              <div class="page-info">
+                <div class="context">
+                  <span>Next</span>
+                </div>
+                <div class="title">Changelog</div>
+              </div>
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+            </a>
+          <a class="prev-page" href="pyproject-toml.html">
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+              <div class="page-info">
+                <div class="context">
+                  <span>Previous</span>
+                </div>
+                
+                <div class="title">Parsing <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code></div>
+                
+              </div>
+            </a>
+        </div>
+        <div class="bottom-of-page">
+          <div class="left-details">
+            <div class="copyright">
+                Copyright &#169; 2022, Jim Crist-Harif
+            </div>
+            Made with <a href="https://www.sphinx-doc.org/">Sphinx</a> and <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
+            
+            <a href="https://github.com/pradyunsg/furo">Furo</a>
+            
+          </div>
+          <div class="right-details">
+            <div class="icons">
+              <a class="muted-link " href="https://github.com/jcrist/msgspec" aria-label="GitHub"><svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 16 16">
+  <path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"></path>
+</svg></a>
+              
+            </div>
+          </div>
+        </div>
+        
+      </footer>
+    </div>
+    <aside class="toc-drawer">
+      
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            On this page
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">Usage with EdgeDB</a><ul>
+<li><a class="reference internal" href="#setup">Setup</a></li>
+<li><a class="reference internal" href="#json-encoding-query-results">JSON Encoding Query Results</a></li>
+<li><a class="reference internal" href="#supporting-other-edgedb-types">Supporting Other EdgeDB Types</a></li>
+<li><a class="reference internal" href="#converting-results-to-structs">Converting Results to Structs</a></li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
+      
+      
+    </aside>
+  </div>
+</div><script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js?v=b3ba4146"></script>
+    <script src="../_static/doctools.js?v=888ff710"></script>
+    <script src="../_static/sphinx_highlight.js?v=4825356b"></script>
+    <script src="../_static/scripts/furo.js?v=32e29ea5"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=de5a9c30"></script>
+    <script src="../_static/design-tabs.js?v=36754332"></script>
+    </body>
+</html>
