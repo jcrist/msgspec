@@ -74,8 +74,8 @@ class DirectoryModel(pydantic.BaseModel):
 
 def bench_pydantic(n):
     return bench(
-        lambda p: p.json(),
-        DirectoryModel.parse_raw,
+        lambda p: p.model_dump_json(),
+        DirectoryModel.model_validate_json,
         n,
         lambda data: DirectoryModel(**data),
     )
