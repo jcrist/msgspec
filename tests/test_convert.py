@@ -886,6 +886,54 @@ class TestEnum:
         assert sys.getrefcount(msg) == 2  # msg + 1
         assert convert(MyInt(2), Ex) is Ex.y
 
+    def test_enum_missing(self):
+        class Ex(enum.Enum):
+            A = "a"
+            B = "b"
+
+            @classmethod
+            def _missing_(cls, val):
+                if val == "return-A":
+                    return cls.A
+                elif val == "return-B":
+                    return cls.B
+                elif val == "error":
+                    raise ValueError("oh no!")
+                else:
+                    return None
+
+        assert msgspec.convert("a", Ex) is Ex.A
+        assert msgspec.convert("return-A", Ex) is Ex.A
+        assert msgspec.convert("return-B", Ex) is Ex.B
+        with pytest.raises(ValidationError, match="Invalid enum value 'error'"):
+            msgspec.convert("error", Ex)
+        with pytest.raises(ValidationError, match="Invalid enum value 'other'"):
+            msgspec.convert("other", Ex)
+
+    def test_intenum_missing(self):
+        class Ex(enum.IntEnum):
+            A = 1
+            B = 2
+
+            @classmethod
+            def _missing_(cls, val):
+                if val == 3:
+                    return cls.A
+                elif val == -4:
+                    return cls.B
+                elif val == 5:
+                    raise ValueError("oh no!")
+                else:
+                    return None
+
+        assert msgspec.convert(1, Ex) is Ex.A
+        assert msgspec.convert(3, Ex) is Ex.A
+        assert msgspec.convert(-4, Ex) is Ex.B
+        with pytest.raises(ValidationError, match="Invalid enum value 5"):
+            msgspec.convert(5, Ex)
+        with pytest.raises(ValidationError, match="Invalid enum value 6"):
+            msgspec.convert(6, Ex)
+
 
 class TestLiteral:
     def test_str_literal(self):
