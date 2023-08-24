@@ -386,6 +386,7 @@ typedef struct {
     PyObject *str__value2member_map_;
     PyObject *str___msgspec_cache__;
     PyObject *str__value_;
+    PyObject *str__missing_;
     PyObject *str_type;
     PyObject *str_enc_hook;
     PyObject *str_dec_hook;
@@ -569,6 +570,131 @@ strbuilder_build(strbuilder *self) {
 }
 
 /*************************************************************************
+ * PathNode                                                              *
+ *************************************************************************/
+
+#define PATH_ELLIPSIS -1
+#define PATH_STR -2
+#define PATH_KEY -3
+
+typedef struct PathNode {
+    struct PathNode *parent;
+    Py_ssize_t index;
+    PyObject *object;
+} PathNode;
+
+/* reverse the parent pointers in the path linked list */
+static PathNode *
+pathnode_reverse(PathNode *path) {
+    PathNode *current = path, *prev = NULL, *next = NULL;
+    while (current != NULL) {
+        next = current->parent;
+        current->parent = prev;
+        prev = current;
+        current = next;
+    }
+    return prev;
+}
+
+static PyObject* StructMeta_get_field_name(PyObject*, Py_ssize_t);
+
+static PyObject *
+PathNode_ErrSuffix(PathNode *path) {
+    strbuilder parts = {0};
+    PathNode *path_orig;
+    PyObject *out = NULL, *path_repr = NULL, *groups = NULL, *group = NULL;
+
+    if (path == NULL) {
+        return PyUnicode_FromString("");
+    }
+
+    /* Reverse the parent pointers for easier printing */
+    path = pathnode_reverse(path);
+
+    /* Cache the original path to reset the parent pointers later */
+    path_orig = path;
+
+    /* Start with the root element */
+    if (!strbuilder_extend_literal(&parts, "`$")) goto cleanup;
+
+    while (path != NULL) {
+        if (path->object != NULL) {
+            PyObject *name;
+            if (path->index == PATH_STR) {
+                name = path->object;
+            }
+            else {
+                name = StructMeta_get_field_name(path->object, path->index);
+            }
+            if (!strbuilder_extend_literal(&parts, ".")) goto cleanup;
+            if (!strbuilder_extend_unicode(&parts, name)) goto cleanup;
+        }
+        else if (path->index == PATH_ELLIPSIS) {
+            if (!strbuilder_extend_literal(&parts, "[...]")) goto cleanup;
+        }
+        else if (path->index == PATH_KEY) {
+            if (groups == NULL) {
+                groups = PyList_New(0);
+                if (groups == NULL) goto cleanup;
+            }
+            if (!strbuilder_extend_literal(&parts, "`")) goto cleanup;
+            group = strbuilder_build(&parts);
+            if (group == NULL) goto cleanup;
+            if (PyList_Append(groups, group) < 0) goto cleanup;
+            Py_CLEAR(group);
+            strbuilder_extend_literal(&parts, "`key");
+        }
+        else {
+            char buf[20];
+            char *p = &buf[20];
+            Py_ssize_t x = path->index;
+            if (!strbuilder_extend_literal(&parts, "[")) goto cleanup;
+            while (x >= 100) {
+                const int64_t old = x;
+                p -= 2;
+                x /= 100;
+                memcpy(p, DIGIT_TABLE + ((old - (x * 100)) << 1), 2);
+            }
+            if (x >= 10) {
+                p -= 2;
+                memcpy(p, DIGIT_TABLE + (x << 1), 2);
+            }
+            else {
+                *--p = x + '0';
+            }
+            if (!strbuilder_extend(&parts, p, &buf[20] - p)) goto cleanup;
+            if (!strbuilder_extend_literal(&parts, "]")) goto cleanup;
+        }
+        path = path->parent;
+    }
+    if (!strbuilder_extend_literal(&parts, "`")) goto cleanup;
+
+    if (groups == NULL) {
+        path_repr = strbuilder_build(&parts);
+    }
+    else {
+        group = strbuilder_build(&parts);
+        if (group == NULL) goto cleanup;
+        if (PyList_Append(groups, group) < 0) goto cleanup;
+        PyObject *sep = PyUnicode_FromString(" in ");
+        if (sep == NULL) goto cleanup;
+        if (PyList_Reverse(groups) < 0) goto cleanup;
+        path_repr = PyUnicode_Join(sep, groups);
+        Py_DECREF(sep);
+    }
+
+    out = PyUnicode_FromFormat(" - at %U", path_repr);
+
+cleanup:
+    Py_XDECREF(path_repr);
+    Py_XDECREF(group);
+    Py_XDECREF(groups);
+    pathnode_reverse(path_orig);
+    strbuilder_reset(&parts);
+    return out;
+}
+
+/*************************************************************************
  * Lookup Tables for ints & strings                                      *
  *************************************************************************/
 
@@ -617,6 +743,37 @@ typedef struct StrLookup {
 #define Lookup_tag_field(obj) ((Lookup *)(obj))->tag_field
 #define Lookup_IsStrLookup(obj) (Py_TYPE(obj) == &StrLookup_Type)
 #define Lookup_IsIntLookup(obj) (Py_TYPE(obj) == &IntLookup_Type)
+
+/* Handles Enum._missing_ calls. Returns a new reference, or NULL on error.
+ * Will decref val if non-null. */
+static PyObject *
+_Lookup_OnMissing(Lookup *lookup, PyObject *val, PathNode *path) {
+    if (val == NULL) return NULL;
+
+    MsgspecState *mod = msgspec_get_global_state();
+
+    if (lookup->cls != NULL) {
+        PyObject *out = CALL_METHOD_ONE_ARG(lookup->cls, mod->str__missing_, val);
+        if (out == NULL) {
+            PyErr_Clear();
+        }
+        else if (out == Py_None) {
+            Py_DECREF(out);
+        }
+        else {
+            Py_DECREF(val);
+            return out;
+        }
+    }
+    PyObject *suffix = PathNode_ErrSuffix(path);
+    if (suffix != NULL) {
+        PyErr_Format(mod->ValidationError, "Invalid enum value %R%U", val, suffix);
+        Py_DECREF(suffix);
+    }
+
+    Py_DECREF(val);
+    return NULL;
+}
 
 static IntLookupEntry *
 _IntLookupHashmap_lookup(IntLookupHashmap *self, int64_t key) {
@@ -886,9 +1043,53 @@ IntLookup_GetInt64(IntLookup *self, int64_t key) {
 }
 
 static PyObject *
+IntLookup_GetInt64OrError(IntLookup *self, int64_t key, PathNode *path) {
+    PyObject *out = IntLookup_GetInt64(self, key);
+    if (out != NULL) {
+        Py_INCREF(out);
+        return out;
+    }
+    return _Lookup_OnMissing((Lookup *)self, PyLong_FromLongLong(key), path);
+}
+
+static PyObject *
 IntLookup_GetUInt64(IntLookup *self, uint64_t key) {
     if (key > LLONG_MAX) return NULL;
     return IntLookup_GetInt64(self, key);
+}
+
+static PyObject *
+IntLookup_GetUInt64OrError(IntLookup *self, uint64_t key, PathNode *path) {
+    PyObject *out = IntLookup_GetUInt64(self, key);
+    if (out != NULL) {
+        Py_INCREF(out);
+        return out;
+    }
+    return _Lookup_OnMissing(
+        (Lookup *)self, PyLong_FromUnsignedLongLong(key), path
+    );
+}
+
+static PyObject *
+IntLookup_GetPyIntOrError(IntLookup *self, PyObject *key, PathNode *path) {
+    uint64_t x;
+    bool neg, overflow;
+    PyObject *out = NULL;
+    overflow = fast_long_extract_parts(key, &neg, &x);
+    if (!overflow) {
+        if (neg) {
+            out = IntLookup_GetInt64(self, -(int64_t)x);
+        }
+        else {
+            out = IntLookup_GetUInt64(self, x);
+        }
+    }
+    if (out != NULL) {
+        Py_INCREF(out);
+        return out;
+    }
+    /* PyNumber_Long call ensures input is actual int */
+    return _Lookup_OnMissing((Lookup *)self, PyNumber_Long(key), path);
 }
 
 static PyTypeObject IntLookup_Type = {
@@ -1059,6 +1260,20 @@ static PyObject *
 StrLookup_Get(StrLookup *self, const char *key, Py_ssize_t size) {
     StrLookupEntry *entry = _StrLookup_lookup(self, key, size);
     return entry->value;
+}
+
+static PyObject *
+StrLookup_GetOrError(
+    StrLookup *self, const char *key, Py_ssize_t size, PathNode *path
+) {
+    PyObject *out = StrLookup_Get(self, key, size);
+    if (out != NULL) {
+        Py_INCREF(out);
+        return out;
+    }
+    return _Lookup_OnMissing(
+        (Lookup *)self, PyUnicode_FromStringAndSize(key, size), path
+    );
 }
 
 static PyTypeObject StrLookup_Type = {
@@ -4558,128 +4773,6 @@ done:
     return out;
 }
 
-#define PATH_ELLIPSIS -1
-#define PATH_STR -2
-#define PATH_KEY -3
-
-typedef struct PathNode {
-    struct PathNode *parent;
-    Py_ssize_t index;
-    PyObject *object;
-} PathNode;
-
-/* reverse the parent pointers in the path linked list */
-static PathNode *
-pathnode_reverse(PathNode *path) {
-    PathNode *current = path, *prev = NULL, *next = NULL;
-    while (current != NULL) {
-        next = current->parent;
-        current->parent = prev;
-        prev = current;
-        current = next;
-    }
-    return prev;
-}
-
-static PyObject *
-PathNode_ErrSuffix(PathNode *path) {
-    strbuilder parts = {0};
-    PathNode *path_orig;
-    PyObject *out = NULL, *path_repr = NULL, *groups = NULL, *group = NULL;
-
-    if (path == NULL) {
-        return PyUnicode_FromString("");
-    }
-
-    /* Reverse the parent pointers for easier printing */
-    path = pathnode_reverse(path);
-
-    /* Cache the original path to reset the parent pointers later */
-    path_orig = path;
-
-    /* Start with the root element */
-    if (!strbuilder_extend_literal(&parts, "`$")) goto cleanup;
-
-    while (path != NULL) {
-        if (path->object != NULL) {
-            PyObject *name;
-            if (path->index == PATH_STR) {
-                name = path->object;
-            }
-            else {
-                name = PyTuple_GET_ITEM(
-                    ((StructMetaObject *)(path->object))->struct_encode_fields,
-                    path->index
-                );
-            }
-            if (!strbuilder_extend_literal(&parts, ".")) goto cleanup;
-            if (!strbuilder_extend_unicode(&parts, name)) goto cleanup;
-        }
-        else if (path->index == PATH_ELLIPSIS) {
-            if (!strbuilder_extend_literal(&parts, "[...]")) goto cleanup;
-        }
-        else if (path->index == PATH_KEY) {
-            if (groups == NULL) {
-                groups = PyList_New(0);
-                if (groups == NULL) goto cleanup;
-            }
-            if (!strbuilder_extend_literal(&parts, "`")) goto cleanup;
-            group = strbuilder_build(&parts);
-            if (group == NULL) goto cleanup;
-            if (PyList_Append(groups, group) < 0) goto cleanup;
-            Py_CLEAR(group);
-            strbuilder_extend_literal(&parts, "`key");
-        }
-        else {
-            char buf[20];
-            char *p = &buf[20];
-            Py_ssize_t x = path->index;
-            if (!strbuilder_extend_literal(&parts, "[")) goto cleanup;
-            while (x >= 100) {
-                const int64_t old = x;
-                p -= 2;
-                x /= 100;
-                memcpy(p, DIGIT_TABLE + ((old - (x * 100)) << 1), 2);
-            }
-            if (x >= 10) {
-                p -= 2;
-                memcpy(p, DIGIT_TABLE + (x << 1), 2);
-            }
-            else {
-                *--p = x + '0';
-            }
-            if (!strbuilder_extend(&parts, p, &buf[20] - p)) goto cleanup;
-            if (!strbuilder_extend_literal(&parts, "]")) goto cleanup;
-        }
-        path = path->parent;
-    }
-    if (!strbuilder_extend_literal(&parts, "`")) goto cleanup;
-
-    if (groups == NULL) {
-        path_repr = strbuilder_build(&parts);
-    }
-    else {
-        group = strbuilder_build(&parts);
-        if (group == NULL) goto cleanup;
-        if (PyList_Append(groups, group) < 0) goto cleanup;
-        PyObject *sep = PyUnicode_FromString(" in ");
-        if (sep == NULL) goto cleanup;
-        if (PyList_Reverse(groups) < 0) goto cleanup;
-        path_repr = PyUnicode_Join(sep, groups);
-        Py_DECREF(sep);
-    }
-
-    out = PyUnicode_FromFormat(" - at %U", path_repr);
-
-cleanup:
-    Py_XDECREF(path_repr);
-    Py_XDECREF(group);
-    Py_XDECREF(groups);
-    pathnode_reverse(path_orig);
-    strbuilder_reset(&parts);
-    return out;
-}
-
 #define ms_raise_validation_error(path, format, ...) \
     do { \
         MsgspecState *st = msgspec_get_global_state(); \
@@ -4875,6 +4968,13 @@ Struct_dealloc_nogc(PyObject *self) {
     type->tp_free(self);
     /* Decref the object type immediately */
     Py_DECREF(type);
+}
+
+static PyObject *
+StructMeta_get_field_name(PyObject *self, Py_ssize_t field_index) {
+    return PyTuple_GET_ITEM(
+        ((StructMetaObject *)self)->struct_encode_fields, field_index
+    );
 }
 
 static MS_INLINE Py_ssize_t
@@ -8894,69 +8994,28 @@ ms_maybe_decode_bool_from_int64(int64_t x) {
     return NULL;
 }
 
-static MS_NOINLINE PyObject *
+static PyObject *
 ms_decode_str_enum_or_literal(const char *name, Py_ssize_t size, TypeNode *type, PathNode *path) {
     StrLookup *lookup = TypeNode_get_str_enum_or_literal(type);
-    PyObject *out = StrLookup_Get(lookup, name, size);
-    if (out == NULL) {
-        PyObject *val = PyUnicode_DecodeUTF8(name, size, NULL);
-        if (val == NULL) return NULL;
-        ms_raise_validation_error(path, "Invalid enum value '%U'%U", val);
-        Py_DECREF(val);
-        return NULL;
-    }
-    Py_INCREF(out);
-    return out;
+    return StrLookup_GetOrError(lookup, name, size, path);
 }
 
-static MS_NOINLINE PyObject *
+static PyObject *
 ms_decode_int_enum_or_literal_int64(int64_t val, TypeNode *type, PathNode *path) {
     IntLookup *lookup = TypeNode_get_int_enum_or_literal(type);
-    PyObject *out = IntLookup_GetInt64(lookup, val);
-    if (out == NULL) {
-        ms_raise_validation_error(path, "Invalid enum value %lld%U", val);
-        return NULL;
-    }
-    Py_INCREF(out);
-    return out;
+    return IntLookup_GetInt64OrError(lookup, val, path);
 }
 
-static MS_NOINLINE PyObject *
+static PyObject *
 ms_decode_int_enum_or_literal_uint64(uint64_t val, TypeNode *type, PathNode *path) {
     IntLookup *lookup = TypeNode_get_int_enum_or_literal(type);
-    PyObject *out = IntLookup_GetUInt64(lookup, val);
-    if (out == NULL) {
-        ms_raise_validation_error(path, "Invalid enum value %llu%U", val);
-        return NULL;
-    }
-    Py_INCREF(out);
-    return out;
+    return IntLookup_GetUInt64OrError(lookup, val, path);
 }
 
-static MS_NOINLINE PyObject *
-ms_decode_int_enum_or_literal_pyint(PyObject *obj, TypeNode *type, PathNode *path) {
-    uint64_t x;
-    bool neg, overflow;
-    PyObject *out = NULL;
+static PyObject *
+ms_decode_int_enum_or_literal_pyint(PyObject *val, TypeNode *type, PathNode *path) {
     IntLookup *lookup = TypeNode_get_int_enum_or_literal(type);
-    overflow = fast_long_extract_parts(obj, &neg, &x);
-    if (!overflow) {
-        if (neg) {
-            out = IntLookup_GetInt64(lookup, -(int64_t)x);
-        }
-        else {
-            out = IntLookup_GetUInt64(lookup, x);
-        }
-    }
-    if (out == NULL) {
-        PyObject *temp = PyLong_Type.tp_repr(obj);
-        if (temp == NULL) return NULL;
-        ms_raise_validation_error(path, "Invalid enum value %U%U", temp);
-        Py_DECREF(temp);
-        return NULL;
-    }
-    Py_INCREF(out);
-    return out;
+    return IntLookup_GetPyIntOrError(lookup, val, path);
 }
 
 static MS_NOINLINE PyObject *
@@ -20772,6 +20831,7 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->str__value2member_map_);
     Py_CLEAR(st->str___msgspec_cache__);
     Py_CLEAR(st->str__value_);
+    Py_CLEAR(st->str__missing_);
     Py_CLEAR(st->str_type);
     Py_CLEAR(st->str_enc_hook);
     Py_CLEAR(st->str_dec_hook);
@@ -21163,6 +21223,7 @@ PyInit__core(void)
     CACHED_STRING(str__value2member_map_, "_value2member_map_");
     CACHED_STRING(str___msgspec_cache__, "__msgspec_cache__");
     CACHED_STRING(str__value_, "_value_");
+    CACHED_STRING(str__missing_, "_missing_");
     CACHED_STRING(str_type, "type");
     CACHED_STRING(str_enc_hook, "enc_hook");
     CACHED_STRING(str_dec_hook, "dec_hook");

@@ -370,6 +370,46 @@ class TestIntEnum:
         ):
             dec.decode(proto.encode({"fruit": 3}))
 
+    def test_intenum_missing(self, proto):
+        class Ex(enum.IntEnum):
+            A = 1
+            B = 2
+
+            @classmethod
+            def _missing_(cls, val):
+                if val == 3:
+                    return cls.A
+                elif val == -4:
+                    return cls.B
+                elif val == 5:
+                    raise ValueError("oh no!")
+                else:
+                    return None
+
+        dec = proto.Decoder(Ex)
+
+        def roundtrip(msg):
+            return dec.decode(proto.encode(msg))
+
+        assert roundtrip(1) is Ex.A
+        assert roundtrip(3) is Ex.A
+        assert roundtrip(-4) is Ex.B
+        with pytest.raises(ValidationError, match="Invalid enum value 5"):
+            roundtrip(5)
+        with pytest.raises(ValidationError, match="Invalid enum value 6"):
+            roundtrip(6)
+
+    def test_intflag(self, proto):
+        class Ex(enum.IntFlag):
+            A = 0b001
+            B = 0b010
+            C = 0b100
+
+        obj = Ex.A | Ex.C
+        msg = proto.encode(obj)
+        assert msg == proto.encode(int(obj))
+        assert proto.decode(msg, type=Ex) == obj
+
     def test_int_lookup_reused(self):
         class Test(enum.IntEnum):
             A = 1
@@ -678,6 +718,35 @@ class TestEnum:
             key = unique_str()
             with pytest.raises(ValidationError):
                 dec.decode(msgspec.msgpack.encode(key))
+
+    def test_enum_missing(self, proto):
+        class Ex(enum.Enum):
+            A = "a"
+            B = "b"
+
+            @classmethod
+            def _missing_(cls, val):
+                if val == "return-A":
+                    return cls.A
+                elif val == "return-B":
+                    return cls.B
+                elif val == "error":
+                    raise ValueError("oh no!")
+                else:
+                    return None
+
+        dec = proto.Decoder(Ex)
+
+        def roundtrip(msg):
+            return dec.decode(proto.encode(msg))
+
+        assert roundtrip("a") is Ex.A
+        assert roundtrip("return-A") is Ex.A
+        assert roundtrip("return-B") is Ex.B
+        with pytest.raises(ValidationError, match="Invalid enum value 'error'"):
+            roundtrip("error")
+        with pytest.raises(ValidationError, match="Invalid enum value 'other'"):
+            roundtrip("other")
 
 
 class TestLiterals:

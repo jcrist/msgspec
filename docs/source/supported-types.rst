@@ -37,6 +37,8 @@ Most combinations of the following types are supported (with a few restrictions)
 - `enum.Enum` types
 - `enum.IntEnum` types
 - `enum.StrEnum` types
+- `enum.Flag` types
+- `enum.IntFlag` types
 - `dataclasses.dataclass` types
 
 **Typing module types**
@@ -1024,13 +1026,13 @@ determine whether a field was left unset, or explicitly set to ``None``
 types. It is an error to use `msgspec.UNSET` or `msgspec.UnsetType` anywhere
 other than a field for one of these types.
 
-``Enum`` / ``IntEnum``
-----------------------
+``Enum`` / ``IntEnum`` / ``StrEnum``
+------------------------------------
 
-`enum.Enum`, `enum.StrEnum`, and `enum.IntEnum` types encode as their member
-*values* in all protocols. Only enums composed of all string or all integer
-values are supported. An error is raised during decoding if the value isn't the
-proper type, or doesn't match any valid member.
+Enum types (`enum.Enum`, `enum.IntEnum`, `enum.StrEnum`, ...) encode as their
+member *values* in all protocols. Only enums composed of all string or all
+integer values are supported. An error is raised during decoding if the value
+isn't the proper type, or doesn't match any valid member.
 
 .. code-block:: python
 
@@ -1067,6 +1069,39 @@ proper type, or doesn't match any valid member.
     Traceback (most recent call last):
       File "<stdin>", line 1, in <module>
     msgspec.ValidationError: Invalid enum value 4
+
+If the enum type includes a ``_missing_`` method (`docs
+<https://docs.python.org/3/library/enum.html#enum.Enum._missing_>`__), this
+method will be called to handle any missing values. It should return a valid
+enum member, or ``None`` if the value is invalid. One potential use case of
+this is supporting case-insensitive enums:
+
+.. code-block:: python
+
+    >>> import enum
+
+    >>> class Fruit(enum.Enum):
+    ...     APPLE = "apple"
+    ...     BANANA = "banana"
+    ...
+    ...     @classmethod
+    ...     def _missing_(cls, name):
+    ...         """Called to handle missing enum values"""
+    ...         # Normalize value to lowercase
+    ...         value = name.lower()
+    ...         # Return valid enum value, or None if invalid
+    ...         return cls._value2member_map_.get(value)
+
+    >>> msgspec.json.decode(b'"apple"', type=Fruit)
+    <Fruit.APPLE: "apple">
+
+    >>> msgspec.json.decode(b'"ApPlE"', type=Fruit)
+    <Fruit.APPLE: "apple">
+
+    >>> msgspec.json.decode(b'"grape"', type=Fruit)
+    Traceback (most recent call last):
+      File "<stdin>", line 1, in <module>
+    msgspec.ValidationError: Invalid enum value 'grape'
 
 ``Literal``
 -----------
