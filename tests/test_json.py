@@ -33,6 +33,9 @@ import msgspec
 
 UTC = datetime.timezone.utc
 
+PY39 = sys.version_info[:2] >= (3, 9)
+py39_plus = pytest.mark.skipif(not PY39, reason="3.9+ only")
+
 
 class FruitInt(enum.IntEnum):
     APPLE = -1
@@ -837,6 +840,20 @@ class TestDatetime:
         x = datetime.datetime(1234, 12, 31, 14, 56, 27, 123456, tz)
         s = msgspec.json.encode(x)
         assert s == expected
+
+    @py39_plus
+    def test_encode_datetime_zoneinfo(self):
+        import zoneinfo
+
+        try:
+            x = datetime.datetime(
+                2023, 1, 2, 3, 4, 5, 678, zoneinfo.ZoneInfo("America/Chicago")
+            )
+        except zoneinfo.ZoneInfoNotFoundError:
+            pytest.skip(reason="Failed to load timezone")
+        sol = msgspec.json.encode(x.isoformat())
+        res = msgspec.json.encode(x)
+        assert res == sol
 
     @pytest.mark.parametrize(
         "dt",

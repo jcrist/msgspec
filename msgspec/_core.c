@@ -9864,7 +9864,7 @@ ms_encode_date(PyObject *obj, char *out)
 /* Requires 21 bytes of scratch space */
 static int
 ms_encode_time_parts(
-    MsgspecState *mod, PyObject *obj,
+    MsgspecState *mod, PyObject *datetime_or_none,
     uint8_t hour, uint8_t minute, uint8_t second, uint32_t microsecond,
     PyObject *tzinfo, char *out, int out_offset
 ) {
@@ -9883,11 +9883,20 @@ ms_encode_time_parts(
         int32_t offset_days = 0, offset_secs = 0;
 
         if (tzinfo != PyDateTime_TimeZone_UTC) {
-            PyObject *offset = CALL_METHOD_ONE_ARG(tzinfo, mod->str_utcoffset, Py_None);
-            if (offset == NULL) return -1;
-            if (PyDelta_Check(offset)) {
+            PyObject *offset = CALL_METHOD_ONE_ARG(
+                tzinfo, mod->str_utcoffset, datetime_or_none
+            );
+            if (offset == NULL) {
+                return -1;
+            }
+            else if (PyDelta_Check(offset)) {
                 offset_days = PyDateTime_DELTA_GET_DAYS(offset);
                 offset_secs = PyDateTime_DELTA_GET_SECONDS(offset);
+                Py_DECREF(offset);
+            }
+            else if (offset == Py_None) {
+                Py_DECREF(offset);
+                goto done;
             }
             else if (offset != Py_None) {
                 PyErr_SetString(
@@ -9897,7 +9906,6 @@ ms_encode_time_parts(
                 Py_DECREF(offset);
                 return -1;
             }
-            Py_DECREF(offset);
         }
         if (MS_LIKELY(offset_secs == 0)) {
             *p++ = 'Z';
@@ -9935,6 +9943,8 @@ ms_encode_time_parts(
             }
         }
     }
+
+done:
     return p - out;
 }
 
@@ -9950,7 +9960,7 @@ ms_encode_time(MsgspecState *mod, PyObject *obj, char *out)
     uint32_t microsecond = PyDateTime_TIME_GET_MICROSECOND(obj);
     PyObject *tzinfo = MS_TIME_GET_TZINFO(obj);
     return ms_encode_time_parts(
-        mod, obj, hour, minute, second, microsecond, tzinfo, out, 0
+        mod, Py_None, hour, minute, second, microsecond, tzinfo, out, 0
     );
 }
 

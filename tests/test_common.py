@@ -3164,6 +3164,18 @@ class TestTime:
         sol = proto.encode(t_str)
         assert res == sol
 
+    @py39_plus
+    def test_encode_time_zoneinfo(self):
+        import zoneinfo
+
+        try:
+            x = datetime.time(1, 2, 3, 456789, zoneinfo.ZoneInfo("America/Chicago"))
+        except zoneinfo.ZoneInfoNotFoundError:
+            pytest.skip(reason="Failed to load timezone")
+        sol = msgspec.json.encode(x.isoformat())
+        res = msgspec.json.encode(x)
+        assert res == sol
+
     @pytest.mark.parametrize(
         "dt",
         [
