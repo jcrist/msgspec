@@ -3,6 +3,17 @@ Changelog
 
 .. currentmodule:: msgspec
 
+Version 0.18.2 (2023-08-26)
+---------------------------
+
+- Support ``Enum._missing_`` hooks for handling unknown enum values (:pr:`532`).
+- Fix JSON encoding of `datetime.datetime` objects with `zoneinfo.ZoneInfo`
+  timezone components (:pr:`534`).
+- Add support for ``attrs`` `validators
+  <https://www.attrs.org/en/stable/examples.html#validators>`__ (:pr:`538`).
+- Relax datetime/time parsing format to allow some RFC3339 extensions from
+  ISO8601 (:pr:`539`).
+
 Version 0.18.1 (2023-08-16)
 ---------------------------
 
