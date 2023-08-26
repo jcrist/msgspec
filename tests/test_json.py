@@ -985,6 +985,21 @@ class TestDatetime:
         assert res == sol
 
     @pytest.mark.parametrize(
+        "lax, strict",
+        [
+            ("2022-01-02T03:04:05+0102", "2022-01-02T03:04:05+01:02"),
+            ("2022-01-02T03:04:05-0102", "2022-01-02T03:04:05-01:02"),
+            ("2022-01-02 03:04:05", "2022-01-02T03:04:05"),
+        ],
+    )
+    def test_decode_datetime_rfc3339_relaxed(self, lax, strict):
+        """msgspec supports a few relaxations of the RFC3339 format."""
+        sol = datetime.datetime.fromisoformat(strict)
+        msg = msgspec.json.encode(lax)
+        res = msgspec.json.decode(msg, type=datetime.datetime)
+        assert res == sol
+
+    @pytest.mark.parametrize(
         "s",
         [
             # Incorrect field lengths
@@ -996,8 +1011,10 @@ class TestDatetime:
             b'"0001-02-03T04:05:6.000007Z"',
             b'"0001-02-03T04:05:06.000007+0:00"',
             b'"0001-02-03T04:05:06.000007+00:0"',
+            b'"0001-02-03T04:05:06.000007+000"',
             # Trailing data
             b'"0001-02-03T04:05:06.000007+00:000"',
+            b'"0001-02-03T04:05:06.000007+00000"',
             b'"0001-02-03T04:05:06.000007Z0"',
             b'"0001-02-03T04:05:06a"',
             b'"0001-02-03T04:05:06.000007a"',
@@ -1019,6 +1036,8 @@ class TestDatetime:
             b'"0001-02-03T04:05:06.000007a"',
             b'"0001-02-03T04:05:06.000007+0a:00"',
             b'"0001-02-03T04:05:06.000007+00:0a"',
+            b'"0001-02-03T04:05:06.000007+0a00"',
+            b'"0001-02-03T04:05:06.000007+000a"',
             # Year out of range
             b'"0000-02-03T04:05:06.000007Z"',
             # Month out of range
