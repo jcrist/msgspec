@@ -3005,6 +3005,24 @@ class TestAttrs:
         with pytest.raises(ValueError, match="Oh no!"):
             proto.decode(proto.encode({"a": 1}), type=Example)
 
+    def test_decode_attrs_validators(self, proto):
+        def not2(self, attr, value):
+            if value == 2:
+                raise ValueError("Oh no!")
+
+        @attrs.define
+        class Example:
+            a: int = attrs.field(validator=[attrs.validators.gt(0), not2])
+
+        res = proto.decode(proto.encode({"a": 1}), type=Example)
+        assert res.a == 1
+
+        with pytest.raises(ValidationError):
+            res = proto.decode(proto.encode({"a": -1}), type=Example)
+
+        with pytest.raises(ValidationError, match="Oh no!"):
+            res = proto.decode(proto.encode({"a": 2}), type=Example)
+
     def test_decode_attrs_not_object(self, proto):
         @attrs.define
         class Example:

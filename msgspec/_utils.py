@@ -239,6 +239,8 @@ def get_dataclass_info(obj):
     else:
         from attrs import NOTHING, Factory
 
+        fields_with_validators = []
+
         for field in cls.__attrs_attrs__:
             name = field.name
             typ = hints[name]
@@ -248,8 +250,7 @@ def get_dataclass_info(obj):
                     if default.takes_self:
                         raise NotImplementedError(
                             "Support for default factories with `takes_self=True` "
-                            "is not implemented. "
-                            "File a GitHub issue if you need "
+                            "is not implemented. File a GitHub issue if you need "
                             "this feature!"
                         )
                     defaults.append(default.factory)
@@ -260,12 +261,28 @@ def get_dataclass_info(obj):
             else:
                 required.append((name, typ, False))
 
+            if field.validator is not None:
+                fields_with_validators.append(field)
+
         required.extend(optional)
 
         pre_init = getattr(cls, "__attrs_pre_init__", None)
         post_init = getattr(cls, "__attrs_post_init__", None)
 
+        if fields_with_validators:
+            post_init = _wrap_attrs_validators(fields_with_validators, post_init)
+
     return cls, tuple(required), tuple(defaults), pre_init, post_init
+
+
+def _wrap_attrs_validators(fields, post_init):
+    def inner(obj):
+        for field in fields:
+            field.validator(obj, field, getattr(obj, field.name))
+        if post_init is not None:
+            post_init(obj)
+
+    return inner
 
 
 def rebuild(cls, kwargs):
