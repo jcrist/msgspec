@@ -1022,7 +1022,11 @@ encoded.</p>
 <p>During decoding, any extra fields are ignored. An error is raised if a field’s
 type doesn’t match or if any required fields are missing.</p>
 <p>If the <code class="docutils literal notranslate"><span class="pre">__attrs_pre_init__</span></code> or <code class="docutils literal notranslate"><span class="pre">__attrs_post_init__</span></code> methods are defined on
-the class, they are called as part of the decoding process.</p>
+the class, they are called as part of the decoding process. Likewise, if a
+class makes use of attrs’ <a class="reference external" href="https://www.attrs.org/en/stable/examples.html#validators">validators</a>, the validators
+will be called, and a <a class="reference internal" href="api.html#msgspec.ValidationError" title="msgspec.ValidationError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.ValidationError</span></code></a> raised on error. Note that
+attrs’ <a class="reference external" href="https://www.attrs.org/en/stable/examples.html#conversion">converters</a> are not currently
+supported.</p>
 <p>When possible we recommend using <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> instead of <a class="reference external" href="https://www.attrs.org/en/stable/index.html">attrs</a> types for
 specifying schemas - <a class="reference internal" href="structs.html"><span class="doc">Structs</span></a> are faster, more ergonomic, and support
 additional features.</p>
