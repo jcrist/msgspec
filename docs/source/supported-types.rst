@@ -860,7 +860,13 @@ During decoding, any extra fields are ignored. An error is raised if a field's
 type doesn't match or if any required fields are missing.
 
 If the ``__attrs_pre_init__`` or ``__attrs_post_init__`` methods are defined on
-the class, they are called as part of the decoding process.
+the class, they are called as part of the decoding process. Likewise, if a
+class makes use of attrs' `validators
+<https://www.attrs.org/en/stable/examples.html#validators>`__, the validators
+will be called, and a `msgspec.ValidationError` raised on error. Note that
+attrs' `converters
+<https://www.attrs.org/en/stable/examples.html#conversion>`__ are not currently
+supported.
 
 When possible we recommend using `msgspec.Struct` instead of attrs_ types for
 specifying schemas - :doc:`structs` are faster, more ergonomic, and support
