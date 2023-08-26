@@ -3212,6 +3212,20 @@ class TestTime:
         assert res == sol
 
     @pytest.mark.parametrize(
+        "lax, strict",
+        [
+            ("03:04:05+0102", "03:04:05+01:02"),
+            ("03:04:05-0102", "03:04:05-01:02"),
+        ],
+    )
+    def test_decode_time_rfc3339_relaxed(self, lax, strict, proto):
+        """msgspec supports a few relaxations of the RFC3339 format."""
+        sol = datetime.time.fromisoformat(strict)
+        msg = proto.encode(lax)
+        res = proto.decode(msg, type=datetime.time)
+        assert res == sol
+
+    @pytest.mark.parametrize(
         "t, sol",
         [
             (
@@ -3258,6 +3272,8 @@ class TestTime:
             "01:02:3.0000004Z",
             "01:02:03.0000004+5:06",
             "01:02:03.0000004+05:6",
+            "01:02:03.0000004+056",
+            "01:02:03.0000004+05600",
             # Trailing data
             "01:02:030",
             "01:02:03a",
@@ -3265,6 +3281,7 @@ class TestTime:
             "01:02:03.0a",
             "01:02:03.0000004a",
             "01:02:03.0000004+00:000",
+            "01:02:03.0000004+00000",
             "01:02:03.0000004Z0",
             # Truncated
             "01:02:3",
@@ -3280,6 +3297,8 @@ class TestTime:
             "01:02:03.00a+05:06",
             "01:02:03.004+0a:06",
             "01:02:03.004+05:0a",
+            "01:02:03.004+0a06",
+            "01:02:03.004+050a",
             # Hour out of range
             "24:02:03.004",
             # Minute out of range

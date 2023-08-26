@@ -10078,11 +10078,12 @@ end_decimal:
                 goto invalid;
             }
 
-            /* Explicit offset requires exactly 5 bytes left */
-            if (buf_end - buf != 5) goto invalid;
-
+            if (buf_end - buf < 3) goto invalid;
             if ((buf = ms_read_fixint(buf, 2, &offset_hour)) == NULL) goto invalid;
-            if (*buf++ != ':') goto invalid;
+            /* RFC3339 requires a ':' separator, ISO8601 doesn't. We support
+             * either */
+            if (*buf == ':') buf++;
+            if (buf_end - buf != 2) goto invalid;
             if ((buf = ms_read_fixint(buf, 2, &offset_min)) == NULL) goto invalid;
             if (offset_hour > 23 || offset_min > 59) goto invalid;
             offset *= (offset_hour * 60 + offset_min);
@@ -10178,9 +10179,10 @@ ms_decode_datetime_from_str(
     if (*buf++ != '-') goto invalid;
     if ((buf = ms_read_fixint(buf, 2, &day)) == NULL) goto invalid;
 
-    /* Date/time separator can be T or t */
+    /* RFC3339 date/time separator can be T or t. We also support ' ', which is
+     * ISO8601 compatible. */
     c = *buf++;
-    if (!(c == 'T' || c == 't')) goto invalid;
+    if (!(c == 'T' || c == 't' || c == ' ')) goto invalid;
 
     /* Parse time */
     if ((buf = ms_read_fixint(buf, 2, &hour)) == NULL) goto invalid;
@@ -10251,11 +10253,12 @@ end_decimal:
                 goto invalid;
             }
 
-            /* Explicit offset requires exactly 5 bytes left */
-            if (buf_end - buf != 5) goto invalid;
-
+            if (buf_end - buf < 3) goto invalid;
             if ((buf = ms_read_fixint(buf, 2, &offset_hour)) == NULL) goto invalid;
-            if (*buf++ != ':') goto invalid;
+            /* RFC3339 requires a ':' separator, ISO8601 doesn't. We support
+             * either */
+            if (*buf == ':') buf++;
+            if (buf_end - buf != 2) goto invalid;
             if ((buf = ms_read_fixint(buf, 2, &offset_min)) == NULL) goto invalid;
             if (offset_hour > 23 || offset_min > 59) goto invalid;
             offset *= (offset_hour * 60 + offset_min);
