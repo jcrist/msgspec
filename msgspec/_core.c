@@ -2353,6 +2353,7 @@ typedef struct {
     PyObject *default_value;
     PyObject *default_factory;
     PyObject *name;
+    bool repr;
 } Field;
 
 PyDoc_STRVAR(Field__doc__,
@@ -2369,12 +2370,14 @@ PyDoc_STRVAR(Field__doc__,
 "    The name to use when encoding/decoding this field. If present, this\n"
 "    will override any struct-level configuration using the ``rename``\n"
 "    option for this field."
+"repr : bool, optional\n"
+"    Whether to include this field in the generated struct ``__repr__``."
 );
 static PyObject *
 Field_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
-    char *kwlist[] = {"default", "default_factory", "name", NULL};
+    char *kwlist[] = {"default", "default_factory", "name", "repr", NULL};
     PyObject *default_value = NODEFAULT, *default_factory = NODEFAULT;
-    PyObject *name = Py_None;
+    PyObject *name = Py_None; bool repr = true;
 
     if (
         !PyArg_ParseTupleAndKeywords(
