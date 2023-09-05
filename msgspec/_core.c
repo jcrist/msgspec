@@ -2377,12 +2377,12 @@ static PyObject *
 Field_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
     char *kwlist[] = {"default", "default_factory", "name", "repr", NULL};
     PyObject *default_value = NODEFAULT, *default_factory = NODEFAULT;
-    PyObject *name = Py_None; bool repr = true;
+    PyObject *name = Py_None; int arg_repr = 1;
 
     if (
         !PyArg_ParseTupleAndKeywords(
-            args, kwargs, "|$OOO", kwlist,
-            &default_value, &default_factory, &name
+            args, kwargs, "|$OOOp", kwlist,
+            &default_value, &default_factory, &name, &arg_repr
         )
     ) {
         return NULL;
@@ -2416,6 +2416,7 @@ Field_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
     self->default_factory = default_factory;
     Py_XINCREF(name);
     self->name = name;
+    self->repr = arg_repr ? true : false;
     return (PyObject *)self;
 }
 
@@ -2457,6 +2458,10 @@ static PyMemberDef Field_members[] = {
     {
         "name", T_OBJECT, offsetof(Field, name), READONLY,
         "An alternative name to use when encoding/decoding this field"
+    },
+    {
+        "repr", T_BOOL, offsetof(Field, repr), READONLY,
+        "Whether to include this field in the generated struct __repr__"
     },
     {NULL},
 };
