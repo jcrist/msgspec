@@ -59,22 +59,28 @@ def test_field():
     assert f1.default is NODEFAULT
     assert f1.default_factory is NODEFAULT
     assert f1.name is None
+    assert f1.repr is True
 
     f2 = msgspec.field(default=1)
     assert f2.default == 1
     assert f2.default_factory is NODEFAULT
     assert f2.name is None
+    assert f2.repr is True
 
     f3 = msgspec.field(default_factory=int)
     assert f3.default is NODEFAULT
     assert f3.default_factory is int
     assert f3.name is None
+    assert f3.repr is True
 
     f4 = msgspec.field(name="foo")
     assert f4.name == "foo"
 
     f5 = msgspec.field(name=None)
     assert f5.name is None
+
+    f6 = msgspec.field(repr=False)
+    assert f6.repr is False
 
     with pytest.raises(TypeError, match="Cannot set both"):
         msgspec.field(default=1, default_factory=int)
@@ -88,6 +94,7 @@ def test_field():
 
 def test_struct_class_attributes():
     assert Struct.__struct_fields__ == ()
+    assert Struct.__struct_reprs__ == ()
     assert Struct.__struct_encode_fields__ == ()
     assert Struct.__struct_defaults__ == ()
     assert Struct.__match_args__ == ()
@@ -114,6 +121,7 @@ def test_struct_instance_attributes():
     assert x.__struct_encode_fields__ == ("c", "b", "a")
     assert x.__struct_fields__ is x.__struct_encode_fields__
     assert x.__struct_defaults__ == ("hello",)
+    assert x.__struct_reprs__ == (True, True, True)
     assert x.__slots__ == ("a", "b", "c")
     assert isinstance(x.__struct_config__, StructConfig)
 
@@ -313,6 +321,7 @@ class TestStructParameterOrdering:
             pass
 
         assert Test.__struct_fields__ == ()
+        assert Test.__struct_reprs__ == ()
         assert Test.__struct_defaults__ == ()
         assert Test.__match_args__ == ()
         assert Test.__slots__ == ()
@@ -323,6 +332,7 @@ class TestStructParameterOrdering:
             x: int
 
         assert Test.__struct_fields__ == ("y", "x")
+        assert Test.__struct_reprs__ == (True, True)
         assert Test.__struct_defaults__ == ()
         assert Test.__match_args__ == ("y", "x")
         assert Test.__slots__ == ("x", "y")
@@ -333,6 +343,7 @@ class TestStructParameterOrdering:
             x: float = 2.0
 
         assert Test.__struct_fields__ == ("y", "x")
+        assert Test.__struct_reprs__ == (True, True)
         assert Test.__struct_defaults__ == (1, 2.0)
         assert Test.__match_args__ == ("y", "x")
         assert Test.__slots__ == ("x", "y")
@@ -346,6 +357,7 @@ class TestStructParameterOrdering:
             pass
 
         assert Test2.__struct_fields__ == ("y", "x")
+        assert Test2.__struct_reprs__ == (True, True)
         assert Test2.__struct_defaults__ == ()
         assert Test2.__match_args__ == ("y", "x")
         assert Test2.__slots__ == ()
@@ -362,6 +374,7 @@ class TestStructParameterOrdering:
             f: float = 4.0
 
         assert Test2.__struct_fields__ == ("c", "b", "d", "a", "e", "f")
+        assert Test2.__struct_reprs__ == (True, True, True, True, True, True)
         assert Test2.__struct_defaults__ == (1, 2.0, "3.0", 4.0)
         assert Test2.__match_args__ == ("c", "b", "d", "a", "e", "f")
         assert Test2.__slots__ == ("e", "f")
@@ -379,6 +392,7 @@ class TestStructParameterOrdering:
             e: float = 5.0  # new
 
         assert Test2.__struct_fields__ == ("c", "b", "d", "a", "e")
+        assert Test2.__struct_reprs__ == (True, True, True, True)
         assert Test2.__struct_defaults__ == (3, 4, 2.0, 5.0)
         assert Test2.__match_args__ == ("c", "b", "d", "a", "e")
         assert Test2.__slots__ == ("e",)
@@ -395,6 +409,7 @@ class TestStructParameterOrdering:
             a: float = 2.0
 
         assert B.__struct_fields__ == ("b", "a")
+        assert B.__struct_reprs__ == (True, True)
         assert B.__struct_defaults__ == (2.0,)
         assert B.__match_args__ == ("b", "a")
         assert B.__slots__ == ()
@@ -427,6 +442,7 @@ class TestStructParameterOrdering:
             a: int
 
         assert Test.__struct_fields__ == ("b", "a")
+        assert Test.__struct_reprs__ == (True, True)
         assert Test.__struct_defaults__ == ()
         assert Test.__match_args__ == ()
         assert Test.__slots__ == ("a", "b")
@@ -439,6 +455,7 @@ class TestStructParameterOrdering:
             d: int = 1
 
         assert Test.__struct_fields__ == ("b", "a", "c", "d")
+        assert Test.__struct_reprs__ == (True, True, True, True)
         assert Test.__struct_defaults__ == (0, NODEFAULT, 1)
         assert Test.__match_args__ == ()
         assert Test.__slots__ == ("a", "b", "c", "d")
@@ -457,11 +474,13 @@ class TestStructParameterOrdering:
             c: int = 1
 
         assert S1.__struct_fields__ == ("d", "c", "b", "a")
+        assert S1.__struct_reprs__ == (True, True, True, True)
         assert S1.__struct_defaults__ == ()
         assert S1.__match_args__ == ("d", "c")
         assert S1.__slots__ == ("c", "d")
 
         assert S2.__struct_fields__ == ("d", "c", "b", "a")
+        assert S2.__struct_reprs__ == (True, True, True, True)
         assert S2.__struct_defaults__ == (1, NODEFAULT, NODEFAULT)
         assert S2.__match_args__ == ("d", "c")
         assert S2.__slots__ == ("c", "d")
@@ -476,6 +495,7 @@ class TestStructParameterOrdering:
             c: int = 2
 
         assert S1.__struct_fields__ == ("d", "c", "b", "a")
+        assert S1.__struct_reprs__ == (True, True, True, True)
         assert S1.__struct_defaults__ == (2, 1, NODEFAULT)
         assert S1.__match_args__ == ("d", "c")
         assert S1.__slots__ == ("c", "d")
@@ -490,6 +510,7 @@ class TestStructParameterOrdering:
             c: int
 
         assert S1.__struct_fields__ == ("b", "a", "d", "c")
+        assert S1.__struct_reprs__ == (True, True, True, True)
         assert S1.__struct_defaults__ == ()
         assert S1.__match_args__ == ("b", "a")
         assert S1.__slots__ == ("c", "d")
@@ -504,6 +525,7 @@ class TestStructParameterOrdering:
             c: int = 1
 
         assert S1.__struct_fields__ == ("b", "a", "d", "c")
+        assert S1.__struct_reprs__ == (True, True, True, True)
         assert S1.__struct_defaults__ == (0, NODEFAULT, 1)
         assert S1.__match_args__ == ("b", "a")
         assert S1.__slots__ == ("c", "d")
@@ -518,6 +540,7 @@ class TestStructParameterOrdering:
             c: int = 3
 
         assert S1.__struct_fields__ == ("a", "b", "c")
+        assert S1.__struct_reprs__ == (True, True, True)
         assert S1.__struct_defaults__ == (2, NODEFAULT, 3)
         assert S1.__match_args__ == ("a",)
         assert S1.__slots__ == ("c",)
@@ -532,6 +555,7 @@ class TestStructParameterOrdering:
             c: int = 3
 
         assert S1.__struct_fields__ == ("b", "c", "a")
+        assert S1.__struct_reprs__ == (True, True, True, True)
         assert S1.__struct_defaults__ == (3, 2)
         assert S1.__match_args__ == ("b", "c")
         assert S1.__slots__ == ("c",)
@@ -739,6 +763,28 @@ class TestRepr:
         x = Test(0, b=1, c="two")
         assert repr(x) == "Test(a=0, b=1, c='two')"
         assert x.__rich_repr__() == [("a", 0), ("b", 1), ("c", "two")]
+
+    def test_repr_custom_false_one_field(self):
+        class Test(Struct):
+            a: int = msgspec.field(default=0, repr=False)
+
+        x = Test(0)
+        y = Test(1)
+        assert repr(x) == repr(y) == "Test()"
+        assert x.__rich_repr__() == y.__rich_repr__() == []
+
+    def test_repr_custom_false_one_of_multiple_fields(self):
+        class Test(Struct):
+            a: int
+            b: int = msgspec.field(default=0, repr=False)
+
+        x = Test(0)
+        assert repr(x) == "Test(a=0)"
+        assert x.__rich_repr__() == [("a", 0)]
+
+        x = Test(0, b=1)
+        assert repr(x) == "Test(a=0)"
+        assert x.__rich_repr__() == [("a", 0)]
 
     def test_repr_recursive(self):
         class Test(Struct):
