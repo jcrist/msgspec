@@ -2469,7 +2469,7 @@ static PyMemberDef Field_members[] = {
         "An alternative name to use when encoding/decoding this field"
     },
     {
-        "repr", T_BOOL, offsetof(Field, repr), READONLY,
+        "repr", T_OBJECT_EX, offsetof(Field, repr), READONLY,
         "Whether to include this field in the generated struct __repr__"
     },
     {NULL},
