@@ -7173,7 +7173,7 @@ Struct_repr(PyObject *self) {
         if (val == NULL) goto error;
 
         PyObject *repr_val = PyTuple_GET_ITEM(reprs, i);
-	if (repr_val == Py_False) continue;
+        if (repr_val == Py_False) continue;
 
         if (i >= nunchecked) {
             PyObject *default_val = PyTuple_GET_ITEM(defaults, i - nunchecked);
@@ -7592,6 +7592,7 @@ Struct_rich_repr(PyObject *self, PyObject *args) {
     StructMetaObject *st_type = (StructMetaObject *)(Py_TYPE(self));
     bool omit_defaults = st_type->repr_omit_defaults == OPT_TRUE;
     PyObject *fields = st_type->struct_fields;
+    PyObject *reprs = st_type->struct_reprs;
     Py_ssize_t nfields = PyTuple_GET_SIZE(fields);
     PyObject *defaults = NULL;
     Py_ssize_t nunchecked = nfields;
@@ -7608,12 +7609,16 @@ Struct_rich_repr(PyObject *self, PyObject *args) {
         PyObject *field = PyTuple_GET_ITEM(fields, i);
         PyObject *val = Struct_get_index(self, i);
 
+        PyObject *repr_val = PyTuple_GET_ITEM(reprs, i);
+        if (repr_val == Py_False) continue;
+
         if (i >= nunchecked) {
             PyObject *default_val = PyTuple_GET_ITEM(defaults, i - nunchecked);
             if (is_default(val, default_val)) continue;
         }
 
         if (val == NULL) goto error;
+
         PyObject *part = PyTuple_Pack(2, field, val);
         if (part == NULL) goto error;
         int status = PyList_Append(out, part);

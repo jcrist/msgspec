@@ -392,7 +392,7 @@ class TestStructParameterOrdering:
             e: float = 5.0  # new
 
         assert Test2.__struct_fields__ == ("c", "b", "d", "a", "e")
-        assert Test2.__struct_reprs__ == (True, True, True, True)
+        assert Test2.__struct_reprs__ == (True, True, True, True, True)
         assert Test2.__struct_defaults__ == (3, 4, 2.0, 5.0)
         assert Test2.__match_args__ == ("c", "b", "d", "a", "e")
         assert Test2.__slots__ == ("e",)
@@ -555,7 +555,7 @@ class TestStructParameterOrdering:
             c: int = 3
 
         assert S1.__struct_fields__ == ("b", "c", "a")
-        assert S1.__struct_reprs__ == (True, True, True, True)
+        assert S1.__struct_reprs__ == (True, True, True)
         assert S1.__struct_defaults__ == (3, 2)
         assert S1.__match_args__ == ("b", "c")
         assert S1.__slots__ == ("c",)
