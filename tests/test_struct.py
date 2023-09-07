@@ -10,12 +10,12 @@ from contextlib import contextmanager
 from inspect import Parameter, Signature
 from typing import Any, List, Optional
 
-import pytest
-from utils import temp_module
-
 import msgspec
+import pytest
 from msgspec import NODEFAULT, UNSET, Struct, defstruct, field
 from msgspec.structs import StructConfig, replace
+
+from utils import temp_module
 
 
 @contextmanager
@@ -81,6 +81,9 @@ def test_field():
 
     f6 = msgspec.field(repr=False)
     assert f6.repr is False
+
+    f7 = msgspec.field(repr=hex)
+    assert f7.repr is hex
 
     with pytest.raises(TypeError, match="Cannot set both"):
         msgspec.field(default=1, default_factory=int)
@@ -785,6 +788,16 @@ class TestRepr:
         x = Test(0, b=1)
         assert repr(x) == "Test(a=0)"
         assert x.__rich_repr__() == [("a", 0)]
+
+    def test_repr_custom_callable_and_false(self):
+        class Test(Struct):
+            a: int
+            b: int = msgspec.field(repr=hex)
+            c: int = msgspec.field(repr=False)
+
+        x = Test(a=1, b=2, c=3)
+        assert repr(x) == "Test(a=1, b=0x2)"
+        assert x.__rich_repr__() == [("a", 1), ("b", "0x2")]
 
     def test_repr_recursive(self):
         class Test(Struct):
