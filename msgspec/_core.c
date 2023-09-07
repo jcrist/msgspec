@@ -2353,7 +2353,7 @@ typedef struct {
     PyObject *default_value;
     PyObject *default_factory;
     PyObject *name;
-    bool repr;
+    PyObject *repr;
 } Field;
 
 PyDoc_STRVAR(Field__doc__,
@@ -2370,19 +2370,19 @@ PyDoc_STRVAR(Field__doc__,
 "    The name to use when encoding/decoding this field. If present, this\n"
 "    will override any struct-level configuration using the ``rename``\n"
 "    option for this field."
-"repr : bool, optional\n"
+"repr : bool or Callable, optional\n"
 "    Whether to include this field in the generated struct ``__repr__``."
 );
 static PyObject *
 Field_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
     char *kwlist[] = {"default", "default_factory", "name", "repr", NULL};
     PyObject *default_value = NODEFAULT, *default_factory = NODEFAULT;
-    PyObject *name = Py_None; int arg_repr = 1;
+    PyObject *name = Py_None; PyObject *repr = Py_True;
 
     if (
         !PyArg_ParseTupleAndKeywords(
-            args, kwargs, "|$OOOp", kwlist,
-            &default_value, &default_factory, &name, &arg_repr
+            args, kwargs, "|$OOOO", kwlist,
+            &default_value, &default_factory, &name, &repr
         )
     ) {
         return NULL;
@@ -2392,6 +2392,12 @@ Field_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
             PyExc_TypeError, "Cannot set both `default` and `default_factory`"
         );
         return NULL;
+    }
+    if (!PyBool_Check(repr)) {
+        if (!PyCallable_Check(repr)) {
+            PyErr_SetString(PyExc_TypeError, "repr must be boolean or callable");
+            return NULL;
+        }
     }
     if (default_factory != NODEFAULT) {
         if (!PyCallable_Check(default_factory)) {
@@ -2416,7 +2422,8 @@ Field_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
     self->default_factory = default_factory;
     Py_XINCREF(name);
     self->name = name;
-    self->repr = arg_repr ? true : false;
+    Py_XINCREF(repr);
+    self->repr = repr;
     return (PyObject *)self;
 }
 
@@ -2426,6 +2433,7 @@ Field_traverse(Field *self, visitproc visit, void *arg)
     Py_VISIT(self->default_value);
     Py_VISIT(self->default_factory);
     Py_VISIT(self->name);
+    Py_VISIT(self->repr);
     return 0;
 }
 
@@ -2435,6 +2443,7 @@ Field_clear(Field *self)
     Py_CLEAR(self->default_value);
     Py_CLEAR(self->default_factory);
     Py_CLEAR(self->name);
+    Py_CLEAR(self->repr);
     return 0;
 }
 
@@ -5514,28 +5523,18 @@ structmeta_process_repr(StructMetaInfo *info, PyObject *name) {
 
     if (type == &Field_Type) {
         Field *f = (Field *)obj;
-
         /* Extract repr boolean or callable */
-        if (f->repr == false) {
-            obj = Py_False;
-        }
-        else {
-            obj = Py_True;
-        }
-        repr_val = obj;
+        repr_val = f->repr;
         Py_INCREF(repr_val);
     }
     else {
-        Py_INCREF(obj);
         repr_val = Py_True;
+        Py_INCREF(repr_val);
     }
-    goto done;
 
-done:
     int status = PyDict_SetItem(info->reprs_lk, name, repr_val);
     Py_DECREF(repr_val);
     return status;
-
 }
 
 static int
@@ -7172,8 +7171,8 @@ Struct_repr(PyObject *self) {
         PyObject *val = Struct_get_index(self, i);
         if (val == NULL) goto error;
 
-        PyObject *repr_val = PyTuple_GET_ITEM(reprs, i);
-        if (repr_val == Py_False) continue;
+        PyObject *repr_config = PyTuple_GET_ITEM(reprs, i);
+        if (repr_config == Py_False) continue;
 
         if (i >= nunchecked) {
             PyObject *default_val = PyTuple_GET_ITEM(defaults, i - nunchecked);
@@ -7190,7 +7189,16 @@ Struct_repr(PyObject *self) {
         if (!strbuilder_extend_unicode(&builder, field)) goto error;
         if (!strbuilder_extend_literal(&builder, "=")) goto error;
 
-        PyObject *repr = PyObject_Repr(val);
+	PyObject *repr;
+        if (PyCallable_Check(repr_config)) {
+             PyObject *repr_input;
+             repr_input = PyObject_CallFunctionObjArgs(repr_config, val, NULL);
+             if (repr_input == NULL) goto error;
+             repr = PyObject_Repr(repr_input);
+             Py_DECREF(repr_input);
+        } else {
+             repr = PyObject_Repr(val);
+        }
         if (repr == NULL) goto error;
         bool ok = strbuilder_extend_unicode(&builder, repr);
         Py_DECREF(repr);
@@ -7609,8 +7617,8 @@ Struct_rich_repr(PyObject *self, PyObject *args) {
         PyObject *field = PyTuple_GET_ITEM(fields, i);
         PyObject *val = Struct_get_index(self, i);
 
-        PyObject *repr_val = PyTuple_GET_ITEM(reprs, i);
-        if (repr_val == Py_False) continue;
+        PyObject *repr_config = PyTuple_GET_ITEM(reprs, i);
+        if (repr_config == Py_False) continue;
 
         if (i >= nunchecked) {
             PyObject *default_val = PyTuple_GET_ITEM(defaults, i - nunchecked);
@@ -7619,8 +7627,18 @@ Struct_rich_repr(PyObject *self, PyObject *args) {
 
         if (val == NULL) goto error;
 
-        PyObject *part = PyTuple_Pack(2, field, val);
+	PyObject *packing_val;
+        if (PyCallable_Check(repr_config)) {
+             packing_val = PyObject_CallFunctionObjArgs(repr_config, val, NULL);
+             Py_DECREF(val);
+             if (packing_val == NULL) goto error;
+        } else {
+             packing_val = val;
+        }
+
+        PyObject *part = PyTuple_Pack(2, field, packing_val);
         if (part == NULL) goto error;
+
         int status = PyList_Append(out, part);
         Py_DECREF(part);
         if (status < 0) goto error;

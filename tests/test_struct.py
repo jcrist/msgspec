@@ -796,7 +796,7 @@ class TestRepr:
             c: int = msgspec.field(repr=False)
 
         x = Test(a=1, b=2, c=3)
-        assert repr(x) == "Test(a=1, b=0x2)"
+        assert repr(x) == "Test(a=1, b='0x2')"
         assert x.__rich_repr__() == [("a", 1), ("b", "0x2")]
 
     def test_repr_recursive(self):
