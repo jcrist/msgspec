@@ -94,6 +94,10 @@ def test_field():
     with pytest.raises(TypeError, match="must be a str or None"):
         msgspec.field(name=b"bad")
 
+    for repr_value in ("a", b"b", 1, 2.3, None):
+        with pytest.raises(TypeError, match="repr must be boolean or callable"):
+            msgspec.field(repr=repr_value)
+
 
 def test_struct_class_attributes():
     assert Struct.__struct_fields__ == ()
