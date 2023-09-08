@@ -7168,15 +7168,26 @@ Struct_repr(PyObject *self) {
 
     for (Py_ssize_t i = 0; i < nfields; i++) {
         PyObject *field = PyTuple_GET_ITEM(fields, i);
+	Py_INCREF(field);
+
         PyObject *val = Struct_get_index(self, i);
         if (val == NULL) goto error;
 
         PyObject *repr_config = PyTuple_GET_ITEM(reprs, i);
-        if (repr_config == Py_False) continue;
+	Py_INCREF(repr_config);
+        if (repr_config == Py_False) {
+            Py_DECREF(repr_config);
+            continue;
+	}
 
         if (i >= nunchecked) {
             PyObject *default_val = PyTuple_GET_ITEM(defaults, i - nunchecked);
-            if (is_default(val, default_val)) continue;
+	    Py_INCREF(default_val);
+
+            if (is_default(val, default_val)) {
+                Py_DECREF(default_val);
+                continue;
+	    }
         }
 
         if (first) {
@@ -7199,6 +7210,8 @@ Struct_repr(PyObject *self) {
         } else {
              repr = PyObject_Repr(val);
         }
+	Py_DECREF(field);
+        Py_DECREF(repr_config);
         if (repr == NULL) goto error;
         bool ok = strbuilder_extend_unicode(&builder, repr);
         Py_DECREF(repr);
