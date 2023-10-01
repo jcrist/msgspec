@@ -1230,7 +1230,7 @@ containing a list of users:
         "page": 1,
         "per_page": 5,
         "total": 252,
-        "data": [
+        "items": [
             {"name": "alice", "groups": ["admin"]},
             {"name": "ben"},
             {"name": "carol", "groups": ["engineering"]},
@@ -1245,7 +1245,7 @@ containing a list of users:
     print(msg)
     #> Paginated(
     #>     page=1, per_page=5, total=252,
-    #>     data=[
+    #>     items=[
     #>         User(name='alice', groups=['admin']),
     #>         User(name='ben', groups=[]),
     #>         User(name='carol', groups=['engineering']),
