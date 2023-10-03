@@ -8033,20 +8033,6 @@ DataclassInfo_lookup_key(
 }
 
 
-static MS_INLINE PyObject *
-DataclassInfo_get_default(DataclassInfo *self, Py_ssize_t i) {
-    PyObject *default_value = PyTuple_GET_ITEM(self->defaults, i);
-    bool is_factory = self->fields[i].type->types & MS_EXTRA_FLAG;
-    if (is_factory) {
-        default_value = CALL_NO_ARGS(default_value);
-        if (default_value == NULL) return NULL;
-        return default_value;
-    }
-    Py_INCREF(default_value);
-    return default_value;
-}
-
-
 static int
 DataclassInfo_post_decode(DataclassInfo *self, PyObject *obj, PathNode *path) {
     Py_ssize_t nfields = Py_SIZE(self);
