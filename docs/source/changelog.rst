@@ -3,6 +3,12 @@ Changelog
 
 .. currentmodule:: msgspec
 
+Version 0.18.3 (2023-10-03)
+---------------------------
+
+- Improve type annotation for ``Struct.__rich_repr__`` (:pr:`557`)
+- Add pre-built wheels for Python 3.12 (:pr:`558`)
+
 Version 0.18.2 (2023-08-26)
 ---------------------------
 
