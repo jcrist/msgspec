@@ -77,7 +77,7 @@ jobs:
     env:
       CIBW_TEST_REQUIRES: "pytest msgpack pyyaml tomli tomli_w"
       CIBW_TEST_COMMAND: "pytest {project}/tests"
-      CIBW_BUILD: "cp38-* cp39-* cp310-* cp311-*"
+      CIBW_BUILD: "cp38-* cp39-* cp310-* cp311-* cp312-*"
       CIBW_SKIP: "*-win32 *_i686 *_s390x *_ppc64le"
       CIBW_ARCHS_MACOS: "x86_64 arm64"
       CIBW_ARCHS_LINUX: "x86_64 aarch64"
@@ -98,14 +98,8 @@ jobs:
         run: |
             echo "CIBW_SKIP=${CIBW_SKIP} *-musllinux_* cp38-*_aarch64 cp39-*_aarch64 cp311-*_aarch64 cp312-*_aarch64" >> $GITHUB_ENV
 
-      - name: Enable CPython 3.12 prerelease builds for Linux testing
-        if: github.event_name != 'release' && runner.os == 'Linux'
-        run: |
-          echo "CIBW_PRERELEASE_PYTHONS=True" >> $GITHUB_ENV
-          echo "CIBW_BUILD=cp38-* cp39-* cp310-* cp311-* cp312-*" >> $GITHUB_ENV
-
       - name: Build & Test Wheels
-        uses: pypa/cibuildwheel@v2.13.1
+        uses: pypa/cibuildwheel@v2.16.1
 
       - name: Upload artifact
         uses: actions/upload-artifact@v2
