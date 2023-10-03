@@ -311,7 +311,10 @@ def check_struct_methods() -> None:
     a.x = a.x + b.y
     repr(a)
 
-    for name, val in a.__rich_repr__():
+    for item in a.__rich_repr__():
+        assert isinstance(item, tuple)
+        assert len(item) == 2
+        name, val = item
         print(f"{name} = {val}")
 
 
