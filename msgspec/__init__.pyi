@@ -68,7 +68,9 @@ class Struct:
         weakref: bool = False,
         dict: bool = False,
     ) -> None: ...
-    def __rich_repr__(self) -> Iterable[Tuple[str, Any]]: ...
+    def __rich_repr__(
+        self,
+    ) -> Iterable[Union[Any, Tuple[Any], Tuple[str, Any], Tuple[str, Any, Any]]]: ...
 
 def defstruct(
     name: str,
