@@ -6043,15 +6043,10 @@ StructMeta_new_inner(
     /* Fill in struct offsets */
     if (structmeta_construct_offsets(&info, cls) < 0) goto cleanup;
 
-    /* Cache access to __post_init__ (if defined).
-     * XXX: When StructMeta is defined, the module hasn't finished initializing
-     * yet so `mod` will be NULL here. */
-    if (mod != NULL) {
-        cls->post_init = PyObject_GetAttr((PyObject *)cls, mod->str___post_init__);
+    /* Cache access to __post_init__ (if defined). */
+    cls->post_init = PyObject_GetAttr((PyObject *)cls, mod->str___post_init__);
+    if (cls->post_init == NULL) {
         PyErr_Clear();
-    }
-    else {
-        cls->post_init = NULL;
     }
 
     cls->nkwonly = info.nkwonly;
@@ -21067,17 +21062,6 @@ PyInit__core(void)
     if (PyModule_AddObject(m, "UNSET", UNSET) < 0)
         return NULL;
 
-    /* Initialize the Struct Type */
-    st->StructType = PyObject_CallFunction(
-        (PyObject *)&StructMetaType, "s(O){ssss}", "Struct", &StructMixinType,
-        "__module__", "msgspec", "__doc__", Struct__doc__
-    );
-    if (st->StructType == NULL)
-        return NULL;
-    Py_INCREF(st->StructType);
-    if (PyModule_AddObject(m, "Struct", st->StructType) < 0)
-        return NULL;
-
     /* Initialize the exceptions. */
     st->MsgspecError = PyErr_NewExceptionWithDoc(
         "msgspec.MsgspecError",
@@ -21244,6 +21228,16 @@ PyInit__core(void)
     CACHED_STRING(str___constraints__, "__constraints__");
     CACHED_STRING(str_int, "int");
     CACHED_STRING(str_is_safe, "is_safe");
+
+    /* Initialize the Struct Type */
+    PyState_AddModule(m, &msgspecmodule);
+    st->StructType = PyObject_CallFunction(
+        (PyObject *)&StructMetaType, "s(O){ssss}", "Struct", &StructMixinType,
+        "__module__", "msgspec", "__doc__", Struct__doc__
+    );
+    if (st->StructType == NULL) return NULL;
+    Py_INCREF(st->StructType);
+    if (PyModule_AddObject(m, "Struct", st->StructType) < 0) return NULL;
 
     return m;
 }
