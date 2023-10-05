@@ -3,6 +3,12 @@ Changelog
 
 .. currentmodule:: msgspec
 
+Version 0.18.4 (2023-10-04)
+---------------------------
+
+- Resolve an issue leading to periodic segfaults when importing ``msgspec`` on
+  CPython 3.12 (:pr:`561`)
+
 Version 0.18.3 (2023-10-03)
 ---------------------------
 
