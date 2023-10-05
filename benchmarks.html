@@ -319,7 +319,7 @@ performed quite well, encoding/decoding faster than all other options, even
 those implementing the same serialization protocol. This is partly due to the
 use of <code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code> types here - since all keys are statically known, the msgspec
 decoders can apply a few optimizations not available to other Python libraries
-that rely on <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a> types instead.</p>
+that rely on <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a> types instead.</p>
 <p>That said, all of these methods serialize/deserialize pretty quickly relative
 to other python operations, so unless you’re counting every microsecond your
 choice here probably doesn’t matter that much.</p>
@@ -358,7 +358,7 @@ faster than <code class="docutils literal notranslate"><span class="pre">mashuma
 <li><p>It requires traversing over the entire output structure a second time (which
 can be slow due to pointer chasing)</p></li>
 <li><p>It may require converting some python objects to their desired output types
-(e.g. converting a decoded <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a> to a <a class="reference external" href="https://pydantic-docs.helpmanual.io/">pydantic</a> model), resulting in
+(e.g. converting a decoded <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a> to a <a class="reference external" href="https://pydantic-docs.helpmanual.io/">pydantic</a> model), resulting in
 allocating many temporary python objects.</p></li>
 </ul>
 <p>In contrast, libraries like <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> that validate during decoding have none

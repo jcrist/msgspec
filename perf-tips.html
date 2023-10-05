@@ -297,7 +297,7 @@ typed, you may need to create multiple decoders, one for each type.</p>
 <p><a class="reference internal" href="structs.html"><span class="doc">Structs</span></a> are msgspec’s native way of expressing user-defined types.
 They’re <a class="reference internal" href="benchmarks.html#encoding-benchmark"><span class="std std-ref">fast to encode/decode</span></a> and <a class="reference internal" href="benchmarks.html#struct-benchmark"><span class="std std-ref">fast to use</span></a>. If you have data with a known schema, we recommend
 defining a <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> type (or types) for your schema and preferring that
-over other types like <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a>/<a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#module-dataclasses" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses</span></code></a>/…</p>
+over other types like <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a>/<a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#module-dataclasses" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses</span></code></a>/…</p>
 </section>
 <section id="avoid-encoding-default-values">
 <h2>Avoid Encoding Default Values<a class="headerlink" href="#avoid-encoding-default-values" title="Permalink to this heading">#</a></h2>
@@ -350,15 +350,15 @@ technique.</p>
 </section>
 <section id="reduce-allocations">
 <h2>Reduce Allocations<a class="headerlink" href="#reduce-allocations" title="Permalink to this heading">#</a></h2>
-<p>Every call to <code class="docutils literal notranslate"><span class="pre">encode</span></code>/<code class="docutils literal notranslate"><span class="pre">Encoder.encode</span></code> allocates a new <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytes</span></code></a> object for
+<p>Every call to <code class="docutils literal notranslate"><span class="pre">encode</span></code>/<code class="docutils literal notranslate"><span class="pre">Encoder.encode</span></code> allocates a new <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytes</span></code></a> object for
 the output. <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> exposes an alternative <code class="docutils literal notranslate"><span class="pre">Encoder.encode_into</span></code> (e.g.
 <a class="reference internal" href="api.html#msgspec.json.Encoder.encode_into" title="msgspec.json.Encoder.encode_into"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.json.Encoder.encode_into</span></code></a>) that writes into a pre-allocated
-<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytearray" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytearray</span></code></a> instead (possibly reallocating to increase capacity).</p>
+<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytearray" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytearray</span></code></a> instead (possibly reallocating to increase capacity).</p>
 <p>This has a few uses:</p>
 <section id="reusing-an-output-buffer">
 <h3>Reusing an output buffer<a class="headerlink" href="#reusing-an-output-buffer" title="Permalink to this heading">#</a></h3>
 <p>If you’re encoding and writing messages to a socket/file in a hot loop, you
-<em>may</em> benefit from allocating a single <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytearray" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytearray</span></code></a> buffer once and reusing it
+<em>may</em> benefit from allocating a single <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytearray" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytearray</span></code></a> buffer once and reusing it
 for every message.</p>
 <p>For example:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">encoder</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">msgpack</span><span class="o">.</span><span class="n">Encoder</span><span class="p">()</span>
@@ -381,7 +381,7 @@ for every message.</p>
 fit the message size. This means that if a large message is encountered the
 buffer will be expanded to be equally large, but won’t be reduced back to
 normal afterwards (possibly bloating memory usage). You can use
-<a class="reference external" href="https://docs.python.org/3/library/sys.html#sys.getsizeof" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sys.getsizeof</span></code></a> (or call <code class="xref py py-obj docutils literal notranslate"><span class="pre">bytearray.__sizeof__</span></code>) directly to determine the
+<a class="reference external" href="https://docs.python.org/3/library/sys.html#sys.getsizeof" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sys.getsizeof</span></code></a> (or call <code class="xref py py-obj docutils literal notranslate"><span class="pre">bytearray.__sizeof__</span></code>) directly to determine the
 actual capacity of the buffer, since <code class="docutils literal notranslate"><span class="pre">len(buffer)</span></code> will only reflect the
 part of the buffer that is written to.</p></li>
 <li><p>Small messages (for some definition of “small”) likely won’t see a

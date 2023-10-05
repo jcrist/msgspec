@@ -278,7 +278,7 @@ from JSON:</p>
 <p>Often this is sufficient, but sometimes you also need to impose constraints on
 the <em>values</em> (rather than the <em>types</em>) found in the message.</p>
 <p>Constraints in <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> are specified by wrapping a type with
-<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Annotated" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.Annotated</span></code></a>, and adding a <a class="reference internal" href="api.html#msgspec.Meta" title="msgspec.Meta"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Meta</span></code></a> annotation.</p>
+<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Annotated" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.Annotated</span></code></a>, and adding a <a class="reference internal" href="api.html#msgspec.Meta" title="msgspec.Meta"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Meta</span></code></a> annotation.</p>
 <p>For example, to constrain the list to positive integers (<code class="docutils literal notranslate"><span class="pre">&gt;</span> <span class="pre">0</span></code>), you’d make
 use of the <code class="docutils literal notranslate"><span class="pre">gt</span></code> (greater-than) constraint:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Annotated</span>
@@ -326,7 +326,7 @@ aliases and then reused elsewhere (as done with <code class="docutils literal no
 <p>The following constraints are supported:</p>
 <section id="numeric-constraints">
 <h2>Numeric Constraints<a class="headerlink" href="#numeric-constraints" title="Permalink to this heading">#</a></h2>
-<p>These constraints are valid on <a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">int</span></code></a> or <a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">float</span></code></a> types:</p>
+<p>These constraints are valid on <a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">int</span></code></a> or <a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">float</span></code></a> types:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">ge</span></code>: The value must be greater than or equal to <code class="docutils literal notranslate"><span class="pre">ge</span></code>.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">gt</span></code>: The value must be greater than <code class="docutils literal notranslate"><span class="pre">gt</span></code>.</p></li>
@@ -356,7 +356,7 @@ details.</p>
 </section>
 <section id="string-constraints">
 <h2>String Constraints<a class="headerlink" href="#string-constraints" title="Permalink to this heading">#</a></h2>
-<p>These constraints are valid on <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">str</span></code></a> types:</p>
+<p>These constraints are valid on <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">str</span></code></a> types:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">min_length</span></code>: The minimum valid length, inclusive.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">max_length</span></code>: The maximum valid length, inclusive.</p></li>
@@ -382,7 +382,7 @@ pattern “^es$” only matches the string “es”</p></li>
 </section>
 <section id="datetime-constraints">
 <span id="id1"></span><h2>Datetime Constraints<a class="headerlink" href="#datetime-constraints" title="Permalink to this heading">#</a></h2>
-<p>These constraints are valid on <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.datetime" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.datetime</span></code></a> and <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.time" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.time</span></code></a> types:</p>
+<p>These constraints are valid on <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.datetime" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.datetime</span></code></a> and <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.time" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.time</span></code></a> types:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">tz</span></code>: Whether the annotated type is required to be <a class="reference external" href="https://docs.python.org/3/library/datetime.html#aware-and-naive-objects">timezone-aware</a>. Set to
 <code class="docutils literal notranslate"><span class="pre">True</span></code> to require timezone-aware values, or <code class="docutils literal notranslate"><span class="pre">False</span></code> to require
@@ -415,7 +415,7 @@ timezone-aware or timezone-naive values.</p></li>
 </section>
 <section id="bytes-constraints">
 <h2>Bytes Constraints<a class="headerlink" href="#bytes-constraints" title="Permalink to this heading">#</a></h2>
-<p>These constraints are valid on <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytes</span></code></a> and <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytearray" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytearray</span></code></a> types:</p>
+<p>These constraints are valid on <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytes</span></code></a> and <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytearray" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytearray</span></code></a> types:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">min_length</span></code>: The minimum valid length, inclusive.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">max_length</span></code>: The maximum valid length, inclusive.</p></li>
@@ -436,7 +436,7 @@ timezone-aware or timezone-naive values.</p></li>
 </section>
 <section id="sequence-constraints">
 <h2>Sequence Constraints<a class="headerlink" href="#sequence-constraints" title="Permalink to this heading">#</a></h2>
-<p>These constraints are valid on <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">list</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tuple</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#set" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set</span></code></a>, and <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#frozenset" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">frozenset</span></code></a> types:</p>
+<p>These constraints are valid on <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">list</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tuple</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#set" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set</span></code></a>, and <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#frozenset" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">frozenset</span></code></a> types:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">min_length</span></code>: The minimum valid length, inclusive.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">max_length</span></code>: The maximum valid length, inclusive.</p></li>
@@ -457,7 +457,7 @@ timezone-aware or timezone-naive values.</p></li>
 </section>
 <section id="mapping-constraints">
 <h2>Mapping Constraints<a class="headerlink" href="#mapping-constraints" title="Permalink to this heading">#</a></h2>
-<p>These constraints are valid on <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a> types:</p>
+<p>These constraints are valid on <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a> types:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">min_length</span></code>: The minimum valid length, inclusive.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">max_length</span></code>: The maximum valid length, inclusive.</p></li>

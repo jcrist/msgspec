@@ -272,7 +272,7 @@ standard library’s <code class="docutils literal notranslate"><span class="pre
 <li><p>Will result in high-level <a class="reference internal" href="../api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> objects representing GeoJSON types</p></li>
 <li><p>Will error nicely if a field is missing or the wrong type</p></li>
 <li><p>Will fill in default values for optional fields</p></li>
-<li><p>Decodes and encodes <em>significantly faster</em> than the <a class="reference external" href="https://docs.python.org/3/library/json.html#module-json" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">json</span></code></a> module (as well as
+<li><p>Decodes and encodes <em>significantly faster</em> than the <a class="reference external" href="https://docs.python.org/3/library/json.html#module-json" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">json</span></code></a> module (as well as
 most other <code class="docutils literal notranslate"><span class="pre">json</span></code> implementations in Python).</p></li>
 </ul>
 <p>This example makes use <a class="reference internal" href="../api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> types to define the different GeoJSON
@@ -366,7 +366,7 @@ relevant docs for more information.</p>
 <p>Comparing performance to:</p>
 <ul class="simple">
 <li><p><a class="reference external" href="https://github.com/ijl/orjson">orjson</a></p></li>
-<li><p><a class="reference external" href="https://docs.python.org/3/library/json.html#module-json" title="(in Python v3.11)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">json</span></code></a></p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/json.html#module-json" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">json</span></code></a></p></li>
 <li><p><a class="reference external" href="https://github.com/jazzband/geojson">geojson</a> (another validating Python implementation)</p></li>
 </ul>
 <div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="gp">In [6]: </span><span class="o">%</span><span class="k">timeit</span> msgspec_geojson.loads(data)  # benchmark msgspec
