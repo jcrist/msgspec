@@ -765,6 +765,13 @@ def test_metadata():
     )
 
 
+def test_inspect_with_unhashable_metadata():
+
+    typ = Annotated[int, {"unhashable"}]
+
+    assert mi.type_info(typ) == mi.IntType()
+
+
 def test_multi_type_info():
     class Example(msgspec.Struct):
         x: int
