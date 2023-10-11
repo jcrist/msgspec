@@ -619,7 +619,12 @@ def _origin_args_metadata(t):
     # Strip wrappers (Annotated, NewType, Final) until we hit a concrete type
     metadata = []
     while True:
-        origin = _CONCRETE_TYPES.get(t)
+        try:
+            origin = _CONCRETE_TYPES.get(t)
+        except TypeError:
+            # t is not hashable
+            origin = None
+
         if origin is not None:
             args = None
             break
