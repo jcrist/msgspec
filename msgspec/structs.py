@@ -10,7 +10,7 @@ from ._core import (  # noqa
     astuple,
     replace,
 )
-from ._utils import get_type_hints as _get_type_hints
+from ._utils import get_class_annotations as _get_class_annotations
 
 __all__ = (
     "FieldInfo",
@@ -71,13 +71,14 @@ def fields(type_or_instance: Struct | type[Struct]) -> tuple[FieldInfo]:
     tuple[FieldInfo]
     """
     if isinstance(type_or_instance, Struct):
-        cls = type(type_or_instance)
-    elif isinstance(type_or_instance, type) and issubclass(type_or_instance, Struct):
-        cls = type_or_instance
+        annotated_cls = cls = type(type_or_instance)
     else:
-        raise TypeError("Must be called with a struct type or instance")
+        annotated_cls = type_or_instance
+        cls = getattr(type_or_instance, "__origin__", type_or_instance)
+        if not (isinstance(cls, type) and issubclass(cls, Struct)):
+            raise TypeError("Must be called with a struct type or instance")
 
-    hints = _get_type_hints(cls)
+    hints = _get_class_annotations(annotated_cls)
     npos = len(cls.__struct_fields__) - len(cls.__struct_defaults__)
     fields = []
     for name, encode_name, default_obj in zip(
