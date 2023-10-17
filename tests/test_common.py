@@ -2694,8 +2694,9 @@ class TestDataclass:
         ):
             dec.decode(proto.encode({"a": "bad"}))
 
+    @pytest.mark.parametrize("frozen", [False, True])
     @pytest.mark.parametrize("slots", [False, True])
-    def test_decode_dataclass_defaults(self, proto, slots):
+    def test_decode_dataclass_defaults(self, proto, frozen, slots):
         if slots:
             if not PY310:
                 pytest.skip(reason="Python 3.10+ required")
@@ -2703,7 +2704,7 @@ class TestDataclass:
         else:
             kws = {}
 
-        @dataclass(**kws)
+        @dataclass(frozen=frozen, **kws)
         class Example:
             a: int
             b: int
@@ -2904,9 +2905,10 @@ class TestAttrs:
         ):
             dec.decode(proto.encode({"a": "bad"}))
 
+    @pytest.mark.parametrize("frozen", [False, True])
     @pytest.mark.parametrize("slots", [False, True])
-    def test_decode_attrs_defaults(self, proto, slots):
-        @attrs.define(slots=slots)
+    def test_decode_attrs_defaults(self, proto, frozen, slots):
+        @attrs.define(frozen=frozen, slots=slots)
         class Example:
             a: int
             b: int
@@ -2916,9 +2918,10 @@ class TestAttrs:
 
         dec = proto.Decoder(Example)
         for args in [(1, 2), (1, 2, 3), (1, 2, 3, 4), (1, 2, 3, 4, 5)]:
-            msg = Example(*args)
+            sol = Example(*args)
+            msg = dict(zip("abcde", args))
             res = dec.decode(proto.encode(msg))
-            assert res == msg
+            assert res == sol
 
         # Missing fields error
         with pytest.raises(ValidationError, match="missing required field `a`"):
