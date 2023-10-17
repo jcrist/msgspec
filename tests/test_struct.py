@@ -8,7 +8,7 @@ import sys
 import weakref
 from contextlib import contextmanager
 from inspect import Parameter, Signature
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Generic, TypeVar
 
 import pytest
 from utils import temp_module
@@ -2230,8 +2230,14 @@ class TestAsDictAndAsTuple:
 
 class TestInspectFields:
     def test_fields_bad_arg(self):
-        with pytest.raises(TypeError, match="struct type or instance"):
-            msgspec.structs.fields(1)
+        T = TypeVar("T")
+
+        class Bad(Generic[T]):
+            x: T
+
+        for val in [1, int, Bad, Bad[int]]:
+            with pytest.raises(TypeError, match="struct type or instance"):
+                msgspec.structs.fields(val)
 
     def test_fields_no_fields(self):
         assert msgspec.structs.fields(msgspec.Struct) == ()
@@ -2288,6 +2294,26 @@ class TestInspectFields:
         )
 
         assert msgspec.structs.fields(Example) == sol
+
+    def test_fields_generic(self):
+        T = TypeVar("T")
+
+        class Example(msgspec.Struct, Generic[T]):
+            x: T
+            y: int
+
+        sol = (
+            msgspec.structs.FieldInfo("x", "x", T),
+            msgspec.structs.FieldInfo("y", "y", int),
+        )
+        assert msgspec.structs.fields(Example) == sol
+        assert msgspec.structs.fields(Example(1, 2)) == sol
+
+        sol = (
+            msgspec.structs.FieldInfo("x", "x", str),
+            msgspec.structs.FieldInfo("y", "y", int),
+        )
+        assert msgspec.structs.fields(Example[str])
 
 
 class TestClassVar:
