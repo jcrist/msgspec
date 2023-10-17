@@ -8049,7 +8049,7 @@ DataclassInfo_post_decode(DataclassInfo *self, PyObject *obj, PathNode *path) {
                     default_value = CALL_NO_ARGS(default_value);
                     if (default_value == NULL) return -1;
                 }
-                int status = PyObject_SetAttr(obj, name, default_value);
+                int status = PyObject_GenericSetAttr(obj, name, default_value);
                 if (is_factory) {
                     Py_DECREF(default_value);
                 }

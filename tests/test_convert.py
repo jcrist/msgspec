@@ -1388,9 +1388,10 @@ class TestDataclass:
 
         assert convert(msg, Ex, from_attributes=True) == Ex(1)
 
+    @pytest.mark.parametrize("frozen", [False, True])
     @pytest.mark.parametrize("slots", [False, True])
     @mapcls_and_from_attributes
-    def test_dataclass_defaults(self, slots, mapcls, from_attributes):
+    def test_dataclass_defaults(self, frozen, slots, mapcls, from_attributes):
         if slots:
             if not PY310:
                 pytest.skip(reason="Python 3.10+ required")
@@ -1398,7 +1399,7 @@ class TestDataclass:
         else:
             kws = {}
 
-        @dataclass(**kws)
+        @dataclass(frozen=frozen, **kws)
         class Example:
             a: int
             b: int
@@ -1557,10 +1558,11 @@ class TestAttrs:
 
         assert convert(msg, Ex, from_attributes=True) == Ex(1)
 
+    @pytest.mark.parametrize("frozen", [False, True])
     @pytest.mark.parametrize("slots", [False, True])
     @mapcls_and_from_attributes
-    def test_attrs_defaults(self, slots, mapcls, from_attributes):
-        @attrs.define(slots=slots)
+    def test_attrs_defaults(self, frozen, slots, mapcls, from_attributes):
+        @attrs.define(frozen=frozen, slots=slots)
         class Example:
             a: int
             b: int
