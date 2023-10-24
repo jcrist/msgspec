@@ -398,7 +398,7 @@ def test_struct(kw):
                 default_factory=factory,
             ),
         ),
-        **kw
+        **kw,
     )
     assert mi.type_info(Example) == sol
 
@@ -766,7 +766,6 @@ def test_metadata():
 
 
 def test_inspect_with_unhashable_metadata():
-
     typ = Annotated[int, {"unhashable"}]
 
     assert mi.type_info(typ) == mi.IntType()

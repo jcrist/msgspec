@@ -13,13 +13,15 @@ exclude = [
 ignore = [
     "E721", # Comparing types instead of isinstance
     "E741", # Ambiguous variable names
+    "E501", # Conflicts with ruff format
+    "W191", # Conflicts with ruff format
 ]
 select = [
     "E", # PEP8 Errors
     "F", # Pyflakes
     "W", # PEP8 Warnings
 ]
-line-length = 100
+line-length = 88
 
 [tool.ruff.isort]
 combine-as-imports = true
