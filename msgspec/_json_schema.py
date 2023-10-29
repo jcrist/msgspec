@@ -272,9 +272,14 @@ def _to_schema(
     elif isinstance(t, mi.DictType):
         schema["type"] = "object"
         if not isinstance(t.value_type, mi.AnyType):
-            schema["additionalProperties"] = _to_schema(
-                t.value_type, name_map, ref_template
-            )
+            if isinstance(t.key_type, mi.StrType) and t.key_type.pattern:
+                schema["patternProperties"] = {
+                    t.key_type.pattern: _to_schema(t.value_type, name_map, ref_template)
+                }
+            else:
+                schema["additionalProperties"] = _to_schema(
+                    t.value_type, name_map, ref_template
+                )
         if t.max_length is not None:
             schema["maxProperties"] = t.max_length
         if t.min_length is not None:

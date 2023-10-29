@@ -1107,6 +1107,17 @@ def test_object_metadata(field, constraint):
     assert msgspec.json.schema(typ) == {"type": "object", constraint: 2}
 
 
+def test_object_key_pattern_properties():
+    re_uuid = r"^[\da-fA-F]{4}([\da-fA-F]{4}-){4}[\da-fA-F]{12}$"
+    UUIDString = Annotated[str, Meta(pattern=re_uuid)]
+    typ = typing.MutableMapping[UUIDString, int]
+
+    assert msgspec.json.schema(typ) == {
+        "type": "object",
+        "patternProperties": {re_uuid: {"type": "integer"}},
+    }
+
+
 def test_generic_metadata():
     typ = Annotated[
         int,

@@ -754,6 +754,22 @@ class TestMapConstraints:
             with pytest.raises(msgspec.ValidationError, match=err_msg):
                 dec.decode(proto.encode(Ex(x)))
 
+    def test_key_pattern(self, proto):
+        class Ex(msgspec.Struct):
+            x: Dict[Annotated[str, Meta(pattern="[a-z]+")], int]
+
+        dec = proto.Decoder(Ex)
+
+        x = {"a": 1}
+        assert dec.decode(proto.encode(Ex(x))).x == {"a": 1}
+
+        x = {"1": 0}
+        err_msg = re.escape(
+            r"Expected `str` matching regex '[a-z]+' - at `key` in `$.x`"
+        )
+        with pytest.raises(msgspec.ValidationError, match=err_msg):
+            dec.decode(proto.encode(Ex(x)))
+
     def test_max_length(self, proto):
         class Ex(msgspec.Struct):
             x: Annotated[Dict[str, int], Meta(max_length=2)]
