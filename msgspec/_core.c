@@ -14691,11 +14691,9 @@ mpack_decode_key(DecoderState *self, TypeNode *type, PathNode *path) {
     /* Peek at the next op */
     op = *self->input_pos;
 
-    if (MS_LIKELY(
-            '\xa0' <= op && op <= '\xbf' &&
-            type->types & (MS_TYPE_STR | MS_TYPE_ANY)
-        )
-    ) {
+    bool is_str = type->types == MS_TYPE_ANY || type->types == MS_TYPE_STR;
+
+    if (MS_LIKELY(is_str && '\xa0' <= op && op <= '\xbf')) {
         /* A short (<= 31 byte) unicode str */
         self->input_pos++; /* consume op */
         Py_ssize_t size = op & 0x1f;
