@@ -549,6 +549,23 @@ class TestStrConstraints:
             with pytest.raises(msgspec.ValidationError):
                 dec.decode(proto.encode(Ex(x)))
 
+    @pytest.mark.parametrize(
+        "meta, good, bad",
+        [
+            (Meta(min_length=2), ["xy", "𝄞xy"], ["", "𝄞"]),
+            (Meta(pattern="as"), ["as", "pass", "𝄞as"], ["", "nope", "𝄞"]),
+        ],
+    )
+    def test_str_constraints_on_dict_keys(self, proto, meta, good, bad):
+        dec = proto.Decoder(Dict[Annotated[str, meta], int])
+
+        for x in good:
+            assert dec.decode(proto.encode({x: 1})) == {x: 1}
+
+        for x in bad:
+            with pytest.raises(msgspec.ValidationError):
+                dec.decode(proto.encode({x: 1}))
+
 
 class TestDateTimeConstraints:
     @staticmethod
