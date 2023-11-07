@@ -2096,6 +2096,25 @@ class TestDict:
         msg = msgspec.json.encode({mystr("test"): 1})
         assert msg == b'{"test":1}'
 
+    def test_encode_dict_custom_key(self):
+        class Custom:
+            def __init__(self, value):
+                self.value = value
+
+        msg = msgspec.json.encode(
+            {Custom("a"): 1, Custom("b"): 2}, enc_hook=lambda x: x.value
+        )
+        assert msg == b'{"a":1,"b":2}'
+
+        def enc_hook(x):
+            raise TypeError("Oh no!")
+
+        with pytest.raises(TypeError):
+            msgspec.json.encode({Custom("x"): 1}, enc_hook=enc_hook)
+
+        with pytest.raises(RecursionError):
+            msgspec.json.encode({Custom("x"): 1}, enc_hook=lambda x: x)
+
     @pytest.mark.parametrize(
         "s, error",
         [
