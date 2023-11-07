@@ -1,0 +1,17 @@
+name: ❓ Question
+description: Ask a question
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for taking the time to ask a question!
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Question
+      description: >
+        Ask your question here. Please search through existing and closed
+        issues first to ensure your question hasn't already been answered
+        elsewhere.
+    validations:
+      required: true
