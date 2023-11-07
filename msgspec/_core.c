@@ -13185,11 +13185,20 @@ cleanup:
     return status;
 }
 
+static int json_encode_dict_key_noinline(EncoderState *, PyObject *);
+
+static MS_INLINE int
+json_encode_dict_key(EncoderState *self, PyObject *key) {
+    if (MS_LIKELY(PyUnicode_Check(key))) {
+        return json_encode_str(self, key);
+    }
+    return json_encode_dict_key_noinline(self, key);
+}
+
 static MS_NOINLINE int
-json_encode_dict_key(EncoderState *self, PyObject *obj) {
+json_encode_dict_key_noinline(EncoderState *self, PyObject *obj) {
     PyTypeObject *type = Py_TYPE(obj);
 
-    /* PyUnicode_Type is handled inline in json_encode_dict */
     if (type == &PyLong_Type) {
         return json_encode_long_as_str(self, obj);
     }
@@ -13220,6 +13229,18 @@ json_encode_dict_key(EncoderState *self, PyObject *obj) {
     else if (PyType_IsSubtype(type, (PyTypeObject *)(self->mod->UUIDType))) {
         return json_encode_uuid(self, obj);
     }
+    else if (self->enc_hook != NULL) {
+        int status = -1;
+        PyObject *temp;
+        temp = CALL_ONE_ARG(self->enc_hook, obj);
+        if (temp == NULL) return -1;
+        if (!Py_EnterRecursiveCall(" while serializing an object")) {
+            status = json_encode_dict_key(self, temp);
+            Py_LeaveRecursiveCall();
+        }
+        Py_DECREF(temp);
+        return status;
+    }
     else {
         PyErr_SetString(
             PyExc_TypeError,
@@ -13241,12 +13262,7 @@ json_encode_dict(EncoderState *self, PyObject *obj)
     if (ms_write(self, "{", 1) < 0) return -1;
     if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
     while (PyDict_Next(obj, &pos, &key, &val)) {
-        if (MS_LIKELY(PyUnicode_Check(key))) {
-            if (json_encode_str(self, key) < 0) goto cleanup;
-        }
-        else {
-            if (json_encode_dict_key(self, key) < 0) goto cleanup;
-        }
+        if (json_encode_dict_key(self, key) < 0) goto cleanup;
         if (ms_write(self, ":", 1) < 0) goto cleanup;
         if (json_encode_inline(self, val) < 0) goto cleanup;
         if (ms_write(self, ",", 1) < 0) goto cleanup;
