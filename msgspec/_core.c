@@ -20608,7 +20608,7 @@ convert(
     else if (pytype == PyDateTimeAPI->DeltaType) {
         return convert_immutable(self, MS_TYPE_TIMEDELTA, "duration", obj, type, path);
     }
-    else if (pytype == (PyTypeObject *)self->mod->UUIDType) {
+    else if (PyType_IsSubtype(pytype, (PyTypeObject *)(self->mod->UUIDType))) {
         return convert_immutable(self, MS_TYPE_UUID, "uuid", obj, type, path);
     }
     else if (pytype == (PyTypeObject *)self->mod->DecimalType) {
