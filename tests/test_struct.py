@@ -1562,6 +1562,21 @@ class TestOrderAndEq:
         self.assert_neq(x, Test(2, 2))
         self.assert_neq(x, Test2(1, 2))
 
+    def test_struct_override_eq(self):
+        class Ex(Struct):
+            a: int
+            b: int
+
+            def __eq__(self, other):
+                return self.a == other.a
+
+        x = Ex(1, 2)
+        y = Ex(1, 3)
+        z = Ex(2, 3)
+
+        self.assert_eq(x, y)
+        self.assert_neq(x, z)
+
     def test_struct_eq_identity_fastpath(self):
         class Bad:
             def __eq__(self, other):

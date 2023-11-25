@@ -7173,6 +7173,28 @@ Struct_richcompare(PyObject *self, PyObject *other, int op) {
         Py_RETURN_NOTIMPLEMENTED;
     }
 
+    if (
+        MS_UNLIKELY(op == Py_NE && (Py_TYPE(self)->tp_richcompare != Struct_richcompare))
+    ) {
+        /* This case is hit when a subclass has manually defined `__eq__` but
+         * not `__ne__`. In this case we want to dispatch to `__eq__` and invert
+         * the result, rather than relying on the default `__ne__` implementation.
+         */
+        PyObject *out = Py_TYPE(self)->tp_richcompare(self, other, Py_EQ);
+        if (out != NULL && out != Py_NotImplemented) {
+            int is_true = PyObject_IsTrue(out);
+            Py_DECREF(out);
+            if (is_true < 0) {
+                out = NULL;
+            }
+            else {
+                out = is_true ? Py_False : Py_True;
+                Py_INCREF(out);
+            }
+        }
+        return out;
+    }
+
     int equal = 1;
     PyObject *left = NULL, *right = NULL;
 
