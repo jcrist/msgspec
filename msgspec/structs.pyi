@@ -19,6 +19,7 @@ class StructConfig:
     forbid_unknown_fields: bool
     weakref: bool
     dict: bool
+    cache_hash: bool
     tag: Union[str, int, None]
     tag_field: Union[str, None]
 

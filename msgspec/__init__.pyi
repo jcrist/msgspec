@@ -67,6 +67,7 @@ class Struct:
         gc: bool = True,
         weakref: bool = False,
         dict: bool = False,
+        cache_hash: bool = False,
     ) -> None: ...
     def __rich_repr__(
         self,
@@ -98,6 +99,7 @@ def defstruct(
     gc: bool = True,
     weakref: bool = False,
     dict: bool = False,
+    cache_hash: bool = False,
 ) -> Type[Struct]: ...
 
 # Lie and say `Raw` is a subclass of `bytes`, so mypy will accept it in most
