@@ -7140,19 +7140,26 @@ Struct_hash(PyObject *self) {
         return PyObject_HashNotImplemented(self);
     }
 
-    nfields = StructMeta_GET_NFIELDS(Py_TYPE(self));
+    /* First hash the type by its pointer */
+    size_t type_id = (size_t)((void *)st_type);
+    /* The lower bits are likely to be 0; rotate by 4 */
+    type_id = (type_id >> 4) | (type_id << (8 * sizeof(void *) - 4));
+    acc += type_id * MS_HASH_XXPRIME_2;
+    acc = MS_HASH_XXROTATE(acc);
+    acc *= MS_HASH_XXPRIME_1;
 
+    /* Then hash all the fields */
+    nfields = StructMeta_GET_NFIELDS(Py_TYPE(self));
     for (i = 0; i < nfields; i++) {
-        Py_uhash_t lane;
         val = Struct_get_index(self, i);
         if (val == NULL) return -1;
-        lane = PyObject_Hash(val);
-        if (lane == (Py_uhash_t)-1) return -1;
-        acc += lane * MS_HASH_XXPRIME_2;
+        Py_uhash_t item_hash = PyObject_Hash(val);
+        if (item_hash == (Py_uhash_t)-1) return -1;
+        acc += item_hash * MS_HASH_XXPRIME_2;
         acc = MS_HASH_XXROTATE(acc);
         acc *= MS_HASH_XXPRIME_1;
     }
-    acc += nfields ^ (MS_HASH_XXPRIME_5 ^ 3527539UL);
+    acc += (1 + nfields) ^ (MS_HASH_XXPRIME_5 ^ 3527539UL);
     return (acc == (Py_uhash_t)-1) ?  1546275796 : acc;
 }
 

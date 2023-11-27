@@ -1460,6 +1460,16 @@ class TestSetAttr:
         with pytest.raises(TypeError, match="unhashable type"):
             hash(p)
 
+    def test_hash_includes_type(self):
+        Ex1 = defstruct("Ex1", ["x"], frozen=True)
+        Ex2 = defstruct("Ex2", ["x"], frozen=True)
+        Ex3 = defstruct("Ex3", [], frozen=True)
+        Ex4 = defstruct("Ex4", [], frozen=True)
+        assert hash(Ex1(1)) == hash(Ex1(1))
+        assert hash(Ex1(1)) != hash(Ex2(1))
+        assert hash(Ex3()) == hash(Ex3())
+        assert hash(Ex3()) != hash(Ex4())
+
     @pytest.mark.parametrize("base_gc", [True, None, False])
     @pytest.mark.parametrize("base_frozen", [True, False])
     @pytest.mark.parametrize("has_gc", [True, None, False])
