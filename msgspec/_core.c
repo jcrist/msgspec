@@ -383,6 +383,7 @@ typedef struct {
     PyObject *struct_lookup_cache;
     PyObject *str___weakref__;
     PyObject *str___dict__;
+    PyObject *str___msgspec_cached_hash__;
     PyObject *str__value2member_map_;
     PyObject *str___msgspec_cache__;
     PyObject *str__value_;
@@ -2685,6 +2686,7 @@ typedef struct {
     PyObject *match_args;
     PyObject *rename;
     PyObject *post_init;
+    Py_ssize_t hash_offset;  /* 0 for no caching, otherwise offset */
     int8_t frozen;
     int8_t order;
     int8_t eq;
@@ -5204,6 +5206,8 @@ typedef struct {
     bool already_has_weakref;
     int dict;
     bool already_has_dict;
+    int cache_hash;
+    Py_ssize_t hash_offset;
     bool has_non_struct_bases;
 } StructMetaInfo;
 
@@ -5272,6 +5276,11 @@ structmeta_collect_base(StructMetaInfo *info, MsgspecState *mod, PyObject *base)
     }
 
     StructMetaObject *st_type = (StructMetaObject *)base;
+
+    /* Check if a hash_cache slot already exists */
+    if (st_type->hash_offset != 0) {
+        info->hash_offset = st_type->hash_offset;
+    }
 
     /* Inherit config fields */
     if (st_type->struct_tag_field != NULL) {
@@ -5559,18 +5568,20 @@ structmeta_collect_fields(StructMetaInfo *info, MsgspecState *mod, bool kwonly) 
             goto error;
         }
 
-        if (PyUnicode_Compare(field, mod->str___weakref__) == 0) {
-            PyErr_SetString(
-                PyExc_TypeError, "Cannot have a struct field named '__weakref__'"
-            );
-            goto error;
+        PyObject *invalid_field_names[] = {
+            mod->str___weakref__, mod->str___dict__, mod->str___msgspec_cached_hash__
+        };
+        for (int i = 0; i < 3; i++) {
+            if (PyUnicode_Compare(field, invalid_field_names[i]) == 0) {
+                PyErr_Format(
+                    PyExc_TypeError,
+                    "Cannot have a struct field named %R",
+                    field
+                );
+                goto error;
+            }
         }
-        if (PyUnicode_Compare(field, mod->str___dict__) == 0) {
-            PyErr_SetString(
-                PyExc_TypeError, "Cannot have a struct field named '__dict__'"
-            );
-            goto error;
-        }
+
         int status = structmeta_is_classvar(info, mod, value, &module_ns);
         if (status == 1) continue;
         if (status == -1) goto error;
@@ -5687,6 +5698,16 @@ structmeta_construct_fields(StructMetaInfo *info, MsgspecState *mod) {
         PyErr_SetString(
             PyExc_ValueError,
             "Cannot set `dict=False` if base class already has `dict=True`"
+        );
+        return -1;
+    }
+    if (info->cache_hash == OPT_TRUE && !info->hash_offset) {
+        if (PyList_Append(info->slots, mod->str___msgspec_cached_hash__) < 0) return -1;
+    }
+    else if (info->cache_hash == OPT_FALSE && info->hash_offset) {
+        PyErr_SetString(
+            PyExc_ValueError,
+            "Cannot set `cache_hash=False` if base class already has `cache_hash=True`"
         );
         return -1;
     }
@@ -5861,7 +5882,9 @@ structmeta_construct_tag(StructMetaInfo *info, MsgspecState *mod, PyObject *cls)
 }
 
 static int
-structmeta_construct_offsets(StructMetaInfo *info, StructMetaObject *cls) {
+structmeta_construct_offsets(
+    StructMetaInfo *info, MsgspecState *mod, StructMetaObject *cls
+) {
     PyMemberDef *mp = MS_PyHeapType_GET_MEMBERS(cls);
     for (Py_ssize_t i = 0; i < Py_SIZE(cls); i++, mp++) {
         PyObject *offset = PyLong_FromSsize_t(mp->offset);
@@ -5883,6 +5906,19 @@ structmeta_construct_offsets(StructMetaInfo *info, StructMetaObject *cls) {
         }
         info->offsets[i] = PyLong_AsSsize_t(offset);
     }
+
+    if (info->cache_hash == OPT_TRUE && info->hash_offset == 0) {
+        PyObject *offset = PyDict_GetItem(
+            info->offsets_lk, mod->str___msgspec_cached_hash__
+        );
+        if (offset == NULL) {
+            PyErr_Format(
+                PyExc_RuntimeError, "Failed to get offset for %R", mod->str___msgspec_cached_hash__
+            );
+            return -1;
+        }
+        info->hash_offset = PyLong_AsSsize_t(offset);
+    }
     return 0;
 }
 
@@ -5894,7 +5930,7 @@ StructMeta_new_inner(
     int arg_omit_defaults, int arg_forbid_unknown_fields,
     int arg_frozen, int arg_eq, int arg_order, bool arg_kw_only,
     int arg_repr_omit_defaults, int arg_array_like,
-    int arg_gc, int arg_weakref, int arg_dict
+    int arg_gc, int arg_weakref, int arg_dict, int arg_cache_hash
 ) {
     StructMetaObject *cls = NULL;
     MsgspecState *mod = msgspec_get_global_state();
@@ -5935,6 +5971,8 @@ StructMeta_new_inner(
         .already_has_weakref = false,
         .dict = arg_dict,
         .already_has_dict = false,
+        .cache_hash = arg_cache_hash,
+        .hash_offset = 0,
         .has_non_struct_bases = false,
     };
 
@@ -5978,6 +6016,11 @@ StructMeta_new_inner(
 
     if (info.eq == OPT_FALSE && info.order == OPT_TRUE) {
         PyErr_SetString(PyExc_ValueError, "Cannot set eq=False and order=True");
+        goto cleanup;
+    }
+
+    if (info.cache_hash == OPT_TRUE && info.frozen != OPT_TRUE) {
+        PyErr_SetString(PyExc_ValueError, "Cannot set cache_hash=True without frozen=True");
         goto cleanup;
     }
 
@@ -6041,7 +6084,7 @@ StructMeta_new_inner(
     if (structmeta_construct_tag(&info, mod, (PyObject *)cls) < 0) goto cleanup;
 
     /* Fill in struct offsets */
-    if (structmeta_construct_offsets(&info, cls) < 0) goto cleanup;
+    if (structmeta_construct_offsets(&info, mod, cls) < 0) goto cleanup;
 
     /* Cache access to __post_init__ (if defined). */
     cls->post_init = PyObject_GetAttr((PyObject *)cls, mod->str___post_init__);
@@ -6068,6 +6111,7 @@ StructMeta_new_inner(
     cls->struct_tag_value = info.tag_value;
     Py_XINCREF(info.rename);
     cls->rename = info.rename;
+    cls->hash_offset = info.hash_offset;
     cls->frozen = info.frozen;
     cls->eq = info.eq;
     cls->order = info.order;
@@ -6113,7 +6157,7 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
     int arg_omit_defaults = -1, arg_forbid_unknown_fields = -1;
     int arg_frozen = -1, arg_eq = -1, arg_order = -1, arg_repr_omit_defaults = -1;
     int arg_array_like = -1, arg_gc = -1, arg_weakref = -1, arg_dict = -1;
-    int arg_kw_only = 0;
+    int arg_kw_only = 0, arg_cache_hash = -1;
 
     char *kwlist[] = {
         "name", "bases", "dict",
@@ -6121,19 +6165,19 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
         "omit_defaults", "forbid_unknown_fields",
         "frozen", "eq", "order", "kw_only",
         "repr_omit_defaults", "array_like",
-        "gc", "weakref", "dict",
+        "gc", "weakref", "dict", "cache_hash",
         NULL
     };
 
     /* Parse arguments: (name, bases, dict) */
     if (!PyArg_ParseTupleAndKeywords(
-            args, kwargs, "UO!O!|$OOOppppppppppp:StructMeta.__new__", kwlist,
+            args, kwargs, "UO!O!|$OOOpppppppppppp:StructMeta.__new__", kwlist,
             &name, &PyTuple_Type, &bases, &PyDict_Type, &namespace,
             &arg_tag_field, &arg_tag, &arg_rename,
             &arg_omit_defaults, &arg_forbid_unknown_fields,
             &arg_frozen, &arg_eq, &arg_order, &arg_kw_only,
             &arg_repr_omit_defaults, &arg_array_like,
-            &arg_gc, &arg_weakref, &arg_dict
+            &arg_gc, &arg_weakref, &arg_dict, &arg_cache_hash
         )
     )
         return NULL;
@@ -6144,7 +6188,7 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
         arg_omit_defaults, arg_forbid_unknown_fields,
         arg_frozen, arg_eq, arg_order, arg_kw_only,
         arg_repr_omit_defaults, arg_array_like,
-        arg_gc, arg_weakref, arg_dict
+        arg_gc, arg_weakref, arg_dict, arg_cache_hash
     );
 }
 
@@ -6154,7 +6198,7 @@ PyDoc_STRVAR(msgspec_defstruct__doc__,
 "tag_field=None, tag=None, rename=None, omit_defaults=False, "
 "forbid_unknown_fields=False, frozen=False, eq=True, order=False, "
 "kw_only=False, repr_omit_defaults=False, array_like=False, gc=True, "
-"weakref=False, dict=False)\n"
+"weakref=False, dict=False, cache_hash=False)\n"
 "--\n"
 "\n"
 "Dynamically define a new Struct class.\n"
@@ -6192,7 +6236,7 @@ msgspec_defstruct(PyObject *self, PyObject *args, PyObject *kwargs)
     int arg_omit_defaults = -1, arg_forbid_unknown_fields = -1;
     int arg_frozen = -1, arg_eq = -1, arg_order = -1, arg_kw_only = 0;
     int arg_repr_omit_defaults = -1, arg_array_like = -1;
-    int arg_gc = -1, arg_weakref = -1, arg_dict = -1;
+    int arg_gc = -1, arg_weakref = -1, arg_dict = -1, arg_cache_hash = -1;
 
     char *kwlist[] = {
         "name", "fields", "bases", "module", "namespace",
@@ -6200,19 +6244,19 @@ msgspec_defstruct(PyObject *self, PyObject *args, PyObject *kwargs)
         "omit_defaults", "forbid_unknown_fields",
         "frozen", "eq", "order", "kw_only",
         "repr_omit_defaults", "array_like",
-        "gc", "weakref", "dict",
+        "gc", "weakref", "dict", "cache_hash",
         NULL
     };
 
     /* Parse arguments: (name, bases, dict) */
     if (!PyArg_ParseTupleAndKeywords(
-            args, kwargs, "UO|$OOOOOOppppppppppp:defstruct", kwlist,
+            args, kwargs, "UO|$OOOOOOpppppppppppp:defstruct", kwlist,
             &name, &fields, &bases, &module, &namespace,
             &arg_tag_field, &arg_tag, &arg_rename,
             &arg_omit_defaults, &arg_forbid_unknown_fields,
             &arg_frozen, &arg_eq, &arg_order, &arg_kw_only,
             &arg_repr_omit_defaults, &arg_array_like,
-            &arg_gc, &arg_weakref, &arg_dict)
+            &arg_gc, &arg_weakref, &arg_dict, &arg_cache_hash)
     )
         return NULL;
 
@@ -6300,7 +6344,7 @@ msgspec_defstruct(PyObject *self, PyObject *args, PyObject *kwargs)
         arg_omit_defaults, arg_forbid_unknown_fields,
         arg_frozen, arg_eq, arg_order, arg_kw_only,
         arg_repr_omit_defaults, arg_array_like,
-        arg_gc, arg_weakref, arg_dict
+        arg_gc, arg_weakref, arg_dict, arg_cache_hash
     );
 
 cleanup:
@@ -6658,6 +6702,16 @@ StructConfig_dict(StructConfig *self, void *closure)
 }
 
 static PyObject*
+StructConfig_cache_hash(StructConfig *self, void *closure)
+{
+    StructMetaObject *type = (StructMetaObject *)(self->st_type);
+    if (type->hash_offset != 0) {
+        Py_RETURN_TRUE;
+    }
+    Py_RETURN_FALSE;
+}
+
+static PyObject*
 StructConfig_repr_omit_defaults(StructConfig *self, void *closure)
 {
     if (self->st_type->repr_omit_defaults == OPT_TRUE) { Py_RETURN_TRUE; }
@@ -6705,6 +6759,7 @@ static PyGetSetDef StructConfig_getset[] = {
     {"gc", (getter) StructConfig_gc, NULL, NULL, NULL},
     {"weakref", (getter) StructConfig_weakref, NULL, NULL, NULL},
     {"dict", (getter) StructConfig_dict, NULL, NULL, NULL},
+    {"cache_hash", (getter) StructConfig_cache_hash, NULL, NULL, NULL},
     {"omit_defaults", (getter) StructConfig_omit_defaults, NULL, NULL, NULL},
     {"forbid_unknown_fields", (getter) StructConfig_forbid_unknown_fields, NULL, NULL, NULL},
     {"tag", (getter) StructConfig_tag, NULL, NULL, NULL},
@@ -6754,6 +6809,7 @@ PyDoc_STRVAR(StructConfig__doc__,
 "forbid_unknown_fields: bool\n"
 "weakref: bool\n"
 "dict: bool\n"
+"cache_hash: bool\n"
 "tag_field: str | None\n"
 "tag: str | int | None"
 );
@@ -7140,6 +7196,14 @@ Struct_hash(PyObject *self) {
         return PyObject_HashNotImplemented(self);
     }
 
+    if (MS_UNLIKELY(st_type->hash_offset != 0)) {
+        PyObject *cached_hash = *(PyObject **)((char *)self + st_type->hash_offset);
+        if (cached_hash != NULL) {
+            /* Use the cached hash */
+            return PyLong_AsSsize_t(cached_hash);
+        }
+    }
+
     /* First hash the type by its pointer */
     size_t type_id = (size_t)((void *)st_type);
     /* The lower bits are likely to be 0; rotate by 4 */
@@ -7160,7 +7224,18 @@ Struct_hash(PyObject *self) {
         acc *= MS_HASH_XXPRIME_1;
     }
     acc += (1 + nfields) ^ (MS_HASH_XXPRIME_5 ^ 3527539UL);
-    return (acc == (Py_uhash_t)-1) ?  1546275796 : acc;
+
+    Py_uhash_t hash = (acc == (Py_uhash_t)-1) ?  1546275796 : acc;
+
+    if (MS_UNLIKELY(st_type->hash_offset != 0)) {
+        /* Cache the hash */
+        char *addr = (char *)self + st_type->hash_offset;
+        PyObject *cached_hash = PyLong_FromSsize_t(hash);
+        if (cached_hash == NULL) return -1;
+        *(PyObject **)addr = cached_hash;
+    }
+
+    return hash;
 }
 
 static PyObject *
@@ -7704,6 +7779,11 @@ PyDoc_STRVAR(Struct__doc__,
 "   Whether instances of this type will include a ``__dict__``. Setting this to\n"
 "   True will allow adding additional undeclared attributes to a struct instance,\n"
 "   which may be useful for holding private runtime state. Defaults to False.\n"
+"cache_hash: bool, default False\n"
+"   If enabled, the hash of a frozen struct instance will be computed at most\n"
+"   once, and then cached on the instance for further reuse. For expensive\n"
+"   hash values this can improve performance at the cost of a small amount of\n"
+"   memory usage.\n"
 "\n"
 "Examples\n"
 "--------\n"
@@ -20849,6 +20929,7 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->struct_lookup_cache);
     Py_CLEAR(st->str___weakref__);
     Py_CLEAR(st->str___dict__);
+    Py_CLEAR(st->str___msgspec_cached_hash__);
     Py_CLEAR(st->str__value2member_map_);
     Py_CLEAR(st->str___msgspec_cache__);
     Py_CLEAR(st->str__value_);
@@ -21230,6 +21311,7 @@ PyInit__core(void)
     if ((st->attr = PyUnicode_InternFromString(str)) == NULL) return NULL
     CACHED_STRING(str___weakref__, "__weakref__");
     CACHED_STRING(str___dict__, "__dict__");
+    CACHED_STRING(str___msgspec_cached_hash__, "__msgspec_cached_hash__");
     CACHED_STRING(str__value2member_map_, "_value2member_map_");
     CACHED_STRING(str___msgspec_cache__, "__msgspec_cache__");
     CACHED_STRING(str__value_, "_value_");

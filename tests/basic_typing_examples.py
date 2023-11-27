@@ -269,6 +269,15 @@ def check_struct_dict() -> None:
     reveal_type(t)  # assert "Test" in typ
 
 
+def check_struct_cache_hash() -> None:
+    class Test(msgspec.Struct, cache_hash=True):
+        x: int
+        y: str
+
+    t = Test(1, "foo")
+    reveal_type(t)  # assert "Test" in typ
+
+
 def check_struct_tag_tag_field() -> None:
     class Test1(msgspec.Struct, tag=None):
         pass
@@ -353,6 +362,7 @@ def check_struct_config() -> None:
     reveal_type(config.forbid_unknown_fields)  # assert "bool" in typ
     reveal_type(config.weakref)  # assert "bool" in typ
     reveal_type(config.dict)  # assert "bool" in typ
+    reveal_type(config.cache_hash)  # assert "bool" in typ
     reveal_type(config.tag)  # assert "str" in typ and "int" in typ
     reveal_type(config.tag_field)  # assert "str" in typ
 
@@ -406,6 +416,9 @@ def check_defstruct_config_options() -> None:
         kw_only=True,
         repr_omit_defaults=True,
         array_like=True,
+        dict=True,
+        weakref=True,
+        cache_hash=True,
         gc=False,
         tag="mytag",
         tag_field="mytagfield",
