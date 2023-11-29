@@ -520,7 +520,7 @@ every struct type in the union. In this case ``tag_field`` defaults to
     b'{"type":"Get","key":"my key"}'
 
     >>> # Create a decoder for decoding either Get or Put
-    ... dec = msgspec.Decoder(Union[Get, Put])
+    ... dec = msgspec.json.Decoder(Union[Get, Put])
 
     >>> # The tag value is used to determine the message type
     ... dec.decode(b'{"type": "Put", "key": "my key", "val": "my val"}')

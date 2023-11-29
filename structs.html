@@ -713,7 +713,7 @@ every struct type in the union. In this case <code class="docutils literal notra
 <span class="go">b&#39;{&quot;type&quot;:&quot;Get&quot;,&quot;key&quot;:&quot;my key&quot;}&#39;</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Create a decoder for decoding either Get or Put</span>
-<span class="gp">... </span><span class="n">dec</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">Decoder</span><span class="p">(</span><span class="n">Union</span><span class="p">[</span><span class="n">Get</span><span class="p">,</span> <span class="n">Put</span><span class="p">])</span>
+<span class="gp">... </span><span class="n">dec</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">Decoder</span><span class="p">(</span><span class="n">Union</span><span class="p">[</span><span class="n">Get</span><span class="p">,</span> <span class="n">Put</span><span class="p">])</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># The tag value is used to determine the message type</span>
 <span class="gp">... </span><span class="n">dec</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;{&quot;type&quot;: &quot;Put&quot;, &quot;key&quot;: &quot;my key&quot;, &quot;val&quot;: &quot;my val&quot;}&#39;</span><span class="p">)</span>
