@@ -463,6 +463,15 @@ def check_astuple() -> None:
     reveal_type(o[0])  # assert "Any" in typ
 
 
+def check_force_setattr() -> None:
+    class Point(msgspec.Struct, frozen=True):
+        x: int
+        y: int
+
+    obj = Point(1, 2)
+    msgspec.structs.force_setattr(obj, "x", 3)
+
+
 def check_fields() -> None:
     class Test(msgspec.Struct):
         x: int
