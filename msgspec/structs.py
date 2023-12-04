@@ -9,6 +9,7 @@ from ._core import (  # noqa
     asdict,
     astuple,
     replace,
+    force_setattr,
 )
 from ._utils import get_class_annotations as _get_class_annotations
 
@@ -18,6 +19,7 @@ __all__ = (
     "asdict",
     "astuple",
     "fields",
+    "force_setattr",
     "replace",
 )
 

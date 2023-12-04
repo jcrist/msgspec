@@ -18,6 +18,8 @@ Structs
 
 .. autofunction:: msgspec.structs.astuple
 
+.. autofunction:: msgspec.structs.force_setattr
+
 .. autofunction:: msgspec.structs.fields
 
 .. autoclass:: msgspec.structs.FieldInfo

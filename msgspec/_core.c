@@ -7568,6 +7568,45 @@ error:
     return NULL;
 }
 
+PyDoc_STRVAR(struct_force_setattr__doc__,
+"force_setattr(struct, name, value)\n"
+"--\n"
+"\n"
+"Set an attribute on a struct, even if the struct is frozen.\n"
+"\n"
+"The main use case for this is modifying a frozen struct in a ``__post_init__``\n"
+"method before returning.\n"
+"\n"
+".. warning::\n\n"
+"  This function violates the guarantees of a frozen struct, and is potentially\n"
+"  unsafe. Only use it if you know what you're doing!\n"
+"\n"
+"Parameters\n"
+"----------\n"
+"struct: Struct\n"
+"    The struct instance.\n"
+"name: str\n"
+"    The attribute name.\n"
+"value: Any\n"
+"    The attribute value."
+);
+static PyObject*
+struct_force_setattr(PyObject *self, PyObject *const *args, Py_ssize_t nargs)
+{
+    if (!check_positional_nargs(nargs, 3, 3)) return NULL;
+    PyObject *obj = args[0];
+    PyObject *name = args[1];
+    PyObject *value = args[2];
+    if (Py_TYPE(Py_TYPE(obj)) != &StructMetaType) {
+        PyErr_SetString(PyExc_TypeError, "`struct` must be a `msgspec.Struct`");
+        return NULL;
+    }
+    if (PyObject_GenericSetAttr(obj, name, value) < 0) {
+        return NULL;
+    }
+    Py_RETURN_NONE;
+}
+
 static PyObject *
 Struct_reduce(PyObject *self, PyObject *args)
 {
@@ -20885,6 +20924,10 @@ static struct PyMethodDef msgspec_methods[] = {
     {
         "defstruct", (PyCFunction) msgspec_defstruct, METH_VARARGS | METH_KEYWORDS,
         msgspec_defstruct__doc__,
+    },
+    {
+        "force_setattr", (PyCFunction) struct_force_setattr, METH_FASTCALL,
+        struct_force_setattr__doc__,
     },
     {
         "msgpack_encode", (PyCFunction) msgspec_msgpack_encode, METH_FASTCALL | METH_KEYWORDS,

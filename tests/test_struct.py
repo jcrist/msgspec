@@ -1600,6 +1600,22 @@ class TestSetAttr:
             t.x = [1]
             assert gc.is_tracked(t)
 
+    def test_force_setattr(self):
+        class Ex(Struct, frozen=True):
+            x: Any
+
+        obj = Ex(1)
+
+        res = msgspec.structs.force_setattr(obj, "x", 2)
+        assert res is None
+        assert obj.x == 2
+
+        with pytest.raises(AttributeError):
+            msgspec.structs.force_setattr(obj, "oops", 3)
+
+        with pytest.raises(TypeError):
+            msgspec.structs.force_setattr(1, "oops", 3)
+
 
 class TestOrderAndEq:
     @staticmethod
