@@ -566,16 +566,11 @@ def multi_type_info(types: Iterable[Any]) -> tuple[Type, ...]:
 
     Examples
     --------
-    >>> msgspec.inspect.type_info([int, float, list[str]])
-    (
-        IntType(gt=None, ge=None, lt=None, le=None, multiple_of=None),
-        FloatType(gt=None, ge=None, lt=None, le=None, multiple_of=None),
-        ListType(
-            item_type=StrType(min_length=None, max_length=None, pattern=None),
-            min_length=None,
-            max_length=None
-        )
-    )
+    >>> msgspec.inspect.multi_type_info([int, float, list[str]])  # doctest: +NORMALIZE_WHITESPACE
+    (IntType(gt=None, ge=None, lt=None, le=None, multiple_of=None),
+     FloatType(gt=None, ge=None, lt=None, le=None, multiple_of=None),
+     ListType(item_type=StrType(min_length=None, max_length=None, pattern=None),
+              min_length=None, max_length=None))
     """
     return _Translator(types).run()
 
@@ -604,12 +599,9 @@ def type_info(type: Any) -> Type:
     >>> msgspec.inspect.type_info(int)
     IntType(gt=None, ge=None, lt=None, le=None, multiple_of=None)
 
-    >>> msgspec.inspect.type_info(list[int])
-    ListType(
-        item_type=IntType(gt=None, ge=None, lt=None, le=None, multiple_of=None),
-        min_length=None,
-        max_length=None
-    )
+    >>> msgspec.inspect.type_info(list[int])  # doctest: +NORMALIZE_WHITESPACE
+    ListType(item_type=IntType(gt=None, ge=None, lt=None, le=None, multiple_of=None),
+             min_length=None, max_length=None)
     """
     return multi_type_info([type])[0]
 
