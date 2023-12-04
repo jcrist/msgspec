@@ -355,7 +355,7 @@ we define a new <a class="reference internal" href="#msgspec.Struct" title="msgs
 <span class="gp">... </span>    <span class="n">y</span><span class="p">:</span> <span class="nb">float</span>
 <span class="gp">...</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="p">{</span><span class="n">Point</span><span class="p">(</span><span class="mf">1.5</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">):</span> <span class="mi">1</span><span class="p">}</span>  <span class="c1"># frozen structs are hashable</span>
-<span class="go">{Point(1.5, 2.0): 1}</span>
+<span class="go">{Point(x=1.5, y=2.0): 1}</span>
 </pre></div>
 </div>
 </dd></dl>
@@ -640,7 +640,8 @@ defines a new type alias <code class="docutils literal notranslate"><span class=
 <code class="docutils literal notranslate"><span class="pre">&gt;=</span> <span class="pre">0</span></code>. This type alias can be reused in multiple locations. The second uses
 <code class="docutils literal notranslate"><span class="pre">Meta</span></code> inline in a struct definition to restrict the <code class="docutils literal notranslate"><span class="pre">name</span></code> string field
 to a maximum length of 32 characters.</p>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Annotated</span>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">msgspec</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Annotated</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">msgspec</span> <span class="kn">import</span> <span class="n">Struct</span><span class="p">,</span> <span class="n">Meta</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">NonNegativeInt</span> <span class="o">=</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="n">Meta</span><span class="p">(</span><span class="n">ge</span><span class="o">=</span><span class="mi">0</span><span class="p">)]</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">User</span><span class="p">(</span><span class="n">Struct</span><span class="p">):</span>
@@ -886,7 +887,7 @@ will decode all untyped JSON floats as decimals instead.</p></li>
 <span class="gp">... </span><span class="s2">&quot;&quot;&quot;</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">dec</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">Decoder</span><span class="p">()</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">dec</span><span class="o">.</span><span class="n">decode_lines</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
-<span class="go">[{&quot;x&quot;: 1, &quot;y&quot;: 2}, {&quot;x&quot;: 3, &quot;y&quot;: 4}]</span>
+<span class="go">[{&#39;x&#39;: 1, &#39;y&#39;: 2}, {&#39;x&#39;: 3, &#39;y&#39;: 4}]</span>
 </pre></div>
 </div>
 </dd></dl>
@@ -1484,12 +1485,9 @@ multiple times.</p>
 <span class="go">IntType(gt=None, ge=None, lt=None, le=None, multiple_of=None)</span>
 </pre></div>
 </div>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">inspect</span><span class="o">.</span><span class="n">type_info</span><span class="p">(</span><span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">])</span>
-<span class="go">ListType(</span>
-<span class="go">    item_type=IntType(gt=None, ge=None, lt=None, le=None, multiple_of=None),</span>
-<span class="go">    min_length=None,</span>
-<span class="go">    max_length=None</span>
-<span class="go">)</span>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">inspect</span><span class="o">.</span><span class="n">type_info</span><span class="p">(</span><span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">])</span>  
+<span class="go">ListType(item_type=IntType(gt=None, ge=None, lt=None, le=None, multiple_of=None),</span>
+<span class="go">         min_length=None, max_length=None)</span>
 </pre></div>
 </div>
 </dd></dl>
@@ -1507,16 +1505,11 @@ multiple times.</p>
 </dd>
 </dl>
 <p class="rubric">Examples</p>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">inspect</span><span class="o">.</span><span class="n">type_info</span><span class="p">([</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]])</span>
-<span class="go">(</span>
-<span class="go">    IntType(gt=None, ge=None, lt=None, le=None, multiple_of=None),</span>
-<span class="go">    FloatType(gt=None, ge=None, lt=None, le=None, multiple_of=None),</span>
-<span class="go">    ListType(</span>
-<span class="go">        item_type=StrType(min_length=None, max_length=None, pattern=None),</span>
-<span class="go">        min_length=None,</span>
-<span class="go">        max_length=None</span>
-<span class="go">    )</span>
-<span class="go">)</span>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">inspect</span><span class="o">.</span><span class="n">multi_type_info</span><span class="p">([</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]])</span>  
+<span class="go">(IntType(gt=None, ge=None, lt=None, le=None, multiple_of=None),</span>
+<span class="go"> FloatType(gt=None, ge=None, lt=None, le=None, multiple_of=None),</span>
+<span class="go"> ListType(item_type=StrType(min_length=None, max_length=None, pattern=None),</span>
+<span class="go">          min_length=None, max_length=None))</span>
 </pre></div>
 </div>
 </dd></dl>
