@@ -40,6 +40,9 @@ jobs:
       - name: pyright
         run: pytest tests/test_pyright.py
 
+      - name: doctests
+        run: pytest --doctest-modules msgspec
+
       - name: Rebuild with sanitizers & coverage
         env:
           MSGSPEC_SANITIZE: "true"

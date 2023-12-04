@@ -1677,6 +1677,7 @@ PyDoc_STRVAR(Meta__doc__,
 "``Meta`` inline in a struct definition to restrict the ``name`` string field\n"
 "to a maximum length of 32 characters.\n"
 "\n"
+">>> import msgspec\n"
 ">>> from typing import Annotated\n"
 ">>> from msgspec import Struct, Meta\n"
 ">>> NonNegativeInt = Annotated[int, Meta(ge=0)]\n"
@@ -7860,7 +7861,7 @@ PyDoc_STRVAR(Struct__doc__,
 "...     y: float\n"
 "...\n"
 ">>> {Point(1.5, 2.0): 1}  # frozen structs are hashable\n"
-"{Point(1.5, 2.0): 1}"
+"{Point(x=1.5, y=2.0): 1}"
 );
 
 static int
@@ -18412,7 +18413,7 @@ PyDoc_STRVAR(JSONDecoder_decode_lines__doc__,
 "... \"\"\"\n"
 ">>> dec = msgspec.json.Decoder()\n"
 ">>> dec.decode_lines(msg)\n"
-"[{\"x\": 1, \"y\": 2}, {\"x\": 3, \"y\": 4}]"
+"[{'x': 1, 'y': 2}, {'x': 3, 'y': 4}]"
 );
 static PyObject*
 JSONDecoder_decode_lines(JSONDecoder *self, PyObject *const *args, Py_ssize_t nargs)
