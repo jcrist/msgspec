@@ -491,6 +491,28 @@ with values from <code class="docutils literal notranslate"><span class="pre">**
 </dd></dl>
 
 <dl class="py function">
+<dt class="sig sig-object py" id="msgspec.structs.force_setattr">
+<span class="sig-prename descclassname"><span class="pre">msgspec.structs.</span></span><span class="sig-name descname"><span class="pre">force_setattr</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">struct</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.structs.force_setattr" title="Permalink to this definition">#</a></dt>
+<dd><p>Set an attribute on a struct, even if the struct is frozen.</p>
+<p>The main use case for this is modifying a frozen struct in a <code class="docutils literal notranslate"><span class="pre">__post_init__</span></code>
+method before returning.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>This function violates the guarantees of a frozen struct, and is potentially
+unsafe. Only use it if you know what you’re doing!</p>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>struct</strong> (<a class="reference internal" href="#msgspec.Struct" title="msgspec.Struct"><em>Struct</em></a>) – The struct instance.</p></li>
+<li><p><strong>name</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><em>str</em></a>) – The attribute name.</p></li>
+<li><p><strong>value</strong> (<em>Any</em>) – The attribute value.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
 <dt class="sig sig-object py" id="msgspec.structs.fields">
 <span class="sig-prename descclassname"><span class="pre">msgspec.structs.</span></span><span class="sig-name descname"><span class="pre">fields</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">type_or_instance</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.structs.fields" title="Permalink to this definition">#</a></dt>
 <dd><p>Get information about the fields in a Struct.</p>
@@ -2025,6 +2047,7 @@ is set.</p></li>
 <li><a class="reference internal" href="#msgspec.structs.replace"><code class="docutils literal notranslate"><span class="pre">replace()</span></code></a></li>
 <li><a class="reference internal" href="#msgspec.structs.asdict"><code class="docutils literal notranslate"><span class="pre">asdict()</span></code></a></li>
 <li><a class="reference internal" href="#msgspec.structs.astuple"><code class="docutils literal notranslate"><span class="pre">astuple()</span></code></a></li>
+<li><a class="reference internal" href="#msgspec.structs.force_setattr"><code class="docutils literal notranslate"><span class="pre">force_setattr()</span></code></a></li>
 <li><a class="reference internal" href="#msgspec.structs.fields"><code class="docutils literal notranslate"><span class="pre">fields()</span></code></a></li>
 <li><a class="reference internal" href="#msgspec.structs.FieldInfo"><code class="docutils literal notranslate"><span class="pre">FieldInfo</span></code></a></li>
 <li><a class="reference internal" href="#msgspec.structs.StructConfig"><code class="docutils literal notranslate"><span class="pre">StructConfig</span></code></a></li>
