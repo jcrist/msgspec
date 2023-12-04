@@ -3706,7 +3706,7 @@ error:
 
 static bool
 get_msgspec_cache(MsgspecState *mod, PyObject *obj, PyTypeObject *type, PyObject **out) {
-    PyObject *cached = PyObject_GetAttr(obj, mod->str___msgspec_cache__);
+    PyObject *cached = PyObject_GenericGetAttr(obj, mod->str___msgspec_cache__);
     if (cached != NULL) {
         if (Py_TYPE(cached) != type) {
             Py_DECREF(cached);

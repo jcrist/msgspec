@@ -2582,6 +2582,20 @@ class TestDataclass:
         assert dec.decode(proto.encode(msg)) == msg
         assert dec2.decode(proto.encode(msg)) == msg
 
+    def test_decode_dataclass_subclasses(self, proto):
+        @dataclass
+        class Base:
+            x: int
+
+        @dataclass
+        class Sub(Base):
+            y: int
+
+        msg = proto.encode({"x": 1, "y": 2})
+
+        assert proto.decode(msg, type=Base) == Base(1)
+        assert proto.decode(msg, type=Sub) == Sub(1, 2)
+
     def test_multiple_dataclasses_errors(self, proto):
         @dataclass
         class Ex1:
