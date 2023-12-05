@@ -2115,6 +2115,27 @@ class TestDict:
         with pytest.raises(RecursionError):
             msgspec.json.encode({Custom("x"): 1}, enc_hook=lambda x: x)
 
+    def test_decode_dict_custom_key(self):
+        class Custom:
+            def __init__(self, value):
+                self.value = value
+
+            def __hash__(self):
+                return hash(self.value)
+
+            def __eq__(self, other):
+                return self.value == other.value
+
+        def dec_hook(typ, obj):
+            if typ == Custom:
+                return Custom(obj)
+            raise NotImplementedError
+
+        msg = b'{"a":1,"b":2}'
+
+        obj = msgspec.json.decode(msg, type=Dict[Custom, int], dec_hook=dec_hook)
+        assert obj == {Custom("a"): 1, Custom("b"): 2}
+
     @pytest.mark.parametrize(
         "s, error",
         [
