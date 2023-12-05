@@ -16529,6 +16529,9 @@ json_decode_dict_key_fallback(
         else {
             out = PyUnicode_DecodeUTF8(view, size, NULL);
         }
+        if (MS_UNLIKELY(type->types & (MS_TYPE_CUSTOM | MS_TYPE_CUSTOM_GENERIC))) {
+            return ms_decode_custom(out, self->dec_hook, type, path);
+        }
         return ms_check_str_constraints(out, type, path);
     }
     if (type->types & (
