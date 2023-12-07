@@ -19,6 +19,7 @@ T = TypeVar("T")
 enc_hook_sig = Optional[Callable[[Any], Any]]
 dec_hook_sig = Optional[Callable[[type, Any], Any]]
 float_hook_sig = Optional[Callable[[str], Any]]
+schema_hook_sig = Optional[Callable[[type], dict[str, Any]]]
 
 class Encoder:
     enc_hook: enc_hook_sig
@@ -97,9 +98,12 @@ def decode(
     dec_hook: dec_hook_sig = None,
 ) -> Any: ...
 def encode(obj: Any, *, enc_hook: enc_hook_sig = None) -> bytes: ...
-def schema(type: Any) -> Dict[str, Any]: ...
+def schema(type: Any, *, schema_hook: schema_hook_sig = None) -> Dict[str, Any]: ...
 def schema_components(
-    types: Iterable[Any], ref_template: str = "#/$defs/{name}"
+    types: Iterable[Any],
+    *,
+    schema_hook: schema_hook_sig = None,
+    ref_template: str = "#/$defs/{name}"
 ) -> Tuple[Tuple[Dict[str, Any], ...], Dict[str, Any]]: ...
 @overload
 def format(buf: str, *, indent: int = 2) -> str: ...
