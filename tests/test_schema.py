@@ -61,7 +61,7 @@ def test_msgpack_ext():
 
 
 def test_custom():
-    with pytest.raises(TypeError, match="Custom types"):
+    with pytest.raises(TypeError, match="Generating JSON schema for custom types"):
         assert msgspec.json.schema(complex)
 
     schema = {"type": "string", "format": "complex"}
@@ -70,6 +70,24 @@ def test_custom():
         msgspec.json.schema(Annotated[complex, Meta(extra_json_schema=schema)])
         == schema
     )
+
+
+def test_custom_schema_hook():
+    schema = {"type": "string", "format": "complex"}
+
+    def schema_hook(cls):
+        if cls is complex:
+            return schema
+        raise NotImplementedError
+
+    assert msgspec.json.schema(complex, schema_hook=schema_hook) == schema
+    assert msgspec.json.schema(
+        Annotated[complex, Meta(extra_json_schema={"title": "A complex field"})],
+        schema_hook=schema_hook,
+    ) == {**schema, "title": "A complex field"}
+
+    with pytest.raises(TypeError, match="Generating JSON schema for custom types"):
+        msgspec.json.schema(slice, schema_hook=schema_hook)
 
 
 def test_none():
