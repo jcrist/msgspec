@@ -1291,7 +1291,7 @@ into type <code class="docutils literal notranslate"><span class="pre">type</spa
 <h2>JSON Schema<a class="headerlink" href="#json-schema" title="Permalink to this heading">#</a></h2>
 <dl class="py function">
 <dt class="sig sig-object py" id="msgspec.json.schema">
-<span class="sig-prename descclassname"><span class="pre">msgspec.json.</span></span><span class="sig-name descname"><span class="pre">schema</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">type</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.json.schema" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">msgspec.json.</span></span><span class="sig-name descname"><span class="pre">schema</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">type</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">schema_hook</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.json.schema" title="Permalink to this definition">#</a></dt>
 <dd><p>Generate a JSON Schema for a given type.</p>
 <p>Any schemas for (potentially) shared components are extracted and stored in
 a top-level <code class="docutils literal notranslate"><span class="pre">&quot;$defs&quot;</span></code> field.</p>
@@ -1299,7 +1299,12 @@ a top-level <code class="docutils literal notranslate"><span class="pre">&quot;$
 over the generated schema you may want to use <code class="docutils literal notranslate"><span class="pre">schema_components</span></code> instead.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>type</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#type" title="(in Python v3.12)"><em>type</em></a>) – The type to generate the schema for.</p>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>type</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#type" title="(in Python v3.12)"><em>type</em></a>) – The type to generate the schema for.</p></li>
+<li><p><strong>schema_hook</strong> (<em>callable</em><em>, </em><em>optional</em>) – An optional callback to use for generating JSON schemas of custom
+types. Will be called with the custom type, and should return a dict
+representation of the JSON schema for that type.</p></li>
+</ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p><strong>schema</strong> (<em>dict</em>) – The generated JSON Schema.</p>
@@ -1313,7 +1318,7 @@ over the generated schema you may want to use <code class="docutils literal notr
 
 <dl class="py function">
 <dt class="sig sig-object py" id="msgspec.json.schema_components">
-<span class="sig-prename descclassname"><span class="pre">msgspec.json.</span></span><span class="sig-name descname"><span class="pre">schema_components</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">types</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ref_template</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'#/$defs/{name}'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.json.schema_components" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">msgspec.json.</span></span><span class="sig-name descname"><span class="pre">schema_components</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">types</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">schema_hook</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ref_template</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'#/$defs/{name}'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.json.schema_components" title="Permalink to this definition">#</a></dt>
 <dd><p>Generate JSON Schemas for one or more types.</p>
 <p>Any schemas for (potentially) shared components are extracted and returned
 in a separate <code class="docutils literal notranslate"><span class="pre">components</span></code> dict.</p>
@@ -1321,6 +1326,9 @@ in a separate <code class="docutils literal notranslate"><span class="pre">compo
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>types</strong> (<em>Iterable</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/functions.html#type" title="(in Python v3.12)"><em>type</em></a><em>]</em>) – An iterable of one or more types to generate schemas for.</p></li>
+<li><p><strong>schema_hook</strong> (<em>callable</em><em>, </em><em>optional</em>) – An optional callback to use for generating JSON schemas of custom
+types. Will be called with the custom type, and should return a dict
+representation of the JSON schema for that type.</p></li>
 <li><p><strong>ref_template</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><em>str</em></a><em>, </em><em>optional</em>) – A template to use when generating <code class="docutils literal notranslate"><span class="pre">&quot;$ref&quot;</span></code> fields. This template is
 formatted with the type name as <code class="docutils literal notranslate"><span class="pre">template.format(name=name)</span></code>. This
 can be useful if you intend to store the <code class="docutils literal notranslate"><span class="pre">components</span></code> mapping
