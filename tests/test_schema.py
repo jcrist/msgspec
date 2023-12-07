@@ -1073,6 +1073,23 @@ def test_string_metadata(field, val, constraint):
     assert msgspec.json.schema(typ) == {"type": "string", constraint: val}
 
 
+@pytest.mark.parametrize(
+    "field, val, constraint",
+    [
+        ("pattern", "[a-z]*", "pattern"),
+        ("min_length", 0, "minLength"),
+        ("max_length", 3, "maxLength"),
+    ],
+)
+def test_dict_key_metadata(field, val, constraint):
+    typ = Annotated[str, Meta(**{field: val})]
+    assert msgspec.json.schema(Dict[typ, int]) == {
+        "type": "object",
+        "additionalProperties": {"type": "integer"},
+        "propertyNames": {constraint: val},
+    }
+
+
 @pytest.mark.parametrize("typ", [bytes, bytearray])
 @pytest.mark.parametrize(
     "field, n, constraint",
