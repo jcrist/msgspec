@@ -43,6 +43,9 @@ except ImportError:
 
 
 PY39 = sys.version_info[:2] >= (3, 9)
+PY312 = sys.version_info[:2] >= (3, 12)
+
+py312_plus = pytest.mark.skipif(not PY312, reason="3.12+ only")
 
 T = TypeVar("T")
 
@@ -202,6 +205,20 @@ def test_newtype():
     assert mi.type_info(Annotated[UserId2, Meta(min_length=2)]) == mi.StrType(
         min_length=2, max_length=10
     )
+
+
+@py312_plus
+@pytest.mark.parametrize(
+    "src, typ",
+    [
+        ("type Ex = str | None", Union[str, None]),
+        ("type Ex[T] = tuple[T, int]", Tuple[Any, int]),
+        ("type Temp[T] = tuple[T, int]; Ex = Temp[str]", Tuple[str, int]),
+    ],
+)
+def test_typealias(src, typ):
+    with temp_module(src) as mod:
+        assert mi.type_info(mod.Ex) == mi.type_info(typ)
 
 
 def test_final(Annotated):
