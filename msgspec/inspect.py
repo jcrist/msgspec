@@ -20,6 +20,11 @@ try:
 except Exception:
     _types_UnionType = type("UnionType", (), {})  # type: ignore
 
+try:
+    from typing import TypeAliasType as _TypeAliasType  # type: ignore
+except Exception:
+    _TypeAliasType = type("TypeAliasType", (), {})  # type: ignore
+
 import msgspec
 from msgspec import NODEFAULT, UNSET, UnsetType as _UnsetType
 
@@ -628,6 +633,8 @@ def _origin_args_metadata(t):
                 t = origin
             elif origin == Final:
                 t = t.__args__[0]
+            elif type(origin) is _TypeAliasType:
+                t = origin.__value__[t.__args__]
             else:
                 args = getattr(t, "__args__", None)
                 origin = _CONCRETE_TYPES.get(origin, origin)
@@ -636,6 +643,8 @@ def _origin_args_metadata(t):
             supertype = getattr(t, "__supertype__", None)
             if supertype is not None:
                 t = supertype
+            elif type(t) is _TypeAliasType:
+                t = t.__value__
             else:
                 origin = t
                 args = None

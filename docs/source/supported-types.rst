@@ -49,6 +49,8 @@ Most combinations of the following types are supported (with a few restrictions)
 - `typing.Literal`
 - `typing.NewType`
 - `typing.Final`
+- `typing.TypeAliasType`
+- `typing.TypeAlias`
 - `typing.NamedTuple` / `collections.namedtuple`
 - `typing.TypedDict`
 - `typing.Generic`
@@ -1169,6 +1171,36 @@ support here is purely to aid static analysis tools like mypy_ or pyright_.
     Traceback (most recent call last):
       File "<stdin>", line 1, in <module>
     msgspec.ValidationError: Expected `int`, got `str`
+
+Type Aliases
+------------
+
+For complex types, sometimes it can be nice to write the type once so you can
+reuse it later.
+
+.. code-block:: python
+
+    Point = tuple[float, float]
+
+Here ``Point`` is a "type alias" for ``tuple[float, float]`` - ``msgspec``
+will substitute in ``tuple[float, float]`` whenever the ``Point`` type
+is used in an annotation.
+
+``msgspec`` supports the following equivalent forms:
+
+.. code-block:: python
+
+    # Using variable assignment
+    Point = tuple[float, float]
+
+    # Using variable assignment, annotated as a `TypeAlias`
+    Point: TypeAlias = tuple[float, float]
+
+    # Using Python 3.12's new `type` statement. This only works on Python 3.12+
+    type Point = tuple[float, float]
+
+To learn more about Type Aliases, see Python's `Type Alias docs here
+<https://docs.python.org/3/library/typing.html#type-aliases>`__.
 
 Generic Types
 -------------

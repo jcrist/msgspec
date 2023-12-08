@@ -15,6 +15,12 @@
 #include "ryu.h"
 #include "atof.h"
 
+/* Python version checks */
+#define PY39_PLUS  (PY_VERSION_HEX >= 0x03090000)
+#define PY310_PLUS (PY_VERSION_HEX >= 0x030a0000)
+#define PY311_PLUS (PY_VERSION_HEX >= 0x030b0000)
+#define PY312_PLUS (PY_VERSION_HEX >= 0x030c0000)
+
 /* Hint to the compiler not to store `x` in a register since it is likely to
  * change. Results in much higher performance on GCC, with smaller benefits on
  * clang */
@@ -36,18 +42,18 @@ ms_popcount(uint64_t i) {                            \
 }
 #endif
 
-#if PY_VERSION_HEX < 0x03090000
-#define CALL_ONE_ARG(f, a) PyObject_CallFunctionObjArgs(f, a, NULL)
-#define CALL_NO_ARGS(f) PyObject_CallFunctionObjArgs(f, NULL)
-#define CALL_METHOD_ONE_ARG(o, n, a) PyObject_CallMethodObjArgs(o, n, a, NULL)
-#define CALL_METHOD_NO_ARGS(o, n) PyObject_CallMethodObjArgs(o, n, NULL)
-#define SET_SIZE(obj, size) (((PyVarObject *)obj)->ob_size = size)
-#else
+#if PY39_PLUS
 #define CALL_ONE_ARG(f, a) PyObject_CallOneArg(f, a)
 #define CALL_NO_ARGS(f) PyObject_CallNoArgs(f)
 #define CALL_METHOD_ONE_ARG(o, n, a) PyObject_CallMethodOneArg(o, n, a)
 #define CALL_METHOD_NO_ARGS(o, n) PyObject_CallMethodNoArgs(o, n)
 #define SET_SIZE(obj, size) Py_SET_SIZE(obj, size)
+#else
+#define CALL_ONE_ARG(f, a) PyObject_CallFunctionObjArgs(f, a, NULL)
+#define CALL_NO_ARGS(f) PyObject_CallFunctionObjArgs(f, NULL)
+#define CALL_METHOD_ONE_ARG(o, n, a) PyObject_CallMethodObjArgs(o, n, a, NULL)
+#define CALL_METHOD_NO_ARGS(o, n) PyObject_CallMethodObjArgs(o, n, NULL)
+#define SET_SIZE(obj, size) (((PyVarObject *)obj)->ob_size = size)
 #endif
 
 #define DIV_ROUND_CLOSEST(n, d) ((((n) < 0) == ((d) < 0)) ? (((n) + (d)/2)/(d)) : (((n) - (d)/2)/(d)))
@@ -157,7 +163,7 @@ fast_long_extract_parts(PyObject *vv, bool *neg, uint64_t *scale) {
     uint64_t prev, x = 0;
     bool negative;
 
-#if PY_VERSION_HEX >= 0x030c0000
+#if PY312_PLUS
     /* CPython 3.12 changed int internal representation */
     int sign = 1 - (v->long_value.lv_tag & _PyLong_SIGN_MASK);
     negative = sign == -1;
@@ -405,6 +411,9 @@ typedef struct {
     PyObject *str___dataclass_fields__;
     PyObject *str___attrs_attrs__;
     PyObject *str___supertype__;
+#if PY312_PLUS
+    PyObject *str___value__;
+#endif
     PyObject *str___bound__;
     PyObject *str___constraints__;
     PyObject *str_int;
@@ -427,8 +436,11 @@ typedef struct {
     PyObject *get_typeddict_info;
     PyObject *get_dataclass_info;
     PyObject *rebuild;
-#if PY_VERSION_HEX >= 0x030a00f0
+#if PY310_PLUS
     PyObject *types_uniontype;
+#endif
+#if PY312_PLUS
+    PyObject *typing_typealiastype;
 #endif
     PyObject *astimezone;
     PyObject *re_compile;
@@ -2122,7 +2134,7 @@ PyTypeObject NoDefault_Type = {
     .tp_basicsize = 0
 };
 
-#if PY_VERSION_HEX >= 0x030c0000
+#if PY312_PLUS
 PyObject _NoDefault_Object = {
     _PyObject_EXTRA_INIT
     { _Py_IMMORTAL_REFCNT },
@@ -2226,7 +2238,7 @@ PyTypeObject Unset_Type = {
     .tp_basicsize = 0
 };
 
-#if PY_VERSION_HEX >= 0x030c0000
+#if PY312_PLUS
 PyObject _Unset_Object = {
     _PyObject_EXTRA_INIT
     { _Py_IMMORTAL_REFCNT },
@@ -4459,6 +4471,21 @@ typenode_origin_args_metadata(
                         t = temp;
                         continue;
                     }
+                    /* Check for parametrized TypeAliasType if Python 3.12+ */
+                #if PY312_PLUS
+                    if (Py_TYPE(origin) == (PyTypeObject *)(state->mod->typing_typealiastype)) {
+                        PyObject *value = PyObject_GetAttr(origin, state->mod->str___value__);
+                        if (value == NULL) goto error;
+                        PyObject *temp = PyObject_GetItem(value, args);
+                        Py_DECREF(value);
+                        if (temp == NULL) goto error;
+                        Py_CLEAR(args);
+                        Py_CLEAR(origin);
+                        Py_DECREF(t);
+                        t = temp;
+                        continue;
+                    }
+                #endif
                 }
                 else {
                     /* Custom non-parametrized generics won't have __args__
@@ -4487,14 +4514,23 @@ typenode_origin_args_metadata(
                 t = supertype;
                 continue;
             }
-            else {
-                PyErr_Clear();
-                break;
+            PyErr_Clear();
+
+            /* Check for TypeAliasType if Python 3.12+ */
+        #if PY312_PLUS
+            if (Py_TYPE(t) == (PyTypeObject *)(state->mod->typing_typealiastype)) {
+                PyObject *value = PyObject_GetAttr(t, state->mod->str___value__);
+                if (value == NULL) goto error;
+                Py_DECREF(t);
+                t = value;
+                continue;
             }
+        #endif
+            break;
         }
     }
 
-    #if PY_VERSION_HEX >= 0x030a00f0
+    #if PY310_PLUS
     if (Py_TYPE(t) == (PyTypeObject *)(state->mod->types_uniontype)) {
         /* Handle types.UnionType unions (`int | float | ...`) */
         args = PyObject_GetAttr(t, state->mod->str___args__);
@@ -4692,6 +4728,10 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
         }
     }
     else if (origin == state->mod->typing_union) {
+        if (Py_EnterRecursiveCall(" while analyzing a type")) {
+            out = -1;
+            goto done;
+        }
         for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(args); i++) {
             PyObject *arg = PyTuple_GET_ITEM(args, i);
             /* Ignore UnsetType in unions */
@@ -4699,6 +4739,7 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
             out = typenode_collect_type(state, arg);
             if (out < 0) break;
         }
+        Py_LeaveRecursiveCall();
     }
     else if (origin == state->mod->typing_literal) {
         if (state->literals == NULL) {
@@ -4761,6 +4802,8 @@ TypeNode_Convert(PyObject *obj) {
     state.mod = msgspec_get_global_state();
     state.context = obj;
 
+    if (Py_EnterRecursiveCall(" while analyzing a type")) return NULL;
+
     /* Traverse `obj` to collect all type annotations at this level */
     if (typenode_collect_type(&state, obj) < 0) goto done;
     /* Handle structs in a second pass */
@@ -4773,6 +4816,7 @@ TypeNode_Convert(PyObject *obj) {
     out = typenode_from_collect_state(&state);
 done:
     typenode_collect_clear_state(&state);
+    Py_LeaveRecursiveCall();
     return out;
 }
 
@@ -9717,14 +9761,14 @@ ms_encode_err_type_unsupported(PyTypeObject *type) {
  *************************************************************************/
 
 #define MS_HAS_TZINFO(o)  (((_PyDateTime_BaseTZInfo *)(o))->hastzinfo)
-#if PY_VERSION_HEX < 0x030a00f0
+#if PY310_PLUS
+#define MS_DATE_GET_TZINFO(o) PyDateTime_DATE_GET_TZINFO(o)
+#define MS_TIME_GET_TZINFO(o) PyDateTime_TIME_GET_TZINFO(o)
+#else
 #define MS_DATE_GET_TZINFO(o)      (MS_HAS_TZINFO(o) ? \
     ((PyDateTime_DateTime *)(o))->tzinfo : Py_None)
 #define MS_TIME_GET_TZINFO(o)      (MS_HAS_TZINFO(o) ? \
     ((PyDateTime_Time *)(o))->tzinfo : Py_None)
-#else
-#define MS_DATE_GET_TZINFO(o) PyDateTime_DATE_GET_TZINFO(o)
-#define MS_TIME_GET_TZINFO(o) PyDateTime_TIME_GET_TZINFO(o)
 #endif
 
 #ifndef TIMEZONE_CACHE_SIZE
@@ -15472,7 +15516,7 @@ static struct PyMethodDef Decoder_methods[] = {
         "decode", (PyCFunction) Decoder_decode, METH_FASTCALL,
         Decoder_decode__doc__,
     },
-#if PY_VERSION_HEX >= 0x03090000
+#if PY39_PLUS
     {"__class_getitem__", Py_GenericAlias, METH_O|METH_CLASS},
 #endif
     {NULL, NULL}                /* sentinel */
@@ -18512,7 +18556,7 @@ static struct PyMethodDef JSONDecoder_methods[] = {
         "decode_lines", (PyCFunction) JSONDecoder_decode_lines, METH_FASTCALL,
         JSONDecoder_decode_lines__doc__,
     },
-#if PY_VERSION_HEX >= 0x03090000
+#if PY39_PLUS
     {"__class_getitem__", Py_GenericAlias, METH_O|METH_CLASS},
 #endif
     {NULL, NULL}                /* sentinel */
@@ -21029,6 +21073,9 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->str___dataclass_fields__);
     Py_CLEAR(st->str___attrs_attrs__);
     Py_CLEAR(st->str___supertype__);
+#if PY312_PLUS
+    Py_CLEAR(st->str___value__);
+#endif
     Py_CLEAR(st->str___bound__);
     Py_CLEAR(st->str___constraints__);
     Py_CLEAR(st->str_int);
@@ -21051,8 +21098,11 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->get_typeddict_info);
     Py_CLEAR(st->get_dataclass_info);
     Py_CLEAR(st->rebuild);
-#if PY_VERSION_HEX >= 0x030a00f0
+#if PY310_PLUS
     Py_CLEAR(st->types_uniontype);
+#endif
+#if PY312_PLUS
+    Py_CLEAR(st->typing_typealiastype);
 #endif
     Py_CLEAR(st->astimezone);
     Py_CLEAR(st->re_compile);
@@ -21118,8 +21168,11 @@ msgspec_traverse(PyObject *m, visitproc visit, void *arg)
     Py_VISIT(st->get_typeddict_info);
     Py_VISIT(st->get_dataclass_info);
     Py_VISIT(st->rebuild);
-#if PY_VERSION_HEX >= 0x030a00f0
+#if PY310_PLUS
     Py_VISIT(st->types_uniontype);
+#endif
+#if PY312_PLUS
+    Py_VISIT(st->typing_typealiastype);
 #endif
     Py_VISIT(st->astimezone);
     Py_VISIT(st->re_compile);
@@ -21315,6 +21368,9 @@ PyInit__core(void)
     SET_REF(typing_final, "Final");
     SET_REF(typing_generic, "Generic");
     SET_REF(typing_generic_alias, "_GenericAlias");
+#if PY312_PLUS
+    SET_REF(typing_typealiastype, "TypeAliasType");
+#endif
     Py_DECREF(temp_module);
 
     temp_module = PyImport_ImportModule("msgspec._utils");
@@ -21328,7 +21384,7 @@ PyInit__core(void)
     SET_REF(rebuild, "rebuild");
     Py_DECREF(temp_module);
 
-#if PY_VERSION_HEX >= 0x030a00f0
+#if PY310_PLUS
     temp_module = PyImport_ImportModule("types");
     if (temp_module == NULL) return NULL;
     SET_REF(types_uniontype, "UnionType");
@@ -21411,6 +21467,9 @@ PyInit__core(void)
     CACHED_STRING(str___dataclass_fields__, "__dataclass_fields__");
     CACHED_STRING(str___attrs_attrs__, "__attrs_attrs__");
     CACHED_STRING(str___supertype__, "__supertype__");
+#if PY312_PLUS
+    CACHED_STRING(str___value__, "__value__");
+#endif
     CACHED_STRING(str___bound__, "__bound__");
     CACHED_STRING(str___constraints__, "__constraints__");
     CACHED_STRING(str_int, "int");
