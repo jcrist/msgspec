@@ -308,6 +308,8 @@ Most combinations of the following types are supported (with a few restrictions)
 <li><p><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.Literal</span></code></a></p></li>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.NewType" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.NewType</span></code></a></p></li>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Final" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.Final</span></code></a></p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypeAliasType" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.TypeAliasType</span></code></a></p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypeAlias" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.TypeAlias</span></code></a></p></li>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.NamedTuple" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.NamedTuple</span></code></a> / <a class="reference external" href="https://docs.python.org/3/library/collections.html#collections.namedtuple" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collections.namedtuple</span></code></a></p></li>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypedDict" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.TypedDict</span></code></a></p></li>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Generic" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.Generic</span></code></a></p></li>
@@ -1304,6 +1306,29 @@ support here is purely to aid static analysis tools like <a class="reference ext
 </pre></div>
 </div>
 </section>
+<section id="type-aliases">
+<h2>Type Aliases<a class="headerlink" href="#type-aliases" title="Permalink to this heading">#</a></h2>
+<p>For complex types, sometimes it can be nice to write the type once so you can
+reuse it later.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">Point</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span>
+</pre></div>
+</div>
+<p>Here <code class="docutils literal notranslate"><span class="pre">Point</span></code> is a “type alias” for <code class="docutils literal notranslate"><span class="pre">tuple[float,</span> <span class="pre">float]</span></code> - <code class="docutils literal notranslate"><span class="pre">msgspec</span></code>
+will substitute in <code class="docutils literal notranslate"><span class="pre">tuple[float,</span> <span class="pre">float]</span></code> whenever the <code class="docutils literal notranslate"><span class="pre">Point</span></code> type
+is used in an annotation.</p>
+<p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> supports the following equivalent forms:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Using variable assignment</span>
+<span class="n">Point</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span>
+
+<span class="c1"># Using variable assignment, annotated as a `TypeAlias`</span>
+<span class="n">Point</span><span class="p">:</span> <span class="n">TypeAlias</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span>
+
+<span class="c1"># Using Python 3.12&#39;s new `type` statement. This only works on Python 3.12+</span>
+<span class="nb">type</span> <span class="n">Point</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span>
+</pre></div>
+</div>
+<p>To learn more about Type Aliases, see Python’s <a class="reference external" href="https://docs.python.org/3/library/typing.html#type-aliases">Type Alias docs here</a>.</p>
+</section>
 <section id="generic-types">
 <h2>Generic Types<a class="headerlink" href="#generic-types" title="Permalink to this heading">#</a></h2>
 <p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> supports generic types, including <a class="reference external" href="https://docs.python.org/3/library/typing.html#user-defined-generic-types">user-defined generic types</a>
@@ -1728,6 +1753,7 @@ by default.</p>
 <li><a class="reference internal" href="#enum-intenum-strenum"><code class="docutils literal notranslate"><span class="pre">Enum</span></code> / <code class="docutils literal notranslate"><span class="pre">IntEnum</span></code> / <code class="docutils literal notranslate"><span class="pre">StrEnum</span></code></a></li>
 <li><a class="reference internal" href="#literal"><code class="docutils literal notranslate"><span class="pre">Literal</span></code></a></li>
 <li><a class="reference internal" href="#newtype"><code class="docutils literal notranslate"><span class="pre">NewType</span></code></a></li>
+<li><a class="reference internal" href="#type-aliases">Type Aliases</a></li>
 <li><a class="reference internal" href="#generic-types">Generic Types</a></li>
 <li><a class="reference internal" href="#abstract-types">Abstract Types</a></li>
 <li><a class="reference internal" href="#union-optional"><code class="docutils literal notranslate"><span class="pre">Union</span></code> /  <code class="docutils literal notranslate"><span class="pre">Optional</span></code></a></li>
