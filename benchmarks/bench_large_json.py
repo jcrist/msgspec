@@ -42,6 +42,11 @@ import orjson
 decode = orjson.loads
 """
 
+RAPIDJSON = """
+import rapidjson
+decode = rapidjson.loads
+"""
+
 SIMDJSON = """
 import simdjson
 decode = simdjson.loads
@@ -81,14 +86,36 @@ decode = msgspec.json.Decoder(RepoData).decode
 
 
 def main():
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Benchmark decoding a large JSON message using various JSON libraries"
+    )
+    parser.add_argument(
+        "--versions",
+        action="store_true",
+        help="Output library version info, and exit immediately",
+    )
+    args = parser.parse_args()
+
     benchmarks = [
-        ("json", JSON),
-        ("ujson", UJSON),
-        ("orjson", ORJSON),
-        ("simdjson", SIMDJSON),
-        ("msgspec", MSGSPEC),
-        ("msgspec structs", MSGSPEC_STRUCTS),
+        ("json", None, JSON),
+        ("ujson", "ujson", UJSON),
+        ("orjson", "orjson", ORJSON),
+        ("rapidjson", "python-rapidjson", RAPIDJSON),
+        ("simdjson", "pysimdjson", SIMDJSON),
+        ("msgspec", "msgspec", MSGSPEC),
+        ("msgspec structs", None, MSGSPEC_STRUCTS),
     ]
+
+    if args.versions:
+        import importlib.metadata
+
+        for _, lib, _ in benchmarks:
+            if lib is not None:
+                version = importlib.metadata.version(lib)
+                print(f"- {lib}: {version}")
+        sys.exit(0)
 
     with tempfile.NamedTemporaryFile() as f:
         # Download the repodata.json
@@ -102,7 +129,7 @@ def main():
         results = {}
         import ast
 
-        for lib, setup in benchmarks:
+        for lib, _, setup in benchmarks:
             script = TEMPLATE.format(path=f.name, setup=setup)
             # We execute each script in a subprocess to isolate their memory usage
             output = subprocess.check_output([sys.executable, "-c", script])

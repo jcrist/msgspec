@@ -102,18 +102,17 @@ class C{n}(Struct, order=True):
     e: int
 """
 
-sources = {
-    "standard classes": classes_template,
-    "attrs": attrs_template,
-    "dataclasses": dataclasses_template,
-    "pydantic": pydantic_template,
-    "msgspec": msgspec_template,
-}
+
+BENCHMARKS = [
+    ("msgspec", "msgspec", msgspec_template),
+    ("standard classes", None, classes_template),
+    ("attrs", "attrs", attrs_template),
+    ("dataclasses", None, dataclasses_template),
+    ("pydantic", "pydantic", pydantic_template),
+]
 
 
 def bench(name, template):
-    print(f"Benchmarking {name}:")
-
     N_classes = 100
 
     source = "\n".join(template.format(n=i) for i in range(N_classes))
@@ -127,7 +126,6 @@ def bench(name, template):
         exec(code_obj, ns)
     end = perf_counter()
     define_time = ((end - start) / (N * N_classes)) * 1e6
-    print(f"- define: {define_time:.2f} μs")
 
     C = ns["C0"]
 
@@ -139,7 +137,6 @@ def bench(name, template):
         [C(a=i, b=i, c=i, d=i, e=i) for i in range(M)]
     end = perf_counter()
     init_time = ((end - start) / (N * M)) * 1e6
-    print(f"- init: {init_time:.2f} μs")
 
     # Benchmark equality
     N = 1000
@@ -152,14 +149,12 @@ def bench(name, template):
         haystack.index(needle)
     end = perf_counter()
     equality_time = ((end - start) / (N * M)) * 1e6
-    print(f"- equality: {equality_time:.2f} μs")
 
     # Benchmark order
     try:
         needle < needle
     except TypeError:
         order_time = None
-        print("- order: N/A")
     else:
         start = perf_counter()
         for _ in range(N):
@@ -168,7 +163,6 @@ def bench(name, template):
                     break
         end = perf_counter()
         order_time = ((end - start) / (N * M)) * 1e6
-        print(f"- order: {order_time:.2f} μs")
 
     return (name, define_time, init_time, equality_time, order_time)
 
@@ -206,18 +200,27 @@ def main():
 
     parser = argparse.ArgumentParser(description="Benchmark msgspec Struct operations")
     parser.add_argument(
-        "--output-table",
+        "--versions",
         action="store_true",
-        help="whether to output a ReST table at the end",
+        help="Output library version info, and exit immediately",
     )
     args = parser.parse_args()
 
+    if args.versions:
+        import sys
+        import importlib.metadata
+
+        for _, lib, _ in BENCHMARKS:
+            if lib is not None:
+                version = importlib.metadata.version(lib)
+                print(f"- {lib}: {version}")
+        sys.exit(0)
+
     results = []
-    for name, source in sources.items():
+    for name, _, source in BENCHMARKS:
         results.append(bench(name, source))
 
-    if args.output_table:
-        print(format_table(results))
+    print(format_table(results))
 
 
 if __name__ == "__main__":

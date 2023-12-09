@@ -1,149 +1,197 @@
 from __future__ import annotations
 
+import sys
+import dataclasses
 import json
 import timeit
-from typing import List, Union
+import importlib.metadata
+from typing import Any, Literal, Callable
 
-import msgpack
-import orjson
-import ujson
-from generate_data import make_filesystem_data
+from .generate_data import make_filesystem_data
 
 import msgspec
 
 
-class File(msgspec.Struct, tag="file"):
+class File(msgspec.Struct, kw_only=True, omit_defaults=True, tag="file"):
     name: str
     created_by: str
     created_at: str
-    updated_at: str
+    updated_by: str | None = None
+    updated_at: str | None = None
     nbytes: int
+    permissions: Literal["READ", "WRITE", "READ_WRITE"]
 
 
-class Directory(msgspec.Struct, tag="directory"):
+class Directory(msgspec.Struct, kw_only=True, omit_defaults=True, tag="directory"):
     name: str
     created_by: str
     created_at: str
-    updated_at: str
-    contents: List[Union[File, Directory]]
+    updated_by: str | None = None
+    updated_at: str | None = None
+    contents: list[File | Directory]
 
 
-def bench(dumps, loads, ndata, schema=None):
-    data = make_filesystem_data(ndata)
-    if schema:
-        data = msgspec.convert(data, schema)
-    timer = timeit.Timer("func(data)", globals={"func": dumps, "data": data})
-    n, t = timer.autorange()
-    dumps_time = t / n
+@dataclasses.dataclass
+class Benchmark:
+    label: str
+    version: str
+    encode: Callable
+    decode: Callable
+    schema: Any = None
 
-    data = dumps(data)
+    def run(self, data: bytes) -> dict:
+        if self.schema is not None:
+            data = msgspec.convert(data, self.schema)
+        timer = timeit.Timer("func(data)", globals={"func": self.encode, "data": data})
+        n, t = timer.autorange()
+        encode_time = t / n
 
-    timer = timeit.Timer("func(data)", globals={"func": loads, "data": data})
-    n, t = timer.autorange()
-    loads_time = t / n
-    return dumps_time, loads_time
+        data = self.encode(data)
+
+        timer = timeit.Timer("func(data)", globals={"func": self.decode, "data": data})
+        n, t = timer.autorange()
+        decode_time = t / n
+
+        return {
+            "label": self.label,
+            "encode": encode_time,
+            "decode": decode_time,
+        }
 
 
-def bench_msgspec_msgpack(n):
-    schema = File if n == 1 else Directory
-    enc = msgspec.msgpack.Encoder()
-    dec = msgspec.msgpack.Decoder(schema)
-    return bench(enc.encode, dec.decode, n, schema)
+def json_benchmarks():
+    import orjson
+    import ujson
+    import rapidjson
+    import simdjson
 
+    simdjson_ver = importlib.metadata.version("pysimdjson")
 
-def bench_msgspec_json(n):
-    schema = File if n == 1 else Directory
+    rj_dumps = rapidjson.Encoder()
+    rj_loads = rapidjson.Decoder()
+
+    def uj_dumps(obj):
+        return ujson.dumps(obj)
+
     enc = msgspec.json.Encoder()
-    dec = msgspec.json.Decoder(schema)
-    return bench(enc.encode, dec.decode, n, schema)
+    dec = msgspec.json.Decoder(Directory)
+    dec2 = msgspec.json.Decoder()
+
+    return [
+        Benchmark("msgspec structs", None, enc.encode, dec.decode, Directory),
+        Benchmark("msgspec", msgspec.__version__, enc.encode, dec2.decode),
+        Benchmark("json", None, json.dumps, json.loads),
+        Benchmark("orjson", orjson.__version__, orjson.dumps, orjson.loads),
+        Benchmark("ujson", ujson.__version__, uj_dumps, ujson.loads),
+        Benchmark("rapidjson", rapidjson.__version__, rj_dumps, rj_loads),
+        Benchmark("simdjson", simdjson_ver, simdjson.dumps, simdjson.loads),
+    ]
 
 
-def bench_msgpack(n):
-    packer = msgpack.Packer()
-    loads = msgpack.loads
-    return bench(packer.pack, loads, n)
+def msgpack_benchmarks():
+    import msgpack
+    import ormsgpack
 
+    enc = msgspec.msgpack.Encoder()
+    dec = msgspec.msgpack.Decoder(Directory)
+    dec2 = msgspec.msgpack.Decoder()
 
-def bench_ujson(n):
-    return bench(ujson.dumps, ujson.loads, n)
-
-
-def bench_orjson(n):
-    return bench(orjson.dumps, orjson.loads, n)
-
-
-BENCHMARKS = [
-    ("ujson", bench_ujson),
-    ("orjson", bench_orjson),
-    ("msgpack", bench_msgpack),
-    ("msgspec msgpack", bench_msgspec_msgpack),
-    ("msgspec json", bench_msgspec_json),
-]
-
-
-def run(n, quiet=False):
-    if quiet:
-
-        def log(x):
-            pass
-
-    else:
-        log = print
-
-    title = f"Benchmark - {n} object{'s' if n > 1 else ''}"
-    log(title)
-
-    results = []
-    for name, func in BENCHMARKS:
-        log(name)
-        dumps_time, loads_time = func(n)
-        log(f"  dumps: {dumps_time * 1e6:.2f} us")
-        log(f"  loads: {loads_time * 1e6:.2f} us")
-        log(f"  total: {(dumps_time + loads_time) * 1e6:.2f} us")
-        results.append((name, dumps_time, loads_time))
-    return results
+    return [
+        Benchmark("msgspec structs", None, enc.encode, dec.decode, Directory),
+        Benchmark("msgspec", msgspec.__version__, enc.encode, dec2.decode),
+        Benchmark("msgpack", msgpack.__version__, msgpack.dumps, msgpack.loads),
+        Benchmark(
+            "ormsgpack", ormsgpack.__version__, ormsgpack.packb, ormsgpack.unpackb
+        ),
+    ]
 
 
 def main():
     import argparse
 
-    bench_names = ["1", "1k"]
-
     parser = argparse.ArgumentParser(
-        description="Benchmark different python serializers"
+        description="Benchmark different python serialization libraries"
     )
     parser.add_argument(
-        "--benchmark",
-        "-b",
-        action="append",
-        choices=["all", *bench_names],
-        default=[],
-        help="which benchmark(s) to run, defaults to 'all'",
+        "--versions",
+        action="store_true",
+        help="Output library version info, and exit immediately",
+    )
+    parser.add_argument(
+        "-n",
+        type=int,
+        help="The number of objects in the generated data, defaults to 1000",
+        default=1000,
+    )
+    parser.add_argument(
+        "-p",
+        "--protocol",
+        choices=["json", "msgpack"],
+        default="json",
+        help="The protocol to benchmark, defaults to JSON",
     )
     parser.add_argument(
         "--json",
         action="store_true",
         help="whether to output the results as json",
     )
-    parser.add_argument(
-        "--no-gc",
-        action="store_true",
-        help="whether to disable the gc during benchmarking",
-    )
     args = parser.parse_args()
 
-    if "all" in args.benchmark or not args.benchmark:
-        to_run = bench_names
-    else:
-        to_run = sorted(set(args.benchmark))
+    benchmarks = json_benchmarks() if args.protocol == "json" else msgpack_benchmarks()
 
-    results = {}
-    for bench in to_run:
-        n = 1000 if bench.startswith("1k") else 1
-        results[bench] = run(n, quiet=args.json)
+    if args.versions:
+        for bench in benchmarks:
+            if bench.version is not None:
+                print(f"- {bench.label}: {bench.version}")
+        sys.exit(0)
+
+    data = make_filesystem_data(args.n)
+
+    results = [benchmark.run(data) for benchmark in benchmarks]
 
     if args.json:
-        print(json.dumps(results))
+        for line in results:
+            print(json.dumps(line))
+    else:
+        # Compose the results table
+        results.sort(key=lambda row: row["encode"] + row["decode"])
+        best_et = results[0]["encode"]
+        best_dt = results[0]["decode"]
+        best_tt = best_et + best_dt
+
+        columns = (
+            "",
+            "encode (μs)",
+            "vs.",
+            "decode (μs)",
+            "vs.",
+            "total (μs)",
+            "vs.",
+        )
+        rows = [
+            (
+                r["label"],
+                f"{1_000_000 * r['encode']:.1f}",
+                f"{r['encode'] / best_et:.1f}",
+                f"{1_000_000 * r['decode']:.1f}",
+                f"{r['decode'] / best_dt:.1f}",
+                f"{1_000_000 * (r['encode'] + r['decode']):.1f}",
+                f"{(r['encode'] + r['decode']) / best_tt:.1f}",
+            )
+            for r in results
+        ]
+        widths = tuple(
+            max(max(map(len, x)), len(c)) for x, c in zip(zip(*rows), columns)
+        )
+        row_template = ("|" + (" %%-%ds |" * len(columns))) % widths
+        header = row_template % tuple(columns)
+        bar_underline = "+%s+" % "+".join("=" * (w + 2) for w in widths)
+        bar = "+%s+" % "+".join("-" * (w + 2) for w in widths)
+        parts = [bar, header, bar_underline]
+        for r in rows:
+            parts.append(row_template % r)
+            parts.append(bar)
+        print("\n".join(parts))
 
 
 if __name__ == "__main__":

@@ -41,7 +41,7 @@ support for [JSON](https://json.org), [MessagePack](https://msgpack.org),
 
 - 🔍 **Zero-cost schema validation** using familiar Python type annotations. In
   [benchmarks](https://jcristharif.com/msgspec/benchmarks.html) `msgspec`
-  decodes *and* validates JSON ~2x faster than
+  decodes *and* validates JSON faster than
   [orjson](https://github.com/ijl/orjson) can decode it alone.
 
 - ✨ **A speedy Struct type** for representing structured data. If you already
@@ -49,7 +49,7 @@ support for [JSON](https://json.org), [MessagePack](https://msgpack.org),
   [attrs](https://www.attrs.org),
   [structs](https://jcristharif.com/msgspec/structs.html) should feel familiar.
   However, they're
-  [10-100x faster](https://jcristharif.com/msgspec/benchmarks.html#benchmark-structs>)
+  [5-60x faster](https://jcristharif.com/msgspec/benchmarks.html#benchmark-structs>)
   for common operations.
 
 All of this is included in a

@@ -1,14 +1,41 @@
 import datetime
 import random
 import string
-import uuid
 
 
 class Generator:
     UTC = datetime.timezone.utc
     DATE_2018 = datetime.datetime(2018, 1, 1, tzinfo=UTC)
     DATE_2023 = datetime.datetime(2023, 1, 1, tzinfo=UTC)
-    UUIDS = [str(uuid.uuid4()) for _ in range(30)]
+    PERMISSIONS = ["READ", "WRITE", "READ_WRITE"]
+    NAMES = [
+        "alice",
+        "ben",
+        "carol",
+        "daniel",
+        "esther",
+        "franklin",
+        "genevieve",
+        "harold",
+        "ilana",
+        "jerome",
+        "katelyn",
+        "leonard",
+        "monique",
+        "nathan",
+        "ora",
+        "patrick",
+        "quinn",
+        "ronald",
+        "stephanie",
+        "thomas",
+        "uma",
+        "vince",
+        "wendy",
+        "xavier",
+        "yitzchak",
+        "zahra",
+    ]
 
     def __init__(self, capacity, seed=42):
         self.capacity = capacity
@@ -25,26 +52,32 @@ class Generator:
 
     def make(self, is_dir):
         name = self.randstr(4, 30)
-        created_by = self.random.choice(self.UUIDS)
+        created_by = self.random.choice(self.NAMES)
         created_at = self.randdt(self.DATE_2018, self.DATE_2023)
-        updated_at = self.randdt(created_at, self.DATE_2023)
         data = {
             "type": "directory" if is_dir else "file",
             "name": name,
             "created_by": created_by,
             "created_at": created_at.isoformat(),
-            "updated_at": updated_at.isoformat(),
         }
+        if self.random.random() > 0.75:
+            updated_by = self.random.choice(self.NAMES)
+            updated_at = self.randdt(created_at, self.DATE_2023)
+            data.update(
+                updated_by=updated_by,
+                updated_at=updated_at.isoformat(),
+            )
         if is_dir:
             n = min(self.random.randint(0, 30), self.capacity)
             self.capacity -= n
             data["contents"] = [self.make_node() for _ in range(n)]
         else:
             data["nbytes"] = self.random.randint(0, 1000000)
+            data["permissions"] = self.random.choice(self.PERMISSIONS)
         return data
 
     def make_node(self):
-        return self.make(self.random.random() > 0.9)
+        return self.make(self.random.random() > 0.8)
 
     def generate(self):
         self.capacity -= 1
