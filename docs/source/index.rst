@@ -13,11 +13,11 @@ support for JSON_, MessagePack_, YAML_, and TOML_. It features:
 
 - 🔍 **Zero-cost schema validation** using familiar Python type annotations.
   In :doc:`benchmarks <benchmarks>` ``msgspec`` decodes *and* validates JSON
-  ~2x faster than orjson_ can decode it alone.
+  faster than orjson_ can decode it alone.
 
 - ✨ **A speedy Struct type** for representing structured data. If you already
   use dataclasses_ or attrs_, :doc:`structs` should feel familiar. However,
-  they're :ref:`10-100x <struct-benchmark>` faster for common operations.
+  they're :ref:`5-60x <struct-benchmark>` faster for common operations.
 
 All of this is included in a :ref:`lightweight library
 <benchmark-library-size>` with no required dependencies.

@@ -16,115 +16,79 @@ Benchmarks
     you choose different serialization formats. I encourage you to write your
     own benchmarks before making these decisions.
 
+    In all cases benchmarks were run on my local development machine (a ~2020
+    x86 Linux laptop) using CPython 3.11.
 
-.. _encoding-benchmark:
 
+JSON Serialization & Validation
+-------------------------------
 
-Benchmark - Encoding/Decoding
------------------------------
+This benchmark covers the common case when working with ``msgspec`` or other
+validation libraries. It measures two things:
 
-Here we show a simple benchmark serializing some structured data. The data
-we're serializing has the following schema (defined here using `msgspec.Struct`
-types):
+- Decoding some JSON input, validating it against a schema, and converting it
+  into user-friendly python objects.
+- Encoding these same python objects back into JSON.
+
+The data we're working with has the following schema (defined here using
+`msgspec.Struct` types):
 
 .. code-block:: python
 
+    import enum
     import datetime
     import msgspec
 
-    class File(msgspec.Struct, tag="file"):
-        name: str
-        created_by: str
-        created_at: datetime.datetime
-        updated_at: datetime.datetime
-        nbytes: int
+    class Permissions(enum.Enum):
+        READ = "READ"
+        WRITE = "WRITE"
+        READ_WRITE = "READ_WRITE"
 
-    class Directory(msgspec.Struct, tag="directory"):
+
+    class File(msgspec.Struct, kw_only=True, tag="file"):
         name: str
         created_by: str
         created_at: datetime.datetime
-        updated_at: datetime.datetime
+        updated_by: str | None = None
+        updated_at: datetime.datetime | None = None
+        nbytes: int
+        permissions: Permissions
+
+
+    class Directory(msgspec.Struct, kw_only=True, tag="directory"):
+        name: str
+        created_by: str
+        created_at: datetime.datetime
+        updated_by: str | None = None
+        updated_at: datetime.datetime | None = None
         contents: list[File | Directory]
 
-The libraries we're benchmarking are the following:
 
-- ``ujson`` (`link <https://github.com/ultrajson/ultrajson>`__)
-- ``orjson`` (`link <https://github.com/ijl/orjson>`__)
-- ``msgpack`` (`link <https://github.com/msgpack/msgpack-python>`__)
-- ``msgspec.msgpack``
-- ``msgspec.json``
+The libraries we're comparing are the following:
+
+- msgspec_ (0.18.5)
+- mashumaro_ (3.11)
+- pydantic_ (both 1.10.13 and 2.5.2)
+- cattrs_ (23.2.3)
 
 Each benchmark creates a message containing one or more ``File``/``Directory``
-instances, then then serializes and deserializes it in a loop.
+instances, then then serializes, deserializes, and validates it in a loop.
 
 The full benchmark source can be found
-`here <https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_encodings.py>`__.
-
-1 Object
-^^^^^^^^
-
-Some workflows involve sending around very small messages. Here the overhead
-per function call dominates (parsing of options, allocating temporary buffers,
-etc...).
+`here <https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_validation>`__.
 
 .. raw:: html
 
-    <div id="bench-1" style="width:75%"></div>
+    <div id="bench-validate" style="width:75%"></div>
 
-From the chart above, you can see that ``msgspec.msgpack`` and ``msgspec.json``
-performed quite well, encoding/decoding faster than all other options, even
-those implementing the same serialization protocol. This is partly due to the
-use of `Struct` types here - since all keys are statically known, the msgspec
-decoders can apply a few optimizations not available to other Python libraries
-that rely on `dict` types instead.
-
-That said, all of these methods serialize/deserialize pretty quickly relative
-to other python operations, so unless you're counting every microsecond your
-choice here probably doesn't matter that much.
-
-1000 Objects
-^^^^^^^^^^^^
-
-Here we serialize a tree of 1000 ``File``/``Directory`` objects. There's a lot
-more data here, so the per-call overhead will no longer dominate, and we're now
-measuring the efficiency of the encoding/decoding.
-
-.. raw:: html
-
-    <div id="bench-1k" style="width:75%"></div>
-
-
-Benchmark - Schema Validation
------------------------------
-
-The above benchmarks aren't 100% fair to ``msgspec``, as it also performs
-schema validation on deserialization, checking that the message matches the
-specified schema. None of the other options benchmarked support this natively.
-Instead, many users perform validation post deserialization using additional
-tools like pydantic_.
-
-Here we benchmark the following validation libraries, measuring JSON encoding
-and decoding time.
-
-- msgspec_
-- pydantic_
-- cattrs_
-- mashumaro_
-
-The full benchmark source can be found
-`here <https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_validation.py>`__.
-
-.. raw:: html
-
-    <div id="bench-1k-validate" style="width:75%"></div>
+In this benchmark ``msgspec`` is ~6x faster than ``mashumaro``, ~10x faster
+than ``cattrs``, and ~12x faster than ``pydantic`` V2, and ~85x faster than
+``pydantic`` V1.
 
 This plot shows the performance benefit of performing type validation during
 message decoding (as done by ``msgspec``) rather than as a secondary step with
-a third-party library like pydantic_. In this benchmark ``msgspec`` is ~10x
-faster than ``mashumaro``, ~12x faster than ``cattrs``, and ~80x faster than
-``pydantic``.
-
-Validating after decoding is slower for two reasons:
+a third-party library like cattrs_ or pydantic_ V1. Validating after decoding
+is slower for two reasons:
 
 - It requires traversing over the entire output structure a second time (which
   can be slow due to pointer chasing)
@@ -138,45 +102,111 @@ of these issues. Only a single pass over the decoded data is taken, and the
 specified output types are created correctly the first time, avoiding the need
 for additional unnecessary allocations.
 
-.. _memory-benchmark:
+This benefit also shows up in the memory usage for the same benchmark:
 
-Benchmark - Memory Usage
-------------------------
+.. raw:: html
 
-Here we benchmark loading a `medium-sized JSON file
-<https://conda.anaconda.org/conda-forge/noarch/repodata.json>`__ (~65 MiB)
+    <div id="bench-validate-memory" style="width:75%"></div>
+
+Here we compare the peak increase in memory usage (RSS) after loading the
+schemas and data. ``msgspec``'s small library size, schema representation, and
+in-memory state means it uses a fraction of the memory of other tools.
+
+.. _json-benchmark:
+
+JSON Serialization
+------------------
+
+``msgspec`` includes its own high performance JSON library, which may be used
+by itself as a replacement for the standard library's `json.dumps`/`json.loads`
+functions. Here we compare msgspec's JSON implementation against several other
+popular Python JSON libraries.
+
+- msgspec_ (0.18.5)
+- orjson_ (3.9.10)
+- ujson_ (5.9.0)
+- rapidjson_ (1.13)
+- simdjson_ (5.0.2)
+- json_ (standard library)
+
+The full benchmark source can be found
+`here <https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_encodings.py>`__.
+
+.. raw:: html
+
+    <div id="bench-json" style="width:75%"></div>
+
+In this case ``msgspec structs`` (which measures ``msgspec`` with
+``msgspec.Struct`` schemas pre-defined) is the fastest. When used without
+schemas, ``msgspec`` is on-par with ``orjson`` (the next fastest JSON library).
+
+This shows that ``msgspec`` is able to decode JSON faster when a schema is
+provided. Due to a more efficient in memory representation, JSON decoding AND
+schema validation with ``msgspec`` than just JSON decoding alone.
+
+.. _msgpack-benchmark:
+
+MessagePack Serialization
+-------------------------
+
+Likewise, ``msgspec`` includes its own high performance MessagePack_ library,
+which may be used by itself without requiring usage of any of msgspec's
+validation machinery. Here we compare msgspec's MessagePack implementation
+against several other popular Python MessagePack libraries.
+
+- msgspec_ (0.18.5)
+- msgpack_ (1.0.7)
+- ormsgpack_ (1.4.1)
+
+.. raw:: html
+
+    <div id="bench-msgpack" style="width:75%"></div>
+
+As with the JSON benchmark above, ``msgspec`` with a schema provided (``msgspec
+structs``) is faster than ``msgspec`` with no schema. In both cases though
+``msgspec`` is measurably faster than other Python MessagePack libraries like
+``msgpack`` or ``ormsgpack``.
+
+
+JSON Serialization - Large Data
+-------------------------------
+
+Here we benchmark loading a `large JSON file
+<https://conda.anaconda.org/conda-forge/noarch/repodata.json>`__ (~77 MiB)
 containing information on all the ``noarch`` packages in conda-forge_. We
 compare the following libraries:
 
-- msgspec_ with ``msgspec.Struct`` schemas pre-defined
-- msgspec_
-- json_
-- ujson_
-- orjson_
-- simdjson_
+- msgspec_ (0.18.5)
+- orjson_ (3.9.10)
+- ujson_ (5.9.0)
+- rapidjson_ (1.13)
+- simdjson_ (5.0.2)
+- json_ (standard library)
 
 For each library, we measure both the peak increase in memory usage (RSS) and
 the time to JSON decode the file.
 
 The full benchmark source can be found `here
-<https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_memory.py>`__.
+<https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_large_json.py>`__.
 
 **Results (smaller is better):**
 
 +---------------------+--------------+------+-----------+------+
 |                     | memory (MiB) | vs.  | time (ms) | vs.  |
 +=====================+==============+======+===========+======+
-| **msgspec structs** | 83.6         | 1.0x | 170.6     | 1.0x |
+| **msgspec structs** | 67.6         | 1.0x | 176.8     | 1.0x |
 +---------------------+--------------+------+-----------+------+
-| **msgspec**         | 145.3        | 1.7x | 383.1     | 2.2x |
+| **msgspec**         | 218.3        | 3.2x | 630.5     | 3.6x |
 +---------------------+--------------+------+-----------+------+
-| **json**            | 213.5        | 2.6x | 526.4     | 3.1x |
+| **json**            | 295.0        | 4.4x | 868.6     | 4.9x |
 +---------------------+--------------+------+-----------+------+
-| **ujson**           | 230.6        | 2.8x | 666.8     | 3.9x |
+| **ujson**           | 349.1        | 5.2x | 1087.0    | 6.1x |
 +---------------------+--------------+------+-----------+------+
-| **orjson**          | 263.9        | 3.2x | 410.0     | 2.4x |
+| **rapidjson**       | 375.0        | 5.6x | 1004.0    | 5.7x |
 +---------------------+--------------+------+-----------+------+
-| **simdjson**        | 403.7        | 4.8x | 615.1     | 3.6x |
+| **orjson**          | 406.3        | 6.0x | 691.7     | 3.9x |
++---------------------+--------------+------+-----------+------+
+| **simdjson**        | 603.2        | 8.9x | 1053.0    | 6.0x |
 +---------------------+--------------+------+-----------+------+
 
 - ``msgspec`` decoding into :doc:`Struct <structs>` types uses the least amount of
@@ -193,25 +223,24 @@ The full benchmark source can be found `here
   large messages this can lead to significant memory savings. ``json`` and
   ``orjson`` also use similar optimizations, but not as effectively.
 
-- ``orjson`` and ``simdjson`` use 3-5x more memory than ``msgspec`` in this
+- ``orjson`` and ``simdjson`` use 6-9x more memory than ``msgspec`` in this
   benchmark. In addition to the reasons above, both of these decoders require
   copying the original message into a temporary buffer. In this case, the extra
-  copy adds an extra 65 MiB of overhead!
-
+  copy adds an extra 77 MiB of overhead!
 
 .. _struct-benchmark:
 
-Benchmark - Structs
--------------------
+Structs
+-------
 
 Here we benchmark common `msgspec.Struct` operations, comparing their
 performance against other similar libraries. The cases compared are:
 
-- ``msgspec``
 - Standard Python classes
 - dataclasses_
-- attrs_
-- pydantic_
+- msgspec_ (0.18.5)
+- attrs_ (23.1.0)
+- pydantic_ (2.5.2)
 
 For each library, the following operations are benchmarked:
 
@@ -230,32 +259,32 @@ The full benchmark source can be found `here
 +----------------------+-------------+-------------+---------------+------------+
 |                      | import (μs) | create (μs) | equality (μs) | order (μs) |
 +======================+=============+=============+===============+============+
-| **msgspec**          | 9.92        | 0.09        | 0.02          | 0.03       |
+| **msgspec**          | 12.51       | 0.09        | 0.02          | 0.03       |
 +----------------------+-------------+-------------+---------------+------------+
-| **standard classes** | 6.86        | 0.45        | 0.13          | 0.29       |
+| **standard classes** | 7.88        | 0.35        | 0.08          | 0.16       |
 +----------------------+-------------+-------------+---------------+------------+
-| **dataclasses**      | 489.07      | 0.47        | 0.27          | 0.30       |
+| **attrs**            | 483.10      | 0.37        | 0.14          | 1.87       |
 +----------------------+-------------+-------------+---------------+------------+
-| **attrs**            | 428.38      | 0.42        | 0.29          | 2.15       |
+| **dataclasses**      | 506.09      | 0.36        | 0.14          | 0.16       |
 +----------------------+-------------+-------------+---------------+------------+
-| **pydantic**         | 371.52      | 4.84        | 10.56         | N/A        |
+| **pydantic**         | 673.47      | 1.54        | 0.60          | N/A        |
 +----------------------+-------------+-------------+---------------+------------+
 
 - Standard Python classes are the fastest to import (any library can only add
   overhead here). Still, ``msgspec`` isn't *that* much slower, especially
   compared to other options.
 - Structs are optimized to be cheap to create, and that shows for the creation
-  benchmark. They're roughly 5x faster than standard
-  classes/``attrs``/``dataclasses``, and 50x faster than ``pydantic``.
-- For equality comparison, msgspec Structs are roughly 6x to 500x faster than
+  benchmark. They're roughly 4x faster than standard
+  classes/``attrs``/``dataclasses``, and 17x faster than ``pydantic``.
+- For equality comparison, msgspec Structs are roughly 4x to 30x faster than
   the alternatives.
-- For order comparison, msgspec Structs are roughly 10x to 70x faster than the
+- For order comparison, msgspec Structs are roughly 5x to 60x faster than the
   alternatives.
 
 .. _struct-gc-benchmark:
 
-Benchmark - Garbage Collection
-------------------------------
+Garbage Collection
+------------------
 
 `msgspec.Struct` instances implement several optimizations for reducing garbage
 collection (GC) pressure and decreasing memory usage. Here we benchmark structs
@@ -306,10 +335,11 @@ The full benchmark source can be found `here
 
 .. _benchmark-library-size:
 
-Benchmark - Library Size
-------------------------
+Library Size
+------------
 
-Here we compare the on-disk size of a few Python libraries.
+Here we compare the on-disk size of ``msgspec`` and ``pydantic``, its closest
+equivalent.
 
 The full benchmark source can be found `here
 <https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_library_size.py>`__.
@@ -319,18 +349,13 @@ The full benchmark source can be found `here
 +--------------+---------+------------+-------------+
 |              | version | size (MiB) | vs. msgspec |
 +==============+=========+============+=============+
-| **msgspec**  | 0.12.0  | 0.34       | 1.00x       |
+| **msgspec**  | 0.18.4  | 0.46       | 1.00x       |
 +--------------+---------+------------+-------------+
-| **orjson**   | 3.8.5   | 0.56       | 1.64x       |
-+--------------+---------+------------+-------------+
-| **msgpack**  | 1.0.4   | 0.99       | 2.91x       |
-+--------------+---------+------------+-------------+
-| **pydantic** | 1.10.4  | 8.71       | 25.67x      |
+| **pydantic** | 2.5.2   | 6.71       | 14.66x      |
 +--------------+---------+------------+-------------+
 
-The functionality available in ``msgspec`` is comparable to that of orjson_,
-msgpack_, and pydantic_ combined. However, the total installed binary size of
-``msgspec`` is a fraction of that of any of these libraries.
+For applications where dependency size matters, ``msgspec`` is roughly 15x
+smaller on disk.
 
 .. raw:: html
 
@@ -345,7 +370,7 @@ msgpack_, and pydantic_ combined. However, the total installed binary size of
     function buildPlot(div, rows, title) {
         var i, time_unit, scale, max_time = 0;
         for (i = 0; i < rows.length; i++) {
-            var total = rows[i][1] + rows[i][2];
+            var total = rows[i].encode + rows[i].decode;
             if (total > max_time) {
                 max_time = total;
             }
@@ -366,13 +391,13 @@ msgpack_, and pydantic_ combined. However, the total installed binary size of
         var columns = ["encode", "decode", "total"];
         var data = [];
         for (i = 0; i < rows.length; i++) {
-            var lib = rows[i][0];
-            var et = rows[i][1] * scale;
-            var dt = rows[i][2] * scale;
+            var label = rows[i].label;
+            var et = rows[i].encode * scale;
+            var dt = rows[i].decode * scale;
             var tt = et + dt;
-            data.push({library: lib, method: "encode", time: et});
-            data.push({library: lib, method: "decode", time: dt});
-            data.push({library: lib, method: "total", time: tt});
+            data.push({library: label, method: "encode", time: et});
+            data.push({library: label, method: "decode", time: dt});
+            data.push({library: label, method: "total", time: tt});
         }
 
         var spec = {
@@ -403,7 +428,6 @@ msgpack_, and pydantic_ combined. However, the total installed binary size of
                 "row": {
                     "field": "library",
                     "header": {
-                        "labelExpr": "split(datum.label, ' ')",
                         "orient": "left",
                         "labelAngle": 0,
                         "labelAlign": "left",
@@ -430,20 +454,92 @@ msgpack_, and pydantic_ combined. However, the total installed binary size of
         vegaEmbed(div, spec);
     }
 
-    var results = {"1": [["ujson", 8.829250499984482e-07, 8.730858320013794e-07], ["orjson", 3.096652690001065e-07, 6.008548780009733e-07], ["msgpack", 3.735713579990261e-07, 6.712430439984019e-07], ["msgspec msgpack", 1.209437355000773e-07, 2.4524554299932786e-07], ["msgspec json", 1.5702481800053648e-07, 2.9431164100060416e-07]], "1k": [["ujson", 0.0006268990559983649, 0.0008841279000007489], ["orjson", 0.00022851538299983076, 0.0005686095599994587], ["msgpack", 0.000333242345999679, 0.0007984013619970938], ["msgspec msgpack", 7.986827880013152e-05, 0.0002904889190012909], ["msgspec json", 0.00012921423349962423, 0.00030142520899971713]]}
-    var results_valid = [["msgspec", 0.00014108686700001273, 0.0003501984610011277], ["pydantic", 0.015396889400017244, 0.022798635399885823], ["cattrs", 0.0025966005599912024, 0.0033668910000051256], ["mashumaro", 0.0009302718219987582, 0.0037224738400072964]]
-    buildPlot('#bench-1', results["1"], "Benchmark - 1 Object");
-    buildPlot('#bench-1k', results["1k"], "Benchmark - 1000 Objects");
-    buildPlot('#bench-1k-validate', results_valid, "Benchmark - 1000 Objects, With Validation");
+    function buildMemPlot(div, rows, title) {
+        var data = [];
+        for (i = 0; i < rows.length; i++) {
+            data.push({library: rows[i].label, memory: rows[i].memory});
+        }
+
+        var spec = {
+            "$schema": "https://vega.github.io/schema/vega-lite/v5.2.0.json",
+            "title": title,
+            "config": {
+                "view": {"stroke": null},
+                "legend": {"title": null, "labelFontSize": 12},
+                "title": {"fontSize": 14, "offset": 10},
+                "axis": {"titleFontSize": 12, "titlePadding": 10}
+            },
+            "width": "container",
+            "data": {"values": data},
+            "transform": [
+                {
+                    "calculate": "join([format(datum.memory, '.3'), ' MiB'], '')",
+                    "as": "tooltip",
+                }
+            ],
+            "mark": "bar",
+            "encoding": {
+                "row": {
+                    "field": "library",
+                    "header": {
+                        "orient": "left",
+                        "labelAngle": 0,
+                        "labelAlign": "left",
+                        "labelFontSize": 12
+                    },
+                    "sort": {"field": "memory", "order": "ascending"},
+                    "title": null,
+                    "type": "nominal",
+                },
+                "tooltip": {"field": "tooltip", "type": "nominal"},
+                "x": {
+                    "axis": {"grid": false, "title": "Memory (MiB)"},
+                    "field": "memory",
+                    "type": "quantitative",
+                },
+            },
+        };
+        vegaEmbed(div, spec);
+    }
+
+    var results_valid = [
+        {"label": "msgspec", "encode": 0.00016727479400015, "decode": 0.0004222057979986857, "memory": 0.640625},
+        {"label": "mashumaro", "encode": 0.000797896412001137, "decode": 0.0026786830099990765, "memory": 7.1171875},
+        {"label": "cattrs", "encode": 0.002065396289999626, "decode": 0.0033923348699954657, "memory": 3.25390625},
+        {"label": "pydantic v2", "encode": 0.0034702956599994648, "decode": 0.0038069566000012854, "memory": 16.26171875},
+        {"label": "pydantic v1", "encode": 0.01961492505001843, "decode": 0.02528851079996457, "memory": 10.03125},
+    ];
+    var results_json = [
+        {"label": "msgspec structs", "encode": 0.00014051752349996606, "decode": 0.00036725287499939443},
+        {"label": "msgspec", "encode": 0.00018274705249996258, "decode": 0.00048175174399875685},
+        {"label": "json", "encode": 0.0012280583099982323, "decode": 0.0009195450700008223},
+        {"label": "orjson", "encode": 0.00017935967999983403, "decode": 0.0004634268540012272},
+        {"label": "ujson", "encode": 0.0006279176680000091, "decode": 0.0008554406740004197},
+        {"label": "rapidjson", "encode": 0.000513588076000815, "decode": 0.0011320363100003306},
+        {"label": "simdjson", "encode": 0.00123421613499886, "decode": 0.0007710835699999734},
+    ];
+    var results_msgpack = [
+        {"label": "msgspec structs", "encode": 0.0001536652545000834, "decode": 0.0003513430250004603},
+        {"label": "msgspec", "encode": 0.00012540720800006966, "decode": 0.00048454183800095054},
+        {"label": "msgpack", "encode": 0.00040564010999878517, "decode": 0.0008212748599999031},
+        {"label": "ormsgpack", "encode": 0.0001669060230001378, "decode": 0.000755966658000034},
+    ];
+    buildPlot('#bench-validate', results_valid, "Benchmark - JSON Serialization & Validation");
+    buildMemPlot('#bench-validate-memory', results_valid, "Benchmark - Serialization & Validation");
+    buildPlot('#bench-json', results_json, "Benchmark - JSON Serialization");
+    buildPlot('#bench-msgpack', results_msgpack, "Benchmark - MessagePack Serialization");
     </script>
 
 
 .. _msgspec: https://jcristharif.com/msgspec/
 .. _msgpack: https://github.com/msgpack/msgpack-python
+.. _ormsgpack: https://github.com/aviramha/ormsgpack
+.. _MessagePack: https://msgpack.org
 .. _orjson: https://github.com/ijl/orjson
 .. _json: https://docs.python.org/3/library/json.html
 .. _simdjson: https://github.com/TkTech/pysimdjson
 .. _ujson: https://github.com/ultrajson/ultrajson
+.. _rapidjson: https://github.com/python-rapidjson/python-rapidjson
 .. _attrs: https://www.attrs.org
 .. _dataclasses: https://docs.python.org/3/library/dataclasses.html
 .. _pydantic: https://pydantic-docs.helpmanual.io/
