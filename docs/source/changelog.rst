@@ -3,6 +3,30 @@ Changelog
 
 .. currentmodule:: msgspec
 
+Version 0.18.5 (2023-12-12)
+---------------------------
+
+- Support unhashable ``Annotated`` metadata in `msgspec.inspect.type_info`
+  (:pr:`566`).
+- Fix bug preventing decoding dataclasses/attrs types with default values and
+  ``slots=True, frozen=True`` (:pr:`569`).
+- Support passing parametrized generic struct types to `msgspec.structs.fields`
+  (:pr:`571`).
+- Validate ``str`` constraints on dict keys when decoding msgpack (:pr:`577`).
+- Support ``UUID`` subclasses as inputs to `msgspec.convert` (:pr:`592`).
+- Call ``__eq__`` from generated ``__ne__`` if user defines manual ``__eq__``
+  method on a ``Struct`` type (:pr:`593`).
+- Include the ``Struct`` type in the generated hash (:pr:`595`).
+- Add a ``cache_hash`` struct option (:pr:`596`).
+- Fix a bug around caching of dataclass type info when dealing with subclasses
+  of dataclasses (:pr:`599`).
+- Add `msgspec.structs.force_setattr` (:pr:`600`).
+- Support custom dict key types in JSON encoder and decoder (:pr:`602`).
+- Include ``dict`` key constraints in generated JSON schema via the
+  ``propertyNames`` field (:pr:`604`).
+- Add a ``schema_hook`` for generating JSON schemas for custom types (:pr:`605`).
+- Add support for Python 3.12's ``type`` aliases (:pr:`606`).
+
 Version 0.18.4 (2023-10-04)
 ---------------------------
 
