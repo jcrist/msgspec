@@ -139,6 +139,11 @@ few:
 
         .. image:: _static/anywidget.png
 
+    .. grid-item-card:: esmerald
+        :link: https://esmerald.dev/
+
+        .. image:: _static/esmerald.png
+
 
 .. _type annotations: https://docs.python.org/3/library/typing.html
 .. _JSON: https://json.org
