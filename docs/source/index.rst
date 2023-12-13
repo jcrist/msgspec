@@ -159,6 +159,7 @@ few:
 
     why.rst
     install.rst
+    benchmarks.rst
 
 .. toctree::
     :hidden:
@@ -188,6 +189,5 @@ few:
     :caption: Reference
 
     api.rst
-    benchmarks.rst
     examples/index.rst
     changelog.rst
