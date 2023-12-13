@@ -195,6 +195,7 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="why.html">Why msgspec?</a></li>
 <li class="toctree-l1"><a class="reference internal" href="install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="benchmarks.html">Benchmarks</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
 <ul>
@@ -215,7 +216,6 @@
 <p class="caption" role="heading"><span class="caption-text">Reference</span></p>
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="api.html">API Docs</a></li>
-<li class="toctree-l1"><a class="reference internal" href="benchmarks.html">Benchmarks</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="examples/index.html">Examples</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle navigation of Examples</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="examples/geojson.html">GeoJSON</a></li>
 <li class="toctree-l2"><a class="reference internal" href="examples/asyncio-kv.html">Asyncio TCP Key-Value Server</a></li>
@@ -261,6 +261,31 @@
         <article role="main">
           <section id="changelog">
 <h1>Changelog<a class="headerlink" href="#changelog" title="Permalink to this heading">#</a></h1>
+<section id="version-0-18-5-2023-12-12">
+<h2>Version 0.18.5 (2023-12-12)<a class="headerlink" href="#version-0-18-5-2023-12-12" title="Permalink to this heading">#</a></h2>
+<ul class="simple">
+<li><p>Support unhashable <code class="docutils literal notranslate"><span class="pre">Annotated</span></code> metadata in <a class="reference internal" href="api.html#msgspec.inspect.type_info" title="msgspec.inspect.type_info"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.inspect.type_info</span></code></a>
+(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/566">PR #566</a>).</p></li>
+<li><p>Fix bug preventing decoding dataclasses/attrs types with default values and
+<code class="docutils literal notranslate"><span class="pre">slots=True,</span> <span class="pre">frozen=True</span></code> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/569">PR #569</a>).</p></li>
+<li><p>Support passing parametrized generic struct types to <a class="reference internal" href="api.html#msgspec.structs.fields" title="msgspec.structs.fields"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.structs.fields</span></code></a>
+(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/571">PR #571</a>).</p></li>
+<li><p>Validate <code class="docutils literal notranslate"><span class="pre">str</span></code> constraints on dict keys when decoding msgpack (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/577">PR #577</a>).</p></li>
+<li><p>Support <code class="docutils literal notranslate"><span class="pre">UUID</span></code> subclasses as inputs to <a class="reference internal" href="api.html#msgspec.convert" title="msgspec.convert"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.convert</span></code></a> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/592">PR #592</a>).</p></li>
+<li><p>Call <code class="docutils literal notranslate"><span class="pre">__eq__</span></code> from generated <code class="docutils literal notranslate"><span class="pre">__ne__</span></code> if user defines manual <code class="docutils literal notranslate"><span class="pre">__eq__</span></code>
+method on a <code class="docutils literal notranslate"><span class="pre">Struct</span></code> type (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/593">PR #593</a>).</p></li>
+<li><p>Include the <code class="docutils literal notranslate"><span class="pre">Struct</span></code> type in the generated hash (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/595">PR #595</a>).</p></li>
+<li><p>Add a <code class="docutils literal notranslate"><span class="pre">cache_hash</span></code> struct option (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/596">PR #596</a>).</p></li>
+<li><p>Fix a bug around caching of dataclass type info when dealing with subclasses
+of dataclasses (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/599">PR #599</a>).</p></li>
+<li><p>Add <a class="reference internal" href="api.html#msgspec.structs.force_setattr" title="msgspec.structs.force_setattr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.structs.force_setattr</span></code></a> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/600">PR #600</a>).</p></li>
+<li><p>Support custom dict key types in JSON encoder and decoder (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/602">PR #602</a>).</p></li>
+<li><p>Include <code class="docutils literal notranslate"><span class="pre">dict</span></code> key constraints in generated JSON schema via the
+<code class="docutils literal notranslate"><span class="pre">propertyNames</span></code> field (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/604">PR #604</a>).</p></li>
+<li><p>Add a <code class="docutils literal notranslate"><span class="pre">schema_hook</span></code> for generating JSON schemas for custom types (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/605">PR #605</a>).</p></li>
+<li><p>Add support for Python 3.12’s <code class="docutils literal notranslate"><span class="pre">type</span></code> aliases (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/606">PR #606</a>).</p></li>
+</ul>
+</section>
 <section id="version-0-18-4-2023-10-04">
 <h2>Version 0.18.4 (2023-10-04)<a class="headerlink" href="#version-0-18-4-2023-10-04" title="Permalink to this heading">#</a></h2>
 <ul class="simple">
@@ -825,6 +850,7 @@ faster decoding.</p></li>
           <div class="toc-tree">
             <ul>
 <li><a class="reference internal" href="#">Changelog</a><ul>
+<li><a class="reference internal" href="#version-0-18-5-2023-12-12">Version 0.18.5 (2023-12-12)</a></li>
 <li><a class="reference internal" href="#version-0-18-4-2023-10-04">Version 0.18.4 (2023-10-04)</a></li>
 <li><a class="reference internal" href="#version-0-18-3-2023-10-03">Version 0.18.3 (2023-10-03)</a></li>
 <li><a class="reference internal" href="#version-0-18-2-2023-08-26">Version 0.18.2 (2023-08-26)</a></li>

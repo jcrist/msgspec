@@ -519,10 +519,10 @@ smaller on disk.
         {"label": "simdjson", "encode": 0.00123421613499886, "decode": 0.0007710835699999734},
     ];
     var results_msgpack = [
-        {"label": "msgspec structs", "encode": 0.0001536652545000834, "decode": 0.0003513430250004603},
-        {"label": "msgspec", "encode": 0.00012540720800006966, "decode": 0.00048454183800095054},
-        {"label": "msgpack", "encode": 0.00040564010999878517, "decode": 0.0008212748599999031},
-        {"label": "ormsgpack", "encode": 0.0001669060230001378, "decode": 0.000755966658000034},
+        {"label": "msgspec structs", "encode": 0.00011157811949942698, "decode": 0.000347989668000082},
+        {"label": "msgspec", "encode": 0.00012483930500002316, "decode": 0.000487175850001222},
+        {"label": "msgpack", "encode": 0.00040346372400017574, "decode": 0.0007988804240012541},
+        {"label": "ormsgpack", "encode": 0.00016052370499983226, "decode": 0.0007458347079991654}
     ];
     buildPlot('#bench-validate', results_valid, "Benchmark - JSON Serialization & Validation");
     buildMemPlot('#bench-validate-memory', results_valid, "Benchmark - Serialization & Validation");

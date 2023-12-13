@@ -3,7 +3,7 @@
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
     <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
-<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Examples" href="examples/index.html" /><link rel="prev" title="API Docs" href="api.html" />
+<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Usage" href="usage.html" /><link rel="prev" title="Installation" href="install.html" />
 
     <!-- Generated with Sphinx 7.1.2 and Furo 2023.09.10 -->
         <title>Benchmarks</title>
@@ -192,9 +192,10 @@
 </form>
 <div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
   <p class="caption" role="heading"><span class="caption-text">Overview</span></p>
-<ul>
+<ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="why.html">Why msgspec?</a></li>
 <li class="toctree-l1"><a class="reference internal" href="install.html">Installation</a></li>
+<li class="toctree-l1 current current-page"><a class="current reference internal" href="#">Benchmarks</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
 <ul>
@@ -213,9 +214,8 @@
 <li class="toctree-l1"><a class="reference internal" href="perf-tips.html">Performance Tips</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Reference</span></p>
-<ul class="current">
+<ul>
 <li class="toctree-l1"><a class="reference internal" href="api.html">API Docs</a></li>
-<li class="toctree-l1 current current-page"><a class="current reference internal" href="#">Benchmarks</a></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="examples/index.html">Examples</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle navigation of Examples</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="examples/geojson.html">GeoJSON</a></li>
 <li class="toctree-l2"><a class="reference internal" href="examples/asyncio-kv.html">Asyncio TCP Key-Value Server</a></li>
@@ -805,10 +805,10 @@ var results_json = [
     {"label": "simdjson", "encode": 0.00123421613499886, "decode": 0.0007710835699999734},
 ];
 var results_msgpack = [
-    {"label": "msgspec structs", "encode": 0.0001536652545000834, "decode": 0.0003513430250004603},
-    {"label": "msgspec", "encode": 0.00012540720800006966, "decode": 0.00048454183800095054},
-    {"label": "msgpack", "encode": 0.00040564010999878517, "decode": 0.0008212748599999031},
-    {"label": "ormsgpack", "encode": 0.0001669060230001378, "decode": 0.000755966658000034},
+    {"label": "msgspec structs", "encode": 0.00011157811949942698, "decode": 0.000347989668000082},
+    {"label": "msgspec", "encode": 0.00012483930500002316, "decode": 0.000487175850001222},
+    {"label": "msgpack", "encode": 0.00040346372400017574, "decode": 0.0007988804240012541},
+    {"label": "ormsgpack", "encode": 0.00016052370499983226, "decode": 0.0007458347079991654}
 ];
 buildPlot('#bench-validate', results_valid, "Benchmark - JSON Serialization & Validation");
 buildMemPlot('#bench-validate-memory', results_valid, "Benchmark - Serialization & Validation");
@@ -822,23 +822,23 @@ buildPlot('#bench-msgpack', results_msgpack, "Benchmark - MessagePack Serializat
       <footer>
         
         <div class="related-pages">
-          <a class="next-page" href="examples/index.html">
+          <a class="next-page" href="usage.html">
               <div class="page-info">
                 <div class="context">
                   <span>Next</span>
                 </div>
-                <div class="title">Examples</div>
+                <div class="title">Usage</div>
               </div>
               <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
             </a>
-          <a class="prev-page" href="api.html">
+          <a class="prev-page" href="install.html">
               <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
               <div class="page-info">
                 <div class="context">
                   <span>Previous</span>
                 </div>
                 
-                <div class="title">API Docs</div>
+                <div class="title">Installation</div>
                 
               </div>
             </a>
