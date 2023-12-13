@@ -42,7 +42,7 @@ Use Structs
 -----------
 
 :doc:`structs` are msgspec's native way of expressing user-defined types.
-They're :ref:`fast to encode/decode <encoding-benchmark>` and :ref:`fast to use
+They're :ref:`fast to encode/decode <json-benchmark>` and :ref:`fast to use
 <struct-benchmark>`. If you have data with a known schema, we recommend
 defining a `msgspec.Struct` type (or types) for your schema and preferring that
 over other types like `dict`/`dataclasses`/...
@@ -239,7 +239,7 @@ Use MessagePack
 ---------------
 
 ``msgspec`` supports both JSON_ and MessagePack_ protocols. The latter is less
-commonly used, but :ref:`can be more performant <encoding-benchmark>`. If
+commonly used, but :ref:`can be more performant <msgpack-benchmark>`. If
 performance is an issue (and MessagePack is an acceptable solution), you may
 benefit from using it instead of JSON. And since ``msgspec`` supports both
 protocols with a consistent interface, switching from ``msgspec.json`` to

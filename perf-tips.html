@@ -295,7 +295,7 @@ typed, you may need to create multiple decoders, one for each type.</p>
 <section id="use-structs">
 <h2>Use Structs<a class="headerlink" href="#use-structs" title="Permalink to this heading">#</a></h2>
 <p><a class="reference internal" href="structs.html"><span class="doc">Structs</span></a> are msgspec’s native way of expressing user-defined types.
-They’re <a class="reference internal" href="benchmarks.html#encoding-benchmark"><span class="std std-ref">fast to encode/decode</span></a> and <a class="reference internal" href="benchmarks.html#struct-benchmark"><span class="std std-ref">fast to use</span></a>. If you have data with a known schema, we recommend
+They’re <a class="reference internal" href="benchmarks.html#json-benchmark"><span class="std std-ref">fast to encode/decode</span></a> and <a class="reference internal" href="benchmarks.html#struct-benchmark"><span class="std std-ref">fast to use</span></a>. If you have data with a known schema, we recommend
 defining a <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> type (or types) for your schema and preferring that
 over other types like <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a>/<a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#module-dataclasses" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses</span></code></a>/…</p>
 </section>
@@ -459,7 +459,7 @@ efficient to do using <code class="docutils literal notranslate"><span class="pr
 <section id="use-messagepack">
 <h2>Use MessagePack<a class="headerlink" href="#use-messagepack" title="Permalink to this heading">#</a></h2>
 <p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> supports both <a class="reference external" href="https://json.org">JSON</a> and <a class="reference external" href="https://msgpack.org">MessagePack</a> protocols. The latter is less
-commonly used, but <a class="reference internal" href="benchmarks.html#encoding-benchmark"><span class="std std-ref">can be more performant</span></a>. If
+commonly used, but <a class="reference internal" href="benchmarks.html#msgpack-benchmark"><span class="std std-ref">can be more performant</span></a>. If
 performance is an issue (and MessagePack is an acceptable solution), you may
 benefit from using it instead of JSON. And since <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> supports both
 protocols with a consistent interface, switching from <code class="docutils literal notranslate"><span class="pre">msgspec.json</span></code> to

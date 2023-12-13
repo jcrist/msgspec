@@ -273,87 +273,67 @@ publish it’s going to perform well in.</p>
 can be, and the results hopefully indicate a few tradeoffs you make when
 you choose different serialization formats. I encourage you to write your
 own benchmarks before making these decisions.</p>
+<p>In all cases benchmarks were run on my local development machine (a ~2020
+x86 Linux laptop) using CPython 3.11.</p>
 </div>
-<section id="benchmark-encoding-decoding">
-<span id="encoding-benchmark"></span><h2>Benchmark - Encoding/Decoding<a class="headerlink" href="#benchmark-encoding-decoding" title="Permalink to this heading">#</a></h2>
-<p>Here we show a simple benchmark serializing some structured data. The data
-we’re serializing has the following schema (defined here using <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a>
-types):</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">datetime</span>
+<section id="json-serialization-validation">
+<h2>JSON Serialization &amp; Validation<a class="headerlink" href="#json-serialization-validation" title="Permalink to this heading">#</a></h2>
+<p>This benchmark covers the common case when working with <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> or other
+validation libraries. It measures two things:</p>
+<ul class="simple">
+<li><p>Decoding some JSON input, validating it against a schema, and converting it
+into user-friendly python objects.</p></li>
+<li><p>Encoding these same python objects back into JSON.</p></li>
+</ul>
+<p>The data we’re working with has the following schema (defined here using
+<a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> types):</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">enum</span>
+<span class="kn">import</span> <span class="nn">datetime</span>
 <span class="kn">import</span> <span class="nn">msgspec</span>
 
-<span class="k">class</span> <span class="nc">File</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">tag</span><span class="o">=</span><span class="s2">&quot;file&quot;</span><span class="p">):</span>
-    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
-    <span class="n">created_by</span><span class="p">:</span> <span class="nb">str</span>
-    <span class="n">created_at</span><span class="p">:</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span>
-    <span class="n">updated_at</span><span class="p">:</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span>
-    <span class="n">nbytes</span><span class="p">:</span> <span class="nb">int</span>
+<span class="k">class</span> <span class="nc">Permissions</span><span class="p">(</span><span class="n">enum</span><span class="o">.</span><span class="n">Enum</span><span class="p">):</span>
+    <span class="n">READ</span> <span class="o">=</span> <span class="s2">&quot;READ&quot;</span>
+    <span class="n">WRITE</span> <span class="o">=</span> <span class="s2">&quot;WRITE&quot;</span>
+    <span class="n">READ_WRITE</span> <span class="o">=</span> <span class="s2">&quot;READ_WRITE&quot;</span>
 
-<span class="k">class</span> <span class="nc">Directory</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">tag</span><span class="o">=</span><span class="s2">&quot;directory&quot;</span><span class="p">):</span>
+
+<span class="k">class</span> <span class="nc">File</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">kw_only</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">tag</span><span class="o">=</span><span class="s2">&quot;file&quot;</span><span class="p">):</span>
     <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
     <span class="n">created_by</span><span class="p">:</span> <span class="nb">str</span>
     <span class="n">created_at</span><span class="p">:</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span>
-    <span class="n">updated_at</span><span class="p">:</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span>
+    <span class="n">updated_by</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">updated_at</span><span class="p">:</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">nbytes</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">permissions</span><span class="p">:</span> <span class="n">Permissions</span>
+
+
+<span class="k">class</span> <span class="nc">Directory</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">kw_only</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">tag</span><span class="o">=</span><span class="s2">&quot;directory&quot;</span><span class="p">):</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">created_by</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">created_at</span><span class="p">:</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span>
+    <span class="n">updated_by</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">updated_at</span><span class="p">:</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">contents</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">File</span> <span class="o">|</span> <span class="n">Directory</span><span class="p">]</span>
 </pre></div>
 </div>
-<p>The libraries we’re benchmarking are the following:</p>
+<p>The libraries we’re comparing are the following:</p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">ujson</span></code> (<a class="reference external" href="https://github.com/ultrajson/ultrajson">link</a>)</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">orjson</span></code> (<a class="reference external" href="https://github.com/ijl/orjson">link</a>)</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">msgpack</span></code> (<a class="reference external" href="https://github.com/msgpack/msgpack-python">link</a>)</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">msgspec.msgpack</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">msgspec.json</span></code></p></li>
+<li><p><a class="reference external" href="https://jcristharif.com/msgspec/">msgspec</a> (0.18.5)</p></li>
+<li><p><a class="reference external" href="https://github.com/Fatal1ty/mashumaro">mashumaro</a> (3.11)</p></li>
+<li><p><a class="reference external" href="https://pydantic-docs.helpmanual.io/">pydantic</a> (both 1.10.13 and 2.5.2)</p></li>
+<li><p><a class="reference external" href="https://catt.rs/en/latest/">cattrs</a> (23.2.3)</p></li>
 </ul>
 <p>Each benchmark creates a message containing one or more <code class="docutils literal notranslate"><span class="pre">File</span></code>/<code class="docutils literal notranslate"><span class="pre">Directory</span></code>
-instances, then then serializes and deserializes it in a loop.</p>
+instances, then then serializes, deserializes, and validates it in a loop.</p>
 <p>The full benchmark source can be found
-<a class="reference external" href="https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_encodings.py">here</a>.</p>
-<section id="object">
-<h3>1 Object<a class="headerlink" href="#object" title="Permalink to this heading">#</a></h3>
-<p>Some workflows involve sending around very small messages. Here the overhead
-per function call dominates (parsing of options, allocating temporary buffers,
-etc…).</p>
-<div id="bench-1" style="width:75%"></div><p>From the chart above, you can see that <code class="docutils literal notranslate"><span class="pre">msgspec.msgpack</span></code> and <code class="docutils literal notranslate"><span class="pre">msgspec.json</span></code>
-performed quite well, encoding/decoding faster than all other options, even
-those implementing the same serialization protocol. This is partly due to the
-use of <code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code> types here - since all keys are statically known, the msgspec
-decoders can apply a few optimizations not available to other Python libraries
-that rely on <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a> types instead.</p>
-<p>That said, all of these methods serialize/deserialize pretty quickly relative
-to other python operations, so unless you’re counting every microsecond your
-choice here probably doesn’t matter that much.</p>
-</section>
-<section id="objects">
-<h3>1000 Objects<a class="headerlink" href="#objects" title="Permalink to this heading">#</a></h3>
-<p>Here we serialize a tree of 1000 <code class="docutils literal notranslate"><span class="pre">File</span></code>/<code class="docutils literal notranslate"><span class="pre">Directory</span></code> objects. There’s a lot
-more data here, so the per-call overhead will no longer dominate, and we’re now
-measuring the efficiency of the encoding/decoding.</p>
-<div id="bench-1k" style="width:75%"></div></section>
-</section>
-<section id="benchmark-schema-validation">
-<h2>Benchmark - Schema Validation<a class="headerlink" href="#benchmark-schema-validation" title="Permalink to this heading">#</a></h2>
-<p>The above benchmarks aren’t 100% fair to <code class="docutils literal notranslate"><span class="pre">msgspec</span></code>, as it also performs
-schema validation on deserialization, checking that the message matches the
-specified schema. None of the other options benchmarked support this natively.
-Instead, many users perform validation post deserialization using additional
-tools like <a class="reference external" href="https://pydantic-docs.helpmanual.io/">pydantic</a>.</p>
-<p>Here we benchmark the following validation libraries, measuring JSON encoding
-and decoding time.</p>
-<ul class="simple">
-<li><p><a class="reference external" href="https://jcristharif.com/msgspec/">msgspec</a></p></li>
-<li><p><a class="reference external" href="https://pydantic-docs.helpmanual.io/">pydantic</a></p></li>
-<li><p><a class="reference external" href="https://catt.rs/en/latest/">cattrs</a></p></li>
-<li><p><a class="reference external" href="https://github.com/Fatal1ty/mashumaro">mashumaro</a></p></li>
-</ul>
-<p>The full benchmark source can be found
-<a class="reference external" href="https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_validation.py">here</a>.</p>
-<div id="bench-1k-validate" style="width:75%"></div><p>This plot shows the performance benefit of performing type validation during
+<a class="reference external" href="https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_validation">here</a>.</p>
+<div id="bench-validate" style="width:75%"></div><p>In this benchmark <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> is ~6x faster than <code class="docutils literal notranslate"><span class="pre">mashumaro</span></code>, ~10x faster
+than <code class="docutils literal notranslate"><span class="pre">cattrs</span></code>, and ~12x faster than <code class="docutils literal notranslate"><span class="pre">pydantic</span></code> V2, and ~85x faster than
+<code class="docutils literal notranslate"><span class="pre">pydantic</span></code> V1.</p>
+<p>This plot shows the performance benefit of performing type validation during
 message decoding (as done by <code class="docutils literal notranslate"><span class="pre">msgspec</span></code>) rather than as a secondary step with
-a third-party library like <a class="reference external" href="https://pydantic-docs.helpmanual.io/">pydantic</a>. In this benchmark <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> is ~10x
-faster than <code class="docutils literal notranslate"><span class="pre">mashumaro</span></code>, ~12x faster than <code class="docutils literal notranslate"><span class="pre">cattrs</span></code>, and ~80x faster than
-<code class="docutils literal notranslate"><span class="pre">pydantic</span></code>.</p>
-<p>Validating after decoding is slower for two reasons:</p>
+a third-party library like <a class="reference external" href="https://catt.rs/en/latest/">cattrs</a> or <a class="reference external" href="https://pydantic-docs.helpmanual.io/">pydantic</a> V1. Validating after decoding
+is slower for two reasons:</p>
 <ul class="simple">
 <li><p>It requires traversing over the entire output structure a second time (which
 can be slow due to pointer chasing)</p></li>
@@ -365,23 +345,66 @@ allocating many temporary python objects.</p></li>
 of these issues. Only a single pass over the decoded data is taken, and the
 specified output types are created correctly the first time, avoiding the need
 for additional unnecessary allocations.</p>
+<p>This benefit also shows up in the memory usage for the same benchmark:</p>
+<div id="bench-validate-memory" style="width:75%"></div><p>Here we compare the peak increase in memory usage (RSS) after loading the
+schemas and data. <code class="docutils literal notranslate"><span class="pre">msgspec</span></code>’s small library size, schema representation, and
+in-memory state means it uses a fraction of the memory of other tools.</p>
 </section>
-<section id="benchmark-memory-usage">
-<span id="memory-benchmark"></span><h2>Benchmark - Memory Usage<a class="headerlink" href="#benchmark-memory-usage" title="Permalink to this heading">#</a></h2>
-<p>Here we benchmark loading a <a class="reference external" href="https://conda.anaconda.org/conda-forge/noarch/repodata.json">medium-sized JSON file</a> (~65 MiB)
+<section id="json-serialization">
+<span id="json-benchmark"></span><h2>JSON Serialization<a class="headerlink" href="#json-serialization" title="Permalink to this heading">#</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> includes its own high performance JSON library, which may be used
+by itself as a replacement for the standard library’s <a class="reference external" href="https://docs.python.org/3/library/json.html#json.dumps" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">json.dumps</span></code></a>/<a class="reference external" href="https://docs.python.org/3/library/json.html#json.loads" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">json.loads</span></code></a>
+functions. Here we compare msgspec’s JSON implementation against several other
+popular Python JSON libraries.</p>
+<ul class="simple">
+<li><p><a class="reference external" href="https://jcristharif.com/msgspec/">msgspec</a> (0.18.5)</p></li>
+<li><p><a class="reference external" href="https://github.com/ijl/orjson">orjson</a> (3.9.10)</p></li>
+<li><p><a class="reference external" href="https://github.com/ultrajson/ultrajson">ujson</a> (5.9.0)</p></li>
+<li><p><a class="reference external" href="https://github.com/python-rapidjson/python-rapidjson">rapidjson</a> (1.13)</p></li>
+<li><p><a class="reference external" href="https://github.com/TkTech/pysimdjson">simdjson</a> (5.0.2)</p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/json.html">json</a> (standard library)</p></li>
+</ul>
+<p>The full benchmark source can be found
+<a class="reference external" href="https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_encodings.py">here</a>.</p>
+<div id="bench-json" style="width:75%"></div><p>In this case <code class="docutils literal notranslate"><span class="pre">msgspec</span> <span class="pre">structs</span></code> (which measures <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> with
+<code class="docutils literal notranslate"><span class="pre">msgspec.Struct</span></code> schemas pre-defined) is the fastest. When used without
+schemas, <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> is on-par with <code class="docutils literal notranslate"><span class="pre">orjson</span></code> (the next fastest JSON library).</p>
+<p>This shows that <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> is able to decode JSON faster when a schema is
+provided. Due to a more efficient in memory representation, JSON decoding AND
+schema validation with <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> than just JSON decoding alone.</p>
+</section>
+<section id="messagepack-serialization">
+<span id="msgpack-benchmark"></span><h2>MessagePack Serialization<a class="headerlink" href="#messagepack-serialization" title="Permalink to this heading">#</a></h2>
+<p>Likewise, <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> includes its own high performance <a class="reference external" href="https://msgpack.org">MessagePack</a> library,
+which may be used by itself without requiring usage of any of msgspec’s
+validation machinery. Here we compare msgspec’s MessagePack implementation
+against several other popular Python MessagePack libraries.</p>
+<ul class="simple">
+<li><p><a class="reference external" href="https://jcristharif.com/msgspec/">msgspec</a> (0.18.5)</p></li>
+<li><p><a class="reference external" href="https://github.com/msgpack/msgpack-python">msgpack</a> (1.0.7)</p></li>
+<li><p><a class="reference external" href="https://github.com/aviramha/ormsgpack">ormsgpack</a> (1.4.1)</p></li>
+</ul>
+<div id="bench-msgpack" style="width:75%"></div><p>As with the JSON benchmark above, <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> with a schema provided (<code class="docutils literal notranslate"><span class="pre">msgspec</span>
+<span class="pre">structs</span></code>) is faster than <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> with no schema. In both cases though
+<code class="docutils literal notranslate"><span class="pre">msgspec</span></code> is measurably faster than other Python MessagePack libraries like
+<code class="docutils literal notranslate"><span class="pre">msgpack</span></code> or <code class="docutils literal notranslate"><span class="pre">ormsgpack</span></code>.</p>
+</section>
+<section id="json-serialization-large-data">
+<h2>JSON Serialization - Large Data<a class="headerlink" href="#json-serialization-large-data" title="Permalink to this heading">#</a></h2>
+<p>Here we benchmark loading a <a class="reference external" href="https://conda.anaconda.org/conda-forge/noarch/repodata.json">large JSON file</a> (~77 MiB)
 containing information on all the <code class="docutils literal notranslate"><span class="pre">noarch</span></code> packages in <a class="reference external" href="https://conda-forge.org/">conda-forge</a>. We
 compare the following libraries:</p>
 <ul class="simple">
-<li><p><a class="reference external" href="https://jcristharif.com/msgspec/">msgspec</a> with <code class="docutils literal notranslate"><span class="pre">msgspec.Struct</span></code> schemas pre-defined</p></li>
-<li><p><a class="reference external" href="https://jcristharif.com/msgspec/">msgspec</a></p></li>
-<li><p><a class="reference external" href="https://docs.python.org/3/library/json.html">json</a></p></li>
-<li><p><a class="reference external" href="https://github.com/ultrajson/ultrajson">ujson</a></p></li>
-<li><p><a class="reference external" href="https://github.com/ijl/orjson">orjson</a></p></li>
-<li><p><a class="reference external" href="https://github.com/TkTech/pysimdjson">simdjson</a></p></li>
+<li><p><a class="reference external" href="https://jcristharif.com/msgspec/">msgspec</a> (0.18.5)</p></li>
+<li><p><a class="reference external" href="https://github.com/ijl/orjson">orjson</a> (3.9.10)</p></li>
+<li><p><a class="reference external" href="https://github.com/ultrajson/ultrajson">ujson</a> (5.9.0)</p></li>
+<li><p><a class="reference external" href="https://github.com/python-rapidjson/python-rapidjson">rapidjson</a> (1.13)</p></li>
+<li><p><a class="reference external" href="https://github.com/TkTech/pysimdjson">simdjson</a> (5.0.2)</p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/json.html">json</a> (standard library)</p></li>
 </ul>
 <p>For each library, we measure both the peak increase in memory usage (RSS) and
 the time to JSON decode the file.</p>
-<p>The full benchmark source can be found <a class="reference external" href="https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_memory.py">here</a>.</p>
+<p>The full benchmark source can be found <a class="reference external" href="https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_large_json.py">here</a>.</p>
 <p><strong>Results (smaller is better):</strong></p>
 <div class="table-wrapper docutils container">
 <table class="docutils align-default">
@@ -395,40 +418,46 @@ the time to JSON decode the file.</p>
 </thead>
 <tbody>
 <tr class="row-even"><td><p><strong>msgspec structs</strong></p></td>
-<td><p>83.6</p></td>
+<td><p>67.6</p></td>
 <td><p>1.0x</p></td>
-<td><p>170.6</p></td>
+<td><p>176.8</p></td>
 <td><p>1.0x</p></td>
 </tr>
 <tr class="row-odd"><td><p><strong>msgspec</strong></p></td>
-<td><p>145.3</p></td>
-<td><p>1.7x</p></td>
-<td><p>383.1</p></td>
-<td><p>2.2x</p></td>
+<td><p>218.3</p></td>
+<td><p>3.2x</p></td>
+<td><p>630.5</p></td>
+<td><p>3.6x</p></td>
 </tr>
 <tr class="row-even"><td><p><strong>json</strong></p></td>
-<td><p>213.5</p></td>
-<td><p>2.6x</p></td>
-<td><p>526.4</p></td>
-<td><p>3.1x</p></td>
+<td><p>295.0</p></td>
+<td><p>4.4x</p></td>
+<td><p>868.6</p></td>
+<td><p>4.9x</p></td>
 </tr>
 <tr class="row-odd"><td><p><strong>ujson</strong></p></td>
-<td><p>230.6</p></td>
-<td><p>2.8x</p></td>
-<td><p>666.8</p></td>
+<td><p>349.1</p></td>
+<td><p>5.2x</p></td>
+<td><p>1087.0</p></td>
+<td><p>6.1x</p></td>
+</tr>
+<tr class="row-even"><td><p><strong>rapidjson</strong></p></td>
+<td><p>375.0</p></td>
+<td><p>5.6x</p></td>
+<td><p>1004.0</p></td>
+<td><p>5.7x</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>orjson</strong></p></td>
+<td><p>406.3</p></td>
+<td><p>6.0x</p></td>
+<td><p>691.7</p></td>
 <td><p>3.9x</p></td>
 </tr>
-<tr class="row-even"><td><p><strong>orjson</strong></p></td>
-<td><p>263.9</p></td>
-<td><p>3.2x</p></td>
-<td><p>410.0</p></td>
-<td><p>2.4x</p></td>
-</tr>
-<tr class="row-odd"><td><p><strong>simdjson</strong></p></td>
-<td><p>403.7</p></td>
-<td><p>4.8x</p></td>
-<td><p>615.1</p></td>
-<td><p>3.6x</p></td>
+<tr class="row-even"><td><p><strong>simdjson</strong></p></td>
+<td><p>603.2</p></td>
+<td><p>8.9x</p></td>
+<td><p>1053.0</p></td>
+<td><p>6.0x</p></td>
 </tr>
 </tbody>
 </table>
@@ -446,22 +475,22 @@ reallocated every time. This means that instead of allocating 10,000 copies
 of the string <code class="docutils literal notranslate"><span class="pre">&quot;name&quot;</span></code>, only a single copy is allocated and reused. For
 large messages this can lead to significant memory savings. <code class="docutils literal notranslate"><span class="pre">json</span></code> and
 <code class="docutils literal notranslate"><span class="pre">orjson</span></code> also use similar optimizations, but not as effectively.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">orjson</span></code> and <code class="docutils literal notranslate"><span class="pre">simdjson</span></code> use 3-5x more memory than <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> in this
+<li><p><code class="docutils literal notranslate"><span class="pre">orjson</span></code> and <code class="docutils literal notranslate"><span class="pre">simdjson</span></code> use 6-9x more memory than <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> in this
 benchmark. In addition to the reasons above, both of these decoders require
 copying the original message into a temporary buffer. In this case, the extra
-copy adds an extra 65 MiB of overhead!</p></li>
+copy adds an extra 77 MiB of overhead!</p></li>
 </ul>
 </section>
-<section id="benchmark-structs">
-<span id="struct-benchmark"></span><h2>Benchmark - Structs<a class="headerlink" href="#benchmark-structs" title="Permalink to this heading">#</a></h2>
+<section id="structs">
+<span id="struct-benchmark"></span><h2>Structs<a class="headerlink" href="#structs" title="Permalink to this heading">#</a></h2>
 <p>Here we benchmark common <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> operations, comparing their
 performance against other similar libraries. The cases compared are:</p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code></p></li>
 <li><p>Standard Python classes</p></li>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/dataclasses.html">dataclasses</a></p></li>
-<li><p><a class="reference external" href="https://www.attrs.org">attrs</a></p></li>
-<li><p><a class="reference external" href="https://pydantic-docs.helpmanual.io/">pydantic</a></p></li>
+<li><p><a class="reference external" href="https://jcristharif.com/msgspec/">msgspec</a> (0.18.5)</p></li>
+<li><p><a class="reference external" href="https://www.attrs.org">attrs</a> (23.1.0)</p></li>
+<li><p><a class="reference external" href="https://pydantic-docs.helpmanual.io/">pydantic</a> (2.5.2)</p></li>
 </ul>
 <p>For each library, the following operations are benchmarked:</p>
 <ul class="simple">
@@ -486,33 +515,33 @@ libraries that make use of these classes.</p></li>
 </thead>
 <tbody>
 <tr class="row-even"><td><p><strong>msgspec</strong></p></td>
-<td><p>9.92</p></td>
+<td><p>12.51</p></td>
 <td><p>0.09</p></td>
 <td><p>0.02</p></td>
 <td><p>0.03</p></td>
 </tr>
 <tr class="row-odd"><td><p><strong>standard classes</strong></p></td>
-<td><p>6.86</p></td>
-<td><p>0.45</p></td>
-<td><p>0.13</p></td>
-<td><p>0.29</p></td>
+<td><p>7.88</p></td>
+<td><p>0.35</p></td>
+<td><p>0.08</p></td>
+<td><p>0.16</p></td>
 </tr>
-<tr class="row-even"><td><p><strong>dataclasses</strong></p></td>
-<td><p>489.07</p></td>
-<td><p>0.47</p></td>
-<td><p>0.27</p></td>
-<td><p>0.30</p></td>
+<tr class="row-even"><td><p><strong>attrs</strong></p></td>
+<td><p>483.10</p></td>
+<td><p>0.37</p></td>
+<td><p>0.14</p></td>
+<td><p>1.87</p></td>
 </tr>
-<tr class="row-odd"><td><p><strong>attrs</strong></p></td>
-<td><p>428.38</p></td>
-<td><p>0.42</p></td>
-<td><p>0.29</p></td>
-<td><p>2.15</p></td>
+<tr class="row-odd"><td><p><strong>dataclasses</strong></p></td>
+<td><p>506.09</p></td>
+<td><p>0.36</p></td>
+<td><p>0.14</p></td>
+<td><p>0.16</p></td>
 </tr>
 <tr class="row-even"><td><p><strong>pydantic</strong></p></td>
-<td><p>371.52</p></td>
-<td><p>4.84</p></td>
-<td><p>10.56</p></td>
+<td><p>673.47</p></td>
+<td><p>1.54</p></td>
+<td><p>0.60</p></td>
 <td><p>N/A</p></td>
 </tr>
 </tbody>
@@ -523,16 +552,16 @@ libraries that make use of these classes.</p></li>
 overhead here). Still, <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> isn’t <em>that</em> much slower, especially
 compared to other options.</p></li>
 <li><p>Structs are optimized to be cheap to create, and that shows for the creation
-benchmark. They’re roughly 5x faster than standard
-classes/<code class="docutils literal notranslate"><span class="pre">attrs</span></code>/<code class="docutils literal notranslate"><span class="pre">dataclasses</span></code>, and 50x faster than <code class="docutils literal notranslate"><span class="pre">pydantic</span></code>.</p></li>
-<li><p>For equality comparison, msgspec Structs are roughly 6x to 500x faster than
+benchmark. They’re roughly 4x faster than standard
+classes/<code class="docutils literal notranslate"><span class="pre">attrs</span></code>/<code class="docutils literal notranslate"><span class="pre">dataclasses</span></code>, and 17x faster than <code class="docutils literal notranslate"><span class="pre">pydantic</span></code>.</p></li>
+<li><p>For equality comparison, msgspec Structs are roughly 4x to 30x faster than
 the alternatives.</p></li>
-<li><p>For order comparison, msgspec Structs are roughly 10x to 70x faster than the
+<li><p>For order comparison, msgspec Structs are roughly 5x to 60x faster than the
 alternatives.</p></li>
 </ul>
 </section>
-<section id="benchmark-garbage-collection">
-<span id="struct-gc-benchmark"></span><h2>Benchmark - Garbage Collection<a class="headerlink" href="#benchmark-garbage-collection" title="Permalink to this heading">#</a></h2>
+<section id="garbage-collection">
+<span id="struct-gc-benchmark"></span><h2>Garbage Collection<a class="headerlink" href="#garbage-collection" title="Permalink to this heading">#</a></h2>
 <p><a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> instances implement several optimizations for reducing garbage
 collection (GC) pressure and decreasing memory usage. Here we benchmark structs
 (with and without <a class="reference internal" href="structs.html#struct-gc"><span class="std std-ref">gc=False</span></a>) against standard Python
@@ -589,9 +618,10 @@ lowest GC pause (75x faster than standard classes!) since the entire
 composing dict can be skipped during GC traversal.</p></li>
 </ul>
 </section>
-<section id="benchmark-library-size">
-<span id="id1"></span><h2>Benchmark - Library Size<a class="headerlink" href="#benchmark-library-size" title="Permalink to this heading">#</a></h2>
-<p>Here we compare the on-disk size of a few Python libraries.</p>
+<section id="library-size">
+<span id="benchmark-library-size"></span><h2>Library Size<a class="headerlink" href="#library-size" title="Permalink to this heading">#</a></h2>
+<p>Here we compare the on-disk size of <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> and <code class="docutils literal notranslate"><span class="pre">pydantic</span></code>, its closest
+equivalent.</p>
 <p>The full benchmark source can be found <a class="reference external" href="https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_library_size.py">here</a>.</p>
 <p><strong>Results (smaller is better)</strong></p>
 <div class="table-wrapper docutils container">
@@ -605,31 +635,20 @@ composing dict can be skipped during GC traversal.</p></li>
 </thead>
 <tbody>
 <tr class="row-even"><td><p><strong>msgspec</strong></p></td>
-<td><p>0.12.0</p></td>
-<td><p>0.34</p></td>
+<td><p>0.18.4</p></td>
+<td><p>0.46</p></td>
 <td><p>1.00x</p></td>
 </tr>
-<tr class="row-odd"><td><p><strong>orjson</strong></p></td>
-<td><p>3.8.5</p></td>
-<td><p>0.56</p></td>
-<td><p>1.64x</p></td>
-</tr>
-<tr class="row-even"><td><p><strong>msgpack</strong></p></td>
-<td><p>1.0.4</p></td>
-<td><p>0.99</p></td>
-<td><p>2.91x</p></td>
-</tr>
 <tr class="row-odd"><td><p><strong>pydantic</strong></p></td>
-<td><p>1.10.4</p></td>
-<td><p>8.71</p></td>
-<td><p>25.67x</p></td>
+<td><p>2.5.2</p></td>
+<td><p>6.71</p></td>
+<td><p>14.66x</p></td>
 </tr>
 </tbody>
 </table>
 </div>
-<p>The functionality available in <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> is comparable to that of <a class="reference external" href="https://github.com/ijl/orjson">orjson</a>,
-<a class="reference external" href="https://github.com/msgpack/msgpack-python">msgpack</a>, and <a class="reference external" href="https://pydantic-docs.helpmanual.io/">pydantic</a> combined. However, the total installed binary size of
-<code class="docutils literal notranslate"><span class="pre">msgspec</span></code> is a fraction of that of any of these libraries.</p>
+<p>For applications where dependency size matters, <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> is roughly 15x
+smaller on disk.</p>
 <script src="https://cdn.jsdelivr.net/npm/vega@5.22.1"></script>
 <script src="https://cdn.jsdelivr.net/npm/vega-lite@5.5.0"></script>
 <script src="https://cdn.jsdelivr.net/npm/vega-embed@6.21.0"></script><script type="text/javascript">
@@ -637,7 +656,7 @@ composing dict can be skipped during GC traversal.</p></li>
 function buildPlot(div, rows, title) {
     var i, time_unit, scale, max_time = 0;
     for (i = 0; i < rows.length; i++) {
-        var total = rows[i][1] + rows[i][2];
+        var total = rows[i].encode + rows[i].decode;
         if (total > max_time) {
             max_time = total;
         }
@@ -658,13 +677,13 @@ function buildPlot(div, rows, title) {
     var columns = ["encode", "decode", "total"];
     var data = [];
     for (i = 0; i < rows.length; i++) {
-        var lib = rows[i][0];
-        var et = rows[i][1] * scale;
-        var dt = rows[i][2] * scale;
+        var label = rows[i].label;
+        var et = rows[i].encode * scale;
+        var dt = rows[i].decode * scale;
         var tt = et + dt;
-        data.push({library: lib, method: "encode", time: et});
-        data.push({library: lib, method: "decode", time: dt});
-        data.push({library: lib, method: "total", time: tt});
+        data.push({library: label, method: "encode", time: et});
+        data.push({library: label, method: "decode", time: dt});
+        data.push({library: label, method: "total", time: tt});
     }
 
     var spec = {
@@ -695,7 +714,6 @@ function buildPlot(div, rows, title) {
             "row": {
                 "field": "library",
                 "header": {
-                    "labelExpr": "split(datum.label, ' ')",
                     "orient": "left",
                     "labelAngle": 0,
                     "labelAlign": "left",
@@ -722,11 +740,80 @@ function buildPlot(div, rows, title) {
     vegaEmbed(div, spec);
 }
 
-var results = {"1": [["ujson", 8.829250499984482e-07, 8.730858320013794e-07], ["orjson", 3.096652690001065e-07, 6.008548780009733e-07], ["msgpack", 3.735713579990261e-07, 6.712430439984019e-07], ["msgspec msgpack", 1.209437355000773e-07, 2.4524554299932786e-07], ["msgspec json", 1.5702481800053648e-07, 2.9431164100060416e-07]], "1k": [["ujson", 0.0006268990559983649, 0.0008841279000007489], ["orjson", 0.00022851538299983076, 0.0005686095599994587], ["msgpack", 0.000333242345999679, 0.0007984013619970938], ["msgspec msgpack", 7.986827880013152e-05, 0.0002904889190012909], ["msgspec json", 0.00012921423349962423, 0.00030142520899971713]]}
-var results_valid = [["msgspec", 0.00014108686700001273, 0.0003501984610011277], ["pydantic", 0.015396889400017244, 0.022798635399885823], ["cattrs", 0.0025966005599912024, 0.0033668910000051256], ["mashumaro", 0.0009302718219987582, 0.0037224738400072964]]
-buildPlot('#bench-1', results["1"], "Benchmark - 1 Object");
-buildPlot('#bench-1k', results["1k"], "Benchmark - 1000 Objects");
-buildPlot('#bench-1k-validate', results_valid, "Benchmark - 1000 Objects, With Validation");
+function buildMemPlot(div, rows, title) {
+    var data = [];
+    for (i = 0; i < rows.length; i++) {
+        data.push({library: rows[i].label, memory: rows[i].memory});
+    }
+
+    var spec = {
+        "$schema": "https://vega.github.io/schema/vega-lite/v5.2.0.json",
+        "title": title,
+        "config": {
+            "view": {"stroke": null},
+            "legend": {"title": null, "labelFontSize": 12},
+            "title": {"fontSize": 14, "offset": 10},
+            "axis": {"titleFontSize": 12, "titlePadding": 10}
+        },
+        "width": "container",
+        "data": {"values": data},
+        "transform": [
+            {
+                "calculate": "join([format(datum.memory, '.3'), ' MiB'], '')",
+                "as": "tooltip",
+            }
+        ],
+        "mark": "bar",
+        "encoding": {
+            "row": {
+                "field": "library",
+                "header": {
+                    "orient": "left",
+                    "labelAngle": 0,
+                    "labelAlign": "left",
+                    "labelFontSize": 12
+                },
+                "sort": {"field": "memory", "order": "ascending"},
+                "title": null,
+                "type": "nominal",
+            },
+            "tooltip": {"field": "tooltip", "type": "nominal"},
+            "x": {
+                "axis": {"grid": false, "title": "Memory (MiB)"},
+                "field": "memory",
+                "type": "quantitative",
+            },
+        },
+    };
+    vegaEmbed(div, spec);
+}
+
+var results_valid = [
+    {"label": "msgspec", "encode": 0.00016727479400015, "decode": 0.0004222057979986857, "memory": 0.640625},
+    {"label": "mashumaro", "encode": 0.000797896412001137, "decode": 0.0026786830099990765, "memory": 7.1171875},
+    {"label": "cattrs", "encode": 0.002065396289999626, "decode": 0.0033923348699954657, "memory": 3.25390625},
+    {"label": "pydantic v2", "encode": 0.0034702956599994648, "decode": 0.0038069566000012854, "memory": 16.26171875},
+    {"label": "pydantic v1", "encode": 0.01961492505001843, "decode": 0.02528851079996457, "memory": 10.03125},
+];
+var results_json = [
+    {"label": "msgspec structs", "encode": 0.00014051752349996606, "decode": 0.00036725287499939443},
+    {"label": "msgspec", "encode": 0.00018274705249996258, "decode": 0.00048175174399875685},
+    {"label": "json", "encode": 0.0012280583099982323, "decode": 0.0009195450700008223},
+    {"label": "orjson", "encode": 0.00017935967999983403, "decode": 0.0004634268540012272},
+    {"label": "ujson", "encode": 0.0006279176680000091, "decode": 0.0008554406740004197},
+    {"label": "rapidjson", "encode": 0.000513588076000815, "decode": 0.0011320363100003306},
+    {"label": "simdjson", "encode": 0.00123421613499886, "decode": 0.0007710835699999734},
+];
+var results_msgpack = [
+    {"label": "msgspec structs", "encode": 0.0001536652545000834, "decode": 0.0003513430250004603},
+    {"label": "msgspec", "encode": 0.00012540720800006966, "decode": 0.00048454183800095054},
+    {"label": "msgpack", "encode": 0.00040564010999878517, "decode": 0.0008212748599999031},
+    {"label": "ormsgpack", "encode": 0.0001669060230001378, "decode": 0.000755966658000034},
+];
+buildPlot('#bench-validate', results_valid, "Benchmark - JSON Serialization & Validation");
+buildMemPlot('#bench-validate-memory', results_valid, "Benchmark - Serialization & Validation");
+buildPlot('#bench-json', results_json, "Benchmark - JSON Serialization");
+buildPlot('#bench-msgpack', results_msgpack, "Benchmark - MessagePack Serialization");
 </script></section>
 </section>
 
@@ -791,16 +878,13 @@ buildPlot('#bench-1k-validate', results_valid, "Benchmark - 1000 Objects, With V
           <div class="toc-tree">
             <ul>
 <li><a class="reference internal" href="#">Benchmarks</a><ul>
-<li><a class="reference internal" href="#benchmark-encoding-decoding">Benchmark - Encoding/Decoding</a><ul>
-<li><a class="reference internal" href="#object">1 Object</a></li>
-<li><a class="reference internal" href="#objects">1000 Objects</a></li>
-</ul>
-</li>
-<li><a class="reference internal" href="#benchmark-schema-validation">Benchmark - Schema Validation</a></li>
-<li><a class="reference internal" href="#benchmark-memory-usage">Benchmark - Memory Usage</a></li>
-<li><a class="reference internal" href="#benchmark-structs">Benchmark - Structs</a></li>
-<li><a class="reference internal" href="#benchmark-garbage-collection">Benchmark - Garbage Collection</a></li>
-<li><a class="reference internal" href="#benchmark-library-size">Benchmark - Library Size</a></li>
+<li><a class="reference internal" href="#json-serialization-validation">JSON Serialization &amp; Validation</a></li>
+<li><a class="reference internal" href="#json-serialization">JSON Serialization</a></li>
+<li><a class="reference internal" href="#messagepack-serialization">MessagePack Serialization</a></li>
+<li><a class="reference internal" href="#json-serialization-large-data">JSON Serialization - Large Data</a></li>
+<li><a class="reference internal" href="#structs">Structs</a></li>
+<li><a class="reference internal" href="#garbage-collection">Garbage Collection</a></li>
+<li><a class="reference internal" href="#library-size">Library Size</a></li>
 </ul>
 </li>
 </ul>
