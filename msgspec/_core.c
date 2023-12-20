@@ -11184,6 +11184,15 @@ ms_post_decode_uint64(
     return ms_validation_error(from_str ? "str" : "int", type, path);
 }
 
+static bool
+double_as_int64(double x, int64_t *out) {
+    if (fmod(x, 1.0) != 0.0) return false;
+    if (x > (1LL << 53)) return false;
+    if (x < (-1LL << 53)) return false;
+    *out = (int64_t)x;
+    return true;
+}
+
 static PyObject *
 ms_post_decode_float(
     double x, TypeNode *type, PathNode *path, bool strict, bool from_str
@@ -11192,6 +11201,12 @@ ms_post_decode_float(
         return ms_decode_float(x, type, path);
     }
     else if (!strict) {
+        if (type->types & MS_TYPE_INT) {
+            int64_t out;
+            if (double_as_int64(x, &out)) {
+                return ms_post_decode_int64(out, type, path, strict, from_str);
+            }
+        }
         if (type->types & MS_TYPE_DATETIME) {
             return ms_decode_datetime_from_float(x, type, path);
         }
@@ -14365,6 +14380,12 @@ mpack_decode_float(DecoderState *self, double x, TypeNode *type, PathNode *path)
         return ms_decode_decimal_from_float(x, path, NULL);
     }
     else if (!self->strict) {
+        if (type->types & MS_TYPE_INT) {
+            int64_t out;
+            if (double_as_int64(x, &out)) {
+                return ms_post_decode_int64(out, type, path, self->strict, false);
+            }
+        }
         if (type->types & MS_TYPE_DATETIME) {
             return ms_decode_datetime_from_float(x, type, path);
         }
@@ -19525,12 +19546,18 @@ convert_float(
         );
     }
     else if (!self->strict) {
-        double seconds = PyFloat_AS_DOUBLE(obj);
+        double val = PyFloat_AS_DOUBLE(obj);
+        if (type->types & MS_TYPE_INT) {
+            int64_t out;
+            if (double_as_int64(val, &out)) {
+                return ms_post_decode_int64(out, type, path, self->strict, false);
+            }
+        }
         if (type->types & MS_TYPE_DATETIME) {
-            return ms_decode_datetime_from_float(seconds, type, path);
+            return ms_decode_datetime_from_float(val, type, path);
         }
         else if (type->types & MS_TYPE_TIMEDELTA) {
-            return ms_decode_timedelta_from_float(seconds, path);
+            return ms_decode_timedelta_from_float(val, path);
         }
     }
     return ms_validation_error("float", type, path);

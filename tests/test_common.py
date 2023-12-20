@@ -4066,9 +4066,20 @@ class TestLax:
             msg = proto.encode(x)
             assert proto.decode(msg, type=int, strict=False) == int(x)
 
-        for x in ["a", "1a", "1.0", "1.."]:
+        for x in ["a", "1a", "1.5", "1..", "nan", "inf"]:
             msg = proto.encode(x)
             with pytest.raises(ValidationError, match="Expected `int`, got `str`"):
+                proto.decode(msg, type=int, strict=False)
+
+    def test_lax_int_from_float(self, proto):
+        bound = float(1 << 53)
+        for x in [-bound, -1.0, -0.0, 0.0, 1.0, bound]:
+            msg = proto.encode(x)
+            assert proto.decode(msg, type=int, strict=False) == int(x)
+
+        for x in [-bound - 2, -1.5, 0.001, 1.5, bound + 2]:
+            msg = proto.encode(x)
+            with pytest.raises(ValidationError, match="Expected `int`, got `float`"):
                 proto.decode(msg, type=int, strict=False)
 
     def test_lax_int_constr(self, proto, Annotated):

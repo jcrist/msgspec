@@ -2316,12 +2316,21 @@ class TestLax:
             with pytest.raises(ValidationError, match=f"Expected `bool`, got `{typ}`"):
                 assert convert(x, bool, strict=False)
 
-    def test_lax_int(self):
-        for x in ["1", "-1", "123456"]:
+    def test_lax_int_from_str(self):
+        for x in ["1", "-1", "123456", "1.0"]:
+            assert convert(x, int, strict=False) == int(float(x))
+
+        for x in ["a", "1a", "1.5", "1..", "nan", "inf"]:
+            with pytest.raises(ValidationError, match="Expected `int`, got `str`"):
+                convert(x, int, strict=False)
+
+    def test_lax_int_from_float(self):
+        bound = float(1 << 53)
+        for x in [-bound, -1.0, -0.0, 0.0, 1.0, bound]:
             assert convert(x, int, strict=False) == int(x)
 
-        for x in ["a", "1a", "1.0", "1.."]:
-            with pytest.raises(ValidationError, match="Expected `int`, got `str`"):
+        for x in [-bound - 2, -1.5, 0.001, 1.5, bound + 2, float("inf"), float("nan")]:
+            with pytest.raises(ValidationError, match="Expected `int`, got `float`"):
                 convert(x, int, strict=False)
 
     @uses_annotated

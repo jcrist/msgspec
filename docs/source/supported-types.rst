@@ -151,12 +151,16 @@ Support for large integers varies by protocol:
     123
 
 If ``strict=False`` is specified, string values may also be coerced to
-integers, following the same restrictions as above. See :ref:`strict-vs-lax`
-for more information.
+integers, following the same restrictions as above. Likewise floats that have
+an exact integer representation (i.e. no decimal component) may also be coerced
+as integers. See :ref:`strict-vs-lax` for more information.
 
 .. code-block:: python
 
    >>> msgspec.json.decode(b'"123"', type=int, strict=False)
+   123
+
+   >>> msgspec.json.decode(b'123.0', type=int, strict=False)
    123
 
 
