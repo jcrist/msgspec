@@ -5140,17 +5140,23 @@ rename_camel_inner(PyObject *field, bool cap_first) {
     bool first = true;
     for (Py_ssize_t i = 0; i < PyList_GET_SIZE(parts); i++) {
         PyObject *part = PyList_GET_ITEM(parts, i);
-        if (PyUnicode_GET_LENGTH(part) == 0) continue;
-        if (!first || cap_first) {
-            /* convert part to title case, inplace in the list */
-            PyObject *part_title = PyObject_CallMethod(part, "title", NULL);
-            if (part_title == NULL) goto cleanup;
-            PyList_SET_ITEM(parts, i, part_title);
+        if (first && (PyUnicode_GET_LENGTH(part) == 0)) {
+            /* Preserve leading underscores */
+            PyList_SET_ITEM(parts, i, underscore);
             Py_DECREF(part);
         }
-        first = false;
+        else {
+            if (!first || cap_first) {
+                /* convert part to title case, inplace in the list */
+                PyObject *part_title = PyObject_CallMethod(part, "title", NULL);
+                if (part_title == NULL) goto cleanup;
+                PyList_SET_ITEM(parts, i, part_title);
+                Py_DECREF(part);
+            }
+            first = false;
+        }
     }
-    empty = PyUnicode_FromString("");
+    empty = PyUnicode_FromStringAndSize("", 0);
     if (empty == NULL) goto cleanup;
     out = PyUnicode_Join(empty, parts);
 
