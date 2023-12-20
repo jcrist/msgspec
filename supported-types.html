@@ -396,9 +396,13 @@ supported protocols.</p>
 </pre></div>
 </div>
 <p>If <code class="docutils literal notranslate"><span class="pre">strict=False</span></code> is specified, string values may also be coerced to
-integers, following the same restrictions as above. See <a class="reference internal" href="usage.html#strict-vs-lax"><span class="std std-ref">“Strict” vs “Lax” Mode</span></a>
-for more information.</p>
+integers, following the same restrictions as above. Likewise floats that have
+an exact integer representation (i.e. no decimal component) may also be coerced
+as integers. See <a class="reference internal" href="usage.html#strict-vs-lax"><span class="std std-ref">“Strict” vs “Lax” Mode</span></a> for more information.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;&quot;123&quot;&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<span class="go">123</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;123.0&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 <span class="go">123</span>
 </pre></div>
 </div>
