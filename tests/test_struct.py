@@ -1942,12 +1942,14 @@ class TestRename:
             field_two_with_suffix: str
             __field_three__: bool
             field4: float
+            _field_five: int
 
         assert Test.__struct_encode_fields__ == (
             "field-one",
             "field-two-with-suffix",
             "field-three",
             "field4",
+            "field-five",
         )
 
     def test_rename_camel(self):
@@ -1956,12 +1958,14 @@ class TestRename:
             field_two_with_suffix: str
             __field__three__: bool
             field4: float
+            _field_five: int
 
         assert Test.__struct_encode_fields__ == (
             "fieldOne",
             "fieldTwoWithSuffix",
-            "fieldThree",
+            "__fieldThree",
             "field4",
+            "_fieldFive",
         )
 
     def test_rename_pascal(self):
@@ -1970,12 +1974,14 @@ class TestRename:
             field_two_with_suffix: str
             __field__three__: bool
             field4: float
+            _field_five: int
 
         assert Test.__struct_encode_fields__ == (
             "FieldOne",
             "FieldTwoWithSuffix",
-            "FieldThree",
+            "__FieldThree",
             "Field4",
+            "_FieldFive",
         )
 
     def test_rename_callable(self):
