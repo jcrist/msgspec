@@ -5142,16 +5142,17 @@ rename_camel_inner(PyObject *field, bool cap_first) {
         PyObject *part = PyList_GET_ITEM(parts, i);
         if (first && (PyUnicode_GET_LENGTH(part) == 0)) {
             /* Preserve leading underscores */
-            PyList_SET_ITEM(parts, i, underscore);
+            Py_INCREF(underscore);
             Py_DECREF(part);
+            PyList_SET_ITEM(parts, i, underscore);
         }
         else {
             if (!first || cap_first) {
                 /* convert part to title case, inplace in the list */
                 PyObject *part_title = PyObject_CallMethod(part, "title", NULL);
                 if (part_title == NULL) goto cleanup;
-                PyList_SET_ITEM(parts, i, part_title);
                 Py_DECREF(part);
+                PyList_SET_ITEM(parts, i, part_title);
             }
             first = false;
         }
