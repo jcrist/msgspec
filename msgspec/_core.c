@@ -399,6 +399,7 @@ typedef struct {
     PyObject *str_dec_hook;
     PyObject *str_ext_hook;
     PyObject *str_strict;
+    PyObject *str_order;
     PyObject *str_utcoffset;
     PyObject *str___origin__;
     PyObject *str___args__;
@@ -2485,6 +2486,196 @@ static PyTypeObject Field_Type = {
     .tp_dealloc = (destructor) Field_dealloc,
     .tp_members = Field_members,
 };
+
+/*************************************************************************
+ * AssocList & order handling                                            *
+ *************************************************************************/
+
+enum order_mode {
+    ORDER_SORTED = -1,
+    ORDER_DEFAULT = 0,
+    ORDER_DETERMINISTIC = 1,
+    ORDER_INVALID = 2,
+};
+
+static enum order_mode
+parse_order_arg(PyObject *order) {
+    if (order == NULL || order == Py_None) {
+        return ORDER_DEFAULT;
+    }
+    else if (PyUnicode_CheckExact(order)) {
+        if (PyUnicode_CompareWithASCIIString(order, "deterministic") == 0) {
+            return ORDER_DETERMINISTIC;
+        }
+        else if (PyUnicode_CompareWithASCIIString(order, "sorted") == 0) {
+            return ORDER_SORTED;
+        }
+    }
+
+    PyErr_Format(
+        PyExc_ValueError,
+        "`order` must be one of `{None, 'deterministic', 'sorted'}`, got %R",
+        order
+    );
+    return ORDER_INVALID;
+}
+
+
+#define ASSOCLIST_SORT_CUTOFF 16
+
+typedef struct {
+    const char *key;
+    Py_ssize_t key_size;
+    PyObject *val;
+} AssocItem;
+
+typedef struct {
+    Py_ssize_t size;
+    AssocItem items[];
+} AssocList;
+
+static AssocList *
+AssocList_New(Py_ssize_t capacity) {
+    AssocList *out = PyMem_Malloc(sizeof(AssocList) + capacity * sizeof(AssocItem));
+    if (out == NULL) {
+        PyErr_NoMemory();
+        return NULL;
+    }
+    out->size = 0;
+    return out;
+}
+
+static void
+AssocList_Free(AssocList *list) {
+    PyMem_Free(list);
+}
+
+static void
+AssocList_AppendCStr(AssocList *list, const char *key, PyObject *val) {
+    list->items[list->size].key = key;
+    list->items[list->size].key_size = strlen(key);
+    list->items[list->size].val = val;
+    list->size++;
+}
+
+static int
+AssocList_Append(AssocList *list, PyObject *key, PyObject *val) {
+    Py_ssize_t key_size;
+    const char* key_buf = unicode_str_and_size(key, &key_size);
+    if (key_buf == NULL) return -1;
+
+    list->items[list->size].key = key_buf;
+    list->items[list->size].key_size = key_size;
+    list->items[list->size].val = val;
+    list->size++;
+    return 0;
+}
+
+static AssocList *
+AssocList_FromDict(PyObject *dict) {
+    Py_ssize_t len = PyDict_GET_SIZE(dict);
+    AssocList *out = AssocList_New(len);
+
+    PyObject *key, *val;
+    Py_ssize_t pos = 0;
+    while (PyDict_Next(dict, &pos, &key, &val)) {
+        if (!PyUnicode_Check(key)) {
+            PyErr_SetString(
+                PyExc_TypeError,
+                "Only dicts with str keys are supported when `order` is not `None`"
+            );
+            goto error;
+        }
+        if (AssocList_Append(out, key, val) < 0) goto error;
+    }
+    return out;
+error:
+    AssocList_Free(out);
+    return NULL;
+}
+
+static inline int
+_AssocItem_lt(AssocItem *left, AssocItem *right) {
+    int left_shorter = left->key_size < right->key_size;
+    int cmp = memcmp(
+        left->key, right->key, (left_shorter) ? left->key_size : right->key_size
+    );
+    return (cmp < 0) || ((cmp == 0) & left_shorter);
+}
+
+static Py_ssize_t
+_AssocList_sort_partition(
+    AssocList* list, Py_ssize_t lo, Py_ssize_t hi, AssocItem *pivot
+) {
+    Py_ssize_t i = lo - 1;
+    Py_ssize_t j = hi + 1;
+    while (true) {
+        while (_AssocItem_lt(pivot, &(list->items[--j])));
+        while (_AssocItem_lt(&(list->items[++i]), pivot));
+        if (i < j) {
+            AssocItem tmp = list->items[i];
+            list->items[i] = list->items[j];
+            list->items[j] = tmp;
+        }
+        else {
+            return j;
+        }
+    }
+}
+
+static void
+_AssocList_sort_inner(AssocList* list, Py_ssize_t lo, Py_ssize_t hi) {
+    while (lo + ASSOCLIST_SORT_CUTOFF < hi) {
+        AssocItem *v1 = &(list->items[lo]);
+        AssocItem *v2 = &(list->items[hi]);
+        AssocItem *v3 = &(list->items[(lo + hi)/2]);
+        AssocItem pivot;
+
+        if (_AssocItem_lt(v1, v2)) {
+            if (_AssocItem_lt(v3, v1)) {
+                pivot = *v1;
+            }
+            else if (_AssocItem_lt(v2, v3)) {
+                pivot = *v2;
+            }
+            else {
+                pivot = *v3;
+            }
+        }
+        else {
+            if (_AssocItem_lt(v3, v2)) {
+                pivot = *v2;
+            }
+            else if (_AssocItem_lt(v1, v3)) {
+                pivot = *v1;
+            }
+            else {
+                pivot = *v3;
+            }
+        }
+
+        Py_ssize_t partition = _AssocList_sort_partition(list, lo, hi, &pivot);
+        _AssocList_sort_inner(list, lo, partition);
+        lo = partition + 1;
+    }
+}
+
+static void
+AssocList_Sort(AssocList* list) {
+    if (list->size > ASSOCLIST_SORT_CUTOFF) {
+        _AssocList_sort_inner(list, 0, list->size - 1);
+    }
+
+    for (Py_ssize_t i = 1; i < list->size; i++) {
+        AssocItem val = list->items[i];
+        Py_ssize_t j = i;
+        while (j > 0 && _AssocItem_lt(&val, &(list->items[j - 1]))) {
+            list->items[j] = list->items[j - 1];
+            --j;
+        }
+        list->items[j] = val;
+    }
+}
 
 /*************************************************************************
  * Struct, PathNode, and TypeNode Types                                  *
@@ -7418,6 +7609,49 @@ error:
     return NULL;
 }
 
+static AssocList *
+AssocList_FromStruct(PyObject *obj) {
+    if (Py_EnterRecursiveCall(" while serializing an object")) return NULL;
+
+    bool ok = false;
+    StructMetaObject *struct_type = (StructMetaObject *)Py_TYPE(obj);
+    PyObject *tag_field = struct_type->struct_tag_field;
+    PyObject *tag_value = struct_type->struct_tag_value;
+    PyObject *fields = struct_type->struct_encode_fields;
+    PyObject *defaults = struct_type->struct_defaults;
+    Py_ssize_t nfields = PyTuple_GET_SIZE(fields);
+    Py_ssize_t npos = nfields - PyTuple_GET_SIZE(defaults);
+    bool omit_defaults = struct_type->omit_defaults == OPT_TRUE;
+
+    AssocList *out = AssocList_New(nfields + (tag_value != NULL));
+    if (out == NULL) goto cleanup;
+
+    if (tag_value != NULL) {
+        if (AssocList_Append(out, tag_field, tag_value) < 0) goto cleanup;
+    }
+    for (Py_ssize_t i = 0; i < nfields; i++) {
+        PyObject *key = PyTuple_GET_ITEM(fields, i);
+        PyObject *val = Struct_get_index(obj, i);
+        if (MS_UNLIKELY(val == NULL)) goto cleanup;
+        if (MS_UNLIKELY(val == UNSET)) continue;
+        if (
+            !omit_defaults ||
+            i < npos ||
+            !is_default(val, PyTuple_GET_ITEM(defaults, i - npos))
+        ) {
+            if (AssocList_Append(out, key, val) < 0) goto cleanup;
+        }
+    }
+    ok = true;
+
+cleanup:
+    Py_LeaveRecursiveCall();
+    if (!ok) {
+        AssocList_Free(out);
+    }
+    return out;
+}
+
 PyDoc_STRVAR(struct_replace__doc__,
 "replace(struct, / **changes)\n"
 "--\n"
@@ -8761,6 +8995,111 @@ found_val:
     return true;
 }
 
+static AssocList *
+AssocList_FromDataclass(PyObject *obj, PyObject *fields)
+{
+    if (Py_EnterRecursiveCall(" while serializing an object")) return NULL;
+
+    bool ok = false;
+    AssocList *out = NULL;
+    DataclassIter iter;
+    if (!dataclass_iter_setup(&iter, obj, fields)) goto cleanup;
+
+    out = AssocList_New(PyDict_GET_SIZE(fields));
+    if (out == NULL) goto cleanup;
+
+    PyObject *field, *val;
+    while (dataclass_iter_next(&iter, &field, &val)) {
+        int status = AssocList_Append(out, field, val);
+        Py_DECREF(val);
+        if (status < 0) goto cleanup;
+    }
+    ok = true;
+
+cleanup:
+    Py_LeaveRecursiveCall();
+    dataclass_iter_cleanup(&iter);
+    if (!ok) {
+        AssocList_Free(out);
+        return NULL;
+    }
+    return out;
+}
+
+/*************************************************************************
+ * Object Utilities                                                      *
+ *************************************************************************/
+
+static AssocList *
+AssocList_FromObject(PyObject *obj) {
+    bool ok = false;
+    PyObject *dict = NULL;
+    AssocList *out = NULL;
+
+    if (Py_EnterRecursiveCall(" while serializing an object")) return NULL;
+
+    dict = PyObject_GenericGetDict(obj, NULL);
+    if (MS_UNLIKELY(dict == NULL)) {
+        PyErr_Clear();
+    }
+
+    /* Determine max size of AssocList needed */
+    Py_ssize_t max_size = (dict == NULL) ? 0 : PyDict_GET_SIZE(dict);
+    PyTypeObject *type = Py_TYPE(obj);
+    while (type != NULL) {
+        max_size += Py_SIZE(type);
+        type = type->tp_base;
+    }
+
+    out = AssocList_New(max_size);
+    if (out == NULL) goto cleanup;
+
+    /* Append everything in `__dict__` */
+    if (dict != NULL) {
+        PyObject *key, *val;
+        Py_ssize_t pos = 0;
+        while (PyDict_Next(dict, &pos, &key, &val)) {
+            if (MS_LIKELY(PyUnicode_CheckExact(key))) {
+                Py_ssize_t key_len;
+                if (MS_UNLIKELY(val == UNSET)) continue;
+                const char* key_buf = unicode_str_and_size(key, &key_len);
+                if (MS_UNLIKELY(key_buf == NULL)) goto cleanup;
+                if (MS_UNLIKELY(*key_buf == '_')) continue;
+                if (MS_UNLIKELY(AssocList_Append(out, key, val) < 0)) goto cleanup;
+            }
+        }
+    }
+    /* Then append everything in slots */
+    type = Py_TYPE(obj);
+    while (type != NULL) {
+        Py_ssize_t n = Py_SIZE(type);
+        if (n) {
+            PyMemberDef *mp = MS_PyHeapType_GET_MEMBERS((PyHeapTypeObject *)type);
+            for (Py_ssize_t i = 0; i < n; i++, mp++) {
+                if (MS_LIKELY(mp->type == T_OBJECT_EX && !(mp->flags & READONLY))) {
+                    char *addr = (char *)obj + mp->offset;
+                    PyObject *val = *(PyObject **)addr;
+                    if (MS_UNLIKELY(val == UNSET)) continue;
+                    if (MS_UNLIKELY(val == NULL)) continue;
+                    if (MS_UNLIKELY(*mp->name == '_')) continue;
+                    AssocList_AppendCStr(out, mp->name, val);
+                }
+            }
+        }
+        type = type->tp_base;
+    }
+    ok = true;
+
+cleanup:
+    Py_XDECREF(dict);
+    Py_LeaveRecursiveCall();
+    if (!ok) {
+        AssocList_Free(out);
+        return NULL;
+    }
+    return out;
+}
+
 /*************************************************************************
  * Shared Encoder structs/methods                                        *
  *************************************************************************/
@@ -8784,6 +9123,7 @@ typedef struct EncoderState {
     PyObject *enc_hook;         /* `enc_hook` callback */
     enum decimal_format decimal_format;
     enum uuid_format uuid_format;
+    enum order_mode order;
     char* (*resize_buffer)(PyObject**, Py_ssize_t);  /* callback for resizing buffer */
 
     char *output_buffer_raw;    /* raw pointer to output_buffer internal buffer */
@@ -8798,6 +9138,7 @@ typedef struct Encoder {
     MsgspecState *mod;
     enum decimal_format decimal_format;
     enum uuid_format uuid_format;
+    enum order_mode order;
 } Encoder;
 
 static PyTypeObject Encoder_Type;
@@ -8852,12 +9193,13 @@ ms_write(EncoderState *self, const char *s, Py_ssize_t n)
 static int
 Encoder_init(Encoder *self, PyObject *args, PyObject *kwds)
 {
-    char *kwlist[] = {"enc_hook", "decimal_format", "uuid_format", NULL};
-    PyObject *enc_hook = NULL, *decimal_format = NULL, *uuid_format = NULL;
+    char *kwlist[] = {"enc_hook", "decimal_format", "uuid_format", "order", NULL};
+    PyObject *enc_hook = NULL, *decimal_format = NULL, *uuid_format = NULL, *order = NULL;
 
     if (
         !PyArg_ParseTupleAndKeywords(
-            args, kwds, "|$OOO", kwlist, &enc_hook, &decimal_format, &uuid_format
+            args, kwds, "|$OOOO", kwlist,
+            &enc_hook, &decimal_format, &uuid_format, &order
         )
     ) {
         return -1;
@@ -8931,6 +9273,10 @@ Encoder_init(Encoder *self, PyObject *args, PyObject *kwds)
             return -1;
         }
     }
+
+    /* Process order */
+    self->order = parse_order_arg(order);
+    if (self->order == ORDER_INVALID) return -1;
 
     self->mod = msgspec_get_global_state();
     self->enc_hook = enc_hook;
@@ -9021,6 +9367,7 @@ encoder_encode_into_common(
         .enc_hook = self->enc_hook,
         .decimal_format = self->decimal_format,
         .uuid_format = self->uuid_format,
+        .order = self->order,
         .output_buffer = buf,
         .output_buffer_raw = PyByteArray_AS_STRING(buf),
         .output_len = offset,
@@ -9065,6 +9412,7 @@ encoder_encode_common(
         .enc_hook = self->enc_hook,
         .decimal_format = self->decimal_format,
         .uuid_format = self->uuid_format,
+        .order = self->order,
         .output_len = 0,
         .max_output_len = ENC_INIT_BUFSIZE,
         .resize_buffer = &ms_resize_bytes
@@ -9090,16 +9438,15 @@ encode_common(
     int(*encode)(EncoderState*, PyObject*)
 )
 {
-    PyObject *enc_hook = NULL;
+    PyObject *enc_hook = NULL, *order = NULL;
     MsgspecState *mod = msgspec_get_state(module);
 
     /* Parse arguments */
     if (!check_positional_nargs(nargs, 1, 1)) return NULL;
     if (kwnames != NULL) {
         Py_ssize_t nkwargs = PyTuple_GET_SIZE(kwnames);
-        if ((enc_hook = find_keyword(kwnames, args + nargs, mod->str_enc_hook)) != NULL) {
-            nkwargs--;
-        }
+        if ((enc_hook = find_keyword(kwnames, args + nargs, mod->str_enc_hook)) != NULL) nkwargs--;
+        if ((order = find_keyword(kwnames, args + nargs, mod->str_order)) != NULL) nkwargs--;
         if (nkwargs > 0) {
             PyErr_SetString(
                 PyExc_TypeError,
@@ -9116,6 +9463,7 @@ encode_common(
         PyErr_SetString(PyExc_TypeError, "enc_hook must be callable");
         return NULL;
     }
+
     EncoderState state = {
         .mod = mod,
         .enc_hook = enc_hook,
@@ -9125,6 +9473,10 @@ encode_common(
         .max_output_len = ENC_INIT_BUFSIZE,
         .resize_buffer = &ms_resize_bytes
     };
+
+    state.order = parse_order_arg(order);
+    if (state.order == ORDER_INVALID) return NULL;
+
     state.output_buffer = PyBytes_FromStringAndSize(NULL, state.max_output_len);
     if (state.output_buffer == NULL) return NULL;
     state.output_buffer_raw = PyBytes_AS_STRING(state.output_buffer);
@@ -9138,7 +9490,7 @@ encode_common(
 }
 
 static PyMemberDef Encoder_members[] = {
-    {"enc_hook", T_OBJECT, offsetof(Encoder, enc_hook), READONLY, "The encoder enc_hook"},
+    {"enc_hook", T_OBJECT, offsetof(Encoder, enc_hook), READONLY, NULL},
     {NULL},
 };
 
@@ -9163,9 +9515,23 @@ Encoder_uuid_format(Encoder *self, void *closure) {
     }
 }
 
+static PyObject*
+Encoder_order(Encoder *self, void *closure) {
+    if (self->order == ORDER_DEFAULT) {
+        Py_RETURN_NONE;
+    }
+    else if (self->order == ORDER_DETERMINISTIC) {
+        return PyUnicode_InternFromString("deterministic");
+    }
+    else {
+        return PyUnicode_InternFromString("sorted");
+    }
+}
+
 static PyGetSetDef Encoder_getset[] = {
     {"decimal_format", (getter) Encoder_decimal_format, NULL, NULL, NULL},
     {"uuid_format", (getter) Encoder_uuid_format, NULL, NULL, NULL},
+    {"order", (getter) Encoder_order, NULL, NULL, NULL},
     {NULL},
 };
 
@@ -11683,7 +12049,7 @@ maybe_parse_number(
  *************************************************************************/
 
 PyDoc_STRVAR(Encoder__doc__,
-"Encoder(*, enc_hook=None, decimal_format='string', uuid_format='canonical')\n"
+"Encoder(*, enc_hook=None, decimal_format='string', uuid_format='canonical', order=None)\n"
 "--\n"
 "\n"
 "A MessagePack encoder.\n"
@@ -11704,7 +12070,18 @@ PyDoc_STRVAR(Encoder__doc__,
 "    and 'hex' formats encode them as strings with and without hyphens\n"
 "    respectively. The 'bytes' format encodes them as big-endian binary\n"
 "    representations of the corresponding 128-bit integers. Defaults to\n"
-"    'canonical'."
+"    'canonical'.\n"
+"order : {None, 'deterministic', 'sorted'}, optional\n"
+"    The ordering to use when encoding unordered compound types.\n"
+"\n"
+"    - ``None``: All objects are encoded in the most efficient manner matching\n"
+"      their in-memory representations. The default.\n"
+"    - `'deterministic'`: Unordered collections (sets, dicts) are sorted to\n"
+"      ensure a consistent output between runs. Useful when comparison/hashing\n"
+"      of the encoded binary output is necessary.\n"
+"    - `'sorted'`: Like `'deterministic'`, but *all* object-like types (structs,\n"
+"      dataclasses, ...) are also sorted by field name before encoding. This is\n"
+"      slower than `'deterministic'`, but may produce more human-readable output."
 );
 
 enum mpack_code {
@@ -11994,6 +12371,12 @@ mpack_encode_array_header(EncoderState *self, Py_ssize_t len, const char* typnam
     return 0;
 }
 
+static MS_INLINE int
+mpack_encode_empty_array(EncoderState *self) {
+    char header[1] = {MP_FIXARRAY};
+    return ms_write(self, header, 1);
+}
+
 static MS_NOINLINE int
 mpack_encode_list(EncoderState *self, PyObject *obj)
 {
@@ -12001,10 +12384,9 @@ mpack_encode_list(EncoderState *self, PyObject *obj)
     int status = 0;
 
     len = PyList_GET_SIZE(obj);
-    if (mpack_encode_array_header(self, len, "list") < 0)
-        return -1;
-    if (len == 0)
-        return 0;
+    if (len == 0) return mpack_encode_empty_array(self);
+
+    if (mpack_encode_array_header(self, len, "list") < 0) return -1;
     if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
     for (i = 0; i < len; i++) {
         if (mpack_encode_inline(self, PyList_GET_ITEM(obj, i)) < 0) {
@@ -12022,20 +12404,29 @@ mpack_encode_set(EncoderState *self, PyObject *obj)
     Py_ssize_t len, ppos = 0;
     Py_hash_t hash;
     PyObject *item;
-    int status = 0;
+    int status = -1;
 
     len = PySet_GET_SIZE(obj);
-    if (mpack_encode_array_header(self, len, "set") < 0)
-        return -1;
-    if (len == 0)
-        return 0;
+    if (len == 0) return mpack_encode_empty_array(self);
+
+    if (MS_UNLIKELY(self->order != ORDER_DEFAULT)) {
+        PyObject *temp = PySequence_List(obj);
+        if (temp == NULL) return -1;
+        if (PyList_Sort(temp) == 0) {
+            status = mpack_encode_list(self, temp);
+        }
+        Py_DECREF(temp);
+        return status;
+    }
+
+    if (mpack_encode_array_header(self, len, "set") < 0) return -1;
     if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
     while (_PySet_NextEntry(obj, &ppos, &item, &hash)) {
-        if (mpack_encode_inline(self, item) < 0) {
-            status = -1;
-            break;
-        }
+        if (mpack_encode_inline(self, item) < 0) goto cleanup;
     }
+    status = 0;
+
+cleanup:
     Py_LeaveRecursiveCall();
     return status;
 }
@@ -12047,10 +12438,9 @@ mpack_encode_tuple(EncoderState *self, PyObject *obj)
     int status = 0;
 
     len = PyTuple_GET_SIZE(obj);
-    if (mpack_encode_array_header(self, len, "tuples") < 0)
-        return -1;
-    if (len == 0)
-        return 0;
+    if (len == 0) return mpack_encode_empty_array(self);
+
+    if (mpack_encode_array_header(self, len, "tuples") < 0) return -1;
     if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
     for (i = 0; i < len; i++) {
         if (mpack_encode_inline(self, PyTuple_GET_ITEM(obj, i)) < 0) {
@@ -12092,23 +12482,58 @@ mpack_encode_map_header(EncoderState *self, Py_ssize_t len, const char* typname)
     return 0;
 }
 
+static int
+mpack_encode_and_free_assoclist(EncoderState *self, AssocList *list) {
+    if (list == NULL) return -1;
+
+    int status = -1;
+
+    AssocList_Sort(list);
+
+    if (mpack_encode_map_header(self, list->size, "dicts") < 0) goto cleanup2;
+
+    if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
+
+    for (Py_ssize_t i = 0; i < list->size; i++) {
+        AssocItem *item = &(list->items[i]);
+        if (mpack_encode_cstr(self, item->key, item->key_size) < 0) goto cleanup;
+        if (mpack_encode_inline(self, item->val) < 0) goto cleanup;
+    }
+    status = 0;
+
+cleanup:
+    Py_LeaveRecursiveCall();
+cleanup2:
+    AssocList_Free(list);
+    return status;
+}
+
 static MS_NOINLINE int
 mpack_encode_dict(EncoderState *self, PyObject *obj)
 {
     PyObject *key, *val;
-    Py_ssize_t len, pos = 0;
+    Py_ssize_t pos = 0;
     int status = -1;
 
-    len = PyDict_GET_SIZE(obj);
+    Py_ssize_t len = PyDict_GET_SIZE(obj);
+
+    if (MS_UNLIKELY(len == 0)) {
+        char header[1] = {MP_FIXMAP};
+        return ms_write(self, header, 1);
+    }
+
+    if (MS_UNLIKELY(self->order != ORDER_DEFAULT)) {
+        return mpack_encode_and_free_assoclist(self, AssocList_FromDict(obj));
+    }
+
     if (mpack_encode_map_header(self, len, "dicts") < 0) return -1;
-    if (len == 0) return 0;
     if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
     while (PyDict_Next(obj, &pos, &key, &val)) {
-        if (mpack_encode_dict_key_inline(self, key) < 0) goto error;
-        if (mpack_encode_inline(self, val) < 0) goto error;
+        if (mpack_encode_dict_key_inline(self, key) < 0) goto cleanup;
+        if (mpack_encode_inline(self, val) < 0) goto cleanup;
     }
     status = 0;
-error:
+cleanup:
     Py_LeaveRecursiveCall();
     return status;
 }
@@ -12116,6 +12541,10 @@ error:
 static int
 mpack_encode_dataclass(EncoderState *self, PyObject *obj, PyObject *fields)
 {
+    if (MS_UNLIKELY(self->order == ORDER_SORTED)) {
+        return mpack_encode_and_free_assoclist(self, AssocList_FromDataclass(obj, fields));
+    }
+
     if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
 
     int status = -1;
@@ -12170,6 +12599,10 @@ cleanup:
 static int
 mpack_encode_object(EncoderState *self, PyObject *obj)
 {
+    if (MS_UNLIKELY(self->order == ORDER_SORTED)) {
+        return mpack_encode_and_free_assoclist(self, AssocList_FromObject(obj));
+    }
+
     int status = -1;
     Py_ssize_t size = 0, max_size;
 
@@ -12258,94 +12691,118 @@ cleanup:
 }
 
 static int
-mpack_encode_struct(EncoderState *self, PyObject *obj)
-{
-    PyObject *key, *val, *fields, *tag_field, *tag_value;
-    Py_ssize_t i, nfields, len;
-    int tagged, status = -1;
-    StructMetaObject *struct_type = (StructMetaObject *)Py_TYPE(obj);
-
-    tag_field = struct_type->struct_tag_field;
-    tag_value = struct_type->struct_tag_value;
-    tagged = tag_value != NULL;
-    fields = struct_type->struct_encode_fields;
-    nfields = PyTuple_GET_SIZE(fields);
-    len = nfields + tagged;
+mpack_encode_struct_array(
+    EncoderState *self, StructMetaObject *struct_type, PyObject *obj
+) {
+    int status = -1;
+    PyObject *tag_value = struct_type->struct_tag_value;
+    int tagged = tag_value != NULL;
+    PyObject *fields = struct_type->struct_encode_fields;
+    Py_ssize_t nfields = PyTuple_GET_SIZE(fields);
+    Py_ssize_t len = nfields + tagged;
 
     if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
 
-    if (struct_type->array_like == OPT_TRUE) {
-        if (mpack_encode_array_header(self, len, "structs") < 0) goto cleanup;
-        if (tagged) {
-            if (mpack_encode(self, tag_value) < 0) goto cleanup;
-        }
-        for (i = 0; i < nfields; i++) {
-            val = Struct_get_index(obj, i);
-            if (val == NULL || mpack_encode(self, val) < 0) {
-                goto cleanup;
-            }
-        }
+    if (mpack_encode_array_header(self, len, "structs") < 0) goto cleanup;
+    if (tagged) {
+        if (mpack_encode(self, tag_value) < 0) goto cleanup;
     }
-    else {
-        Py_ssize_t header_offset = self->output_len;
-        if (mpack_encode_map_header(self, len, "structs") < 0) goto cleanup;
-
-        if (tagged) {
-            if (mpack_encode_str(self, tag_field) < 0) goto cleanup;
-            if (mpack_encode(self, tag_value) < 0) goto cleanup;
-        }
-
-        Py_ssize_t nunchecked = nfields, actual_len = len;
-        if (struct_type->omit_defaults == OPT_TRUE) {
-            nunchecked -= PyTuple_GET_SIZE(struct_type->struct_defaults);
-        }
-        for (i = 0; i < nunchecked; i++) {
-            key = PyTuple_GET_ITEM(fields, i);
-            val = Struct_get_index(obj, i);
-            if (MS_UNLIKELY(val == NULL)) goto cleanup;
-            if (MS_UNLIKELY(val == UNSET)) {
-                actual_len--;
-            }
-            else {
-                if (mpack_encode_str(self, key) < 0) goto cleanup;
-                if (mpack_encode(self, val) < 0) goto cleanup;
-            }
-        }
-        for (i = nunchecked; i < nfields; i++) {
-            key = PyTuple_GET_ITEM(fields, i);
-            val = Struct_get_index(obj, i);
-            if (val == NULL) goto cleanup;
-            PyObject *default_val = PyTuple_GET_ITEM(
-                struct_type->struct_defaults, i - nunchecked
-            );
-            if (val == UNSET || is_default(val, default_val)) {
-                actual_len--;
-            }
-            else {
-                if (mpack_encode_str(self, key) < 0) goto cleanup;
-                if (mpack_encode(self, val) < 0) goto cleanup;
-            }
-        }
-        if (MS_UNLIKELY(actual_len != len)) {
-            /* Fixup the header length after we know how many fields were
-             * actually written */
-            char *header_loc = self->output_buffer_raw + header_offset;
-            if (len < 16) {
-                *header_loc = MP_FIXMAP | actual_len;
-            } else if (len < (1 << 16)) {
-                *header_loc++ = MP_MAP16;
-                _msgspec_store16(header_loc, (uint16_t)actual_len);
-            } else {
-                *header_loc++ = MP_MAP32;
-                _msgspec_store32(header_loc, (uint32_t)actual_len);
-            }
-        }
+    for (Py_ssize_t i = 0; i < nfields; i++) {
+        PyObject *val = Struct_get_index(obj, i);
+        if (val == NULL || mpack_encode(self, val) < 0) goto cleanup;
     }
-
     status = 0;
 cleanup:
     Py_LeaveRecursiveCall();
     return status;
+}
+
+static int
+mpack_encode_struct_object(
+    EncoderState *self, StructMetaObject *struct_type, PyObject *obj
+) {
+    if (MS_UNLIKELY(self->order == ORDER_SORTED)) {
+        return mpack_encode_and_free_assoclist(self, AssocList_FromStruct(obj));
+    }
+
+    int status = -1;
+    PyObject *tag_field = struct_type->struct_tag_field;
+    PyObject *tag_value = struct_type->struct_tag_value;
+    int tagged = tag_value != NULL;
+    PyObject *fields = struct_type->struct_encode_fields;
+    Py_ssize_t nfields = PyTuple_GET_SIZE(fields);
+    Py_ssize_t len = nfields + tagged;
+
+    if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
+
+    Py_ssize_t header_offset = self->output_len;
+    if (mpack_encode_map_header(self, len, "structs") < 0) goto cleanup;
+
+    if (tagged) {
+        if (mpack_encode_str(self, tag_field) < 0) goto cleanup;
+        if (mpack_encode(self, tag_value) < 0) goto cleanup;
+    }
+
+    Py_ssize_t nunchecked = nfields, actual_len = len;
+    if (struct_type->omit_defaults == OPT_TRUE) {
+        nunchecked -= PyTuple_GET_SIZE(struct_type->struct_defaults);
+    }
+    for (Py_ssize_t i = 0; i < nunchecked; i++) {
+        PyObject *key = PyTuple_GET_ITEM(fields, i);
+        PyObject *val = Struct_get_index(obj, i);
+        if (MS_UNLIKELY(val == NULL)) goto cleanup;
+        if (MS_UNLIKELY(val == UNSET)) {
+            actual_len--;
+        }
+        else {
+            if (mpack_encode_str(self, key) < 0) goto cleanup;
+            if (mpack_encode(self, val) < 0) goto cleanup;
+        }
+    }
+    for (Py_ssize_t i = nunchecked; i < nfields; i++) {
+        PyObject *key = PyTuple_GET_ITEM(fields, i);
+        PyObject *val = Struct_get_index(obj, i);
+        if (val == NULL) goto cleanup;
+        PyObject *default_val = PyTuple_GET_ITEM(
+            struct_type->struct_defaults, i - nunchecked
+        );
+        if (val == UNSET || is_default(val, default_val)) {
+            actual_len--;
+        }
+        else {
+            if (mpack_encode_str(self, key) < 0) goto cleanup;
+            if (mpack_encode(self, val) < 0) goto cleanup;
+        }
+    }
+    if (MS_UNLIKELY(actual_len != len)) {
+        /* Fixup the header length after we know how many fields were
+         * actually written */
+        char *header_loc = self->output_buffer_raw + header_offset;
+        if (len < 16) {
+            *header_loc = MP_FIXMAP | actual_len;
+        } else if (len < (1 << 16)) {
+            *header_loc++ = MP_MAP16;
+            _msgspec_store16(header_loc, (uint16_t)actual_len);
+        } else {
+            *header_loc++ = MP_MAP32;
+            _msgspec_store32(header_loc, (uint32_t)actual_len);
+        }
+    }
+    status = 0;
+cleanup:
+    Py_LeaveRecursiveCall();
+    return status;
+}
+
+static int
+mpack_encode_struct(EncoderState *self, PyObject *obj)
+{
+    StructMetaObject *struct_type = (StructMetaObject *)Py_TYPE(obj);
+
+    if (struct_type->array_like == OPT_TRUE) {
+        return mpack_encode_struct_array(self, struct_type, obj);
+    }
+    return mpack_encode_struct_object(self, struct_type, obj);
 }
 
 static int
@@ -12751,10 +13208,10 @@ static PyTypeObject Encoder_Type = {
 };
 
 PyDoc_STRVAR(msgspec_msgpack_encode__doc__,
-"msgpack_encode(obj, *, enc_hook=None)\n"
+"msgpack_encode(obj, *, enc_hook=None, order=None)\n"
 "--\n"
 "\n"
-"Serialize an object to bytes.\n"
+"Serialize an object as MessagePack.\n"
 "\n"
 "Parameters\n"
 "----------\n"
@@ -12764,6 +13221,17 @@ PyDoc_STRVAR(msgspec_msgpack_encode__doc__,
 "    A callable to call for objects that aren't supported msgspec types. Takes\n"
 "    the unsupported object and should return a supported object, or raise a\n"
 "    ``NotImplementedError`` if unsupported.\n"
+"order : {None, 'deterministic', 'sorted'}, optional\n"
+"    The ordering to use when encoding unordered compound types.\n"
+"\n"
+"    - ``None``: All objects are encoded in the most efficient manner matching\n"
+"      their in-memory representations. The default.\n"
+"    - `'deterministic'`: Unordered collections (sets, dicts) are sorted to\n"
+"      ensure a consistent output between runs. Useful when comparison/hashing\n"
+"      of the encoded binary output is necessary.\n"
+"    - `'sorted'`: Like `'deterministic'`, but *all* object-like types (structs,\n"
+"      dataclasses, ...) are also sorted by field name before encoding. This is\n"
+"      slower than `'deterministic'`, but may produce more human-readable output.\n"
 "\n"
 "Returns\n"
 "-------\n"
@@ -12785,7 +13253,7 @@ msgspec_msgpack_encode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, 
  *************************************************************************/
 
 PyDoc_STRVAR(JSONEncoder__doc__,
-"Encoder(*, enc_hook=None, decimal_format='string', uuid_format='canonical')\n"
+"Encoder(*, enc_hook=None, decimal_format='string', uuid_format='canonical', order=None)\n"
 "--\n"
 "\n"
 "A JSON encoder.\n"
@@ -12805,7 +13273,18 @@ PyDoc_STRVAR(JSONEncoder__doc__,
 "uuid_format : {'canonical', 'hex'}, optional\n"
 "    The format to use for encoding `uuid.UUID` objects. The 'canonical'\n"
 "    and 'hex' formats encode them as strings with and without hyphens\n"
-"    respectively. Defaults to 'canonical'."
+"    respectively. Defaults to 'canonical'.\n"
+"order : {None, 'deterministic', 'sorted'}, optional\n"
+"    The ordering to use when encoding unordered compound types.\n"
+"\n"
+"    - ``None``: All objects are encoded in the most efficient manner matching\n"
+"      their in-memory representations. The default.\n"
+"    - `'deterministic'`: Unordered collections (sets, dicts) are sorted to\n"
+"      ensure a consistent output between runs. Useful when comparison/hashing\n"
+"      of the encoded binary output is necessary.\n"
+"    - `'sorted'`: Like `'deterministic'`, but *all* object-like types (structs,\n"
+"      dataclasses, ...) are also sorted by field name before encoding. This is\n"
+"      slower than `'deterministic'`, but may produce more human-readable output."
 );
 
 static int json_encode_inline(EncoderState*, PyObject*);
@@ -12893,24 +13372,6 @@ json_encode_float_as_str(EncoderState *self, PyObject *obj) {
     return 0;
 }
 
-static MS_INLINE int
-json_encode_cstr(EncoderState *self, const char *str, Py_ssize_t size) {
-    if (ms_ensure_space(self, size + 2) < 0) return -1;
-    char *p = self->output_buffer_raw + self->output_len;
-    *p++ = '"';
-    memcpy(p, str, size);
-    *(p + size) = '"';
-    self->output_len += size + 2;
-    return 0;
-}
-
-static inline int
-json_encode_str_nocheck(EncoderState *self, PyObject *obj) {
-    Py_ssize_t len;
-    const char* buf = unicode_str_and_size_nocheck(obj, &len);
-    return json_encode_cstr(self, buf, len);
-}
-
 /* A table of escape characters to use for each byte (0 if no escape needed) */
 static const char escape_table[256] = {
     'u', 'u', 'u', 'u', 'u', 'u', 'u', 'u', 'b', 't', 'n', 'u', 'f', 'r', 'u', 'u',
@@ -12945,11 +13406,8 @@ json_str_requires_escaping(PyObject *obj) {
     return 0;
 }
 
-static MS_NOINLINE int
-json_encode_str(EncoderState *self, PyObject *obj) {
-    Py_ssize_t len;
-    const char* src = unicode_str_and_size(obj, &len);
-    if (src == NULL) return -1;
+static MS_INLINE int
+json_encode_cstr_inline(EncoderState *self, const char *src, Py_ssize_t len) {
     const char* src_end = src + len;
 
     if (ms_ensure_space(self, len + 2) < 0) return -1;
@@ -13017,6 +13475,37 @@ escape:
 
         goto noescape;
     }
+}
+
+static int
+json_encode_cstr(EncoderState *self, const char *src, Py_ssize_t len) {
+    return json_encode_cstr_inline(self, src, len);
+}
+
+static MS_NOINLINE int
+json_encode_str(EncoderState *self, PyObject *obj) {
+    Py_ssize_t len;
+    const char* buf = unicode_str_and_size(obj, &len);
+    if (buf == NULL) return -1;
+    return json_encode_cstr_inline(self, buf, len);
+}
+
+static MS_INLINE int
+json_encode_cstr_noescape(EncoderState *self, const char *str, Py_ssize_t size) {
+    if (ms_ensure_space(self, size + 2) < 0) return -1;
+    char *p = self->output_buffer_raw + self->output_len;
+    *p++ = '"';
+    memcpy(p, str, size);
+    *(p + size) = '"';
+    self->output_len += size + 2;
+    return 0;
+}
+
+static inline int
+json_encode_str_noescape(EncoderState *self, PyObject *obj) {
+    Py_ssize_t len;
+    const char* buf = unicode_str_and_size_nocheck(obj, &len);
+    return json_encode_cstr_noescape(self, buf, len);
 }
 
 static int
@@ -13242,6 +13731,16 @@ json_encode_set(EncoderState *self, PyObject *obj)
     len = PySet_GET_SIZE(obj);
     if (len == 0) return ms_write(self, "[]", 2);
 
+    if (MS_UNLIKELY(self->order != ORDER_DEFAULT)) {
+        PyObject *temp = PySequence_List(obj);
+        if (temp == NULL) return -1;
+        if (PyList_Sort(temp) == 0) {
+            status = json_encode_list(self, temp);
+        }
+        Py_DECREF(temp);
+        return status;
+    }
+
     if (ms_write(self, "[", 1) < 0) return -1;
     if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
     while (_PySet_NextEntry(obj, &ppos, &item, &hash)) {
@@ -13321,6 +13820,52 @@ json_encode_dict_key_noinline(EncoderState *self, PyObject *obj) {
     }
 }
 
+static int
+json_encode_and_free_assoclist(EncoderState *self, AssocList *list, bool escape) {
+    if (list == NULL) return -1;
+
+    int status = -1;
+
+    AssocList_Sort(list);
+
+    if (Py_EnterRecursiveCall(" while serializing an object")) goto cleanup2;
+
+    if (ms_write(self, "{", 1) < 0) goto cleanup;
+    Py_ssize_t start_len = self->output_len;
+    if (escape) {
+        for (Py_ssize_t i = 0; i < list->size; i++) {
+            AssocItem *item = &(list->items[i]);
+            if (json_encode_cstr(self, item->key, item->key_size) < 0) goto cleanup;
+            if (ms_write(self, ":", 1) < 0) goto cleanup;
+            if (json_encode_inline(self, item->val) < 0) goto cleanup;
+            if (ms_write(self, ",", 1) < 0) goto cleanup;
+        }
+    }
+    else {
+        for (Py_ssize_t i = 0; i < list->size; i++) {
+            AssocItem *item = &(list->items[i]);
+            if (json_encode_cstr_noescape(self, item->key, item->key_size) < 0) goto cleanup;
+            if (ms_write(self, ":", 1) < 0) goto cleanup;
+            if (json_encode_inline(self, item->val) < 0) goto cleanup;
+            if (ms_write(self, ",", 1) < 0) goto cleanup;
+        }
+    }
+    if (MS_UNLIKELY(start_len == self->output_len)) {
+        /* Empty, append "}" */
+        if (ms_write(self, "}", 1) < 0) goto cleanup;
+    }
+    else {
+        /* Overwrite trailing comma with } */
+        *(self->output_buffer_raw + self->output_len - 1) = '}';
+    }
+    status = 0;
+cleanup:
+    Py_LeaveRecursiveCall();
+cleanup2:
+    AssocList_Free(list);
+    return status;
+}
+
 static MS_NOINLINE int
 json_encode_dict(EncoderState *self, PyObject *obj)
 {
@@ -13330,6 +13875,11 @@ json_encode_dict(EncoderState *self, PyObject *obj)
 
     len = PyDict_GET_SIZE(obj);
     if (len == 0) return ms_write(self, "{}", 2);
+
+    if (MS_UNLIKELY(self->order != ORDER_DEFAULT)) {
+        return json_encode_and_free_assoclist(self, AssocList_FromDict(obj), true);
+    }
+
     if (ms_write(self, "{", 1) < 0) return -1;
     if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
     while (PyDict_Next(obj, &pos, &key, &val)) {
@@ -13349,6 +13899,12 @@ cleanup:
 static int
 json_encode_dataclass(EncoderState *self, PyObject *obj, PyObject *fields)
 {
+    if (MS_UNLIKELY(self->order == ORDER_SORTED)) {
+        return json_encode_and_free_assoclist(
+            self, AssocList_FromDataclass(obj, fields), false
+        );
+    }
+
     if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
 
     int status = -1;
@@ -13364,7 +13920,7 @@ json_encode_dataclass(EncoderState *self, PyObject *obj, PyObject *fields)
         const char* field_buf = unicode_str_and_size(field, &field_len);
         bool errored = (
             (field_buf == NULL) ||
-            (json_encode_cstr(self, field_buf, field_len) < 0) ||
+            (json_encode_cstr_noescape(self, field_buf, field_len) < 0) ||
             (ms_write(self, ":", 1) < 0) ||
             (json_encode(self, val) < 0) ||
             (ms_write(self, ",", 1) < 0)
@@ -13394,6 +13950,10 @@ cleanup:
 static int
 json_encode_object(EncoderState *self, PyObject *obj)
 {
+    if (MS_UNLIKELY(self->order == ORDER_SORTED)) {
+        return json_encode_and_free_assoclist(self, AssocList_FromObject(obj), false);
+    }
+
     int status = -1;
     if (ms_write(self, "{", 1) < 0) return -1;
     Py_ssize_t start_offset = self->output_len;
@@ -13414,7 +13974,7 @@ json_encode_object(EncoderState *self, PyObject *obj)
                 if (MS_UNLIKELY(val == UNSET)) continue;
                 if (MS_UNLIKELY(key_buf == NULL)) goto cleanup;
                 if (MS_UNLIKELY(*key_buf == '_')) continue;
-                if (MS_UNLIKELY(json_encode_cstr(self, key_buf, key_len) < 0)) goto cleanup;
+                if (MS_UNLIKELY(json_encode_cstr_noescape(self, key_buf, key_len) < 0)) goto cleanup;
                 if (MS_UNLIKELY(ms_write(self, ":", 1) < 0)) goto cleanup;
                 if (MS_UNLIKELY(json_encode(self, val) < 0)) goto cleanup;
                 if (MS_UNLIKELY(ms_write(self, ",", 1) < 0)) goto cleanup;
@@ -13434,7 +13994,7 @@ json_encode_object(EncoderState *self, PyObject *obj)
                     if (MS_UNLIKELY(val == NULL)) continue;
                     if (MS_UNLIKELY(val == UNSET)) continue;
                     if (MS_UNLIKELY(*mp->name == '_')) continue;
-                    if (MS_UNLIKELY(json_encode_cstr(self, mp->name, strlen(mp->name)) < 0)) goto cleanup;
+                    if (MS_UNLIKELY(json_encode_cstr_noescape(self, mp->name, strlen(mp->name)) < 0)) goto cleanup;
                     if (MS_UNLIKELY(ms_write(self, ":", 1) < 0)) goto cleanup;
                     if (MS_UNLIKELY(json_encode(self, val) < 0)) goto cleanup;
                     if (MS_UNLIKELY(ms_write(self, ",", 1) < 0)) goto cleanup;
@@ -13474,6 +14034,9 @@ static int
 json_encode_struct_object(
     EncoderState *self, StructMetaObject *struct_type, PyObject *obj
 ) {
+    if (MS_UNLIKELY(self->order == ORDER_SORTED)) {
+        return json_encode_and_free_assoclist(self, AssocList_FromStruct(obj), false);
+    }
     PyObject *key, *val, *fields, *defaults, *tag_field, *tag_value;
     Py_ssize_t i, nfields, nunchecked;
     int status = -1;
@@ -13502,7 +14065,7 @@ json_encode_struct_object(
         val = Struct_get_index(obj, i);
         if (MS_UNLIKELY(val == NULL)) goto cleanup;
         if (MS_UNLIKELY(val == UNSET)) continue;
-        if (json_encode_str_nocheck(self, key) < 0) goto cleanup;
+        if (json_encode_str_noescape(self, key) < 0) goto cleanup;
         if (ms_write(self, ":", 1) < 0) goto cleanup;
         if (json_encode(self, val) < 0) goto cleanup;
         if (ms_write(self, ",", 1) < 0) goto cleanup;
@@ -13514,7 +14077,7 @@ json_encode_struct_object(
         if (MS_UNLIKELY(val == UNSET)) continue;
         PyObject *default_val = PyTuple_GET_ITEM(defaults, i - nunchecked);
         if (!is_default(val, default_val)) {
-            if (json_encode_str_nocheck(self, key) < 0) goto cleanup;
+            if (json_encode_str_noescape(self, key) < 0) goto cleanup;
             if (ms_write(self, ":", 1) < 0) goto cleanup;
             if (json_encode(self, val) < 0) goto cleanup;
             if (ms_write(self, ",", 1) < 0) goto cleanup;
@@ -13735,6 +14298,7 @@ JSONEncoder_encode_lines(Encoder *self, PyObject *const *args, Py_ssize_t nargs)
         .enc_hook = self->enc_hook,
         .decimal_format = self->decimal_format,
         .uuid_format = self->uuid_format,
+        .order = self->order,
         .output_len = 0,
         .max_output_len = ENC_LINES_INIT_BUFSIZE,
         .resize_buffer = &ms_resize_bytes
@@ -13803,10 +14367,10 @@ static PyTypeObject JSONEncoder_Type = {
 };
 
 PyDoc_STRVAR(msgspec_json_encode__doc__,
-"json_encode(obj, *, enc_hook=None)\n"
+"json_encode(obj, *, enc_hook=None, order=None)\n"
 "--\n"
 "\n"
-"Serialize an object to bytes.\n"
+"Serialize an object as JSON.\n"
 "\n"
 "Parameters\n"
 "----------\n"
@@ -13816,6 +14380,17 @@ PyDoc_STRVAR(msgspec_json_encode__doc__,
 "    A callable to call for objects that aren't supported msgspec types. Takes\n"
 "    the unsupported object and should return a supported object, or raise a\n"
 "    ``NotImplementedError`` if unsupported.\n"
+"order : {None, 'deterministic', 'sorted'}, optional\n"
+"    The ordering to use when encoding unordered compound types.\n"
+"\n"
+"    - ``None``: All objects are encoded in the most efficient manner matching\n"
+"      their in-memory representations. The default.\n"
+"    - `'deterministic'`: Unordered collections (sets, dicts) are sorted to\n"
+"      ensure a consistent output between runs. Useful when comparison/hashing\n"
+"      of the encoded binary output is necessary.\n"
+"    - `'sorted'`: Like `'deterministic'`, but *all* object-like types (structs,\n"
+"      dataclasses, ...) are also sorted by field name before encoding. This is\n"
+"      slower than `'deterministic'`, but may produce more human-readable output.\n"
 "\n"
 "Returns\n"
 "-------\n"
@@ -15508,7 +16083,7 @@ PyDoc_STRVAR(Decoder_decode__doc__,
 "decode(self, buf)\n"
 "--\n"
 "\n"
-"Deserialize an object from bytes.\n"
+"Deserialize an object from MessagePack.\n"
 "\n"
 "Parameters\n"
 "----------\n"
@@ -15593,7 +16168,7 @@ PyDoc_STRVAR(msgspec_msgpack_decode__doc__,
 "msgpack_decode(buf, *, type='Any', strict=True, dec_hook=None, ext_hook=None)\n"
 "--\n"
 "\n"
-"Deserialize an object from bytes.\n"
+"Deserialize an object from MessagePack.\n"
 "\n"
 "Parameters\n"
 "----------\n"
@@ -18454,7 +19029,7 @@ PyDoc_STRVAR(JSONDecoder_decode__doc__,
 "decode(self, buf)\n"
 "--\n"
 "\n"
-"Deserialize an object from bytes.\n"
+"Deserialize an object from JSON.\n"
 "\n"
 "Parameters\n"
 "----------\n"
@@ -18644,7 +19219,7 @@ PyDoc_STRVAR(msgspec_json_decode__doc__,
 "json_decode(buf, *, type='Any', strict=True, dec_hook=None)\n"
 "--\n"
 "\n"
-"Deserialize an object from bytes.\n"
+"Deserialize an object from JSON.\n"
 "\n"
 "Parameters\n"
 "----------\n"
@@ -18792,6 +19367,7 @@ typedef struct {
     MsgspecState *mod;
     PyObject *enc_hook;
     bool str_keys;
+    enum order_mode order;
     uint32_t builtin_types;
     PyObject *builtin_types_seq;
 } ToBuiltinsState;
@@ -18921,33 +19497,62 @@ cleanup:
 
 static PyObject *
 to_builtins_set(ToBuiltinsState *self, PyObject *obj, bool is_key) {
+    PyObject *out = NULL;
     if (Py_EnterRecursiveCall(" while serializing an object")) return NULL;
 
-    Py_ssize_t size = PySet_GET_SIZE(obj);
-    Py_hash_t hash;
-    PyObject *item, *out;
-
-    out = is_key ? PyTuple_New(size) : PyList_New(size);
-    if (out == NULL) goto cleanup;
-
-    Py_ssize_t i = 0, pos = 0;
-    while (_PySet_NextEntry(obj, &pos, &item, &hash)) {
-        PyObject *new = to_builtins(self, item, is_key);
-        if (new == NULL) {
-            Py_CLEAR(out);
-            goto cleanup;
-        }
-        if (is_key) {
-            PyTuple_SET_ITEM(out, i, new);
-        }
-        else {
-            PyList_SET_ITEM(out, i, new);
-        }
-        i++;
+    PyObject *list = PySequence_List(obj);
+    if (list == NULL) goto cleanup;
+    if (self->order != ORDER_DEFAULT) {
+        if (PyList_Sort(list) < 0) goto cleanup;
     }
+
+    Py_ssize_t size = PyList_GET_SIZE(list);
+    for (Py_ssize_t i = 0; i < size; i++) {
+        PyObject *orig_item = PyList_GET_ITEM(list, i);
+        PyObject *new_item = to_builtins(self, orig_item, is_key);
+        if (new_item == NULL) goto cleanup;
+        PyList_SET_ITEM(list, i, new_item);
+        Py_DECREF(orig_item);
+    }
+    if (is_key) {
+        out = PyList_AsTuple(list);
+    }
+    else {
+        Py_INCREF(list);
+        out = list;
+    }
+
 cleanup:
     Py_LeaveRecursiveCall();
+    Py_XDECREF(list);
     return out;
+}
+
+static void
+sort_dict_inplace(PyObject **dict) {
+    PyObject *out = NULL, *new = NULL, *keys = NULL;
+
+    new = PyDict_New();
+    if (new == NULL) goto error;
+
+    keys = PyDict_Keys(*dict);
+    if (keys == NULL) goto error;
+    if (PyList_Sort(keys) < 0) goto error;
+
+    Py_ssize_t size = PyList_GET_SIZE(keys);
+    for (Py_ssize_t i = 0; i < size; i++) {
+        PyObject *key = PyList_GET_ITEM(keys, i);
+        PyObject *val = PyDict_GetItem(*dict, key);
+        if (val == NULL) goto error;
+        if (PyDict_SetItem(new, key, val) < 0) goto error;
+    }
+    Py_INCREF(new);
+    out = new;
+error:
+    Py_XDECREF(new);
+    Py_XDECREF(keys);
+    Py_XDECREF(*dict);
+    *dict = out;
 }
 
 static PyObject *
@@ -18983,6 +19588,9 @@ to_builtins_dict(ToBuiltinsState *self, PyObject *obj) {
         if (PyDict_SetItem(out, new_key, new_val) < 0) goto cleanup;
         Py_CLEAR(new_key);
         Py_CLEAR(new_val);
+    }
+    if (MS_UNLIKELY(self->order != ORDER_DEFAULT)) {
+        sort_dict_inplace(&out);
     }
     ok = true;
 
@@ -19068,6 +19676,9 @@ to_builtins_struct(ToBuiltinsState *self, PyObject *obj, bool is_key) {
                 if (status < 0) goto cleanup;
             }
         }
+        if (MS_UNLIKELY(self->order == ORDER_SORTED)) {
+            sort_dict_inplace(&out);
+        }
     }
     ok = true;
 
@@ -19102,14 +19713,16 @@ to_builtins_dataclass(ToBuiltinsState *self, PyObject *obj, PyObject *fields)
         Py_XDECREF(val2);
         if (status < 0) goto cleanup;
     }
+    if (MS_UNLIKELY(self->order == ORDER_SORTED)) {
+        sort_dict_inplace(&out);
+    }
     ok = true;
 
 cleanup:
     Py_LeaveRecursiveCall();
     dataclass_iter_cleanup(&iter);
     if (!ok) {
-        Py_XDECREF(out);
-        return NULL;
+        Py_CLEAR(out);
     }
     return out;
 }
@@ -19177,6 +19790,9 @@ to_builtins_object(ToBuiltinsState *self, PyObject *obj) {
             }
         }
         type = type->tp_base;
+    }
+    if (MS_UNLIKELY(self->order == ORDER_SORTED)) {
+        sort_dict_inplace(&out);
     }
     ok = true;
 
@@ -19388,7 +20004,7 @@ error:
 
 
 PyDoc_STRVAR(msgspec_to_builtins__doc__,
-"to_builtins(obj, *, str_keys=False, builtin_types=None, enc_hook=None)\n"
+"to_builtins(obj, *, str_keys=False, builtin_types=None, enc_hook=None, order=None)\n"
 "--\n"
 "\n"
 "Convert a complex object to one composed only of simpler builtin types\n"
@@ -19412,6 +20028,17 @@ PyDoc_STRVAR(msgspec_to_builtins__doc__,
 "    A callable to call for objects that aren't supported msgspec types. Takes\n"
 "    the unsupported object and should return a supported object, or raise a\n"
 "    ``NotImplementedError`` if unsupported.\n"
+"order : {None, 'deterministic', 'sorted'}, optional\n"
+"    The ordering to use when converting unordered compound types.\n"
+"\n"
+"    - ``None``: All objects are converted in the most efficient manner matching\n"
+"      their in-memory representations. The default.\n"
+"    - `'deterministic'`: Unordered collections (sets, dicts) are sorted to\n"
+"      ensure a consistent output between runs. Useful when comparison/hashing\n"
+"      of the converted output is necessary.\n"
+"    - `'sorted'`: Like `'deterministic'`, but *all* object-like types (structs,\n"
+"      dataclasses, ...) are also sorted by field name before encoding. This is\n"
+"      slower than `'deterministic'`, but may produce more human-readable output.\n"
 "\n"
 "Returns\n"
 "-------\n"
@@ -19447,15 +20074,16 @@ PyDoc_STRVAR(msgspec_to_builtins__doc__,
 static PyObject*
 msgspec_to_builtins(PyObject *self, PyObject *args, PyObject *kwargs)
 {
-    PyObject *obj = NULL, *builtin_types = NULL, *enc_hook = NULL;
-    int str_keys = false;
+    PyObject *obj = NULL, *builtin_types = NULL, *enc_hook = NULL, *order = NULL;
+    int str_keys = 0;
     ToBuiltinsState state;
 
-    char *kwlist[] = {"obj", "builtin_types", "str_keys", "enc_hook", NULL};
+    char *kwlist[] = {"obj", "builtin_types", "str_keys", "enc_hook", "order", NULL};
 
     /* Parse arguments */
     if (!PyArg_ParseTupleAndKeywords(
-        args, kwargs, "O|$OpO", kwlist, &obj, &builtin_types, &str_keys, &enc_hook
+        args, kwargs, "O|$OpOO", kwlist,
+        &obj, &builtin_types, &str_keys, &enc_hook, &order
     )) {
         return NULL;
     }
@@ -19465,6 +20093,9 @@ msgspec_to_builtins(PyObject *self, PyObject *args, PyObject *kwargs)
     state.builtin_types = 0;
     state.builtin_types_seq = NULL;
 
+    state.order = parse_order_arg(order);
+    if (state.order == ORDER_INVALID) return NULL;
+
     if (enc_hook == Py_None) {
         enc_hook = NULL;
     }
@@ -19473,6 +20104,7 @@ msgspec_to_builtins(PyObject *self, PyObject *args, PyObject *kwargs)
         return NULL;
     }
     state.enc_hook = enc_hook;
+
     if (
         ms_process_builtin_types(
             state.mod,
@@ -21174,6 +21806,7 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->str_dec_hook);
     Py_CLEAR(st->str_ext_hook);
     Py_CLEAR(st->str_strict);
+    Py_CLEAR(st->str_order);
     Py_CLEAR(st->str_utcoffset);
     Py_CLEAR(st->str___origin__);
     Py_CLEAR(st->str___args__);
@@ -21568,6 +22201,7 @@ PyInit__core(void)
     CACHED_STRING(str_dec_hook, "dec_hook");
     CACHED_STRING(str_ext_hook, "ext_hook");
     CACHED_STRING(str_strict, "strict");
+    CACHED_STRING(str_order, "order");
     CACHED_STRING(str_utcoffset, "utcoffset");
     CACHED_STRING(str___origin__, "__origin__");
     CACHED_STRING(str___args__, "__args__");

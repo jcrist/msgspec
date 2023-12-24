@@ -152,6 +152,7 @@ def to_builtins(
     str_keys: bool = False,
     builtin_types: Union[Iterable[type], None] = None,
     enc_hook: Optional[Callable[[Any], Any]] = None,
+    order: Literal[None, "deterministic", "sorted"] = None,
 ) -> Any: ...
 @overload
 def convert(

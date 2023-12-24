@@ -156,6 +156,19 @@ def test_encode_enc_hook():
     assert msgspec.toml.decode(msg) == {"x": "1.5"}
 
 
+@needs_encode
+@pytest.mark.parametrize("order", [None, "deterministic"])
+def test_encode_order(order):
+    msg = {"y": 1, "x": ({"n": 1, "m": 2},), "z": [{"b": 1, "a": 2}]}
+    res = msgspec.toml.encode(msg, order=order)
+    if order:
+        sol_msg = {"x": ({"m": 2, "n": 1},), "y": 1, "z": [{"a": 2, "b": 1}]}
+    else:
+        sol_msg = msg
+    sol = tomli_w.dumps(sol_msg).encode("utf-8")
+    assert res == sol
+
+
 @needs_decode
 def test_decode_str_or_bytes_like():
     assert msgspec.toml.decode("a = 1") == {"a": 1}
