@@ -125,6 +125,14 @@ def test_encode_enc_hook():
     assert msgspec.yaml.decode(msg) == "1.5"
 
 
+@pytest.mark.parametrize("order", [None, "deterministic"])
+def test_encode_order(order):
+    msg = {"y": 1, "x": 2, "z": 3}
+    res = msgspec.yaml.encode(msg, order=order)
+    sol = yaml.safe_dump(msg, sort_keys=bool(order)).encode("utf-8")
+    assert res == sol
+
+
 def test_decode_str_or_bytes_like():
     assert msgspec.yaml.decode("[1, 2]") == [1, 2]
     assert msgspec.yaml.decode(b"[1, 2]") == [1, 2]

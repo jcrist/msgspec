@@ -6,12 +6,12 @@ import os
 import sys
 import uuid
 import weakref
-from dataclasses import dataclass
+from dataclasses import dataclass, make_dataclass
 from typing import Any, NamedTuple, Union
 
 import pytest
 
-from msgspec import UNSET, EncodeError, Struct, UnsetType, to_builtins
+from msgspec import UNSET, EncodeError, Struct, UnsetType, to_builtins, defstruct
 
 PY310 = sys.version_info[:2] >= (3, 10)
 PY311 = sys.version_info[:2] >= (3, 11)
@@ -514,3 +514,135 @@ class TestToBuiltins:
             to_builtins(Bad(), builtin_types=builtins)
 
         assert sys.getrefcount(builtins) == count
+
+
+class TestOrder:
+    def test_order_invalid(self):
+        with pytest.raises(ValueError, match="`order` must be one of"):
+            to_builtins(1, order="bad")
+
+    @staticmethod
+    def assert_eq(left, right):
+        assert left == right
+        if isinstance(left, dict):
+            assert list(left) == list(right)
+
+    @pytest.mark.parametrize("msg", [{}, {"y": 1, "x": 2, "z": 3}])
+    @pytest.mark.parametrize("order", [None, "deterministic", "sorted"])
+    def test_order_dict(self, msg, order):
+        res = to_builtins(msg, order=order)
+        sol = dict(sorted(msg.items())) if order else msg
+        self.assert_eq(res, sol)
+
+    def test_order_dict_non_str_errors(self):
+        with pytest.raises(TypeError):
+            to_builtins({"b": 2, 1: "a"}, order="deterministic")
+
+    def test_order_dict_unsortable(self):
+        with pytest.raises(TypeError):
+            to_builtins({"x": 1, 1: 2}, order="deterministic")
+
+    @pytest.mark.parametrize("typ", [set, frozenset])
+    @pytest.mark.parametrize("order", ["deterministic", "sorted"])
+    def test_order_set(self, typ, rand, order):
+        assert to_builtins(typ(), order=order) == []
+
+        msg = typ(rand.str(10) for _ in range(20))
+
+        res = to_builtins(msg, order=order)
+        self.assert_eq(res, sorted(msg))
+
+        res = to_builtins(msg)
+        self.assert_eq(res, list(msg))
+
+    def test_order_set_unsortable(self):
+        with pytest.raises(TypeError):
+            to_builtins({"x", 1}, order="deterministic")
+
+    @pytest.mark.parametrize("n", [0, 1, 2])
+    @pytest.mark.parametrize(
+        "kind",
+        [
+            "struct",
+            "dataclass",
+            "attrs",
+            "attrs-dict",
+        ],
+    )
+    def test_order_object(self, kind, n):
+        fields = [f"x{i}" for i in range(n)]
+        fields.reverse()
+        if kind == "struct":
+            cls = defstruct("Test", fields)
+        elif kind == "dataclass":
+            cls = make_dataclass("Test", fields)
+        else:
+            attrs = pytest.importorskip("attrs")
+            cls = attrs.make_class("Test", fields, slots=(kind == "attrs"))
+        msg = cls(*range(n))
+
+        if kind in ("struct", "dataclass"):
+            # we currently don't guarantee field order with attrs types
+            res = to_builtins(msg)
+            sol = dict(zip(fields, range(n)))
+            self.assert_eq(res, sol)
+
+            res = to_builtins(msg, order="deterministic")
+            self.assert_eq(res, sol)
+
+        res = to_builtins(msg, order="sorted")
+        sol = dict(sorted(zip(fields, range(n))))
+        self.assert_eq(res, sol)
+
+    @pytest.mark.parametrize("kind", ["struct", "dataclass", "attrs", "attrs-dict"])
+    def test_order_unset(self, kind):
+        if kind == "struct":
+
+            class Ex(Struct):
+                z: Union[int, UnsetType] = UNSET
+                x: Union[int, UnsetType] = UNSET
+        elif kind == "dataclass":
+
+            @dataclass
+            class Ex:
+                z: Union[int, UnsetType] = UNSET
+                x: Union[int, UnsetType] = UNSET
+        else:
+            attrs = pytest.importorskip("attrs")
+
+            @attrs.define(slots=(kind == "attrs"))
+            class Ex:
+                z: Union[int, UnsetType] = UNSET
+                x: Union[int, UnsetType] = UNSET
+
+        res = to_builtins(Ex(), order="sorted")
+        self.assert_eq(res, {})
+
+        res = to_builtins(Ex(z=10), order="sorted")
+        self.assert_eq(res, {"z": 10})
+
+        res = to_builtins(Ex(z=10, x=-1), order="sorted")
+        self.assert_eq(res, {"x": -1, "z": 10})
+
+    def test_order_struct_omit_defaults(self):
+        class Ex(Struct, omit_defaults=True):
+            z: int = 0
+            x: int = 1
+            y: int = 2
+
+        res = to_builtins(Ex(), order="sorted")
+        self.assert_eq(res, {})
+
+        res = to_builtins(Ex(z=10), order="sorted")
+        self.assert_eq(res, {"z": 10})
+
+        res = to_builtins(Ex(z=10, x=-1), order="sorted")
+        self.assert_eq(res, {"x": -1, "z": 10})
+
+    def test_order_struct_tag(self):
+        class Ex(Struct, tag_field="y", tag=2):
+            z: int
+            x: int
+
+        res = to_builtins(Ex(0, 1), order="sorted")
+        self.assert_eq(res, {"x": 1, "y": 2, "z": 0})

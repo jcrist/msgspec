@@ -667,6 +667,17 @@ def check_msgpack_Encoder_enc_hook() -> None:
     msgspec.msgpack.Encoder(enc_hook=lambda x: None)
 
 
+def check_msgpack_order() -> None:
+    enc = msgspec.msgpack.Encoder(order=None)
+    msgspec.msgpack.Encoder(order='deterministic')
+    msgspec.msgpack.Encoder(order='sorted')
+    reveal_type(enc.order)  # assert "deterministic" in typ
+
+    msgspec.msgpack.encode({"a": 1}, order=None)
+    msgspec.msgpack.encode({"a": 1}, order='deterministic')
+    msgspec.msgpack.encode({"a": 1}, order='sorted')
+
+
 def check_msgpack_Encoder_decimal_format() -> None:
     enc = msgspec.msgpack.Encoder(decimal_format="string")
     msgspec.msgpack.Encoder(decimal_format="number")
@@ -832,6 +843,17 @@ def check_json_Encoder_enc_hook() -> None:
     msgspec.json.Encoder(enc_hook=lambda x: None)
 
 
+def check_json_order() -> None:
+    enc = msgspec.json.Encoder(order=None)
+    msgspec.json.Encoder(order='deterministic')
+    msgspec.json.Encoder(order='sorted')
+    reveal_type(enc.order)  # assert "deterministic" in typ
+
+    msgspec.json.encode({"a": 1}, order=None)
+    msgspec.json.encode({"a": 1}, order='deterministic')
+    msgspec.json.encode({"a": 1}, order='sorted')
+
+
 def check_json_Encoder_decimal_format() -> None:
     enc = msgspec.json.Encoder(decimal_format="string")
     msgspec.json.Encoder(decimal_format="number")
@@ -911,6 +933,12 @@ def check_yaml_encode_enc_hook() -> None:
     msgspec.yaml.encode(object(), enc_hook=lambda x: None)
 
 
+def check_yaml_encode_order() -> None:
+    msgspec.yaml.encode(object(), order=None)
+    msgspec.yaml.encode(object(), order="deterministic")
+    msgspec.yaml.encode(object(), order="sorted")
+
+
 def check_yaml_decode_dec_hook() -> None:
     def dec_hook(typ: Type, obj: Any) -> Any:
         return typ(obj)
@@ -951,6 +979,12 @@ def check_toml_decode_from_str() -> None:
 
 def check_toml_encode_enc_hook() -> None:
     msgspec.toml.encode(object(), enc_hook=lambda x: None)
+
+
+def check_toml_encode_order() -> None:
+    msgspec.toml.encode(object(), order=None)
+    msgspec.toml.encode(object(), order="deterministic")
+    msgspec.toml.encode(object(), order="sorted")
 
 
 def check_toml_decode_dec_hook() -> None:
@@ -1057,6 +1091,9 @@ def check_to_builtins() -> None:
     msgspec.to_builtins({1: 2}, str_keys=False)
     msgspec.to_builtins(b"test", builtin_types=(bytes, bytearray, memoryview))
     msgspec.to_builtins([1, 2, 3], enc_hook=lambda x: None)
+    msgspec.to_builtins([1, 2, 3], order=None)
+    msgspec.to_builtins([1, 2, 3], order="deterministic")
+    msgspec.to_builtins([1, 2, 3], order="sorted")
 
 
 def check_convert() -> None:

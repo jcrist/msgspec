@@ -1,5 +1,5 @@
 import datetime as _datetime
-from typing import Any, Callable, Optional, Type, TypeVar, Union, overload
+from typing import Any, Callable, Optional, Type, TypeVar, Union, overload, Literal
 
 from . import (
     DecodeError as _DecodeError,
@@ -49,7 +49,12 @@ def _import_tomli_w():
         ) from None
 
 
-def encode(obj: Any, *, enc_hook: Optional[Callable[[Any], Any]] = None) -> bytes:
+def encode(
+    obj: Any,
+    *,
+    enc_hook: Optional[Callable[[Any], Any]] = None,
+    order: Literal[None, "deterministic", "sorted"] = None,
+) -> bytes:
     """Serialize an object as TOML.
 
     Parameters
@@ -60,6 +65,18 @@ def encode(obj: Any, *, enc_hook: Optional[Callable[[Any], Any]] = None) -> byte
         A callable to call for objects that aren't supported msgspec types.
         Takes the unsupported object and should return a supported object, or
         raise a ``NotImplementedError`` if unsupported.
+    order : {None, 'deterministic', 'sorted'}, optional
+        The ordering to use when encoding unordered compound types.
+
+        - ``None``: All objects are encoded in the most efficient manner
+          matching their in-memory representations. The default.
+        - `'deterministic'`: Unordered collections (sets, dicts) are sorted to
+          ensure a consistent output between runs. Useful when
+          comparison/hashing of the encoded binary output is necessary.
+        - `'sorted'`: Like `'deterministic'`, but *all* object-like types
+          (structs, dataclasses, ...) are also sorted by field name before
+          encoding. This is slower than `'deterministic'`, but may produce more
+          human-readable output.
 
     Returns
     -------
@@ -71,14 +88,14 @@ def encode(obj: Any, *, enc_hook: Optional[Callable[[Any], Any]] = None) -> byte
     decode
     """
     toml = _import_tomli_w()
-    return toml.dumps(
-        _to_builtins(
-            obj,
-            builtin_types=(_datetime.datetime, _datetime.date, _datetime.time),
-            str_keys=True,
-            enc_hook=enc_hook,
-        )
-    ).encode("utf-8")
+    msg = _to_builtins(
+        obj,
+        builtin_types=(_datetime.datetime, _datetime.date, _datetime.time),
+        str_keys=True,
+        enc_hook=enc_hook,
+        order=order,
+    )
+    return toml.dumps(msg).encode("utf-8")
 
 
 T = TypeVar("T")

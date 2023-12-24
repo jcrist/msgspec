@@ -25,6 +25,7 @@ class Encoder:
     enc_hook: enc_hook_sig
     decimal_format: Literal["string", "number"]
     uuid_format: Literal["canonical", "hex"]
+    order: Literal[None, "deterministic", "sorted"]
 
     def __init__(
         self,
@@ -32,6 +33,7 @@ class Encoder:
         enc_hook: enc_hook_sig = None,
         decimal_format: Literal["string", "number"] = "string",
         uuid_format: Literal["canonical", "hex"] = "canonical",
+        order: Literal[None, "deterministic", "sorted"] = None,
     ): ...
     def encode(self, obj: Any) -> bytes: ...
     def encode_lines(self, items: Iterable) -> bytes: ...
@@ -97,7 +99,7 @@ def decode(
     strict: bool = True,
     dec_hook: dec_hook_sig = None,
 ) -> Any: ...
-def encode(obj: Any, *, enc_hook: enc_hook_sig = None) -> bytes: ...
+def encode(obj: Any, *, enc_hook: enc_hook_sig = None, order: Literal[None, "deterministic", "sorted"] = None) -> bytes: ...
 def schema(type: Any, *, schema_hook: schema_hook_sig = None) -> Dict[str, Any]: ...
 def schema_components(
     types: Iterable[Any],

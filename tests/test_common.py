@@ -12,7 +12,7 @@ import typing
 import uuid
 import weakref
 from collections import namedtuple
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, make_dataclass
 from datetime import timedelta
 from typing import (
     ClassVar,
@@ -40,7 +40,7 @@ except ImportError:
     attrs = None
 
 import msgspec
-from msgspec import Meta, Struct, ValidationError
+from msgspec import Meta, Struct, ValidationError, UNSET, UnsetType
 
 UTC = datetime.timezone.utc
 
@@ -98,13 +98,13 @@ class VeggieStr(enum.Enum):
     LETTUCE = "banana"
 
 
-class Person(msgspec.Struct):
+class Person(Struct):
     first: str
     last: str
     age: int
 
 
-class PersonArray(msgspec.Struct, array_like=True):
+class PersonArray(Struct, array_like=True):
     first: str
     last: str
     age: int
@@ -259,7 +259,7 @@ class TestDecoder:
             dec.decode(msg)
 
     def test_decode_dec_hook_wrong_type_in_struct(self, proto):
-        class Test(msgspec.Struct):
+        class Test(Struct):
             point: Custom
             other: int
 
@@ -360,7 +360,7 @@ class TestIntEnum:
             dec.decode(proto.encode(3))
 
     def test_decode_nested(self, proto):
-        class Test(msgspec.Struct):
+        class Test(Struct):
             fruit: FruitInt
 
         dec = proto.Decoder(Test)
@@ -601,7 +601,7 @@ class TestEnum:
             dec.decode(proto.encode("cherry"))
 
     def test_decode_nested(self, proto):
-        class Test(msgspec.Struct):
+        class Test(Struct):
             fruit: FruitStr
 
         dec = proto.Decoder(Test)
@@ -878,7 +878,7 @@ class TestUnionTypeErrors:
     def test_decoder_validates_struct_definition_unsupported_types(self, proto):
         """Struct definitions aren't validated until first use"""
 
-        class Test(msgspec.Struct):
+        class Test(Struct):
             a: 1
 
         with pytest.raises(TypeError):
@@ -979,10 +979,10 @@ class TestUnionTypeErrors:
 
 class TestStructUnion:
     def test_err_union_struct_mix_array_like(self, proto):
-        class Test1(msgspec.Struct, tag=True, array_like=True):
+        class Test1(Struct, tag=True, array_like=True):
             x: int
 
-        class Test2(msgspec.Struct, tag=True, array_like=False):
+        class Test2(Struct, tag=True, array_like=False):
             x: int
 
         typ = Union[Test1, Test2]
@@ -997,10 +997,10 @@ class TestStructUnion:
     @pytest.mark.parametrize("array_like", [False, True])
     @pytest.mark.parametrize("tag1", [False, True])
     def test_err_union_struct_not_tagged(self, array_like, tag1, proto):
-        class Test1(msgspec.Struct, tag=tag1, array_like=array_like):
+        class Test1(Struct, tag=tag1, array_like=array_like):
             x: int
 
-        class Test2(msgspec.Struct, array_like=array_like):
+        class Test2(Struct, array_like=array_like):
             x: int
 
         typ = Union[Test1, Test2]
@@ -1014,10 +1014,10 @@ class TestStructUnion:
 
     @pytest.mark.parametrize("array_like", [False, True])
     def test_err_union_conflict_with_basic_type(self, array_like, proto):
-        class Test1(msgspec.Struct, tag=True, array_like=array_like):
+        class Test1(Struct, tag=True, array_like=array_like):
             x: int
 
-        class Test2(msgspec.Struct, tag=True, array_like=array_like):
+        class Test2(Struct, tag=True, array_like=array_like):
             x: int
 
         other = list if array_like else dict
@@ -1036,10 +1036,10 @@ class TestStructUnion:
 
     @pytest.mark.parametrize("array_like", [False, True])
     def test_err_union_struct_different_fields(self, proto, array_like):
-        class Test1(msgspec.Struct, tag_field="foo", array_like=array_like):
+        class Test1(Struct, tag_field="foo", array_like=array_like):
             x: int
 
-        class Test2(msgspec.Struct, tag_field="bar", array_like=array_like):
+        class Test2(Struct, tag_field="bar", array_like=array_like):
             x: int
 
         typ = Union[Test1, Test2]
@@ -1053,10 +1053,10 @@ class TestStructUnion:
 
     @pytest.mark.parametrize("array_like", [False, True])
     def test_err_union_struct_mix_int_str_tags(self, proto, array_like):
-        class Test1(msgspec.Struct, tag=1, array_like=array_like):
+        class Test1(Struct, tag=1, array_like=array_like):
             x: int
 
-        class Test2(msgspec.Struct, tag="two", array_like=array_like):
+        class Test2(Struct, tag="two", array_like=array_like):
             x: int
 
         typ = Union[Test1, Test2]
@@ -1081,13 +1081,13 @@ class TestStructUnion:
         ],
     )
     def test_err_union_struct_non_unique_tag_values(self, proto, array_like, tags):
-        class Test1(msgspec.Struct, tag=tags[0], array_like=array_like):
+        class Test1(Struct, tag=tags[0], array_like=array_like):
             x: int
 
-        class Test2(msgspec.Struct, tag=tags[1], array_like=array_like):
+        class Test2(Struct, tag=tags[1], array_like=array_like):
             x: int
 
-        class Test3(msgspec.Struct, tag=tags[2], array_like=array_like):
+        class Test3(Struct, tag=tags[2], array_like=array_like):
             x: int
 
         typ = Union[Test1, Test2, Test3]
@@ -1108,12 +1108,12 @@ class TestStructUnion:
         ],
     )
     def test_decode_struct_union(self, proto, tag1, tag2, unknown):
-        class Test1(msgspec.Struct, tag=tag1):
+        class Test1(Struct, tag=tag1):
             a: int
             b: int
             c: int = 0
 
-        class Test2(msgspec.Struct, tag=tag2):
+        class Test2(Struct, tag=tag2):
             x: int
             y: int
 
@@ -1163,16 +1163,16 @@ class TestStructUnion:
         ],
     )
     def test_decode_struct_array_union(self, proto, tag1, tag2, tag3, unknown):
-        class Test1(msgspec.Struct, tag=tag1, array_like=True):
+        class Test1(Struct, tag=tag1, array_like=True):
             a: int
             b: int
             c: int = 0
 
-        class Test2(msgspec.Struct, tag=tag2, array_like=True):
+        class Test2(Struct, tag=tag2, array_like=True):
             x: int
             y: int
 
-        class Test3(msgspec.Struct, tag=tag3, array_like=True):
+        class Test3(Struct, tag=tag3, array_like=True):
             pass
 
         dec = proto.Decoder(Union[Test1, Test2, Test3])
@@ -1215,11 +1215,11 @@ class TestStructUnion:
 
     @pytest.mark.parametrize("array_like", [False, True])
     def test_decode_struct_union_with_non_struct_types(self, array_like, proto):
-        class Test1(msgspec.Struct, tag=True, array_like=array_like):
+        class Test1(Struct, tag=True, array_like=array_like):
             a: int
             b: int
 
-        class Test2(msgspec.Struct, tag=True, array_like=array_like):
+        class Test2(Struct, tag=True, array_like=array_like):
             x: int
             y: int
 
@@ -1242,11 +1242,11 @@ class TestStructUnion:
 
         cache.clear()
 
-        class Test1(msgspec.Struct, tag=True, array_like=array_like):
+        class Test1(Struct, tag=True, array_like=array_like):
             a: int
             b: int
 
-        class Test2(msgspec.Struct, tag=True, array_like=array_like):
+        class Test2(Struct, tag=True, array_like=array_like):
             x: int
             y: int
 
@@ -1269,10 +1269,10 @@ class TestStructUnion:
         cache.clear()
 
         def call_with_new_types():
-            class Test1(msgspec.Struct, tag=True):
+            class Test1(Struct, tag=True):
                 a: int
 
-            class Test2(msgspec.Struct, tag=True):
+            class Test2(Struct, tag=True):
                 x: int
 
             typ = (Test1, Test2)
@@ -1303,7 +1303,7 @@ class TestStructUnion:
 
 class TestGenericStruct:
     def test_generic_struct_info_cached(self, proto):
-        class Ex(msgspec.Struct, Generic[T]):
+        class Ex(Struct, Generic[T]):
             x: T
 
         typ = Ex[int]
@@ -1322,7 +1322,7 @@ class TestGenericStruct:
         assert sys.getrefcount(info) == 3
 
     def test_generic_struct_invalid_types_not_cached(self, proto):
-        class Ex(msgspec.Struct, Generic[T]):
+        class Ex(Struct, Generic[T]):
             x: Union[List[T], Tuple[float]]
 
         for typ in [Ex, Ex[int]]:
@@ -1333,7 +1333,7 @@ class TestGenericStruct:
             assert not hasattr(typ, "__msgspec_cache__")
 
     def test_msgspec_cache_overwritten(self, proto):
-        class Ex(msgspec.Struct, Generic[T]):
+        class Ex(Struct, Generic[T]):
             x: T
 
         typ = Ex[int]
@@ -1344,7 +1344,7 @@ class TestGenericStruct:
 
     @pytest.mark.parametrize("array_like", [False, True])
     def test_generic_struct(self, proto, array_like):
-        class Ex(msgspec.Struct, Generic[T], array_like=array_like):
+        class Ex(Struct, Generic[T], array_like=array_like):
             x: T
             y: List[T]
 
@@ -1397,11 +1397,11 @@ class TestGenericStruct:
 
     @pytest.mark.parametrize("array_like", [False, True])
     def test_generic_struct_union(self, proto, array_like):
-        class Test1(msgspec.Struct, Generic[T], tag=True, array_like=array_like):
+        class Test1(Struct, Generic[T], tag=True, array_like=array_like):
             a: Union[T, None]
             b: int
 
-        class Test2(msgspec.Struct, Generic[T], tag=True, array_like=array_like):
+        class Test2(Struct, Generic[T], tag=True, array_like=array_like):
             x: T
             y: int
 
@@ -1663,7 +1663,7 @@ class TestGenericDataclassOrAttrs:
 
 class TestStructOmitDefaults:
     def test_omit_defaults(self, proto):
-        class Test(msgspec.Struct, omit_defaults=True):
+        class Test(Struct, omit_defaults=True):
             a: int = 0
             b: bool = False
             c: Optional[str] = None
@@ -1689,7 +1689,7 @@ class TestStructOmitDefaults:
             assert res == sol
 
     def test_omit_defaults_positional(self, proto):
-        class Test(msgspec.Struct, omit_defaults=True):
+        class Test(Struct, omit_defaults=True):
             a: int
             b: bool = False
 
@@ -1704,7 +1704,7 @@ class TestStructOmitDefaults:
             assert res == sol
 
     def test_omit_defaults_tagged(self, proto):
-        class Test(msgspec.Struct, omit_defaults=True, tag=True):
+        class Test(Struct, omit_defaults=True, tag=True):
             a: int
             b: bool = False
 
@@ -1719,7 +1719,7 @@ class TestStructOmitDefaults:
             assert res == sol
 
     def test_omit_defaults_ignored_for_array_like(self, proto):
-        class Test(msgspec.Struct, omit_defaults=True, array_like=True):
+        class Test(Struct, omit_defaults=True, array_like=True):
             a: int
             b: bool = False
 
@@ -1736,7 +1736,7 @@ class TestStructOmitDefaults:
 
 class TestStructForbidUnknownFields:
     def test_forbid_unknown_fields(self, proto):
-        class Test(msgspec.Struct, forbid_unknown_fields=True):
+        class Test(Struct, forbid_unknown_fields=True):
             x: int
             y: int
 
@@ -1748,7 +1748,7 @@ class TestStructForbidUnknownFields:
             proto.decode(bad, type=Test)
 
     def test_forbid_unknown_fields_array_like(self, proto):
-        class Test(msgspec.Struct, forbid_unknown_fields=True, array_like=True):
+        class Test(Struct, forbid_unknown_fields=True, array_like=True):
             x: int
             y: int
 
@@ -1762,7 +1762,7 @@ class TestStructForbidUnknownFields:
             proto.decode(bad, type=Test)
 
 
-class PointUpper(msgspec.Struct, rename="upper"):
+class PointUpper(Struct, rename="upper"):
     x: int
     y: int
 
@@ -1793,7 +1793,7 @@ class TestStructRename:
 
 class TestStructKeywordOnly:
     def test_keyword_only_object(self, proto):
-        class Test(msgspec.Struct, kw_only=True):
+        class Test(Struct, kw_only=True):
             a: int
             b: int = 2
             c: int
@@ -1828,7 +1828,7 @@ class TestStructKeywordOnly:
             proto.decode(msg, type=Test)
 
     def test_keyword_only_array(self, proto):
-        class Test(msgspec.Struct, kw_only=True, array_like=True):
+        class Test(Struct, kw_only=True, array_like=True):
             a: int
             b: int = 2
             c: int
@@ -1859,7 +1859,7 @@ class TestStructKeywordOnly:
 
 class TestStructDefaults:
     def test_struct_defaults(self, proto):
-        class Test(msgspec.Struct):
+        class Test(Struct):
             a: int = 1
             b: list = []
             c: int = msgspec.field(default=2)
@@ -1877,7 +1877,7 @@ class TestStructDefaults:
         def bad():
             raise ValueError("Oh no!")
 
-        class Test(msgspec.Struct):
+        class Test(Struct):
             a: int = msgspec.field(default_factory=bad)
 
         msg = proto.encode({})
@@ -3932,8 +3932,8 @@ class TestAbstractTypes:
 
 class TestUnset:
     def test_unset_type_annotation_ignored(self, proto):
-        class Ex(msgspec.Struct):
-            x: Union[int, msgspec.UnsetType]
+        class Ex(Struct):
+            x: Union[int, UnsetType]
 
         dec = proto.Decoder(Ex)
         msg = proto.encode({"x": 1})
@@ -3941,53 +3941,222 @@ class TestUnset:
 
     def test_encode_unset_errors_other_contexts(self, proto):
         with pytest.raises(TypeError):
-            proto.encode(msgspec.UNSET)
+            proto.encode(UNSET)
 
     @pytest.mark.parametrize("kind", ["struct", "dataclass", "attrs"])
     def test_unset_encode(self, kind, proto):
         if kind == "struct":
 
-            class Ex(msgspec.Struct):
-                x: Union[int, msgspec.UnsetType]
-                y: Union[int, msgspec.UnsetType]
+            class Ex(Struct):
+                x: Union[int, UnsetType]
+                y: Union[int, UnsetType]
 
         elif kind == "dataclass":
 
             @dataclass
             class Ex:
-                x: Union[int, msgspec.UnsetType]
-                y: Union[int, msgspec.UnsetType]
+                x: Union[int, UnsetType]
+                y: Union[int, UnsetType]
 
         elif kind == "attrs":
             attrs = pytest.importorskip("attrs")
 
             @attrs.define
             class Ex:
-                x: Union[int, msgspec.UnsetType]
-                y: Union[int, msgspec.UnsetType]
+                x: Union[int, UnsetType]
+                y: Union[int, UnsetType]
 
-        res = proto.encode(Ex(1, msgspec.UNSET))
+        res = proto.encode(Ex(1, UNSET))
         sol = proto.encode({"x": 1})
         assert res == sol
 
-        res = proto.encode(Ex(msgspec.UNSET, 2))
+        res = proto.encode(Ex(UNSET, 2))
         sol = proto.encode({"y": 2})
         assert res == sol
 
-        res = proto.encode(Ex(msgspec.UNSET, msgspec.UNSET))
+        res = proto.encode(Ex(UNSET, UNSET))
         sol = proto.encode({})
         assert res == sol
 
     def test_unset_encode_struct_omit_defaults(self, proto):
-        class Ex(msgspec.Struct, omit_defaults=True):
-            x: Union[int, msgspec.UnsetType] = msgspec.UNSET
-            y: Union[int, msgspec.UnsetType] = msgspec.UNSET
+        class Ex(Struct, omit_defaults=True):
+            x: Union[int, UnsetType] = UNSET
+            y: Union[int, UnsetType] = UNSET
             z: int = 0
 
         for x, y in [(Ex(), {}), (Ex(y=2), {"y": 2}), (Ex(z=1), {"z": 1})]:
             res = proto.encode(x)
             sol = proto.encode(y)
             assert res == sol
+
+
+class TestOrder:
+    def test_encoder_order_attribute(self, proto):
+        enc = proto.Encoder()
+        assert enc.order is None
+
+        enc = proto.Encoder(order=None)
+        assert enc.order is None
+
+        enc = proto.Encoder(order="deterministic")
+        assert enc.order == "deterministic"
+
+        enc = proto.Encoder(order="sorted")
+        assert enc.order == "sorted"
+
+    def test_order_invalid(self, proto):
+        with pytest.raises(ValueError, match="`order` must be one of"):
+            proto.Encoder(order="bad")
+
+        with pytest.raises(ValueError, match="`order` must be one of"):
+            proto.encode(1, order="bad")
+
+    @pytest.mark.parametrize("msg", [{}, {"y": 1, "x": 2, "z": 3}])
+    @pytest.mark.parametrize("order", [None, "deterministic", "sorted"])
+    @pytest.mark.parametrize("use_encoder", [False, True])
+    def test_order_dict(self, msg, order, use_encoder, proto):
+        if use_encoder:
+            res = proto.Encoder(order=order).encode(msg)
+        else:
+            res = proto.encode(msg, order=order)
+
+        if order is not None:
+            sol = proto.encode(dict(sorted(msg.items())))
+        else:
+            sol = proto.encode(msg)
+
+        assert res == sol
+
+    def test_order_dict_non_str_errors(self, proto):
+        with pytest.raises(TypeError, match="Only dicts with str keys"):
+            proto.encode({"b": 2, 1: "a"}, order="deterministic")
+
+    def test_order_dict_unsortable(self, proto):
+        with pytest.raises(TypeError):
+            proto.encode({"x": 1, 1: 2}, order="deterministic")
+
+    @pytest.mark.parametrize("typ", [set, frozenset])
+    @pytest.mark.parametrize("order", ["deterministic", "sorted"])
+    def test_order_set(self, typ, proto, rand, order):
+        assert proto.encode(typ(), order=order) == proto.encode([])
+
+        msg = typ(rand.str(10) for _ in range(20))
+
+        res = proto.encode(msg, order=order)
+        sol = proto.encode(list(sorted(msg)))
+        assert res == sol
+
+        res = proto.encode(msg)
+        sol = proto.encode(list(msg))
+        assert res == sol
+
+    def test_order_set_unsortable(self, proto):
+        with pytest.raises(TypeError):
+            proto.encode({"x", 1}, order="deterministic")
+
+    @pytest.mark.parametrize("n", [0, 1, 2])
+    @pytest.mark.parametrize(
+        "kind",
+        [
+            "struct",
+            "dataclass",
+            "attrs",
+            "attrs-dict",
+        ],
+    )
+    def test_order_object(self, kind, n, proto):
+        fields = [f"x{i}" for i in range(n)]
+        fields.reverse()
+        if kind == "struct":
+            cls = msgspec.defstruct("Test", fields)
+        elif kind == "dataclass":
+            cls = make_dataclass("Test", fields)
+        else:
+            attrs = pytest.importorskip("attrs")
+            cls = attrs.make_class("Test", fields, slots=(kind == "attrs"))
+        msg = cls(*range(n))
+
+        if kind in ("struct", "dataclass"):
+            # we currently don't guarantee field order with attrs types
+            sol = proto.encode(dict(zip(fields, range(n))))
+            res = proto.encode(msg)
+            assert res == sol
+
+            res = proto.encode(msg, order="deterministic")
+            assert res == sol
+
+        res = proto.encode(msg, order="sorted")
+        sol = proto.encode(dict(sorted(zip(fields, range(n)))))
+        assert res == sol
+
+    @pytest.mark.parametrize("kind", ["struct", "dataclass", "attrs", "attrs-dict"])
+    def test_order_unset(self, kind, proto):
+        if kind == "struct":
+
+            class Ex(Struct):
+                z: Union[int, UnsetType] = UNSET
+                x: Union[int, UnsetType] = UNSET
+        elif kind == "dataclass":
+
+            @dataclass
+            class Ex:
+                z: Union[int, UnsetType] = UNSET
+                x: Union[int, UnsetType] = UNSET
+        else:
+            attrs = pytest.importorskip("attrs")
+
+            @attrs.define(slots=(kind == "attrs"))
+            class Ex:
+                z: Union[int, UnsetType] = UNSET
+                x: Union[int, UnsetType] = UNSET
+
+        res = proto.encode(Ex(), order="sorted")
+        sol = proto.encode({})
+        assert res == sol
+
+        res = proto.encode(Ex(z=10), order="sorted")
+        sol = proto.encode({"z": 10})
+        assert res == sol
+
+        res = proto.encode(Ex(z=10, x=-1), order="sorted")
+        sol = proto.encode({"x": -1, "z": 10})
+        assert res == sol
+
+    def test_order_struct_omit_defaults(self, proto):
+        class Ex(Struct, omit_defaults=True):
+            z: int = 0
+            x: int = 1
+            y: int = 2
+
+        res = proto.encode(Ex(), order="sorted")
+        sol = proto.encode({})
+        assert res == sol
+
+        res = proto.encode(Ex(z=10), order="sorted")
+        sol = proto.encode({"z": 10})
+        assert res == sol
+
+        res = proto.encode(Ex(z=10, x=-1), order="sorted")
+        sol = proto.encode({"x": -1, "z": 10})
+        assert res == sol
+
+    def test_order_struct_tag(self, proto):
+        class Ex(Struct, tag_field="y", tag=2):
+            z: int
+            x: int
+
+        res = proto.encode(Ex(0, 1), order="sorted")
+        sol = proto.encode({"x": 1, "y": 2, "z": 0})
+        assert res == sol
+
+    @pytest.mark.parametrize("n", [0, 2, 3, 7, 15, 16, 17, 32, 100, 500, 1000, 10000])
+    def test_order_sort_implementation(self, rand, n):
+        keys = [f"x_{i}" for i in range(n)]
+        rand.shuffle(keys)
+        msg = dict(zip(keys, range(n)))
+        res = msgspec.json.encode(msg, order="deterministic")
+        sol = msgspec.json.encode(dict(sorted(msg.items())))
+        assert res == sol
 
 
 class TestFinal:

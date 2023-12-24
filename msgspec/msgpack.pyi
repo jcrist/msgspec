@@ -60,12 +60,14 @@ class Encoder:
     enc_hook: enc_hook_sig
     decimal_format: Literal["string", "number"]
     uuid_format: Literal["canonical", "hex", "bytes"]
+    order: Literal[None, "deterministic", "sorted"]
     def __init__(
         self,
         *,
         enc_hook: enc_hook_sig = None,
         decimal_format: Literal["string", "number"] = "string",
         uuid_format: Literal["canonical", "hex", "bytes"] = "canonical",
+        order: Literal[None, "deterministic", "sorted"] = None,
     ): ...
     def encode(self, obj: Any) -> bytes: ...
     def encode_into(
@@ -98,4 +100,4 @@ def decode(
     dec_hook: dec_hook_sig = None,
     ext_hook: ext_hook_sig = None,
 ) -> Any: ...
-def encode(obj: Any, *, enc_hook: enc_hook_sig = None) -> bytes: ...
+def encode(obj: Any, *, enc_hook: enc_hook_sig = None, order: Literal[None, "deterministic", "sorted"] = None) -> bytes: ...

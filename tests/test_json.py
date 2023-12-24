@@ -2154,6 +2154,12 @@ class TestDict:
         with pytest.raises(msgspec.DecodeError, match=error):
             msgspec.json.decode(s, type=type)
 
+    def test_encode_dict_order_escape(self):
+        msg = {"test\nkey": 1, "another\t\rkey": 2}
+        res = msgspec.json.encode(msg, order="deterministic")
+        sol = b'{"another\\t\\rkey":2,"test\\nkey":1}'
+        assert res == sol
+
 
 class TestTypedDict:
     """Most tests are in `test_common`, this just tests some JSON peculiarities"""

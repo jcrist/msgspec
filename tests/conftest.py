@@ -38,6 +38,10 @@ class Rand:
             if math.isfinite(x):
                 return x
 
+    def shuffle(self, obj):
+        """random shuffle"""
+        self.rand.shuffle(obj)
+
 
 @pytest.fixture
 def rand():
