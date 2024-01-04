@@ -2525,6 +2525,7 @@ static PyTypeObject Field_Type = {
 #define MS_TYPE_TYPEDDICT           (1ull << 32)
 #define MS_TYPE_DATACLASS           (1ull << 33)
 #define MS_TYPE_NAMEDTUPLE          (1ull << 34)
+#define MS_TYPE_MEMORYVIEW          (1ull << 35)
 /* Constraints */
 #define MS_CONSTR_INT_MIN           (1ull << 42)
 #define MS_CONSTR_INT_MAX           (1ull << 43)
@@ -4621,6 +4622,10 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
     }
     else if (t == (PyObject *)(&PyByteArray_Type)) {
         state->types |= MS_TYPE_BYTEARRAY;
+        kind = CK_BYTES;
+    }
+    else if (t == (PyObject *)(&PyMemoryView_Type)) {
+        state->types |= MS_TYPE_MEMORYVIEW;
         kind = CK_BYTES;
     }
     else if (t == (PyObject *)(PyDateTimeAPI->DateTimeType)) {
@@ -14463,6 +14468,9 @@ mpack_decode_bin(
     }
     else if (type->types & MS_TYPE_UUID) {
         return ms_decode_uuid_from_bytes(s, size, path);
+    }
+    else if (type->types & MS_TYPE_MEMORYVIEW) {
+        return PyMemoryView_FromMemory(s, size, PyBUF_READ);
     }
 
     return ms_validation_error("bytes", type, path);
