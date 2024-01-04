@@ -466,6 +466,13 @@ class TestEncoderMisc:
         res = msgspec.msgpack.decode(msg)
         assert buf == res
 
+    @pytest.mark.parametrize("size", SIZES)
+    def test_decode_memoryview(self, size):
+        buf = bytearray(size)
+        msg = msgspec.msgpack.encode(memoryview(buf))
+        res = msgspec.msgpack.decode(msg, type=memoryview)
+        assert buf == res.tobytes()
+
     @pytest.mark.parametrize(
         "dt, dt_str",
         [
