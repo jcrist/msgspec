@@ -110,7 +110,7 @@ def test_string():
     assert msgspec.json.schema(str) == {"type": "string"}
 
 
-@pytest.mark.parametrize("typ", [bytes, bytearray])
+@pytest.mark.parametrize("typ", [bytes, bytearray, memoryview])
 def test_binary(typ):
     assert msgspec.json.schema(typ) == {
         "type": "string",
@@ -1108,7 +1108,7 @@ def test_dict_key_metadata(field, val, constraint):
     }
 
 
-@pytest.mark.parametrize("typ", [bytes, bytearray])
+@pytest.mark.parametrize("typ", [bytes, bytearray, memoryview])
 @pytest.mark.parametrize(
     "field, n, constraint",
     [("min_length", 2, "minLength"), ("max_length", 7, "maxLength")],

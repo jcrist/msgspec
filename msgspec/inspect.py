@@ -53,6 +53,7 @@ __all__ = (
     "StrType",
     "BytesType",
     "ByteArrayType",
+    "MemoryViewType",
     "DateTimeType",
     "TimeType",
     "DateType",
@@ -207,6 +208,23 @@ class BytesType(Type):
 
 class ByteArrayType(Type):
     """A type corresponding to `bytearray`.
+
+    Parameters
+    ----------
+    min_length: int, optional
+        If set, an instance of this type must have length greater than or equal
+        to ``min_length``.
+    max_length: int, optional
+        If set, an instance of this type must have length less than or equal
+        to ``max_length``.
+    """
+
+    min_length: Union[int, None] = None
+    max_length: Union[int, None] = None
+
+
+class MemoryViewType(Type):
+    """A type corresponding to `memoryview`.
 
     Parameters
     ----------
@@ -803,6 +821,8 @@ class _Translator:
             return BytesType(min_length=min_length, max_length=max_length)
         elif t is bytearray:
             return ByteArrayType(min_length=min_length, max_length=max_length)
+        elif t is memoryview:
+            return MemoryViewType(min_length=min_length, max_length=max_length)
         elif t is datetime.datetime:
             return DateTimeType(tz=tz)
         elif t is datetime.time:
