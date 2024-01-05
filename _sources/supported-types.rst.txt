@@ -244,6 +244,23 @@ Bytes-like objects map to base64-encoded strings in JSON, YAML, and TOML. The
     >>> msgspec.json.decode(msg, type=bytearray)
     bytearray(b'\xf0\x9d\x84\x9e')
 
+
+.. note::
+
+    For the ``msgpack`` protocol, `memoryview` objects will be decoded as
+    direct views into the larger buffer containing the input message being
+    decoded. This may be useful for implementing efficient zero-copy handling
+    of large binary messages, but is also a potential footgun. As long as a
+    decoded ``memoryview`` remains in memory, the input message buffer will
+    also be persisted, potentially resulting in unnecessarily large memory
+    usage. The usage of ``memoryview`` types in this manner is considered an
+    advanced topic, and should only be used when you know their usage will
+    result in a performance benefit.
+
+    For all other protocols `memoryview` objects will still result in a copy,
+    and will likely be slightly slower than decoding into a `bytes` object
+
+
 ``datetime``
 ------------
 

@@ -476,6 +476,20 @@ directly as UTF-8 bytes.</p>
 <span class="go">bytearray(b&#39;\xf0\x9d\x84\x9e&#39;)</span>
 </pre></div>
 </div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>For the <code class="docutils literal notranslate"><span class="pre">msgpack</span></code> protocol, <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#memoryview" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">memoryview</span></code></a> objects will be decoded as
+direct views into the larger buffer containing the input message being
+decoded. This may be useful for implementing efficient zero-copy handling
+of large binary messages, but is also a potential footgun. As long as a
+decoded <code class="docutils literal notranslate"><span class="pre">memoryview</span></code> remains in memory, the input message buffer will
+also be persisted, potentially resulting in unnecessarily large memory
+usage. The usage of <code class="docutils literal notranslate"><span class="pre">memoryview</span></code> types in this manner is considered an
+advanced topic, and should only be used when you know their usage will
+result in a performance benefit.</p>
+<p>For all other protocols <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#memoryview" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">memoryview</span></code></a> objects will still result in a copy,
+and will likely be slightly slower than decoding into a <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytes</span></code></a> object</p>
+</div>
 </section>
 <section id="datetime">
 <h2><code class="docutils literal notranslate"><span class="pre">datetime</span></code><a class="headerlink" href="#datetime" title="Permalink to this heading">#</a></h2>
@@ -1340,7 +1354,7 @@ based on any of the following types:</p>
 <ul class="simple">
 <li><p><a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a></p></li>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#module-dataclasses" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses</span></code></a></p></li>
-<li><p><a class="reference external" href="https://www.attrs.org/en/stable/api.html#module-attrs" title="(in attrs v23.1)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">attrs</span></code></a></p></li>
+<li><p><a class="reference external" href="https://www.attrs.org/en/stable/api.html#module-attrs" title="(in attrs v23.2)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">attrs</span></code></a></p></li>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypedDict" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.TypedDict</span></code></a></p></li>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.NamedTuple" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.NamedTuple</span></code></a></p></li>
 </ul>
