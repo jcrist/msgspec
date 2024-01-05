@@ -660,7 +660,7 @@ class TestTimeConstraints:
 
 
 class TestBytesConstraints:
-    @pytest.mark.parametrize("typ", [bytes, bytearray])
+    @pytest.mark.parametrize("typ", [bytes, bytearray, memoryview])
     def test_min_length(self, proto, typ):
         class Ex(msgspec.Struct):
             x: Annotated[typ, Meta(min_length=2)]
@@ -668,14 +668,14 @@ class TestBytesConstraints:
         dec = proto.Decoder(Ex)
 
         for x in [b"xx", b"xxx"]:
-            assert dec.decode(proto.encode(Ex(x))).x == x
+            assert bytes(dec.decode(proto.encode(Ex(x))).x) == x
 
         err_msg = r"Expected `bytes` of length >= 2 - at `\$.x`"
         for x in [b"", b"x"]:
             with pytest.raises(msgspec.ValidationError, match=err_msg):
                 dec.decode(proto.encode(Ex(x)))
 
-    @pytest.mark.parametrize("typ", [bytes, bytearray])
+    @pytest.mark.parametrize("typ", [bytes, bytearray, memoryview])
     def test_max_length(self, proto, typ):
         class Ex(msgspec.Struct):
             x: Annotated[typ, Meta(max_length=2)]
@@ -683,13 +683,13 @@ class TestBytesConstraints:
         dec = proto.Decoder(Ex)
 
         for x in [b"", b"xx"]:
-            assert dec.decode(proto.encode(Ex(x))).x == x
+            assert bytes(dec.decode(proto.encode(Ex(x))).x) == x
 
         err_msg = r"Expected `bytes` of length <= 2 - at `\$.x`"
         with pytest.raises(msgspec.ValidationError, match=err_msg):
             dec.decode(proto.encode(Ex(b"xxx")))
 
-    @pytest.mark.parametrize("typ", [bytes, bytearray])
+    @pytest.mark.parametrize("typ", [bytes, bytearray, memoryview])
     def test_combinations(self, proto, typ):
         class Ex(msgspec.Struct):
             x: Annotated[typ, Meta(min_length=2, max_length=4)]
@@ -697,7 +697,7 @@ class TestBytesConstraints:
         dec = proto.Decoder(Ex)
 
         for x in [b"xx", b"xxx", b"xxxx"]:
-            assert dec.decode(proto.encode(Ex(x))).x == x
+            assert bytes(dec.decode(proto.encode(Ex(x))).x) == x
 
         for x in [b"x", b"xxxxx"]:
             with pytest.raises(msgspec.ValidationError):
