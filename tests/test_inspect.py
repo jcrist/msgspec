@@ -131,7 +131,12 @@ def test_string(kw):
     [{}, dict(min_length=0), dict(max_length=3)],
 )
 @pytest.mark.parametrize(
-    "typ, info_type", [(bytes, mi.BytesType), (bytearray, mi.ByteArrayType)]
+    "typ, info_type",
+    [
+        (bytes, mi.BytesType),
+        (bytearray, mi.ByteArrayType),
+        (memoryview, mi.MemoryViewType),
+    ],
 )
 def test_binary(kw, typ, info_type):
     if kw:

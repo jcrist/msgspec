@@ -247,7 +247,7 @@ class _SchemaGenerator:
                 schema["minLength"] = t.min_length
             if t.pattern is not None:
                 schema["pattern"] = t.pattern
-        elif isinstance(t, (mi.BytesType, mi.ByteArrayType)):
+        elif isinstance(t, (mi.BytesType, mi.ByteArrayType, mi.MemoryViewType)):
             schema["type"] = "string"
             schema["contentEncoding"] = "base64"
             if t.max_length is not None:

@@ -150,6 +150,7 @@ Inspect
 .. autoclass:: StrType
 .. autoclass:: BytesType
 .. autoclass:: ByteArrayType
+.. autoclass:: MemoryViewType
 .. autoclass:: DateTimeType
 .. autoclass:: TimeType
 .. autoclass:: DateType
