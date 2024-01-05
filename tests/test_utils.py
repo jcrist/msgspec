@@ -181,3 +181,12 @@ class TestGetClassAnnotations:
             "a": List[List[int]],
             "b": List[int],
         }
+
+    def test_generic_sub11(self):
+        class Sub(Base[int]):
+            y: float
+
+        class Sub2(Sub, Base[int]):
+            z: str
+
+        assert get_class_annotations(Sub2) == {"x": int, "y": float, "z": str}
