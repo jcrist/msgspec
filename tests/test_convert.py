@@ -539,31 +539,31 @@ class TestStr:
 
 
 class TestBinary:
-    @pytest.mark.parametrize("out_type", [bytes, bytearray])
+    @pytest.mark.parametrize("out_type", [bytes, bytearray, memoryview])
     def test_binary_wrong_type(self, out_type):
         with pytest.raises(ValidationError, match="Expected `bytes`, got `int`"):
             convert(1, out_type)
 
-    @pytest.mark.parametrize("in_type", [bytes, bytearray])
-    @pytest.mark.parametrize("out_type", [bytes, bytearray])
+    @pytest.mark.parametrize("in_type", [bytes, bytearray, memoryview])
+    @pytest.mark.parametrize("out_type", [bytes, bytearray, memoryview])
     def test_binary_builtin(self, in_type, out_type):
         res = convert(in_type(b"test"), out_type)
         assert res == b"test"
         assert isinstance(res, out_type)
 
-    @pytest.mark.parametrize("out_type", [bytes, bytearray])
+    @pytest.mark.parametrize("out_type", [bytes, bytearray, memoryview])
     def test_binary_base64(self, out_type):
         res = convert("AQI=", out_type)
         assert res == b"\x01\x02"
         assert isinstance(res, out_type)
 
-    @pytest.mark.parametrize("out_type", [bytes, bytearray])
+    @pytest.mark.parametrize("out_type", [bytes, bytearray, memoryview])
     def test_binary_base64_disabled(self, out_type):
         with pytest.raises(ValidationError, match="Expected `bytes`, got `str`"):
-            convert("AQI=", out_type, builtin_types=(bytes, bytearray))
+            convert("AQI=", out_type, builtin_types=(bytes, bytearray, memoryview))
 
-    @pytest.mark.parametrize("in_type", [bytes, bytearray, str])
-    @pytest.mark.parametrize("out_type", [bytes, bytearray])
+    @pytest.mark.parametrize("in_type", [bytes, bytearray, memoryview, str])
+    @pytest.mark.parametrize("out_type", [bytes, bytearray, memoryview])
     @uses_annotated
     def test_binary_constraints(self, in_type, out_type):
         class Ex(Struct):
@@ -590,10 +590,12 @@ class TestBinary:
 
         msg = MyBytes(b"abc")
 
-        for typ in [bytes, bytearray]:
+        for typ in [bytes, bytearray, memoryview]:
             sol = convert(msg, typ)
             assert type(sol) is typ
             assert sol == b"abc"
+
+        del sol
 
         assert sys.getrefcount(msg) == 2  # msg + 1
         sol = convert(msg, MyBytes)
@@ -735,7 +737,7 @@ class TestUUID:
         res = convert(str(sol), uuid.UUID)
         assert res == sol
 
-    @pytest.mark.parametrize("input_type", [bytes, bytearray])
+    @pytest.mark.parametrize("input_type", [bytes, bytearray, memoryview])
     def test_uuid_bytes(self, input_type):
         sol = uuid.uuid4()
         msg = input_type(sol.bytes)

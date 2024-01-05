@@ -739,12 +739,12 @@ class TestBinary:
     @pytest.mark.parametrize(
         "x", [b"", b"a", b"ab", b"abc", b"abcd", b"abcde", b"abcdef", b"\x00\xff"]
     )
-    @pytest.mark.parametrize("type", [bytes, bytearray])
+    @pytest.mark.parametrize("type", [bytes, bytearray, memoryview])
     def test_decode_binary(self, x, type):
         s = b'"' + base64.b64encode(x) + b'"'
-        x2 = msgspec.json.decode(s, type=type)
-        assert x == x2
-        assert isinstance(x2, type)
+        res = msgspec.json.decode(s, type=type)
+        assert res == bytes(x)
+        assert isinstance(res, type)
 
     @pytest.mark.parametrize("n", [1023, 1024, 1025])
     def test_roundtrip_random(self, n, rand):

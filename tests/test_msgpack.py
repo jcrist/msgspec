@@ -457,22 +457,6 @@ class TestEncoderMisc:
         out2 = enc.encode([1, 2, 3])
         assert out1 == out2
 
-    @pytest.mark.parametrize("size", SIZES)
-    def test_encode_memoryview(self, size):
-        """We don't support memoryview as a decode type, just check we can
-        encode them fine"""
-        buf = bytearray(size)
-        msg = msgspec.msgpack.encode(memoryview(buf))
-        res = msgspec.msgpack.decode(msg)
-        assert buf == res
-
-    @pytest.mark.parametrize("size", SIZES)
-    def test_decode_memoryview(self, size):
-        buf = bytearray(size)
-        msg = msgspec.msgpack.encode(memoryview(buf))
-        res = msgspec.msgpack.decode(msg, type=memoryview)
-        assert buf == res.tobytes()
-
     @pytest.mark.parametrize(
         "dt, dt_str",
         [
@@ -677,28 +661,35 @@ class TestTypedDecoder:
         self.check_unexpected_type(str, 1, "Expected `str`")
 
     @pytest.mark.parametrize("size", SIZES)
-    def test_bytes(self, size):
+    @pytest.mark.parametrize("typ", [bytes, bytearray, memoryview])
+    def test_binary(self, size, typ):
         enc = msgspec.msgpack.Encoder()
-        dec = msgspec.msgpack.Decoder(bytes)
-        x = b"a" * size
-        res = dec.decode(enc.encode(x))
-        assert isinstance(res, bytes)
-        assert res == x
+        dec = msgspec.msgpack.Decoder(typ)
+        sol = b"a" * size
+        res = dec.decode(enc.encode(typ(sol)))
+        assert isinstance(res, typ)
+        assert bytes(res) == sol
 
-    def test_bytes_unexpected_type(self):
-        self.check_unexpected_type(bytes, 1, "Expected `bytes`")
+    @pytest.mark.parametrize("typ", [bytes, bytearray, memoryview])
+    def test_binary_unexpected_type(self, typ):
+        self.check_unexpected_type(typ, 1, "Expected `bytes`")
 
-    @pytest.mark.parametrize("size", SIZES)
-    def test_bytearray(self, size):
-        enc = msgspec.msgpack.Encoder()
-        dec = msgspec.msgpack.Decoder(bytearray)
-        x = bytearray(size)
-        res = dec.decode(enc.encode(x))
-        assert isinstance(res, bytearray)
-        assert res == x
-
-    def test_bytearray_unexpected_type(self):
-        self.check_unexpected_type(bytearray, 1, "Expected `bytes`")
+    @pytest.mark.parametrize("input_type", [bytes, bytearray, memoryview])
+    def test_decode_memoryview_zerocopy(self, input_type):
+        msg = msgspec.msgpack.encode(b"abcde")
+        ref = msg if input_type is memoryview else None
+        msg = input_type(msg)
+        res = msgspec.msgpack.decode(msg, type=memoryview)
+        assert isinstance(res, memoryview)
+        assert bytes(res) == b"abcde"
+        if input_type is memoryview:
+            assert sys.getrefcount(ref) == 3
+            del msg
+            assert sys.getrefcount(ref) == 3
+            del res
+            assert sys.getrefcount(ref) == 2
+        elif input_type is bytes:
+            assert sys.getrefcount(msg) == 3
 
     def test_datetime_aware_ext(self):
         dec = msgspec.msgpack.Decoder(datetime.datetime)

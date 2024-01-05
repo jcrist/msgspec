@@ -2499,33 +2499,33 @@ static PyTypeObject Field_Type = {
 #define MS_TYPE_STR                 (1ull << 5)
 #define MS_TYPE_BYTES               (1ull << 6)
 #define MS_TYPE_BYTEARRAY           (1ull << 7)
-#define MS_TYPE_DATETIME            (1ull << 8)
-#define MS_TYPE_DATE                (1ull << 9)
-#define MS_TYPE_TIME                (1ull << 10)
-#define MS_TYPE_TIMEDELTA           (1ull << 11)
-#define MS_TYPE_UUID                (1ull << 12)
-#define MS_TYPE_DECIMAL             (1ull << 13)
-#define MS_TYPE_EXT                 (1ull << 14)
-#define MS_TYPE_STRUCT              (1ull << 15)
-#define MS_TYPE_STRUCT_ARRAY        (1ull << 16)
-#define MS_TYPE_STRUCT_UNION        (1ull << 17)
-#define MS_TYPE_STRUCT_ARRAY_UNION  (1ull << 18)
-#define MS_TYPE_ENUM                (1ull << 19)
-#define MS_TYPE_INTENUM             (1ull << 20)
-#define MS_TYPE_CUSTOM              (1ull << 21)
-#define MS_TYPE_CUSTOM_GENERIC      (1ull << 22)
-#define MS_TYPE_DICT                ((1ull << 23) | (1ull << 24))
-#define MS_TYPE_LIST                (1ull << 25)
-#define MS_TYPE_SET                 (1ull << 26)
-#define MS_TYPE_FROZENSET           (1ull << 27)
-#define MS_TYPE_VARTUPLE            (1ull << 28)
-#define MS_TYPE_FIXTUPLE            (1ull << 29)
-#define MS_TYPE_INTLITERAL          (1ull << 30)
-#define MS_TYPE_STRLITERAL          (1ull << 31)
-#define MS_TYPE_TYPEDDICT           (1ull << 32)
-#define MS_TYPE_DATACLASS           (1ull << 33)
-#define MS_TYPE_NAMEDTUPLE          (1ull << 34)
-#define MS_TYPE_MEMORYVIEW          (1ull << 35)
+#define MS_TYPE_MEMORYVIEW          (1ull << 8)
+#define MS_TYPE_DATETIME            (1ull << 9)
+#define MS_TYPE_DATE                (1ull << 10)
+#define MS_TYPE_TIME                (1ull << 11)
+#define MS_TYPE_TIMEDELTA           (1ull << 12)
+#define MS_TYPE_UUID                (1ull << 13)
+#define MS_TYPE_DECIMAL             (1ull << 14)
+#define MS_TYPE_EXT                 (1ull << 15)
+#define MS_TYPE_STRUCT              (1ull << 16)
+#define MS_TYPE_STRUCT_ARRAY        (1ull << 17)
+#define MS_TYPE_STRUCT_UNION        (1ull << 18)
+#define MS_TYPE_STRUCT_ARRAY_UNION  (1ull << 19)
+#define MS_TYPE_ENUM                (1ull << 20)
+#define MS_TYPE_INTENUM             (1ull << 21)
+#define MS_TYPE_CUSTOM              (1ull << 22)
+#define MS_TYPE_CUSTOM_GENERIC      (1ull << 23)
+#define MS_TYPE_DICT                ((1ull << 24) | (1ull << 25))
+#define MS_TYPE_LIST                (1ull << 26)
+#define MS_TYPE_SET                 (1ull << 27)
+#define MS_TYPE_FROZENSET           (1ull << 28)
+#define MS_TYPE_VARTUPLE            (1ull << 29)
+#define MS_TYPE_FIXTUPLE            (1ull << 30)
+#define MS_TYPE_INTLITERAL          (1ull << 31)
+#define MS_TYPE_STRLITERAL          (1ull << 32)
+#define MS_TYPE_TYPEDDICT           (1ull << 33)
+#define MS_TYPE_DATACLASS           (1ull << 34)
+#define MS_TYPE_NAMEDTUPLE          (1ull << 35)
 /* Constraints */
 #define MS_CONSTR_INT_MIN           (1ull << 42)
 #define MS_CONSTR_INT_MAX           (1ull << 43)
@@ -3101,7 +3101,7 @@ typenode_simple_repr(TypeNode *self) {
     if (self->types & (MS_TYPE_STR | MS_TYPE_ENUM | MS_TYPE_STRLITERAL)) {
         if (!strbuilder_extend_literal(&builder, "str")) return NULL;
     }
-    if (self->types & (MS_TYPE_BYTES | MS_TYPE_BYTEARRAY)) {
+    if (self->types & (MS_TYPE_BYTES | MS_TYPE_BYTEARRAY | MS_TYPE_MEMORYVIEW)) {
         if (!strbuilder_extend_literal(&builder, "bytes")) return NULL;
     }
     if (self->types & MS_TYPE_DATETIME) {
@@ -3833,7 +3833,7 @@ typenode_collect_check_invariants(TypeNodeCollectState *state) {
     if (ms_popcount(
             state->types & (
                 MS_TYPE_STR | MS_TYPE_STRLITERAL | MS_TYPE_ENUM |
-                MS_TYPE_BYTES | MS_TYPE_BYTEARRAY |
+                MS_TYPE_BYTES | MS_TYPE_BYTEARRAY | MS_TYPE_MEMORYVIEW |
                 MS_TYPE_DATETIME | MS_TYPE_DATE | MS_TYPE_TIME |
                 MS_TYPE_TIMEDELTA | MS_TYPE_UUID | MS_TYPE_DECIMAL
             )
@@ -14470,7 +14470,14 @@ mpack_decode_bin(
         return ms_decode_uuid_from_bytes(s, size, path);
     }
     else if (type->types & MS_TYPE_MEMORYVIEW) {
-        return PyMemoryView_FromMemory(s, size, PyBUF_READ);
+        PyObject *view = PyMemoryView_GetContiguous(
+            self->buffer_obj, PyBUF_READ, 'C'
+        );
+        if (view == NULL) return NULL;
+        Py_buffer *buffer = PyMemoryView_GET_BUFFER(view);
+        buffer->buf = s;
+        buffer->len = size;
+        return view;
     }
 
     return ms_validation_error("bytes", type, path);
@@ -16502,10 +16509,18 @@ json_decode_binary(
         if (out == NULL) return NULL;
         bin_buffer = PyBytes_AS_STRING(out);
     }
-    else {
+    else if (type->types & MS_TYPE_BYTEARRAY) {
         out = PyByteArray_FromStringAndSize(NULL, bin_size);
         if (out == NULL) return NULL;
         bin_buffer = PyByteArray_AS_STRING(out);
+    }
+    else {
+        PyObject *temp = PyBytes_FromStringAndSize(NULL, bin_size);
+        if (temp == NULL) return NULL;
+        bin_buffer = PyBytes_AS_STRING(temp);
+        out = PyMemoryView_FromObject(temp);
+        Py_DECREF(temp);
+        if (out == NULL) return NULL;
     }
 
     int quad = 0;
@@ -16585,7 +16600,11 @@ json_decode_string(JSONDecoderState *self, TypeNode *type, PathNode *path) {
     else if (MS_UNLIKELY(type->types & MS_TYPE_DECIMAL)) {
         return ms_decode_decimal(view, size, is_ascii, path, NULL);
     }
-    else if (MS_UNLIKELY(type->types & (MS_TYPE_BYTES | MS_TYPE_BYTEARRAY))) {
+    else if (
+        MS_UNLIKELY(type->types &
+            (MS_TYPE_BYTES | MS_TYPE_BYTEARRAY | MS_TYPE_MEMORYVIEW)
+        )
+    ) {
         return json_decode_binary(view, size, type, path);
     }
     else if (MS_UNLIKELY(type->types & (MS_TYPE_ENUM | MS_TYPE_STRLITERAL))) {
@@ -16644,7 +16663,7 @@ json_decode_dict_key_fallback(
     else if (type->types & MS_TYPE_TIMEDELTA) {
         return ms_decode_timedelta(view, size, type, path);
     }
-    else if (type->types & MS_TYPE_BYTES) {
+    else if (type->types & (MS_TYPE_BYTES | MS_TYPE_MEMORYVIEW)) {
         return json_decode_binary(view, size, type, path);
     }
     else {
@@ -19670,6 +19689,12 @@ convert_str_uncommon(
     ) {
         return json_decode_binary(view, size, type, path);
     }
+    else if (
+        (type->types & MS_TYPE_MEMORYVIEW)
+        && !(self->builtin_types & MS_BUILTIN_MEMORYVIEW)
+    ) {
+        return json_decode_binary(view, size, type, path);
+    }
     return ms_validation_error("str", type, path);
 }
 
@@ -19699,18 +19724,23 @@ static PyObject *
 convert_bytes(
     ConvertState *self, PyObject *obj, TypeNode *type, PathNode *path
 ) {
-    if (type->types & (MS_TYPE_BYTES | MS_TYPE_BYTEARRAY)) {
+    if (type->types & (MS_TYPE_BYTES | MS_TYPE_BYTEARRAY | MS_TYPE_MEMORYVIEW)) {
         if (!ms_passes_bytes_constraints(PyBytes_GET_SIZE(obj), type, path)) {
             return NULL;
         }
         if (type->types & MS_TYPE_BYTES) {
             return PyBytes_FromObject(obj);
         }
-        return PyByteArray_FromObject(obj);
+        else if (type->types & MS_TYPE_BYTEARRAY) {
+            return PyByteArray_FromObject(obj);
+        }
+        else {
+            return PyMemoryView_FromObject(obj);
+        }
     }
     if (
-            (type->types & MS_TYPE_UUID) &&
-            !(self->builtin_types & MS_BUILTIN_UUID)
+        (type->types & MS_TYPE_UUID) &&
+        !(self->builtin_types & MS_BUILTIN_UUID)
     ) {
         return ms_decode_uuid_from_bytes(
             PyBytes_AS_STRING(obj), PyBytes_GET_SIZE(obj), path
@@ -19723,7 +19753,7 @@ static PyObject *
 convert_bytearray(
     ConvertState *self, PyObject *obj, TypeNode *type, PathNode *path
 ) {
-    if (type->types & (MS_TYPE_BYTES | MS_TYPE_BYTEARRAY)) {
+    if (type->types & (MS_TYPE_BYTES | MS_TYPE_BYTEARRAY | MS_TYPE_MEMORYVIEW)) {
         if (!ms_passes_bytes_constraints(PyByteArray_GET_SIZE(obj), type, path)) {
             return NULL;
         }
@@ -19731,15 +19761,53 @@ convert_bytearray(
             Py_INCREF(obj);
             return obj;
         }
-        return PyBytes_FromObject(obj);
+        else if (type->types & MS_TYPE_BYTES) {
+            return PyBytes_FromObject(obj);
+        }
+        else {
+            return PyMemoryView_FromObject(obj);
+        }
     }
     if (
-            (type->types & MS_TYPE_UUID) &&
-            !(self->builtin_types & MS_BUILTIN_UUID)
+        (type->types & MS_TYPE_UUID) &&
+        !(self->builtin_types & MS_BUILTIN_UUID)
     ) {
         return ms_decode_uuid_from_bytes(
             PyByteArray_AS_STRING(obj), PyByteArray_GET_SIZE(obj), path
         );
+    }
+    return ms_validation_error("bytes", type, path);
+}
+
+static PyObject *
+convert_memoryview(
+    ConvertState *self, PyObject *obj, TypeNode *type, PathNode *path
+) {
+    if (type->types & (MS_TYPE_BYTES | MS_TYPE_BYTEARRAY | MS_TYPE_MEMORYVIEW)) {
+        Py_ssize_t len = PyMemoryView_GET_BUFFER(obj)->len;
+        if (!ms_passes_bytes_constraints(len, type, path)) return NULL;
+        if (type->types & MS_TYPE_MEMORYVIEW) {
+            Py_INCREF(obj);
+            return obj;
+        }
+        else if (type->types & MS_TYPE_BYTES) {
+            return PyBytes_FromObject(obj);
+        }
+        else {
+            return PyByteArray_FromObject(obj);
+        }
+    }
+    if (
+        (type->types & MS_TYPE_UUID) &&
+        !(self->builtin_types & MS_BUILTIN_UUID)
+    ) {
+        Py_buffer buffer;
+        if (PyObject_GetBuffer(obj, &buffer, PyBUF_CONTIG_RO) < 0) return NULL;
+        PyObject *out = ms_decode_uuid_from_bytes(
+            buffer.buf, buffer.len, path
+        );
+        PyBuffer_Release(&buffer);
+        return out;
     }
     return ms_validation_error("bytes", type, path);
 }
@@ -20864,6 +20932,9 @@ convert(
     }
     else if (pytype == &PyByteArray_Type) {
         return convert_bytearray(self, obj, type, path);
+    }
+    else if (pytype == &PyMemoryView_Type) {
+        return convert_memoryview(self, obj, type, path);
     }
     else if (pytype == PyDateTimeAPI->DateTimeType) {
         return convert_datetime(self, obj, type, path);
