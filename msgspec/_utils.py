@@ -74,13 +74,12 @@ def _get_class_mro_and_typevar_mappings(obj):
             new_scope = {}
         else:
             cls = getattr(c, "__origin__", None)
-            if cls in (None, object, typing.Generic):
+            if cls in (None, object, typing.Generic) or cls in mapping:
                 return
-            if cls not in mapping:
-                params = cls.__parameters__
-                args = tuple(_apply_params(a, scope) for a in c.__args__)
-                assert len(params) == len(args)
-                mapping[cls] = new_scope = dict(zip(params, args))
+            params = cls.__parameters__
+            args = tuple(_apply_params(a, scope) for a in c.__args__)
+            assert len(params) == len(args)
+            mapping[cls] = new_scope = dict(zip(params, args))
 
         if issubclass(cls, typing.Generic):
             bases = getattr(cls, "__orig_bases__", cls.__bases__)
