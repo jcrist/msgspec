@@ -745,7 +745,7 @@ determine whether a field was left unset, or explicitly set to <code class="docu
 <h2>JSON<a class="headerlink" href="#json" title="Permalink to this heading">#</a></h2>
 <dl class="py class">
 <dt class="sig sig-object py" id="msgspec.json.Encoder">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">msgspec.json.</span></span><span class="sig-name descname"><span class="pre">Encoder</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">enc_hook</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">decimal_format</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'string'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">uuid_format</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'canonical'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.json.Encoder" title="Permalink to this definition">#</a></dt>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">msgspec.json.</span></span><span class="sig-name descname"><span class="pre">Encoder</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">enc_hook</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">decimal_format</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'string'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">uuid_format</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'canonical'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">order</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.json.Encoder" title="Permalink to this definition">#</a></dt>
 <dd><p>A JSON encoder.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -761,6 +761,18 @@ implementations.</p></li>
 <li><p><strong>uuid_format</strong> (<em>{'canonical'</em><em>, </em><em>'hex'}</em><em>, </em><em>optional</em>) – The format to use for encoding <a class="reference external" href="https://docs.python.org/3/library/uuid.html#uuid.UUID" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">uuid.UUID</span></code></a> objects. The ‘canonical’
 and ‘hex’ formats encode them as strings with and without hyphens
 respectively. Defaults to ‘canonical’.</p></li>
+<li><p><strong>order</strong> (<em>{None</em><em>, </em><em>'deterministic'</em><em>, </em><em>'sorted'}</em><em>, </em><em>optional</em>) – <p>The ordering to use when encoding unordered compound types.</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">None</span></code>: All objects are encoded in the most efficient manner matching
+their in-memory representations. The default.</p></li>
+<li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">'deterministic'</span></code>: Unordered collections (sets, dicts) are sorted to
+ensure a consistent output between runs. Useful when comparison/hashing
+of the encoded binary output is necessary.</p></li>
+<li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">'sorted'</span></code>: Like <code class="xref py py-obj docutils literal notranslate"><span class="pre">'deterministic'</span></code>, but <em>all</em> object-like types (structs,
+dataclasses, …) are also sorted by field name before encoding. This is
+slower than <code class="xref py py-obj docutils literal notranslate"><span class="pre">'deterministic'</span></code>, but may produce more human-readable output.</p></li>
+</ul>
+</p></li>
 </ul>
 </dd>
 </dl>
@@ -856,7 +868,7 @@ will decode all untyped JSON floats as decimals instead.</p></li>
 <dl class="py method">
 <dt class="sig sig-object py" id="msgspec.json.Decoder.decode">
 <span class="sig-name descname"><span class="pre">decode</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">buf</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.json.Decoder.decode" title="Permalink to this definition">#</a></dt>
-<dd><p>Deserialize an object from bytes.</p>
+<dd><p>Deserialize an object from JSON.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><p><strong>buf</strong> (<em>bytes-like</em><em> or </em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><em>str</em></a>) – The message to decode.</p>
@@ -896,8 +908,8 @@ will decode all untyped JSON floats as decimals instead.</p></li>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="msgspec.json.encode">
-<span class="sig-prename descclassname"><span class="pre">msgspec.json.</span></span><span class="sig-name descname"><span class="pre">encode</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">obj</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">enc_hook</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.json.encode" title="Permalink to this definition">#</a></dt>
-<dd><p>Serialize an object to bytes.</p>
+<span class="sig-prename descclassname"><span class="pre">msgspec.json.</span></span><span class="sig-name descname"><span class="pre">encode</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">obj</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">enc_hook</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">order</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.json.encode" title="Permalink to this definition">#</a></dt>
+<dd><p>Serialize an object as JSON.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
@@ -905,6 +917,18 @@ will decode all untyped JSON floats as decimals instead.</p></li>
 <li><p><strong>enc_hook</strong> (<em>callable</em><em>, </em><em>optional</em>) – A callable to call for objects that aren’t supported msgspec types. Takes
 the unsupported object and should return a supported object, or raise a
 <code class="docutils literal notranslate"><span class="pre">NotImplementedError</span></code> if unsupported.</p></li>
+<li><p><strong>order</strong> (<em>{None</em><em>, </em><em>'deterministic'</em><em>, </em><em>'sorted'}</em><em>, </em><em>optional</em>) – <p>The ordering to use when encoding unordered compound types.</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">None</span></code>: All objects are encoded in the most efficient manner matching
+their in-memory representations. The default.</p></li>
+<li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">'deterministic'</span></code>: Unordered collections (sets, dicts) are sorted to
+ensure a consistent output between runs. Useful when comparison/hashing
+of the encoded binary output is necessary.</p></li>
+<li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">'sorted'</span></code>: Like <code class="xref py py-obj docutils literal notranslate"><span class="pre">'deterministic'</span></code>, but <em>all</em> object-like types (structs,
+dataclasses, …) are also sorted by field name before encoding. This is
+slower than <code class="xref py py-obj docutils literal notranslate"><span class="pre">'deterministic'</span></code>, but may produce more human-readable output.</p></li>
+</ul>
+</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -920,7 +944,7 @@ the unsupported object and should return a supported object, or raise a
 <dl class="py function">
 <dt class="sig sig-object py" id="msgspec.json.decode">
 <span class="sig-prename descclassname"><span class="pre">msgspec.json.</span></span><span class="sig-name descname"><span class="pre">decode</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">buf</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'Any'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">strict</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dec_hook</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.json.decode" title="Permalink to this definition">#</a></dt>
-<dd><p>Deserialize an object from bytes.</p>
+<dd><p>Deserialize an object from JSON.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
@@ -974,7 +998,7 @@ whitespace, minimizing the message size.</p></li>
 <h2>MessagePack<a class="headerlink" href="#messagepack" title="Permalink to this heading">#</a></h2>
 <dl class="py class">
 <dt class="sig sig-object py" id="msgspec.msgpack.Encoder">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">msgspec.msgpack.</span></span><span class="sig-name descname"><span class="pre">Encoder</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">enc_hook</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">decimal_format</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'string'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">uuid_format</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'canonical'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.msgpack.Encoder" title="Permalink to this definition">#</a></dt>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">msgspec.msgpack.</span></span><span class="sig-name descname"><span class="pre">Encoder</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">enc_hook</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">decimal_format</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'string'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">uuid_format</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'canonical'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">order</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.msgpack.Encoder" title="Permalink to this definition">#</a></dt>
 <dd><p>A MessagePack encoder.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -991,6 +1015,18 @@ and ‘hex’ formats encode them as strings with and without hyphens
 respectively. The ‘bytes’ format encodes them as big-endian binary
 representations of the corresponding 128-bit integers. Defaults to
 ‘canonical’.</p></li>
+<li><p><strong>order</strong> (<em>{None</em><em>, </em><em>'deterministic'</em><em>, </em><em>'sorted'}</em><em>, </em><em>optional</em>) – <p>The ordering to use when encoding unordered compound types.</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">None</span></code>: All objects are encoded in the most efficient manner matching
+their in-memory representations. The default.</p></li>
+<li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">'deterministic'</span></code>: Unordered collections (sets, dicts) are sorted to
+ensure a consistent output between runs. Useful when comparison/hashing
+of the encoded binary output is necessary.</p></li>
+<li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">'sorted'</span></code>: Like <code class="xref py py-obj docutils literal notranslate"><span class="pre">'deterministic'</span></code>, but <em>all</em> object-like types (structs,
+dataclasses, …) are also sorted by field name before encoding. This is
+slower than <code class="xref py py-obj docutils literal notranslate"><span class="pre">'deterministic'</span></code>, but may produce more human-readable output.</p></li>
+</ul>
+</p></li>
 </ul>
 </dd>
 </dl>
@@ -1064,7 +1100,7 @@ If not provided, extension types will decode as <code class="docutils literal no
 <dl class="py method">
 <dt class="sig sig-object py" id="msgspec.msgpack.Decoder.decode">
 <span class="sig-name descname"><span class="pre">decode</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">buf</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.msgpack.Decoder.decode" title="Permalink to this definition">#</a></dt>
-<dd><p>Deserialize an object from bytes.</p>
+<dd><p>Deserialize an object from MessagePack.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><p><strong>buf</strong> (<em>bytes-like</em>) – The message to decode.</p>
@@ -1106,8 +1142,8 @@ or any object that implements the buffer protocol.</p></li>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="msgspec.msgpack.encode">
-<span class="sig-prename descclassname"><span class="pre">msgspec.msgpack.</span></span><span class="sig-name descname"><span class="pre">encode</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">obj</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">enc_hook</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.msgpack.encode" title="Permalink to this definition">#</a></dt>
-<dd><p>Serialize an object to bytes.</p>
+<span class="sig-prename descclassname"><span class="pre">msgspec.msgpack.</span></span><span class="sig-name descname"><span class="pre">encode</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">obj</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">enc_hook</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">order</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.msgpack.encode" title="Permalink to this definition">#</a></dt>
+<dd><p>Serialize an object as MessagePack.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
@@ -1115,6 +1151,18 @@ or any object that implements the buffer protocol.</p></li>
 <li><p><strong>enc_hook</strong> (<em>callable</em><em>, </em><em>optional</em>) – A callable to call for objects that aren’t supported msgspec types. Takes
 the unsupported object and should return a supported object, or raise a
 <code class="docutils literal notranslate"><span class="pre">NotImplementedError</span></code> if unsupported.</p></li>
+<li><p><strong>order</strong> (<em>{None</em><em>, </em><em>'deterministic'</em><em>, </em><em>'sorted'}</em><em>, </em><em>optional</em>) – <p>The ordering to use when encoding unordered compound types.</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">None</span></code>: All objects are encoded in the most efficient manner matching
+their in-memory representations. The default.</p></li>
+<li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">'deterministic'</span></code>: Unordered collections (sets, dicts) are sorted to
+ensure a consistent output between runs. Useful when comparison/hashing
+of the encoded binary output is necessary.</p></li>
+<li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">'sorted'</span></code>: Like <code class="xref py py-obj docutils literal notranslate"><span class="pre">'deterministic'</span></code>, but <em>all</em> object-like types (structs,
+dataclasses, …) are also sorted by field name before encoding. This is
+slower than <code class="xref py py-obj docutils literal notranslate"><span class="pre">'deterministic'</span></code>, but may produce more human-readable output.</p></li>
+</ul>
+</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -1130,7 +1178,7 @@ the unsupported object and should return a supported object, or raise a
 <dl class="py function">
 <dt class="sig sig-object py" id="msgspec.msgpack.decode">
 <span class="sig-prename descclassname"><span class="pre">msgspec.msgpack.</span></span><span class="sig-name descname"><span class="pre">decode</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">buf</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'Any'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">strict</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dec_hook</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ext_hook</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.msgpack.decode" title="Permalink to this definition">#</a></dt>
-<dd><p>Deserialize an object from bytes.</p>
+<dd><p>Deserialize an object from MessagePack.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
@@ -1171,7 +1219,7 @@ If not provided, extension types will decode as <code class="docutils literal no
 <h2>YAML<a class="headerlink" href="#yaml" title="Permalink to this heading">#</a></h2>
 <dl class="py function">
 <dt class="sig sig-object py" id="msgspec.yaml.encode">
-<span class="sig-prename descclassname"><span class="pre">msgspec.yaml.</span></span><span class="sig-name descname"><span class="pre">encode</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">obj</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">enc_hook</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.yaml.encode" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">msgspec.yaml.</span></span><span class="sig-name descname"><span class="pre">encode</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">obj</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">enc_hook</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">order</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.yaml.encode" title="Permalink to this definition">#</a></dt>
 <dd><p>Serialize an object as YAML.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -1180,6 +1228,19 @@ If not provided, extension types will decode as <code class="docutils literal no
 <li><p><strong>enc_hook</strong> (<em>callable</em><em>, </em><em>optional</em>) – A callable to call for objects that aren’t supported msgspec types.
 Takes the unsupported object and should return a supported object, or
 raise a <code class="docutils literal notranslate"><span class="pre">NotImplementedError</span></code> if unsupported.</p></li>
+<li><p><strong>order</strong> (<em>{None</em><em>, </em><em>'deterministic'</em><em>, </em><em>'sorted'}</em><em>, </em><em>optional</em>) – <p>The ordering to use when encoding unordered compound types.</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">None</span></code>: All objects are encoded in the most efficient manner
+matching their in-memory representations. The default.</p></li>
+<li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">'deterministic'</span></code>: Unordered collections (sets, dicts) are sorted to
+ensure a consistent output between runs. Useful when
+comparison/hashing of the encoded binary output is necessary.</p></li>
+<li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">'sorted'</span></code>: Like <code class="xref py py-obj docutils literal notranslate"><span class="pre">'deterministic'</span></code>, but <em>all</em> object-like types
+(structs, dataclasses, …) are also sorted by field name before
+encoding. This is slower than <code class="xref py py-obj docutils literal notranslate"><span class="pre">'deterministic'</span></code>, but may produce more
+human-readable output.</p></li>
+</ul>
+</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -1233,7 +1294,7 @@ into type <code class="docutils literal notranslate"><span class="pre">type</spa
 <h2>TOML<a class="headerlink" href="#toml" title="Permalink to this heading">#</a></h2>
 <dl class="py function">
 <dt class="sig sig-object py" id="msgspec.toml.encode">
-<span class="sig-prename descclassname"><span class="pre">msgspec.toml.</span></span><span class="sig-name descname"><span class="pre">encode</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">obj</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">enc_hook</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.toml.encode" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">msgspec.toml.</span></span><span class="sig-name descname"><span class="pre">encode</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">obj</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">enc_hook</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">order</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.toml.encode" title="Permalink to this definition">#</a></dt>
 <dd><p>Serialize an object as TOML.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -1242,6 +1303,19 @@ into type <code class="docutils literal notranslate"><span class="pre">type</spa
 <li><p><strong>enc_hook</strong> (<em>callable</em><em>, </em><em>optional</em>) – A callable to call for objects that aren’t supported msgspec types.
 Takes the unsupported object and should return a supported object, or
 raise a <code class="docutils literal notranslate"><span class="pre">NotImplementedError</span></code> if unsupported.</p></li>
+<li><p><strong>order</strong> (<em>{None</em><em>, </em><em>'deterministic'</em><em>, </em><em>'sorted'}</em><em>, </em><em>optional</em>) – <p>The ordering to use when encoding unordered compound types.</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">None</span></code>: All objects are encoded in the most efficient manner
+matching their in-memory representations. The default.</p></li>
+<li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">'deterministic'</span></code>: Unordered collections (sets, dicts) are sorted to
+ensure a consistent output between runs. Useful when
+comparison/hashing of the encoded binary output is necessary.</p></li>
+<li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">'sorted'</span></code>: Like <code class="xref py py-obj docutils literal notranslate"><span class="pre">'deterministic'</span></code>, but <em>all</em> object-like types
+(structs, dataclasses, …) are also sorted by field name before
+encoding. This is slower than <code class="xref py py-obj docutils literal notranslate"><span class="pre">'deterministic'</span></code>, but may produce more
+human-readable output.</p></li>
+</ul>
+</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -1417,7 +1491,7 @@ Default is False.</p></li>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="msgspec.to_builtins">
-<span class="sig-prename descclassname"><span class="pre">msgspec.</span></span><span class="sig-name descname"><span class="pre">to_builtins</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">obj</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">str_keys</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">builtin_types</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">enc_hook</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.to_builtins" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">msgspec.</span></span><span class="sig-name descname"><span class="pre">to_builtins</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">obj</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">str_keys</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">builtin_types</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">enc_hook</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">order</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.to_builtins" title="Permalink to this definition">#</a></dt>
 <dd><p>Convert a complex object to one composed only of simpler builtin types
 commonly supported by Python serialization libraries.</p>
 <p>This is mainly useful for adding msgspec support for other protocols.</p>
@@ -1434,6 +1508,18 @@ and custom types.</p></li>
 <li><p><strong>enc_hook</strong> (<em>callable</em><em>, </em><em>optional</em>) – A callable to call for objects that aren’t supported msgspec types. Takes
 the unsupported object and should return a supported object, or raise a
 <code class="docutils literal notranslate"><span class="pre">NotImplementedError</span></code> if unsupported.</p></li>
+<li><p><strong>order</strong> (<em>{None</em><em>, </em><em>'deterministic'</em><em>, </em><em>'sorted'}</em><em>, </em><em>optional</em>) – <p>The ordering to use when converting unordered compound types.</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">None</span></code>: All objects are converted in the most efficient manner matching
+their in-memory representations. The default.</p></li>
+<li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">'deterministic'</span></code>: Unordered collections (sets, dicts) are sorted to
+ensure a consistent output between runs. Useful when comparison/hashing
+of the converted output is necessary.</p></li>
+<li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">'sorted'</span></code>: Like <code class="xref py py-obj docutils literal notranslate"><span class="pre">'deterministic'</span></code>, but <em>all</em> object-like types (structs,
+dataclasses, …) are also sorted by field name before encoding. This is
+slower than <code class="xref py py-obj docutils literal notranslate"><span class="pre">'deterministic'</span></code>, but may produce more human-readable output.</p></li>
+</ul>
+</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
