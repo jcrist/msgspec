@@ -5456,7 +5456,7 @@ typedef struct {
     bool already_has_dict;
     int cache_hash;
     Py_ssize_t hash_offset;
-    bool has_non_struct_bases;
+    bool has_non_slots_bases;
 } StructMetaInfo;
 
 static int
@@ -5505,7 +5505,9 @@ structmeta_collect_base(StructMetaInfo *info, MsgspecState *mod, PyObject *base)
     }
 
     if (Py_TYPE(base) != &StructMetaType) {
-        info->has_non_struct_bases = true;
+        if (((PyTypeObject *)base)->tp_dictoffset) {
+            info->has_non_slots_bases = true;
+        }
         /* XXX: in Python 3.8 Generic defines __new__, but we can ignore it.
          * This can be removed when Python 3.8 support is dropped */
         if (base == mod->typing_generic) return 0;
@@ -6221,7 +6223,7 @@ StructMeta_new_inner(
         .already_has_dict = false,
         .cache_hash = arg_cache_hash,
         .hash_offset = 0,
-        .has_non_struct_bases = false,
+        .has_non_slots_bases = false,
     };
 
     info.defaults_lk = PyDict_New();
@@ -6273,10 +6275,10 @@ StructMeta_new_inner(
     }
 
     if (info.gc == OPT_FALSE) {
-        if (info.has_non_struct_bases) {
+        if (info.has_non_slots_bases) {
             PyErr_SetString(
                 PyExc_ValueError,
-                "Cannot set gc=False when inheriting from non-struct types"
+                "Cannot set gc=False when inheriting from non-struct types with a __dict__"
             );
             goto cleanup;
         }
