@@ -1049,17 +1049,27 @@ class TestStructGC:
         assert not gc.is_tracked(copy.copy(Test(1, ())))
         assert gc.is_tracked(copy.copy(Test(1, []))) == has_gc
 
-    def test_struct_gc_false_forbids_mixins(self):
-        class Mixin:
+    def test_struct_gc_false_cannot_inherit_from_non_slots_classes(self):
+        class Base:
             pass
 
         with pytest.raises(
             ValueError,
-            match="Cannot set gc=False when inheriting from non-struct types",
+            match="Cannot set gc=False when inheriting from non-struct types with a __dict__",
         ):
 
-            class Test(Struct, Mixin, gc=False):
+            class Test(Struct, Base, gc=False):
                 pass
+
+    def test_struct_gc_false_can_inherit_from_slots_class_mixin(self):
+        class Base:
+            __slots__ = ()
+
+        class Test(Struct, Base, gc=False):
+            x: int
+
+        t = Test(1)
+        assert not gc.is_tracked(t)
 
     @pytest.mark.parametrize("case", ["base-dict", "base-nogc", "nobase"])
     def test_struct_gc_false_forbids_dict_true(self, case):
