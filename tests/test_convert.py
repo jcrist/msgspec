@@ -1701,16 +1701,16 @@ class TestAttrs:
 
 
 class TestStruct:
-    class Account(Struct):
+    class Account(Struct, kw_only=True):
         first: str
         last: str
-        age: int
         verified: bool = False
+        age: int
 
     @mapcls_and_from_attributes
     def test_struct(self, mapcls, from_attributes):
         msg = mapcls(first="alice", last="munro", age=91, verified=True)
-        sol = self.Account("alice", "munro", 91, True)
+        sol = self.Account(first="alice", last="munro", verified=True, age=91)
         res = convert(msg, self.Account, from_attributes=from_attributes)
         assert res == sol
 
@@ -1754,12 +1754,58 @@ class TestStruct:
 
         assert convert(msg, Ex, from_attributes=True) == Ex(1)
 
-    def test_from_attributes_option_uses_renamed_fields(self):
+    @pytest.mark.parametrize("mapcls", [GetAttrObj, GetItemObj])
+    def test_object_to_struct_with_renamed_fields(self, mapcls):
         class Ex(Struct, rename="camel"):
-            field_one: int
+            fa: int
+            f_b: int
+            fc: int
+            f_d: int
 
-        msg = GetAttrObj(fieldOne=2)
-        assert convert(msg, Ex, from_attributes=True) == Ex(2)
+        sol = Ex(1, 2, 3, 4)
+
+        # Use attribute names
+        msg = mapcls(fa=1, f_b=2, fc=3, f_d=4)
+        assert convert(msg, Ex, from_attributes=True) == sol
+
+        # Use renamed names
+        msg = mapcls(fa=1, fB=2, fc=3, fD=4)
+        assert convert(msg, Ex, from_attributes=True) == sol
+
+        # Priority to attribute names
+        msg = mapcls(fa=1, f_b=2, fB=100, fc=3, f_d=4, fD=100)
+        assert convert(msg, Ex, from_attributes=True) == sol
+
+        # Don't allow renamed names if determined to be attributes
+        msg = mapcls(fa=1, f_b=2, fc=3, fD=4)
+        with pytest.raises(ValidationError, match="missing required field `f_d`"):
+            convert(msg, Ex, from_attributes=True)
+
+        # Don't allow attributes if determined to be renamed names
+        msg = mapcls(fa=1, fB=2, fc=3, f_d=4)
+        with pytest.raises(ValidationError, match="missing required field `fD`"):
+            convert(msg, Ex, from_attributes=True)
+
+        # Errors use attribute name if using attributes
+        msg = mapcls(fa=1, f_b=2, fc=3, f_d="bad")
+        with pytest.raises(
+            ValidationError, match=r"Expected `int`, got `str` - at `\$.f_d`"
+        ):
+            convert(msg, Ex, from_attributes=True)
+
+        # Errors use renamed name if using renamed names
+        msg = mapcls(fa=1, fB=2, fc=3, fD="bad")
+        with pytest.raises(
+            ValidationError, match=r"Expected `int`, got `str` - at `\$.fD`"
+        ):
+            convert(msg, Ex, from_attributes=True)
+
+        # Errors use attribute name if undecided
+        msg = mapcls(fa="bad")
+        with pytest.raises(
+            ValidationError, match=r"Expected `int`, got `str` - at `\$.fa`"
+        ):
+            convert(msg, Ex, from_attributes=True)
 
     @pytest.mark.parametrize("forbid_unknown_fields", [False, True])
     @mapcls_and_from_attributes
@@ -1780,7 +1826,7 @@ class TestStruct:
     def test_struct_defaults_missing_fields(self, mapcls, from_attributes):
         msg = mapcls(first="alice", last="munro", age=91)
         res = convert(msg, self.Account, from_attributes=from_attributes)
-        assert res == self.Account("alice", "munro", 91)
+        assert res == self.Account(first="alice", last="munro", age=91)
 
     @mapcls_from_attributes_and_array_like
     def test_struct_gc_maybe_untracked_on_decode(
