@@ -261,6 +261,24 @@
         <article role="main">
           <section id="changelog">
 <h1>Changelog<a class="headerlink" href="#changelog" title="Permalink to this heading">#</a></h1>
+<section id="version-0-18-6-2024-01-21">
+<h2>Version 0.18.6 (2024-01-21)<a class="headerlink" href="#version-0-18-6-2024-01-21" title="Permalink to this heading">#</a></h2>
+<ul class="simple">
+<li><p>Support coercing integral floats to ints when <code class="docutils literal notranslate"><span class="pre">strict=False</span></code> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/619">PR #619</a>).</p></li>
+<li><p>Preserve leading <code class="docutils literal notranslate"><span class="pre">_</span></code> when renaming fields to camel or pascal case (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/620">PR #620</a>).</p></li>
+<li><p>Support zero-copy decoding binary fields to a <code class="docutils literal notranslate"><span class="pre">memoryview</span></code> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/624">PR #624</a>).</p></li>
+<li><p>Fix a bug when inheriting from the same <code class="docutils literal notranslate"><span class="pre">Generic</span></code> base class multiple times
+(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/626">PR #626</a>).</p></li>
+<li><p>Add an <code class="docutils literal notranslate"><span class="pre">order</span></code> option to all encoders for enforcing deterministic/sorted
+ordering when encoding. This can help provide a more consistent or human
+readable output (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/627">PR #627</a>).</p></li>
+<li><p>Support inheriting from any slots-class when defining a new <code class="docutils literal notranslate"><span class="pre">Struct</span></code> type
+with <code class="docutils literal notranslate"><span class="pre">gc=False</span></code> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/635">PR #635</a>).</p></li>
+<li><p>Automatically infer the input field naming convention when converting
+non-dict mappings or arbitrary objects to <code class="docutils literal notranslate"><span class="pre">Struct</span></code> types in
+<code class="docutils literal notranslate"><span class="pre">msgspec.convert</span></code> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/636">PR #636</a>).</p></li>
+</ul>
+</section>
 <section id="version-0-18-5-2023-12-12">
 <h2>Version 0.18.5 (2023-12-12)<a class="headerlink" href="#version-0-18-5-2023-12-12" title="Permalink to this heading">#</a></h2>
 <ul class="simple">
@@ -850,6 +868,7 @@ faster decoding.</p></li>
           <div class="toc-tree">
             <ul>
 <li><a class="reference internal" href="#">Changelog</a><ul>
+<li><a class="reference internal" href="#version-0-18-6-2024-01-21">Version 0.18.6 (2024-01-21)</a></li>
 <li><a class="reference internal" href="#version-0-18-5-2023-12-12">Version 0.18.5 (2023-12-12)</a></li>
 <li><a class="reference internal" href="#version-0-18-4-2023-10-04">Version 0.18.4 (2023-10-04)</a></li>
 <li><a class="reference internal" href="#version-0-18-3-2023-10-03">Version 0.18.3 (2023-10-03)</a></li>
