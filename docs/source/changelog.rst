@@ -3,6 +3,23 @@ Changelog
 
 .. currentmodule:: msgspec
 
+Version 0.18.6 (2024-01-21)
+---------------------------
+
+- Support coercing integral floats to ints when ``strict=False`` (:pr:`619`).
+- Preserve leading ``_`` when renaming fields to camel or pascal case (:pr:`620`).
+- Support zero-copy decoding binary fields to a ``memoryview`` (:pr:`624`).
+- Fix a bug when inheriting from the same ``Generic`` base class multiple times
+  (:pr:`626`).
+- Add an ``order`` option to all encoders for enforcing deterministic/sorted
+  ordering when encoding. This can help provide a more consistent or human
+  readable output (:pr:`627`).
+- Support inheriting from any slots-class when defining a new ``Struct`` type
+  with ``gc=False`` (:pr:`635`).
+- Automatically infer the input field naming convention when converting
+  non-dict mappings or arbitrary objects to ``Struct`` types in
+  ``msgspec.convert`` (:pr:`636`).
+
 Version 0.18.5 (2023-12-12)
 ---------------------------
 
