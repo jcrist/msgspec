@@ -21263,11 +21263,51 @@ convert_object_to_struct(
     bool is_gc = MS_TYPE_IS_GC(struct_type);
     bool should_untrack = is_gc;
 
+    /* If no fields are renamed we only have one fields tuple to choose from */
+    PyObject *fields = NULL;
+    if (struct_type->struct_fields == struct_type->struct_encode_fields) {
+        fields = struct_type->struct_fields;
+    }
+
     for (Py_ssize_t i = 0; i < nfields; i++) {
-        PyObject *field = PyTuple_GET_ITEM(struct_type->struct_encode_fields, i);
-        PyObject *attr = getter(obj, field);
-        PyObject *val;
-        if (attr == NULL) {
+        PyObject *field, *attr, *val;
+
+        if (MS_LIKELY(fields != NULL)) {
+            /* fields tuple already determined, just get the next field name */
+            field = PyTuple_GET_ITEM(fields, i);
+            attr = getter(obj, field);
+        }
+        else {
+            /* fields tuple undetermined. Try the attribute name first */
+            PyObject *encode_field;
+            field = PyTuple_GET_ITEM(struct_type->struct_fields, i);
+            encode_field = PyTuple_GET_ITEM(struct_type->struct_encode_fields, i);
+            attr = getter(obj, field);
+            if (field != encode_field) {
+                /* The field _was_ renamed */
+                if (attr != NULL) {
+                    /* Got a match, lock-in using attribute names */
+                    fields = struct_type->struct_fields;
+                }
+                else {
+                    /* No match. Try using the renamed name */
+                    PyErr_Clear();
+                    attr = getter(obj, encode_field);
+                    if (attr != NULL) {
+                        /* Got a match, lock-in using renamed names */
+                        field = encode_field;
+                        fields = struct_type->struct_encode_fields;
+                    }
+                }
+            }
+        }
+
+        if (attr != NULL) {
+            PathNode field_path = {path, PATH_STR, field};
+            val = convert(self, attr, info->types[i], &field_path);
+            Py_DECREF(attr);
+        }
+        else {
             PyErr_Clear();
             PyObject *default_val = NULL;
             if (MS_LIKELY(i >= (nfields - ndefaults))) {
@@ -21283,11 +21323,6 @@ convert_object_to_struct(
                 goto error;
             }
             val = get_default(default_val);
-        }
-        else {
-            PathNode field_path = {path, PATH_STR, field};
-            val = convert(self, attr, info->types[i], &field_path);
-            Py_DECREF(attr);
         }
         if (val == NULL) goto error;
         Struct_set_index(out, i, val);
