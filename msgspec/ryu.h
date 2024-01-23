@@ -946,38 +946,38 @@ write_f64(double f, char* buf, bool allow_nonfinite) {
     }
 
     if (sign) {
-        *buf = '-';
+        *buf++ = '-';
     }
 
     if (ieee_exponent == 0 && ieee_mantissa == 0) {
-        memcpy(buf + sign, "0.0", 3);
+        memcpy(buf, "0.0", 3);
         return sign + 3;
     }
 
     floating_decimal_64 v = d2d(ieee_mantissa, ieee_exponent);
 
-    int length = write_u64(v.mantissa, buf + sign);
+    int length = write_u64(v.mantissa, buf) - buf;
     int32_t k = v.exponent;
     int32_t kk = length + k;
 
     if (0 <= k && kk <= 16) {
         /* XYZ00.0 */
-        memset(buf + sign + length, '0', k + 2);
-        *(buf + sign + kk) = '.';
+        memset(buf + length, '0', k + 2);
+        *(buf + kk) = '.';
         return sign + kk + 2;
     }
     else if (0 < kk && kk <= 16) {
         /* XY.Z */
-        memmove(buf + sign + kk + 1, buf + sign + kk, length - kk);
-        *(buf + sign + kk) = '.';
+        memmove(buf + kk + 1, buf + kk, length - kk);
+        *(buf + kk) = '.';
         return sign + length + 1;
     }
     else if (-5 < kk && kk <= 0) {
         /* 0.0XYZ */
         int offset = 2 - kk;
-        memmove(buf + sign + offset, buf + sign, length);
-        memset(buf + sign, '0', offset);
-        *(buf + sign + 1) = '.';
+        memmove(buf + offset, buf, length);
+        memset(buf, '0', offset);
+        *(buf + 1) = '.';
         return sign + length + offset;
     }
     else {
@@ -985,11 +985,11 @@ write_f64(double f, char* buf, bool allow_nonfinite) {
         int offset = 0;
         if (length > 1) {
             offset = length;
-            memmove(buf + sign + 2, buf + sign + 1, length - 1);
-            *(buf + sign + 1) = '.';
+            memmove(buf + 2, buf + 1, length - 1);
+            *(buf + 1) = '.';
         }
-        *(buf + sign + offset + 1) = 'e';
-        return sign + offset + 2 + write_exponent(kk - 1, buf + sign + offset + 2);
+        *(buf + offset + 1) = 'e';
+        return sign + offset + 2 + write_exponent(kk - 1, buf + offset + 2);
     }
 }
 #endif // RYU_H

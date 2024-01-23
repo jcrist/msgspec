@@ -10901,14 +10901,12 @@ ms_encode_timedelta(PyObject *obj, char *out) {
     *out++ = 'P';
 
     if (days != 0) {
-        int n = write_u64(days, out);
-        out += n;
+        out = write_u64(days, out);
         *out++ = 'D';
     }
     if (secs != 0 || micros != 0) {
         *out++ = 'T';
-        int n = write_u64(secs, out);
-        out += n;
+        out = write_u64(secs, out);
         if (micros != 0) {
             *out++ = '.';
             out = ms_write_fixint(out, micros, 6);
@@ -13327,19 +13325,19 @@ json_encode_long_fallback(EncoderState *self, PyObject *obj) {
 
 static MS_NOINLINE int
 json_encode_long(EncoderState *self, PyObject *obj) {
-    char buf[20];
-    char *p = buf;
     uint64_t x;
     bool neg, overflow;
     overflow = fast_long_extract_parts(obj, &neg, &x);
     if (MS_UNLIKELY(overflow)) {
         return json_encode_long_fallback(self, obj);
     }
+    if (ms_ensure_space(self, 20) < 0) return -1;
+    char *p = self->output_buffer_raw + self->output_len;
     if (neg) {
         *p++ = '-';
     }
-    int n = write_u64(x, p);
-    return ms_write(self, buf, n + neg);
+    self->output_len = write_u64(x, p) - self->output_buffer_raw;
+    return 0;
 }
 
 static int
@@ -13351,23 +13349,22 @@ json_encode_long_as_str(EncoderState *self, PyObject *obj) {
 
 static MS_NOINLINE int
 json_encode_float(EncoderState *self, PyObject *obj) {
-    char buf[24];
     double x = PyFloat_AS_DOUBLE(obj);
-    int n = write_f64(x, buf, false);
-    return ms_write(self, buf, n);
+    if (ms_ensure_space(self, 24) < 0) return -1;
+    char *p = self->output_buffer_raw + self->output_len;
+    self->output_len += write_f64(x, p, false);
+    return 0;
 }
 
 static MS_NOINLINE int
 json_encode_float_as_str(EncoderState *self, PyObject *obj) {
-    char buf[24];
     double x = PyFloat_AS_DOUBLE(obj);
-    int size = write_f64(x, buf, true);
-    if (ms_ensure_space(self, size + 2) < 0) return -1;
+    if (ms_ensure_space(self, 26) < 0) return -1;
     char *p = self->output_buffer_raw + self->output_len;
-    *p++ = '"';
-    memcpy(p, buf, size);
-    *(p + size) = '"';
-    self->output_len += size + 2;
+    *p = '"';
+    int n = write_f64(x, p + 1, true);
+    *(p + 1 + n) = '"';
+    self->output_len += n + 2;
     return 0;
 }
 
