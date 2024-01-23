@@ -13284,27 +13284,6 @@ PyDoc_STRVAR(JSONEncoder__doc__,
 static int json_encode_inline(EncoderState*, PyObject*);
 static int json_encode(EncoderState*, PyObject*);
 
-static MS_INLINE int
-json_encode_none(EncoderState *self)
-{
-    const char *buf = "null";
-    return ms_write(self, buf, 4);
-}
-
-static MS_INLINE int
-json_encode_true(EncoderState *self)
-{
-    const char *buf = "true";
-    return ms_write(self, buf, 4);
-}
-
-static MS_INLINE int
-json_encode_false(EncoderState *self)
-{
-    const char *buf = "false";
-    return ms_write(self, buf, 5);
-}
-
 static MS_NOINLINE int
 json_encode_long_fallback(EncoderState *self, PyObject *obj) {
     int out = -1;
@@ -14137,13 +14116,13 @@ json_encode_struct(EncoderState *self, PyObject *obj)
 static MS_NOINLINE int
 json_encode_uncommon(EncoderState *self, PyTypeObject *type, PyObject *obj) {
     if (obj == Py_None) {
-        return json_encode_none(self);
+        return ms_write(self, "null", 4);
     }
     else if (obj == Py_True) {
-        return json_encode_true(self);
+        return ms_write(self, "true", 4);
     }
     else if (obj == Py_False) {
-        return json_encode_false(self);
+        return ms_write(self, "false", 5);
     }
     else if (Py_TYPE(type) == &StructMetaType) {
         return json_encode_struct(self, obj);
