@@ -59,12 +59,29 @@ write_u32_8_digits(uint32_t x, char *buf) {
 }
 
 static MS_INLINE void
+write_u32_6_digits(uint32_t x, char *buf) {
+    uint32_t aa, bbcc, bb, cc;
+    aa = (uint32_t)(((uint64_t)x * 109951163) >> 40);  /* (x / 10000) */
+    bbcc = x - aa * 10000;                             /* (x % 10000) */
+    bb = (bbcc * 5243) >> 19;                          /* (bbcc / 100) */
+    cc = bbcc - bb * 100;                              /* (bbcc % 100) */
+    memcpy(buf + 0, DIGIT_TABLE + aa * 2, 2);
+    memcpy(buf + 2, DIGIT_TABLE + bb * 2, 2);
+    memcpy(buf + 4, DIGIT_TABLE + cc * 2, 2);
+}
+
+static MS_INLINE void
 write_u32_4_digits(uint32_t x, char *buf) {
     uint32_t aa, bb;
     aa = (x * 5243) >> 19;  /* (x / 100) */
     bb = x - aa * 100;      /* (x % 100) */
     memcpy(buf + 0, DIGIT_TABLE + aa * 2, 2);
     memcpy(buf + 2, DIGIT_TABLE + bb * 2, 2);
+}
+
+static MS_INLINE void
+write_u32_2_digits(uint32_t x, char *buf) {
+    memcpy(buf, DIGIT_TABLE + x * 2, 2);
 }
 
 static MS_INLINE char *
