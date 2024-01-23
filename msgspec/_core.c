@@ -12337,10 +12337,7 @@ static int
 mpack_encode_raw(EncoderState *self, PyObject *obj)
 {
     Raw *raw = (Raw *)obj;
-    if (ms_ensure_space(self, raw->len) < 0) return -1;
-    memcpy(self->output_buffer_raw + self->output_len, raw->buf, raw->len);
-    self->output_len += raw->len;
-    return 0;
+    return ms_write(self, raw->buf, raw->len);
 }
 
 static int
@@ -13559,10 +13556,7 @@ static int
 json_encode_raw(EncoderState *self, PyObject *obj)
 {
     Raw *raw = (Raw *)obj;
-    if (ms_ensure_space(self, raw->len) < 0) return -1;
-    memcpy(self->output_buffer_raw + self->output_len, raw->buf, raw->len);
-    self->output_len += raw->len;
-    return 0;
+    return ms_write(self, raw->buf, raw->len);
 }
 
 static int
