@@ -145,19 +145,19 @@ write_u64_5_to_8_digits(uint32_t x, char *buf) {
 }
 
 /* Write a uint64 to buf, requires 20 bytes of space */
-static inline int
+static inline char *
 write_u64(uint64_t x, char *buf) {
     uint64_t tmp, hgh;
     uint32_t mid, low;
 
     if (x < 100000000) {  /* 1-8 digits */
-        return write_u32_1_to_8_digits((uint32_t)x, buf) - buf;
+        return write_u32_1_to_8_digits((uint32_t)x, buf);
     } else if (x < (uint64_t)100000000 * 100000000) {  /* 9-16 digits */
         hgh = x / 100000000;                           /* (x / 100000000) */
         low = (uint32_t)(x - hgh * 100000000);         /* (x % 100000000) */
         char *cur = write_u32_1_to_8_digits((uint32_t)hgh, buf);
         write_u32_8_digits(low, cur);
-        return cur + 8 - buf;
+        return cur + 8;
     } else {                                    /* 17-20 digits */
         tmp = x / 100000000;                    /* (x / 100000000) */
         low = (uint32_t)(x - tmp * 100000000);  /* (x % 100000000) */
@@ -166,7 +166,7 @@ write_u64(uint64_t x, char *buf) {
         char *cur = write_u64_5_to_8_digits((uint32_t)hgh, buf);
         write_u32_4_digits(mid, cur);
         write_u32_8_digits(low, cur + 4);
-        return cur + 12 - buf;
+        return cur + 12;
     }
 }
 
