@@ -10393,16 +10393,6 @@ datetime_from_epoch(
     );
 }
 
-static inline char *
-ms_write_fixint(char *p, uint32_t x, int width) {
-    p += width;
-    for (int i = 0; i < width; i++) {
-        *--p = (x % 10) + '0';
-        x = x / 10;
-    }
-    return p + width;
-}
-
 static inline const char *
 ms_read_fixint(const char *buf, int width, int *out) {
     int x = 0;
@@ -10423,11 +10413,11 @@ ms_encode_date(PyObject *obj, char *out)
     uint8_t month = PyDateTime_GET_MONTH(obj);
     uint8_t day = PyDateTime_GET_DAY(obj);
 
-    out = ms_write_fixint(out, year, 4);
-    *out++ = '-';
-    out = ms_write_fixint(out, month, 2);
-    *out++ = '-';
-    out = ms_write_fixint(out, day, 2);
+    write_u32_4_digits(year, out);
+    *(out + 4) = '-';
+    write_u32_2_digits(month, out + 5);
+    *(out + 7) = '-';
+    write_u32_2_digits(day, out + 8);
 }
 
 /* Requires 21 bytes of scratch space */
@@ -10438,14 +10428,18 @@ ms_encode_time_parts(
     PyObject *tzinfo, char *out, int out_offset
 ) {
     char *p = out + out_offset;
-    p = ms_write_fixint(p, hour, 2);
+    write_u32_2_digits(hour, p);
+    p += 2;
     *p++ = ':';
-    p = ms_write_fixint(p, minute, 2);
+    write_u32_2_digits(minute, p);
+    p += 2;
     *p++ = ':';
-    p = ms_write_fixint(p, second, 2);
+    write_u32_2_digits(second, p);
+    p += 2;
     if (microsecond) {
         *p++ = '.';
-        p = ms_write_fixint(p, microsecond, 6);
+        write_u32_6_digits(microsecond, p);
+        p += 6;
     }
 
     if (tzinfo != Py_None) {
@@ -10506,9 +10500,11 @@ ms_encode_time_parts(
             }
             else {
                 *p++ = sign;
-                p = ms_write_fixint(p, offset_hour, 2);
+                write_u32_2_digits(offset_hour, p);
+                p += 2;
                 *p++ = ':';
-                p = ms_write_fixint(p, offset_min, 2);
+                write_u32_2_digits(offset_min, p);
+                p += 2;
             }
         }
     }
@@ -10909,7 +10905,8 @@ ms_encode_timedelta(PyObject *obj, char *out) {
         out = write_u64(secs, out);
         if (micros != 0) {
             *out++ = '.';
-            out = ms_write_fixint(out, micros, 6);
+            write_u32_6_digits(micros, out);
+            out += 6;
             while (*(out - 1) == '0') {
                 out--;
             }
@@ -13637,33 +13634,39 @@ json_encode_decimal(EncoderState *self, PyObject *obj)
 static int
 json_encode_date(EncoderState *self, PyObject *obj)
 {
-    char buf[12];
-    buf[0] = '"';
-    buf[11] = '"';
-    ms_encode_date(obj, buf + 1);
-    return ms_write(self, buf, 12);
+    if (ms_ensure_space(self, 12) < 0) return -1;
+    char *p = self->output_buffer_raw + self->output_len;
+    *p = '"';
+    ms_encode_date(obj, p + 1);
+    *(p + 11) = '"';
+    self->output_len += 12;
+    return 0;
 }
 
 static int
 json_encode_time(EncoderState *self, PyObject *obj)
 {
-    char buf[23];
-    buf[0] = '"';
-    int size = ms_encode_time(self->mod, obj, buf + 1);
+    if (ms_ensure_space(self, 23) < 0) return -1;
+    char *p = self->output_buffer_raw + self->output_len;
+    *p = '"';
+    int size = ms_encode_time(self->mod, obj, p + 1);
     if (size < 0) return -1;
-    buf[size + 1] = '"';
-    return ms_write(self, buf, size + 2);
+    *(p + size + 1) = '"';
+    self->output_len += (size + 2);
+    return 0;
 }
 
 static int
 json_encode_datetime(EncoderState *self, PyObject *obj)
 {
-    char buf[34];
-    buf[0] = '"';
-    int size = ms_encode_datetime(self->mod, obj, buf + 1);
+    if (ms_ensure_space(self, 34) < 0) return -1;
+    char *p = self->output_buffer_raw + self->output_len;
+    *p = '"';
+    int size = ms_encode_datetime(self->mod, obj, p + 1);
     if (size < 0) return -1;
-    buf[size + 1] = '"';
-    return ms_write(self, buf, size + 2);
+    *(p + size + 1) = '"';
+    self->output_len += (size + 2);
+    return 0;
 }
 
 static int
