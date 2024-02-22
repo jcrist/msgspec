@@ -2,13 +2,11 @@ import datetime
 import decimal
 import enum
 import gc
-import inspect
 import math
 import sys
 import uuid
 from base64 import b64encode
 from collections.abc import MutableMapping
-from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import (
     Any,
@@ -25,7 +23,7 @@ from typing import (
 )
 
 import pytest
-from utils import temp_module
+from utils import temp_module, max_call_depth
 
 import msgspec
 from msgspec import Meta, Struct, ValidationError, convert, to_builtins
@@ -194,33 +192,6 @@ def assert_eq(x, y):
     if type(x) is float and math.isnan(x):
         return math.isnan(y)
     assert x == y
-
-
-@contextmanager
-def max_call_depth(n):
-    cur_depth = len(inspect.stack(0))
-    orig = sys.getrecursionlimit()
-    try:
-        # Our measure of the current stack depth can be off by a bit. Trying to
-        # set a recursionlimit < the current depth will raise a RecursionError.
-        # We just try again with a slightly higher limit, bailing after an
-        # unreasonable amount of adjustments.
-        #
-        # Note that python 3.8 also has a minimum recursion limit of 64, so
-        # there's some additional fiddliness there.
-        for i in range(64):
-            try:
-                sys.setrecursionlimit(cur_depth + i + n)
-                break
-            except RecursionError:
-                pass
-        else:
-            raise ValueError(
-                "Failed to set low recursion limit, something is wrong here"
-            )
-        yield
-    finally:
-        sys.setrecursionlimit(orig)
 
 
 def roundtrip(obj, typ):

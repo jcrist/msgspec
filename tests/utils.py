@@ -1,4 +1,5 @@
 import sys
+import inspect
 import textwrap
 import types
 import uuid
@@ -20,3 +21,30 @@ def temp_module(code):
         yield mod
     finally:
         sys.modules.pop(name, None)
+
+
+@contextmanager
+def max_call_depth(n):
+    cur_depth = len(inspect.stack(0))
+    orig = sys.getrecursionlimit()
+    try:
+        # Our measure of the current stack depth can be off by a bit. Trying to
+        # set a recursionlimit < the current depth will raise a RecursionError.
+        # We just try again with a slightly higher limit, bailing after an
+        # unreasonable amount of adjustments.
+        #
+        # Note that python 3.8 also has a minimum recursion limit of 64, so
+        # there's some additional fiddliness there.
+        for i in range(64):
+            try:
+                sys.setrecursionlimit(cur_depth + i + n)
+                break
+            except RecursionError:
+                pass
+        else:
+            raise ValueError(
+                "Failed to set low recursion limit, something is wrong here"
+            )
+        yield
+    finally:
+        sys.setrecursionlimit(orig)
