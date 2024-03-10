@@ -1744,6 +1744,22 @@ class TestStructOmitDefaults:
             res = proto.decode(proto.encode(obj))
             assert res == sol
 
+    @pytest.mark.parametrize("typ", [tuple, list, set, frozenset, dict])
+    def test_omit_defaults_collections(self, proto, typ):
+        """Check that using empty collections as default values are detected
+        regardless if they're specified by value or as a default_factory."""
+
+        class Test(Struct, omit_defaults=True):
+            a: typ = msgspec.field(default_factory=typ)
+            b: typ = msgspec.field(default=typ())
+            c: typ = typ()
+
+        ex = {"x": 1} if typ is dict else [1]
+
+        assert proto.encode(Test()) == proto.encode({})
+        for n in ["a", "b", "c"]:
+            assert proto.encode(Test(**{n: typ(ex)})) == proto.encode({n: ex})
+
     def test_omit_defaults_positional(self, proto):
         class Test(Struct, omit_defaults=True):
             a: int
