@@ -5675,7 +5675,15 @@ structmeta_process_default(StructMetaInfo *info, PyObject *name) {
             type = Py_TYPE(obj);
         }
         else if (f->default_factory != NODEFAULT) {
-            default_val = Factory_New(f->default_factory);
+            if (f->default_factory == (PyObject *)&PyTuple_Type) {
+                default_val = PyTuple_New(0);
+            }
+            else if (f->default_factory == (PyObject *)&PyFrozenSet_Type) {
+                default_val = PyFrozenSet_New(NULL);
+            }
+            else {
+                default_val = Factory_New(f->default_factory);
+            }
             if (default_val == NULL) return -1;
             goto done;
         }
