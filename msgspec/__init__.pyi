@@ -164,6 +164,7 @@ def convert(
     dec_hook: Optional[Callable[[type, Any], Any]] = None,
     builtin_types: Union[Iterable[type], None] = None,
     str_keys: bool = False,
+    allow_tagged_struct_subtypes: bool = False,
 ) -> T: ...
 @overload
 def convert(
@@ -175,6 +176,7 @@ def convert(
     dec_hook: Optional[Callable[[type, Any], Any]] = None,
     builtin_types: Union[Iterable[type], None] = None,
     str_keys: bool = False,
+    allow_tagged_struct_subtypes: bool = False,
 ) -> Any: ...
 
 # TODO: deprecated

@@ -1867,6 +1867,22 @@ class TestStruct:
         assert f"Invalid value {bad!r}" in str(rec.value)
         assert "`$.type`" in str(rec.value)
 
+    def test_tagged_struct_subclass(self):
+        class Base(Struct, tag=True):
+            pass
+
+        class A(Base):
+            pass
+
+        class C(Base):
+            other: Base
+
+        assert convert(
+            {"type": "C", "other": {"type": "C", "other": {"type": "A"}}},
+            type=C,
+            allow_tagged_struct_subtypes=True,
+        ) == C(other=C(other=A()))
+
     @pytest.mark.parametrize("tag_val", [2**64 - 1, 2**64, -(2**63) - 1])
     @mapcls_and_from_attributes
     def test_tagged_struct_int_tag_not_int64_always_invalid(
