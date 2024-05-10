@@ -6810,6 +6810,7 @@ StructMeta_clear(StructMetaObject *self)
     Py_CLEAR(self->rename);
     Py_CLEAR(self->post_init);
     Py_CLEAR(self->struct_info);
+    Py_CLEAR(self->match_args);
     if (self->struct_offsets != NULL) {
         PyMem_Free(self->struct_offsets);
         self->struct_offsets = NULL;
