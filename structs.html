@@ -5,10 +5,10 @@
     <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Constraints" href="constraints.html" /><link rel="prev" title="Supported Types" href="supported-types.html" />
 
-    <!-- Generated with Sphinx 7.1.2 and Furo 2024.01.29 -->
+    <!-- Generated with Sphinx 7.1.2 and Furo 2024.05.06 -->
         <title>Structs</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
-    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=135e06be" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=387cc868" />
     <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="_static/design-style.1e8bd061cd6da7fc9cf755528e8ffc24.min.css?v=0a3b3ea7" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=36a5483c" />
@@ -102,7 +102,7 @@
   <symbol id="svg-sun" viewBox="0 0 24 24">
     <title>Light mode</title>
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
       <circle cx="12" cy="12" r="5"></circle>
       <line x1="12" y1="1" x2="12" y2="3"></line>
       <line x1="12" y1="21" x2="12" y2="23"></line>
@@ -117,7 +117,7 @@
   <symbol id="svg-moon" viewBox="0 0 24 24">
     <title>Dark mode</title>
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
       <path stroke="none" d="M0 0h24v24H0z" fill="none" />
       <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
     </svg>
@@ -125,7 +125,7 @@
   <symbol id="svg-sun-half" viewBox="0 0 24 24">
     <title>Auto light/dark mode</title>
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-shadow">
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-shadow">
       <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
       <circle cx="12" cy="12" r="9" />
       <path d="M13 12h5" />
@@ -133,6 +133,60 @@
       <path d="M13 18h1" />
       <path d="M13 9h4" />
       <path d="M13 6h1" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-with-moon" viewBox="0 0 24 24">
+    <title>Auto light/dark, in light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path style="opacity: 50%" d="M 5.411 14.504 C 5.471 14.504 5.532 14.504 5.591 14.504 C 3.639 16.319 4.383 19.569 6.931 20.352 C 7.693 20.586 8.512 20.551 9.25 20.252 C 8.023 23.207 4.056 23.725 2.11 21.184 C 0.166 18.642 1.702 14.949 4.874 14.536 C 5.051 14.512 5.231 14.5 5.411 14.5 L 5.411 14.504 Z"/>
+      <line x1="14.5" y1="3.25" x2="14.5" y2="1.25"/>
+      <line x1="14.5" y1="15.85" x2="14.5" y2="17.85"/>
+      <line x1="10.044" y1="5.094" x2="8.63" y2="3.68"/>
+      <line x1="19" y1="14.05" x2="20.414" y2="15.464"/>
+      <line x1="8.2" y1="9.55" x2="6.2" y2="9.55"/>
+      <line x1="20.8" y1="9.55" x2="22.8" y2="9.55"/>
+      <line x1="10.044" y1="14.006" x2="8.63" y2="15.42"/>
+      <line x1="19" y1="5.05" x2="20.414" y2="3.636"/>
+      <circle cx="14.5" cy="9.55" r="3.6"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon-with-sun" viewBox="0 0 24 24">
+    <title>Auto light/dark, in dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path d="M 8.282 7.007 C 8.385 7.007 8.494 7.007 8.595 7.007 C 5.18 10.184 6.481 15.869 10.942 17.24 C 12.275 17.648 13.706 17.589 15 17.066 C 12.851 22.236 5.91 23.143 2.505 18.696 C -0.897 14.249 1.791 7.786 7.342 7.063 C 7.652 7.021 7.965 7 8.282 7 L 8.282 7.007 Z"/>
+      <line style="opacity: 50%" x1="18" y1="3.705" x2="18" y2="2.5"/>
+      <line style="opacity: 50%" x1="18" y1="11.295" x2="18" y2="12.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="4.816" x2="14.464" y2="3.964"/>
+      <line style="opacity: 50%" x1="20.711" y1="10.212" x2="21.563" y2="11.063"/>
+      <line style="opacity: 50%" x1="14.205" y1="7.5" x2="13.001" y2="7.5"/>
+      <line style="opacity: 50%" x1="21.795" y1="7.5" x2="23" y2="7.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="10.184" x2="14.464" y2="11.036"/>
+      <line style="opacity: 50%" x1="20.711" y1="4.789" x2="21.563" y2="3.937"/>
+      <circle style="opacity: 50%" cx="18" cy="7.5" r="2.169"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-pencil" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-pencil-code">
+      <path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" />
+      <path d="M13.5 6.5l4 4" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" /
+    </svg>
+  </symbol>
+  <symbol id="svg-eye" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-eye-code">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />
+      <path
+        d="M11.11 17.958c-3.209 -.307 -5.91 -2.293 -8.11 -5.958c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6c-.21 .352 -.427 .688 -.647 1.008" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
     </svg>
   </symbol>
 </svg>
@@ -145,6 +199,8 @@
 <label class="overlay toc-overlay" for="__toc">
   <div class="visually-hidden">Hide table of contents sidebar</div>
 </label>
+
+<a class="skip-to-content muted-link" href="#furo-main-content">Skip to content</a>
 
 
 
@@ -163,7 +219,8 @@
       <div class="theme-toggle-container theme-toggle-header">
         <button class="theme-toggle">
           <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
-          <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+          <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+          <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
           <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
           <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
         </button>
@@ -244,11 +301,17 @@
           <span>Back to top</span>
         </a>
         <div class="content-icon-container">
-          
+          <div class="view-this-page">
+  <a class="muted-link" href="_sources/structs.rst.txt" title="View this page">
+    <svg><use href="#svg-eye"></use></svg>
+    <span class="visually-hidden">View this page</span>
+  </a>
+</div>
 <div class="theme-toggle-container theme-toggle-content">
             <button class="theme-toggle">
               <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
-              <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+              <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+              <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
               <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
               <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
             </button>
@@ -258,9 +321,9 @@
             <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
           </label>
         </div>
-        <article role="main">
+        <article role="main" id="furo-main-content">
           <section id="structs">
-<h1>Structs<a class="headerlink" href="#structs" title="Permalink to this heading">#</a></h1>
+<h1>Structs<a class="headerlink" href="#structs" title="Permalink to this heading">¶</a></h1>
 <p>Structs are the preferred way of defining structured data types in <code class="docutils literal notranslate"><span class="pre">msgspec</span></code>.
 They’re written in C and are quite speedy and lightweight (<a class="reference internal" href="benchmarks.html"><span class="doc">measurably
 faster</span></a> to create/compare/encode/decode than similar options like
@@ -343,7 +406,7 @@ for converting a struct to a dict.</p>
 </pre></div>
 </div>
 <section id="default-values">
-<h2>Default Values<a class="headerlink" href="#default-values" title="Permalink to this heading">#</a></h2>
+<h2>Default Values<a class="headerlink" href="#default-values" title="Permalink to this heading">¶</a></h2>
 <p>Struct fields may be given default values, which are used if no value is
 provided to <code class="docutils literal notranslate"><span class="pre">__init__</span></code>, or when decoding a message. Default values are
 configured as part of a Struct definition by assigning them after a field’s
@@ -395,7 +458,7 @@ value will cause the struct definition to error (you should manually define a
 </ul>
 </section>
 <section id="post-init-processing">
-<span id="struct-post-init"></span><h2>Post-Init Processing<a class="headerlink" href="#post-init-processing" title="Permalink to this heading">#</a></h2>
+<span id="struct-post-init"></span><h2>Post-Init Processing<a class="headerlink" href="#post-init-processing" title="Permalink to this heading">¶</a></h2>
 <p>If a struct type defines a <code class="docutils literal notranslate"><span class="pre">__post_init__(self)</span></code> method, this will be called
 at the end of the generated <code class="docutils literal notranslate"><span class="pre">__init__</span></code> method. It has the same semantics as the
 <code class="docutils literal notranslate"><span class="pre">dataclasses</span></code> method <a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#post-init-processing">of the same name</a>.
@@ -442,7 +505,7 @@ with additional context. All other exceptions will be raised directly.</p>
 </div>
 </section>
 <section id="field-ordering">
-<span id="struct-field-ordering"></span><h2>Field Ordering<a class="headerlink" href="#field-ordering" title="Permalink to this heading">#</a></h2>
+<span id="struct-field-ordering"></span><h2>Field Ordering<a class="headerlink" href="#field-ordering" title="Permalink to this heading">¶</a></h2>
 <p>When defining a new struct type, fields are stored in the order they’re defined
 (keyword-only fields excluded, more on this later). This is nice for
 readability since the generated <code class="docutils literal notranslate"><span class="pre">__init__</span></code> matches the field order.</p>
@@ -506,7 +569,7 @@ fields.</p>
 <a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#module-dataclasses" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses</span></code></a>, see the <a class="reference external" href="dataclasses">dataclasses docs</a> for more information.</p>
 </section>
 <section id="class-variables">
-<h2>Class Variables<a class="headerlink" href="#class-variables" title="Permalink to this heading">#</a></h2>
+<h2>Class Variables<a class="headerlink" href="#class-variables" title="Permalink to this heading">¶</a></h2>
 <p>Like <a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#module-dataclasses" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses</span></code></a>, <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> types will exclude any attribute
 annotations wrapped in <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.ClassVar" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.ClassVar</span></code></a> from their fields.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">msgspec</span>
@@ -535,7 +598,7 @@ annotations wrapped in <a class="reference external" href="https://docs.python.o
 detected.</p>
 </section>
 <section id="type-validation">
-<h2>Type Validation<a class="headerlink" href="#type-validation" title="Permalink to this heading">#</a></h2>
+<h2>Type Validation<a class="headerlink" href="#type-validation" title="Permalink to this heading">¶</a></h2>
 <p>Unlike some other libraries (e.g. <a class="reference external" href="https://pydantic-docs.helpmanual.io/">pydantic</a>), the type annotations on a
 <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> class are not checked at runtime during normal use. Types are
 only checked when <em>decoding</em> a serialized message when using a <code class="xref py py-obj docutils literal notranslate"><span class="pre">typed</span> <span class="pre">decoder</span></code>.</p>
@@ -569,7 +632,7 @@ decode a message into a type validated <a class="reference internal" href="api.h
 <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a>.</p>
 </section>
 <section id="pattern-matching">
-<h2>Pattern Matching<a class="headerlink" href="#pattern-matching" title="Permalink to this heading">#</a></h2>
+<h2>Pattern Matching<a class="headerlink" href="#pattern-matching" title="Permalink to this heading">¶</a></h2>
 <p>If using Python 3.10+, <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> types can be used in <a class="reference external" href="https://docs.python.org/3/reference/compound_stmts.html#the-match-statement">pattern matching</a>
 blocks. Replicating an example from <a class="reference external" href="https://peps.python.org/pep-0636/">PEP 636</a>:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># NOTE: this example requires Python 3.10+</span>
@@ -598,7 +661,7 @@ blocks. Replicating an example from <a class="reference external" href="https://
 </div>
 </section>
 <section id="equality-and-order">
-<h2>Equality and Order<a class="headerlink" href="#equality-and-order" title="Permalink to this heading">#</a></h2>
+<h2>Equality and Order<a class="headerlink" href="#equality-and-order" title="Permalink to this heading">¶</a></h2>
 <p>By default struct types define an <code class="docutils literal notranslate"><span class="pre">__eq__</span></code> method based on the type
 definition. This enables support for equality comparisons. Additionally, you
 may configure <code class="docutils literal notranslate"><span class="pre">order=True</span></code> to make a struct type <em>orderable</em> through
@@ -636,7 +699,7 @@ equal to is itself.</p>
 </div>
 </section>
 <section id="frozen-instances">
-<h2>Frozen Instances<a class="headerlink" href="#frozen-instances" title="Permalink to this heading">#</a></h2>
+<h2>Frozen Instances<a class="headerlink" href="#frozen-instances" title="Permalink to this heading">¶</a></h2>
 <p>A struct type can optionally be marked as “frozen” by specifying
 <code class="docutils literal notranslate"><span class="pre">frozen=True</span></code>. This disables modifying attributes after initialization, and
 adds a <code class="docutils literal notranslate"><span class="pre">__hash__</span></code> method to the class definition. Note that for the
@@ -660,7 +723,7 @@ adds a <code class="docutils literal notranslate"><span class="pre">__hash__</sp
 </div>
 </section>
 <section id="tagged-unions">
-<span id="struct-tagged-unions"></span><h2>Tagged Unions<a class="headerlink" href="#tagged-unions" title="Permalink to this heading">#</a></h2>
+<span id="struct-tagged-unions"></span><h2>Tagged Unions<a class="headerlink" href="#tagged-unions" title="Permalink to this heading">¶</a></h2>
 <p>By default a serialized struct only contains information on the <em>values</em>
 present in the struct instance - no information is serialized noting which
 struct type corresponds to the message. Instead, the user is expected to
@@ -795,7 +858,7 @@ for all struct types you wish to tag.</p>
 </div>
 </section>
 <section id="omitting-default-values">
-<span id="omit-defaults"></span><h2>Omitting Default Values<a class="headerlink" href="#omitting-default-values" title="Permalink to this heading">#</a></h2>
+<span id="omit-defaults"></span><h2>Omitting Default Values<a class="headerlink" href="#omitting-default-values" title="Permalink to this heading">¶</a></h2>
 <p>By default, <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> encodes all fields in a Struct type, including optional
 fields (those configured with a default value).</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">msgspec</span>
@@ -854,7 +917,7 @@ detection logic is as follows:</p>
 </div>
 </section>
 <section id="forbidding-unknown-fields">
-<span id="forbid-unknown-fields"></span><h2>Forbidding Unknown Fields<a class="headerlink" href="#forbidding-unknown-fields" title="Permalink to this heading">#</a></h2>
+<span id="forbid-unknown-fields"></span><h2>Forbidding Unknown Fields<a class="headerlink" href="#forbidding-unknown-fields" title="Permalink to this heading">¶</a></h2>
 <p>By default <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> will skip unknown fields encountered when decoding into
 <code class="docutils literal notranslate"><span class="pre">Struct</span></code> types. This is normally desired, as it allows for
 <a class="reference internal" href="schema-evolution.html"><span class="doc">Schema Evolution</span></a> and more flexible decoding.</p>
@@ -892,7 +955,7 @@ encountered will result in an error.</p>
 </div>
 </section>
 <section id="renaming-fields">
-<h2>Renaming Fields<a class="headerlink" href="#renaming-fields" title="Permalink to this heading">#</a></h2>
+<h2>Renaming Fields<a class="headerlink" href="#renaming-fields" title="Permalink to this heading">¶</a></h2>
 <p>Sometimes you want the field name used in the encoded message to differ from
 the name used your Python code. Perhaps you want a <code class="docutils literal notranslate"><span class="pre">camelCase</span></code> naming
 convention in your JSON messages, but to use <code class="docutils literal notranslate"><span class="pre">snake_case</span></code> field names in
@@ -1005,7 +1068,7 @@ precedence.</p>
 </div>
 </section>
 <section id="encoding-decoding-as-arrays">
-<h2>Encoding/Decoding as Arrays<a class="headerlink" href="#encoding-decoding-as-arrays" title="Permalink to this heading">#</a></h2>
+<h2>Encoding/Decoding as Arrays<a class="headerlink" href="#encoding-decoding-as-arrays" title="Permalink to this heading">¶</a></h2>
 <p>By default Struct objects encode the same dicts, with both the keys and values
 present in the message.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">msgspec</span>
@@ -1060,7 +1123,7 @@ array, and is used to determine which type in the union to use when decoding.</p
 </div>
 </section>
 <section id="runtime-definition">
-<h2>Runtime Definition<a class="headerlink" href="#runtime-definition" title="Permalink to this heading">#</a></h2>
+<h2>Runtime Definition<a class="headerlink" href="#runtime-definition" title="Permalink to this heading">¶</a></h2>
 <p>In some cases it can be useful to dynamically generate <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> classes
 at runtime. This can be handled through the use of <a class="reference internal" href="api.html#msgspec.defstruct" title="msgspec.defstruct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.defstruct</span></code></a>, which
 has a signature similar to <a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#dataclasses.make_dataclass" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses.make_dataclass</span></code></a>. See
@@ -1077,7 +1140,7 @@ has a signature similar to <a class="reference external" href="https://docs.pyth
 </div>
 </section>
 <section id="disabling-garbage-collection-advanced">
-<span id="struct-gc"></span><h2>Disabling Garbage Collection (Advanced)<a class="headerlink" href="#disabling-garbage-collection-advanced" title="Permalink to this heading">#</a></h2>
+<span id="struct-gc"></span><h2>Disabling Garbage Collection (Advanced)<a class="headerlink" href="#disabling-garbage-collection-advanced" title="Permalink to this heading">¶</a></h2>
 <div class="admonition warning">
 <p class="admonition-title">Warning</p>
 <p>This is an advanced optimization, and only recommended for users who fully
@@ -1228,7 +1291,7 @@ collected (leading to a memory leak).</p>
 </div><script data-url_root="./" id="documentation_options" src="_static/documentation_options.js?v=b3ba4146"></script>
     <script src="_static/doctools.js?v=888ff710"></script>
     <script src="_static/sphinx_highlight.js?v=4825356b"></script>
-    <script src="_static/scripts/furo.js?v=32e29ea5"></script>
+    <script src="_static/scripts/furo.js?v=4e2eecee"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
     <script src="_static/copybutton.js?v=de5a9c30"></script>
     <script src="_static/design-tabs.js?v=36754332"></script>
