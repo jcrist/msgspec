@@ -1,5 +1,4 @@
 import datetime
-import decimal
 import enum
 import gc
 import math
@@ -8,6 +7,7 @@ import uuid
 from base64 import b64encode
 from collections.abc import MutableMapping
 from dataclasses import dataclass, field
+from decimal import Decimal
 from typing import (
     Any,
     Dict,
@@ -23,7 +23,7 @@ from typing import (
 )
 
 import pytest
-from utils import temp_module, max_call_depth
+from utils import max_call_depth, temp_module
 
 import msgspec
 from msgspec import Meta, Struct, ValidationError, convert, to_builtins
@@ -294,7 +294,7 @@ class TestConvert:
             (datetime.time(12, 34), "time"),
             (datetime.date(2022, 1, 2), "date"),
             (uuid.uuid4(), "uuid"),
-            (decimal.Decimal("1.5"), "decimal"),
+            (Decimal("1.5"), "Decimal"),
             ([1], "array"),
             ((1,), "array"),
             ({"a": 1}, "object"),
@@ -461,19 +461,19 @@ class TestFloat:
                 convert({"x": x}, Ex)
 
     def test_float_from_decimal(self):
-        res = convert(decimal.Decimal("1.5"), float)
+        res = convert(Decimal("1.5"), float)
         assert res == 1.5
         assert type(res) is float
 
     @uses_annotated
     def test_constr_float_from_decimal(self):
         typ = Annotated[float, Meta(ge=0)]
-        res = convert(decimal.Decimal("1.5"), typ)
+        res = convert(Decimal("1.5"), typ)
         assert res == 1.5
         assert type(res) is float
 
         with pytest.raises(ValidationError, match="Expected `float` >= 0.0"):
-            convert(decimal.Decimal("-1.5"), typ)
+            convert(Decimal("-1.5"), typ)
 
 
 class TestStr:
@@ -740,37 +740,84 @@ class TestUUID:
 
 class TestDecimal:
     def test_decimal_wrong_type(self):
-        with pytest.raises(ValidationError, match="Expected `decimal`, got `array`"):
-            convert([], decimal.Decimal)
+        with pytest.raises(ValidationError, match="Expected `Decimal`, got `array`"):
+            convert([], Decimal)
 
     def test_decimal_builtin(self):
-        x = decimal.Decimal("1.5")
-        assert convert(x, decimal.Decimal) is x
+        x = Decimal("1.5")
+        assert convert(x, Decimal) is x
 
     def test_decimal_str(self):
-        sol = decimal.Decimal("1.5")
-        res = convert("1.5", decimal.Decimal)
+        sol = Decimal("1.5")
+        res = convert("1.5", Decimal)
         assert res == sol
-        assert type(res) is decimal.Decimal
+        assert type(res) is Decimal
 
     @pytest.mark.parametrize("val", [1.3, float("nan"), float("inf"), float("-inf")])
     def test_decimal_float(self, val):
-        sol = decimal.Decimal(str(val))
-        res = convert(val, decimal.Decimal)
+        sol = Decimal(str(val))
+        res = convert(val, Decimal)
         assert str(res) == str(sol)  # compare strs to support NaN
-        assert type(res) is decimal.Decimal
+        assert type(res) is Decimal
 
     @pytest.mark.parametrize("val", [0, 1234, -1234])
     def test_decimal_int(self, val):
-        sol = decimal.Decimal(val)
-        res = convert(val, decimal.Decimal)
+        sol = Decimal(val)
+        res = convert(val, Decimal)
         assert res == sol
-        assert type(res) is decimal.Decimal
+        assert type(res) is Decimal
 
     @pytest.mark.parametrize("val, typ", [("1.5", "str"), (123, "int"), (1.3, "float")])
     def test_decimal_conversion_disabled(self, val, typ):
-        with pytest.raises(ValidationError, match=f"Expected `decimal`, got `{typ}`"):
-            convert(val, decimal.Decimal, builtin_types=(decimal.Decimal,))
+        with pytest.raises(ValidationError, match=f"Expected `Decimal`, got `{typ}`"):
+            convert(val, Decimal, builtin_types=(Decimal,))
+
+    @pytest.mark.parametrize(
+        "meta, good, bad",
+        [
+            (
+                Meta(ge=0, le=10, multiple_of=Decimal("2.5")),
+                [0, "7.5", 10],
+                ["-2.5", 11, 3],
+            ),
+            (Meta(ge=Decimal(0), multiple_of=2), [0, 2, 10], [-2, 3]),
+            (Meta(le=Decimal(10), multiple_of=2), [-2, 10], [11, 3]),
+            (Meta(ge=0, le=10), [0, 2, 10], [-1, "11.5", 11]),
+        ],
+    )
+    @uses_annotated
+    def test_decimal_constrs(self, meta, good, bad):
+        class Ex(Struct):
+            x: Annotated[Decimal, meta]
+
+        for x in map(Decimal, good):
+            assert convert({"x": x}, Ex).x == x
+
+        for x in map(Decimal, bad):
+            with pytest.raises(ValidationError):
+                convert({"x": x}, Ex)
+
+    @uses_annotated
+    def test_constr_decimal_from_float(self):
+        typ = Annotated[Decimal, Meta(ge=0)]
+        res = convert(1.5, typ)
+        assert res == Decimal(1.5)
+        assert type(res) is Decimal
+
+        with pytest.raises(ValidationError, match="Expected `Decimal` >= 0"):
+            convert(-1, typ)
+
+    @uses_annotated
+    def test_constr_decimal_from_str(self):
+        typ = Annotated[Decimal, Meta(multiple_of=Decimal("5.3"))]
+        res = convert("-15.9", typ)
+        assert res == Decimal("-15.9")
+        assert type(res) is Decimal
+
+        with pytest.raises(
+            ValidationError, match="Expected `Decimal` that's a multiple of 5.3"
+        ):
+            convert("-1", typ)
 
 
 class TestExt:
