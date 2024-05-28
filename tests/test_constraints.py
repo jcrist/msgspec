@@ -1,6 +1,8 @@
 import datetime
+import decimal
 import math
 import re
+from decimal import Decimal
 from typing import Dict, List, Union
 
 import pytest
@@ -43,6 +45,14 @@ except AttributeError:
         else:
             out = (abs(x) * factor) * sign(x)
         return out
+
+
+def decimal_nextafter(x, towards):
+    """Not 100% accurate either. Assumes the Decimal value is
+    in the range between -10 and 10."""
+    precision = decimal.getcontext().prec
+    epsilon = Decimal(10) ** -(precision - 1)
+    return x + epsilon if towards > 0 else x - epsilon
 
 
 FIELDS = {
@@ -179,15 +189,16 @@ class TestMetaObject:
     def test_numeric_fields(self, field):
         Meta(**{field: 1})
         Meta(**{field: 2.5})
+        Meta(**{field: Decimal("3.3")})
         with pytest.raises(
-            TypeError, match=f"`{field}` must be an int or float, got str"
+            TypeError, match=f"`{field}` must be an int or float or Decimal, got str"
         ):
             Meta(**{field: "bad"})
 
         with pytest.raises(ValueError, match=f"`{field}` must be finite"):
             Meta(**{field: float("inf")})
 
-    @pytest.mark.parametrize("val", [0, 0.0])
+    @pytest.mark.parametrize("val", [0, 0.0, Decimal(0)])
     def test_multiple_of_bounds(self, val):
         with pytest.raises(ValueError, match=r"`multiple_of` must be > 0"):
             Meta(multiple_of=val)
@@ -329,6 +340,20 @@ class TestIntConstraints:
             with pytest.raises(msgspec.ValidationError, match=err_msg):
                 dec.decode(proto.encode(Ex(x)))
 
+    def test_bound_to_decimal(self, proto):
+        class Ex(msgspec.Struct):
+            x: Annotated[int, Meta(le=Decimal(1))]
+
+        dec = proto.Decoder(Ex)
+
+        for x in [-2, 0, 1]:
+            assert dec.decode(proto.encode(Ex(x))).x == x
+
+        err_msg = r"Expected `int` <= 1 - at `\$.x`"
+        for x in [2, 3]:
+            with pytest.raises(msgspec.ValidationError, match=err_msg):
+                dec.decode(proto.encode(Ex(x)))
+
     def test_multiple_of(self, proto):
         good = [-(2**64), -2, 0, 2, 40, 2**63 + 2, 2**65]
         bad = [1, -1, 2**63 + 1, 2**65 + 1]
@@ -347,6 +372,20 @@ class TestIntConstraints:
 
         err_msg = r"Expected `int` that's a multiple of 2 - at `\$.x`"
         for x in bad:
+            with pytest.raises(msgspec.ValidationError, match=err_msg):
+                dec.decode(proto.encode(Ex(x)))
+
+    def test_multiple_of_decimal(self, proto):
+        class Ex(msgspec.Struct):
+            x: Annotated[int, Meta(multiple_of=Decimal(2))]
+
+        dec = proto.Decoder(Ex)
+
+        for x in [-2, 0, 2, 4]:
+            assert dec.decode(proto.encode(Ex(x))).x == x
+
+        err_msg = r"Expected `int` that's a multiple of 2 - at `\$.x`"
+        for x in [-1, 1, 3]:
             with pytest.raises(msgspec.ValidationError, match=err_msg):
                 dec.decode(proto.encode(Ex(x)))
 
@@ -429,6 +468,20 @@ class TestFloatConstraints:
             with pytest.raises(msgspec.ValidationError, match=err_msg):
                 dec.decode(proto.encode(Ex(x)))
 
+    def test_bound_to_decimal(self, proto):
+        class Ex(msgspec.Struct):
+            x: Annotated[float, Meta(gt=Decimal("1.3"))]
+
+        dec = proto.Decoder(Ex)
+
+        for x in [1.5, 2, 3]:
+            assert dec.decode(proto.encode(Ex(x))).x == x
+
+        err_msg = r"Expected `float` > 1.3 - at `\$.x`"
+        for x in [0, 1.2, -2, -0.5]:
+            with pytest.raises(msgspec.ValidationError, match=err_msg):
+                dec.decode(proto.encode(Ex(x)))
+
     def test_multiple_of(self, proto):
         """multipleOf for floats will always have precisions issues. This check
         just ensures that _some_ cases work. See
@@ -448,27 +501,169 @@ class TestFloatConstraints:
             with pytest.raises(msgspec.ValidationError, match=err_msg):
                 dec.decode(proto.encode(Ex(x)))
 
-    @pytest.mark.parametrize(
-        "meta, good, bad",
-        [
-            (Meta(ge=0.0, le=10.0, multiple_of=2.0), [0, 2.0, 10], [-2, 11, 3]),
-            (Meta(ge=0.0, multiple_of=2.0), [0, 2, 10.0], [-2, 3]),
-            (Meta(le=10.0, multiple_of=2.0), [-2.0, 10.0], [11.0, 3.0]),
-            (Meta(ge=0.0, le=10.0), [0.0, 2.0, 10.0], [-1.0, 11.5, 11]),
-        ],
-    )
-    def test_combinations(self, proto, meta, good, bad):
+    def test_multiple_of_decimal(self, proto):
         class Ex(msgspec.Struct):
-            x: Annotated[float, meta]
+            x: Annotated[float, Meta(multiple_of=Decimal("0.1"))]
 
         dec = proto.Decoder(Ex)
+
+        for x in [0, 0.0, 0.1, -0.1, 0.2, -0.2]:
+            assert dec.decode(proto.encode(Ex(x))).x == x
+
+        err_msg = r"Expected `float` that's a multiple of 0.1 - at `\$.x`"
+        for x in [0.01, -0.15]:
+            with pytest.raises(msgspec.ValidationError, match=err_msg):
+                dec.decode(proto.encode(Ex(x)))
+
+
+class TestDecimalConstraints:
+    def get_bounds_cases(self, name, bound):
+        def ceilp1(x):
+            return math.ceil(x + 1)
+
+        def floorm1(x):
+            return math.floor(x - 1)
+
+        if name.startswith("g"):
+            good_dir = math.inf
+            good_round = ceilp1
+            bad_round = floorm1
+        else:
+            good_dir = -math.inf
+            good_round = floorm1
+            bad_round = ceilp1
+
+        if name.endswith("e"):
+            good = bound
+            bad = decimal_nextafter(bound, -good_dir)
+        else:
+            good = decimal_nextafter(bound, good_dir)
+            bad = bound
+        good_cases = [good, good_round(good), float(good_round(good))]
+        bad_cases = [bad, bad_round(bad), float(bad_round(bad))]
+
+        op = ">" if name.startswith("g") else "<"
+        if name.endswith("e"):
+            op += "="
+
+        return good_cases, bad_cases, op
+
+    @pytest.mark.parametrize("name", ["ge", "gt", "le", "lt"])
+    @pytest.mark.parametrize("bound", [Decimal("3.3"), Decimal("-2.2"), Decimal(4)])
+    def test_bounds(self, proto, name, bound):
+        class Ex(msgspec.Struct):
+            x: Annotated[Decimal, Meta(**{name: bound})]
+
+        dec = proto.Decoder(Ex)
+
+        good, bad, op = self.get_bounds_cases(name, bound)
 
         for x in good:
             assert dec.decode(proto.encode(Ex(x))).x == x
 
+        err_msg = rf"Expected `Decimal` {op} {bound} - at `\$.x`"
         for x in bad:
+            with pytest.raises(msgspec.ValidationError, match=err_msg):
+                dec.decode(proto.encode(Ex(x)))
+
+    def test_bound_to_int(self, proto):
+        class Ex(msgspec.Struct):
+            x: Annotated[Decimal, Meta(le=2)]
+
+        dec = proto.Decoder(Ex)
+
+        for x in map(Decimal, [0, 1, -1.5, 2]):
+            assert dec.decode(proto.encode(Ex(x))).x == x
+
+        err_msg = r"Expected `Decimal` <= 2 - at `\$.x`"
+        for x in map(Decimal, [2.2, 3]):
+            with pytest.raises(msgspec.ValidationError, match=err_msg):
+                dec.decode(proto.encode(Ex(x)))
+
+    def test_bound_to_float(self, proto):
+        class Ex(msgspec.Struct):
+            x: Annotated[Decimal, Meta(ge=1.3)]
+
+        dec = proto.Decoder(Ex)
+
+        for x in map(Decimal, [1.3, 2, 3]):
+            assert dec.decode(proto.encode(Ex(x))).x == x
+
+        err_msg = r"Expected `Decimal` >= 1.3 - at `\$.x`"
+        for x in map(Decimal, [0, 1.2, -2, -0.5]):
+            with pytest.raises(msgspec.ValidationError, match=err_msg):
+                dec.decode(proto.encode(Ex(x)))
+
+    def test_multiple_of(self, proto):
+        class Ex(msgspec.Struct):
+            x: Annotated[Decimal, Meta(multiple_of=Decimal("5.3"))]
+
+        dec = proto.Decoder(Ex)
+
+        for x in map(Decimal, [0, "-15.9", "10.6", 106, -53]):
+            assert dec.decode(proto.encode(Ex(x))).x == x
+
+        err_msg = r"Expected `Decimal` that's a multiple of 5.3 - at `\$.x`"
+        for x in map(Decimal, ["0.01", "-0.15", 5]):
+            with pytest.raises(msgspec.ValidationError, match=err_msg):
+                dec.decode(proto.encode(Ex(x)))
+
+    def test_multiple_of_int(self, proto):
+        class Ex(msgspec.Struct):
+            x: Annotated[Decimal, Meta(multiple_of=2)]
+
+        dec = proto.Decoder(Ex)
+
+        for x in map(Decimal, [0, 2, 4, -6]):
+            assert dec.decode(proto.encode(Ex(x))).x == x
+
+        err_msg = r"Expected `Decimal` that's a multiple of 2 - at `\$.x`"
+        for x in map(Decimal, [1, -3, "0.5", "-2.5"]):
+            with pytest.raises(msgspec.ValidationError, match=err_msg):
+                dec.decode(proto.encode(Ex(x)))
+
+    def test_multiple_of_float(self, proto):
+        """Just as above, this check just ensures that _some_ cases work."""
+
+        class Ex(msgspec.Struct):
+            x: Annotated[Decimal, Meta(multiple_of=0.1)]
+
+        dec = proto.Decoder(Ex)
+
+        for x in map(Decimal, [0, "0.1", "-0.1", "0.2", "-0.2"]):
+            assert dec.decode(proto.encode(Ex(x))).x == x
+
+        err_msg = r"Expected `Decimal` that's a multiple of 0.1 - at `\$.x`"
+        for x in map(Decimal, ["0.01", "-0.15"]):
+            with pytest.raises(msgspec.ValidationError, match=err_msg):
+                dec.decode(proto.encode(Ex(x)))
+
+    @pytest.mark.parametrize(
+        "meta, good, bad",
+        [
+            (
+                Meta(ge=Decimal(0), le=10, multiple_of=Decimal("2.5")),
+                [0, 5, "7.5"],
+                [-1, 1, 11],
+            ),
+            (Meta(ge=0, multiple_of=2), [0, 2, 2**63 + 2], [-2, 2**63 + 1]),
+            (Meta(le=Decimal(0), multiple_of=2), [0, -(2**63)], [-1.5, 2, 2**63]),
+            (Meta(ge=0, le=10), [0, 10, 0.2], [-1, 11]),
+            (Meta(gt=0, lt=10), [1, 2, 9.8], [-1, 0, 10]),
+        ],
+    )
+    def test_combinations(self, proto, meta, good, bad):
+        class Ex(msgspec.Struct):
+            x: Annotated[Decimal, meta]
+
+        dec = proto.Decoder(Ex)
+
+        for x in map(Decimal, good):
+            assert dec.decode(proto.encode(Ex(x))).x == x
+
+        for x in map(Decimal, bad):
             with pytest.raises(msgspec.ValidationError):
-                assert dec.decode(proto.encode(Ex(x)))
+                dec.decode(proto.encode(Ex(x)))
 
 
 class TestStrConstraints:

@@ -1,4 +1,5 @@
 import enum
+from decimal import Decimal
 from typing import (
     Any,
     Callable,
@@ -115,11 +116,11 @@ class Meta:
     def __init__(
         self,
         *,
-        gt: Union[int, float, None] = None,
-        ge: Union[int, float, None] = None,
-        lt: Union[int, float, None] = None,
-        le: Union[int, float, None] = None,
-        multiple_of: Union[int, float, None] = None,
+        gt: Union[int, float, Decimal, None] = None,
+        ge: Union[int, float, Decimal, None] = None,
+        lt: Union[int, float, Decimal, None] = None,
+        le: Union[int, float, Decimal, None] = None,
+        multiple_of: Union[int, float, Decimal, None] = None,
         pattern: Union[str, None] = None,
         min_length: Union[int, None] = None,
         max_length: Union[int, None] = None,
@@ -130,11 +131,11 @@ class Meta:
         extra_json_schema: Union[dict, None] = None,
         extra: Union[dict, None] = None,
     ): ...
-    gt: Final[Union[int, float, None]]
-    ge: Final[Union[int, float, None]]
-    lt: Final[Union[int, float, None]]
-    le: Final[Union[int, float, None]]
-    multiple_of: Final[Union[int, float, None]]
+    gt: Final[Union[int, float, Decimal, None]]
+    ge: Final[Union[int, float, Decimal, None]]
+    lt: Final[Union[int, float, Decimal, None]]
+    le: Final[Union[int, float, Decimal, None]]
+    multiple_of: Final[Union[int, float, Decimal, None]]
     pattern: Final[Union[str, None]]
     min_length: Final[Union[int, None]]
     max_length: Final[Union[int, None]]

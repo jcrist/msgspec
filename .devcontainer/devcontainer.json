@@ -1,0 +1,26 @@
+{
+    "name": "jcrist/msgspec",
+    "image": "mcr.microsoft.com/devcontainers/python:3.12-bookworm",
+    "postCreateCommand": "scripts/install.sh",
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "charliermarsh.ruff",
+                "ms-python.python",
+                "ms-vscode.cpptools"
+            ],
+            "settings": {
+                "C_Cpp.default.includePath": [
+                    "/usr/local/include/**"
+                ],
+                "C_Cpp.formatting": "disabled",
+                "python.testing.pytestArgs": [
+                    "-v",
+                    "tests/"
+                ],
+                "python.testing.pytestEnabled": true,
+                "python.testing.unittestEnabled": false
+            }
+        }
+    }
+}
