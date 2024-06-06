@@ -1,3 +1,4 @@
+import datetime
 import enum
 from typing import (
     Any,
@@ -5,10 +6,12 @@ from typing import (
     ClassVar,
     Dict,
     Final,
+    Generic,
     Iterable,
     Literal,
     Mapping,
     Optional,
+    Protocol,
     Tuple,
     Type,
     TypeVar,
@@ -111,9 +114,73 @@ class Raw(bytes):
     def __new__(cls, msg: Union[bytes, str]) -> "Raw": ...
     def copy(self) -> "Raw": ...
 
-class Meta:
-    def __init__(
-        self,
+class Meta(Generic[T]):
+    # datetime constraints
+    @overload
+    def __new__(
+        cls,
+        *,
+        gt: Union[datetime.datetime, None] = None,
+        ge: Union[datetime.datetime, None] = None,
+        lt: Union[datetime.datetime, None] = None,
+        le: Union[datetime.datetime, None] = None,
+        tz: Union[bool, None] = None,
+        title: Union[str, None] = None,
+        description: Union[str, None] = None,
+        examples: Union[list[Any], None] = None,
+        extra_json_schema: Union[dict[str, Any], None] = None,
+        extra: Union[dict[str, Any], None] = None,
+    ) -> Meta[datetime.datetime]: ...
+
+    # numeric constraints
+    @overload
+    def __new__(
+        cls,
+        *,
+        gt: Union[int, float, None] = None,
+        ge: Union[int, float, None] = None,
+        lt: Union[int, float, None] = None,
+        le: Union[int, float, None] = None,
+        multiple_of: Union[int, float, None] = None,
+        title: Union[str, None] = None,
+        description: Union[str, None] = None,
+        examples: Union[list[Any], None] = None,
+        extra_json_schema: Union[dict[str, Any], None] = None,
+        extra: Union[dict[str, Any], None] = None,
+    ) -> Meta[Union[int, float]]: ...
+
+    # array constraints
+    @overload
+    def __new__(
+        cls,
+        *,
+        pattern: Literal[None] = None,
+        min_length: Union[int, None] = None,
+        max_length: Union[int, None] = None,
+        title: Union[str, None] = None,
+        description: Union[str, None] = None,
+        examples: Union[list[Any], None] = None,
+        extra_json_schema: Union[dict[str, Any], None] = None,
+        extra: Union[dict[str, Any], None] = None,
+    ) -> Meta[_SupportsLen]: ...
+
+    # string constraints
+    @overload
+    def __new__(
+        cls,
+        *,
+        pattern: Union[str, None] = None,
+        min_length: Union[int, None] = None,
+        max_length: Union[int, None] = None,
+        title: Union[str, None] = None,
+        description: Union[str, None] = None,
+        examples: Union[list[Any], None] = None,
+        extra_json_schema: Union[dict[str, Any], None] = None,
+        extra: Union[dict[str, Any], None] = None,
+    ) -> Meta[str]: ...
+
+    def __new__(
+        cls,
         *,
         gt: Union[int, float, None] = None,
         ge: Union[int, float, None] = None,
@@ -126,10 +193,11 @@ class Meta:
         tz: Union[bool, None] = None,
         title: Union[str, None] = None,
         description: Union[str, None] = None,
-        examples: Union[list, None] = None,
-        extra_json_schema: Union[dict, None] = None,
-        extra: Union[dict, None] = None,
-    ): ...
+        examples: Union[list[Any], None] = None,
+        extra_json_schema: Union[dict[str, Any], None] = None,
+        extra: Union[dict[str, Any], None] = None,
+    ) -> None: ...
+
     gt: Final[Union[int, float, None]]
     ge: Final[Union[int, float, None]]
     lt: Final[Union[int, float, None]]
@@ -141,10 +209,15 @@ class Meta:
     tz: Final[Union[int, None]]
     title: Final[Union[str, None]]
     description: Final[Union[str, None]]
-    examples: Final[Union[list, None]]
-    extra_json_schema: Final[Union[dict, None]]
-    extra: Final[Union[dict, None]]
+    examples: Final[Union[list[Any], None]]
+    extra_json_schema: Final[Union[dict[str, Any], None]]
+    extra: Final[Union[dict[str, Any], None]]
     def __rich_repr__(self) -> Iterable[Tuple[str, Any]]: ...
+
+    def __supports_type__(self, obj: T) -> bool: ...
+
+class _SupportsLen(Protocol):
+    def __len__(self) -> int: ...
 
 def to_builtins(
     obj: Any,
