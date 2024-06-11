@@ -11257,7 +11257,7 @@ ms_uuid_to_16_bytes(MsgspecState *mod, PyObject *obj, unsigned char *buf) {
         return -1;
     }
     #if PY313_PLUS
-        // Python 3.13 adds an extra argument to control  wether to throw an error on overflow.
+        // Python 3.13 adds an extra argument to control whether to throw an error on overflow.
         // This happens by default in older versions, so simply match the behavior.
         out = _PyLong_AsByteArray((PyLongObject *)int128, buf, 16, 0, 0, 0, 1);
     #else
