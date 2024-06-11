@@ -20,6 +20,7 @@
 #define PY310_PLUS (PY_VERSION_HEX >= 0x030a0000)
 #define PY311_PLUS (PY_VERSION_HEX >= 0x030b0000)
 #define PY312_PLUS (PY_VERSION_HEX >= 0x030c0000)
+#define PY313_PLUS (PY_VERSION_HEX >= 0x030d0000)
 
 /* Hint to the compiler not to store `x` in a register since it is likely to
  * change. Results in much higher performance on GCC, with smaller benefits on
@@ -11255,9 +11256,15 @@ ms_uuid_to_16_bytes(MsgspecState *mod, PyObject *obj, unsigned char *buf) {
         PyErr_SetString(PyExc_TypeError, "uuid.int must be an int");
         return -1;
     }
-    int out = _PyLong_AsByteArray((PyLongObject *)int128, buf, 16, 0, 0);
-    Py_DECREF(int128);
-    return out;
+    #if PY313_PLUS
+        // Python 3.13 adds an extra argument to control  wether to throw an error on overflow.
+        // This happens by default in older versions, so simply match the behavior.
+        out = _PyLong_AsByteArray((PyLongObject *)int128, buf, 16, 0, 0, 0, 1);
+    #else
+        out = _PyLong_AsByteArray((PyLongObject *)int128, buf, 16, 0, 0, 0);
+    #endif
+        Py_DECREF(int128);
+        return out;
 }
 
 static PyObject *
