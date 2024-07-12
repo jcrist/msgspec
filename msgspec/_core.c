@@ -1513,7 +1513,9 @@ Raw_copy(Raw *self, PyObject *unused)
     }
     PyObject *buf = PyBytes_FromStringAndSize(self->buf, self->len);
     if (buf == NULL) return NULL;
-    return Raw_New(buf);
+    PyObject *out = Raw_New(buf);
+    Py_DECREF(buf);
+    return out;
 }
 
 static PyMethodDef Raw_methods[] = {
