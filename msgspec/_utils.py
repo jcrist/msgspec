@@ -127,6 +127,7 @@ def get_class_annotations(obj):
                 value = type(None)
             elif isinstance(value, str):
                 value = _forward_ref(value)
+            # TODO: Pass `type_params` to `_eval_type` to fix deprecation warning
             value = typing._eval_type(value, cls_locals, cls_globals)
             if mapping is not None:
                 value = _apply_params(value, mapping)

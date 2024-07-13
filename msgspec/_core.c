@@ -20,6 +20,7 @@
 #define PY310_PLUS (PY_VERSION_HEX >= 0x030a0000)
 #define PY311_PLUS (PY_VERSION_HEX >= 0x030b0000)
 #define PY312_PLUS (PY_VERSION_HEX >= 0x030c0000)
+#define PY313_PLUS (PY_VERSION_HEX >= 0x030d0000)
 
 /* Hint to the compiler not to store `x` in a register since it is likely to
  * change. Results in much higher performance on GCC, with smaller benefits on
@@ -497,7 +498,7 @@ find_keyword(PyObject *kwnames, PyObject *const *kwstack, PyObject *key)
     for (i = 0; i < nkwargs; i++) {
         PyObject *kwname = PyTuple_GET_ITEM(kwnames, i);
         assert(PyUnicode_Check(kwname));
-        if (_PyUnicode_EQ(kwname, key)) {
+        if (PyUnicode_Compare(kwname, key) == 0) {
             return kwstack[i];
         }
     }
@@ -4442,8 +4443,6 @@ typenode_collect_convert_structs(TypeNodeCollectState *state) {
      */
     PyObject *tag_mapping = NULL, *tag_field = NULL, *set_item = NULL;
     PyObject *struct_info = NULL;
-    Py_ssize_t set_pos = 0;
-    Py_hash_t set_hash;
     bool array_like = false;
     bool tags_are_strings = true;
     int status = -1;
@@ -4451,7 +4450,14 @@ typenode_collect_convert_structs(TypeNodeCollectState *state) {
     tag_mapping = PyDict_New();
     if (tag_mapping == NULL) goto cleanup;
 
+#if PY313_PLUS
+    PyObject *iter_set = PyObject_GetIter(state->structs_set);
+    while ((set_item = PyIter_Next(iter_set)) != NULL) {
+#else
+    Py_ssize_t set_pos = 0;
+    Py_hash_t set_hash;
     while (_PySet_NextEntry(state->structs_set, &set_pos, &set_item, &set_hash)) {
+#endif
         struct_info = StructInfo_Convert(set_item);
         if (struct_info == NULL) goto cleanup;
 
@@ -7324,7 +7330,7 @@ Struct_vectorcall(PyTypeObject *cls, PyObject *const *args, size_t nargsf, PyObj
          * check for parameters passed both as arg and kwarg */
         for (field_index = 0; field_index < nfields; field_index++) {
             PyObject *field = PyTuple_GET_ITEM(fields, field_index);
-            if (_PyUnicode_EQ(kwname, field)) {
+            if (PyUnicode_Compare(kwname, field) == 0) {
                 if (MS_UNLIKELY(field_index < nargs)) {
                     PyErr_Format(
                         PyExc_TypeError,
@@ -7731,7 +7737,7 @@ struct_replace(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject
         }
         for (field_index = 0; field_index < nfields; field_index++) {
             PyObject *field = PyTuple_GET_ITEM(fields, field_index);
-            if (_PyUnicode_EQ(kwname, field)) goto kw_found;
+            if (PyUnicode_Compare(kwname, field) == 0) goto kw_found;
         }
 
         /* Unknown keyword */
@@ -11257,7 +11263,11 @@ ms_uuid_to_16_bytes(MsgspecState *mod, PyObject *obj, unsigned char *buf) {
         PyErr_SetString(PyExc_TypeError, "uuid.int must be an int");
         return -1;
     }
+#if PY313_PLUS
+    int out = _PyLong_AsByteArray((PyLongObject *)int128, buf, 16, 0, 0, 1);
+#else
     int out = _PyLong_AsByteArray((PyLongObject *)int128, buf, 16, 0, 0);
+#endif
     Py_DECREF(int128);
     return out;
 }
@@ -12406,8 +12416,7 @@ mpack_encode_list(EncoderState *self, PyObject *obj)
 static int
 mpack_encode_set(EncoderState *self, PyObject *obj)
 {
-    Py_ssize_t len, ppos = 0;
-    Py_hash_t hash;
+    Py_ssize_t len = 0;
     PyObject *item;
     int status = -1;
 
@@ -12426,7 +12435,14 @@ mpack_encode_set(EncoderState *self, PyObject *obj)
 
     if (mpack_encode_array_header(self, len, "set") < 0) return -1;
     if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
+#if PY313_PLUS
+    PyObject *iter_set = PyObject_GetIter(obj);
+    while ((item = PyIter_Next(iter_set)) != NULL) {
+#else
+    Py_ssize_t ppos = 0;
+    Py_hash_t hash;
     while (_PySet_NextEntry(obj, &ppos, &item, &hash)) {
+#endif
         if (mpack_encode_inline(self, item) < 0) goto cleanup;
     }
     status = 0;
@@ -13709,8 +13725,7 @@ json_encode_tuple(EncoderState *self, PyObject *obj)
 static int
 json_encode_set(EncoderState *self, PyObject *obj)
 {
-    Py_ssize_t len, ppos = 0;
-    Py_hash_t hash;
+    Py_ssize_t len = 0;
     PyObject *item;
     int status = -1;
 
@@ -13729,7 +13744,14 @@ json_encode_set(EncoderState *self, PyObject *obj)
 
     if (ms_write(self, "[", 1) < 0) return -1;
     if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
+#if PY313_PLUS
+    PyObject *iter_set = PyObject_GetIter(obj);
+    while ((item = PyIter_Next(iter_set)) != NULL) {
+#else
+    Py_ssize_t ppos = 0;
+    Py_hash_t hash;
     while (_PySet_NextEntry(obj, &ppos, &item, &hash)) {
+#endif
         if (json_encode_inline(self, item) < 0) goto cleanup;
         if (ms_write(self, ",", 1) < 0) goto cleanup;
     }
