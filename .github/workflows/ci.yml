@@ -80,7 +80,7 @@ jobs:
     env:
       CIBW_TEST_REQUIRES: "pytest msgpack pyyaml tomli tomli_w"
       CIBW_TEST_COMMAND: "pytest {project}/tests"
-      CIBW_BUILD: "cp38-* cp39-* cp310-* cp311-* cp312-* cp13-*"
+      CIBW_BUILD: "cp38-* cp39-* cp310-* cp311-* cp312-*"
       CIBW_SKIP: "*-win32 *_i686 *_s390x *_ppc64le"
       CIBW_ARCHS_MACOS: "x86_64 arm64"
       CIBW_ARCHS_LINUX: "x86_64 aarch64"
@@ -100,6 +100,7 @@ jobs:
       - name: Set up Environment
         if: github.event_name != 'release'
         run: |
+            echo "CIBW_BUILD=${CIBW_BUILD} cp313-*" >> $GITHUB_ENV
             echo "CIBW_SKIP=${CIBW_SKIP} *-musllinux_* cp38-*_aarch64 cp39-*_aarch64 cp311-*_aarch64 cp312-*_aarch64 cp313-*_aarch64" >> $GITHUB_ENV
 
       - name: Build & Test Wheels
