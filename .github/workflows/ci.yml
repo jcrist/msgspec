@@ -100,7 +100,7 @@ jobs:
       - name: Set up Environment
         if: github.event_name != 'release'
         run: |
-            echo "CIBW_SKIP=${CIBW_SKIP} *-musllinux_* cp38-*_aarch64 cp39-*_aarch64 cp311-*_aarch64 cp312-*_aarch64 cp313-*" >> $GITHUB_ENV
+            echo "CIBW_SKIP=${CIBW_SKIP} *-musllinux_* cp38-*_aarch64 cp39-*_aarch64 cp311-*_aarch64 cp312-*_aarch64 cp313-*_aarch64" >> $GITHUB_ENV
 
       - name: Build & Test Wheels
         uses: pypa/cibuildwheel@v2.19.2
