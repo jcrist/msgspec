@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from . import NODEFAULT, Struct, field
-from ._core import (  # noqa
+from msgspec._core import (  # noqa
     Factory as _Factory,
     StructConfig,
     asdict,

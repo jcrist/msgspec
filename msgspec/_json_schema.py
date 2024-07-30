@@ -5,7 +5,7 @@ import textwrap
 from collections.abc import Iterable
 from typing import Any, Optional, Callable
 
-from . import inspect as mi, to_builtins
+from msgspec import inspect as mi, to_builtins
 
 __all__ = ("schema", "schema_components")
 

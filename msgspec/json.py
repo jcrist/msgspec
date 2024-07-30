@@ -1,4 +1,4 @@
-from ._core import (
+from msgspec._core import (
     JSONDecoder as Decoder,
     JSONEncoder as Encoder,
     json_decode as decode,

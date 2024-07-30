@@ -1,7 +1,7 @@
 import datetime as _datetime
 from typing import Any, Callable, Optional, Type, TypeVar, Union, overload, Literal
 
-from . import (
+from msgspec import (
     DecodeError as _DecodeError,
     convert as _convert,
     to_builtins as _to_builtins,

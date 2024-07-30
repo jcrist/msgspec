@@ -1,0 +1,2 @@
+option('use-mimalloc',type : 'combo', choices : ['static-mimalloc', 'mimalloc'], value: 'static-mimalloc')
+option('install-subprojects', type: 'feature', value: 'disabled')

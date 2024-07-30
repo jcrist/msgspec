@@ -99,7 +99,4 @@ static const uint8_t ms_atof_powers_of_5[%d] = {
 
 
 if __name__ == "__main__":
-    repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    path = os.path.join(repo, "msgspec", "atof_consts.h")
-    with open(path, "wb") as f:
-        f.write(text.encode("utf-8"))
+    print(text)

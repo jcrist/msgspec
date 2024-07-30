@@ -1,4 +1,4 @@
-from ._core import (
+from msgspec._core import (
     Ext,
     MsgpackDecoder as Decoder,
     MsgpackEncoder as Encoder,

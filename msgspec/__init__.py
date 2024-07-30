@@ -1,4 +1,4 @@
-from ._core import (
+from msgspec._core import (
     DecodeError,
     EncodeError,
     Field as _Field,
@@ -49,13 +49,13 @@ def from_builtins(
 field.__doc__ = _Field.__doc__
 
 
-from . import msgpack
-from . import json
-from . import yaml
-from . import toml
-from . import inspect
-from . import structs
-from ._version import get_versions
+from msgspec import msgpack
+from msgspec import json
+from msgspec import yaml
+from msgspec import toml
+from msgspec import inspect
+from msgspec import structs
+from msgspec._version import get_versions
 
 __version__ = get_versions()["version"]
 del get_versions
