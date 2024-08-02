@@ -1,5 +1,5 @@
-import sys
 import inspect
+import sys
 import textwrap
 import types
 import uuid
@@ -42,9 +42,7 @@ def max_call_depth(n):
             except RecursionError:
                 pass
         else:
-            raise ValueError(
-                "Failed to set low recursion limit, something is wrong here"
-            )
+            raise ValueError("Failed to set low recursion limit, something is wrong here")
         yield
     finally:
         sys.setrecursionlimit(orig)

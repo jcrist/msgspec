@@ -5,19 +5,13 @@ import decimal
 import enum
 import uuid
 from collections.abc import Iterable
-from typing import (
-    Any,
-    Final,
-    Literal,
-    Tuple,
-    Type as typing_Type,
-    TypeVar,
-    Union,
-)
+from typing import Any, Final, Literal, Tuple
+from typing import Type as typing_Type
+from typing import TypeVar, Union
 
 try:
     from types import UnionType as _types_UnionType  # type: ignore
-except Exception:
+except Exception:  # pragma: no cover
     _types_UnionType = type("UnionType", (), {})  # type: ignore
 
 try:
@@ -26,19 +20,15 @@ except Exception:
     _TypeAliasType = type("TypeAliasType", (), {})  # type: ignore
 
 import msgspec
-from msgspec import NODEFAULT, UNSET, UnsetType as _UnsetType
+from msgspec import NODEFAULT, UNSET
+from msgspec import UnsetType as _UnsetType
 
-from ._core import (  # type: ignore
-    Factory as _Factory,
-    to_builtins as _to_builtins,
-)
-from ._utils import (  # type: ignore
-    _CONCRETE_TYPES,
-    _AnnotatedAlias,
-    get_class_annotations as _get_class_annotations,
-    get_dataclass_info as _get_dataclass_info,
-    get_typeddict_info as _get_typeddict_info,
-)
+from ._core import Factory as _Factory  # type: ignore
+from ._core import to_builtins as _to_builtins
+from ._utils import _CONCRETE_TYPES, _AnnotatedAlias
+from ._utils import get_class_annotations as _get_class_annotations  # type: ignore
+from ._utils import get_dataclass_info as _get_dataclass_info
+from ._utils import get_typeddict_info as _get_typeddict_info
 
 __all__ = (
     "type_info",
@@ -693,14 +683,14 @@ def _is_attrs(t):
 def _is_typeddict(t):
     try:
         return issubclass(t, dict) and hasattr(t, "__total__")
-    except TypeError:
+    except TypeError:  # pragma: no cover
         return False
 
 
 def _is_namedtuple(t):
     try:
         return issubclass(t, tuple) and hasattr(t, "_fields")
-    except TypeError:
+    except TypeError:  # pragma: no cover
         return False
 
 
@@ -712,9 +702,7 @@ def _merge_json(a, b):
                 a_val = a[key]
                 if isinstance(a_val, dict) and isinstance(b_val, dict):
                     a[key] = _merge_json(a_val, b_val)
-                elif isinstance(a_val, (list, tuple)) and isinstance(
-                    b_val, (list, tuple)
-                ):
+                elif isinstance(a_val, (list, tuple)) and isinstance(b_val, (list, tuple)):
                     a[key] = list(a_val) + list(b_val)
                 else:
                     a[key] = b_val
@@ -814,9 +802,7 @@ class _Translator:
         elif t is float:
             return FloatType(ge=ge, gt=gt, le=le, lt=lt, multiple_of=multiple_of)
         elif t is str:
-            return StrType(
-                min_length=min_length, max_length=max_length, pattern=pattern
-            )
+            return StrType(min_length=min_length, max_length=max_length, pattern=pattern)
         elif t is bytes:
             return BytesType(min_length=min_length, max_length=max_length)
         elif t is bytearray:
@@ -864,9 +850,7 @@ class _Translator:
             if args == ((),):
                 args = ()
             if args is None:
-                return VarTupleType(
-                    AnyType(), min_length=min_length, max_length=max_length
-                )
+                return VarTupleType(AnyType(), min_length=min_length, max_length=max_length)
             elif len(args) == 2 and args[-1] is ...:
                 return VarTupleType(
                     self.translate(args[0]),

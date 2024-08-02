@@ -1,10 +1,10 @@
 import argparse
 import json
-import tempfile
-from ..generate_data import make_filesystem_data
-import sys
 import subprocess
+import sys
+import tempfile
 
+from ..generate_data import make_filesystem_data
 
 LIBRARIES = ["msgspec", "mashumaro", "cattrs", "pydantic"]
 

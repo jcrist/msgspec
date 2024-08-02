@@ -23,7 +23,7 @@ from typing import (
 )
 
 import pytest
-from utils import temp_module, max_call_depth
+from utils import max_call_depth, temp_module
 
 import msgspec
 from msgspec import Meta, Struct, ValidationError, convert, to_builtins
@@ -216,9 +216,7 @@ class TestConvert:
         with pytest.raises(TypeError):
             convert(1)
 
-        with pytest.raises(
-            TypeError, match="builtin_types must be an iterable of types"
-        ):
+        with pytest.raises(TypeError, match="builtin_types must be an iterable of types"):
             convert(1, int, builtin_types=1)
 
         with pytest.raises(TypeError) as rec:
@@ -730,8 +728,7 @@ class TestUUID:
                 convert(typ(u.bytes), uuid.UUID, builtin_types=(uuid.UUID,))
 
     def test_convert_uuid_subclass(self):
-        class UUID2(uuid.UUID):
-            ...
+        class UUID2(uuid.UUID): ...
 
         u1 = uuid.uuid4()
         u2 = UUID2(str(u1))
@@ -1354,9 +1351,7 @@ class TestDataclass:
             convert(mapcls(a=1), Example, from_attributes=from_attributes)
 
         # Incorrect field types error
-        with pytest.raises(
-            ValidationError, match=r"Expected `int`, got `str` - at `\$.a`"
-        ):
+        with pytest.raises(ValidationError, match=r"Expected `int`, got `str` - at `\$.a`"):
             convert(mapcls(a="bad"), Example, from_attributes=from_attributes)
 
     def test_dict_to_dataclass_errors(self):
@@ -1524,9 +1519,7 @@ class TestAttrs:
             convert(mapcls(a=1), Example, from_attributes=from_attributes)
 
         # Incorrect field types error
-        with pytest.raises(
-            ValidationError, match=r"Expected `int`, got `str` - at `\$.a`"
-        ):
+        with pytest.raises(ValidationError, match=r"Expected `int`, got `str` - at `\$.a`"):
             convert({"a": "bad"}, Example, from_attributes=from_attributes)
 
     def test_dict_to_attrs_errors(self):
@@ -1697,9 +1690,7 @@ class TestStruct:
                 from_attributes=from_attributes,
             )
 
-        with pytest.raises(
-            ValidationError, match="Object missing required field `age`"
-        ):
+        with pytest.raises(ValidationError, match="Object missing required field `age`"):
             convert(
                 mapcls(first="alice", last="munro"),
                 self.Account,
@@ -1766,16 +1757,12 @@ class TestStruct:
 
         # Errors use renamed name if using renamed names
         msg = mapcls(fa=1, fB=2, fc=3, fD="bad")
-        with pytest.raises(
-            ValidationError, match=r"Expected `int`, got `str` - at `\$.fD`"
-        ):
+        with pytest.raises(ValidationError, match=r"Expected `int`, got `str` - at `\$.fD`"):
             convert(msg, Ex, from_attributes=True)
 
         # Errors use attribute name if undecided
         msg = mapcls(fa="bad")
-        with pytest.raises(
-            ValidationError, match=r"Expected `int`, got `str` - at `\$.fa`"
-        ):
+        with pytest.raises(ValidationError, match=r"Expected `int`, got `str` - at `\$.fa`"):
             convert(msg, Ex, from_attributes=True)
 
     @pytest.mark.parametrize("forbid_unknown_fields", [False, True])
@@ -1800,9 +1787,7 @@ class TestStruct:
         assert res == self.Account(first="alice", last="munro", age=91)
 
     @mapcls_from_attributes_and_array_like
-    def test_struct_gc_maybe_untracked_on_decode(
-        self, mapcls, from_attributes, array_like
-    ):
+    def test_struct_gc_maybe_untracked_on_decode(self, mapcls, from_attributes, array_like):
         class Test(Struct, array_like=array_like):
             x: Any
             y: Any
@@ -2052,9 +2037,7 @@ class TestStructUnion:
     @mapcls_and_from_attributes
     def test_struct_union(self, tag1, tag2, unknown, mapcls, from_attributes):
         def decode(msg):
-            return convert(
-                mapcls(msg), Union[Test1, Test2], from_attributes=from_attributes
-            )
+            return convert(mapcls(msg), Union[Test1, Test2], from_attributes=from_attributes)
 
         class Test1(Struct, tag=tag1):
             a: int
@@ -2402,9 +2385,7 @@ class TestLax:
     def test_lax_float_nonfinite_invalid(self):
         for bad in ["abcd", "-abcd", "inx", "-inx", "infinitx", "-infinitx", "nax"]:
             for msg in [bad, bad.upper()]:
-                with pytest.raises(
-                    ValidationError, match="Expected `float`, got `str`"
-                ):
+                with pytest.raises(ValidationError, match="Expected `float`, got `str`"):
                     convert(msg, float, strict=False)
 
     @uses_annotated
@@ -2469,9 +2450,7 @@ class TestLax:
     @pytest.mark.parametrize("msg", [123, -123, 123.456, "123.456"])
     def test_lax_datetime_naive_required(self, msg, Annotated):
         with pytest.raises(ValidationError, match="no timezone component"):
-            convert(
-                msg, type=Annotated[datetime.datetime, Meta(tz=False)], strict=False
-            )
+            convert(msg, type=Annotated[datetime.datetime, Meta(tz=False)], strict=False)
 
     @pytest.mark.parametrize(
         "x",
@@ -2533,9 +2512,7 @@ class TestLax:
     @pytest.mark.parametrize("msg", ["1a", "1.5a", "falsx", "trux", "nulx"])
     def test_lax_union_invalid(self, msg):
         typ = Union[int, float, bool, None]
-        with pytest.raises(
-            ValidationError, match="Expected `int | float | bool | null`"
-        ):
+        with pytest.raises(ValidationError, match="Expected `int | float | bool | null`"):
             convert(msg, typ, strict=False)
 
     @pytest.mark.parametrize(

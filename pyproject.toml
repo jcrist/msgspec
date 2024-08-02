@@ -1,5 +1,203 @@
-[tool.ruff]
+# Part of msgspec.
+# See LICENSE.txt in the project root for details.
+[project]
+dynamic = ["dependencies", "version"]
+license = {file = "LICENSE.txt"}
+
+[build-system]
+requires = [
+    'OZI.build>=0.0.27',
+    'pip-tools>=7',
+    'pipx~=1.5',
+    'setuptools_scm[toml]~=8.0',
+]
+build-backend = "ozi_build.buildapi"
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.in"] }
+
+[tool.ozi-build.metadata]
+pkg-info-file = 'PKG-INFO'
+
+[project.optional_dependencies] # also meson test suite names
+# OZI Packaging Dependencies
+# continuous integration
+ci   = [
+    "tox>4",
+    "tox-gh>1.2",
+]
+# tox -e fix
+fix  = ["black>=24.3", "ruff>=0.1.6", "autoflake", "isort"]
+# Default meson test setup
+dev  = ["[dist,lint,test,]"]
+dist = [
+    "python-semantic-release",
+    "sigstore",
+]
+lint = [
+    "bandit[toml]",
+    "black>=24.3",
+    "flake8",
+    "isort",
+    "mypy",
+    "pyright",
+    "readme-renderer[md]",
+    "Flake8-pyproject",
+    "flake8-annotations",
+    "flake8-broken-line",
+    "flake8-bugbear",
+    "flake8-comprehensions",
+    "flake8-datetimez",
+    "flake8-docstring-checker",
+    "flake8-eradicate",
+    "flake8-fixme",
+    "flake8-leading-blank-lines",
+    "flake8-no-pep420",
+    "flake8-pyi",
+    "flake8-pytest-style",
+    "flake8-quotes",
+    "flake8-tidy-imports",
+    "flake8-type-checking",
+]
+test = [
+    "coverage[toml]",
+    "pytest",
+    "hypothesis[all]",
+    "pytest-asyncio",
+    "pytest-cov",
+    "pytest-randomly",
+    "pytest-tcpclient",
+    "pytest-xdist",
+]
+
+[tool.setuptools_scm]
+version_file_template = """Metadata-Version: 2.1
+Name: @PROJECT_NAME@
+Version: @SCM_VERSION@
+Summary: A fast serialization and validation library, with builtin support for JSON, MessagePack, YAML, and TOML.
+Home-page: https://jcristharif.com/msgspec/
+Author: Jim Crist-Harif
+Author-email: jcristharif@gmail.com
+License: @LICENSE@
+Maintainer: Eden Ross Duff MSc
+Maintainer-email: help@oziproject.dev
+Download-URL: https://github.com//msgspec/archive/refs/tags/@SCM_VERSION@.tar.gz
+Requires-Python: >=3.10, <3.13
+Keywords: JSON, msgpack, MessagePack, TOML, YAML, serialization, validation, schema 
+Classifier: License :: OSI Approved :: BSD License
+Classifier: Development Status :: 1 - Planning
+Classifier: Programming Language :: Python :: 3 :: Only
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: Implementation :: CPython
+Classifier: Intended Audience :: Other Audience
+Classifier: Natural Language :: English
+Classifier: Typing :: Typed
+Classifier: Environment :: Other Environment
+Description-Content-Type: text/markdown
+@REQUIREMENTS_IN@
+
+@README_TEXT@"""
+version_file = "PKG-INFO"
+fallback_version = "@VCS_TAG@"
+parentdir_prefix_version = "msgspec-"
+tag_regex = "^(?P<prefix>v)?(?P<version>[^\\+]+)(?P<suffix>.*)?$"
+
+[tool.bandit]
+exclude_dirs = [
+    "venv",
+    "meson-private",
+    "subprojects",
+    "tests",
+]
+format = "txt"
+ignore_nosec = true
+verbose = true
+
+[tool.black]
+extend-exclude = "(\\.pyi|venv|meson-private|subprojects)"
+line-length = 93
+
+[tool.coverage.report]
+exclude_lines = [
+    "^.*#\\s*(pragma|PRAGMA)[:\\s]?\\s*(no|NO)\\s*(cover|COVER)",
+    "^.*#\\s*(pragma|PRAGMA)[:\\s]?\\s*(defer|DEFER)\\s*(to|TO)\\s*[a-zA-Z0-9_-]*",
+    "def __repr__",
+    "def __wrapper", # functools.wraps decorated functions
+    "(\\.\\.\\.)",
+    "@(abc\\.)?abstractmethod",
+    "class .*\\bProtocol\\):",
+    "if __name__ == .__main__.:",
+    ]
+fail_under    = 98.0
+show_missing  = true
+skip_covered  = true
+skip_empty    = true
+
+[tool.coverage.run]
+branch         = true
+relative_files = true
+omit = ['msgspec/generate_atof_consts.py']
+
+[tool.flake8]
+ban-relative-imports = "parents"
+max-line-length = 93
+extend-exclude  = [
+    "venv",
+    "meson-private",
+    "subprojects",
+    "build-env-*",
+    "build*",
+    "*.pyi"
+]
+extend-ignore   = "E203,E501,TC007,TC008"
+extend-select   = "B950"
+
+[tool.isort]
+line_length = 93
+profile = "black"
+force_single_line = false
+skip_glob = ['subprojects/*',]
+
+[tool.mypy]
+strict = true
+implicit_reexport = true
 exclude = [
+    "venv",
+    "meson-private",
+    "subprojects",
+    "tests",
+]
+
+[tool.pyright]
+reportMissingTypeStubs = false
+exclude = [
+    "venv",
+    "meson-private",
+    "subprojects",
+    "tests",
+]
+
+[tool.pytest.ini_options]
+filterwarnings = ["error","ignore:The --rsyncdir command line argument and rsyncdirs config variable are deprecated.:DeprecationWarning"]
+asyncio_mode = "auto"
+log_cli = true
+log_cli_date_format = "%Y-%m-%d %H:%M:%S"
+log_cli_format = "%(asctime)s [%(levelname)8s] %(name)s: %(message)s (%(filename)s:%(lineno)s)"
+log_cli_level = "INFO"
+markers = ['mypy', 'pyright']
+
+[tool.ruff]
+select = [
+    "E",
+    "F",
+    "W",
+]
+extend-exclude = [
+    "venv",
+    "meson-private",
+    "subprojects",
     "*.pyi",
     "__init__.py",
     "_version.py",
@@ -11,17 +209,147 @@ exclude = [
     "conf.py",
 ]
 ignore = [
-    "E721", # Comparing types instead of isinstance
-    "E741", # Ambiguous variable names
-    "E501", # Conflicts with ruff format
-    "W191", # Conflicts with ruff format
+    "E721",
+    "E741",
+    "E501",
+    "W191",
+    "A003",
+    "ARG",
+    "ANN401",
+    "TRY003",
+    "B028",
+    "B905",
+    "D1",
+    "D2",
+    "D101",
+    "D4",
+    "FLY",
+    "FBT",
+    "PGH003",
+    "PLR",
+    "RET",
+    "EM",
+    "PLW",
+    "PTH",
+    "RUF009",
+    "RUF012",
+    "RUF015",
+    "SIM",
+    "T201",
+    "TCH002",
+    "TCH004",
+    "UP",
+    "PERF203",
 ]
-select = [
-    "E", # PEP8 Errors
-    "F", # Pyflakes
-    "W", # PEP8 Warnings
-]
-line-length = 88
+# target-version = "@PYTHON_VERSION_DIST@"
+
+[tool.ruff.lint.mccabe]
+max-complexity = 6
+
+[tool.ruff.format]
+line-ending = "lf"
+quote-style = "single"
 
 [tool.ruff.isort]
 combine-as-imports = true
+force-single-line = false
+
+[tool.ruff.lint.pycodestyle]
+max-line-length = 102
+
+[tool.ruff.lint.flake8-copyright]
+author="Jim Crist-Harif"
+
+[tool.ruff.lint.flake8-quotes]
+inline-quotes = "single"
+
+[tool.ruff.lint.flake8-type-checking]
+strict = true
+
+[tool.semantic_release]
+commit_parser                  = "angular"
+major_on_zero                  = false
+tag_format                     = "{version}"
+
+[tool.semantic_release.branches."0.x"]
+match = "\\A0\\.\\d+\\Z"
+prerelease_token = "alpha"
+prerelease = false
+
+[tool.semantic_release.commit_parser_options]
+
+[tool.semantic_release.changelog]
+changelog_file = "CHANGELOG.md"
+exclude_commit_patterns = ["Merge.*"]
+
+[tool.semantic_release.remote]
+type = "github"
+
+[tool.semantic_release.publish]
+dist_glob_patterns = [
+    "*.tar.gz",
+    "*.whl",
+    "sig/*",
+]
+upload_to_vcs_release = true
+
+[tool.tox]
+legacy_tox_ini = """
+[tox]
+skipsdist = True
+envlist = dist,lint,test,
+
+[gh]
+python =
+   3.12 = dist,lint,test,
+   3.11 = dist,lint,test,
+   3.10 = dist,lint,test,
+
+[testenv]
+allowlist_externals =
+   rm
+   pipx
+   python
+   meson
+package = wheel
+deps =
+   OZI.build>=0.0.27
+   pip-tools>=7
+   pipx~=1.5
+   setuptools_scm[toml]~=8.0
+   -r requirements.in
+commands =
+   meson compile -C {env_tmp_dir}
+   rm -rf {env_tmp_dir}/.gitignore
+[testenv:dist]
+commands_pre =
+   pipx install --python=python meson
+   meson setup {env_tmp_dir} -Dozi:dist=enabled -Dozi:tox-env-dir={env_dir} --reconfigure
+commands_post = meson test --no-rebuild --maxfail=1 -C {env_tmp_dir} --setup=dist
+[testenv:lint]
+commands_pre =
+   pipx install --python=python meson
+   meson setup {env_tmp_dir} -Dozi:lint=enabled -Dozi:tox-env-dir={env_dir} --reconfigure
+commands_post = meson test --no-rebuild --maxfail=1 -C {env_tmp_dir} --setup=lint
+[testenv:test]
+commands_pre =
+   pipx install --python=python meson
+   meson setup {env_tmp_dir} -Dozi:test=enabled -Dozi:tox-env-dir={env_dir} --reconfigure
+commands_post = meson test --no-rebuild --maxfail=1 -C {env_tmp_dir} --setup=test
+
+[testenv:fix]
+description = quickly fix minor source issues 
+deps = pipx
+skip_install = true
+commands =
+     pipx run --python {env_python} -q black -S .
+     pipx run --python {env_python} -q isort .
+     pipx run --python {env_python} -q autoflake -i -r .
+     pipx run --python {env_python} -q ruff check msgspec --fix
+
+[testenv:scm]
+description = OZI supply chain management (setuptools_scm)
+deps = setuptools_scm[toml]>=8
+commands =
+     {env_python} -m setuptools_scm {posargs}
+"""

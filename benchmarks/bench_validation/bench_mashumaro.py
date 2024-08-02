@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import enum
 import dataclasses
 import datetime
+import enum
 from typing import Literal
 
 from mashumaro.mixins.orjson import DataClassORJSONMixin

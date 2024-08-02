@@ -1,13 +1,16 @@
 source_files = [
     '__init__.py',
+    '__init__.pyi',
     '_json_schema.py',
     '_utils.py',
-    '_version.py',
     'inspect.py',
     'json.py',
+    'json.pyi',
     'msgpack.py',
+    'msgpack.pyi',
     'py.typed',
     'structs.py',
+    'structs.pyi',
     'toml.py',
     'yaml.py',
 ]
@@ -44,7 +47,7 @@ else
         link_whole: mimalloc.target(get_option('use-mimalloc')),
     )
 endif
-foreach file : files([source_files,'itoa.h','atof.h','common.h', 'ryu.h'])
+foreach file : files([source_files, '_core.c', 'itoa.h', 'atof.h', 'common.h', 'ryu.h'])
     fs.copyfile(file)
     if not meson.is_subproject() or get_option('install-subprojects').enabled()
         python.install_sources(file, pure: true, subdir: 'msgspec')

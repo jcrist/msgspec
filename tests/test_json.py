@@ -97,9 +97,7 @@ class TestInvalidJSONTypes:
     def test_invalid_dict_key_type_errors_at_runtime(self):
         # We used to check this statically at TypeNode build time, but this was
         # a pain. We now just ensure invalid types error at runtime.
-        with pytest.raises(
-            msgspec.ValidationError, match="Expected `array`, got `str`"
-        ):
+        with pytest.raises(msgspec.ValidationError, match="Expected `array`, got `str`"):
             msgspec.json.decode(b'{"x": 1}', type=Dict[Tuple[int, int], int])
 
 
@@ -120,9 +118,7 @@ class TestEncodeFunction:
         class Foo:
             pass
 
-        with pytest.raises(
-            TypeError, match="Encoding objects of type Foo is unsupported"
-        ):
+        with pytest.raises(TypeError, match="Encoding objects of type Foo is unsupported"):
             msgspec.json.encode(Foo())
 
     def test_encode_enc_hook(self):
@@ -204,9 +200,7 @@ class TestEncoderMisc:
         enc = msgspec.json.Encoder()
         assert enc.enc_hook is None
 
-        with pytest.raises(
-            TypeError, match="Encoding objects of type Foo is unsupported"
-        ):
+        with pytest.raises(TypeError, match="Encoding objects of type Foo is unsupported"):
             enc.encode(Foo())
 
     def test_encode_enc_hook(self):
@@ -758,9 +752,7 @@ class TestBinary:
         "s", [b'"Y"', b'"YQ"', b'"YQ="', b'"YQI"', b'"YQI=="', b'"YQJj="', b'"AB*D"']
     )
     def test_malformed_base64_encoding(self, s):
-        with pytest.raises(
-            msgspec.ValidationError, match="Invalid base64 encoded string"
-        ):
+        with pytest.raises(msgspec.ValidationError, match="Invalid base64 encoded string"):
             msgspec.json.decode(s, type=bytes)
 
 
@@ -937,9 +929,7 @@ class TestDatetime:
         assert res == exp
 
     def test_decode_max_datetime(self):
-        res = msgspec.json.decode(
-            b'"9999-12-31T23:59:59.999999Z"', type=datetime.datetime
-        )
+        res = msgspec.json.decode(b'"9999-12-31T23:59:59.999999Z"', type=datetime.datetime)
         exp = datetime.datetime.max.replace(tzinfo=UTC)
         assert res == exp
 
@@ -1072,9 +1062,7 @@ class TestIntegers:
         if ndigits == 0:
             s = b"0"
         else:
-            s = "".join(
-                itertools.islice(itertools.cycle("123456789"), ndigits)
-            ).encode()
+            s = "".join(itertools.islice(itertools.cycle("123456789"), ndigits)).encode()
 
         x = int(s)
         assert msgspec.json.encode(x) == s
@@ -1090,9 +1078,7 @@ class TestIntegers:
         if ndigits == 0:
             s = b"0"
         else:
-            s = "".join(
-                itertools.islice(itertools.cycle("123456789"), ndigits)
-            ).encode()
+            s = "".join(itertools.islice(itertools.cycle("123456789"), ndigits)).encode()
 
         x = int(s)
         assert msgspec.json.decode(s) == x
@@ -1145,9 +1131,7 @@ class TestIntegers:
             s = "1" * 4301
 
         try:
-            with pytest.raises(
-                msgspec.ValidationError, match="Integer value out of range"
-            ):
+            with pytest.raises(msgspec.ValidationError, match="Integer value out of range"):
                 msgspec.json.decode(s, type=int)
         finally:
             if cleanup:
@@ -1336,9 +1320,7 @@ class TestFloat:
         x = msgspec.json.decode(s)
         x2 = msgspec.json.decode(s, type=float)
         assert float(s) == x == x2
-        with pytest.raises(
-            msgspec.ValidationError, match="Expected `int`, got `float`"
-        ):
+        with pytest.raises(msgspec.ValidationError, match="Expected `int`, got `float`"):
             msgspec.json.decode(s, type=int)
 
     @pytest.mark.parametrize("n", [5, 20, 300, 500])
@@ -1612,9 +1594,7 @@ class TestFloat:
 
     @pytest.mark.parametrize("s", [b"1.23e3", b"1.2", b"1e2"])
     def test_decode_float_err_expected_int(self, s):
-        with pytest.raises(
-            msgspec.ValidationError, match="Expected `int`, got `float`"
-        ):
+        with pytest.raises(msgspec.ValidationError, match="Expected `int`, got `float`"):
             msgspec.json.decode(s, type=int)
 
     def test_float_hook_untyped(self):
@@ -1828,13 +1808,9 @@ class TestSequences:
         x = (1, "two", False)
         res = dec.decode(b'[1, "two", false]')
         assert res == x
-        with pytest.raises(
-            msgspec.ValidationError, match="Expected `array`, got `int`"
-        ):
+        with pytest.raises(msgspec.ValidationError, match="Expected `array`, got `int`"):
             dec.decode(b"1")
-        with pytest.raises(
-            msgspec.ValidationError, match="Expected `array` of length 3"
-        ):
+        with pytest.raises(msgspec.ValidationError, match="Expected `array` of length 3"):
             dec.decode(b'[1, "two"]')
 
     def test_decode_fixtuple_typed(self):
@@ -1844,9 +1820,7 @@ class TestSequences:
         assert res == x
         with pytest.raises(msgspec.ValidationError, match="Expected `bool`"):
             dec.decode(b'[1, "two", "three"]')
-        with pytest.raises(
-            msgspec.ValidationError, match="Expected `array` of length 3"
-        ):
+        with pytest.raises(msgspec.ValidationError, match="Expected `array` of length 3"):
             dec.decode(b'[1, "two"]')
 
 
@@ -1938,9 +1912,7 @@ class TestDict:
             FruitStr.BANANA: 2,
         }
 
-        with pytest.raises(
-            msgspec.ValidationError, match="Invalid enum value 'carrot'"
-        ):
+        with pytest.raises(msgspec.ValidationError, match="Invalid enum value 'carrot'"):
             dec.decode(b'{"apple": 1, "carrot": 2}')
 
     def test_decode_dict_str_key_constraints(self):
@@ -1949,14 +1921,10 @@ class TestDict:
         except ImportError:
             pytest.skip("Annotated types not available")
 
-        dec = msgspec.json.Decoder(
-            Dict[Annotated[str, msgspec.Meta(min_length=3)], int]
-        )
+        dec = msgspec.json.Decoder(Dict[Annotated[str, msgspec.Meta(min_length=3)], int])
         assert dec.decode(b'{"abc": 1, "def": 2}') == {"abc": 1, "def": 2}
 
-        with pytest.raises(
-            msgspec.ValidationError, match="Expected `str` of length >= 3"
-        ):
+        with pytest.raises(msgspec.ValidationError, match="Expected `str` of length >= 3"):
             dec.decode(b'{"a": 1}')
 
     @pytest.mark.parametrize("length", [3, 32, 33])
@@ -2294,9 +2262,7 @@ class TestStruct:
         # one for struct, one for output of getattr, and one for getrefcount
         assert sys.getrefcount(x.first) == 3
 
-        with pytest.raises(
-            msgspec.ValidationError, match="Expected `object`, got `int`"
-        ):
+        with pytest.raises(msgspec.ValidationError, match="Expected `object`, got `int`"):
             dec.decode(b"1")
 
     def test_decode_struct_field_wrong_type(self):
@@ -2527,9 +2493,7 @@ class TestStruct:
         if ndigits == 0:
             s = b"0"
         else:
-            s = "".join(
-                itertools.islice(itertools.cycle("123456789"), ndigits)
-            ).encode()
+            s = "".join(itertools.islice(itertools.cycle("123456789"), ndigits)).encode()
 
         tag = int(s)
         if negative:
@@ -2724,9 +2688,7 @@ class TestStructArray:
         assert msgspec.json.encode(("harry", "potter", 13, False)) == a
         assert dec.decode(a) == x
 
-        with pytest.raises(
-            msgspec.ValidationError, match="Expected `array`, got `int`"
-        ):
+        with pytest.raises(msgspec.ValidationError, match="Expected `array`, got `int`"):
             dec.decode(b"1")
 
         # Wrong field type
@@ -2781,13 +2743,9 @@ class TestStructArray:
 
         assert array_dec.decode(array_msg) == array_sol
         assert dec.decode(map_msg) == sol
-        with pytest.raises(
-            msgspec.ValidationError, match="Expected `object`, got `array`"
-        ):
+        with pytest.raises(msgspec.ValidationError, match="Expected `object`, got `array`"):
             dec.decode(array_msg)
-        with pytest.raises(
-            msgspec.ValidationError, match="Expected `array`, got `object`"
-        ):
+        with pytest.raises(msgspec.ValidationError, match="Expected `array`, got `object`"):
             array_dec.decode(map_msg)
 
     @pytest.mark.parametrize(

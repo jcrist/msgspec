@@ -8,7 +8,7 @@ import sys
 import weakref
 from contextlib import contextmanager
 from inspect import Parameter, Signature
-from typing import Any, List, Optional, Generic, TypeVar
+from typing import Any, Generic, List, Optional, TypeVar
 
 import pytest
 from utils import temp_module
@@ -147,9 +147,7 @@ def test_struct_subclass_forbids_init_new_slots():
 
 
 def test_struct_subclass_forbidden_field_names():
-    with pytest.raises(
-        TypeError, match="Cannot have a struct field named '__weakref__'"
-    ):
+    with pytest.raises(TypeError, match="Cannot have a struct field named '__weakref__'"):
 
         class Test1(Struct):
             __weakref__: int
@@ -1441,9 +1439,7 @@ def test_dict_option():
 
 
 def test_cache_hash_option():
-    with pytest.raises(
-        ValueError, match="Cannot set cache_hash=True without frozen=True"
-    ):
+    with pytest.raises(ValueError, match="Cannot set cache_hash=True without frozen=True"):
 
         class Invalid(Struct, cache_hash=True):
             pass
@@ -2165,9 +2161,7 @@ class TestDefStruct:
         assert Test.__module__ == "test_struct"
 
     def test_defstruct_namespace(self):
-        Test = defstruct(
-            "Test", ["x", "y"], namespace={"add": lambda self: self.x + self.y}
-        )
+        Test = defstruct("Test", ["x", "y"], namespace={"add": lambda self: self.x + self.y})
         t = Test(1, 2)
         assert t.add() == 3
 

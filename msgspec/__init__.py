@@ -1,17 +1,14 @@
+from msgspec._core import NODEFAULT, UNSET, DecodeError, EncodeError
+from msgspec._core import Field as _Field
 from msgspec._core import (
-    DecodeError,
-    EncodeError,
-    Field as _Field,
     Meta,
     MsgspecError,
     Raw,
     Struct,
     UnsetType,
-    UNSET,
-    NODEFAULT,
     ValidationError,
-    defstruct,
     convert,
+    defstruct,
     to_builtins,
 )
 
@@ -49,13 +46,21 @@ def from_builtins(
 field.__doc__ = _Field.__doc__
 
 
-from msgspec import msgpack
-from msgspec import json
-from msgspec import yaml
-from msgspec import toml
-from msgspec import inspect
-from msgspec import structs
-from msgspec._version import get_versions
+from importlib.metadata import PackageNotFoundError, version
 
-__version__ = get_versions()["version"]
-del get_versions
+from setuptools_scm import get_version  # type: ignore
+
+from msgspec import inspect, json, msgpack, structs, toml, yaml
+
+
+def current_version() -> str:
+    """Returns the currently installed version of msgspec."""
+    try:
+        version_ = version('msgspec')
+    except PackageNotFoundError:  # pragma: no cover
+        version_ = str(get_version(root='..', relative_to=__file__))
+    return version_
+
+
+__version__ = current_version()
+del current_version

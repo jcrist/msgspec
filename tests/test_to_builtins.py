@@ -11,7 +11,7 @@ from typing import Any, NamedTuple, Union
 
 import pytest
 
-from msgspec import UNSET, EncodeError, Struct, UnsetType, to_builtins, defstruct
+from msgspec import UNSET, EncodeError, Struct, UnsetType, defstruct, to_builtins
 
 PY310 = sys.version_info[:2] >= (3, 10)
 PY311 = sys.version_info[:2] >= (3, 11)
@@ -55,14 +55,10 @@ class TestToBuiltins:
         with pytest.raises(TypeError):
             to_builtins()
 
-        with pytest.raises(
-            TypeError, match="builtin_types must be an iterable of types"
-        ):
+        with pytest.raises(TypeError, match="builtin_types must be an iterable of types"):
             to_builtins([1], builtin_types=1)
 
-        with pytest.raises(
-            TypeError, match="builtin_types must be an iterable of types"
-        ):
+        with pytest.raises(TypeError, match="builtin_types must be an iterable of types"):
             to_builtins([1], builtin_types=(1,))
 
         with pytest.raises(TypeError, match="enc_hook must be callable"):
@@ -601,12 +597,14 @@ class TestOrder:
             class Ex(Struct):
                 z: Union[int, UnsetType] = UNSET
                 x: Union[int, UnsetType] = UNSET
+
         elif kind == "dataclass":
 
             @dataclass
             class Ex:
                 z: Union[int, UnsetType] = UNSET
                 x: Union[int, UnsetType] = UNSET
+
         else:
             attrs = pytest.importorskip("attrs")
 

@@ -1,4 +1,5 @@
 """This script generates msgspec/atof_consts.h"""
+
 import math
 import os
 import textwrap

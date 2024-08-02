@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import enum
 import datetime
-from typing import Literal, Annotated
+from typing import Annotated, Literal
 
 import pydantic
 

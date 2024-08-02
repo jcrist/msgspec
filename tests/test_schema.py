@@ -66,10 +66,7 @@ def test_custom():
 
     schema = {"type": "string", "format": "complex"}
 
-    assert (
-        msgspec.json.schema(Annotated[complex, Meta(extra_json_schema=schema)])
-        == schema
-    )
+    assert msgspec.json.schema(Annotated[complex, Meta(extra_json_schema=schema)]) == schema
 
 
 def test_custom_schema_hook():
@@ -187,16 +184,12 @@ def test_newtype():
     }
 
 
-@pytest.mark.parametrize(
-    "typ", [list, tuple, set, frozenset, List, Tuple, Set, FrozenSet]
-)
+@pytest.mark.parametrize("typ", [list, tuple, set, frozenset, List, Tuple, Set, FrozenSet])
 def test_sequence_any(typ):
     assert msgspec.json.schema(typ) == {"type": "array"}
 
 
-@pytest.mark.parametrize(
-    "cls", [list, tuple, set, frozenset, List, Tuple, Set, FrozenSet]
-)
+@pytest.mark.parametrize("cls", [list, tuple, set, frozenset, List, Tuple, Set, FrozenSet])
 def test_sequence_typed(cls):
     args = (int, ...) if cls in (tuple, Tuple) else int
     typ = type_index(cls, args)

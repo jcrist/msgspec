@@ -1,11 +1,9 @@
 import datetime as _datetime
-from typing import Any, Callable, Optional, Type, TypeVar, Union, overload, Literal
+from typing import Any, Callable, Literal, Optional, Type, TypeVar, Union, overload
 
-from msgspec import (
-    DecodeError as _DecodeError,
-    convert as _convert,
-    to_builtins as _to_builtins,
-)
+from msgspec import DecodeError as _DecodeError
+from msgspec import convert as _convert
+from msgspec import to_builtins as _to_builtins
 
 __all__ = ("encode", "decode")
 
@@ -101,7 +99,7 @@ def decode(
     strict: bool = True,
     dec_hook: Optional[Callable[[type, Any], Any]] = None,
 ) -> Any:
-    pass
+    pass  # pragma: no cover
 
 
 @overload

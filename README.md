@@ -68,7 +68,7 @@ MessagePack library. For the greatest benefit though, we recommend using
 >>> import msgspec
 
 >>> class User(msgspec.Struct):
-...     """A new type describing a User"""
+...     '''A new type describing a User'''
 ...     name: str
 ...     groups: set[str] = set()
 ...     email: str | None = None

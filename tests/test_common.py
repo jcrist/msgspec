@@ -32,7 +32,7 @@ from typing import (
 )
 
 import pytest
-from utils import temp_module, max_call_depth
+from utils import max_call_depth, temp_module
 
 try:
     import attrs
@@ -40,7 +40,7 @@ except ImportError:
     attrs = None
 
 import msgspec
-from msgspec import Meta, Struct, ValidationError, UNSET, UnsetType
+from msgspec import UNSET, Meta, Struct, UnsetType, ValidationError
 
 UTC = datetime.timezone.utc
 
@@ -378,9 +378,7 @@ class TestThreadSafe:
             return Custom(dec.decode(msg))
 
         dec = proto.Decoder(Tuple[Union[Custom, None], int], dec_hook=dec_hook)
-        msg = proto.encode(
-            (base64.b64encode(proto.encode((None, 1))).decode("utf-8"), 2)
-        )
+        msg = proto.encode((base64.b64encode(proto.encode((None, 1))).decode("utf-8"), 2))
         sol = (Custom((None, 1)), 2)
         res = dec.decode(msg)
         assert res == sol
@@ -423,9 +421,7 @@ class TestIntEnum:
 
         dec.decode(proto.encode({"fruit": 1})) == Test(FruitInt.APPLE)
 
-        with pytest.raises(
-            ValidationError, match=r"Invalid enum value 3 - at `\$.fruit`"
-        ):
+        with pytest.raises(ValidationError, match=r"Invalid enum value 3 - at `\$.fruit`"):
             dec.decode(proto.encode({"fruit": 3}))
 
     def test_intenum_missing(self, proto):
@@ -726,9 +722,7 @@ class TestEnum:
 
         unique_str = strgen(length).__next__
 
-        myenum = enum.Enum(
-            "myenum", [(unique_str(), unique_str()) for _ in range(nitems)]
-        )
+        myenum = enum.Enum("myenum", [(unique_str(), unique_str()) for _ in range(nitems)])
         dec = msgspec.msgpack.Decoder(myenum)
 
         for val in myenum:
@@ -762,9 +756,7 @@ class TestEnum:
 
         unique_str = strgen().__next__
 
-        myenum = enum.Enum(
-            "myenum", [(unique_str(), unique_str()) for _ in range(nitems)]
-        )
+        myenum = enum.Enum("myenum", [(unique_str(), unique_str()) for _ in range(nitems)])
         dec = msgspec.msgpack.Decoder(myenum)
 
         for val in myenum:
@@ -809,9 +801,7 @@ class TestEnum:
 
 class TestLiterals:
     def test_empty_errors(self):
-        with pytest.raises(
-            TypeError, match="Literal types must have at least one item"
-        ):
+        with pytest.raises(TypeError, match="Literal types must have at least one item"):
             msgspec.msgpack.Decoder(Literal[()])
 
     @pytest.mark.parametrize(
@@ -1190,9 +1180,7 @@ class TestStructUnion:
         )
 
         # Extra fields still ignored
-        assert dec.decode(enc.encode({"a": 1, "b": 2, "d": 4, "type": tag1})) == Test1(
-            1, 2
-        )
+        assert dec.decode(enc.encode({"a": 1, "b": 2, "d": 4, "type": tag1})) == Test1(1, 2)
 
         # Tag missing
         with pytest.raises(ValidationError) as rec:
@@ -1828,9 +1816,7 @@ class TestStructForbidUnknownFields:
         assert proto.decode(proto.encode(good), type=Test) == good
 
         bad = proto.encode([1, 2, 3])
-        with pytest.raises(
-            ValidationError, match="Expected `array` of at most length 2"
-        ):
+        with pytest.raises(ValidationError, match="Expected `array` of at most length 2"):
             proto.decode(bad, type=Test)
 
 
@@ -2777,9 +2763,7 @@ class TestDataclass:
             dec.decode(proto.encode({"a": 1}))
 
         # Incorrect field types error
-        with pytest.raises(
-            ValidationError, match=r"Expected `int`, got `str` - at `\$.a`"
-        ):
+        with pytest.raises(ValidationError, match=r"Expected `int`, got `str` - at `\$.a`"):
             dec.decode(proto.encode({"a": "bad"}))
 
     @pytest.mark.parametrize("frozen", [False, True])
@@ -2856,9 +2840,7 @@ class TestDataclass:
             def __post_init__(self):
                 raise exc_class("Oh no!")
 
-        expected = (
-            ValidationError if exc_class in (ValueError, TypeError) else exc_class
-        )
+        expected = ValidationError if exc_class in (ValueError, TypeError) else exc_class
 
         with pytest.raises(expected, match="Oh no!") as rec:
             proto.decode(proto.encode([{"a": 1}]), type=List[Example])
@@ -2988,9 +2970,7 @@ class TestAttrs:
             dec.decode(proto.encode({"a": 1}))
 
         # Incorrect field types error
-        with pytest.raises(
-            ValidationError, match=r"Expected `int`, got `str` - at `\$.a`"
-        ):
+        with pytest.raises(ValidationError, match=r"Expected `int`, got `str` - at `\$.a`"):
             dec.decode(proto.encode({"a": "bad"}))
 
     @pytest.mark.parametrize("frozen", [False, True])
@@ -3060,9 +3040,7 @@ class TestAttrs:
             def __attrs_post_init__(self):
                 raise exc_class("Oh no!")
 
-        expected = (
-            ValidationError if exc_class in (ValueError, TypeError) else exc_class
-        )
+        expected = ValidationError if exc_class in (ValueError, TypeError) else exc_class
 
         with pytest.raises(expected, match="Oh no!") as rec:
             proto.decode(proto.encode([{"a": 1}]), type=List[Example])
@@ -3912,9 +3890,7 @@ class TestDecimal:
         s = str(d)
         assert proto.encode(d) == proto.encode(s)
 
-    @pytest.mark.parametrize(
-        "val", ["1.5", "InF", "-iNf", "iNfInItY", "-InFiNiTy", "NaN"]
-    )
+    @pytest.mark.parametrize("val", ["1.5", "InF", "-iNf", "iNfInItY", "-InFiNiTy", "NaN"])
     def test_decode_decimal_str(self, val, proto):
         sol = decimal.Decimal(val)
         msg = proto.encode(sol)
@@ -3935,9 +3911,7 @@ class TestDecimal:
         assert type(res) is decimal.Decimal
         assert res == sol
 
-    @pytest.mark.parametrize(
-        "val", [0.0, 1.3, float("nan"), float("inf"), float("-inf")]
-    )
+    @pytest.mark.parametrize("val", [0.0, 1.3, float("nan"), float("inf"), float("-inf")])
     def test_decode_decimal_float(self, val, proto):
         msg = proto.encode(val)
         if msg == b"null":
@@ -4168,12 +4142,14 @@ class TestOrder:
             class Ex(Struct):
                 z: Union[int, UnsetType] = UNSET
                 x: Union[int, UnsetType] = UNSET
+
         elif kind == "dataclass":
 
             @dataclass
             class Ex:
                 z: Union[int, UnsetType] = UNSET
                 x: Union[int, UnsetType] = UNSET
+
         else:
             attrs = pytest.importorskip("attrs")
 
@@ -4512,9 +4488,7 @@ class TestLax:
     def test_lax_union_invalid(self, x, proto):
         typ = Union[int, float, bool, None]
         msg = proto.encode(x)
-        with pytest.raises(
-            ValidationError, match="Expected `int | float | bool | null`"
-        ):
+        with pytest.raises(ValidationError, match="Expected `int | float | bool | null`"):
             proto.decode(msg, type=typ, strict=False)
 
     @pytest.mark.parametrize(

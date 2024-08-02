@@ -1,2 +1,205 @@
-option('use-mimalloc',type : 'combo', choices : ['static-mimalloc', 'mimalloc'], value: 'static-mimalloc')
+option(
+    'namespace',
+    type: 'array',
+    value: [
+        'dist',
+        'lint',
+        'test',
+        'docs',
+    ]
+)
+option(
+    'python-dependencies', 
+    type: 'array',
+    value: [
+    'OZI.build',
+    'pip-tools',
+    'pipx',
+    'setuptools_scm',
+    ]
+)
+option(
+    'variables',
+    type: 'array',
+    value: [
+        'scm-version-snip', 
+        'core-metadata',
+        'python',
+        'metadata-version',
+        'namespace',
+        'should-fail',
+        'unhashable',
+        'plugin-only',
+        'no-version',
+        'dist-exclude-suites',
+        'lint-exclude-suites',
+        'test-exclude-suites'
+    ]
+)
+option(
+    'dist-suite',
+    type: 'array',
+    value: [
+        'python-semantic-release',
+        'sigstore',
+    ]
+)
+option(
+    'lint-suite',
+    type: 'array',
+    value: [
+        'bandit',
+        'black',
+        'flake8',
+        'isort',
+        'mypy',
+        'pyright',
+        'readme-renderer',
+        'Flake8-pyproject',
+        'flake8-annotations',
+        'flake8-broken-line',
+        'flake8-bugbear',
+        'flake8-comprehensions',
+        'flake8-datetimez',
+        'flake8-docstring-checker',
+        'flake8-eradicate',
+        'flake8-fixme',
+        'flake8-leading-blank-lines',
+        'flake8-no-pep420',
+        'flake8-pyi',
+        'flake8-pytest-style',
+        'flake8-quotes',
+        'flake8-tidy-imports',
+        'flake8-type-checking',
+    ]
+)
+option(
+    'test-suite',
+    type: 'array',
+    value: [
+        'coverage',
+        'pytest',
+        'hypothesis',
+        'pytest-asyncio',
+        'pytest-cov',
+        'pytest-randomly',
+        'pytest-tcpclient',
+        'pytest-xdist',
+    ]
+)
 option('install-subprojects', type: 'feature', value: 'disabled')
+option('source-to-build', type: 'feature', value: 'auto')
+option('build-dir', type: 'feature',  value: 'auto')
+option('project-name', type: 'feature', value: 'auto')
+option('docs-source',type: 'feature',value: 'auto')
+option('test-source',type: 'feature', value: 'auto')
+option('dist', type: 'feature', value: 'auto')
+option('docs', type: 'feature', value: 'auto')
+option('lint', type: 'feature', value: 'auto')
+option('test', type: 'feature', value: 'auto')
+option('dist-priority', type: 'integer', value: 1)
+option('test-priority', type: 'integer', value: 2)
+option('docs-priority', type: 'integer', value: 3)
+option('lint-priority', type: 'integer', value: 4)
+option('dist-timeout-multiplier', type: 'integer', value: 1)
+option('docs-timeout-multiplier', type: 'integer', value: 1)
+option('lint-timeout-multiplier', type: 'integer', value: 1)
+option('test-timeout-multiplier', type: 'integer', value: 4)
+option(
+    'should-fail',
+    type: 'array',
+    value: ['mypy', 'flake8', 'pyright'],
+)
+option(
+   'args-pyright',
+   type: 'array', 
+   value: [
+      '--stats',
+      '--warnings',
+      '--verbose',
+      '@build_root@',
+   ]
+)
+option(
+   'args-mypy',
+   type: 'array',
+   value: [
+      '@build_root@',
+   ]
+)
+option(
+    'args-isort',
+    type: 'array',
+    value: [
+        '-c',
+        '--skip-glob',
+        '*.pyi',
+        '--extend-skip', 
+        'meson-private/pycompile.py',
+        '--extend-skip-glob',
+        'subprojects/*',
+        '@build_root@'
+    ],
+)
+option(
+    'args-flake8',
+    type: 'array',
+    value: [
+        '--toml-config=pyproject.toml',
+        '--benchmark',
+        '--statistics',
+        '--max-complexity',
+        '5',
+        '--show-source',
+        '--exclude', 'subprojects/,meson-private/',
+        '@build_root@/',
+    ],
+)
+option(
+   'args-black',
+   type: 'array', 
+   value: [
+      '-S',
+      '--verbose',
+      '--check',
+      '--diff',
+      '--exclude','.gitignore',
+      '@build_root@'
+   ]
+)
+option(
+   'args-bandit',
+   description: 'application', type: 'array',
+   value: [
+      '--configfile', 'pyproject.toml',
+      '--ignore-nosec',
+      '-r', '@build_root@'
+   ]
+)
+option('args-pytest',
+    description: 'application',
+    type: 'array',
+    value: [
+        '@build_root@/test',
+        '--basetemp=temp',
+        '--exitfirst',
+        '--cov-config=pyproject.toml',
+        '--cov=msgspec',
+        '-n',
+        'auto',
+        '-d',
+    ]
+)
+option(
+    'args-restructuredtext-lint',
+    type: 'array',
+    value: ['--level=warning', 'README.rst'],
+    yield: false,
+)
+option(
+    'args-readme-renderer',
+    type: 'array',
+    value: ['README.md'],
+    yield: false,
+)
+option('use-mimalloc',type : 'combo', choices : ['', 'static-mimalloc', 'mimalloc'], value: 'static-mimalloc')

@@ -8,17 +8,7 @@ import math
 import pickle
 import struct
 import sys
-from typing import (
-    Any,
-    Dict,
-    FrozenSet,
-    List,
-    Literal,
-    Optional,
-    Set,
-    Tuple,
-    Union,
-)
+from typing import Any, Dict, FrozenSet, List, Literal, Optional, Set, Tuple, Union
 
 import pytest
 
@@ -146,14 +136,10 @@ class TestEncodeFunction:
         class Foo:
             pass
 
-        with pytest.raises(
-            TypeError, match="Encoding objects of type Foo is unsupported"
-        ):
+        with pytest.raises(TypeError, match="Encoding objects of type Foo is unsupported"):
             msgspec.msgpack.encode(Foo())
 
-        with pytest.raises(
-            TypeError, match="Encoding objects of type Foo is unsupported"
-        ):
+        with pytest.raises(TypeError, match="Encoding objects of type Foo is unsupported"):
             msgspec.msgpack.encode(Foo(), enc_hook=None)
 
     def test_encode_enc_hook(self):
@@ -323,9 +309,7 @@ class TestEncoderMisc:
         enc = msgspec.msgpack.Encoder(enc_hook=None)
         assert enc.enc_hook is None
 
-        with pytest.raises(
-            TypeError, match="Encoding objects of type Foo is unsupported"
-        ):
+        with pytest.raises(TypeError, match="Encoding objects of type Foo is unsupported"):
             enc.encode(Foo())
 
     def test_encode_enc_hook(self):
@@ -733,9 +717,7 @@ class TestTypedDecoder:
 
     def test_datetime_invalid(self):
         msg = msgspec.msgpack.encode(msgspec.msgpack.Ext(-1, b"\x01\x02\x03"))
-        with pytest.raises(
-            msgspec.ValidationError, match="Invalid MessagePack timestamp"
-        ):
+        with pytest.raises(msgspec.ValidationError, match="Invalid MessagePack timestamp"):
             msgspec.msgpack.decode(msg, type=datetime.datetime)
 
     @pytest.mark.parametrize("size", SIZES)
@@ -823,9 +805,7 @@ class TestTypedDecoder:
         x = (1, "two", b"three")
         res = dec.decode(enc.encode(x))
         assert res == x
-        with pytest.raises(
-            msgspec.ValidationError, match="Expected `array`, got `int`"
-        ):
+        with pytest.raises(msgspec.ValidationError, match="Expected `array`, got `int`"):
             dec.decode(enc.encode(1))
 
     def test_vartuple_typed(self):
@@ -846,9 +826,7 @@ class TestTypedDecoder:
         x = (1, "two", b"three")
         res = dec.decode(enc.encode(x))
         assert res == x
-        with pytest.raises(
-            msgspec.ValidationError, match="Expected `array`, got `int`"
-        ):
+        with pytest.raises(msgspec.ValidationError, match="Expected `array`, got `int`"):
             dec.decode(enc.encode(1))
         with pytest.raises(
             msgspec.ValidationError, match="Expected `array` of length 3, got 2"
@@ -883,9 +861,7 @@ class TestTypedDecoder:
         x = {1: "one", "two": 2, b"three": 3.0}
         res = dec.decode(enc.encode(x))
         assert res == x
-        with pytest.raises(
-            msgspec.ValidationError, match=r"Expected `object`, got `int`"
-        ):
+        with pytest.raises(msgspec.ValidationError, match=r"Expected `object`, got `int`"):
             dec.decode(enc.encode(1))
 
     def test_dict_any_val(self):
@@ -958,9 +934,7 @@ class TestTypedDecoder:
         with pytest.raises(msgspec.DecodeError, match="truncated"):
             dec.decode(a[:-2])
 
-        with pytest.raises(
-            msgspec.ValidationError, match="Invalid enum value 'MISSING'"
-        ):
+        with pytest.raises(msgspec.ValidationError, match="Invalid enum value 'MISSING'"):
             dec.decode(enc.encode("MISSING"))
 
         with pytest.raises(
@@ -1001,9 +975,7 @@ class TestTypedDecoder:
 
         assert dec.decode(enc.encode("one")) == "one"
 
-        with pytest.raises(
-            msgspec.ValidationError, match="Invalid enum value 'MISSING'"
-        ):
+        with pytest.raises(msgspec.ValidationError, match="Invalid enum value 'MISSING'"):
             dec.decode(enc.encode("MISSING"))
 
         with pytest.raises(
@@ -1353,9 +1325,7 @@ class TestTimestampExt:
         self.check(dt, msg)
 
     def test_timestamp64_upper(self):
-        dt = datetime.datetime.fromtimestamp(2**34, UTC) - datetime.timedelta(
-            microseconds=1
-        )
+        dt = datetime.datetime.fromtimestamp(2**34, UTC) - datetime.timedelta(microseconds=1)
         msg = b"\xd7\xff\xeek\x18c\xff\xff\xff\xff"
         self.check(dt, msg)
 
@@ -1532,9 +1502,7 @@ class TestStruct:
         x = dec.decode(msg)
         assert x == Person("harry", "potter", 13, False)
 
-        with pytest.raises(
-            msgspec.ValidationError, match="Expected `object`, got `int`"
-        ):
+        with pytest.raises(msgspec.ValidationError, match="Expected `object`, got `int`"):
             dec.decode(msgspec.msgpack.encode(1))
 
     def test_decode_struct_field_wrong_type(self):
@@ -1704,9 +1672,7 @@ class TestStruct:
             pass
 
         with pytest.raises(msgspec.ValidationError) as rec:
-            msgspec.msgpack.decode(
-                msgspec.msgpack.encode({"type": 2**64 - 1}), type=Test
-            )
+            msgspec.msgpack.decode(msgspec.msgpack.encode({"type": 2**64 - 1}), type=Test)
         assert f"Invalid value {2**64 - 1}" in str(rec.value)
         assert "`$.type`" in str(rec.value)
 
@@ -1775,9 +1741,7 @@ class TestStructArray:
         assert msgspec.msgpack.encode(("harry", "potter", 13, False)) == a
         assert dec.decode(a) == x
 
-        with pytest.raises(
-            msgspec.ValidationError, match="Expected `array`, got `int`"
-        ):
+        with pytest.raises(msgspec.ValidationError, match="Expected `array`, got `int`"):
             dec.decode(b"1")
 
         # Wrong field type
@@ -1823,9 +1787,7 @@ class TestStructArray:
 
     def test_struct_map_and_array_like_messages_cant_mix(self):
         array_msg = msgspec.msgpack.encode(("harry", "potter", 13))
-        map_msg = msgspec.msgpack.encode(
-            {"first": "harry", "last": "potter", "age": 13}
-        )
+        map_msg = msgspec.msgpack.encode({"first": "harry", "last": "potter", "age": 13})
         sol = Person("harry", "potter", 13)
         array_sol = PersonArray("harry", "potter", 13)
 
@@ -1834,13 +1796,9 @@ class TestStructArray:
 
         assert array_dec.decode(array_msg) == array_sol
         assert dec.decode(map_msg) == sol
-        with pytest.raises(
-            msgspec.ValidationError, match="Expected `object`, got `array`"
-        ):
+        with pytest.raises(msgspec.ValidationError, match="Expected `object`, got `array`"):
             dec.decode(array_msg)
-        with pytest.raises(
-            msgspec.ValidationError, match="Expected `array`, got `object`"
-        ):
+        with pytest.raises(msgspec.ValidationError, match="Expected `array`, got `object`"):
             array_dec.decode(map_msg)
 
     @pytest.mark.parametrize("tag", ["Test", -123, 123])
@@ -1913,9 +1871,7 @@ class TestRaw:
         b = msgspec.msgpack.encode({"x": 1})
         r = msgspec.Raw(b)
         assert msgspec.msgpack.encode(r) == b
-        assert msgspec.msgpack.encode({"y": r}) == msgspec.msgpack.encode(
-            {"y": {"x": 1}}
-        )
+        assert msgspec.msgpack.encode({"y": r}) == msgspec.msgpack.encode({"y": {"x": 1}})
 
     def test_decode_raw_field(self):
         class Test(msgspec.Struct):

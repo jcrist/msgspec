@@ -1,11 +1,9 @@
 import datetime as _datetime
-from typing import Any, Callable, Optional, Type, TypeVar, Union, overload, Literal
+from typing import Any, Callable, Literal, Optional, Type, TypeVar, Union, overload
 
-from msgspec import (
-    DecodeError as _DecodeError,
-    convert as _convert,
-    to_builtins as _to_builtins,
-)
+from msgspec import DecodeError as _DecodeError
+from msgspec import convert as _convert
+from msgspec import to_builtins as _to_builtins
 
 __all__ = ("encode", "decode")
 
@@ -19,14 +17,14 @@ def _import_tomllib():
         import tomllib  # type: ignore
 
         return tomllib
-    except ImportError:
+    except ImportError:  # pragma: no cover
         pass
 
-    try:
+    try:  # pragma: no cover
         import tomli  # type: ignore
 
         return tomli
-    except ImportError:
+    except ImportError:  # pragma: no cover
         raise ImportError(
             "`msgspec.toml.decode` requires `tomli` be installed.\n\n"
             "Please either `pip` or `conda` install it as follows:\n\n"
@@ -108,7 +106,7 @@ def decode(
     strict: bool = True,
     dec_hook: Optional[Callable[[type, Any], Any]] = None,
 ) -> Any:
-    pass
+    pass  # pragma: no cover
 
 
 @overload

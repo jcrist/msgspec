@@ -179,9 +179,7 @@ class TestMetaObject:
     def test_numeric_fields(self, field):
         Meta(**{field: 1})
         Meta(**{field: 2.5})
-        with pytest.raises(
-            TypeError, match=f"`{field}` must be an int or float, got str"
-        ):
+        with pytest.raises(TypeError, match=f"`{field}` must be an int or float, got str"):
             Meta(**{field: "bad"})
 
         with pytest.raises(ValueError, match=f"`{field}` must be finite"):

@@ -2,15 +2,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from msgspec._core import Factory as _Factory  # noqa
+from msgspec._core import StructConfig, asdict, astuple, force_setattr, replace
+
 from . import NODEFAULT, Struct, field
-from msgspec._core import (  # noqa
-    Factory as _Factory,
-    StructConfig,
-    asdict,
-    astuple,
-    replace,
-    force_setattr,
-)
 from ._utils import get_class_annotations as _get_class_annotations
 
 __all__ = (
@@ -25,7 +20,7 @@ __all__ = (
 
 
 def __dir__():
-    return __all__
+    return __all__  # pragma: no cover
 
 
 class FieldInfo(Struct):

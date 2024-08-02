@@ -193,9 +193,7 @@ def test_msgpack_ext():
 def test_newtype():
     UserId = NewType("UserId", str)
     assert mi.type_info(UserId) == mi.StrType()
-    assert mi.type_info(Annotated[UserId, Meta(max_length=10)]) == mi.StrType(
-        max_length=10
-    )
+    assert mi.type_info(Annotated[UserId, Meta(max_length=10)]) == mi.StrType(max_length=10)
 
     # Annotated in NewType
     UserId = NewType("UserId", Annotated[str, Meta(max_length=10)])
@@ -782,9 +780,7 @@ def test_metadata():
         Meta(extra={"a": 3, "c": 4}),
     ]
 
-    assert mi.type_info(typ) == mi.Metadata(
-        mi.IntType(), extra={"a": 3, "b": 2, "c": 4}
-    )
+    assert mi.type_info(typ) == mi.Metadata(mi.IntType(), extra={"a": 3, "b": 2, "c": 4})
 
 
 def test_inspect_with_unhashable_metadata():

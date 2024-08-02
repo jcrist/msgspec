@@ -5,7 +5,7 @@ import typing
 
 try:
     from typing_extensions import _AnnotatedAlias
-except Exception:
+except Exception:  # pragma: no cover
     try:
         from typing import _AnnotatedAlias
     except Exception:
@@ -13,12 +13,12 @@ except Exception:
 
 try:
     from typing_extensions import get_type_hints as _get_type_hints
-except Exception:
+except Exception:  # pragma: no cover
     from typing import get_type_hints as _get_type_hints
 
 try:
     from typing_extensions import NotRequired, Required
-except Exception:
+except Exception:  # pragma: no cover
     try:
         from typing import NotRequired, Required
     except Exception:
@@ -27,7 +27,7 @@ except Exception:
 
 if Required is None and _AnnotatedAlias is None:
     # No extras available, so no `include_extras`
-    get_type_hints = _get_type_hints
+    get_type_hints = _get_type_hints  # pragma: no cover
 else:
 
     def get_type_hints(obj):
@@ -40,7 +40,7 @@ else:
 # for Python 3.10.
 try:
     typing.ForwardRef("Foo", is_class=True)
-except TypeError:
+except TypeError:  # pragma: no cover
 
     def _forward_ref(value):
         return typing.ForwardRef(value, is_argument=False)
@@ -216,9 +216,7 @@ def get_dataclass_info(obj):
         for field in cls.__dataclass_fields__.values():
             if field._field_type is not _FIELD:
                 if field._field_type is _FIELD_INITVAR:
-                    raise TypeError(
-                        "dataclasses with `InitVar` fields are not supported"
-                    )
+                    raise TypeError("dataclasses with `InitVar` fields are not supported")
                 continue
             name = field.name
             typ = hints[name]

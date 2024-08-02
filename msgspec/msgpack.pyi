@@ -1,14 +1,4 @@
-from typing import (
-    Any,
-    Callable,
-    Generic,
-    Literal,
-    Optional,
-    Type,
-    TypeVar,
-    Union,
-    overload,
-)
+from typing import Any, Callable, Generic, Literal, Optional, Type, TypeVar, Union, overload
 
 T = TypeVar("T")
 
@@ -19,9 +9,7 @@ dec_hook_sig = Optional[Callable[[type, Any], Any]]
 class Ext:
     code: int
     data: Union[bytes, bytearray, memoryview]
-    def __init__(
-        self, code: int, data: Union[bytes, bytearray, memoryview]
-    ) -> None: ...
+    def __init__(self, code: int, data: Union[bytes, bytearray, memoryview]) -> None: ...
 
 class Decoder(Generic[T]):
     type: Type[T]
@@ -100,4 +88,9 @@ def decode(
     dec_hook: dec_hook_sig = None,
     ext_hook: ext_hook_sig = None,
 ) -> Any: ...
-def encode(obj: Any, *, enc_hook: enc_hook_sig = None, order: Literal[None, "deterministic", "sorted"] = None) -> bytes: ...
+def encode(
+    obj: Any,
+    *,
+    enc_hook: enc_hook_sig = None,
+    order: Literal[None, "deterministic", "sorted"] = None,
+) -> bytes: ...

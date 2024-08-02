@@ -692,7 +692,7 @@ def check_msgpack_Encoder_uuid_format() -> None:
 
 
 def check_msgpack_decode_dec_hook() -> None:
-    def dec_hook(typ: Type, obj: Any) -> Any:
+    def dec_hook(typ: Type[Any], obj: Any) -> Any:
         return typ(obj)
 
     msgspec.msgpack.decode(b"test", dec_hook=dec_hook)
@@ -867,7 +867,7 @@ def check_json_Encoder_uuid_format() -> None:
 
 
 def check_json_decode_dec_hook() -> None:
-    def dec_hook(typ: Type, obj: Any) -> Any:
+    def dec_hook(typ: Type[Any], obj: Any) -> Any:
         return typ(obj)
 
     msgspec.json.decode(b"test", dec_hook=dec_hook)
@@ -940,7 +940,7 @@ def check_yaml_encode_order() -> None:
 
 
 def check_yaml_decode_dec_hook() -> None:
-    def dec_hook(typ: Type, obj: Any) -> Any:
+    def dec_hook(typ: Type[Any], obj: Any) -> Any:
         return typ(obj)
 
     msgspec.yaml.decode(b"test", dec_hook=dec_hook)
@@ -988,7 +988,7 @@ def check_toml_encode_order() -> None:
 
 
 def check_toml_decode_dec_hook() -> None:
-    def dec_hook(typ: Type, obj: Any) -> Any:
+    def dec_hook(typ: Type[Any], obj: Any) -> Any:
         return typ(obj)
 
     msgspec.toml.decode(b"a = 1", dec_hook=dec_hook)
