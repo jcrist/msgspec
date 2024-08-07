@@ -15,11 +15,7 @@ source_files = [
     'yaml.py',
 ]
 message('CMake targets:\n - ' + '\n - '.join(mimalloc.target_list()))
-configure_file(
-    input: 'generate_atof_consts.py',
-    output: 'generate_atof_consts.py',
-    copy: true,
-)
+fs.copyfile('generate_atof_consts.py')
 atof_consts = custom_target(
     'atof_consts.h',
     output: 'atof_consts.h',
