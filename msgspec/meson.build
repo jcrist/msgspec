@@ -26,7 +26,7 @@ atof_consts = custom_target(
     'atof_consts.h',
     output: 'atof_consts.h',
     capture: true,
-    command: [python, 'msgspec'/'generate_atof_consts.py'],
+    command: [python, meson.current_build_dir()/'generate_atof_consts.py'],
     install: true,
     install_dir: 'msgspec',
     build_by_default: true,
