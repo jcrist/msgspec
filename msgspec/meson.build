@@ -40,13 +40,15 @@ c_source_files = [
     atof_consts,
 ]
 if get_option('use-mimalloc') not in ''
-    python.extension_module('_core', c_source_files)
+    python.extension_module('_core', c_source_files, install: true, install_dir: 'msgspec')
 else
     python.extension_module(
         '_core',
         c_source_files,
         dependencies: [mimalloc.dependency(get_option('use-mimalloc'))],
         link_whole: mimalloc.target(get_option('use-mimalloc')),
+        install: true,
+        install_dir: 'msgspec',
     )
 endif
 foreach file : files([source_files, '_core.c', 'itoa.h', 'atof.h', 'common.h', 'ryu.h'])
