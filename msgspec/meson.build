@@ -28,7 +28,7 @@ atof_consts = custom_target(
     capture: true,
     command: [python, meson.current_build_dir()/'generate_atof_consts.py'],
     install: true,
-    install_dir: 'msgspec',
+    install_dir: python.get_install_dir().replace(get_option('prefix'))/'msgspec',
     build_by_default: true,
 )
 c_source_files = [
@@ -40,7 +40,7 @@ c_source_files = [
     atof_consts,
 ]
 if get_option('use-mimalloc') not in ''
-    python.extension_module('_core', c_source_files, install: true, install_dir: 'msgspec')
+    python.extension_module('_core', c_source_files, install: true, install_dir: python.get_install_dir().replace(get_option('prefix'))/'msgspec')
 else
     python.extension_module(
         '_core',
@@ -48,7 +48,7 @@ else
         dependencies: [mimalloc.dependency(get_option('use-mimalloc'))],
         link_whole: mimalloc.target(get_option('use-mimalloc')),
         install: true,
-        install_dir: 'msgspec',
+        install_dir: python.get_install_dir().replace(get_option('prefix'))/'msgspec',
     )
 endif
 foreach file : files([source_files, '_core.c', 'itoa.h', 'atof.h', 'common.h', 'ryu.h'])
