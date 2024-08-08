@@ -1,7 +1,9 @@
 project(
     'msgspec',
     'c',
-    default_options: ['warning_level=3'],
+    default_options: [
+        'warning_level=3',
+    ],
     license: 'BSD-3-Clause',
     license_files: ['LICENSE.txt'],
     meson_version: '>=1.1.0',
@@ -80,7 +82,9 @@ configure_file(
 vcs_tag(input: 'pyproject.toml', output: 'pyproject.orig.toml')
 if get_option('use-mimalloc') not in ''
     cmake = import('cmake')
-    mimalloc = cmake.subproject('mimalloc')
+    opt_var = cmake.subproject_options()
+    opt_var.set_install(false)
+    mimalloc = cmake.subproject('mimalloc', options: opt_var)
 endif
 foreach source : root_files
     if source not in ['pyproject.toml', 'requirements.in', '.gitignore', 'README', 'CHANGELOG.md']

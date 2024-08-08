@@ -54,6 +54,6 @@ endif
 foreach file : files([source_files, '_core.c', 'itoa.h', 'atof.h', 'common.h', 'ryu.h'])
     fs.copyfile(file)
     if not meson.is_subproject() or get_option('install-subprojects').enabled()
-        python.install_sources(file, pure: true, subdir: 'msgspec')
+        python.install_sources(file, pure: false, subdir: 'msgspec')
     endif
 endforeach
