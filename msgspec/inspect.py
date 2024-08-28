@@ -683,7 +683,7 @@ def _is_enum(t):
 
 
 def _is_dataclass(t):
-    return hasattr(t, "__dataclass_fields__")
+    return hasattr(t, "__dataclass_fields__") and not hasattr(t, "__pydantic_fields__")
 
 
 def _is_attrs(t):

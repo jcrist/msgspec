@@ -410,6 +410,7 @@ typedef struct {
     PyObject *str__field_defaults;
     PyObject *str___post_init__;
     PyObject *str___dataclass_fields__;
+    PyObject *str___pydantic_fields__;
     PyObject *str___attrs_attrs__;
     PyObject *str___supertype__;
 #if PY312_PLUS
@@ -2162,7 +2163,8 @@ PyDoc_STRVAR(unset__doc__,
 "in an object needs to be treated differently than one containing an explicit\n"
 "``None`` value. In this case, you may use ``UNSET`` as the default value,\n"
 "rather than ``None`` when defining object schemas. This feature is supported\n"
-"for any `msgspec.Struct`, `dataclasses` or `attrs` types.\n"
+"for any `msgspec.Struct`, `dataclasses` or `attrs` types (excluding Pydantic\n"
+"dataclasses).\n"
 "\n"
 "Examples\n"
 "--------\n"
@@ -4767,7 +4769,9 @@ is_dataclass_or_attrs_class(TypeNodeCollectState *state, PyObject *t) {
         PyType_Check(t) && (
             PyObject_HasAttr(t, state->mod->str___dataclass_fields__) ||
             PyObject_HasAttr(t, state->mod->str___attrs_attrs__)
-        )
+        ) && ! (
+            PyObject_HasAttr(t, state->mod->str___pydantic_fields__)
+         )
     );
 }
 
@@ -22231,6 +22235,7 @@ PyInit__core(void)
     CACHED_STRING(str__field_defaults, "_field_defaults");
     CACHED_STRING(str___post_init__, "__post_init__");
     CACHED_STRING(str___dataclass_fields__, "__dataclass_fields__");
+    CACHED_STRING(str___pydantic_fields__, "__pydantic_fields__");
     CACHED_STRING(str___attrs_attrs__, "__attrs_attrs__");
     CACHED_STRING(str___supertype__, "__supertype__");
 #if PY312_PLUS
