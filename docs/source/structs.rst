@@ -725,7 +725,7 @@ Renaming Fields
 ---------------
 
 Sometimes you want the field name used in the encoded message to differ from
-the name used your Python code. Perhaps you want a ``camelCase`` naming
+the name used by your Python code. Perhaps you want a ``camelCase`` naming
 convention in your JSON messages, but to use ``snake_case`` field names in
 Python.
 
