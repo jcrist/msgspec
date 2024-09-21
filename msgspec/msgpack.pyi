@@ -10,6 +10,9 @@ from typing import (
     overload,
 )
 
+from typing_extensions import Buffer
+
+
 T = TypeVar("T")
 
 enc_hook_sig = Optional[Callable[[Any], Any]]
@@ -54,7 +57,7 @@ class Decoder(Generic[T]):
         dec_hook: dec_hook_sig = None,
         ext_hook: ext_hook_sig = None,
     ) -> None: ...
-    def decode(self, data: bytes | memoryview) -> T: ...
+    def decode(self, data: Buffer) -> T: ...
 
 class Encoder:
     enc_hook: enc_hook_sig
@@ -76,7 +79,7 @@ class Encoder:
 
 @overload
 def decode(
-    buf: bytes | memoryview,
+    buf: Buffer,
     *,
     strict: bool = True,
     dec_hook: dec_hook_sig = None,
@@ -84,7 +87,7 @@ def decode(
 ) -> Any: ...
 @overload
 def decode(
-    buf: bytes | memoryview,
+    buf: Buffer,
     *,
     type: Type[T] = ...,
     strict: bool = True,
@@ -93,7 +96,7 @@ def decode(
 ) -> T: ...
 @overload
 def decode(
-    buf: bytes | memoryview,
+    buf: Buffer,
     *,
     type: Any = ...,
     strict: bool = True,
