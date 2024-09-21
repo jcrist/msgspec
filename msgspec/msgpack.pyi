@@ -54,7 +54,7 @@ class Decoder(Generic[T]):
         dec_hook: dec_hook_sig = None,
         ext_hook: ext_hook_sig = None,
     ) -> None: ...
-    def decode(self, data: bytes) -> T: ...
+    def decode(self, data: bytes | memoryview) -> T: ...
 
 class Encoder:
     enc_hook: enc_hook_sig
@@ -76,7 +76,7 @@ class Encoder:
 
 @overload
 def decode(
-    buf: bytes,
+    buf: bytes | memoryview,
     *,
     strict: bool = True,
     dec_hook: dec_hook_sig = None,
@@ -84,7 +84,7 @@ def decode(
 ) -> Any: ...
 @overload
 def decode(
-    buf: bytes,
+    buf: bytes | memoryview,
     *,
     type: Type[T] = ...,
     strict: bool = True,
@@ -93,7 +93,7 @@ def decode(
 ) -> T: ...
 @overload
 def decode(
-    buf: bytes,
+    buf: bytes | memoryview,
     *,
     type: Any = ...,
     strict: bool = True,
