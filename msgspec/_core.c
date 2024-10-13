@@ -4447,7 +4447,7 @@ typenode_collect_convert_structs(TypeNodeCollectState *state) {
      *
      * If any of these checks fails, an appropriate error is returned.
      */
-    PyObject *tag_mapping = NULL, *tag_field = NULL, *set_item = NULL;
+    PyObject *tag_mapping = NULL, *tag_field = NULL, *set_iter = NULL, *set_item = NULL;
     PyObject *struct_info = NULL;
     bool array_like = false;
     bool tags_are_strings = true;
@@ -4456,14 +4456,8 @@ typenode_collect_convert_structs(TypeNodeCollectState *state) {
     tag_mapping = PyDict_New();
     if (tag_mapping == NULL) goto cleanup;
 
-#if PY313_PLUS
-    PyObject *iter_set = PyObject_GetIter(state->structs_set);
-    while ((set_item = PyIter_Next(iter_set)) != NULL) {
-#else
-    Py_ssize_t set_pos = 0;
-    Py_hash_t set_hash;
-    while (_PySet_NextEntry(state->structs_set, &set_pos, &set_item, &set_hash)) {
-#endif
+    set_iter = PyObject_GetIter(state->structs_set);
+    while ((set_item = PyIter_Next(set_iter))) {
         struct_info = StructInfo_Convert(set_item);
         if (struct_info == NULL) goto cleanup;
 
@@ -4571,6 +4565,7 @@ typenode_collect_convert_structs(TypeNodeCollectState *state) {
     status = 0;
 
 cleanup:
+    Py_XDECREF(set_iter);
     Py_XDECREF(tag_mapping);
     Py_XDECREF(struct_info);
     return status;
@@ -12441,20 +12436,18 @@ mpack_encode_set(EncoderState *self, PyObject *obj)
 
     if (mpack_encode_array_header(self, len, "set") < 0) return -1;
     if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
-#if PY313_PLUS
-    PyObject *iter_set = PyObject_GetIter(obj);
-    while ((item = PyIter_Next(iter_set)) != NULL) {
-#else
-    Py_ssize_t ppos = 0;
-    Py_hash_t hash;
-    while (_PySet_NextEntry(obj, &ppos, &item, &hash)) {
-#endif
+
+    PyObject *iter = PyObject_GetIter(obj);
+    if (iter == NULL) goto cleanup;
+
+    while ((item = PyIter_Next(iter))) {
         if (mpack_encode_inline(self, item) < 0) goto cleanup;
     }
     status = 0;
 
 cleanup:
     Py_LeaveRecursiveCall();
+    Py_XDECREF(iter);
     return status;
 }
 
@@ -13750,14 +13743,11 @@ json_encode_set(EncoderState *self, PyObject *obj)
 
     if (ms_write(self, "[", 1) < 0) return -1;
     if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
-#if PY313_PLUS
-    PyObject *iter_set = PyObject_GetIter(obj);
-    while ((item = PyIter_Next(iter_set)) != NULL) {
-#else
-    Py_ssize_t ppos = 0;
-    Py_hash_t hash;
-    while (_PySet_NextEntry(obj, &ppos, &item, &hash)) {
-#endif
+
+    PyObject *iter = PyObject_GetIter(obj);
+    if (iter == NULL) goto cleanup;
+
+    while ((item = PyIter_Next(iter))) {
         if (json_encode_inline(self, item) < 0) goto cleanup;
         if (ms_write(self, ",", 1) < 0) goto cleanup;
     }
@@ -13766,6 +13756,7 @@ json_encode_set(EncoderState *self, PyObject *obj)
     status = 0;
 cleanup:
     Py_LeaveRecursiveCall();
+    Py_XDECREF(iter);
     return status;
 }
 
