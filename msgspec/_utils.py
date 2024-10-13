@@ -51,6 +51,15 @@ else:
         return typing.ForwardRef(value, is_argument=False, is_class=True)
 
 
+# Python 3.13 adds a new mandatory type_params kwarg to _eval_type
+if sys.version_info >= (3, 13):
+
+    def _eval_type(t, globalns, localns):
+        return typing._eval_type(t, globalns, localns, ())
+else:
+    _eval_type = typing._eval_type
+
+
 def _apply_params(obj, mapping):
     if params := getattr(obj, "__parameters__", None):
         args = tuple(mapping.get(p, p) for p in params)
@@ -127,7 +136,7 @@ def get_class_annotations(obj):
                 value = type(None)
             elif isinstance(value, str):
                 value = _forward_ref(value)
-            value = typing._eval_type(value, cls_locals, cls_globals)
+            value = _eval_type(value, cls_locals, cls_globals)
             if mapping is not None:
                 value = _apply_params(value, mapping)
             hints[name] = value
