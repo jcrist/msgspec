@@ -5,13 +5,13 @@
     <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="API Docs" href="api.html" /><link rel="prev" title="Inspecting Types" href="inspect.html" />
 
-    <!-- Generated with Sphinx 7.1.2 and Furo 2024.05.06 -->
+    <!-- Generated with Sphinx 7.1.2 and Furo 2024.08.06 -->
         <title>Performance Tips</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
-    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=387cc868" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=354aac6f" />
     <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="_static/design-style.1e8bd061cd6da7fc9cf755528e8ffc24.min.css?v=0a3b3ea7" />
-    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=36a5483c" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=302659d7" />
     <link rel="stylesheet" type="text/css" href="_static/custom.css?v=6b2c8899" />
     
     
@@ -122,19 +122,6 @@
       <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
     </svg>
   </symbol>
-  <symbol id="svg-sun-half" viewBox="0 0 24 24">
-    <title>Auto light/dark mode</title>
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-shadow">
-      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-      <circle cx="12" cy="12" r="9" />
-      <path d="M13 12h5" />
-      <path d="M13 15h4" />
-      <path d="M13 18h1" />
-      <path d="M13 9h4" />
-      <path d="M13 6h1" />
-    </svg>
-  </symbol>
   <symbol id="svg-sun-with-moon" viewBox="0 0 24 24">
     <title>Auto light/dark, in light mode</title>
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -175,7 +162,7 @@
       <path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" />
       <path d="M13.5 6.5l4 4" />
       <path d="M20 21l2 -2l-2 -2" />
-      <path d="M17 17l-2 2l2 2" /
+      <path d="M17 17l-2 2l2 2" />
     </svg>
   </symbol>
   <symbol id="svg-eye" viewBox="0 0 24 24">
@@ -360,7 +347,7 @@ typed, you may need to create multiple decoders, one for each type.</p>
 <p><a class="reference internal" href="structs.html"><span class="doc">Structs</span></a> are msgspec’s native way of expressing user-defined types.
 They’re <a class="reference internal" href="benchmarks.html#json-benchmark"><span class="std std-ref">fast to encode/decode</span></a> and <a class="reference internal" href="benchmarks.html#struct-benchmark"><span class="std std-ref">fast to use</span></a>. If you have data with a known schema, we recommend
 defining a <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> type (or types) for your schema and preferring that
-over other types like <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a>/<a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#module-dataclasses" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses</span></code></a>/…</p>
+over other types like <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a>/<a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#module-dataclasses" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses</span></code></a>/…</p>
 </section>
 <section id="avoid-encoding-default-values">
 <h2>Avoid Encoding Default Values<a class="headerlink" href="#avoid-encoding-default-values" title="Permalink to this heading">¶</a></h2>
@@ -413,15 +400,15 @@ technique.</p>
 </section>
 <section id="reduce-allocations">
 <h2>Reduce Allocations<a class="headerlink" href="#reduce-allocations" title="Permalink to this heading">¶</a></h2>
-<p>Every call to <code class="docutils literal notranslate"><span class="pre">encode</span></code>/<code class="docutils literal notranslate"><span class="pre">Encoder.encode</span></code> allocates a new <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytes</span></code></a> object for
+<p>Every call to <code class="docutils literal notranslate"><span class="pre">encode</span></code>/<code class="docutils literal notranslate"><span class="pre">Encoder.encode</span></code> allocates a new <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytes</span></code></a> object for
 the output. <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> exposes an alternative <code class="docutils literal notranslate"><span class="pre">Encoder.encode_into</span></code> (e.g.
 <a class="reference internal" href="api.html#msgspec.json.Encoder.encode_into" title="msgspec.json.Encoder.encode_into"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.json.Encoder.encode_into</span></code></a>) that writes into a pre-allocated
-<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytearray" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytearray</span></code></a> instead (possibly reallocating to increase capacity).</p>
+<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytearray" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytearray</span></code></a> instead (possibly reallocating to increase capacity).</p>
 <p>This has a few uses:</p>
 <section id="reusing-an-output-buffer">
 <h3>Reusing an output buffer<a class="headerlink" href="#reusing-an-output-buffer" title="Permalink to this heading">¶</a></h3>
 <p>If you’re encoding and writing messages to a socket/file in a hot loop, you
-<em>may</em> benefit from allocating a single <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytearray" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytearray</span></code></a> buffer once and reusing it
+<em>may</em> benefit from allocating a single <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytearray" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bytearray</span></code></a> buffer once and reusing it
 for every message.</p>
 <p>For example:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">encoder</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">msgpack</span><span class="o">.</span><span class="n">Encoder</span><span class="p">()</span>
@@ -444,7 +431,7 @@ for every message.</p>
 fit the message size. This means that if a large message is encountered the
 buffer will be expanded to be equally large, but won’t be reduced back to
 normal afterwards (possibly bloating memory usage). You can use
-<a class="reference external" href="https://docs.python.org/3/library/sys.html#sys.getsizeof" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sys.getsizeof</span></code></a> (or call <code class="xref py py-obj docutils literal notranslate"><span class="pre">bytearray.__sizeof__</span></code>) directly to determine the
+<a class="reference external" href="https://docs.python.org/3/library/sys.html#sys.getsizeof" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sys.getsizeof</span></code></a> (or call <code class="xref py py-obj docutils literal notranslate"><span class="pre">bytearray.__sizeof__</span></code>) directly to determine the
 actual capacity of the buffer, since <code class="docutils literal notranslate"><span class="pre">len(buffer)</span></code> will only reflect the
 part of the buffer that is written to.</p></li>
 <li><p>Small messages (for some definition of “small”) likely won’t see a
@@ -657,7 +644,7 @@ average another ~2x speedup for decoding (and ~1.5x speedup for encoding).</p>
 </div><script data-url_root="./" id="documentation_options" src="_static/documentation_options.js?v=b3ba4146"></script>
     <script src="_static/doctools.js?v=888ff710"></script>
     <script src="_static/sphinx_highlight.js?v=4825356b"></script>
-    <script src="_static/scripts/furo.js?v=4e2eecee"></script>
+    <script src="_static/scripts/furo.js?v=5fa4622c"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
     <script src="_static/copybutton.js?v=de5a9c30"></script>
     <script src="_static/design-tabs.js?v=36754332"></script>

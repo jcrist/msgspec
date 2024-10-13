@@ -5,13 +5,13 @@
     <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="JSON Schema" href="jsonschema.html" /><link rel="prev" title="Constraints" href="constraints.html" />
 
-    <!-- Generated with Sphinx 7.1.2 and Furo 2024.05.06 -->
+    <!-- Generated with Sphinx 7.1.2 and Furo 2024.08.06 -->
         <title>Converters</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
-    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=387cc868" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=354aac6f" />
     <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="_static/design-style.1e8bd061cd6da7fc9cf755528e8ffc24.min.css?v=0a3b3ea7" />
-    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=36a5483c" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=302659d7" />
     <link rel="stylesheet" type="text/css" href="_static/custom.css?v=6b2c8899" />
     
     
@@ -122,19 +122,6 @@
       <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
     </svg>
   </symbol>
-  <symbol id="svg-sun-half" viewBox="0 0 24 24">
-    <title>Auto light/dark mode</title>
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-shadow">
-      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-      <circle cx="12" cy="12" r="9" />
-      <path d="M13 12h5" />
-      <path d="M13 15h4" />
-      <path d="M13 18h1" />
-      <path d="M13 9h4" />
-      <path d="M13 6h1" />
-    </svg>
-  </symbol>
   <symbol id="svg-sun-with-moon" viewBox="0 0 24 24">
     <title>Auto light/dark, in light mode</title>
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -175,7 +162,7 @@
       <path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" />
       <path d="M13.5 6.5l4 4" />
       <path d="M20 21l2 -2l-2 -2" />
-      <path d="M17 17l-2 2l2 2" /
+      <path d="M17 17l-2 2l2 2" />
     </svg>
   </symbol>
   <symbol id="svg-eye" viewBox="0 0 24 24">
@@ -338,7 +325,7 @@ error message is raised.</p></li>
 <p>These functions are designed to be paired with a Python serialization library as
 pre/post processors for typical <code class="docutils literal notranslate"><span class="pre">dumps</span></code> and <code class="docutils literal notranslate"><span class="pre">loads</span></code> functions.</p>
 <img alt="_images/converters-light.svg" class="only-light align-center" src="_images/converters-light.svg" /><img alt="_images/converters-dark.svg" class="only-dark align-center" src="_images/converters-dark.svg" /><p>For example, if <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> didn’t already provide support for <code class="docutils literal notranslate"><span class="pre">json</span></code>, you
-could add support by wrapping the standard library’s <a class="reference external" href="https://docs.python.org/3/library/json.html#module-json" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">json</span></code></a> module as follows:</p>
+could add support by wrapping the standard library’s <a class="reference external" href="https://docs.python.org/3/library/json.html#module-json" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">json</span></code></a> module as follows:</p>
 <div class="highlight-ipython notranslate"><div class="highlight"><pre><span></span><span class="gp">In [1]: </span><span class="kn">import</span> <span class="nn">json</span>
 <span class="gp">   ...: </span><span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Any</span>
 <span class="gp">   ...:</span>
@@ -381,8 +368,8 @@ could add support by wrapping the standard library’s <a class="reference exter
 configuration options:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">builtin_types</span></code>: an iterable of additional types to treat as builtin types,
-beyond the standard <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">list</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tuple</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#set" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#frozenset" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">frozenset</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">str</span></code></a>,
-<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">int</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">float</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bool</span></code></a>, and <a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a>.</p></li>
+beyond the standard <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">list</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tuple</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#set" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#frozenset" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">frozenset</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">str</span></code></a>,
+<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">int</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">float</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bool</span></code></a>, and <a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a>.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">str_keys</span></code>: whether the wrapped protocol only supports strings for object
 keys, rather than any hashable type.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">strict</span></code>: <a class="reference internal" href="api.html#msgspec.convert" title="msgspec.convert"><code class="xref py py-obj docutils literal notranslate"><span class="pre">convert</span></code></a> only. Whether type coercion rules should be strict.
@@ -401,12 +388,12 @@ False.</p></li>
 <hr class="docutils" />
 <p>Taking a look at another protocol - <a class="reference external" href="https://toml.io">TOML</a>. This protocol</p>
 <ul class="simple">
-<li><p>Includes native support for <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.datetime" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.datetime</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.date" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.date</span></code></a>, and
-<a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.time" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.time</span></code></a> types.</p></li>
+<li><p>Includes native support for <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.datetime" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.datetime</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.date" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.date</span></code></a>, and
+<a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.time" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.time</span></code></a> types.</p></li>
 <li><p>Only supports strings for object keys.</p></li>
 </ul>
 <p>If <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> didn’t already provide support for <code class="docutils literal notranslate"><span class="pre">toml</span></code>, you could add
-support by wrapping the standard library’s <a class="reference external" href="https://docs.python.org/3/library/tomllib.html#module-tomllib" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tomllib</span></code></a> module as follows:</p>
+support by wrapping the standard library’s <a class="reference external" href="https://docs.python.org/3/library/tomllib.html#module-tomllib" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tomllib</span></code></a> module as follows:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">datetime</span>
 <span class="kn">import</span> <span class="nn">tomllib</span>
 <span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Any</span>
@@ -490,7 +477,7 @@ with some additional code for error handling.</p>
 </div><script data-url_root="./" id="documentation_options" src="_static/documentation_options.js?v=b3ba4146"></script>
     <script src="_static/doctools.js?v=888ff710"></script>
     <script src="_static/sphinx_highlight.js?v=4825356b"></script>
-    <script src="_static/scripts/furo.js?v=4e2eecee"></script>
+    <script src="_static/scripts/furo.js?v=5fa4622c"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
     <script src="_static/copybutton.js?v=de5a9c30"></script>
     <script src="_static/design-tabs.js?v=36754332"></script>

@@ -5,13 +5,13 @@
     <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Inspecting Types" href="inspect.html" /><link rel="prev" title="Schema Evolution" href="schema-evolution.html" />
 
-    <!-- Generated with Sphinx 7.1.2 and Furo 2024.05.06 -->
+    <!-- Generated with Sphinx 7.1.2 and Furo 2024.08.06 -->
         <title>Extending</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
-    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=387cc868" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=354aac6f" />
     <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="_static/design-style.1e8bd061cd6da7fc9cf755528e8ffc24.min.css?v=0a3b3ea7" />
-    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=36a5483c" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=302659d7" />
     <link rel="stylesheet" type="text/css" href="_static/custom.css?v=6b2c8899" />
     
     
@@ -122,19 +122,6 @@
       <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
     </svg>
   </symbol>
-  <symbol id="svg-sun-half" viewBox="0 0 24 24">
-    <title>Auto light/dark mode</title>
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-shadow">
-      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-      <circle cx="12" cy="12" r="9" />
-      <path d="M13 12h5" />
-      <path d="M13 15h4" />
-      <path d="M13 18h1" />
-      <path d="M13 9h4" />
-      <path d="M13 6h1" />
-    </svg>
-  </symbol>
   <symbol id="svg-sun-with-moon" viewBox="0 0 24 24">
     <title>Auto light/dark, in light mode</title>
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -175,7 +162,7 @@
       <path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" />
       <path d="M13.5 6.5l4 4" />
       <path d="M20 21l2 -2l-2 -2" />
-      <path d="M17 17l-2 2l2 2" /
+      <path d="M17 17l-2 2l2 2" />
     </svg>
   </symbol>
   <symbol id="svg-eye" viewBox="0 0 24 24">
@@ -377,7 +364,7 @@ serialized. This process is then reversed during decoding.</p>
 <p>This means that <a class="reference internal" href="usage.html#typed-decoding"><span class="std std-ref">typed decoding</span></a> is required to roundtrip
 a message, since no custom type info is sent as part of the message.</p>
 <p>This method works best for types that are similar to a natively supported type
-(e.g. a <a class="reference external" href="https://docs.python.org/3/library/collections.html#collections.deque" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collections.deque</span></code></a> is similar to a <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">list</span></code></a>).  This can be accomplished
+(e.g. a <a class="reference external" href="https://docs.python.org/3/library/collections.html#collections.deque" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collections.deque</span></code></a> is similar to a <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">list</span></code></a>).  This can be accomplished
 by defining two callback functions:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">enc_hook</span></code> in <code class="docutils literal notranslate"><span class="pre">Encoder</span></code>, for transforming custom types into values
@@ -385,7 +372,7 @@ that <code class="docutils literal notranslate"><span class="pre">msgspec</span>
 <li><p><code class="docutils literal notranslate"><span class="pre">dec_hook</span></code> in <code class="docutils literal notranslate"><span class="pre">Decoder</span></code>, for converting natively supported types back
 into a custom type when using <a class="reference internal" href="usage.html#typed-decoding"><span class="std std-ref">typed decoding</span></a>.</p></li>
 </ul>
-<p>Here we define <code class="docutils literal notranslate"><span class="pre">enc_hook</span></code> and <code class="docutils literal notranslate"><span class="pre">dec_hook</span></code> callbacks to convert <a class="reference external" href="https://docs.python.org/3/library/functions.html#complex" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">complex</span></code></a>
+<p>Here we define <code class="docutils literal notranslate"><span class="pre">enc_hook</span></code> and <code class="docutils literal notranslate"><span class="pre">dec_hook</span></code> callbacks to convert <a class="reference external" href="https://docs.python.org/3/library/functions.html#complex" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">complex</span></code></a>
 objects to/from objects, which are then natively handled by <code class="docutils literal notranslate"><span class="pre">msgspec</span></code>.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">msgspec</span>
 <span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Type</span>
@@ -462,7 +449,7 @@ along as part of the message. This means that when properly configured, custom
 types can be deserialized even when using untyped deserialization. However, if
 you’re communicating with MessagePack libraries other than <code class="docutils literal notranslate"><span class="pre">msgspec</span></code>, you’d
 have to ensure your extension type was supported by those libraries as well.</p>
-<p>For example, perhaps you wanted to serialize <a class="reference external" href="https://docs.python.org/3/library/functions.html#complex" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">complex</span></code></a> number objects as an
+<p>For example, perhaps you wanted to serialize <a class="reference external" href="https://docs.python.org/3/library/functions.html#complex" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">complex</span></code></a> number objects as an
 extension type.  These objects can be represented as tuples of two floats (one
 “real” and one “imaginary”). If we represent each float as 8 bytes (a
 “double”), then any complex number can be fully represented by a 16 byte
@@ -473,7 +460,7 @@ buffer.</p>
   <span class="mi">8</span> <span class="nb">bytes</span>   <span class="mi">8</span> <span class="nb">bytes</span>
 </pre></div>
 </div>
-<p>Here we define <code class="docutils literal notranslate"><span class="pre">enc_hook</span></code> and <code class="docutils literal notranslate"><span class="pre">ext_hook</span></code> callbacks to convert <a class="reference external" href="https://docs.python.org/3/library/functions.html#complex" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">complex</span></code></a>
+<p>Here we define <code class="docutils literal notranslate"><span class="pre">enc_hook</span></code> and <code class="docutils literal notranslate"><span class="pre">ext_hook</span></code> callbacks to convert <a class="reference external" href="https://docs.python.org/3/library/functions.html#complex" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">complex</span></code></a>
 objects to/from this binary representation as a MessagePack extension.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">msgspec</span>
 <span class="kn">import</span> <span class="nn">struct</span>
@@ -522,7 +509,7 @@ objects to/from this binary representation as a MessagePack extension.</p>
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>Note that the <code class="docutils literal notranslate"><span class="pre">data</span></code> argument to <code class="docutils literal notranslate"><span class="pre">ext_hook</span></code> is a <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#memoryview" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">memoryview</span></code></a>. This
+<p>Note that the <code class="docutils literal notranslate"><span class="pre">data</span></code> argument to <code class="docutils literal notranslate"><span class="pre">ext_hook</span></code> is a <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#memoryview" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">memoryview</span></code></a>. This
 view is attached to the larger buffer containing the complete message being
 decoded. As such, you’ll want to ensure that you don’t keep a reference to
 the underlying buffer, otherwise you may accidentally persist the larger
@@ -609,7 +596,7 @@ memory usage.</p>
 </div><script data-url_root="./" id="documentation_options" src="_static/documentation_options.js?v=b3ba4146"></script>
     <script src="_static/doctools.js?v=888ff710"></script>
     <script src="_static/sphinx_highlight.js?v=4825356b"></script>
-    <script src="_static/scripts/furo.js?v=4e2eecee"></script>
+    <script src="_static/scripts/furo.js?v=5fa4622c"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
     <script src="_static/copybutton.js?v=de5a9c30"></script>
     <script src="_static/design-tabs.js?v=36754332"></script>
