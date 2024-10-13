@@ -11265,7 +11265,12 @@ ms_uuid_to_16_bytes(MsgspecState *mod, PyObject *obj, unsigned char *buf) {
         return -1;
     }
 #if PY313_PLUS
-    int out = _PyLong_AsByteArray((PyLongObject *)int128, buf, 16, 0, 0, 1);
+    int out = (int)PyLong_AsNativeBytes(
+        int128,
+        buf,
+        16,
+        Py_ASNATIVEBYTES_BIG_ENDIAN | Py_ASNATIVEBYTES_UNSIGNED_BUFFER
+    );
 #else
     int out = _PyLong_AsByteArray((PyLongObject *)int128, buf, 16, 0, 0);
 #endif
