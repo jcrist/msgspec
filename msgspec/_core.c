@@ -4621,10 +4621,14 @@ typenode_origin_args_metadata(
          * abstract -> concrete mapping. If present, this is an unparametrized
          * collection of some form. This helps avoid compatibility issues in
          * Python 3.8, where unparametrized collections still have __args__. */
-        origin = PyDict_GetItem(state->mod->concrete_types, t);
+        origin = PyDict_GetItemWithError(state->mod->concrete_types, t);
         if (origin != NULL) {
             Py_INCREF(origin);
             break;
+        }
+        else {
+            /* Ignore all errors in this initial check */
+            PyErr_Clear();
         }
 
         /* If `t` is a type instance, no need to inspect further */
