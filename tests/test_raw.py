@@ -1,5 +1,7 @@
 import operator
+import subprocess
 import sys
+import textwrap
 import weakref
 
 import pytest
@@ -67,6 +69,29 @@ def test_raw_copy():
     del r
     # Copy doesn't hold a reference to original view
     assert ref() is None
+
+
+def test_raw_copy_doesnt_leak():
+    """See https://github.com/jcrist/msgspec/pull/709"""
+    script = textwrap.dedent(
+        """
+        import msgspec
+        import tracemalloc
+
+        tracemalloc.start()
+
+        raw = msgspec.Raw(bytearray(1000))
+        for _ in range(10000):
+            raw.copy()
+
+        _, peak = tracemalloc.get_traced_memory()
+        print(peak)
+        """
+    )
+
+    output = subprocess.check_output([sys.executable, "-c", script])
+    peak = int(output.decode().strip())
+    assert peak < 10_000  # should really be ~2000
 
 
 def test_raw_pickle_bytes():
