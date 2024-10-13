@@ -14,6 +14,8 @@ from typing import (
     overload,
 )
 
+from typing_extensions import Buffer
+
 T = TypeVar("T")
 
 enc_hook_sig = Optional[Callable[[Any], Any]]
@@ -73,19 +75,19 @@ class Decoder(Generic[T]):
         dec_hook: dec_hook_sig = None,
         float_hook: float_hook_sig = None,
     ) -> None: ...
-    def decode(self, data: Union[bytes, str]) -> T: ...
-    def decode_lines(self, data: Union[bytes, str]) -> list[T]: ...
+    def decode(self, data: Union[Buffer, str]) -> T: ...
+    def decode_lines(self, data: Union[Buffer, str]) -> list[T]: ...
 
 @overload
 def decode(
-    buf: Union[bytes, str],
+    buf: Union[Buffer, str],
     *,
     strict: bool = True,
     dec_hook: dec_hook_sig = None,
 ) -> Any: ...
 @overload
 def decode(
-    buf: Union[bytes, str],
+    buf: Union[Buffer, str],
     *,
     type: Type[T] = ...,
     strict: bool = True,
@@ -93,7 +95,7 @@ def decode(
 ) -> T: ...
 @overload
 def decode(
-    buf: Union[bytes, str],
+    buf: Union[Buffer, str],
     *,
     type: Any = ...,
     strict: bool = True,
@@ -110,4 +112,4 @@ def schema_components(
 @overload
 def format(buf: str, *, indent: int = 2) -> str: ...
 @overload
-def format(buf: bytes, *, indent: int = 2) -> bytes: ...
+def format(buf: Buffer, *, indent: int = 2) -> bytes: ...

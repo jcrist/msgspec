@@ -16,7 +16,7 @@ from typing import (
     overload,
 )
 
-from typing_extensions import dataclass_transform
+from typing_extensions import dataclass_transform, Buffer
 
 from . import inspect, json, msgpack, structs, toml, yaml
 
@@ -108,7 +108,7 @@ class Raw(bytes):
     @overload
     def __new__(cls) -> "Raw": ...
     @overload
-    def __new__(cls, msg: Union[bytes, str]) -> "Raw": ...
+    def __new__(cls, msg: Union[Buffer, str]) -> "Raw": ...
     def copy(self) -> "Raw": ...
 
 class Meta:
