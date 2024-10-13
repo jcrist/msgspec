@@ -57,6 +57,12 @@ ms_popcount(uint64_t i) {                            \
 #define SET_SIZE(obj, size) (((PyVarObject *)obj)->ob_size = size)
 #endif
 
+#if PY313_PLUS
+#define MS_UNICODE_EQ(a, b) (PyUnicode_Compare(a, b) == 0)
+#else
+#define MS_UNICODE_EQ(a, b) _PyUnicode_EQ(a, b)
+#endif
+
 #define DIV_ROUND_CLOSEST(n, d) ((((n) < 0) == ((d) < 0)) ? (((n) + (d)/2)/(d)) : (((n) - (d)/2)/(d)))
 
 /* These macros are used to manually unroll some loops */
@@ -498,7 +504,7 @@ find_keyword(PyObject *kwnames, PyObject *const *kwstack, PyObject *key)
     for (i = 0; i < nkwargs; i++) {
         PyObject *kwname = PyTuple_GET_ITEM(kwnames, i);
         assert(PyUnicode_Check(kwname));
-        if (PyUnicode_Compare(kwname, key) == 0) {
+        if (MS_UNICODE_EQ(kwname, key)) {
             return kwstack[i];
         }
     }
@@ -7330,7 +7336,7 @@ Struct_vectorcall(PyTypeObject *cls, PyObject *const *args, size_t nargsf, PyObj
          * check for parameters passed both as arg and kwarg */
         for (field_index = 0; field_index < nfields; field_index++) {
             PyObject *field = PyTuple_GET_ITEM(fields, field_index);
-            if (PyUnicode_Compare(kwname, field) == 0) {
+            if (MS_UNICODE_EQ(kwname, field)) {
                 if (MS_UNLIKELY(field_index < nargs)) {
                     PyErr_Format(
                         PyExc_TypeError,
@@ -7737,7 +7743,7 @@ struct_replace(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject
         }
         for (field_index = 0; field_index < nfields; field_index++) {
             PyObject *field = PyTuple_GET_ITEM(fields, field_index);
-            if (PyUnicode_Compare(kwname, field) == 0) goto kw_found;
+            if (MS_UNICODE_EQ(kwname, field)) goto kw_found;
         }
 
         /* Unknown keyword */
