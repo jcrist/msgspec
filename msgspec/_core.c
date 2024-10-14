@@ -57,6 +57,14 @@ ms_popcount(uint64_t i) {                            \
 #define SET_SIZE(obj, size) (((PyVarObject *)obj)->ob_size = size)
 #endif
 
+/* In Python 3.12+, tp_dict is NULL for some core types, PyType_GetDict returns
+ * a borrowed reference to the interpreter or cls mapping */
+#if PY312_PLUS
+#define MS_GET_TYPE_DICT(a) PyType_GetDict(a)
+#else
+#define MS_GET_TYPE_DICT(a) ((a)->tp_dict)
+#endif
+
 #if PY313_PLUS
 #define MS_UNICODE_EQ(a, b) (PyUnicode_Compare(a, b) == 0)
 #else
@@ -5527,10 +5535,9 @@ structmeta_collect_base(StructMetaInfo *info, MsgspecState *mod, PyObject *base)
 
         static const char *attrs[] = {"__init__", "__new__"};
         Py_ssize_t nattrs = 2;
+        PyObject *tp_dict = MS_GET_TYPE_DICT((PyTypeObject *)base);
         for (Py_ssize_t i = 0; i < nattrs; i++) {
-            if (PyDict_GetItemString(
-                    ((PyTypeObject *)base)->tp_dict, attrs[i]) != NULL
-                ) {
+            if (PyDict_GetItemString(tp_dict, attrs[i]) != NULL) {
                 PyErr_Format(PyExc_TypeError, "Struct base classes cannot define %s", attrs[i]);
                 return -1;
             }
