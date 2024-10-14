@@ -1635,12 +1635,20 @@ ensure_is_finite_numeric(PyObject *val, const char *param, bool positive) {
         }
     }
     else {
-        PyErr_Format(
-            PyExc_TypeError,
-            "`%s` must be an int or float, got %.200s",
-            param, Py_TYPE(val)->tp_name
-        );
-        return false;
+        MsgspecState *mod = msgspec_get_global_state();
+        if (PyObject_IsInstance(val, mod->DecimalType)) {
+            PyObject *as_py_float = PyNumber_Float(val);
+            x = PyFloat_AS_DOUBLE(as_py_float);
+            Py_DECREF(as_py_float);
+        }
+        else {
+            PyErr_Format(
+                PyExc_TypeError,
+                "`%s` must be an int or float or Decimal, got %.200s",
+                param, Py_TYPE(val)->tp_name
+            );
+            return false;
+        }
     }
     if (positive && x <= 0) {
         PyErr_Format(PyExc_ValueError, "`%s` must be > 0", param);
@@ -1850,6 +1858,11 @@ Meta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
 
 static int
 Meta_traverse(Meta *self, visitproc visit, void *arg) {
+    Py_VISIT(self->gt);
+    Py_VISIT(self->ge);
+    Py_VISIT(self->lt);
+    Py_VISIT(self->le);
+    Py_VISIT(self->multiple_of);
     Py_VISIT(self->regex);
     Py_VISIT(self->examples);
     Py_VISIT(self->extra_json_schema);
@@ -2699,63 +2712,68 @@ AssocList_Sort(AssocList* list) {
  *************************************************************************/
 
 /* Types */
-#define MS_TYPE_ANY                 (1ull << 0)
-#define MS_TYPE_NONE                (1ull << 1)
-#define MS_TYPE_BOOL                (1ull << 2)
-#define MS_TYPE_INT                 (1ull << 3)
-#define MS_TYPE_FLOAT               (1ull << 4)
-#define MS_TYPE_STR                 (1ull << 5)
-#define MS_TYPE_BYTES               (1ull << 6)
-#define MS_TYPE_BYTEARRAY           (1ull << 7)
-#define MS_TYPE_MEMORYVIEW          (1ull << 8)
-#define MS_TYPE_DATETIME            (1ull << 9)
-#define MS_TYPE_DATE                (1ull << 10)
-#define MS_TYPE_TIME                (1ull << 11)
-#define MS_TYPE_TIMEDELTA           (1ull << 12)
-#define MS_TYPE_UUID                (1ull << 13)
-#define MS_TYPE_DECIMAL             (1ull << 14)
-#define MS_TYPE_EXT                 (1ull << 15)
-#define MS_TYPE_STRUCT              (1ull << 16)
-#define MS_TYPE_STRUCT_ARRAY        (1ull << 17)
-#define MS_TYPE_STRUCT_UNION        (1ull << 18)
-#define MS_TYPE_STRUCT_ARRAY_UNION  (1ull << 19)
-#define MS_TYPE_ENUM                (1ull << 20)
-#define MS_TYPE_INTENUM             (1ull << 21)
-#define MS_TYPE_CUSTOM              (1ull << 22)
-#define MS_TYPE_CUSTOM_GENERIC      (1ull << 23)
-#define MS_TYPE_DICT                ((1ull << 24) | (1ull << 25))
-#define MS_TYPE_LIST                (1ull << 26)
-#define MS_TYPE_SET                 (1ull << 27)
-#define MS_TYPE_FROZENSET           (1ull << 28)
-#define MS_TYPE_VARTUPLE            (1ull << 29)
-#define MS_TYPE_FIXTUPLE            (1ull << 30)
-#define MS_TYPE_INTLITERAL          (1ull << 31)
-#define MS_TYPE_STRLITERAL          (1ull << 32)
-#define MS_TYPE_TYPEDDICT           (1ull << 33)
-#define MS_TYPE_DATACLASS           (1ull << 34)
-#define MS_TYPE_NAMEDTUPLE          (1ull << 35)
+#define MS_TYPE_ANY                   (1ull << 0)
+#define MS_TYPE_NONE                  (1ull << 1)
+#define MS_TYPE_BOOL                  (1ull << 2)
+#define MS_TYPE_INT                   (1ull << 3)
+#define MS_TYPE_FLOAT                 (1ull << 4)
+#define MS_TYPE_STR                   (1ull << 5)
+#define MS_TYPE_BYTES                 (1ull << 6)
+#define MS_TYPE_BYTEARRAY             (1ull << 7)
+#define MS_TYPE_MEMORYVIEW            (1ull << 8)
+#define MS_TYPE_DATETIME              (1ull << 9)
+#define MS_TYPE_DATE                  (1ull << 10)
+#define MS_TYPE_TIME                  (1ull << 11)
+#define MS_TYPE_TIMEDELTA             (1ull << 12)
+#define MS_TYPE_UUID                  (1ull << 13)
+#define MS_TYPE_DECIMAL               (1ull << 14)
+#define MS_TYPE_EXT                   (1ull << 15)
+#define MS_TYPE_STRUCT                (1ull << 16)
+#define MS_TYPE_STRUCT_ARRAY          (1ull << 17)
+#define MS_TYPE_STRUCT_UNION          (1ull << 18)
+#define MS_TYPE_STRUCT_ARRAY_UNION    (1ull << 19)
+#define MS_TYPE_ENUM                  (1ull << 20)
+#define MS_TYPE_INTENUM               (1ull << 21)
+#define MS_TYPE_CUSTOM                (1ull << 22)
+#define MS_TYPE_CUSTOM_GENERIC        (1ull << 23)
+#define MS_TYPE_DICT                  ((1ull << 24) | (1ull << 25))
+#define MS_TYPE_LIST                  (1ull << 26)
+#define MS_TYPE_SET                   (1ull << 27)
+#define MS_TYPE_FROZENSET             (1ull << 28)
+#define MS_TYPE_VARTUPLE              (1ull << 29)
+#define MS_TYPE_FIXTUPLE              (1ull << 30)
+#define MS_TYPE_INTLITERAL            (1ull << 31)
+#define MS_TYPE_STRLITERAL            (1ull << 32)
+#define MS_TYPE_TYPEDDICT             (1ull << 33)
+#define MS_TYPE_DATACLASS             (1ull << 34)
+#define MS_TYPE_NAMEDTUPLE            (1ull << 35)
 /* Constraints */
-#define MS_CONSTR_INT_MIN           (1ull << 42)
-#define MS_CONSTR_INT_MAX           (1ull << 43)
-#define MS_CONSTR_INT_MULTIPLE_OF   (1ull << 44)
-#define MS_CONSTR_FLOAT_GT          (1ull << 45)
-#define MS_CONSTR_FLOAT_GE          (1ull << 46)
-#define MS_CONSTR_FLOAT_LT          (1ull << 47)
-#define MS_CONSTR_FLOAT_LE          (1ull << 48)
-#define MS_CONSTR_FLOAT_MULTIPLE_OF (1ull << 49)
-#define MS_CONSTR_STR_REGEX         (1ull << 50)
-#define MS_CONSTR_STR_MIN_LENGTH    (1ull << 51)
-#define MS_CONSTR_STR_MAX_LENGTH    (1ull << 52)
-#define MS_CONSTR_BYTES_MIN_LENGTH  (1ull << 53)
-#define MS_CONSTR_BYTES_MAX_LENGTH  (1ull << 54)
-#define MS_CONSTR_ARRAY_MIN_LENGTH  (1ull << 55)
-#define MS_CONSTR_ARRAY_MAX_LENGTH  (1ull << 56)
-#define MS_CONSTR_MAP_MIN_LENGTH    (1ull << 57)
-#define MS_CONSTR_MAP_MAX_LENGTH    (1ull << 58)
-#define MS_CONSTR_TZ_AWARE          (1ull << 59)
-#define MS_CONSTR_TZ_NAIVE          (1ull << 60)
+#define MS_CONSTR_INT_MIN             (1ull << 37)
+#define MS_CONSTR_INT_MAX             (1ull << 38)
+#define MS_CONSTR_INT_MULTIPLE_OF     (1ull << 39)
+#define MS_CONSTR_FLOAT_GT            (1ull << 40)
+#define MS_CONSTR_FLOAT_GE            (1ull << 41)
+#define MS_CONSTR_FLOAT_LT            (1ull << 42)
+#define MS_CONSTR_FLOAT_LE            (1ull << 43)
+#define MS_CONSTR_FLOAT_MULTIPLE_OF   (1ull << 44)
+#define MS_CONSTR_STR_REGEX           (1ull << 45)
+#define MS_CONSTR_STR_MIN_LENGTH      (1ull << 46)
+#define MS_CONSTR_STR_MAX_LENGTH      (1ull << 47)
+#define MS_CONSTR_BYTES_MIN_LENGTH    (1ull << 48)
+#define MS_CONSTR_BYTES_MAX_LENGTH    (1ull << 49)
+#define MS_CONSTR_ARRAY_MIN_LENGTH    (1ull << 50)
+#define MS_CONSTR_ARRAY_MAX_LENGTH    (1ull << 51)
+#define MS_CONSTR_MAP_MIN_LENGTH      (1ull << 52)
+#define MS_CONSTR_MAP_MAX_LENGTH      (1ull << 53)
+#define MS_CONSTR_TZ_AWARE            (1ull << 54)
+#define MS_CONSTR_TZ_NAIVE            (1ull << 55)
+#define MS_CONSTR_DECIMAL_GT          (1ull << 56)
+#define MS_CONSTR_DECIMAL_GE          (1ull << 57)
+#define MS_CONSTR_DECIMAL_LT          (1ull << 58)
+#define MS_CONSTR_DECIMAL_LE          (1ull << 59)
+#define MS_CONSTR_DECIMAL_MULTIPLE_OF (1ull << 60)
 /* Extra flag bit, used by TypedDict/dataclass implementations */
-#define MS_EXTRA_FLAG               (1ull << 63)
+#define MS_EXTRA_FLAG                 (1ull << 63)
 
 /* A TypeNode encodes information about all types at the same hierarchy in the
  * type tree. They can encode both single types (`int`) and unions of types
@@ -2795,6 +2813,11 @@ AssocList_Sort(AssocList* list) {
  * S | ARRAY_MAX_LENGTH |
  * S | MAP_MIN_LENGTH |
  * S | MAP_MAX_LENGTH |
+ * D | DECIMAL_GT |
+ * D | DECIMAL_GE |
+ * D | DECIMAL_LT |
+ * D | DECIMAL_LE |
+ * D | DECIMAL_MULTIPLE_OF |
  * T | FIXTUPLE [size, types ...] |
  * */
 
@@ -2824,10 +2847,16 @@ AssocList_Sort(AssocList* list) {
 #define SLOT_19 MS_CONSTR_ARRAY_MAX_LENGTH
 #define SLOT_20 MS_CONSTR_MAP_MIN_LENGTH
 #define SLOT_21 MS_CONSTR_MAP_MAX_LENGTH
+#define SLOT_22 MS_CONSTR_DECIMAL_GT
+#define SLOT_23 MS_CONSTR_DECIMAL_GE
+#define SLOT_24 MS_CONSTR_DECIMAL_LT
+#define SLOT_25 MS_CONSTR_DECIMAL_LE
+#define SLOT_26 MS_CONSTR_DECIMAL_MULTIPLE_OF
 
 /* Common groups */
 #define MS_INT_CONSTRS (SLOT_08 | SLOT_09 | SLOT_10)
 #define MS_FLOAT_CONSTRS (SLOT_11 | SLOT_12 | SLOT_13)
+#define MS_DECIMAL_CONSTRS (SLOT_22 | SLOT_23 | SLOT_24 | SLOT_25 | SLOT_26)
 #define MS_STR_CONSTRS (SLOT_05 | SLOT_14 | SLOT_15)
 #define MS_BYTES_CONSTRS (SLOT_16 | SLOT_17)
 #define MS_ARRAY_CONSTRS (SLOT_18 | SLOT_19)
@@ -3194,13 +3223,76 @@ TypeNode_get_constr_map_max_length(TypeNode *type) {
     return type->details[i].py_ssize_t;
 }
 
+static MS_INLINE PyObject *
+TypeNode_get_constr_decimal_gt(TypeNode *type) {
+    Py_ssize_t i = ms_popcount(
+        type->types & (
+            SLOT_00 | SLOT_01 | SLOT_02 | SLOT_03 | SLOT_04 | SLOT_05 | SLOT_06 | SLOT_07 |
+            SLOT_08 | SLOT_09 | SLOT_10 | SLOT_11 | SLOT_12 | SLOT_13 | SLOT_14 | SLOT_15 |
+            SLOT_16 | SLOT_17 | SLOT_18 | SLOT_19 | SLOT_20 | SLOT_21
+        )
+    );
+    return type->details[i].pointer;
+}
+
+static MS_INLINE PyObject *
+TypeNode_get_constr_decimal_ge(TypeNode *type) {
+    Py_ssize_t i = ms_popcount(
+        type->types & (
+            SLOT_00 | SLOT_01 | SLOT_02 | SLOT_03 | SLOT_04 | SLOT_05 | SLOT_06 | SLOT_07 |
+            SLOT_08 | SLOT_09 | SLOT_10 | SLOT_11 | SLOT_12 | SLOT_13 | SLOT_14 | SLOT_15 |
+            SLOT_16 | SLOT_17 | SLOT_18 | SLOT_19 | SLOT_20 | SLOT_21 | SLOT_22
+        )
+    );
+    return type->details[i].pointer;
+}
+
+static MS_INLINE PyObject *
+TypeNode_get_constr_decimal_lt(TypeNode *type) {
+    Py_ssize_t i = ms_popcount(
+        type->types & (
+            SLOT_00 | SLOT_01 | SLOT_02 | SLOT_03 | SLOT_04 | SLOT_05 | SLOT_06 | SLOT_07 |
+            SLOT_08 | SLOT_09 | SLOT_10 | SLOT_11 | SLOT_12 | SLOT_13 | SLOT_14 | SLOT_15 |
+            SLOT_16 | SLOT_17 | SLOT_18 | SLOT_19 | SLOT_20 | SLOT_21 | SLOT_22 | SLOT_23
+        )
+    );
+    return type->details[i].pointer;
+}
+
+static MS_INLINE PyObject *
+TypeNode_get_constr_decimal_le(TypeNode *type) {
+    Py_ssize_t i = ms_popcount(
+        type->types & (
+            SLOT_00 | SLOT_01 | SLOT_02 | SLOT_03 | SLOT_04 | SLOT_05 | SLOT_06 | SLOT_07 |
+            SLOT_08 | SLOT_09 | SLOT_10 | SLOT_11 | SLOT_12 | SLOT_13 | SLOT_14 | SLOT_15 |
+            SLOT_16 | SLOT_17 | SLOT_18 | SLOT_19 | SLOT_20 | SLOT_21 | SLOT_22 | SLOT_23 |
+            SLOT_24
+        )
+    );
+    return type->details[i].pointer;
+}
+
+static MS_INLINE PyObject *
+TypeNode_get_constr_decimal_multiple_of(TypeNode *type) {
+    Py_ssize_t i = ms_popcount(
+        type->types & (
+            SLOT_00 | SLOT_01 | SLOT_02 | SLOT_03 | SLOT_04 | SLOT_05 | SLOT_06 | SLOT_07 |
+            SLOT_08 | SLOT_09 | SLOT_10 | SLOT_11 | SLOT_12 | SLOT_13 | SLOT_14 | SLOT_15 |
+            SLOT_16 | SLOT_17 | SLOT_18 | SLOT_19 | SLOT_20 | SLOT_21 | SLOT_22 | SLOT_23 |
+            SLOT_24 | SLOT_25
+        )
+    );
+    return type->details[i].pointer;
+}
+
 static MS_INLINE void
 TypeNode_get_fixtuple(TypeNode *type, Py_ssize_t *offset, Py_ssize_t *size) {
     Py_ssize_t i = ms_popcount(
         type->types & (
             SLOT_00 | SLOT_01 | SLOT_02 | SLOT_03 | SLOT_04 | SLOT_05 | SLOT_06 | SLOT_07 |
             SLOT_08 | SLOT_09 | SLOT_10 | SLOT_11 | SLOT_12 | SLOT_13 | SLOT_14 | SLOT_15 |
-            SLOT_16 | SLOT_17 | SLOT_18 | SLOT_19 | SLOT_20 | SLOT_21
+            SLOT_16 | SLOT_17 | SLOT_18 | SLOT_19 | SLOT_20 | SLOT_21 | SLOT_22 | SLOT_23 |
+            SLOT_24 | SLOT_25 | SLOT_26
         )
     );
     *size = type->details[i].py_ssize_t;
@@ -3328,7 +3420,7 @@ typenode_simple_repr(TypeNode *self) {
         if (!strbuilder_extend_literal(&builder, "uuid")) return NULL;
     }
     if (self->types & MS_TYPE_DECIMAL) {
-        if (!strbuilder_extend_literal(&builder, "decimal")) return NULL;
+        if (!strbuilder_extend_literal(&builder, "Decimal")) return NULL;
     }
     if (self->types & MS_TYPE_EXT) {
         if (!strbuilder_extend_literal(&builder, "ext")) return NULL;
@@ -3398,6 +3490,11 @@ typedef struct {
     double c_float_min;
     double c_float_max;
     double c_float_multiple_of;
+    PyObject *py_decimal_gt;
+    PyObject *py_decimal_ge;
+    PyObject *py_decimal_lt;
+    PyObject *py_decimal_le;
+    PyObject *py_decimal_multiple_of;
     PyObject *c_str_regex;
     Py_ssize_t c_str_min_length;
     Py_ssize_t c_str_max_length;
@@ -3479,12 +3576,13 @@ constraints_update(Constraints *self, Meta *meta, PyObject *type) {
 enum constraint_kind {
     CK_INT = 0,
     CK_FLOAT = 1,
-    CK_STR = 2,
-    CK_BYTES = 3,
-    CK_TIME = 4,
-    CK_ARRAY = 5,
-    CK_MAP = 6,
-    CK_OTHER = 7,
+    CK_DECIMAL = 2,
+    CK_STR = 3,
+    CK_BYTES = 4,
+    CK_TIME = 5,
+    CK_ARRAY = 6,
+    CK_MAP = 7,
+    CK_OTHER = 8,
 };
 
 static int
@@ -3499,8 +3597,17 @@ err_invalid_constraint(const char *name, const char *kind, PyObject *obj) {
 
 static bool
 _constr_as_i64(PyObject *obj, int64_t *target, int offset) {
+    MsgspecState *mod = msgspec_get_global_state();
+    int64_t x;
     int overflow;
-    int64_t x = PyLong_AsLongLongAndOverflow(obj, &overflow);
+    if (PyObject_IsInstance(obj, mod->DecimalType)) {
+        PyObject *as_py_long = PyNumber_Long(obj);
+        x = PyLong_AsLongLongAndOverflow(as_py_long, &overflow);
+        Py_DECREF(as_py_long);
+    }
+    else {
+        x = PyLong_AsLongLongAndOverflow(obj, &overflow);
+    }
     if (overflow != 0) {
         PyErr_SetString(
             PyExc_ValueError,
@@ -3558,6 +3665,32 @@ _constr_as_py_ssize_t(PyObject *obj, Py_ssize_t *target) {
     return true;
 }
 
+static PyObject *
+_py_float_to_decimal(PyObject *py_float, MsgspecState *mod) {
+    /* Render as the nearest IEEE754 double before calling Decimal */
+    double val = PyFloat_AsDouble(py_float);
+    char buf[24];
+    int size = write_f64(val, buf, false);
+    PyObject *str = PyUnicode_New(size, 127);
+    if (str == NULL) return NULL;
+    memcpy(ascii_get_buffer(str), buf, size);
+    PyObject *out = CALL_ONE_ARG(mod->DecimalType, str);
+    Py_DECREF(str);
+    return out;
+}
+
+static bool
+_constr_as_decimal(PyObject *obj, PyObject **target) {
+    MsgspecState *mod = msgspec_get_global_state();
+    PyObject *decimal = PyFloat_Check(obj) ?
+        _py_float_to_decimal(obj, mod) :
+        CALL_ONE_ARG(mod->DecimalType, obj);
+    if (decimal == NULL) return false;
+    *target = decimal;
+    Py_INCREF(decimal);
+    return true;
+}
+
 static int
 typenode_collect_constraints(
     TypeNodeCollectState *state,
@@ -3570,7 +3703,7 @@ typenode_collect_constraints(
     if (constraints_is_empty(constraints)) return 0;
 
     /* Check that the constraints are valid for the corresponding type */
-    if (kind != CK_INT && kind != CK_FLOAT) {
+    if (kind != CK_INT && kind != CK_FLOAT && kind != CK_DECIMAL) {
         if (constraints->gt != NULL) return err_invalid_constraint("gt", "numeric", obj);
         if (constraints->ge != NULL) return err_invalid_constraint("ge", "numeric", obj);
         if (constraints->lt != NULL) return err_invalid_constraint("lt", "numeric", obj);
@@ -3631,6 +3764,28 @@ typenode_collect_constraints(
         if (constraints->multiple_of != NULL) {
             state->types |= MS_CONSTR_FLOAT_MULTIPLE_OF;
             if (!_constr_as_f64(constraints->multiple_of, &(state->c_float_multiple_of), 0)) return -1;
+        }
+    }
+    else if (kind == CK_DECIMAL) {
+        if (constraints->gt != NULL) {
+            state->types |= MS_CONSTR_DECIMAL_GT;
+            if (!_constr_as_decimal(constraints->gt, &(state->py_decimal_gt))) return -1;
+        }
+        else if (constraints->ge != NULL) {
+            state->types |= MS_CONSTR_DECIMAL_GE;
+            if (!_constr_as_decimal(constraints->ge, &(state->py_decimal_ge))) return -1;
+        }
+        if (constraints->lt != NULL) {
+            state->types |= MS_CONSTR_DECIMAL_LT;
+            if (!_constr_as_decimal(constraints->lt, &(state->py_decimal_lt))) return -1;
+        }
+        else if (constraints->le != NULL) {
+            state->types |= MS_CONSTR_DECIMAL_LE;
+            if (!_constr_as_decimal(constraints->le, &(state->py_decimal_le))) return -1;
+        }
+        if (constraints->multiple_of != NULL) {
+            state->types |= MS_CONSTR_DECIMAL_MULTIPLE_OF;
+            if (!_constr_as_decimal(constraints->multiple_of, &(state->py_decimal_multiple_of))) return -1;
         }
     }
     else if (kind == CK_STR) {
@@ -3723,7 +3878,12 @@ typenode_from_collect_state(TypeNodeCollectState *state) {
             MS_CONSTR_ARRAY_MIN_LENGTH |
             MS_CONSTR_ARRAY_MAX_LENGTH |
             MS_CONSTR_MAP_MIN_LENGTH |
-            MS_CONSTR_MAP_MAX_LENGTH
+            MS_CONSTR_MAP_MAX_LENGTH |
+            MS_CONSTR_DECIMAL_GT |
+            MS_CONSTR_DECIMAL_GE |
+            MS_CONSTR_DECIMAL_LT | 
+            MS_CONSTR_DECIMAL_LE |
+            MS_CONSTR_DECIMAL_MULTIPLE_OF
         )
     );
     if (state->types & MS_TYPE_FIXTUPLE) {
@@ -3850,6 +4010,21 @@ typenode_from_collect_state(TypeNodeCollectState *state) {
     if (state->types & MS_CONSTR_STR_REGEX) {
         Py_INCREF(state->c_str_regex);
         out->details[e_ind++].pointer = state->c_str_regex;
+    }
+    if (state->types & MS_CONSTR_DECIMAL_GT) {
+        out->details[e_ind++].pointer = state->py_decimal_gt;
+    }
+    if (state->types & MS_CONSTR_DECIMAL_GE) {
+        out->details[e_ind++].pointer = state->py_decimal_ge;
+    }
+    if (state->types & MS_CONSTR_DECIMAL_LT) {
+        out->details[e_ind++].pointer = state->py_decimal_lt;
+    }
+    if (state->types & MS_CONSTR_DECIMAL_LE) {
+        out->details[e_ind++].pointer = state->py_decimal_le;
+    }
+    if (state->types & MS_CONSTR_DECIMAL_MULTIPLE_OF) {
+        out->details[e_ind++].pointer = state->py_decimal_multiple_of;
     }
     if (state->dict_key_obj != NULL) {
         TypeNode *temp = TypeNode_Convert(state->dict_key_obj);
@@ -4051,7 +4226,7 @@ typenode_collect_check_invariants(TypeNodeCollectState *state) {
             PyExc_TypeError,
             "Type unions may not contain more than one str-like type (`str`, "
             "`Enum`, `Literal[str values]`, `datetime`, `date`, `time`, `timedelta`, "
-            "`uuid`, `decimal`, `bytes`, `bytearray`) - type `%R` is not supported",
+            "`uuid`, `Decimal`, `bytes`, `bytearray`) - type `%R` is not supported",
             state->context
         );
         return -1;
@@ -4599,6 +4774,11 @@ typenode_collect_clear_state(TypeNodeCollectState *state) {
     Py_CLEAR(state->literal_int_lookup);
     Py_CLEAR(state->literal_str_values);
     Py_CLEAR(state->literal_str_lookup);
+    Py_CLEAR(state->py_decimal_gt);
+    Py_CLEAR(state->py_decimal_ge);
+    Py_CLEAR(state->py_decimal_lt);
+    Py_CLEAR(state->py_decimal_le);
+    Py_CLEAR(state->py_decimal_multiple_of);
     Py_CLEAR(state->c_str_regex);
 }
 
@@ -4824,6 +5004,10 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
         state->types |= MS_TYPE_FLOAT;
         kind = CK_FLOAT;
     }
+    else if (t == state->mod->DecimalType) {
+        state->types |= MS_TYPE_DECIMAL;
+        kind = CK_DECIMAL;
+    }
     else if (t == (PyObject *)(&PyUnicode_Type)) {
         state->types |= MS_TYPE_STR;
         kind = CK_STR;
@@ -4856,9 +5040,6 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
     }
     else if (t == state->mod->UUIDType) {
         state->types |= MS_TYPE_UUID;
-    }
-    else if (t == state->mod->DecimalType) {
-        state->types |= MS_TYPE_DECIMAL;
     }
     else if (t == (PyObject *)(&Ext_Type)) {
         state->types |= MS_TYPE_EXT;
@@ -10002,6 +10183,75 @@ ms_check_float_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
     return _ms_check_float_constraints(obj, type, path);
 }
 
+static MS_NOINLINE void
+_err_decimal_constraint(const char *msg, PyObject *c, PathNode *path) {
+    ms_raise_validation_error(path, "Expected `Decimal` %s %S%U", msg, c);
+}
+
+static bool
+ms_passes_decimal_constraints(
+    PyObject *obj, TypeNode *type, PathNode *path
+) {
+    MsgspecState *mod = msgspec_get_global_state();
+    if (type->types & MS_CONSTR_DECIMAL_GT) {
+        PyObject *c = TypeNode_get_constr_decimal_gt(type);
+        int ok = PyObject_RichCompareBool(obj, c, Py_GT);
+        if (MS_UNLIKELY(ok != 1)) {
+            _err_decimal_constraint(">", c, path);
+            return false;
+        }
+    }
+    if (type->types & MS_CONSTR_DECIMAL_GE) {
+        PyObject *c = TypeNode_get_constr_decimal_ge(type);
+        int ok = PyObject_RichCompareBool(obj, c, Py_GE);
+        if (MS_UNLIKELY(ok != 1)) {
+            _err_decimal_constraint(">=", c, path);
+            return false;
+        }
+    }
+    if (type->types & MS_CONSTR_DECIMAL_LT) {
+        PyObject *c = TypeNode_get_constr_decimal_lt(type);
+        int ok = PyObject_RichCompareBool(obj, c, Py_LT);
+        if (MS_UNLIKELY(ok != 1)) {
+            _err_decimal_constraint("<", c, path);
+            return false;
+        }
+    }
+    if (type->types & MS_CONSTR_DECIMAL_LE) {
+        PyObject *c = TypeNode_get_constr_decimal_le(type);
+        int ok = PyObject_RichCompareBool(obj, c, Py_LE);
+        if (MS_UNLIKELY(ok != 1)) {
+            _err_decimal_constraint("<=", c, path);
+            return false;
+        }
+    }
+    if (MS_UNLIKELY(type->types & MS_CONSTR_DECIMAL_MULTIPLE_OF)) {
+        PyObject *c = TypeNode_get_constr_decimal_multiple_of(type);
+        PyObject *modulo = PyNumber_Remainder(obj, c);
+        PyObject *zero = PyLong_FromLong(0L);
+        int ok = PyObject_RichCompareBool(modulo, zero, Py_EQ);
+        Py_DECREF(modulo);
+        if (MS_UNLIKELY(ok != 1)) {
+            _err_decimal_constraint("that's a multiple of", c, path);
+            return false;
+        }
+    }
+    return true;
+}
+
+static MS_NOINLINE PyObject *
+_ms_check_decimal_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
+    if (ms_passes_decimal_constraints(obj, type, path)) return obj;
+    Py_DECREF(obj);
+    return NULL;
+}
+
+static MS_INLINE PyObject *
+ms_check_decimal_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
+    if (MS_LIKELY(!(type->types & MS_DECIMAL_CONSTRS))) return obj;
+    return _ms_check_decimal_constraints(obj, type, path);
+}
+
 static MS_NOINLINE bool
 _err_py_ssize_t_constraint(const char *msg, Py_ssize_t c, PathNode *path) {
     ms_raise_validation_error(path, msg, c);
@@ -11403,25 +11653,54 @@ ms_decode_uuid_from_bytes(const char *buf, Py_ssize_t size, PathNode *path) {
  *************************************************************************/
 
 static PyObject *
-ms_decode_decimal_from_pyobj(PyObject *str, PathNode *path, MsgspecState *mod) {
-    if (mod == NULL) {
-        mod = msgspec_get_global_state();
+_ms_decode_constr_decimal_from_pyobj(
+    PyObject *obj, TypeNode *type, PathNode *path, MsgspecState *mod
+) {
+    PyObject *out = CALL_ONE_ARG(mod->DecimalType, obj);
+    if (out == NULL) return NULL;
+    if (!ms_passes_decimal_constraints(out, type, path)) {
+        Py_DECREF(out);
+        return NULL;
     }
-    return CALL_ONE_ARG(mod->DecimalType, str);
+    return out;
 }
 
 static PyObject *
-ms_decode_decimal_from_pystr(PyObject *str, PathNode *path, MsgspecState *mod) {
-    PyObject *out = ms_decode_decimal_from_pyobj(str, path, mod);
+ms_decode_decimal_from_pyobj(
+    PyObject *obj, TypeNode *type, PathNode *path, MsgspecState *mod
+) {
+    if (mod == NULL) {
+        mod = msgspec_get_global_state();
+    }
+    if (MS_UNLIKELY(type->types & MS_DECIMAL_CONSTRS)) {
+        return _ms_decode_constr_decimal_from_pyobj(obj, type, path, mod);
+    }
+    return CALL_ONE_ARG(mod->DecimalType, obj);
+}
+
+static PyObject *
+ms_decode_decimal_from_pystr(
+    PyObject *str, TypeNode *type, PathNode *path, MsgspecState *mod
+) {
+    PyObject *out = ms_decode_decimal_from_pyobj(str, type, path, mod);
     if (out == NULL) {
-        ms_error_with_path("Invalid decimal string%U", path);
+        if (mod == NULL) {
+            mod = msgspec_get_global_state();
+        }
+        bool validation_error = PyErr_ExceptionMatches(mod->ValidationError);
+        if (!validation_error) ms_error_with_path("Invalid decimal string%U", path);
     }
     return out;
 }
 
 static PyObject *
 ms_decode_decimal(
-    const char *view, Py_ssize_t size, bool is_ascii, PathNode *path, MsgspecState *mod
+    const char *view,
+    Py_ssize_t size,
+    bool is_ascii,
+    TypeNode *type,
+    PathNode *path,
+    MsgspecState *mod
 ) {
     PyObject *str;
 
@@ -11434,43 +11713,45 @@ ms_decode_decimal(
         str = PyUnicode_DecodeUTF8(view, size, NULL);
         if (str == NULL) return NULL;
     }
-    PyObject *out = ms_decode_decimal_from_pystr(str, path, mod);
+    PyObject *out = ms_decode_decimal_from_pystr(str, type, path, mod);
     Py_DECREF(str);
     return out;
 }
 
 static PyObject *
-ms_decode_decimal_from_int64(int64_t x, PathNode *path) {
+ms_decode_decimal_from_int64(int64_t x, TypeNode *type, PathNode *path) {
     PyObject *temp = PyLong_FromLongLong(x);
     if (temp == NULL) return NULL;
-    PyObject *out = ms_decode_decimal_from_pyobj(temp, path, NULL);
+    PyObject *out = ms_decode_decimal_from_pyobj(temp, type, path, NULL);
     Py_DECREF(temp);
     return out;
 }
 
 static PyObject *
-ms_decode_decimal_from_uint64(uint64_t x, PathNode *path) {
+ms_decode_decimal_from_uint64(uint64_t x, TypeNode *type, PathNode *path) {
     PyObject *temp = PyLong_FromUnsignedLongLong(x);
     if (temp == NULL) return NULL;
-    PyObject *out = ms_decode_decimal_from_pyobj(temp, path, NULL);
+    PyObject *out = ms_decode_decimal_from_pyobj(temp, type, path, NULL);
     Py_DECREF(temp);
     return out;
 }
 
 static PyObject *
-ms_decode_decimal_from_float(double val, PathNode *path, MsgspecState *mod) {
+ms_decode_decimal_from_float(
+    double val, TypeNode *type, PathNode *path, MsgspecState *mod
+) {
     if (MS_LIKELY(isfinite(val))) {
         /* For finite values, render as the nearest IEEE754 double in string
          * form, then call decimal.Decimal to parse */
         char buf[24];
         int n = write_f64(val, buf, false);
-        return ms_decode_decimal(buf, n, true, path, mod);
+        return ms_decode_decimal(buf, n, true, type, path, mod);
     }
     else {
         /* For nonfinite values, convert to float obj and go through python */
         PyObject *temp = PyFloat_FromDouble(val);
         if (temp == NULL) return NULL;
-        PyObject *out = ms_decode_decimal_from_pyobj(temp, path, mod);
+        PyObject *out = ms_decode_decimal_from_pyobj(temp, type, path, mod);
         Py_DECREF(temp);
         return out;
     }
@@ -11563,7 +11844,7 @@ ms_post_decode_int64(
         return ms_decode_float(x, type, path);
     }
     else if (type->types & MS_TYPE_DECIMAL) {
-        return ms_decode_decimal_from_int64(x, path);
+        return ms_decode_decimal_from_int64(x, type, path);
     }
     else if (!strict) {
         if (type->types & MS_TYPE_BOOL) {
@@ -11594,7 +11875,7 @@ ms_post_decode_uint64(
         return ms_decode_float(x, type, path);
     }
     else if (type->types & MS_TYPE_DECIMAL) {
-        return ms_decode_decimal_from_uint64(x, path);
+        return ms_decode_decimal_from_uint64(x, type, path);
     }
     else if (!strict) {
         if (type->types & MS_TYPE_BOOL) {
@@ -11787,7 +12068,7 @@ done:
         )
     ) {
         return ms_decode_decimal(
-            (char *)start, pend - start, true, path, NULL
+            (char *)start, pend - start, true, type, path, NULL
         );
     }
     if (is_negative) {
@@ -12004,7 +12285,7 @@ end_parsing:
         )
     ) {
         return ms_decode_decimal(
-            (char *)start, p - start, true, path, NULL
+            (char *)start, p - start, true, type, path, NULL
         );
     }
     else if (MS_UNLIKELY(float_hook != NULL && type->types & MS_TYPE_ANY)) {
@@ -14999,7 +15280,7 @@ mpack_decode_float(DecoderState *self, double x, TypeNode *type, PathNode *path)
         return ms_decode_float(x, type, path);
     }
     else if (type->types & MS_TYPE_DECIMAL) {
-        return ms_decode_decimal_from_float(x, path, NULL);
+        return ms_decode_decimal_from_float(x, type, path, NULL);
     }
     else if (!self->strict) {
         if (type->types & MS_TYPE_INT) {
@@ -15053,7 +15334,7 @@ mpack_decode_str(DecoderState *self, Py_ssize_t size, TypeNode *type, PathNode *
         return ms_decode_uuid_from_str(s, size, path);
     }
     else if (MS_UNLIKELY(type->types & MS_TYPE_DECIMAL)) {
-        return ms_decode_decimal(s, size, false, path, NULL);
+        return ms_decode_decimal(s, size, false, type, path, NULL);
     }
 
     return ms_validation_error("str", type, path);
@@ -17208,7 +17489,7 @@ json_decode_string(JSONDecoderState *self, TypeNode *type, PathNode *path) {
         return ms_decode_uuid_from_str(view, size, path);
     }
     else if (MS_UNLIKELY(type->types & MS_TYPE_DECIMAL)) {
-        return ms_decode_decimal(view, size, is_ascii, path, NULL);
+        return ms_decode_decimal(view, size, is_ascii, type, path, NULL);
     }
     else if (
         MS_UNLIKELY(type->types &
@@ -20225,7 +20506,7 @@ convert_int(
         type->types & MS_TYPE_DECIMAL
         && !(self->builtin_types & MS_BUILTIN_DECIMAL)
     ) {
-        return ms_decode_decimal_from_pyobj(obj, path, self->mod);
+        return ms_decode_decimal_from_pyobj(obj, type, path, self->mod);
     }
     return convert_int_uncommon(self, obj, type, path);
 }
@@ -20243,7 +20524,7 @@ convert_float(
         && !(self->builtin_types & MS_BUILTIN_DECIMAL)
     ) {
         return ms_decode_decimal_from_float(
-            PyFloat_AS_DOUBLE(obj), path, self->mod
+            PyFloat_AS_DOUBLE(obj), type, path, self->mod
         );
     }
     else if (!self->strict) {
@@ -20342,7 +20623,7 @@ convert_str_uncommon(
         (type->types & MS_TYPE_DECIMAL)
         && !(self->builtin_types & MS_BUILTIN_DECIMAL)
     ) {
-        return ms_decode_decimal_from_pystr(obj, path, self->mod);
+        return ms_decode_decimal_from_pystr(obj, type, path, self->mod);
     }
     else if (
         (type->types & MS_TYPE_BYTES)
@@ -20529,6 +20810,7 @@ convert_decimal(
     ConvertState *self, PyObject *obj, TypeNode *type, PathNode *path
 ) {
     if (type->types & MS_TYPE_DECIMAL) {
+        if (!ms_passes_decimal_constraints(obj, type, path)) return NULL;
         Py_INCREF(obj);
         return obj;
     }
@@ -20539,7 +20821,7 @@ convert_decimal(
         Py_DECREF(temp);
         return out;
     }
-    return ms_validation_error("decimal", type, path);
+    return ms_validation_error("Decimal", type, path);
 }
 
 
@@ -22247,6 +22529,7 @@ PyInit__core(void)
     temp_module = PyImport_ImportModule("decimal");
     if (temp_module == NULL) return NULL;
     st->DecimalType = PyObject_GetAttrString(temp_module, "Decimal");
+    Py_DECREF(temp_module);
     if (st->DecimalType == NULL) return NULL;
 
     /* Get the re.compile function */
