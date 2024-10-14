@@ -38,6 +38,7 @@ annotations:
 - ``__init__``
 - ``__repr__``
 - ``__copy__``
+- ``__replace__``
 - ``__eq__`` & ``__ne__``
 - ``__match_args__`` (for Python 3.10+'s `pattern matching`_)
 - ``__rich_repr__`` (for pretty printing support with rich_)
