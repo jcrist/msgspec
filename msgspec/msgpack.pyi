@@ -57,7 +57,7 @@ class Decoder(Generic[T]):
         dec_hook: dec_hook_sig = None,
         ext_hook: ext_hook_sig = None,
     ) -> None: ...
-    def decode(self, data: Buffer) -> T: ...
+    def decode(self, buf: Buffer, /) -> T: ...
 
 class Encoder:
     enc_hook: enc_hook_sig
@@ -72,14 +72,15 @@ class Encoder:
         uuid_format: Literal["canonical", "hex", "bytes"] = "canonical",
         order: Literal[None, "deterministic", "sorted"] = None,
     ): ...
-    def encode(self, obj: Any) -> bytes: ...
+    def encode(self, obj: Any, /) -> bytes: ...
     def encode_into(
-        self, obj: Any, buffer: bytearray, offset: Optional[int] = 0
+        self, obj: Any, buffer: bytearray, offset: Optional[int] = 0, /
     ) -> None: ...
 
 @overload
 def decode(
     buf: Buffer,
+    /,
     *,
     strict: bool = True,
     dec_hook: dec_hook_sig = None,
@@ -88,6 +89,7 @@ def decode(
 @overload
 def decode(
     buf: Buffer,
+    /,
     *,
     type: Type[T] = ...,
     strict: bool = True,
@@ -97,10 +99,11 @@ def decode(
 @overload
 def decode(
     buf: Buffer,
+    /,
     *,
     type: Any = ...,
     strict: bool = True,
     dec_hook: dec_hook_sig = None,
     ext_hook: ext_hook_sig = None,
 ) -> Any: ...
-def encode(obj: Any, *, enc_hook: enc_hook_sig = None, order: Literal[None, "deterministic", "sorted"] = None) -> bytes: ...
+def encode(obj: Any, /, *, enc_hook: enc_hook_sig = None, order: Literal[None, "deterministic", "sorted"] = None) -> bytes: ...
