@@ -246,6 +246,12 @@ class TestMixins:
             class Test(Struct, Mixin):
                 pass
 
+    def test_mixin_builtin_type_errors(self):
+        with pytest.raises(TypeError):
+
+            class Test(Struct, Exception):
+                pass
+
 
 def test_struct_subclass_forbids_non_types():
     # Currently this failcase is handled by CPython's internals, but it's good
