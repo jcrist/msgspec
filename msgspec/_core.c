@@ -7640,6 +7640,80 @@ error:
     return NULL;
 }
 
+static PyObject *
+Struct_replace(
+    PyObject *self,
+    PyObject *const *args,
+    Py_ssize_t nargs,
+    PyObject *kwnames
+) {
+    Py_ssize_t nkwargs = (kwnames == NULL) ? 0 : PyTuple_GET_SIZE(kwnames);
+
+    if (!check_positional_nargs(nargs, 0, 0)) return NULL;
+
+    StructMetaObject *struct_type = (StructMetaObject *)Py_TYPE(self);
+    PyObject *fields = struct_type->struct_fields;
+    Py_ssize_t nfields = PyTuple_GET_SIZE(fields);
+    bool is_gc = MS_TYPE_IS_GC(struct_type);
+    bool should_untrack = is_gc;
+
+    PyObject *out = Struct_alloc((PyTypeObject *)struct_type);
+    if (out == NULL) return NULL;
+
+    for (Py_ssize_t i = 0; i < nkwargs; i++) {
+        PyObject *val;
+        Py_ssize_t field_index;
+        PyObject *kwname = PyTuple_GET_ITEM(kwnames, i);
+
+        /* Since keyword names are interned, first loop with pointer
+         * comparisons only. */
+        for (field_index = 0; field_index < nfields; field_index++) {
+            PyObject *field = PyTuple_GET_ITEM(fields, field_index);
+            if (MS_LIKELY(kwname == field)) goto kw_found;
+        }
+        for (field_index = 0; field_index < nfields; field_index++) {
+            PyObject *field = PyTuple_GET_ITEM(fields, field_index);
+            if (MS_UNICODE_EQ(kwname, field)) goto kw_found;
+        }
+
+        /* Unknown keyword */
+        PyErr_Format(
+            PyExc_TypeError, "`%.200s` has no field '%U'",
+            ((PyTypeObject *)struct_type)->tp_name, kwname
+        );
+        goto error;
+
+    kw_found:
+        val = args[i];
+        Py_INCREF(val);
+        Struct_set_index(out, field_index, val);
+        if (should_untrack) {
+            should_untrack = !MS_MAYBE_TRACKED(val);
+        }
+    }
+
+    for (Py_ssize_t i = 0; i < nfields; i++) {
+        if (Struct_get_index_noerror(out, i) == NULL) {
+            PyObject *val = Struct_get_index(self, i);
+            if (val == NULL) goto error;
+            if (should_untrack) {
+                should_untrack = !MS_MAYBE_TRACKED(val);
+            }
+            Py_INCREF(val);
+            Struct_set_index(out, i, val);
+        }
+    }
+
+    if (is_gc && !should_untrack) {
+        PyObject_GC_Track(out);
+    }
+    return out;
+
+error:
+    Py_DECREF(out);
+    return NULL;
+}
+
 static AssocList *
 AssocList_FromStruct(PyObject *obj) {
     if (Py_EnterRecursiveCall(" while serializing an object")) return NULL;
@@ -7713,12 +7787,12 @@ PyDoc_STRVAR(struct_replace__doc__,
 "\n"
 "See Also\n"
 "--------\n"
+"copy.replace\n"
 "dataclasses.replace"
 );
 static PyObject*
 struct_replace(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
 {
-    Py_ssize_t nkwargs = (kwnames == NULL) ? 0 : PyTuple_GET_SIZE(kwnames);
 
     if (!check_positional_nargs(nargs, 1, 1)) return NULL;
     PyObject *obj = args[0];
@@ -7726,68 +7800,7 @@ struct_replace(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject
         PyErr_SetString(PyExc_TypeError, "`struct` must be a `msgspec.Struct`");
         return NULL;
     }
-
-    StructMetaObject *struct_type = (StructMetaObject *)Py_TYPE(obj);
-    PyObject *fields = struct_type->struct_fields;
-    Py_ssize_t nfields = PyTuple_GET_SIZE(fields);
-    bool is_gc = MS_TYPE_IS_GC(struct_type);
-    bool should_untrack = is_gc;
-
-    PyObject *out = Struct_alloc((PyTypeObject *)struct_type);
-    if (out == NULL) return NULL;
-
-    for (Py_ssize_t i = 0; i < nkwargs; i++) {
-        PyObject *val;
-        Py_ssize_t field_index;
-        PyObject *kwname = PyTuple_GET_ITEM(kwnames, i);
-
-        /* Since keyword names are interned, first loop with pointer
-         * comparisons only. */
-        for (field_index = 0; field_index < nfields; field_index++) {
-            PyObject *field = PyTuple_GET_ITEM(fields, field_index);
-            if (MS_LIKELY(kwname == field)) goto kw_found;
-        }
-        for (field_index = 0; field_index < nfields; field_index++) {
-            PyObject *field = PyTuple_GET_ITEM(fields, field_index);
-            if (MS_UNICODE_EQ(kwname, field)) goto kw_found;
-        }
-
-        /* Unknown keyword */
-        PyErr_Format(
-            PyExc_TypeError, "`%.200s` has no field '%U'",
-            ((PyTypeObject *)struct_type)->tp_name, kwname
-        );
-        goto error;
-
-    kw_found:
-        val = args[i + 1];
-        Py_INCREF(val);
-        Struct_set_index(out, field_index, val);
-        if (should_untrack) {
-            should_untrack = !MS_MAYBE_TRACKED(val);
-        }
-    }
-
-    for (Py_ssize_t i = 0; i < nfields; i++) {
-        if (Struct_get_index_noerror(out, i) == NULL) {
-            PyObject *val = Struct_get_index(obj, i);
-            if (val == NULL) goto error;
-            if (should_untrack) {
-                should_untrack = !MS_MAYBE_TRACKED(val);
-            }
-            Py_INCREF(val);
-            Struct_set_index(out, i, val);
-        }
-    }
-
-    if (is_gc && !should_untrack) {
-        PyObject_GC_Track(out);
-    }
-    return out;
-
-error:
-    Py_DECREF(out);
-    return NULL;
+    return Struct_replace(obj, args + 1, 0, kwnames);
 }
 
 PyDoc_STRVAR(struct_asdict__doc__,
@@ -8047,6 +8060,7 @@ StructMixin_config(StructMetaObject *self, void *closure) {
 
 static PyMethodDef Struct_methods[] = {
     {"__copy__", Struct_copy, METH_NOARGS, "copy a struct"},
+    {"__replace__", (PyCFunction) Struct_replace, METH_FASTCALL | METH_KEYWORDS, "create a new struct with replacements" },
     {"__reduce__", Struct_reduce, METH_NOARGS, "reduce a struct"},
     {"__rich_repr__", Struct_rich_repr, METH_NOARGS, "rich repr"},
     {NULL, NULL},
