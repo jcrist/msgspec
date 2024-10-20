@@ -2239,18 +2239,18 @@ class TestGenericStruct:
 
 
 class TestStructPostInit:
-    @pytest.mark.parametrize("array_like", [False, True])
     @pytest.mark.parametrize("union", [False, True])
-    def test_struct_post_init(self, array_like, union):
-        count = 0
+    @mapcls_from_attributes_and_array_like
+    def test_struct_post_init(self, union, mapcls, from_attributes, array_like):
+        called = False
         singleton = object()
 
         class Ex(Struct, array_like=array_like, tag=union):
             x: int
 
             def __post_init__(self):
-                nonlocal count
-                count += 1
+                nonlocal called
+                called = True
                 return singleton
 
         if union:
@@ -2262,25 +2262,23 @@ class TestStructPostInit:
         else:
             typ = Ex
 
-        msg = Ex(1)
-        buf = to_builtins(msg)
-        res = convert(buf, type=typ)
-        assert res == msg
-        assert count == 2  # 1 for Ex(), 1 for decode
+        msg = mapcls(type="Ex", x=1) if union else mapcls(x=1)
+        res = convert(msg, type=typ, from_attributes=from_attributes)
+        assert type(res) is Ex
+        assert called
         assert sys.getrefcount(singleton) == 2  # 1 for ref, 1 for call
 
-    @pytest.mark.parametrize("array_like", [False, True])
     @pytest.mark.parametrize("union", [False, True])
     @pytest.mark.parametrize("exc_class", [ValueError, TypeError, OSError])
-    def test_struct_post_init_errors(self, array_like, union, exc_class):
-        error = False
-
+    @mapcls_from_attributes_and_array_like
+    def test_struct_post_init_errors(
+        self, union, exc_class, mapcls, from_attributes, array_like
+    ):
         class Ex(Struct, array_like=array_like, tag=union):
             x: int
 
             def __post_init__(self):
-                if error:
-                    raise exc_class("Oh no!")
+                raise exc_class("Oh no!")
 
         if union:
 
@@ -2291,8 +2289,7 @@ class TestStructPostInit:
         else:
             typ = Ex
 
-        msg = to_builtins([Ex(1)])
-        error = True
+        msg = [mapcls(type="Ex", x=1) if union else mapcls(x=1)]
 
         if exc_class in (ValueError, TypeError):
             expected = ValidationError
@@ -2300,7 +2297,7 @@ class TestStructPostInit:
             expected = exc_class
 
         with pytest.raises(expected, match="Oh no!") as rec:
-            convert(msg, type=List[typ])
+            convert(msg, type=List[typ], from_attributes=from_attributes)
 
         if expected is ValidationError:
             assert "- at `$[0]`" in str(rec.value)

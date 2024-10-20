@@ -21364,6 +21364,9 @@ convert_object_to_struct(
             should_untrack = !MS_MAYBE_TRACKED(val);
         }
     }
+
+    if (Struct_decode_post_init(struct_type, out, path) < 0) goto error;
+
     Py_LeaveRecursiveCall();
     if (is_gc && !should_untrack)
         PyObject_GC_Track(out);
