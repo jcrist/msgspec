@@ -2600,3 +2600,14 @@ class TestCustom:
 
         assert rec.value.__cause__ is rec.value.__context__
         assert type(rec.value.__cause__) is TypeError
+
+
+class TestRaw:
+    def test_raw(self):
+        raw = msgspec.Raw(b"123")
+
+        class Ex(Struct):
+            x: msgspec.Raw
+
+        sol = Ex(x=raw)
+        assert convert({"x": raw}, type=Ex) == sol

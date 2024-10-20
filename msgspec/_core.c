@@ -20557,6 +20557,17 @@ convert_immutable(
 }
 
 static PyObject *
+convert_raw(
+    ConvertState *self, PyObject *obj, TypeNode *type, PathNode *path
+) {
+    if (type->types == 0) {
+        Py_INCREF(obj);
+        return obj;
+    }
+    return ms_validation_error("raw", type, path);
+}
+
+static PyObject *
 convert_seq_to_list(
     ConvertState *self, PyObject **items, Py_ssize_t size,
     TypeNode *item_type, PathNode *path
@@ -21665,6 +21676,9 @@ convert(
     }
     else if (pytype == &Ext_Type) {
         return convert_immutable(self, MS_TYPE_EXT, "ext", obj, type, path);
+    }
+    else if (pytype == &Raw_Type) {
+        return convert_raw(self, obj, type, path);
     }
     else if (PyAnySet_Check(obj)) {
         return convert_any_set(self, obj, type, path);
