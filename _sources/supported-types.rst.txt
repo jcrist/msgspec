@@ -1059,9 +1059,13 @@ other than a field for one of these types.
 ------------------------------------
 
 Enum types (`enum.Enum`, `enum.IntEnum`, `enum.StrEnum`, ...) encode as their
-member *values* in all protocols. Only enums composed of all string or all
-integer values are supported. An error is raised during decoding if the value
-isn't the proper type, or doesn't match any valid member.
+member *values* in all protocols.
+
+Any enum whose *value* is a supported type may be encoded, but only enums
+composed of all string or all integer values may be decoded.
+
+An error is raised during decoding if the value isn't the proper type, or
+doesn't match any valid member.
 
 .. code-block:: python
 
