@@ -9401,8 +9401,10 @@ encoder_encode_into_common(
             PyErr_SetString(PyExc_ValueError, "offset must be >= -1");
             return NULL;
         }
-        if (offset > buf_size) {
-            offset = buf_size;
+
+        if (offset < buf_size) {
+            buf_size = Py_MAX(8, 1.5 * offset);
+            if (PyByteArray_Resize(buf, buf_size) < 0) return NULL;
         }
     }
 
@@ -9419,9 +9421,11 @@ encoder_encode_into_common(
         .max_output_len = buf_size,
         .resize_buffer = ms_resize_bytearray
     };
+
     if (encode(&state, obj) < 0) {
         return NULL;
     }
+
     FAST_BYTEARRAY_SHRINK(buf, state.output_len);
     Py_RETURN_NONE;
 }
