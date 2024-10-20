@@ -604,20 +604,27 @@ class TestEnum:
         with pytest.raises(TypeError, match="Enum types must have at least one item"):
             proto.Decoder(Empty)
 
-    def test_unsupported_type_errors(self, proto):
-        class Bad(enum.Enum):
+    def test_encode_complex(self, proto):
+        class Complex(enum.Enum):
             A = 1.5
 
-        with pytest.raises(
-            msgspec.EncodeError, match="Only enums with int or str values are supported"
-        ):
-            proto.encode(Bad.A)
+        res = proto.encode(Complex.A)
+        sol = proto.encode(1.5)
+        assert res == sol
+
+        res = proto.encode({Complex.A: 1})
+        sol = proto.encode({1.5: 1})
+        assert res == sol
+
+    def test_decode_complex_errors(self, proto):
+        class Complex(enum.Enum):
+            A = 1.5
 
         with pytest.raises(TypeError) as rec:
-            proto.Decoder(Bad)
+            proto.Decoder(Complex)
 
         assert "Enums must contain either all str or all int values" in str(rec.value)
-        assert repr(Bad) in str(rec.value)
+        assert repr(Complex) in str(rec.value)
 
     @pytest.mark.parametrize(
         "values",

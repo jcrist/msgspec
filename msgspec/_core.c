@@ -12947,22 +12947,9 @@ mpack_encode_enum(EncoderState *self, PyObject *obj)
     if (PyUnicode_Check(obj))
         return mpack_encode_str(self, obj);
 
-    int status;
     PyObject *value = PyObject_GetAttr(obj, self->mod->str__value_);
     if (value == NULL) return -1;
-    if (PyLong_CheckExact(value)) {
-        status = mpack_encode_long(self, value);
-    }
-    else if (PyUnicode_CheckExact(value)) {
-        status = mpack_encode_str(self, value);
-    }
-    else {
-        PyErr_SetString(
-            self->mod->EncodeError,
-            "Only enums with int or str values are supported"
-        );
-        status = -1;
-    }
+    int status = mpack_encode(self, value);
     Py_DECREF(value);
     return status;
 }
@@ -13593,40 +13580,25 @@ json_encode_raw(EncoderState *self, PyObject *obj)
     return ms_write(self, raw->buf, raw->len);
 }
 
+static int json_encode_dict_key_noinline(EncoderState *, PyObject *);
+
 static int
 json_encode_enum(EncoderState *self, PyObject *obj, bool is_key)
 {
     if (PyLong_Check(obj)) {
-        if (MS_UNLIKELY(is_key)) {
-            return json_encode_long_as_str(self, obj);
-        }
-        return json_encode_long(self, obj);
+        return is_key ? json_encode_long_as_str(self, obj) : json_encode_long(self, obj);
     }
     if (PyUnicode_Check(obj)) {
         return json_encode_str(self, obj);
     }
 
-    int status;
     PyObject *value = PyObject_GetAttr(obj, self->mod->str__value_);
     if (value == NULL) return -1;
-    if (PyLong_CheckExact(value)) {
-        if (MS_UNLIKELY(is_key)) {
-            status = json_encode_long_as_str(self, value);
-        }
-        else {
-            status = json_encode_long(self, value);
-        }
-    }
-    else if (PyUnicode_CheckExact(value)) {
-        status = json_encode_str(self, value);
-    }
-    else {
-        PyErr_SetString(
-            self->mod->EncodeError,
-            "Only enums with int or str values are supported"
-        );
-        status = -1;
-    }
+
+    int status = (
+        is_key ? json_encode_dict_key_noinline(self, value) : json_encode(self, value)
+    );
+
     Py_DECREF(value);
     return status;
 }
@@ -13794,8 +13766,6 @@ cleanup:
     Py_XDECREF(iter);
     return status;
 }
-
-static int json_encode_dict_key_noinline(EncoderState *, PyObject *);
 
 static MS_INLINE int
 json_encode_dict_key(EncoderState *self, PyObject *key) {
@@ -19417,17 +19387,7 @@ static PyObject * to_builtins(ToBuiltinsState *, PyObject *, bool);
 static PyObject *
 to_builtins_enum(ToBuiltinsState *self, PyObject *obj)
 {
-    PyObject *value = PyObject_GetAttr(obj, self->mod->str__value_);
-    if (value == NULL) return NULL;
-    if (PyLong_CheckExact(value) || PyUnicode_CheckExact(value)) {
-        return value;
-    }
-    Py_DECREF(value);
-    PyErr_SetString(
-        self->mod->EncodeError,
-        "Only enums with int or str values are supported"
-    );
-    return NULL;
+    return PyObject_GetAttr(obj, self->mod->str__value_);
 }
 
 static PyObject *
