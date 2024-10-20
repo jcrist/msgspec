@@ -11649,6 +11649,7 @@ ms_post_decode_float(
  *************************************************************************/
 
 #define ONE_E18 1000000000000000000ULL
+#define ONE_E19_MINUS_ONE 9999999999999999999ULL
 
 static MS_NOINLINE PyObject *
 parse_number_fallback(
@@ -11948,7 +11949,7 @@ end_parsing:
                 (is_float) ||
                 ((integer_end - integer_start) != 20) ||
                 (*integer_start != '1') ||
-                (mantissa <= ONE_E18)
+                (mantissa <= ONE_E19_MINUS_ONE)
             )
         ) {
             /* We overflowed. Redo parsing, truncating at 19 digits */

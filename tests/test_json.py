@@ -1113,17 +1113,30 @@ class TestIntegers:
         assert isinstance(x2, int)
         assert x2 == x
 
-    @pytest.mark.parametrize("x", [-(2**63) - 1, 2**64])
-    def test_decode_big_int_as_any(self, x):
+    @pytest.mark.parametrize(
+        "x",
+        [
+            -(2**63) - 1,
+            2**64,
+            2**64 + 10**18,
+            2**64 + 10**18 + 1,
+            19999999999999999999,
+            20000000000000000000,
+            2**64 + 10**19,  # mantissa overflows to 20 digits
+            2**64 + 10**19 - 1,
+            -(2**64),
+            -(2**64) + 10**18,
+            -(2**64) + 10**18 + 1,
+            -19999999999999999999,
+            -20000000000000000000,
+            -(2**64 + 10**19),
+            -(2**64 + 10**19 - 1),
+        ],
+    )
+    @pytest.mark.parametrize("type", [Any, int])
+    def test_decode_big_int(self, x, type):
         s = str(x).encode()
-        x2 = msgspec.json.decode(s)
-        assert isinstance(x2, int)
-        assert x2 == x
-
-    @pytest.mark.parametrize("x", [-(2**63) - 1, 2**64])
-    def test_decode_big_int_as_int(self, x):
-        s = str(x).encode()
-        x2 = msgspec.json.decode(s, type=int)
+        x2 = msgspec.json.decode(s, type=type)
         assert isinstance(x2, int)
         assert x2 == x
 
