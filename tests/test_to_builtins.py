@@ -428,6 +428,14 @@ class TestToBuiltins:
         with pytest.raises(TypeError, match="Encoding objects of type Bad"):
             to_builtins(msg)
 
+    def test_dataclass_class_errors(self):
+        @dataclass
+        class Ex:
+            x: int
+
+        with pytest.raises(TypeError, match="Encoding objects of type type"):
+            to_builtins(Ex)
+
     @pytest.mark.parametrize("slots", [True, False])
     def test_attrs(self, slots):
         attrs = pytest.importorskip("attrs")

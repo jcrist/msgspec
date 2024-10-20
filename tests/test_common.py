@@ -2490,6 +2490,14 @@ class TestDataclass:
         with pytest.raises(RuntimeError, match="is not a dict"):
             proto.encode(Ex(1))
 
+    def test_encode_dataclass_class_errors(self, proto):
+        @dataclass
+        class Ex:
+            x: int
+
+        with pytest.raises(TypeError, match="Encoding objects of type type"):
+            proto.encode(Ex)
+
     def test_encode_dataclass_no_slots(self, proto):
         @dataclass
         class Test:
