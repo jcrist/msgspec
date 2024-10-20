@@ -5529,9 +5529,6 @@ structmeta_collect_base(StructMetaInfo *info, MsgspecState *mod, PyObject *base)
         if (((PyTypeObject *)base)->tp_dictoffset) {
             info->has_non_slots_bases = true;
         }
-        /* XXX: in Python 3.8 Generic defines __new__, but we can ignore it.
-         * This can be removed when Python 3.8 support is dropped */
-        if (base == mod->typing_generic) return 0;
 
         static const char *attrs[] = {"__init__", "__new__"};
         Py_ssize_t nattrs = 2;
