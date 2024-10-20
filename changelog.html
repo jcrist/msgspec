@@ -1,16 +1,16 @@
 <!doctype html>
-<html class="no-js" lang="en" data-content_root="">
+<html class="no-js" lang="en" data-content_root="./">
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
     <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="prev" title="Usage with EdgeDB" href="examples/edgedb.html" />
 
-    <!-- Generated with Sphinx 7.1.2 and Furo 2024.08.06 -->
+    <!-- Generated with Sphinx 8.1.3 and Furo 2024.08.06 -->
         <title>Changelog</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=354aac6f" />
     <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
-    <link rel="stylesheet" type="text/css" href="_static/design-style.1e8bd061cd6da7fc9cf755528e8ffc24.min.css?v=0a3b3ea7" />
+    <link rel="stylesheet" type="text/css" href="_static/sphinx-design.min.css?v=95c83b7e" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=302659d7" />
     <link rel="stylesheet" type="text/css" href="_static/custom.css?v=6b2c8899" />
     
@@ -310,319 +310,319 @@
         </div>
         <article role="main" id="furo-main-content">
           <section id="changelog">
-<h1>Changelog<a class="headerlink" href="#changelog" title="Permalink to this heading">¶</a></h1>
+<h1>Changelog<a class="headerlink" href="#changelog" title="Link to this heading">¶</a></h1>
 <section id="version-0-18-6-2024-01-21">
-<h2>Version 0.18.6 (2024-01-21)<a class="headerlink" href="#version-0-18-6-2024-01-21" title="Permalink to this heading">¶</a></h2>
+<h2>Version 0.18.6 (2024-01-21)<a class="headerlink" href="#version-0-18-6-2024-01-21" title="Link to this heading">¶</a></h2>
 <ul class="simple">
-<li><p>Support coercing integral floats to ints when <code class="docutils literal notranslate"><span class="pre">strict=False</span></code> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/619">PR #619</a>).</p></li>
-<li><p>Preserve leading <code class="docutils literal notranslate"><span class="pre">_</span></code> when renaming fields to camel or pascal case (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/620">PR #620</a>).</p></li>
-<li><p>Support zero-copy decoding binary fields to a <code class="docutils literal notranslate"><span class="pre">memoryview</span></code> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/624">PR #624</a>).</p></li>
+<li><p>Support coercing integral floats to ints when <code class="docutils literal notranslate"><span class="pre">strict=False</span></code> (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/619">PR #619</a>).</p></li>
+<li><p>Preserve leading <code class="docutils literal notranslate"><span class="pre">_</span></code> when renaming fields to camel or pascal case (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/620">PR #620</a>).</p></li>
+<li><p>Support zero-copy decoding binary fields to a <code class="docutils literal notranslate"><span class="pre">memoryview</span></code> (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/624">PR #624</a>).</p></li>
 <li><p>Fix a bug when inheriting from the same <code class="docutils literal notranslate"><span class="pre">Generic</span></code> base class multiple times
-(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/626">PR #626</a>).</p></li>
+(<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/626">PR #626</a>).</p></li>
 <li><p>Add an <code class="docutils literal notranslate"><span class="pre">order</span></code> option to all encoders for enforcing deterministic/sorted
 ordering when encoding. This can help provide a more consistent or human
-readable output (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/627">PR #627</a>).</p></li>
+readable output (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/627">PR #627</a>).</p></li>
 <li><p>Support inheriting from any slots-class when defining a new <code class="docutils literal notranslate"><span class="pre">Struct</span></code> type
-with <code class="docutils literal notranslate"><span class="pre">gc=False</span></code> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/635">PR #635</a>).</p></li>
+with <code class="docutils literal notranslate"><span class="pre">gc=False</span></code> (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/635">PR #635</a>).</p></li>
 <li><p>Automatically infer the input field naming convention when converting
 non-dict mappings or arbitrary objects to <code class="docutils literal notranslate"><span class="pre">Struct</span></code> types in
-<code class="docutils literal notranslate"><span class="pre">msgspec.convert</span></code> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/636">PR #636</a>).</p></li>
+<code class="docutils literal notranslate"><span class="pre">msgspec.convert</span></code> (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/636">PR #636</a>).</p></li>
 </ul>
 </section>
 <section id="version-0-18-5-2023-12-12">
-<h2>Version 0.18.5 (2023-12-12)<a class="headerlink" href="#version-0-18-5-2023-12-12" title="Permalink to this heading">¶</a></h2>
+<h2>Version 0.18.5 (2023-12-12)<a class="headerlink" href="#version-0-18-5-2023-12-12" title="Link to this heading">¶</a></h2>
 <ul class="simple">
 <li><p>Support unhashable <code class="docutils literal notranslate"><span class="pre">Annotated</span></code> metadata in <a class="reference internal" href="api.html#msgspec.inspect.type_info" title="msgspec.inspect.type_info"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.inspect.type_info</span></code></a>
-(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/566">PR #566</a>).</p></li>
+(<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/566">PR #566</a>).</p></li>
 <li><p>Fix bug preventing decoding dataclasses/attrs types with default values and
-<code class="docutils literal notranslate"><span class="pre">slots=True,</span> <span class="pre">frozen=True</span></code> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/569">PR #569</a>).</p></li>
+<code class="docutils literal notranslate"><span class="pre">slots=True,</span> <span class="pre">frozen=True</span></code> (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/569">PR #569</a>).</p></li>
 <li><p>Support passing parametrized generic struct types to <a class="reference internal" href="api.html#msgspec.structs.fields" title="msgspec.structs.fields"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.structs.fields</span></code></a>
-(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/571">PR #571</a>).</p></li>
-<li><p>Validate <code class="docutils literal notranslate"><span class="pre">str</span></code> constraints on dict keys when decoding msgpack (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/577">PR #577</a>).</p></li>
-<li><p>Support <code class="docutils literal notranslate"><span class="pre">UUID</span></code> subclasses as inputs to <a class="reference internal" href="api.html#msgspec.convert" title="msgspec.convert"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.convert</span></code></a> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/592">PR #592</a>).</p></li>
+(<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/571">PR #571</a>).</p></li>
+<li><p>Validate <code class="docutils literal notranslate"><span class="pre">str</span></code> constraints on dict keys when decoding msgpack (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/577">PR #577</a>).</p></li>
+<li><p>Support <code class="docutils literal notranslate"><span class="pre">UUID</span></code> subclasses as inputs to <a class="reference internal" href="api.html#msgspec.convert" title="msgspec.convert"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.convert</span></code></a> (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/592">PR #592</a>).</p></li>
 <li><p>Call <code class="docutils literal notranslate"><span class="pre">__eq__</span></code> from generated <code class="docutils literal notranslate"><span class="pre">__ne__</span></code> if user defines manual <code class="docutils literal notranslate"><span class="pre">__eq__</span></code>
-method on a <code class="docutils literal notranslate"><span class="pre">Struct</span></code> type (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/593">PR #593</a>).</p></li>
-<li><p>Include the <code class="docutils literal notranslate"><span class="pre">Struct</span></code> type in the generated hash (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/595">PR #595</a>).</p></li>
-<li><p>Add a <code class="docutils literal notranslate"><span class="pre">cache_hash</span></code> struct option (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/596">PR #596</a>).</p></li>
+method on a <code class="docutils literal notranslate"><span class="pre">Struct</span></code> type (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/593">PR #593</a>).</p></li>
+<li><p>Include the <code class="docutils literal notranslate"><span class="pre">Struct</span></code> type in the generated hash (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/595">PR #595</a>).</p></li>
+<li><p>Add a <code class="docutils literal notranslate"><span class="pre">cache_hash</span></code> struct option (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/596">PR #596</a>).</p></li>
 <li><p>Fix a bug around caching of dataclass type info when dealing with subclasses
-of dataclasses (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/599">PR #599</a>).</p></li>
-<li><p>Add <a class="reference internal" href="api.html#msgspec.structs.force_setattr" title="msgspec.structs.force_setattr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.structs.force_setattr</span></code></a> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/600">PR #600</a>).</p></li>
-<li><p>Support custom dict key types in JSON encoder and decoder (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/602">PR #602</a>).</p></li>
+of dataclasses (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/599">PR #599</a>).</p></li>
+<li><p>Add <a class="reference internal" href="api.html#msgspec.structs.force_setattr" title="msgspec.structs.force_setattr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.structs.force_setattr</span></code></a> (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/600">PR #600</a>).</p></li>
+<li><p>Support custom dict key types in JSON encoder and decoder (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/602">PR #602</a>).</p></li>
 <li><p>Include <code class="docutils literal notranslate"><span class="pre">dict</span></code> key constraints in generated JSON schema via the
-<code class="docutils literal notranslate"><span class="pre">propertyNames</span></code> field (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/604">PR #604</a>).</p></li>
-<li><p>Add a <code class="docutils literal notranslate"><span class="pre">schema_hook</span></code> for generating JSON schemas for custom types (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/605">PR #605</a>).</p></li>
-<li><p>Add support for Python 3.12’s <code class="docutils literal notranslate"><span class="pre">type</span></code> aliases (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/606">PR #606</a>).</p></li>
+<code class="docutils literal notranslate"><span class="pre">propertyNames</span></code> field (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/604">PR #604</a>).</p></li>
+<li><p>Add a <code class="docutils literal notranslate"><span class="pre">schema_hook</span></code> for generating JSON schemas for custom types (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/605">PR #605</a>).</p></li>
+<li><p>Add support for Python 3.12’s <code class="docutils literal notranslate"><span class="pre">type</span></code> aliases (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/606">PR #606</a>).</p></li>
 </ul>
 </section>
 <section id="version-0-18-4-2023-10-04">
-<h2>Version 0.18.4 (2023-10-04)<a class="headerlink" href="#version-0-18-4-2023-10-04" title="Permalink to this heading">¶</a></h2>
+<h2>Version 0.18.4 (2023-10-04)<a class="headerlink" href="#version-0-18-4-2023-10-04" title="Link to this heading">¶</a></h2>
 <ul class="simple">
 <li><p>Resolve an issue leading to periodic segfaults when importing <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> on
-CPython 3.12 (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/561">PR #561</a>)</p></li>
+CPython 3.12 (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/561">PR #561</a>)</p></li>
 </ul>
 </section>
 <section id="version-0-18-3-2023-10-03">
-<h2>Version 0.18.3 (2023-10-03)<a class="headerlink" href="#version-0-18-3-2023-10-03" title="Permalink to this heading">¶</a></h2>
+<h2>Version 0.18.3 (2023-10-03)<a class="headerlink" href="#version-0-18-3-2023-10-03" title="Link to this heading">¶</a></h2>
 <ul class="simple">
-<li><p>Improve type annotation for <code class="docutils literal notranslate"><span class="pre">Struct.__rich_repr__</span></code> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/557">PR #557</a>)</p></li>
-<li><p>Add pre-built wheels for Python 3.12 (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/558">PR #558</a>)</p></li>
+<li><p>Improve type annotation for <code class="docutils literal notranslate"><span class="pre">Struct.__rich_repr__</span></code> (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/557">PR #557</a>)</p></li>
+<li><p>Add pre-built wheels for Python 3.12 (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/558">PR #558</a>)</p></li>
 </ul>
 </section>
 <section id="version-0-18-2-2023-08-26">
-<h2>Version 0.18.2 (2023-08-26)<a class="headerlink" href="#version-0-18-2-2023-08-26" title="Permalink to this heading">¶</a></h2>
+<h2>Version 0.18.2 (2023-08-26)<a class="headerlink" href="#version-0-18-2-2023-08-26" title="Link to this heading">¶</a></h2>
 <ul class="simple">
-<li><p>Support <code class="docutils literal notranslate"><span class="pre">Enum._missing_</span></code> hooks for handling unknown enum values (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/532">PR #532</a>).</p></li>
+<li><p>Support <code class="docutils literal notranslate"><span class="pre">Enum._missing_</span></code> hooks for handling unknown enum values (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/532">PR #532</a>).</p></li>
 <li><p>Fix JSON encoding of <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.datetime" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.datetime</span></code></a> objects with <a class="reference external" href="https://docs.python.org/3/library/zoneinfo.html#zoneinfo.ZoneInfo" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">zoneinfo.ZoneInfo</span></code></a>
-timezone components (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/534">PR #534</a>).</p></li>
-<li><p>Add support for <code class="docutils literal notranslate"><span class="pre">attrs</span></code> <a class="reference external" href="https://www.attrs.org/en/stable/examples.html#validators">validators</a> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/538">PR #538</a>).</p></li>
+timezone components (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/534">PR #534</a>).</p></li>
+<li><p>Add support for <code class="docutils literal notranslate"><span class="pre">attrs</span></code> <a class="reference external" href="https://www.attrs.org/en/stable/examples.html#validators">validators</a> (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/538">PR #538</a>).</p></li>
 <li><p>Relax datetime/time parsing format to allow some RFC3339 extensions from
-ISO8601 (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/539">PR #539</a>).</p></li>
+ISO8601 (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/539">PR #539</a>).</p></li>
 </ul>
 </section>
 <section id="version-0-18-1-2023-08-16">
-<h2>Version 0.18.1 (2023-08-16)<a class="headerlink" href="#version-0-18-1-2023-08-16" title="Permalink to this heading">¶</a></h2>
+<h2>Version 0.18.1 (2023-08-16)<a class="headerlink" href="#version-0-18-1-2023-08-16" title="Link to this heading">¶</a></h2>
 <ul class="simple">
-<li><p>Support custom <code class="docutils literal notranslate"><span class="pre">builtin_types</span></code> in <a class="reference internal" href="api.html#msgspec.to_builtins" title="msgspec.to_builtins"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.to_builtins</span></code></a> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/517">PR #517</a>).</p></li>
+<li><p>Support custom <code class="docutils literal notranslate"><span class="pre">builtin_types</span></code> in <a class="reference internal" href="api.html#msgspec.to_builtins" title="msgspec.to_builtins"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.to_builtins</span></code></a> (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/517">PR #517</a>).</p></li>
 <li><p>Try <code class="docutils literal notranslate"><span class="pre">getattr</span></code> before <code class="docutils literal notranslate"><span class="pre">getitem</span></code> when converting with
-<code class="docutils literal notranslate"><span class="pre">from_attributes=True</span></code> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/519">PR #519</a>).</p></li>
-<li><p>More efficient module state access in top-level functions (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/521">PR #521</a>).</p></li>
+<code class="docutils literal notranslate"><span class="pre">from_attributes=True</span></code> (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/519">PR #519</a>).</p></li>
+<li><p>More efficient module state access in top-level functions (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/521">PR #521</a>).</p></li>
 </ul>
 </section>
 <section id="version-0-18-0-2023-08-10">
-<h2>Version 0.18.0 (2023-08-10)<a class="headerlink" href="#version-0-18-0-2023-08-10" title="Permalink to this heading">¶</a></h2>
+<h2>Version 0.18.0 (2023-08-10)<a class="headerlink" href="#version-0-18-0-2023-08-10" title="Link to this heading">¶</a></h2>
 <ul class="simple">
 <li><p>Add a new <a class="reference internal" href="api.html#msgspec.json.Decoder.decode_lines" title="msgspec.json.Decoder.decode_lines"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.json.Decoder.decode_lines</span></code></a> method for decoding
-newline-delimited JSON into a list of values (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/485">PR #485</a>).</p></li>
-<li><p>Support for decoding UUIDs from binary values (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/499">PR #499</a>).</p></li>
-<li><p>Support for encoding UUIDs in alternate formats (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/499">PR #499</a>).</p></li>
+newline-delimited JSON into a list of values (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/485">PR #485</a>).</p></li>
+<li><p>Support for decoding UUIDs from binary values (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/499">PR #499</a>).</p></li>
+<li><p>Support for encoding UUIDs in alternate formats (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/499">PR #499</a>).</p></li>
 <li><p>Overhaul how dataclasses are encoded to support more dataclass-like objects
-(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/501">PR #501</a>).</p></li>
-<li><p>Encode all declared fields on a dataclass (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/501">PR #501</a>).</p></li>
+(<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/501">PR #501</a>).</p></li>
+<li><p>Encode all declared fields on a dataclass (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/501">PR #501</a>).</p></li>
 <li><p>Support encoding <code class="docutils literal notranslate"><span class="pre">edgedb.Object</span></code> instances as dataclass-like objects
-(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/501">PR #501</a>).</p></li>
-<li><p>Improve performance when json decoding <code class="docutils literal notranslate"><span class="pre">float</span></code> values (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/510">PR #510</a>).</p></li>
-<li><p>Support for JSON encoding dicts with <code class="docutils literal notranslate"><span class="pre">float</span></code> keys (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/510">PR #510</a>).</p></li>
-<li><p>Support for JSON decoding dicts with <code class="docutils literal notranslate"><span class="pre">float</span></code> keys (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/510">PR #510</a>).</p></li>
+(<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/501">PR #501</a>).</p></li>
+<li><p>Improve performance when json decoding <code class="docutils literal notranslate"><span class="pre">float</span></code> values (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/510">PR #510</a>).</p></li>
+<li><p>Support for JSON encoding dicts with <code class="docutils literal notranslate"><span class="pre">float</span></code> keys (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/510">PR #510</a>).</p></li>
+<li><p>Support for JSON decoding dicts with <code class="docutils literal notranslate"><span class="pre">float</span></code> keys (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/510">PR #510</a>).</p></li>
 <li><p>Add <code class="docutils literal notranslate"><span class="pre">float_hook</span></code> to <a class="reference internal" href="api.html#msgspec.json.Decoder" title="msgspec.json.Decoder"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.json.Decoder</span></code></a> to support changing the default
-for how JSON floats are decoded (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/511">PR #511</a>).</p></li>
+for how JSON floats are decoded (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/511">PR #511</a>).</p></li>
 </ul>
 </section>
 <section id="version-0-17-0-2023-07-11">
-<h2>Version 0.17.0 (2023-07-11)<a class="headerlink" href="#version-0-17-0-2023-07-11" title="Permalink to this heading">¶</a></h2>
+<h2>Version 0.17.0 (2023-07-11)<a class="headerlink" href="#version-0-17-0-2023-07-11" title="Link to this heading">¶</a></h2>
 <ul class="simple">
 <li><p>Ensure <code class="docutils literal notranslate"><span class="pre">None</span></code> may be explicitly passed to <a class="reference internal" href="api.html#msgspec.defstruct" title="msgspec.defstruct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">defstruct</span></code></a> for
-<code class="docutils literal notranslate"><span class="pre">module</span></code>/<code class="docutils literal notranslate"><span class="pre">namespace</span></code>/<code class="docutils literal notranslate"><span class="pre">bases</span></code> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/445">PR #445</a>).</p></li>
+<code class="docutils literal notranslate"><span class="pre">module</span></code>/<code class="docutils literal notranslate"><span class="pre">namespace</span></code>/<code class="docutils literal notranslate"><span class="pre">bases</span></code> (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/445">PR #445</a>).</p></li>
 <li><p>Support decoding <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.datetime" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.datetime</span></code></a> values from <code class="docutils literal notranslate"><span class="pre">int</span></code>/<code class="docutils literal notranslate"><span class="pre">float</span></code> values
 (interpreted as seconds since the Unix epoch) when <code class="docutils literal notranslate"><span class="pre">strict=False</span></code>
-(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/452">PR #452</a>).</p></li>
+(<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/452">PR #452</a>).</p></li>
 <li><p>Support subclasses of collection types (<code class="docutils literal notranslate"><span class="pre">list</span></code>, <code class="docutils literal notranslate"><span class="pre">dict</span></code>, …) as inputs to
-<a class="reference internal" href="api.html#msgspec.convert" title="msgspec.convert"><code class="xref py py-obj docutils literal notranslate"><span class="pre">convert</span></code></a> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/453">PR #453</a>).</p></li>
+<a class="reference internal" href="api.html#msgspec.convert" title="msgspec.convert"><code class="xref py py-obj docutils literal notranslate"><span class="pre">convert</span></code></a> (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/453">PR #453</a>).</p></li>
 <li><p>Support <code class="docutils literal notranslate"><span class="pre">str</span></code> subclasses as keys in <a class="reference internal" href="api.html#msgspec.to_builtins" title="msgspec.to_builtins"><code class="xref py py-obj docutils literal notranslate"><span class="pre">to_builtins</span></code></a> and all protocol
-<code class="docutils literal notranslate"><span class="pre">encode</span></code> methods (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/454">PR #454</a>).</p></li>
-<li><p>Improved performance when JSON encoding <a class="reference external" href="https://docs.python.org/3/library/decimal.html#decimal.Decimal" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">decimal.Decimal</span></code></a> values (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/455">PR #455</a>).</p></li>
-<li><p>Improved performance when JSON encoding <code class="docutils literal notranslate"><span class="pre">int</span></code>/<code class="docutils literal notranslate"><span class="pre">float</span></code> values (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/458">PR #458</a>).</p></li>
-<li><p>Improved performance when JSON encoding <code class="docutils literal notranslate"><span class="pre">str</span></code> values (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/459">PR #459</a>).</p></li>
-<li><p>Wrap errors in <code class="docutils literal notranslate"><span class="pre">dec_hook</span></code> with a <a class="reference internal" href="api.html#msgspec.ValidationError" title="msgspec.ValidationError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ValidationError</span></code></a> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/460">PR #460</a>).</p></li>
-<li><p>Support decoding <a class="reference external" href="https://docs.python.org/3/library/decimal.html#decimal.Decimal" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">decimal.Decimal</span></code></a> values from numeric values (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/463">PR #463</a>)</p></li>
-<li><p>Support encoding <a class="reference external" href="https://docs.python.org/3/library/decimal.html#decimal.Decimal" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">decimal.Decimal</span></code></a> values as numeric values (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/465">PR #465</a>).</p></li>
+<code class="docutils literal notranslate"><span class="pre">encode</span></code> methods (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/454">PR #454</a>).</p></li>
+<li><p>Improved performance when JSON encoding <a class="reference external" href="https://docs.python.org/3/library/decimal.html#decimal.Decimal" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">decimal.Decimal</span></code></a> values (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/455">PR #455</a>).</p></li>
+<li><p>Improved performance when JSON encoding <code class="docutils literal notranslate"><span class="pre">int</span></code>/<code class="docutils literal notranslate"><span class="pre">float</span></code> values (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/458">PR #458</a>).</p></li>
+<li><p>Improved performance when JSON encoding <code class="docutils literal notranslate"><span class="pre">str</span></code> values (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/459">PR #459</a>).</p></li>
+<li><p>Wrap errors in <code class="docutils literal notranslate"><span class="pre">dec_hook</span></code> with a <a class="reference internal" href="api.html#msgspec.ValidationError" title="msgspec.ValidationError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ValidationError</span></code></a> (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/460">PR #460</a>).</p></li>
+<li><p>Support decoding <a class="reference external" href="https://docs.python.org/3/library/decimal.html#decimal.Decimal" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">decimal.Decimal</span></code></a> values from numeric values (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/463">PR #463</a>)</p></li>
+<li><p>Support encoding <a class="reference external" href="https://docs.python.org/3/library/decimal.html#decimal.Decimal" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">decimal.Decimal</span></code></a> values as numeric values (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/465">PR #465</a>).</p></li>
 <li><p>Support converting <a class="reference external" href="https://docs.python.org/3/library/decimal.html#decimal.Decimal" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">decimal.Decimal</span></code></a> values to <code class="docutils literal notranslate"><span class="pre">float</span></code> in <a class="reference internal" href="api.html#msgspec.convert" title="msgspec.convert"><code class="xref py py-obj docutils literal notranslate"><span class="pre">convert</span></code></a>
-(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/466">PR #466</a>).</p></li>
-<li><p>Preliminary support for CPython 3.12 beta releases (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/467">PR #467</a>).</p></li>
+(<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/466">PR #466</a>).</p></li>
+<li><p>Preliminary support for CPython 3.12 beta releases (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/467">PR #467</a>).</p></li>
 <li><p>Support decoding integers that don’t fit into an <code class="docutils literal notranslate"><span class="pre">int64</span></code>/<code class="docutils literal notranslate"><span class="pre">uint64</span></code>
-(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/469">PR #469</a>).</p></li>
-<li><p>Add a new optional <code class="docutils literal notranslate"><span class="pre">__post_init__</span></code> method for <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code></a> types (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/470">PR #470</a>).</p></li>
+(<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/469">PR #469</a>).</p></li>
+<li><p>Add a new optional <code class="docutils literal notranslate"><span class="pre">__post_init__</span></code> method for <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code></a> types (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/470">PR #470</a>).</p></li>
 <li><p>Support decoding <code class="docutils literal notranslate"><span class="pre">0</span></code>/<code class="docutils literal notranslate"><span class="pre">1</span></code> into <code class="docutils literal notranslate"><span class="pre">bool</span></code> types when <code class="docutils literal notranslate"><span class="pre">strict=False</span></code>
-(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/471">PR #471</a>).</p></li>
+(<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/471">PR #471</a>).</p></li>
 <li><p>Wrap errors raised in <code class="docutils literal notranslate"><span class="pre">__post_init__</span></code>/<code class="docutils literal notranslate"><span class="pre">__attrs_post_init__</span></code> in a
-<a class="reference internal" href="api.html#msgspec.ValidationError" title="msgspec.ValidationError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ValidationError</span></code></a> when decoding (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/472">PR #472</a>).</p></li>
+<a class="reference internal" href="api.html#msgspec.ValidationError" title="msgspec.ValidationError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ValidationError</span></code></a> when decoding (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/472">PR #472</a>).</p></li>
 <li><p>Add native support for encoding/decoding <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.timedelta" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.timedelta</span></code></a> types
-(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/475">PR #475</a>).</p></li>
+(<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/475">PR #475</a>).</p></li>
 <li><p>Add a new <a class="reference internal" href="api.html#msgspec.json.Encoder.encode_lines" title="msgspec.json.Encoder.encode_lines"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.json.Encoder.encode_lines</span></code></a> method for encoding an iterable
-of values as newline-delimited JSON (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/479">PR #479</a>).</p></li>
+of values as newline-delimited JSON (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/479">PR #479</a>).</p></li>
 </ul>
 </section>
 <section id="version-0-16-0-2023-06-12">
-<h2>Version 0.16.0 (2023-06-12)<a class="headerlink" href="#version-0-16-0-2023-06-12" title="Permalink to this heading">¶</a></h2>
+<h2>Version 0.16.0 (2023-06-12)<a class="headerlink" href="#version-0-16-0-2023-06-12" title="Link to this heading">¶</a></h2>
 <ul class="simple">
 <li><p>Deprecate <code class="docutils literal notranslate"><span class="pre">msgspec.from_builtins</span></code> in favor of <a class="reference internal" href="api.html#msgspec.convert" title="msgspec.convert"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.convert</span></code></a>. The new
 <code class="docutils literal notranslate"><span class="pre">convert</span></code> function provides a superset of the functionality available in
-the old <code class="docutils literal notranslate"><span class="pre">from_builtins</span></code> function (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/431">PR #431</a>).</p></li>
+the old <code class="docutils literal notranslate"><span class="pre">from_builtins</span></code> function (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/431">PR #431</a>).</p></li>
 <li><p>Add a <code class="docutils literal notranslate"><span class="pre">from_attributes</span></code> argument to <a class="reference internal" href="api.html#msgspec.convert" title="msgspec.convert"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.convert</span></code></a> for allowing
 conversion between object types with matching attribute names. One use case
 for this is converting ORM objects to <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code></a> or <a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#module-dataclasses" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses</span></code></a> types
-(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/419">PR #419</a>).</p></li>
+(<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/419">PR #419</a>).</p></li>
 <li><p>Support passing generic <code class="docutils literal notranslate"><span class="pre">Mapping</span></code> objects as inputs to <a class="reference internal" href="api.html#msgspec.convert" title="msgspec.convert"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.convert</span></code></a>.
 These may be coerced to <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a>/<a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code></a>/<a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#module-dataclasses" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses</span></code></a>/<a class="reference external" href="https://www.attrs.org/en/stable/api.html#module-attrs" title="(in attrs v24.2)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">attrs</span></code></a> types
-(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/427">PR #427</a>).</p></li>
+(<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/427">PR #427</a>).</p></li>
 <li><p>Add a new <code class="docutils literal notranslate"><span class="pre">strict</span></code> keyword argument to all <code class="docutils literal notranslate"><span class="pre">decode</span></code> functions,
 <code class="docutils literal notranslate"><span class="pre">Decoder</span></code> classes, as well as <a class="reference internal" href="api.html#msgspec.convert" title="msgspec.convert"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.convert</span></code></a>. This defaults to <code class="docutils literal notranslate"><span class="pre">True</span></code>,
 setting it to false enables a wider set of coercion rules (e.g. coercing a
 <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">str</span></code></a> input to an <a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">int</span></code></a>). See <a class="reference internal" href="usage.html#strict-vs-lax"><span class="std std-ref">“Strict” vs “Lax” Mode</span></a> for more information
-(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/434">PR #434</a>).</p></li>
-<li><p>Support all <a class="reference internal" href="supported-types.html"><span class="doc">Supported Types</span></a> as inputs to <a class="reference internal" href="api.html#msgspec.convert" title="msgspec.convert"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.convert</span></code></a> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/431">PR #431</a>,
-<a class="reference external" href="https://github.com/jcrist/msgspec/pull/418">PR #418</a>).</p></li>
+(<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/434">PR #434</a>).</p></li>
+<li><p>Support all <a class="reference internal" href="supported-types.html"><span class="doc">Supported Types</span></a> as inputs to <a class="reference internal" href="api.html#msgspec.convert" title="msgspec.convert"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.convert</span></code></a> (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/431">PR #431</a>,
+<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/418">PR #418</a>).</p></li>
 <li><p>Passthrough input unchanged when coercing to <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.Any</span></code></a> type in
-<a class="reference internal" href="api.html#msgspec.convert" title="msgspec.convert"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.convert</span></code></a> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/435">PR #435</a>).</p></li>
-<li><p>Support parametrizing <code class="docutils literal notranslate"><span class="pre">Decoder</span></code> types at runtime (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/415">PR #415</a>).</p></li>
-<li><p>Support encoding subclasses of <code class="docutils literal notranslate"><span class="pre">UUID</span></code> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/429">PR #429</a>).</p></li>
+<a class="reference internal" href="api.html#msgspec.convert" title="msgspec.convert"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.convert</span></code></a> (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/435">PR #435</a>).</p></li>
+<li><p>Support parametrizing <code class="docutils literal notranslate"><span class="pre">Decoder</span></code> types at runtime (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/415">PR #415</a>).</p></li>
+<li><p>Support encoding subclasses of <code class="docutils literal notranslate"><span class="pre">UUID</span></code> (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/429">PR #429</a>).</p></li>
 </ul>
 </section>
 <section id="version-0-15-1-2023-05-19">
-<h2>Version 0.15.1 (2023-05-19)<a class="headerlink" href="#version-0-15-1-2023-05-19" title="Permalink to this heading">¶</a></h2>
+<h2>Version 0.15.1 (2023-05-19)<a class="headerlink" href="#version-0-15-1-2023-05-19" title="Link to this heading">¶</a></h2>
 <ul class="simple">
 <li><p>Fix a reference counting bug introduced in 0.15.0 when decoding naive (no
 timezone) <code class="docutils literal notranslate"><span class="pre">datetime</span></code>/<code class="docutils literal notranslate"><span class="pre">time</span></code> objects in both the <code class="docutils literal notranslate"><span class="pre">msgpack</span></code> and <code class="docutils literal notranslate"><span class="pre">json</span></code>
-decoders (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/409">PR #409</a>).</p></li>
+decoders (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/409">PR #409</a>).</p></li>
 <li><p>Work around an upstream bug in CPython to properly support
 <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Required" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.Required</span></code></a>/<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.NotRequired" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.NotRequired</span></code></a> in <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypedDict" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.TypedDict</span></code></a> when
-<code class="docutils literal notranslate"><span class="pre">__future__.annotations</span></code> is enabled (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/410">PR #410</a>).</p></li>
+<code class="docutils literal notranslate"><span class="pre">__future__.annotations</span></code> is enabled (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/410">PR #410</a>).</p></li>
 </ul>
 </section>
 <section id="version-0-15-0-2023-05-10">
-<h2>Version 0.15.0 (2023-05-10)<a class="headerlink" href="#version-0-15-0-2023-05-10" title="Permalink to this heading">¶</a></h2>
+<h2>Version 0.15.0 (2023-05-10)<a class="headerlink" href="#version-0-15-0-2023-05-10" title="Link to this heading">¶</a></h2>
 <ul class="simple">
-<li><p>Add support for Generic <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code></a> types (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/386">PR #386</a>, <a class="reference external" href="https://github.com/jcrist/msgspec/pull/393">PR #393</a>).</p></li>
+<li><p>Add support for Generic <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code></a> types (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/386">PR #386</a>, <a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/393">PR #393</a>).</p></li>
 <li><p>Add support for Generic <a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#module-dataclasses" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses</span></code></a> and <a class="reference external" href="https://attrs.org">attrs</a> types
-(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/396">PR #396</a>).</p></li>
+(<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/396">PR #396</a>).</p></li>
 <li><p>Add support for Generic <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypedDict" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.TypedDict</span></code></a> and <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.NamedTuple" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.NamedTuple</span></code></a> types
-(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/398">PR #398</a>).</p></li>
+(<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/398">PR #398</a>).</p></li>
 <li><p><strong>BREAKING</strong>: No longer normalize timezones to UTC when decoding <a class="reference external" href="https://docs.python.org/3/library/datetime.html#module-datetime" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime</span></code></a>
-objects from JSON (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/391">PR #391</a>).</p></li>
-<li><p>Support decoding unhyphenated UUIDs (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/392">PR #392</a>).</p></li>
-<li><p>A few type annotation fixups (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/383">PR #383</a>, <a class="reference external" href="https://github.com/jcrist/msgspec/pull/387">PR #387</a>).</p></li>
-<li><p>Dedent docstrings for descriptions when generating JSON schemas (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/397">PR #397</a>).</p></li>
+objects from JSON (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/391">PR #391</a>).</p></li>
+<li><p>Support decoding unhyphenated UUIDs (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/392">PR #392</a>).</p></li>
+<li><p>A few type annotation fixups (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/383">PR #383</a>, <a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/387">PR #387</a>).</p></li>
+<li><p>Dedent docstrings for descriptions when generating JSON schemas (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/397">PR #397</a>).</p></li>
 <li><p>Use a variant of <code class="docutils literal notranslate"><span class="pre">__qualname__</span></code> when auto-generating Struct tags rather
-than <code class="docutils literal notranslate"><span class="pre">__name__</span></code> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/399">PR #399</a>).</p></li>
+than <code class="docutils literal notranslate"><span class="pre">__name__</span></code> (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/399">PR #399</a>).</p></li>
 <li><p>Fix bug when handling <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.Literal</span></code></a> types containing a literal <code class="docutils literal notranslate"><span class="pre">None</span></code>
-(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/400">PR #400</a>).</p></li>
-<li><p>Make all <code class="docutils literal notranslate"><span class="pre">Encoder</span></code>/<code class="docutils literal notranslate"><span class="pre">Decoder</span></code> methods threadsafe (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/402">PR #402</a>).</p></li>
-<li><p><strong>BREAKING</strong>: Drop the <code class="docutils literal notranslate"><span class="pre">write_buffer_size</span></code> kwarg to <code class="docutils literal notranslate"><span class="pre">Encoder</span></code> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/402">PR #402</a>).</p></li>
+(<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/400">PR #400</a>).</p></li>
+<li><p>Make all <code class="docutils literal notranslate"><span class="pre">Encoder</span></code>/<code class="docutils literal notranslate"><span class="pre">Decoder</span></code> methods threadsafe (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/402">PR #402</a>).</p></li>
+<li><p><strong>BREAKING</strong>: Drop the <code class="docutils literal notranslate"><span class="pre">write_buffer_size</span></code> kwarg to <code class="docutils literal notranslate"><span class="pre">Encoder</span></code> (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/402">PR #402</a>).</p></li>
 </ul>
 </section>
 <section id="version-0-14-2-2023-04-19">
-<h2>Version 0.14.2 (2023-04-19)<a class="headerlink" href="#version-0-14-2-2023-04-19" title="Permalink to this heading">¶</a></h2>
+<h2>Version 0.14.2 (2023-04-19)<a class="headerlink" href="#version-0-14-2-2023-04-19" title="Link to this heading">¶</a></h2>
 <ul class="simple">
-<li><p>Remove <code class="docutils literal notranslate"><span class="pre">__del__</span></code> trashcan usage for structs with <code class="docutils literal notranslate"><span class="pre">gc=False</span></code> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/369">PR #369</a>).</p></li>
-<li><p>Support overriding <code class="docutils literal notranslate"><span class="pre">__setattr__</span></code> in Struct types (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/376">PR #376</a>).</p></li>
-<li><p>Support encoding large integers in JSON (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/378">PR #378</a>).</p></li>
+<li><p>Remove <code class="docutils literal notranslate"><span class="pre">__del__</span></code> trashcan usage for structs with <code class="docutils literal notranslate"><span class="pre">gc=False</span></code> (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/369">PR #369</a>).</p></li>
+<li><p>Support overriding <code class="docutils literal notranslate"><span class="pre">__setattr__</span></code> in Struct types (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/376">PR #376</a>).</p></li>
+<li><p>Support encoding large integers in JSON (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/378">PR #378</a>).</p></li>
 <li><p>Fix a memory leak when msgpack decoding variable length tuples with more than
-16 elements (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/380">PR #380</a>).</p></li>
+16 elements (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/380">PR #380</a>).</p></li>
 <li><p>Remove JSON compatibility checks when constructing a
 <code class="docutils literal notranslate"><span class="pre">msgspec.json.Decoder</span></code>. Trying to decode messages into types that JSON
 doesn’t support will now error at decode time, rather than when the decoder
-is constructed (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/381">PR #381</a>).</p></li>
+is constructed (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/381">PR #381</a>).</p></li>
 </ul>
 </section>
 <section id="version-0-14-1-2023-04-07">
-<h2>Version 0.14.1 (2023-04-07)<a class="headerlink" href="#version-0-14-1-2023-04-07" title="Permalink to this heading">¶</a></h2>
+<h2>Version 0.14.1 (2023-04-07)<a class="headerlink" href="#version-0-14-1-2023-04-07" title="Link to this heading">¶</a></h2>
 <ul class="simple">
-<li><p>Further optimize decoding of JSON arrays into lists (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/363">PR #363</a>).</p></li>
+<li><p>Further optimize decoding of JSON arrays into lists (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/363">PR #363</a>).</p></li>
 <li><p>Fix a bug preventing using structs configured with <code class="docutils literal notranslate"><span class="pre">dict=True</span></code> on Python
-3.11 (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/365">PR #365</a>).</p></li>
-<li><p>Avoid preallocating large lists/tuples in the msgpack decoder (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/367">PR #367</a>).</p></li>
+3.11 (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/365">PR #365</a>).</p></li>
+<li><p>Avoid preallocating large lists/tuples in the msgpack decoder (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/367">PR #367</a>).</p></li>
 </ul>
 </section>
 <section id="version-0-14-0-2023-04-02">
-<h2>Version 0.14.0 (2023-04-02)<a class="headerlink" href="#version-0-14-0-2023-04-02" title="Permalink to this heading">¶</a></h2>
+<h2>Version 0.14.0 (2023-04-02)<a class="headerlink" href="#version-0-14-0-2023-04-02" title="Link to this heading">¶</a></h2>
 <ul class="simple">
-<li><p>Support encoding and decoding <a class="reference external" href="https://attrs.org">attrs</a> types (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/323">PR #323</a>).</p></li>
+<li><p>Support encoding and decoding <a class="reference external" href="https://attrs.org">attrs</a> types (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/323">PR #323</a>).</p></li>
 <li><p>Add <code class="docutils literal notranslate"><span class="pre">repr_omit_defaults</span></code> configuration option for omitting struct default
-values in the <code class="docutils literal notranslate"><span class="pre">repr</span></code> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/322">PR #322</a>).</p></li>
+values in the <code class="docutils literal notranslate"><span class="pre">repr</span></code> (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/322">PR #322</a>).</p></li>
 <li><p>Expose a struct’s configuration through a <code class="docutils literal notranslate"><span class="pre">__struct_config__</span></code> attribute
-(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/328">PR #328</a>).</p></li>
+(<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/328">PR #328</a>).</p></li>
 <li><p>Add <a class="reference internal" href="api.html#msgspec.structs.fields" title="msgspec.structs.fields"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.structs.fields</span></code></a> utility function for inspecting the fields
-configured on a Struct (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/330">PR #330</a>).</p></li>
+configured on a Struct (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/330">PR #330</a>).</p></li>
 <li><p>Add a <code class="docutils literal notranslate"><span class="pre">dict</span></code> configuration option for adding a <code class="docutils literal notranslate"><span class="pre">__dict__</span></code> attribute to a
-Struct (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/331">PR #331</a>).</p></li>
-<li><p>Allow non-struct mixins to be used with struct types (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/332">PR #332</a>).</p></li>
+Struct (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/331">PR #331</a>).</p></li>
+<li><p>Allow non-struct mixins to be used with struct types (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/332">PR #332</a>).</p></li>
 <li><p>Fix a bug when defining both <code class="docutils literal notranslate"><span class="pre">lt</span></code> and <code class="docutils literal notranslate"><span class="pre">gt</span></code> constraints on an integer
-type (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/335">PR #335</a>).</p></li>
+type (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/335">PR #335</a>).</p></li>
 <li><p>Fix a bug supporting fields defined with <a class="reference internal" href="api.html#msgspec.field" title="msgspec.field"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.field()</span></code></a> with no arguments
-(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/343">PR #343</a>).</p></li>
-<li><p>Allow arbitrary input types to <code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.from_builtins</span></code> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/346">PR #346</a>).</p></li>
+(<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/343">PR #343</a>).</p></li>
+<li><p>Allow arbitrary input types to <code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.from_builtins</span></code> (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/346">PR #346</a>).</p></li>
 <li><p>Support decoding into subclasses of <code class="docutils literal notranslate"><span class="pre">int</span></code> &amp; <code class="docutils literal notranslate"><span class="pre">bytes</span></code> in
-<code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.from_builtins</span></code> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/346">PR #346</a>).</p></li>
+<code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.from_builtins</span></code> (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/346">PR #346</a>).</p></li>
 <li><p>Add <a class="reference internal" href="api.html#msgspec.UNSET" title="msgspec.UNSET"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.UNSET</span></code></a> and <a class="reference internal" href="api.html#msgspec.UnsetType" title="msgspec.UnsetType"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.UnsetType</span></code></a> for tracking unset fields. See the
-<a class="reference internal" href="supported-types.html#unset-type"><span class="std std-ref">docs</span></a> for more information (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/350">PR #350</a>).</p></li>
+<a class="reference internal" href="supported-types.html#unset-type"><span class="std std-ref">docs</span></a> for more information (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/350">PR #350</a>).</p></li>
 <li><p><strong>BREAKING</strong>: In the unlikely event you were using the previous
 <code class="docutils literal notranslate"><span class="pre">msgspec.UNSET</span></code> singleton to explicitly indicate no default value on struct
-types, you should now make use of <a class="reference internal" href="api.html#msgspec.NODEFAULT" title="msgspec.NODEFAULT"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.NODEFAULT</span></code></a> instead (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/350">PR #350</a>).</p></li>
+types, you should now make use of <a class="reference internal" href="api.html#msgspec.NODEFAULT" title="msgspec.NODEFAULT"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.NODEFAULT</span></code></a> instead (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/350">PR #350</a>).</p></li>
 <li><p>Improve struct type annotations now that <code class="docutils literal notranslate"><span class="pre">mypy</span></code> supports
-<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.dataclass_transform" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.dataclass_transform</span></code></a> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/352">PR #352</a>).</p></li>
+<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.dataclass_transform" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.dataclass_transform</span></code></a> (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/352">PR #352</a>).</p></li>
 <li><p>Support <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Final" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.Final</span></code></a> annotations for indicating that an object field should
-be treated as immutable (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/354">PR #354</a>).</p></li>
+be treated as immutable (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/354">PR #354</a>).</p></li>
 <li><p>Add a <code class="docutils literal notranslate"><span class="pre">name</span></code> keyword option to <a class="reference internal" href="api.html#msgspec.field" title="msgspec.field"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.field</span></code></a> for renaming a single field
-(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/356">PR #356</a>).</p></li>
+(<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/356">PR #356</a>).</p></li>
 <li><p><strong>BREAKING</strong>: The rules around class inheritance and a struct’s <code class="docutils literal notranslate"><span class="pre">rename</span></code>
-option have changed. See <a class="reference external" href="https://github.com/jcrist/msgspec/pull/356">PR #356</a> for more information.</p></li>
+option have changed. See <a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/356">PR #356</a> for more information.</p></li>
 </ul>
 </section>
 <section id="version-0-13-1-2023-02-09">
-<h2>Version 0.13.1 (2023-02-09)<a class="headerlink" href="#version-0-13-1-2023-02-09" title="Permalink to this heading">¶</a></h2>
+<h2>Version 0.13.1 (2023-02-09)<a class="headerlink" href="#version-0-13-1-2023-02-09" title="Link to this heading">¶</a></h2>
 <ul class="simple">
 <li><p>Fix a memory leak in the JSON decoder introduced in 0.13.0, caused by a
-reference counting bug when decoding into <code class="docutils literal notranslate"><span class="pre">Struct</span></code> types (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/312">PR #312</a>).</p></li>
+reference counting bug when decoding into <code class="docutils literal notranslate"><span class="pre">Struct</span></code> types (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/312">PR #312</a>).</p></li>
 </ul>
 </section>
 <section id="version-0-13-0-2023-02-08">
-<h2>Version 0.13.0 (2023-02-08)<a class="headerlink" href="#version-0-13-0-2023-02-08" title="Permalink to this heading">¶</a></h2>
+<h2>Version 0.13.0 (2023-02-08)<a class="headerlink" href="#version-0-13-0-2023-02-08" title="Link to this heading">¶</a></h2>
 <ul class="simple">
 <li><p>Add <a class="reference internal" href="api.html#msgspec.to_builtins" title="msgspec.to_builtins"><code class="xref py py-obj docutils literal notranslate"><span class="pre">to_builtins</span></code></a> function for converting messages composed of any supported
 type to ones composed of only simple builtin types commonly supported by
-Python serialization libraries (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/258">PR #258</a>).</p></li>
+Python serialization libraries (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/258">PR #258</a>).</p></li>
 <li><p>Add <code class="xref py py-obj docutils literal notranslate"><span class="pre">from_builtins</span></code> function for converting and validating messages composed
 of simple builtin types to ones composed of any type msgspec supports
-(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/266">PR #266</a>, <a class="reference external" href="https://github.com/jcrist/msgspec/pull/302">PR #302</a>).</p></li>
-<li><p>Add <code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.yaml</span></code> module for encoding/decoding YAML (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/267">PR #267</a>).</p></li>
-<li><p>Add <code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.toml</span></code> module for encoding/decoding TOML (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/268">PR #268</a>).</p></li>
+(<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/266">PR #266</a>, <a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/302">PR #302</a>).</p></li>
+<li><p>Add <code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.yaml</span></code> module for encoding/decoding YAML (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/267">PR #267</a>).</p></li>
+<li><p>Add <code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.toml</span></code> module for encoding/decoding TOML (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/268">PR #268</a>).</p></li>
 <li><p>Add <a class="reference internal" href="api.html#msgspec.structs.replace" title="msgspec.structs.replace"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.structs.replace</span></code></a> function for creating a copy of an existing
-<a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code></a> with some changes applied (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/262">PR #262</a>).</p></li>
+<a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code></a> with some changes applied (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/262">PR #262</a>).</p></li>
 <li><p>Add <a class="reference internal" href="api.html#msgspec.structs.asdict" title="msgspec.structs.asdict"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.structs.asdict</span></code></a> and <a class="reference internal" href="api.html#msgspec.structs.astuple" title="msgspec.structs.astuple"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.structs.astuple</span></code></a> functions for
-converting a struct instance to a <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a> or <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tuple</span></code></a> respectively (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/300">PR #300</a>).</p></li>
+converting a struct instance to a <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a> or <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tuple</span></code></a> respectively (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/300">PR #300</a>).</p></li>
 <li><p>Support arbitrarily nested <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.NewType" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.NewType</span></code></a>/<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Annotated" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.Annotated</span></code></a> types
-(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/272">PR #272</a>).</p></li>
+(<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/272">PR #272</a>).</p></li>
 <li><p>Improve error message for invalid keyword arguments passed to
-<code class="docutils literal notranslate"><span class="pre">Struct.__init__</span></code> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/273">PR #273</a>).</p></li>
-<li><p>Support <code class="docutils literal notranslate"><span class="pre">default_factory</span></code> configuration for <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code></a> fields (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/274">PR #274</a>).</p></li>
+<code class="docutils literal notranslate"><span class="pre">Struct.__init__</span></code> (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/273">PR #273</a>).</p></li>
+<li><p>Support <code class="docutils literal notranslate"><span class="pre">default_factory</span></code> configuration for <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code></a> fields (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/274">PR #274</a>).</p></li>
 <li><p><strong>BREAKING</strong>: With the exception of empty builtin collections (<code class="docutils literal notranslate"><span class="pre">[]</span></code>,
 <code class="docutils literal notranslate"><span class="pre">{}</span></code>, <code class="docutils literal notranslate"><span class="pre">set()</span></code>, <code class="docutils literal notranslate"><span class="pre">bytearray()</span></code>), mutable default values in Struct types
 are no longer deepcopied when used. If a different mutable default value is
-needed, please configure a <code class="docutils literal notranslate"><span class="pre">default_factory</span></code> instead (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/274">PR #274</a>).</p></li>
-<li><p>Improve performance of creating Structs with default parameters (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/274">PR #274</a>).</p></li>
-<li><p>Support <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.ClassVar" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.ClassVar</span></code></a> annotations of <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code></a> types (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/281">PR #281</a>).</p></li>
-<li><p>Support encoding/decoding <a class="reference external" href="https://docs.python.org/3/library/decimal.html#decimal.Decimal" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">decimal.Decimal</span></code></a> types (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/288">PR #288</a>).</p></li>
+needed, please configure a <code class="docutils literal notranslate"><span class="pre">default_factory</span></code> instead (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/274">PR #274</a>).</p></li>
+<li><p>Improve performance of creating Structs with default parameters (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/274">PR #274</a>).</p></li>
+<li><p>Support <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.ClassVar" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.ClassVar</span></code></a> annotations of <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code></a> types (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/281">PR #281</a>).</p></li>
+<li><p>Support encoding/decoding <a class="reference external" href="https://docs.python.org/3/library/decimal.html#decimal.Decimal" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">decimal.Decimal</span></code></a> types (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/288">PR #288</a>).</p></li>
 <li><p>Support “abstract” type annotations like
 <a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.MutableMapping" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collections.abc.MutableMapping</span></code></a>/<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.MutableMapping" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.MutableMapping</span></code></a> in decoders
-(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/290">PR #290</a>).</p></li>
+(<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/290">PR #290</a>).</p></li>
 <li><p>Support any string-like or int-like type as a <code class="docutils literal notranslate"><span class="pre">dict</span></code> key when encoding or
-decoding JSON (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/292">PR #292</a>).</p></li>
+decoding JSON (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/292">PR #292</a>).</p></li>
 <li><p>Improved performance encoding large collections in JSON and MessagePack
-encoders (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/294">PR #294</a>, <a class="reference external" href="https://github.com/jcrist/msgspec/pull/298">PR #298</a>).</p></li>
+encoders (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/294">PR #294</a>, <a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/298">PR #298</a>).</p></li>
 </ul>
 </section>
 <section id="version-0-12-0-2023-01-05">
-<h2>Version 0.12.0 (2023-01-05)<a class="headerlink" href="#version-0-12-0-2023-01-05" title="Permalink to this heading">¶</a></h2>
+<h2>Version 0.12.0 (2023-01-05)<a class="headerlink" href="#version-0-12-0-2023-01-05" title="Link to this heading">¶</a></h2>
 <ul class="simple">
-<li><p>Support encoding <code class="docutils literal notranslate"><span class="pre">set</span></code> and <code class="docutils literal notranslate"><span class="pre">frozenset</span></code> subclasses (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/249">PR #249</a>).</p></li>
-<li><p>Support encoding/decoding <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.NewType" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.NewType</span></code></a> types (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/251">PR #251</a>).</p></li>
-<li><p>Allow creating a <a class="reference internal" href="api.html#msgspec.Raw" title="msgspec.Raw"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Raw</span></code></a> object from a <code class="docutils literal notranslate"><span class="pre">str</span></code> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/252">PR #252</a>).</p></li>
+<li><p>Support encoding <code class="docutils literal notranslate"><span class="pre">set</span></code> and <code class="docutils literal notranslate"><span class="pre">frozenset</span></code> subclasses (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/249">PR #249</a>).</p></li>
+<li><p>Support encoding/decoding <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.NewType" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.NewType</span></code></a> types (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/251">PR #251</a>).</p></li>
+<li><p>Allow creating a <a class="reference internal" href="api.html#msgspec.Raw" title="msgspec.Raw"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Raw</span></code></a> object from a <code class="docutils literal notranslate"><span class="pre">str</span></code> (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/252">PR #252</a>).</p></li>
 <li><p>Add new experimental <code class="docutils literal notranslate"><span class="pre">msgspec.inspect</span></code> module for inspecting type
 annotations. This is intended to be used for building downstream tooling
 based on msgspec-compatible types. See <a class="reference internal" href="inspect.html"><span class="doc">the docs</span></a> for more
-information (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/253">PR #253</a>).</p></li>
+information (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/253">PR #253</a>).</p></li>
 <li><p>Add new <code class="docutils literal notranslate"><span class="pre">extra</span></code> field to <a class="reference internal" href="api.html#msgspec.Meta" title="msgspec.Meta"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Meta</span></code></a>, for storing arbitrary user-defined
-metadata (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/255">PR #255</a>).</p></li>
-<li><p>Improved performance for JSON encoding strings (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/256">PR #256</a>).</p></li>
+metadata (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/255">PR #255</a>).</p></li>
+<li><p>Improved performance for JSON encoding strings (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/256">PR #256</a>).</p></li>
 </ul>
 </section>
 <section id="version-0-11-0-2022-12-19">
-<h2>Version 0.11.0 (2022-12-19)<a class="headerlink" href="#version-0-11-0-2022-12-19" title="Permalink to this heading">¶</a></h2>
+<h2>Version 0.11.0 (2022-12-19)<a class="headerlink" href="#version-0-11-0-2022-12-19" title="Link to this heading">¶</a></h2>
 <ul>
 <li><p>Improve performance of constructors for <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code></a> types when using keyword
-arguments (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/237">PR #237</a>).</p></li>
-<li><p>Support <a class="reference internal" href="constraints.html"><span class="doc">Constraints</span></a> on dict keys for JSON (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/239">PR #239</a>).</p></li>
+arguments (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/237">PR #237</a>).</p></li>
+<li><p>Support <a class="reference internal" href="constraints.html"><span class="doc">Constraints</span></a> on dict keys for JSON (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/239">PR #239</a>).</p></li>
 <li><p>Add support for keyword-only arguments in <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code></a> types, matching the
-behavior of <code class="docutils literal notranslate"><span class="pre">kw_only</span></code> for <a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#module-dataclasses" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses</span></code></a> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/242">PR #242</a>).</p></li>
+behavior of <code class="docutils literal notranslate"><span class="pre">kw_only</span></code> for <a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#module-dataclasses" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses</span></code></a> (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/242">PR #242</a>).</p></li>
 <li><p><strong>BREAKING</strong>: Change the parameter ordering rules used by <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code></a> types to
 match the behavior of <a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#module-dataclasses" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses</span></code></a>. For most users this change shouldn’t
 break anything. However, if your struct definitions have required fields
@@ -633,232 +633,232 @@ fixed by either:</p>
 fields</p></li>
 <li><p>Using keyword-only parameters (by passing the <code class="docutils literal notranslate"><span class="pre">kw_only=True</span></code> option).</p></li>
 </ul>
-<p>See <a class="reference internal" href="structs.html#struct-field-ordering"><span class="std std-ref">Field Ordering</span></a> for more information (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/242">PR #242</a>).</p>
+<p>See <a class="reference internal" href="structs.html#struct-field-ordering"><span class="std std-ref">Field Ordering</span></a> for more information (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/242">PR #242</a>).</p>
 </li>
-<li><p>Support encoding/decoding dictionaries with integer keys for JSON (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/243">PR #243</a>).</p></li>
+<li><p>Support encoding/decoding dictionaries with integer keys for JSON (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/243">PR #243</a>).</p></li>
 </ul>
 </section>
 <section id="version-0-10-1-2022-12-08">
-<h2>Version 0.10.1 (2022-12-08)<a class="headerlink" href="#version-0-10-1-2022-12-08" title="Permalink to this heading">¶</a></h2>
+<h2>Version 0.10.1 (2022-12-08)<a class="headerlink" href="#version-0-10-1-2022-12-08" title="Link to this heading">¶</a></h2>
 <ul class="simple">
 <li><p>Ignore attributes with leading underscores (<code class="docutils literal notranslate"><span class="pre">&quot;_&quot;</span></code>) when encoding
-<a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#module-dataclasses" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses</span></code></a> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/234">PR #234</a>)</p></li>
+<a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#module-dataclasses" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses</span></code></a> (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/234">PR #234</a>)</p></li>
 </ul>
 </section>
 <section id="version-0-10-0-2022-12-07">
-<h2>Version 0.10.0 (2022-12-07)<a class="headerlink" href="#version-0-10-0-2022-12-07" title="Permalink to this heading">¶</a></h2>
+<h2>Version 0.10.0 (2022-12-07)<a class="headerlink" href="#version-0-10-0-2022-12-07" title="Link to this heading">¶</a></h2>
 <ul class="simple">
-<li><p>Add <code class="docutils literal notranslate"><span class="pre">forbid_unknown_fields</span></code> configuration option to <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code></a> types (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/210">PR #210</a>)</p></li>
-<li><p><strong>BREAKING</strong>: Encode all <a class="reference external" href="https://docs.python.org/3/library/enum.html#module-enum" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enum</span></code></a> types by value, rather than name (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/211">PR #211</a>)</p></li>
-<li><p>Fix a bug in the JSON encoder when base64 encoding binary objects (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/217">PR #217</a>)</p></li>
-<li><p>Add support for encoding/decoding <a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#module-dataclasses" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses</span></code></a> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/218">PR #218</a>)</p></li>
-<li><p>Add support for encoding/decoding <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.date" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.date</span></code></a> objects (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/221">PR #221</a>)</p></li>
-<li><p>Add support for encoding/decoding <a class="reference external" href="https://docs.python.org/3/library/uuid.html#uuid.UUID" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">uuid.UUID</span></code></a> objects (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/222">PR #222</a>)</p></li>
+<li><p>Add <code class="docutils literal notranslate"><span class="pre">forbid_unknown_fields</span></code> configuration option to <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code></a> types (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/210">PR #210</a>)</p></li>
+<li><p><strong>BREAKING</strong>: Encode all <a class="reference external" href="https://docs.python.org/3/library/enum.html#module-enum" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enum</span></code></a> types by value, rather than name (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/211">PR #211</a>)</p></li>
+<li><p>Fix a bug in the JSON encoder when base64 encoding binary objects (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/217">PR #217</a>)</p></li>
+<li><p>Add support for encoding/decoding <a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#module-dataclasses" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses</span></code></a> (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/218">PR #218</a>)</p></li>
+<li><p>Add support for encoding/decoding <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.date" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.date</span></code></a> objects (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/221">PR #221</a>)</p></li>
+<li><p>Add support for encoding/decoding <a class="reference external" href="https://docs.python.org/3/library/uuid.html#uuid.UUID" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">uuid.UUID</span></code></a> objects (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/222">PR #222</a>)</p></li>
 <li><p><strong>BREAKING</strong>: support encoding/decoding <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.datetime" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.datetime</span></code></a> values without
-timezones by default (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/224">PR #224</a>).</p></li>
+timezones by default (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/224">PR #224</a>).</p></li>
 <li><p>Add a <code class="docutils literal notranslate"><span class="pre">tz</span></code> <a class="reference internal" href="constraints.html"><span class="doc">constraint</span></a> to require aware or naive
-datetime/time objects when decoding (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/224">PR #224</a>).</p></li>
-<li><p>Add support for encoding/decoding <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.time" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.time</span></code></a> objects (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/225">PR #225</a>)</p></li>
+datetime/time objects when decoding (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/224">PR #224</a>).</p></li>
+<li><p>Add support for encoding/decoding <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.time" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.time</span></code></a> objects (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/225">PR #225</a>)</p></li>
 <li><p>Add a <a class="reference internal" href="api.html#msgspec.json.format" title="msgspec.json.format"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.json.format</span></code></a> utility for efficiently pretty-printing already
-encoded JSON documents (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/226">PR #226</a>).</p></li>
+encoded JSON documents (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/226">PR #226</a>).</p></li>
 <li><p>Support decoding JSON from strings instead of just bytes-like objects
-(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/229">PR #229</a>)</p></li>
+(<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/229">PR #229</a>)</p></li>
 </ul>
 </section>
 <section id="version-0-9-1-2022-10-27">
-<h2>Version 0.9.1 (2022-10-27)<a class="headerlink" href="#version-0-9-1-2022-10-27" title="Permalink to this heading">¶</a></h2>
+<h2>Version 0.9.1 (2022-10-27)<a class="headerlink" href="#version-0-9-1-2022-10-27" title="Link to this heading">¶</a></h2>
 <ul class="simple">
-<li><p>Enable Python 3.11 builds (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/205">PR #205</a>)</p></li>
-<li><p>Support greater than microsecond resolution when parsing JSON timestamps (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/201">PR #201</a>)</p></li>
-<li><p>Work around a limitation in mypy for typed decoders (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/191">PR #191</a>)</p></li>
+<li><p>Enable Python 3.11 builds (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/205">PR #205</a>)</p></li>
+<li><p>Support greater than microsecond resolution when parsing JSON timestamps (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/201">PR #201</a>)</p></li>
+<li><p>Work around a limitation in mypy for typed decoders (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/191">PR #191</a>)</p></li>
 </ul>
 </section>
 <section id="version-0-9-0-2022-09-13">
-<h2>Version 0.9.0 (2022-09-13)<a class="headerlink" href="#version-0-9-0-2022-09-13" title="Permalink to this heading">¶</a></h2>
+<h2>Version 0.9.0 (2022-09-13)<a class="headerlink" href="#version-0-9-0-2022-09-13" title="Link to this heading">¶</a></h2>
 <ul class="simple">
 <li><p>Support for <a class="reference internal" href="constraints.html"><span class="doc">constraints</span></a> during validation. For example,
-this allows ensuring a field is an integer &gt;= 0. (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/176">PR #176</a>)</p></li>
+this allows ensuring a field is an integer &gt;= 0. (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/176">PR #176</a>)</p></li>
 <li><p>New utilities for generating <a class="reference internal" href="jsonschema.html"><span class="doc">JSON Schemas</span></a> from type
-definitions (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/181">PR #181</a>)</p></li>
-<li><p>Support for pretty printing using <a class="reference external" href="https://rich.readthedocs.io/en/stable/pretty.html">rich</a> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/183">PR #183</a>)</p></li>
-<li><p>Improve integer encoding performance (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/170">PR #170</a>)</p></li>
-<li><p>Builtin support for renaming fields using kebab-case (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/175">PR #175</a>)</p></li>
-<li><p>Support for passing a mapping when renaming fields (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/185">PR #185</a>)</p></li>
+definitions (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/181">PR #181</a>)</p></li>
+<li><p>Support for pretty printing using <a class="reference external" href="https://rich.readthedocs.io/en/stable/pretty.html">rich</a> (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/183">PR #183</a>)</p></li>
+<li><p>Improve integer encoding performance (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/170">PR #170</a>)</p></li>
+<li><p>Builtin support for renaming fields using kebab-case (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/175">PR #175</a>)</p></li>
+<li><p>Support for passing a mapping when renaming fields (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/185">PR #185</a>)</p></li>
 </ul>
 </section>
 <section id="version-0-8-0-2022-08-01">
-<h2>Version 0.8.0 (2022-08-01)<a class="headerlink" href="#version-0-8-0-2022-08-01" title="Permalink to this heading">¶</a></h2>
+<h2>Version 0.8.0 (2022-08-01)<a class="headerlink" href="#version-0-8-0-2022-08-01" title="Link to this heading">¶</a></h2>
 <ul class="simple">
-<li><p>Support integer tag values when using <a class="reference internal" href="structs.html#struct-tagged-unions"><span class="std std-ref">tagged unions</span></a> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/135">PR #135</a>).</p></li>
-<li><p>Support decoding into <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypedDict" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.TypedDict</span></code></a> types (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/142">PR #142</a>).</p></li>
-<li><p>Support encoding/decoding <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.NamedTuple" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.NamedTuple</span></code></a> types (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/161">PR #161</a>).</p></li>
-<li><p>Test against CPython 3.11 prelease builds (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/146">PR #146</a>).</p></li>
+<li><p>Support integer tag values when using <a class="reference internal" href="structs.html#struct-tagged-unions"><span class="std std-ref">tagged unions</span></a> (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/135">PR #135</a>).</p></li>
+<li><p>Support decoding into <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypedDict" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.TypedDict</span></code></a> types (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/142">PR #142</a>).</p></li>
+<li><p>Support encoding/decoding <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.NamedTuple" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.NamedTuple</span></code></a> types (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/161">PR #161</a>).</p></li>
+<li><p>Test against CPython 3.11 prelease builds (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/146">PR #146</a>).</p></li>
 <li><p>Add <a class="reference internal" href="api.html#msgspec.ValidationError" title="msgspec.ValidationError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ValidationError</span></code></a> (a subclass of <a class="reference internal" href="api.html#msgspec.DecodeError" title="msgspec.DecodeError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">DecodeError</span></code></a>) to allow differentiating
 between errors due to a message not matching the schema from those due to the
-message being invalid JSON (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/155">PR #155</a>).</p></li>
-<li><p>Support encoding subclasses of <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">list</span></code></a>/<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/160">PR #160</a>).</p></li>
+message being invalid JSON (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/155">PR #155</a>).</p></li>
+<li><p>Support encoding subclasses of <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">list</span></code></a>/<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a> (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/160">PR #160</a>).</p></li>
 <li><p>Fix a bug preventing decoding custom types wrapped in a <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.Optional</span></code></a>
-(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/162">PR #162</a>).</p></li>
+(<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/162">PR #162</a>).</p></li>
 </ul>
 </section>
 <section id="version-0-7-1-2022-06-27">
-<h2>Version 0.7.1 (2022-06-27)<a class="headerlink" href="#version-0-7-1-2022-06-27" title="Permalink to this heading">¶</a></h2>
+<h2>Version 0.7.1 (2022-06-27)<a class="headerlink" href="#version-0-7-1-2022-06-27" title="Link to this heading">¶</a></h2>
 <ul class="simple">
-<li><p>Further reduce the size of packaged wheels (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/130">PR #130</a>).</p></li>
+<li><p>Further reduce the size of packaged wheels (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/130">PR #130</a>).</p></li>
 <li><p>Add <a class="reference external" href="https://docs.python.org/3/library/weakref.html#module-weakref" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">weakref</span></code></a> support for <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code></a> types through a new <code class="docutils literal notranslate"><span class="pre">weakref</span></code>
-configuration option (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/131">PR #131</a>).</p></li>
+configuration option (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/131">PR #131</a>).</p></li>
 <li><p>Fix a couple unlikely (but possible) bugs in the deallocation routine for
-Struct types (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/131">PR #131</a>).</p></li>
+Struct types (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/131">PR #131</a>).</p></li>
 </ul>
 </section>
 <section id="version-0-7-0-2022-06-20">
-<h2>Version 0.7.0 (2022-06-20)<a class="headerlink" href="#version-0-7-0-2022-06-20" title="Permalink to this heading">¶</a></h2>
+<h2>Version 0.7.0 (2022-06-20)<a class="headerlink" href="#version-0-7-0-2022-06-20" title="Link to this heading">¶</a></h2>
 <ul class="simple">
 <li><p>Dramatically speedup JSON string decoding, up to 2x speedup in some cases
-(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/118">PR #118</a>).</p></li>
+(<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/118">PR #118</a>).</p></li>
 <li><p>Adds a cache for decoding short (&lt; 32 character) ASCII dict keys. This
 results in up to a 40% speedup when decoding many dicts with common keys
 using an untyped decoder. It’s still recommended to define <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code></a> types
 when your messages have a common structure, but in cases where no type is
-provided decoding is now much more performant (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/120">PR #120</a>, <a class="reference external" href="https://github.com/jcrist/msgspec/pull/121">PR #121</a>).</p></li>
+provided decoding is now much more performant (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/120">PR #120</a>, <a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/121">PR #121</a>).</p></li>
 <li><p>Adds <code class="docutils literal notranslate"><span class="pre">order</span></code> and <code class="docutils literal notranslate"><span class="pre">eq</span></code> configuration options for <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code></a> types, mirroring
 the <code class="docutils literal notranslate"><span class="pre">dataclasses</span></code> options of the same name. Order comparisons for Struct
 types are very performant, roughly <a class="reference external" href="https://jcristharif.com/msgspec/benchmarks.html#benchmark-structs">10x to 70x faster</a> than
-alternative libraries (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/122">PR #122</a>).</p></li>
+alternative libraries (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/122">PR #122</a>).</p></li>
 <li><p>Speedup <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code></a> decoding for both JSON and MessagePack, on average 20%
-faster (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/119">PR #119</a>).</p></li>
+faster (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/119">PR #119</a>).</p></li>
 <li><p>Various additional performance improvements, mostly to the JSON
-implementation (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/100">PR #100</a>, <a class="reference external" href="https://github.com/jcrist/msgspec/pull/101">PR #101</a>, <a class="reference external" href="https://github.com/jcrist/msgspec/pull/102">PR #102</a>).</p></li>
+implementation (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/100">PR #100</a>, <a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/101">PR #101</a>, <a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/102">PR #102</a>).</p></li>
 <li><p>Add <a class="reference internal" href="api.html#msgspec.defstruct" title="msgspec.defstruct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">defstruct</span></code></a> method for dynamically defining new <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code></a> types at
-runtime (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/105">PR #105</a>).</p></li>
-<li><p>Fix ARM support and publish ARM wheels for Linux and Mac (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/104">PR #104</a>).</p></li>
-<li><p>Reduce published wheel sizes by stripping debug symbols (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/113">PR #113</a>).</p></li>
-<li><p>Fix a memory leak in <code class="docutils literal notranslate"><span class="pre">Struct.__reduce__</span></code> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/117">PR #117</a>).</p></li>
+runtime (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/105">PR #105</a>).</p></li>
+<li><p>Fix ARM support and publish ARM wheels for Linux and Mac (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/104">PR #104</a>).</p></li>
+<li><p>Reduce published wheel sizes by stripping debug symbols (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/113">PR #113</a>).</p></li>
+<li><p>Fix a memory leak in <code class="docutils literal notranslate"><span class="pre">Struct.__reduce__</span></code> (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/117">PR #117</a>).</p></li>
 <li><p><strong>BREAKING</strong>: Rename <code class="docutils literal notranslate"><span class="pre">nogc</span></code> struct option to <code class="docutils literal notranslate"><span class="pre">gc</span></code>. To disable GC on a
 Struct instance you now want to specify <code class="docutils literal notranslate"><span class="pre">gc=False</span></code> instead of <code class="docutils literal notranslate"><span class="pre">nogc=True</span></code>
-(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/124">PR #124</a>).</p></li>
+(<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/124">PR #124</a>).</p></li>
 </ul>
 </section>
 <section id="version-0-6-0-2022-04-06">
-<h2>Version 0.6.0 (2022-04-06)<a class="headerlink" href="#version-0-6-0-2022-04-06" title="Permalink to this heading">¶</a></h2>
+<h2>Version 0.6.0 (2022-04-06)<a class="headerlink" href="#version-0-6-0-2022-04-06" title="Link to this heading">¶</a></h2>
 <ul class="simple">
 <li><p>Add a new <a class="reference external" href="https://jcristharif.com/msgspec/usage.html#raw">msgspec.Raw</a>
 type for delayed decoding of message fields / serializing already encoded
-fields (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/92">PR #92</a>).</p></li>
+fields (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/92">PR #92</a>).</p></li>
 <li><p>Add <code class="docutils literal notranslate"><span class="pre">omit_defaults</span></code> option to <code class="docutils literal notranslate"><span class="pre">Struct</span></code> types (<a class="reference external" href="https://jcristharif.com/msgspec/structs.html#omitting-default-values">docs</a>).
 If enabled, fields containing their respective default value will be omitted
 from serialized message. This improves both encode and decode performance
-(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/94">PR #94</a>).</p></li>
+(<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/94">PR #94</a>).</p></li>
 <li><p>Add <code class="docutils literal notranslate"><span class="pre">rename</span></code> option to <code class="docutils literal notranslate"><span class="pre">Struct</span></code> types (<a class="reference external" href="https://jcristharif.com/msgspec/structs.html#renaming-field-names">docs</a>) for
 altering the field names used for encoding. A major use of this is supporting
 <code class="docutils literal notranslate"><span class="pre">camelCase</span></code> JSON field names, while letting Python code use the more
-standard <code class="docutils literal notranslate"><span class="pre">snake_case</span></code> field names (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/98">PR #98</a>).</p></li>
+standard <code class="docutils literal notranslate"><span class="pre">snake_case</span></code> field names (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/98">PR #98</a>).</p></li>
 <li><p>Improve performance of <code class="docutils literal notranslate"><span class="pre">nogc=True</span></code> structs (<a class="reference external" href="https://jcristharif.com/msgspec/structs.html#disabling-garbage-collection-advanced">docs</a>).
 GC is now avoided in more cases, and <code class="docutils literal notranslate"><span class="pre">nogc=True</span></code> structs use 16 fewer bytes
 per instance. Also added a <a class="reference external" href="https://jcristharif.com/msgspec/benchmarks.html#benchmark-garbage-collection">benchmark</a>
-for how <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> can interact with application GC usage (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/93">PR #93</a>).</p></li>
+for how <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> can interact with application GC usage (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/93">PR #93</a>).</p></li>
 <li><p>Cache creation of <a class="reference external" href="https://jcristharif.com/msgspec/structs.html#tagged-unions">tagged union</a> lookup
 tables, reducing memory usage for applications making heavy use of tagged
-unions (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/91">PR #91</a>).</p></li>
-<li><p>Support encoding and decoding <code class="docutils literal notranslate"><span class="pre">frozenset</span></code> instances (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/95">PR #95</a>).</p></li>
+unions (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/91">PR #91</a>).</p></li>
+<li><p>Support encoding and decoding <code class="docutils literal notranslate"><span class="pre">frozenset</span></code> instances (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/95">PR #95</a>).</p></li>
 <li><p>A smattering of other performance improvements.</p></li>
 </ul>
 </section>
 <section id="version-0-5-0-2022-03-09">
-<h2>Version 0.5.0 (2022-03-09)<a class="headerlink" href="#version-0-5-0-2022-03-09" title="Permalink to this heading">¶</a></h2>
+<h2>Version 0.5.0 (2022-03-09)<a class="headerlink" href="#version-0-5-0-2022-03-09" title="Link to this heading">¶</a></h2>
 <ul class="simple">
 <li><p>Support <a class="reference external" href="https://jcristharif.com/msgspec/structs.html#tagged-unions">tagged unions</a> for
-encoding/decoding a <code class="docutils literal notranslate"><span class="pre">Union</span></code> of <code class="docutils literal notranslate"><span class="pre">msgspec.Struct</span></code> types (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/83">PR #83</a>).</p></li>
+encoding/decoding a <code class="docutils literal notranslate"><span class="pre">Union</span></code> of <code class="docutils literal notranslate"><span class="pre">msgspec.Struct</span></code> types (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/83">PR #83</a>).</p></li>
 <li><p>Further improve encoding performance of <code class="docutils literal notranslate"><span class="pre">enum.Enum</span></code> instances by 20-30%
-(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/84">PR #84</a>).</p></li>
+(<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/84">PR #84</a>).</p></li>
 <li><p>Reduce overhead of calling <code class="docutils literal notranslate"><span class="pre">msgspec.json.decode</span></code>/<code class="docutils literal notranslate"><span class="pre">msgspec.msgpack.decode</span></code>
 with <code class="docutils literal notranslate"><span class="pre">type=SomeStructType</span></code>. It’s still faster to create a <code class="docutils literal notranslate"><span class="pre">Decoder</span></code> once
 and call <code class="docutils literal notranslate"><span class="pre">decoder.decode</span></code> multiple times, but for struct types the overhead
-of calling the top-level function is decreased significantly (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/77">PR #77</a>,
-<a class="reference external" href="https://github.com/jcrist/msgspec/pull/88">PR #88</a>).</p></li>
-<li><p><strong>BREAKING</strong>: Rename the Struct option <code class="docutils literal notranslate"><span class="pre">asarray</span></code> to <code class="docutils literal notranslate"><span class="pre">array_like</span></code> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/85">PR #85</a>).</p></li>
+of calling the top-level function is decreased significantly (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/77">PR #77</a>,
+<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/88">PR #88</a>).</p></li>
+<li><p><strong>BREAKING</strong>: Rename the Struct option <code class="docutils literal notranslate"><span class="pre">asarray</span></code> to <code class="docutils literal notranslate"><span class="pre">array_like</span></code> (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/85">PR #85</a>).</p></li>
 </ul>
 </section>
 <section id="version-0-4-2-2022-02-28">
-<h2>Version 0.4.2 (2022-02-28)<a class="headerlink" href="#version-0-4-2-2022-02-28" title="Permalink to this heading">¶</a></h2>
+<h2>Version 0.4.2 (2022-02-28)<a class="headerlink" href="#version-0-4-2-2022-02-28" title="Link to this heading">¶</a></h2>
 <ul class="simple">
-<li><p>Support <code class="docutils literal notranslate"><span class="pre">typing.Literal</span></code> string types as dict keys in JSON (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/78">PR #78</a>).</p></li>
+<li><p>Support <code class="docutils literal notranslate"><span class="pre">typing.Literal</span></code> string types as dict keys in JSON (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/78">PR #78</a>).</p></li>
 <li><p>Support Python 3.10 style unions (for example, <code class="docutils literal notranslate"><span class="pre">int</span> <span class="pre">|</span> <span class="pre">float</span> <span class="pre">|</span> <span class="pre">None</span></code>)
-(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/75">PR #75</a>).</p></li>
-<li><p>Publish Python 3.10 wheels (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/80">PR #80</a>).</p></li>
+(<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/75">PR #75</a>).</p></li>
+<li><p>Publish Python 3.10 wheels (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/80">PR #80</a>).</p></li>
 </ul>
 </section>
 <section id="version-0-4-1-2022-02-23">
-<h2>Version 0.4.1 (2022-02-23)<a class="headerlink" href="#version-0-4-1-2022-02-23" title="Permalink to this heading">¶</a></h2>
+<h2>Version 0.4.1 (2022-02-23)<a class="headerlink" href="#version-0-4-1-2022-02-23" title="Link to this heading">¶</a></h2>
 <ul class="simple">
-<li><p>Optimize decoding of <code class="docutils literal notranslate"><span class="pre">Enum</span></code> types, on average ~10x faster (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/69">PR #69</a>).</p></li>
-<li><p>Optimize decoding of <code class="docutils literal notranslate"><span class="pre">IntEnum</span></code> types, on average ~12x faster (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/68">PR #68</a>).</p></li>
-<li><p>Support decoding <code class="docutils literal notranslate"><span class="pre">typing.Literal</span></code> types (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/71">PR #71</a>).</p></li>
+<li><p>Optimize decoding of <code class="docutils literal notranslate"><span class="pre">Enum</span></code> types, on average ~10x faster (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/69">PR #69</a>).</p></li>
+<li><p>Optimize decoding of <code class="docutils literal notranslate"><span class="pre">IntEnum</span></code> types, on average ~12x faster (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/68">PR #68</a>).</p></li>
+<li><p>Support decoding <code class="docutils literal notranslate"><span class="pre">typing.Literal</span></code> types (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/71">PR #71</a>).</p></li>
 <li><p>Add <code class="docutils literal notranslate"><span class="pre">nogc</span></code> option for <code class="docutils literal notranslate"><span class="pre">Struct</span></code> types, disabling the cyclic garbage
-collector for their instances (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/72">PR #72</a>).</p></li>
+collector for their instances (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/72">PR #72</a>).</p></li>
 </ul>
 </section>
 <section id="version-0-4-0-2022-02-08">
-<h2>Version 0.4.0 (2022-02-08)<a class="headerlink" href="#version-0-4-0-2022-02-08" title="Permalink to this heading">¶</a></h2>
+<h2>Version 0.4.0 (2022-02-08)<a class="headerlink" href="#version-0-4-0-2022-02-08" title="Link to this heading">¶</a></h2>
 <ul class="simple">
-<li><p>Moved MessagePack support to the <code class="docutils literal notranslate"><span class="pre">msgspec.msgpack</span></code> submodule (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/56">PR #56</a>).</p></li>
-<li><p>New JSON support available in <code class="docutils literal notranslate"><span class="pre">msgspec.json</span></code> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/56">PR #56</a>).</p></li>
+<li><p>Moved MessagePack support to the <code class="docutils literal notranslate"><span class="pre">msgspec.msgpack</span></code> submodule (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/56">PR #56</a>).</p></li>
+<li><p>New JSON support available in <code class="docutils literal notranslate"><span class="pre">msgspec.json</span></code> (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/56">PR #56</a>).</p></li>
 <li><p>Improved error message generation to provide full path to the mistyped values
-(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/56">PR #56</a>).</p></li>
+(<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/56">PR #56</a>).</p></li>
 <li><p>Renamed the <code class="docutils literal notranslate"><span class="pre">immutable</span></code> kwarg in <code class="docutils literal notranslate"><span class="pre">msgspec.Struct</span></code> to <code class="docutils literal notranslate"><span class="pre">frozen</span></code> to better
-match python conventions (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/60">PR #60</a>).</p></li>
+match python conventions (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/60">PR #60</a>).</p></li>
 <li><p>Renamed <code class="docutils literal notranslate"><span class="pre">EncodingError</span></code> to <code class="docutils literal notranslate"><span class="pre">EncodeError</span></code>/<code class="docutils literal notranslate"><span class="pre">DecodingError</span></code> to
-<code class="docutils literal notranslate"><span class="pre">DecodeError</span></code> to better match python conventions (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/61">PR #61</a>).</p></li>
+<code class="docutils literal notranslate"><span class="pre">DecodeError</span></code> to better match python conventions (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/61">PR #61</a>).</p></li>
 <li><p>Improved <code class="docutils literal notranslate"><span class="pre">pyright</span></code> support, allowing more errors to be statically caught by
-their type checker (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/60">PR #60</a>).</p></li>
+their type checker (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/60">PR #60</a>).</p></li>
 <li><p>Adds support for Python 3.10 pattern matching on <code class="docutils literal notranslate"><span class="pre">msgspec.Struct</span></code> types
-(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/53">PR #53</a>).</p></li>
+(<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/53">PR #53</a>).</p></li>
 <li><p>Adds support for decoding into <code class="docutils literal notranslate"><span class="pre">typing.Union</span></code> types (with a few
-restrictions) (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/54">PR #54</a>).</p></li>
+restrictions) (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/54">PR #54</a>).</p></li>
 <li><p>General performance improvements across all encoders/decoders.</p></li>
 </ul>
 </section>
 <section id="version-0-3-2-2021-07-23">
-<h2>Version 0.3.2 (2021-07-23)<a class="headerlink" href="#version-0-3-2-2021-07-23" title="Permalink to this heading">¶</a></h2>
+<h2>Version 0.3.2 (2021-07-23)<a class="headerlink" href="#version-0-3-2-2021-07-23" title="Link to this heading">¶</a></h2>
 <ul class="simple">
-<li><p>Faster float encoding and decoding (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/47">PR #47</a>).</p></li>
+<li><p>Faster float encoding and decoding (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/47">PR #47</a>).</p></li>
 <li><p>General micro-optimizations for MessagePack encode/decode. This is most
-visible for large messages (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/48">PR #48</a>, <a class="reference external" href="https://github.com/jcrist/msgspec/pull/50">PR #50</a>).</p></li>
+visible for large messages (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/48">PR #48</a>, <a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/50">PR #50</a>).</p></li>
 </ul>
 </section>
 <section id="version-0-3-1-2021-07-12">
-<h2>Version 0.3.1 (2021-07-12)<a class="headerlink" href="#version-0-3-1-2021-07-12" title="Permalink to this heading">¶</a></h2>
+<h2>Version 0.3.1 (2021-07-12)<a class="headerlink" href="#version-0-3-1-2021-07-12" title="Link to this heading">¶</a></h2>
 <ul class="simple">
 <li><p>Use a freelist for small structs to improve struct allocation time
-(<a class="reference external" href="https://github.com/jcrist/msgspec/pull/44">PR #44</a>).</p></li>
-<li><p>Small performance improvements for struct serialization (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/45">PR #45</a>).</p></li>
+(<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/44">PR #44</a>).</p></li>
+<li><p>Small performance improvements for struct serialization (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/45">PR #45</a>).</p></li>
 </ul>
 </section>
 <section id="version-0-3-0-2021-07-07">
-<h2>Version 0.3.0 (2021-07-07)<a class="headerlink" href="#version-0-3-0-2021-07-07" title="Permalink to this heading">¶</a></h2>
+<h2>Version 0.3.0 (2021-07-07)<a class="headerlink" href="#version-0-3-0-2021-07-07" title="Link to this heading">¶</a></h2>
 <ul class="simple">
 <li><p>Add <code class="docutils literal notranslate"><span class="pre">Encoder.encode_into</span></code> api, for encoding into an existing buffer without
-copying (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/34">PR #34</a>).</p></li>
-<li><p>Add support for encoding/decoding MessagePack extensions (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/31">PR #31</a>).</p></li>
-<li><p>Add support for encoding/decoding <code class="docutils literal notranslate"><span class="pre">datetime</span></code> objects (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/36">PR #36</a>).</p></li>
+copying (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/34">PR #34</a>).</p></li>
+<li><p>Add support for encoding/decoding MessagePack extensions (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/31">PR #31</a>).</p></li>
+<li><p>Add support for encoding/decoding <code class="docutils literal notranslate"><span class="pre">datetime</span></code> objects (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/36">PR #36</a>).</p></li>
 <li><p>Add support for encoding/decoding custom objects without relying on
-MessagePack extensions (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/32">PR #32</a>, <a class="reference external" href="https://github.com/jcrist/msgspec/pull/33">PR #33</a>).</p></li>
-<li><p>Add support for marking <code class="docutils literal notranslate"><span class="pre">Struct</span></code> types as hashable (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/39">PR #39</a>).</p></li>
+MessagePack extensions (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/32">PR #32</a>, <a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/33">PR #33</a>).</p></li>
+<li><p>Add support for marking <code class="docutils literal notranslate"><span class="pre">Struct</span></code> types as hashable (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/39">PR #39</a>).</p></li>
 <li><p>Add support for serializing <code class="docutils literal notranslate"><span class="pre">Struct</span></code> types as MessagePack <code class="docutils literal notranslate"><span class="pre">array</span></code> objects
-rather than <code class="docutils literal notranslate"><span class="pre">map</span></code> objects (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/39">PR #39</a>).</p></li>
+rather than <code class="docutils literal notranslate"><span class="pre">map</span></code> objects (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/39">PR #39</a>).</p></li>
 <li><p>Several performance improvements. On average 50% faster encoding and 30%
 faster decoding.</p></li>
 </ul>
 </section>
 <section id="version-0-2-0-2021-02-25">
-<h2>Version 0.2.0 (2021-02-25)<a class="headerlink" href="#version-0-2-0-2021-02-25" title="Permalink to this heading">¶</a></h2>
+<h2>Version 0.2.0 (2021-02-25)<a class="headerlink" href="#version-0-2-0-2021-02-25" title="Link to this heading">¶</a></h2>
 <ul class="simple">
-<li><p>Add <code class="docutils literal notranslate"><span class="pre">default</span></code> callback to <code class="docutils literal notranslate"><span class="pre">encode</span></code>/<code class="docutils literal notranslate"><span class="pre">Encoder</span></code> (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/21">PR #21</a>).</p></li>
-<li><p>Fix bug in <code class="docutils literal notranslate"><span class="pre">Encoder</span></code> dealloc (<a class="reference external" href="https://github.com/jcrist/msgspec/pull/21">PR #21</a>).</p></li>
+<li><p>Add <code class="docutils literal notranslate"><span class="pre">default</span></code> callback to <code class="docutils literal notranslate"><span class="pre">encode</span></code>/<code class="docutils literal notranslate"><span class="pre">Encoder</span></code> (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/21">PR #21</a>).</p></li>
+<li><p>Fix bug in <code class="docutils literal notranslate"><span class="pre">Encoder</span></code> dealloc (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/21">PR #21</a>).</p></li>
 </ul>
 </section>
 <section id="version-0-1-0-2021-02-23">
-<h2>Version 0.1.0 (2021-02-23)<a class="headerlink" href="#version-0-1-0-2021-02-23" title="Permalink to this heading">¶</a></h2>
+<h2>Version 0.1.0 (2021-02-23)<a class="headerlink" href="#version-0-1-0-2021-02-23" title="Link to this heading">¶</a></h2>
 <ul class="simple">
 <li><p>Initial Release</p></li>
 </ul>
@@ -964,12 +964,12 @@ faster decoding.</p></li>
       
     </aside>
   </div>
-</div><script data-url_root="./" id="documentation_options" src="_static/documentation_options.js?v=b3ba4146"></script>
-    <script src="_static/doctools.js?v=888ff710"></script>
-    <script src="_static/sphinx_highlight.js?v=4825356b"></script>
+</div><script src="_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="_static/scripts/furo.js?v=5fa4622c"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
     <script src="_static/copybutton.js?v=de5a9c30"></script>
-    <script src="_static/design-tabs.js?v=36754332"></script>
+    <script src="_static/design-tabs.js?v=f930bc37"></script>
     </body>
 </html>

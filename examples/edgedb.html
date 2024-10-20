@@ -1,16 +1,16 @@
 <!doctype html>
-<html class="no-js" lang="en" data-content_root="">
+<html class="no-js" lang="en" data-content_root="../">
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
     <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="index" title="Index" href="../genindex.html" /><link rel="search" title="Search" href="../search.html" /><link rel="next" title="Changelog" href="../changelog.html" /><link rel="prev" title="Parsing pyproject.toml" href="pyproject-toml.html" />
 
-    <!-- Generated with Sphinx 7.1.2 and Furo 2024.08.06 -->
+    <!-- Generated with Sphinx 8.1.3 and Furo 2024.08.06 -->
         <title>Usage with EdgeDB</title>
       <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=80d5e7a1" />
     <link rel="stylesheet" type="text/css" href="../_static/styles/furo.css?v=354aac6f" />
     <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
-    <link rel="stylesheet" type="text/css" href="../_static/design-style.1e8bd061cd6da7fc9cf755528e8ffc24.min.css?v=0a3b3ea7" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
     <link rel="stylesheet" type="text/css" href="../_static/styles/furo-extensions.css?v=302659d7" />
     <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=6b2c8899" />
     
@@ -310,8 +310,9 @@
         </div>
         <article role="main" id="furo-main-content">
           <section id="usage-with-edgedb">
-<h1>Usage with EdgeDB<a class="headerlink" href="#usage-with-edgedb" title="Permalink to this heading">¶</a></h1>
-<a class="reference internal image-reference" href="../_images/edgedb.svg"><img alt="../_images/edgedb.svg" class="align-center" src="../_images/edgedb.svg" width="60%" /></a>
+<h1>Usage with EdgeDB<a class="headerlink" href="#usage-with-edgedb" title="Link to this heading">¶</a></h1>
+<a class="reference internal image-reference" href="../_images/edgedb.svg"><img alt="../_images/edgedb.svg" class="align-center" src="../_images/edgedb.svg" style="width: 60%;" />
+</a>
 <p><a class="reference external" href="https://www.edgedb.com/">EdgeDB</a> is an interesting new <a class="reference external" href="https://www.edgedb.com/blog/the-graph-relational-database-defined">graph-relational
 database</a>
 system. It includes a powerful and ergonomic query language <a class="reference external" href="https://www.edgedb.com/docs/edgeql/index">“EdgeQL”</a>, along with client libraries that
@@ -320,7 +321,7 @@ integrate well with their respective language ecosystems.</p>
 <a class="reference external" href="https://www.edgedb.com/docs/clients/python">Python client library</a>
 with <code class="docutils literal notranslate"><span class="pre">msgspec</span></code>.</p>
 <section id="setup">
-<h2>Setup<a class="headerlink" href="#setup" title="Permalink to this heading">¶</a></h2>
+<h2>Setup<a class="headerlink" href="#setup" title="Link to this heading">¶</a></h2>
 <p>This is not intended to be a complete EdgeDB tutorial; for that we recommend
 going through the <a class="reference external" href="https://www.edgedb.com/docs/intro/quickstart">official EdgeDB quickstart</a>. This example assumes you
 already have the EdgeDB CLI and Python library installed.</p>
@@ -360,7 +361,7 @@ query:</p>
 </div>
 </section>
 <section id="json-encoding-query-results">
-<h2>JSON Encoding Query Results<a class="headerlink" href="#json-encoding-query-results" title="Permalink to this heading">¶</a></h2>
+<h2>JSON Encoding Query Results<a class="headerlink" href="#json-encoding-query-results" title="Link to this heading">¶</a></h2>
 <p>The EdgeDB Python library returns objects as <code class="docutils literal notranslate"><span class="pre">edgedb.Object</span></code> instances
 (<a class="reference external" href="https://www.edgedb.com/docs/clients/python/api/types#edgedb.Object">docs</a>).
 Here we query the movie “Dune” that we inserted above, requesting the movie
@@ -465,7 +466,7 @@ wrapping the query result:</p>
 </div>
 </section>
 <section id="supporting-other-edgedb-types">
-<h2>Supporting Other EdgeDB Types<a class="headerlink" href="#supporting-other-edgedb-types" title="Permalink to this heading">¶</a></h2>
+<h2>Supporting Other EdgeDB Types<a class="headerlink" href="#supporting-other-edgedb-types" title="Link to this heading">¶</a></h2>
 <p>Besides <code class="docutils literal notranslate"><span class="pre">edgedb.Object</span></code>, <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> also includes builtin support for JSON
 encoding <code class="docutils literal notranslate"><span class="pre">edgedb.NamedTuple</span></code> types. There are a few remaining <code class="docutils literal notranslate"><span class="pre">edgedb</span></code>
 types that <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> doesn’t support out-of-the-box:</p>
@@ -493,7 +494,7 @@ types that <code class="docutils literal notranslate"><span class="pre">msgspec<
 </div>
 </section>
 <section id="converting-results-to-structs">
-<h2>Converting Results to Structs<a class="headerlink" href="#converting-results-to-structs" title="Permalink to this heading">¶</a></h2>
+<h2>Converting Results to Structs<a class="headerlink" href="#converting-results-to-structs" title="Link to this heading">¶</a></h2>
 <p>If your application contains complex server-side logic, you may wish to convert
 the query results into some other application-specific structured type.
 <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> supports automatic conversion to other types <a class="reference internal" href="../api.html#msgspec.convert" title="msgspec.convert"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.convert</span></code></a>.</p>
@@ -594,12 +595,12 @@ using <a class="reference internal" href="../api.html#msgspec.convert" title="ms
       
     </aside>
   </div>
-</div><script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js?v=b3ba4146"></script>
-    <script src="../_static/doctools.js?v=888ff710"></script>
-    <script src="../_static/sphinx_highlight.js?v=4825356b"></script>
+</div><script src="../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="../_static/scripts/furo.js?v=5fa4622c"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
     <script src="../_static/copybutton.js?v=de5a9c30"></script>
-    <script src="../_static/design-tabs.js?v=36754332"></script>
+    <script src="../_static/design-tabs.js?v=f930bc37"></script>
     </body>
 </html>

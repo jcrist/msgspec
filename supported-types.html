@@ -1,16 +1,16 @@
 <!doctype html>
-<html class="no-js" lang="en" data-content_root="">
+<html class="no-js" lang="en" data-content_root="./">
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
     <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Structs" href="structs.html" /><link rel="prev" title="Usage" href="usage.html" />
 
-    <!-- Generated with Sphinx 7.1.2 and Furo 2024.08.06 -->
+    <!-- Generated with Sphinx 8.1.3 and Furo 2024.08.06 -->
         <title>Supported Types</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=354aac6f" />
     <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
-    <link rel="stylesheet" type="text/css" href="_static/design-style.1e8bd061cd6da7fc9cf755528e8ffc24.min.css?v=0a3b3ea7" />
+    <link rel="stylesheet" type="text/css" href="_static/sphinx-design.min.css?v=95c83b7e" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=302659d7" />
     <link rel="stylesheet" type="text/css" href="_static/custom.css?v=6b2c8899" />
     
@@ -310,7 +310,7 @@
         </div>
         <article role="main" id="furo-main-content">
           <section id="supported-types">
-<h1>Supported Types<a class="headerlink" href="#supported-types" title="Permalink to this heading">¶</a></h1>
+<h1>Supported Types<a class="headerlink" href="#supported-types" title="Link to this heading">¶</a></h1>
 <p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> uses Python <a class="reference external" href="https://docs.python.org/3/library/typing.html">type annotations</a> to describe the expected types.
 Most combinations of the following types are supported (with a few restrictions):</p>
 <p><strong>Builtin Types</strong></p>
@@ -385,7 +385,7 @@ supported by default (see <a class="reference internal" href="extending.html"><s
 <p>Here we document how msgspec maps Python objects to/from the various supported
 protocols.</p>
 <section id="none">
-<h2><code class="docutils literal notranslate"><span class="pre">None</span></code><a class="headerlink" href="#none" title="Permalink to this heading">¶</a></h2>
+<h2><code class="docutils literal notranslate"><span class="pre">None</span></code><a class="headerlink" href="#none" title="Link to this heading">¶</a></h2>
 <p><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a> maps to the <code class="docutils literal notranslate"><span class="pre">null</span></code> value in all supported protocols. Note that <a class="reference external" href="https://toml.io">TOML</a>
 lacks a <code class="docutils literal notranslate"><span class="pre">null</span></code> value, attempted to encode a message containing <code class="docutils literal notranslate"><span class="pre">None</span></code> to
 <code class="docutils literal notranslate"><span class="pre">TOML</span></code> will result in an error.</p>
@@ -405,7 +405,7 @@ information.</p>
 </div>
 </section>
 <section id="bool">
-<h2><code class="docutils literal notranslate"><span class="pre">bool</span></code><a class="headerlink" href="#bool" title="Permalink to this heading">¶</a></h2>
+<h2><code class="docutils literal notranslate"><span class="pre">bool</span></code><a class="headerlink" href="#bool" title="Link to this heading">¶</a></h2>
 <p>Booleans map to their corresponding <code class="docutils literal notranslate"><span class="pre">true</span></code>/<code class="docutils literal notranslate"><span class="pre">false</span></code> values in both all
 supported protocols.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
@@ -430,7 +430,7 @@ supported protocols.</p>
 </div>
 </section>
 <section id="int">
-<h2><code class="docutils literal notranslate"><span class="pre">int</span></code><a class="headerlink" href="#int" title="Permalink to this heading">¶</a></h2>
+<h2><code class="docutils literal notranslate"><span class="pre">int</span></code><a class="headerlink" href="#int" title="Link to this heading">¶</a></h2>
 <p>Integers map to integers in all supported protocols.</p>
 <p>Support for large integers varies by protocol:</p>
 <ul class="simple">
@@ -458,7 +458,7 @@ as integers. See <a class="reference internal" href="usage.html#strict-vs-lax"><
 </div>
 </section>
 <section id="float">
-<h2><code class="docutils literal notranslate"><span class="pre">float</span></code><a class="headerlink" href="#float" title="Permalink to this heading">¶</a></h2>
+<h2><code class="docutils literal notranslate"><span class="pre">float</span></code><a class="headerlink" href="#float" title="Link to this heading">¶</a></h2>
 <p>Floats map to floats in all supported protocols. Note that per <a class="reference external" href="https://datatracker.ietf.org/doc/html/rfc8259">RFC8259</a>, JSON
 doesn’t support nonfinite numbers (<code class="docutils literal notranslate"><span class="pre">nan</span></code>, <code class="docutils literal notranslate"><span class="pre">infinity</span></code>, <code class="docutils literal notranslate"><span class="pre">-infinity</span></code>);
 <code class="docutils literal notranslate"><span class="pre">msgspec.json</span></code> handles this by encoding these values as <code class="docutils literal notranslate"><span class="pre">null</span></code>. The
@@ -494,7 +494,7 @@ Note that in this case the strings <code class="docutils literal notranslate"><s
 </div>
 </section>
 <section id="str">
-<h2><code class="docutils literal notranslate"><span class="pre">str</span></code><a class="headerlink" href="#str" title="Permalink to this heading">¶</a></h2>
+<h2><code class="docutils literal notranslate"><span class="pre">str</span></code><a class="headerlink" href="#str" title="Link to this heading">¶</a></h2>
 <p>Strings map to strings in all supported protocols.</p>
 <p>Note that for JSON, only the characters required by <a class="reference external" href="https://datatracker.ietf.org/doc/html/rfc8259">RFC8259</a> are escaped to
 ascii; unicode characters (e.g. <code class="docutils literal notranslate"><span class="pre">&quot;𝄞&quot;</span></code>) are <em>not</em> escaped and are serialized
@@ -511,7 +511,7 @@ directly as UTF-8 bytes.</p>
 </div>
 </section>
 <section id="bytes-bytearray-memoryview">
-<h2><code class="docutils literal notranslate"><span class="pre">bytes</span></code> / <code class="docutils literal notranslate"><span class="pre">bytearray</span></code> / <code class="docutils literal notranslate"><span class="pre">memoryview</span></code><a class="headerlink" href="#bytes-bytearray-memoryview" title="Permalink to this heading">¶</a></h2>
+<h2><code class="docutils literal notranslate"><span class="pre">bytes</span></code> / <code class="docutils literal notranslate"><span class="pre">bytearray</span></code> / <code class="docutils literal notranslate"><span class="pre">memoryview</span></code><a class="headerlink" href="#bytes-bytearray-memoryview" title="Link to this heading">¶</a></h2>
 <p>Bytes-like objects map to base64-encoded strings in JSON, YAML, and TOML. The
 <code class="docutils literal notranslate"><span class="pre">bin</span></code> type is used for MessagePack.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msg</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;</span><span class="se">\xf0\x9d\x84\x9e</span><span class="s2">&quot;</span><span class="p">)</span>
@@ -542,7 +542,7 @@ and will likely be slightly slower than decoding into a <a class="reference exte
 </div>
 </section>
 <section id="datetime">
-<h2><code class="docutils literal notranslate"><span class="pre">datetime</span></code><a class="headerlink" href="#datetime" title="Permalink to this heading">¶</a></h2>
+<h2><code class="docutils literal notranslate"><span class="pre">datetime</span></code><a class="headerlink" href="#datetime" title="Link to this heading">¶</a></h2>
 <p>The encoding used for <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.datetime" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.datetime</span></code></a> objects depends on both the
 protocol and whether these objects are <a class="reference external" href="https://docs.python.org/3/library/datetime.html#aware-and-naive-objects">timezone-aware</a> or timezone-naive:</p>
 <ul class="simple">
@@ -608,7 +608,7 @@ more information.</p>
 </div>
 </section>
 <section id="date">
-<h2><code class="docutils literal notranslate"><span class="pre">date</span></code><a class="headerlink" href="#date" title="Permalink to this heading">¶</a></h2>
+<h2><code class="docutils literal notranslate"><span class="pre">date</span></code><a class="headerlink" href="#date" title="Link to this heading">¶</a></h2>
 <p><a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.date" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.date</span></code></a> values map to:</p>
 <ul class="simple">
 <li><p><strong>JSON</strong>: <a class="reference external" href="https://datatracker.ietf.org/doc/html/rfc3339">RFC3339</a> encoded strings</p></li>
@@ -636,7 +636,7 @@ more information.</p>
 </div>
 </section>
 <section id="time">
-<h2><code class="docutils literal notranslate"><span class="pre">time</span></code><a class="headerlink" href="#time" title="Permalink to this heading">¶</a></h2>
+<h2><code class="docutils literal notranslate"><span class="pre">time</span></code><a class="headerlink" href="#time" title="Link to this heading">¶</a></h2>
 <p>The encoding used for <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.time" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.time</span></code></a> objects is dependent on both the protocol
 and whether these objects are <a class="reference external" href="https://docs.python.org/3/library/datetime.html#aware-and-naive-objects">timezone-aware</a> or timezone-naive:</p>
 <ul class="simple">
@@ -682,7 +682,7 @@ timezone-naive by specifying a <code class="docutils literal notranslate"><span 
 </div>
 </section>
 <section id="timedelta">
-<h2><code class="docutils literal notranslate"><span class="pre">timedelta</span></code><a class="headerlink" href="#timedelta" title="Permalink to this heading">¶</a></h2>
+<h2><code class="docutils literal notranslate"><span class="pre">timedelta</span></code><a class="headerlink" href="#timedelta" title="Link to this heading">¶</a></h2>
 <p><a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.timedelta" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.timedelta</span></code></a> values map to extended <a class="reference external" href="https://en.wikipedia.org/wiki/ISO_8601#Durations">ISO 8601 duration strings</a> in all
 protocols.</p>
 <p>The format as described in the ISO specification is fairly lax and a bit
@@ -765,7 +765,7 @@ as total seconds. See <a class="reference internal" href="usage.html#strict-vs-l
 </div>
 </section>
 <section id="uuid">
-<h2><code class="docutils literal notranslate"><span class="pre">uuid</span></code><a class="headerlink" href="#uuid" title="Permalink to this heading">¶</a></h2>
+<h2><code class="docutils literal notranslate"><span class="pre">uuid</span></code><a class="headerlink" href="#uuid" title="Link to this heading">¶</a></h2>
 <p><a class="reference external" href="https://docs.python.org/3/library/uuid.html#uuid.UUID" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">uuid.UUID</span></code></a> values are serialized as <a class="reference external" href="https://datatracker.ietf.org/doc/html/rfc4122">RFC4122</a> encoded canonical strings in all
 protocols by default. Subclasses of <a class="reference external" href="https://docs.python.org/3/library/uuid.html#uuid.UUID" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">uuid.UUID</span></code></a> are also supported for encoding
 only.</p>
@@ -817,7 +817,7 @@ by the MessagePack encoder.</p></li>
 </div>
 </section>
 <section id="decimal">
-<h2><code class="docutils literal notranslate"><span class="pre">decimal</span></code><a class="headerlink" href="#decimal" title="Permalink to this heading">¶</a></h2>
+<h2><code class="docutils literal notranslate"><span class="pre">decimal</span></code><a class="headerlink" href="#decimal" title="Link to this heading">¶</a></h2>
 <p><a class="reference external" href="https://docs.python.org/3/library/decimal.html#decimal.Decimal" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">decimal.Decimal</span></code></a> values are encoded as their string representation in all
 protocols by default. This ensures no precision loss during serialization, as
 would happen with a float representation.</p>
@@ -879,7 +879,7 @@ in precision loss for some inputs! In general we recommend avoiding parsing
 </div>
 </section>
 <section id="list-tuple-set-frozenset">
-<h2><code class="docutils literal notranslate"><span class="pre">list</span></code> / <code class="docutils literal notranslate"><span class="pre">tuple</span></code> / <code class="docutils literal notranslate"><span class="pre">set</span></code> / <code class="docutils literal notranslate"><span class="pre">frozenset</span></code><a class="headerlink" href="#list-tuple-set-frozenset" title="Permalink to this heading">¶</a></h2>
+<h2><code class="docutils literal notranslate"><span class="pre">list</span></code> / <code class="docutils literal notranslate"><span class="pre">tuple</span></code> / <code class="docutils literal notranslate"><span class="pre">set</span></code> / <code class="docutils literal notranslate"><span class="pre">frozenset</span></code><a class="headerlink" href="#list-tuple-set-frozenset" title="Link to this heading">¶</a></h2>
 <p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">list</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tuple</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#set" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set</span></code></a>, and <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#frozenset" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">frozenset</span></code></a> objects map to arrays in all protocols.
 An error is raised if the elements don’t match the specified element type (if
 provided).</p>
@@ -910,7 +910,7 @@ a <code class="docutils literal notranslate"><span class="pre">list</span></code
 </div>
 </section>
 <section id="namedtuple">
-<h2><code class="docutils literal notranslate"><span class="pre">NamedTuple</span></code><a class="headerlink" href="#namedtuple" title="Permalink to this heading">¶</a></h2>
+<h2><code class="docutils literal notranslate"><span class="pre">NamedTuple</span></code><a class="headerlink" href="#namedtuple" title="Link to this heading">¶</a></h2>
 <p><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.NamedTuple" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.NamedTuple</span></code></a> types map to arrays in all protocols.  An error is raised
 during decoding if the type doesn’t match or if any required fields are
 missing.</p>
@@ -964,7 +964,7 @@ are also supported.</p>
 </div>
 </section>
 <section id="dict">
-<h2><code class="docutils literal notranslate"><span class="pre">dict</span></code><a class="headerlink" href="#dict" title="Permalink to this heading">¶</a></h2>
+<h2><code class="docutils literal notranslate"><span class="pre">dict</span></code><a class="headerlink" href="#dict" title="Link to this heading">¶</a></h2>
 <p>Dicts encode/decode as objects/maps in all protocols.</p>
 <p>Dict subclasses (<a class="reference external" href="https://docs.python.org/3/library/collections.html#collections.OrderedDict" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collections.OrderedDict</span></code></a>, for example) are also supported for
 encoding only. To decode into a <code class="docutils literal notranslate"><span class="pre">dict</span></code> subclass you’ll need to implement a
@@ -992,7 +992,7 @@ respective types (if specified).</p>
 </div>
 </section>
 <section id="typeddict">
-<h2><code class="docutils literal notranslate"><span class="pre">TypedDict</span></code><a class="headerlink" href="#typeddict" title="Permalink to this heading">¶</a></h2>
+<h2><code class="docutils literal notranslate"><span class="pre">TypedDict</span></code><a class="headerlink" href="#typeddict" title="Link to this heading">¶</a></h2>
 <p><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypedDict" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.TypedDict</span></code></a> provides a way to specify different types for different
 values in a <code class="docutils literal notranslate"><span class="pre">dict</span></code>, rather than a single value type (the <code class="docutils literal notranslate"><span class="pre">int</span></code> in
 <code class="docutils literal notranslate"><span class="pre">Dict[str,</span> <span class="pre">int]</span></code>, for example).  At runtime these are just standard
@@ -1030,7 +1030,7 @@ already using them elsewhere, or if you have downstream code that requires a
 </div>
 </section>
 <section id="dataclasses">
-<h2><code class="docutils literal notranslate"><span class="pre">dataclasses</span></code><a class="headerlink" href="#dataclasses" title="Permalink to this heading">¶</a></h2>
+<h2><code class="docutils literal notranslate"><span class="pre">dataclasses</span></code><a class="headerlink" href="#dataclasses" title="Link to this heading">¶</a></h2>
 <p><a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#module-dataclasses" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses</span></code></a> map to objects/maps in all protocols.</p>
 <p>During decoding, any extra fields are ignored. An error is raised if a field’s
 type doesn’t match or if any required fields are missing.</p>
@@ -1085,7 +1085,7 @@ are also supported.</p>
 <p>For a more complete example using EdgeDB, see <a class="reference internal" href="examples/edgedb.html"><span class="doc">Usage with EdgeDB</span></a>.</p>
 </section>
 <section id="attrs">
-<h2><code class="docutils literal notranslate"><span class="pre">attrs</span></code><a class="headerlink" href="#attrs" title="Permalink to this heading">¶</a></h2>
+<h2><code class="docutils literal notranslate"><span class="pre">attrs</span></code><a class="headerlink" href="#attrs" title="Link to this heading">¶</a></h2>
 <p><a class="reference external" href="https://www.attrs.org/en/stable/index.html">attrs</a> types map to objects/maps in all protocols.</p>
 <p>During encoding, all attributes without a leading underscore (<code class="docutils literal notranslate"><span class="pre">&quot;_&quot;</span></code>) are
 encoded.</p>
@@ -1124,7 +1124,7 @@ additional features.</p>
 </div>
 </section>
 <section id="struct">
-<h2><code class="docutils literal notranslate"><span class="pre">Struct</span></code><a class="headerlink" href="#struct" title="Permalink to this heading">¶</a></h2>
+<h2><code class="docutils literal notranslate"><span class="pre">Struct</span></code><a class="headerlink" href="#struct" title="Link to this heading">¶</a></h2>
 <p>Structs are the preferred way of defining structured data types in <code class="docutils literal notranslate"><span class="pre">msgspec</span></code>.
 You can think of them as similar to <a class="reference external" href="https://docs.python.org/3/library/dataclasses.html">dataclasses</a>/<a class="reference external" href="https://www.attrs.org/en/stable/index.html">attrs</a>/<a class="reference external" href="https://pydantic-docs.helpmanual.io/">pydantic</a>, but much
 faster to create/compare/encode/decode. For more information, see the
@@ -1203,7 +1203,7 @@ Type checking also still applies.</p>
 </div>
 </section>
 <section id="unset">
-<span id="unset-type"></span><h2><code class="docutils literal notranslate"><span class="pre">UNSET</span></code><a class="headerlink" href="#unset" title="Permalink to this heading">¶</a></h2>
+<span id="unset-type"></span><h2><code class="docutils literal notranslate"><span class="pre">UNSET</span></code><a class="headerlink" href="#unset" title="Link to this heading">¶</a></h2>
 <p><a class="reference internal" href="api.html#msgspec.UNSET" title="msgspec.UNSET"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.UNSET</span></code></a> is a singleton object used to indicate that a field has no set
 value. This is useful for cases where you need to differentiate between a
 message where a field is missing and a message where the field is explicitly
@@ -1247,7 +1247,7 @@ types. It is an error to use <a class="reference internal" href="api.html#msgspe
 other than a field for one of these types.</p>
 </section>
 <section id="enum-intenum-strenum">
-<h2><code class="docutils literal notranslate"><span class="pre">Enum</span></code> / <code class="docutils literal notranslate"><span class="pre">IntEnum</span></code> / <code class="docutils literal notranslate"><span class="pre">StrEnum</span></code><a class="headerlink" href="#enum-intenum-strenum" title="Permalink to this heading">¶</a></h2>
+<h2><code class="docutils literal notranslate"><span class="pre">Enum</span></code> / <code class="docutils literal notranslate"><span class="pre">IntEnum</span></code> / <code class="docutils literal notranslate"><span class="pre">StrEnum</span></code><a class="headerlink" href="#enum-intenum-strenum" title="Link to this heading">¶</a></h2>
 <p>Enum types (<a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.Enum" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enum.Enum</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.IntEnum" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enum.IntEnum</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.StrEnum" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enum.StrEnum</span></code></a>, …) encode as their
 member <em>values</em> in all protocols. Only enums composed of all string or all
 integer values are supported. An error is raised during decoding if the value
@@ -1319,7 +1319,7 @@ this is supporting case-insensitive enums:</p>
 </div>
 </section>
 <section id="literal">
-<h2><code class="docutils literal notranslate"><span class="pre">Literal</span></code><a class="headerlink" href="#literal" title="Permalink to this heading">¶</a></h2>
+<h2><code class="docutils literal notranslate"><span class="pre">Literal</span></code><a class="headerlink" href="#literal" title="Link to this heading">¶</a></h2>
 <p><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.Literal</span></code></a> types can be used to ensure that a decoded object is within a
 set of valid values. An <a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.Enum" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enum.Enum</span></code></a> or <a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.IntEnum" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enum.IntEnum</span></code></a> can be used for the same
 purpose, but with a <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.Literal</span></code></a> the decoded values are literal <a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">int</span></code></a> or
@@ -1354,7 +1354,7 @@ values, or doesn’t match any of their component types.</p>
 </div>
 </section>
 <section id="newtype">
-<h2><code class="docutils literal notranslate"><span class="pre">NewType</span></code><a class="headerlink" href="#newtype" title="Permalink to this heading">¶</a></h2>
+<h2><code class="docutils literal notranslate"><span class="pre">NewType</span></code><a class="headerlink" href="#newtype" title="Link to this heading">¶</a></h2>
 <p><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.NewType" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.NewType</span></code></a> types are treated identically to their base type. Their
 support here is purely to aid static analysis tools like <a class="reference external" href="https://mypy.readthedocs.io">mypy</a> or <a class="reference external" href="https://github.com/microsoft/pyright">pyright</a>.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">NewType</span>
@@ -1375,7 +1375,7 @@ support here is purely to aid static analysis tools like <a class="reference ext
 </div>
 </section>
 <section id="type-aliases">
-<h2>Type Aliases<a class="headerlink" href="#type-aliases" title="Permalink to this heading">¶</a></h2>
+<h2>Type Aliases<a class="headerlink" href="#type-aliases" title="Link to this heading">¶</a></h2>
 <p>For complex types, sometimes it can be nice to write the type once so you can
 reuse it later.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">Point</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span>
@@ -1398,7 +1398,7 @@ is used in an annotation.</p>
 <p>To learn more about Type Aliases, see Python’s <a class="reference external" href="https://docs.python.org/3/library/typing.html#type-aliases">Type Alias docs here</a>.</p>
 </section>
 <section id="generic-types">
-<h2>Generic Types<a class="headerlink" href="#generic-types" title="Permalink to this heading">¶</a></h2>
+<h2>Generic Types<a class="headerlink" href="#generic-types" title="Link to this heading">¶</a></h2>
 <p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> supports generic types, including <a class="reference external" href="https://docs.python.org/3/library/typing.html#user-defined-generic-types">user-defined generic types</a>
 based on any of the following types:</p>
 <ul class="simple">
@@ -1507,7 +1507,7 @@ then the bound type will be used instead.</p>
 <p>See the official Python docs on <a class="reference external" href="https://docs.python.org/3/library/typing.html#user-defined-generic-types">generic types</a> and the <a class="reference external" href="https://peps.python.org/pep-0484/#generics">corresponding PEP</a> for more information.</p>
 </section>
 <section id="abstract-types">
-<h2>Abstract Types<a class="headerlink" href="#abstract-types" title="Permalink to this heading">¶</a></h2>
+<h2>Abstract Types<a class="headerlink" href="#abstract-types" title="Link to this heading">¶</a></h2>
 <p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> supports several “abstract” types, decoding them as
 instances of their most common concrete type.</p>
 <p><strong>Decoded as lists</strong></p>
@@ -1539,7 +1539,7 @@ instances of their most common concrete type.</p>
 </div>
 </section>
 <section id="union-optional">
-<h2><code class="docutils literal notranslate"><span class="pre">Union</span></code> /  <code class="docutils literal notranslate"><span class="pre">Optional</span></code><a class="headerlink" href="#union-optional" title="Permalink to this heading">¶</a></h2>
+<h2><code class="docutils literal notranslate"><span class="pre">Union</span></code> /  <code class="docutils literal notranslate"><span class="pre">Optional</span></code><a class="headerlink" href="#union-optional" title="Link to this heading">¶</a></h2>
 <p>Type unions are supported, with a few restrictions. These restrictions are in
 place to remove any ambiguity during decoding - given an encoded value there
 must always be a single type in a given <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Union" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.Union</span></code></a> that can decode that
@@ -1584,7 +1584,7 @@ multiple struct types are only supported through <a class="reference internal" h
 </div>
 </section>
 <section id="raw">
-<h2><code class="docutils literal notranslate"><span class="pre">Raw</span></code><a class="headerlink" href="#raw" title="Permalink to this heading">¶</a></h2>
+<h2><code class="docutils literal notranslate"><span class="pre">Raw</span></code><a class="headerlink" href="#raw" title="Link to this heading">¶</a></h2>
 <p><a class="reference internal" href="api.html#msgspec.Raw" title="msgspec.Raw"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Raw</span></code></a> is a buffer-like type containing an already encoded messages.
 They have two common uses:</p>
 <p><strong>1. Avoiding unnecessary encoding cost</strong></p>
@@ -1666,7 +1666,7 @@ field (<code class="docutils literal notranslate"><span class="pre">point</span>
 </div>
 </section>
 <section id="any">
-<h2><code class="docutils literal notranslate"><span class="pre">Any</span></code><a class="headerlink" href="#any" title="Permalink to this heading">¶</a></h2>
+<h2><code class="docutils literal notranslate"><span class="pre">Any</span></code><a class="headerlink" href="#any" title="Link to this heading">¶</a></h2>
 <p>When decoding a message with <code class="xref py py-obj docutils literal notranslate"><span class="pre">Any</span></code> type (or no type specified), encoded types
 map to Python types in a protocol specific manner.</p>
 <p><strong>JSON</strong></p>
@@ -1838,12 +1838,12 @@ by default.</p>
       
     </aside>
   </div>
-</div><script data-url_root="./" id="documentation_options" src="_static/documentation_options.js?v=b3ba4146"></script>
-    <script src="_static/doctools.js?v=888ff710"></script>
-    <script src="_static/sphinx_highlight.js?v=4825356b"></script>
+</div><script src="_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="_static/scripts/furo.js?v=5fa4622c"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
     <script src="_static/copybutton.js?v=de5a9c30"></script>
-    <script src="_static/design-tabs.js?v=36754332"></script>
+    <script src="_static/design-tabs.js?v=f930bc37"></script>
     </body>
 </html>

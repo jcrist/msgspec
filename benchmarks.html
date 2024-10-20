@@ -1,16 +1,16 @@
 <!doctype html>
-<html class="no-js" lang="en" data-content_root="">
+<html class="no-js" lang="en" data-content_root="./">
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
     <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Usage" href="usage.html" /><link rel="prev" title="Installation" href="install.html" />
 
-    <!-- Generated with Sphinx 7.1.2 and Furo 2024.08.06 -->
+    <!-- Generated with Sphinx 8.1.3 and Furo 2024.08.06 -->
         <title>Benchmarks</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=354aac6f" />
     <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
-    <link rel="stylesheet" type="text/css" href="_static/design-style.1e8bd061cd6da7fc9cf755528e8ffc24.min.css?v=0a3b3ea7" />
+    <link rel="stylesheet" type="text/css" href="_static/sphinx-design.min.css?v=95c83b7e" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=302659d7" />
     <link rel="stylesheet" type="text/css" href="_static/custom.css?v=6b2c8899" />
     
@@ -310,7 +310,7 @@
         </div>
         <article role="main" id="furo-main-content">
           <section id="benchmarks">
-<h1>Benchmarks<a class="headerlink" href="#benchmarks" title="Permalink to this heading">¶</a></h1>
+<h1>Benchmarks<a class="headerlink" href="#benchmarks" title="Link to this heading">¶</a></h1>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>Benchmarks are <em>hard</em>.</p>
@@ -327,7 +327,7 @@ own benchmarks before making these decisions.</p>
 x86 Linux laptop) using CPython 3.11.</p>
 </div>
 <section id="json-serialization-validation">
-<h2>JSON Serialization &amp; Validation<a class="headerlink" href="#json-serialization-validation" title="Permalink to this heading">¶</a></h2>
+<h2>JSON Serialization &amp; Validation<a class="headerlink" href="#json-serialization-validation" title="Link to this heading">¶</a></h2>
 <p>This benchmark covers the common case when working with <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> or other
 validation libraries. It measures two things:</p>
 <ul class="simple">
@@ -401,7 +401,7 @@ schemas and data. <code class="docutils literal notranslate"><span class="pre">m
 in-memory state means it uses a fraction of the memory of other tools.</p>
 </section>
 <section id="json-serialization">
-<span id="json-benchmark"></span><h2>JSON Serialization<a class="headerlink" href="#json-serialization" title="Permalink to this heading">¶</a></h2>
+<span id="json-benchmark"></span><h2>JSON Serialization<a class="headerlink" href="#json-serialization" title="Link to this heading">¶</a></h2>
 <p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> includes its own high performance JSON library, which may be used
 by itself as a replacement for the standard library’s <a class="reference external" href="https://docs.python.org/3/library/json.html#json.dumps" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">json.dumps</span></code></a>/<a class="reference external" href="https://docs.python.org/3/library/json.html#json.loads" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">json.loads</span></code></a>
 functions. Here we compare msgspec’s JSON implementation against several other
@@ -424,7 +424,7 @@ provided. Due to a more efficient in memory representation, JSON decoding AND
 schema validation with <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> than just JSON decoding alone.</p>
 </section>
 <section id="messagepack-serialization">
-<span id="msgpack-benchmark"></span><h2>MessagePack Serialization<a class="headerlink" href="#messagepack-serialization" title="Permalink to this heading">¶</a></h2>
+<span id="msgpack-benchmark"></span><h2>MessagePack Serialization<a class="headerlink" href="#messagepack-serialization" title="Link to this heading">¶</a></h2>
 <p>Likewise, <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> includes its own high performance <a class="reference external" href="https://msgpack.org">MessagePack</a> library,
 which may be used by itself without requiring usage of any of msgspec’s
 validation machinery. Here we compare msgspec’s MessagePack implementation
@@ -440,7 +440,7 @@ against several other popular Python MessagePack libraries.</p>
 <code class="docutils literal notranslate"><span class="pre">msgpack</span></code> or <code class="docutils literal notranslate"><span class="pre">ormsgpack</span></code>.</p>
 </section>
 <section id="json-serialization-large-data">
-<h2>JSON Serialization - Large Data<a class="headerlink" href="#json-serialization-large-data" title="Permalink to this heading">¶</a></h2>
+<h2>JSON Serialization - Large Data<a class="headerlink" href="#json-serialization-large-data" title="Link to this heading">¶</a></h2>
 <p>Here we benchmark loading a <a class="reference external" href="https://conda.anaconda.org/conda-forge/noarch/repodata.json">large JSON file</a> (~77 MiB)
 containing information on all the <code class="docutils literal notranslate"><span class="pre">noarch</span></code> packages in <a class="reference external" href="https://conda-forge.org/">conda-forge</a>. We
 compare the following libraries:</p>
@@ -532,7 +532,7 @@ copy adds an extra 77 MiB of overhead!</p></li>
 </ul>
 </section>
 <section id="structs">
-<span id="struct-benchmark"></span><h2>Structs<a class="headerlink" href="#structs" title="Permalink to this heading">¶</a></h2>
+<span id="struct-benchmark"></span><h2>Structs<a class="headerlink" href="#structs" title="Link to this heading">¶</a></h2>
 <p>Here we benchmark common <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> operations, comparing their
 performance against other similar libraries. The cases compared are:</p>
 <ul class="simple">
@@ -611,7 +611,7 @@ alternatives.</p></li>
 </ul>
 </section>
 <section id="garbage-collection">
-<span id="struct-gc-benchmark"></span><h2>Garbage Collection<a class="headerlink" href="#garbage-collection" title="Permalink to this heading">¶</a></h2>
+<span id="struct-gc-benchmark"></span><h2>Garbage Collection<a class="headerlink" href="#garbage-collection" title="Link to this heading">¶</a></h2>
 <p><a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> instances implement several optimizations for reducing garbage
 collection (GC) pressure and decreasing memory usage. Here we benchmark structs
 (with and without <a class="reference internal" href="structs.html#struct-gc"><span class="std std-ref">gc=False</span></a>) against standard Python
@@ -669,7 +669,7 @@ composing dict can be skipped during GC traversal.</p></li>
 </ul>
 </section>
 <section id="library-size">
-<span id="benchmark-library-size"></span><h2>Library Size<a class="headerlink" href="#library-size" title="Permalink to this heading">¶</a></h2>
+<span id="benchmark-library-size"></span><h2>Library Size<a class="headerlink" href="#library-size" title="Link to this heading">¶</a></h2>
 <p>Here we compare the on-disk size of <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> and <code class="docutils literal notranslate"><span class="pre">pydantic</span></code>, its closest
 equivalent.</p>
 <p>The full benchmark source can be found <a class="reference external" href="https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_library_size.py">here</a>.</p>
@@ -946,12 +946,12 @@ buildPlot('#bench-msgpack', results_msgpack, "Benchmark - MessagePack Serializat
       
     </aside>
   </div>
-</div><script data-url_root="./" id="documentation_options" src="_static/documentation_options.js?v=b3ba4146"></script>
-    <script src="_static/doctools.js?v=888ff710"></script>
-    <script src="_static/sphinx_highlight.js?v=4825356b"></script>
+</div><script src="_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="_static/scripts/furo.js?v=5fa4622c"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
     <script src="_static/copybutton.js?v=de5a9c30"></script>
-    <script src="_static/design-tabs.js?v=36754332"></script>
+    <script src="_static/design-tabs.js?v=f930bc37"></script>
     </body>
 </html>

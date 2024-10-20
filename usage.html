@@ -1,16 +1,16 @@
 <!doctype html>
-<html class="no-js" lang="en" data-content_root="">
+<html class="no-js" lang="en" data-content_root="./">
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
     <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Supported Types" href="supported-types.html" /><link rel="prev" title="Benchmarks" href="benchmarks.html" />
 
-    <!-- Generated with Sphinx 7.1.2 and Furo 2024.08.06 -->
+    <!-- Generated with Sphinx 8.1.3 and Furo 2024.08.06 -->
         <title>Usage</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=354aac6f" />
     <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
-    <link rel="stylesheet" type="text/css" href="_static/design-style.1e8bd061cd6da7fc9cf755528e8ffc24.min.css?v=0a3b3ea7" />
+    <link rel="stylesheet" type="text/css" href="_static/sphinx-design.min.css?v=95c83b7e" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=302659d7" />
     <link rel="stylesheet" type="text/css" href="_static/custom.css?v=6b2c8899" />
     
@@ -310,7 +310,7 @@
         </div>
         <article role="main" id="furo-main-content">
           <section id="usage">
-<h1>Usage<a class="headerlink" href="#usage" title="Permalink to this heading">¶</a></h1>
+<h1>Usage<a class="headerlink" href="#usage" title="Link to this heading">¶</a></h1>
 <p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> supports multiple serialization protocols, accessed through
 separate submodules:</p>
 <ul class="simple">
@@ -322,7 +322,7 @@ separate submodules:</p>
 <p>Each supports a consistent interface, making it simple to switch between
 protocols as needed.</p>
 <section id="encoding">
-<h2>Encoding<a class="headerlink" href="#encoding" title="Permalink to this heading">¶</a></h2>
+<h2>Encoding<a class="headerlink" href="#encoding" title="Link to this heading">¶</a></h2>
 <p>Each submodule has an <code class="docutils literal notranslate"><span class="pre">encode</span></code> method for encoding Python objects using the
 respective protocol.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">msgspec</span>
@@ -350,7 +350,7 @@ create an <code class="docutils literal notranslate"><span class="pre">Encoder</
 </div>
 </section>
 <section id="decoding">
-<h2>Decoding<a class="headerlink" href="#decoding" title="Permalink to this heading">¶</a></h2>
+<h2>Decoding<a class="headerlink" href="#decoding" title="Link to this heading">¶</a></h2>
 <p>Each submodule has <code class="docutils literal notranslate"><span class="pre">decode</span></code> method for decoding messages using the respective
 protocol.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">msgspec</span>
@@ -378,7 +378,7 @@ create a <code class="docutils literal notranslate"><span class="pre">Decoder</s
 </div>
 </section>
 <section id="typed-decoding">
-<span id="id1"></span><h2>Typed Decoding<a class="headerlink" href="#typed-decoding" title="Permalink to this heading">¶</a></h2>
+<span id="id1"></span><h2>Typed Decoding<a class="headerlink" href="#typed-decoding" title="Link to this heading">¶</a></h2>
 <p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> optionally supports specifying the expected output types during
 decoding. This serves a few purposes:</p>
 <ul class="simple">
@@ -422,7 +422,7 @@ the type to <code class="docutils literal notranslate"><span class="pre">decode<
 </pre></div>
 </div>
 <section id="strict-vs-lax-mode">
-<span id="strict-vs-lax"></span><h3>“Strict” vs “Lax” Mode<a class="headerlink" href="#strict-vs-lax-mode" title="Permalink to this heading">¶</a></h3>
+<span id="strict-vs-lax"></span><h3>“Strict” vs “Lax” Mode<a class="headerlink" href="#strict-vs-lax-mode" title="Link to this heading">¶</a></h3>
 <p>Unlike some other libraries (e.g. <a class="reference external" href="https://pydantic-docs.helpmanual.io/">pydantic</a>), <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> won’t perform any
 unsafe implicit conversion by default (“strict” mode). For example, if an
 integer is specified and a string is provided instead, an error is raised
@@ -523,12 +523,12 @@ types.</p>
       
     </aside>
   </div>
-</div><script data-url_root="./" id="documentation_options" src="_static/documentation_options.js?v=b3ba4146"></script>
-    <script src="_static/doctools.js?v=888ff710"></script>
-    <script src="_static/sphinx_highlight.js?v=4825356b"></script>
+</div><script src="_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="_static/scripts/furo.js?v=5fa4622c"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
     <script src="_static/copybutton.js?v=de5a9c30"></script>
-    <script src="_static/design-tabs.js?v=36754332"></script>
+    <script src="_static/design-tabs.js?v=f930bc37"></script>
     </body>
 </html>

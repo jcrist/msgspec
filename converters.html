@@ -1,16 +1,16 @@
 <!doctype html>
-<html class="no-js" lang="en" data-content_root="">
+<html class="no-js" lang="en" data-content_root="./">
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
     <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="JSON Schema" href="jsonschema.html" /><link rel="prev" title="Constraints" href="constraints.html" />
 
-    <!-- Generated with Sphinx 7.1.2 and Furo 2024.08.06 -->
+    <!-- Generated with Sphinx 8.1.3 and Furo 2024.08.06 -->
         <title>Converters</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=354aac6f" />
     <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
-    <link rel="stylesheet" type="text/css" href="_static/design-style.1e8bd061cd6da7fc9cf755528e8ffc24.min.css?v=0a3b3ea7" />
+    <link rel="stylesheet" type="text/css" href="_static/sphinx-design.min.css?v=95c83b7e" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=302659d7" />
     <link rel="stylesheet" type="text/css" href="_static/custom.css?v=6b2c8899" />
     
@@ -310,7 +310,7 @@
         </div>
         <article role="main" id="furo-main-content">
           <section id="converters">
-<h1>Converters<a class="headerlink" href="#converters" title="Permalink to this heading">¶</a></h1>
+<h1>Converters<a class="headerlink" href="#converters" title="Link to this heading">¶</a></h1>
 <p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> provides builtin support for several common protocols (<code class="docutils literal notranslate"><span class="pre">json</span></code>,
 <code class="docutils literal notranslate"><span class="pre">msgpack</span></code>, <code class="docutils literal notranslate"><span class="pre">yaml</span></code>, and <code class="docutils literal notranslate"><span class="pre">toml</span></code>). Support for additional protocols may be
 added by combining a serialization library with msgspec’s <em>converter
@@ -324,7 +324,9 @@ error message is raised.</p></li>
 </ul>
 <p>These functions are designed to be paired with a Python serialization library as
 pre/post processors for typical <code class="docutils literal notranslate"><span class="pre">dumps</span></code> and <code class="docutils literal notranslate"><span class="pre">loads</span></code> functions.</p>
-<img alt="_images/converters-light.svg" class="only-light align-center" src="_images/converters-light.svg" /><img alt="_images/converters-dark.svg" class="only-dark align-center" src="_images/converters-dark.svg" /><p>For example, if <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> didn’t already provide support for <code class="docutils literal notranslate"><span class="pre">json</span></code>, you
+<img alt="_images/converters-light.svg" class="only-light align-center" src="_images/converters-light.svg" />
+<img alt="_images/converters-dark.svg" class="only-dark align-center" src="_images/converters-dark.svg" />
+<p>For example, if <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> didn’t already provide support for <code class="docutils literal notranslate"><span class="pre">json</span></code>, you
 could add support by wrapping the standard library’s <a class="reference external" href="https://docs.python.org/3/library/json.html#module-json" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">json</span></code></a> module as follows:</p>
 <div class="highlight-ipython notranslate"><div class="highlight"><pre><span></span><span class="gp">In [1]: </span><span class="kn">import</span> <span class="nn">json</span>
 <span class="gp">   ...: </span><span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Any</span>
@@ -474,12 +476,12 @@ with some additional code for error handling.</p>
       
     </aside>
   </div>
-</div><script data-url_root="./" id="documentation_options" src="_static/documentation_options.js?v=b3ba4146"></script>
-    <script src="_static/doctools.js?v=888ff710"></script>
-    <script src="_static/sphinx_highlight.js?v=4825356b"></script>
+</div><script src="_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="_static/scripts/furo.js?v=5fa4622c"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
     <script src="_static/copybutton.js?v=de5a9c30"></script>
-    <script src="_static/design-tabs.js?v=36754332"></script>
+    <script src="_static/design-tabs.js?v=f930bc37"></script>
     </body>
 </html>
