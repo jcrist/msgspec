@@ -20,6 +20,7 @@
 #define PY310_PLUS (PY_VERSION_HEX >= 0x030a0000)
 #define PY311_PLUS (PY_VERSION_HEX >= 0x030b0000)
 #define PY312_PLUS (PY_VERSION_HEX >= 0x030c0000)
+#define PY313_PLUS (PY_VERSION_HEX >= 0x030d0000)
 
 /* Hint to the compiler not to store `x` in a register since it is likely to
  * change. Results in much higher performance on GCC, with smaller benefits on
@@ -54,6 +55,20 @@ ms_popcount(uint64_t i) {                            \
 #define CALL_METHOD_ONE_ARG(o, n, a) PyObject_CallMethodObjArgs(o, n, a, NULL)
 #define CALL_METHOD_NO_ARGS(o, n) PyObject_CallMethodObjArgs(o, n, NULL)
 #define SET_SIZE(obj, size) (((PyVarObject *)obj)->ob_size = size)
+#endif
+
+/* In Python 3.12+, tp_dict is NULL for some core types, PyType_GetDict returns
+ * a borrowed reference to the interpreter or cls mapping */
+#if PY312_PLUS
+#define MS_GET_TYPE_DICT(a) PyType_GetDict(a)
+#else
+#define MS_GET_TYPE_DICT(a) ((a)->tp_dict)
+#endif
+
+#if PY313_PLUS
+#define MS_UNICODE_EQ(a, b) (PyUnicode_Compare(a, b) == 0)
+#else
+#define MS_UNICODE_EQ(a, b) _PyUnicode_EQ(a, b)
 #endif
 
 #define DIV_ROUND_CLOSEST(n, d) ((((n) < 0) == ((d) < 0)) ? (((n) + (d)/2)/(d)) : (((n) - (d)/2)/(d)))
@@ -497,7 +512,7 @@ find_keyword(PyObject *kwnames, PyObject *const *kwstack, PyObject *key)
     for (i = 0; i < nkwargs; i++) {
         PyObject *kwname = PyTuple_GET_ITEM(kwnames, i);
         assert(PyUnicode_Check(kwname));
-        if (_PyUnicode_EQ(kwname, key)) {
+        if (MS_UNICODE_EQ(kwname, key)) {
             return kwstack[i];
         }
     }
@@ -1513,7 +1528,9 @@ Raw_copy(Raw *self, PyObject *unused)
     }
     PyObject *buf = PyBytes_FromStringAndSize(self->buf, self->len);
     if (buf == NULL) return NULL;
-    return Raw_New(buf);
+    PyObject *out = Raw_New(buf);
+    Py_DECREF(buf);
+    return out;
 }
 
 static PyMethodDef Raw_methods[] = {
@@ -4438,10 +4455,8 @@ typenode_collect_convert_structs(TypeNodeCollectState *state) {
      *
      * If any of these checks fails, an appropriate error is returned.
      */
-    PyObject *tag_mapping = NULL, *tag_field = NULL, *set_item = NULL;
+    PyObject *tag_mapping = NULL, *tag_field = NULL, *set_iter = NULL, *set_item = NULL;
     PyObject *struct_info = NULL;
-    Py_ssize_t set_pos = 0;
-    Py_hash_t set_hash;
     bool array_like = false;
     bool tags_are_strings = true;
     int status = -1;
@@ -4449,7 +4464,8 @@ typenode_collect_convert_structs(TypeNodeCollectState *state) {
     tag_mapping = PyDict_New();
     if (tag_mapping == NULL) goto cleanup;
 
-    while (_PySet_NextEntry(state->structs_set, &set_pos, &set_item, &set_hash)) {
+    set_iter = PyObject_GetIter(state->structs_set);
+    while ((set_item = PyIter_Next(set_iter))) {
         struct_info = StructInfo_Convert(set_item);
         if (struct_info == NULL) goto cleanup;
 
@@ -4557,6 +4573,7 @@ typenode_collect_convert_structs(TypeNodeCollectState *state) {
     status = 0;
 
 cleanup:
+    Py_XDECREF(set_iter);
     Py_XDECREF(tag_mapping);
     Py_XDECREF(struct_info);
     return status;
@@ -4612,10 +4629,14 @@ typenode_origin_args_metadata(
          * abstract -> concrete mapping. If present, this is an unparametrized
          * collection of some form. This helps avoid compatibility issues in
          * Python 3.8, where unparametrized collections still have __args__. */
-        origin = PyDict_GetItem(state->mod->concrete_types, t);
+        origin = PyDict_GetItemWithError(state->mod->concrete_types, t);
         if (origin != NULL) {
             Py_INCREF(origin);
             break;
+        }
+        else {
+            /* Ignore all errors in this initial check */
+            PyErr_Clear();
         }
 
         /* If `t` is a type instance, no need to inspect further */
@@ -5508,16 +5529,12 @@ structmeta_collect_base(StructMetaInfo *info, MsgspecState *mod, PyObject *base)
         if (((PyTypeObject *)base)->tp_dictoffset) {
             info->has_non_slots_bases = true;
         }
-        /* XXX: in Python 3.8 Generic defines __new__, but we can ignore it.
-         * This can be removed when Python 3.8 support is dropped */
-        if (base == mod->typing_generic) return 0;
 
         static const char *attrs[] = {"__init__", "__new__"};
         Py_ssize_t nattrs = 2;
+        PyObject *tp_dict = MS_GET_TYPE_DICT((PyTypeObject *)base);
         for (Py_ssize_t i = 0; i < nattrs; i++) {
-            if (PyDict_GetItemString(
-                    ((PyTypeObject *)base)->tp_dict, attrs[i]) != NULL
-                ) {
+            if (PyDict_GetItemString(tp_dict, attrs[i]) != NULL) {
                 PyErr_Format(PyExc_TypeError, "Struct base classes cannot define %s", attrs[i]);
                 return -1;
             }
@@ -7322,7 +7339,7 @@ Struct_vectorcall(PyTypeObject *cls, PyObject *const *args, size_t nargsf, PyObj
          * check for parameters passed both as arg and kwarg */
         for (field_index = 0; field_index < nfields; field_index++) {
             PyObject *field = PyTuple_GET_ITEM(fields, field_index);
-            if (_PyUnicode_EQ(kwname, field)) {
+            if (MS_UNICODE_EQ(kwname, field)) {
                 if (MS_UNLIKELY(field_index < nargs)) {
                     PyErr_Format(
                         PyExc_TypeError,
@@ -7620,6 +7637,80 @@ error:
     return NULL;
 }
 
+static PyObject *
+Struct_replace(
+    PyObject *self,
+    PyObject *const *args,
+    Py_ssize_t nargs,
+    PyObject *kwnames
+) {
+    Py_ssize_t nkwargs = (kwnames == NULL) ? 0 : PyTuple_GET_SIZE(kwnames);
+
+    if (!check_positional_nargs(nargs, 0, 0)) return NULL;
+
+    StructMetaObject *struct_type = (StructMetaObject *)Py_TYPE(self);
+    PyObject *fields = struct_type->struct_fields;
+    Py_ssize_t nfields = PyTuple_GET_SIZE(fields);
+    bool is_gc = MS_TYPE_IS_GC(struct_type);
+    bool should_untrack = is_gc;
+
+    PyObject *out = Struct_alloc((PyTypeObject *)struct_type);
+    if (out == NULL) return NULL;
+
+    for (Py_ssize_t i = 0; i < nkwargs; i++) {
+        PyObject *val;
+        Py_ssize_t field_index;
+        PyObject *kwname = PyTuple_GET_ITEM(kwnames, i);
+
+        /* Since keyword names are interned, first loop with pointer
+         * comparisons only. */
+        for (field_index = 0; field_index < nfields; field_index++) {
+            PyObject *field = PyTuple_GET_ITEM(fields, field_index);
+            if (MS_LIKELY(kwname == field)) goto kw_found;
+        }
+        for (field_index = 0; field_index < nfields; field_index++) {
+            PyObject *field = PyTuple_GET_ITEM(fields, field_index);
+            if (MS_UNICODE_EQ(kwname, field)) goto kw_found;
+        }
+
+        /* Unknown keyword */
+        PyErr_Format(
+            PyExc_TypeError, "`%.200s` has no field '%U'",
+            ((PyTypeObject *)struct_type)->tp_name, kwname
+        );
+        goto error;
+
+    kw_found:
+        val = args[i];
+        Py_INCREF(val);
+        Struct_set_index(out, field_index, val);
+        if (should_untrack) {
+            should_untrack = !MS_MAYBE_TRACKED(val);
+        }
+    }
+
+    for (Py_ssize_t i = 0; i < nfields; i++) {
+        if (Struct_get_index_noerror(out, i) == NULL) {
+            PyObject *val = Struct_get_index(self, i);
+            if (val == NULL) goto error;
+            if (should_untrack) {
+                should_untrack = !MS_MAYBE_TRACKED(val);
+            }
+            Py_INCREF(val);
+            Struct_set_index(out, i, val);
+        }
+    }
+
+    if (is_gc && !should_untrack) {
+        PyObject_GC_Track(out);
+    }
+    return out;
+
+error:
+    Py_DECREF(out);
+    return NULL;
+}
+
 static AssocList *
 AssocList_FromStruct(PyObject *obj) {
     if (Py_EnterRecursiveCall(" while serializing an object")) return NULL;
@@ -7693,12 +7784,12 @@ PyDoc_STRVAR(struct_replace__doc__,
 "\n"
 "See Also\n"
 "--------\n"
+"copy.replace\n"
 "dataclasses.replace"
 );
 static PyObject*
 struct_replace(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
 {
-    Py_ssize_t nkwargs = (kwnames == NULL) ? 0 : PyTuple_GET_SIZE(kwnames);
 
     if (!check_positional_nargs(nargs, 1, 1)) return NULL;
     PyObject *obj = args[0];
@@ -7706,68 +7797,7 @@ struct_replace(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject
         PyErr_SetString(PyExc_TypeError, "`struct` must be a `msgspec.Struct`");
         return NULL;
     }
-
-    StructMetaObject *struct_type = (StructMetaObject *)Py_TYPE(obj);
-    PyObject *fields = struct_type->struct_fields;
-    Py_ssize_t nfields = PyTuple_GET_SIZE(fields);
-    bool is_gc = MS_TYPE_IS_GC(struct_type);
-    bool should_untrack = is_gc;
-
-    PyObject *out = Struct_alloc((PyTypeObject *)struct_type);
-    if (out == NULL) return NULL;
-
-    for (Py_ssize_t i = 0; i < nkwargs; i++) {
-        PyObject *val;
-        Py_ssize_t field_index;
-        PyObject *kwname = PyTuple_GET_ITEM(kwnames, i);
-
-        /* Since keyword names are interned, first loop with pointer
-         * comparisons only. */
-        for (field_index = 0; field_index < nfields; field_index++) {
-            PyObject *field = PyTuple_GET_ITEM(fields, field_index);
-            if (MS_LIKELY(kwname == field)) goto kw_found;
-        }
-        for (field_index = 0; field_index < nfields; field_index++) {
-            PyObject *field = PyTuple_GET_ITEM(fields, field_index);
-            if (_PyUnicode_EQ(kwname, field)) goto kw_found;
-        }
-
-        /* Unknown keyword */
-        PyErr_Format(
-            PyExc_TypeError, "`%.200s` has no field '%U'",
-            ((PyTypeObject *)struct_type)->tp_name, kwname
-        );
-        goto error;
-
-    kw_found:
-        val = args[i + 1];
-        Py_INCREF(val);
-        Struct_set_index(out, field_index, val);
-        if (should_untrack) {
-            should_untrack = !MS_MAYBE_TRACKED(val);
-        }
-    }
-
-    for (Py_ssize_t i = 0; i < nfields; i++) {
-        if (Struct_get_index_noerror(out, i) == NULL) {
-            PyObject *val = Struct_get_index(obj, i);
-            if (val == NULL) goto error;
-            if (should_untrack) {
-                should_untrack = !MS_MAYBE_TRACKED(val);
-            }
-            Py_INCREF(val);
-            Struct_set_index(out, i, val);
-        }
-    }
-
-    if (is_gc && !should_untrack) {
-        PyObject_GC_Track(out);
-    }
-    return out;
-
-error:
-    Py_DECREF(out);
-    return NULL;
+    return Struct_replace(obj, args + 1, 0, kwnames);
 }
 
 PyDoc_STRVAR(struct_asdict__doc__,
@@ -8027,6 +8057,7 @@ StructMixin_config(StructMetaObject *self, void *closure) {
 
 static PyMethodDef Struct_methods[] = {
     {"__copy__", Struct_copy, METH_NOARGS, "copy a struct"},
+    {"__replace__", (PyCFunction) Struct_replace, METH_FASTCALL | METH_KEYWORDS, "create a new struct with replacements" },
     {"__reduce__", Struct_reduce, METH_NOARGS, "reduce a struct"},
     {"__rich_repr__", Struct_rich_repr, METH_NOARGS, "rich repr"},
     {NULL, NULL},
@@ -9367,8 +9398,10 @@ encoder_encode_into_common(
             PyErr_SetString(PyExc_ValueError, "offset must be >= -1");
             return NULL;
         }
-        if (offset > buf_size) {
-            offset = buf_size;
+
+        if (offset < buf_size) {
+            buf_size = Py_MAX(8, 1.5 * offset);
+            if (PyByteArray_Resize(buf, buf_size) < 0) return NULL;
         }
     }
 
@@ -9385,9 +9418,11 @@ encoder_encode_into_common(
         .max_output_len = buf_size,
         .resize_buffer = ms_resize_bytearray
     };
+
     if (encode(&state, obj) < 0) {
         return NULL;
     }
+
     FAST_BYTEARRAY_SHRINK(buf, state.output_len);
     Py_RETURN_NONE;
 }
@@ -11255,7 +11290,16 @@ ms_uuid_to_16_bytes(MsgspecState *mod, PyObject *obj, unsigned char *buf) {
         PyErr_SetString(PyExc_TypeError, "uuid.int must be an int");
         return -1;
     }
+#if PY313_PLUS
+    int out = (int)PyLong_AsNativeBytes(
+        int128,
+        buf,
+        16,
+        Py_ASNATIVEBYTES_BIG_ENDIAN | Py_ASNATIVEBYTES_UNSIGNED_BUFFER
+    );
+#else
     int out = _PyLong_AsByteArray((PyLongObject *)int128, buf, 16, 0, 0);
+#endif
     Py_DECREF(int128);
     return out;
 }
@@ -11606,6 +11650,7 @@ ms_post_decode_float(
  *************************************************************************/
 
 #define ONE_E18 1000000000000000000ULL
+#define ONE_E19_MINUS_ONE 9999999999999999999ULL
 
 static MS_NOINLINE PyObject *
 parse_number_fallback(
@@ -11905,7 +11950,7 @@ end_parsing:
                 (is_float) ||
                 ((integer_end - integer_start) != 20) ||
                 (*integer_start != '1') ||
-                (mantissa <= ONE_E18)
+                (mantissa <= ONE_E19_MINUS_ONE)
             )
         ) {
             /* We overflowed. Redo parsing, truncating at 19 digits */
@@ -12404,8 +12449,7 @@ mpack_encode_list(EncoderState *self, PyObject *obj)
 static int
 mpack_encode_set(EncoderState *self, PyObject *obj)
 {
-    Py_ssize_t len, ppos = 0;
-    Py_hash_t hash;
+    Py_ssize_t len = 0;
     PyObject *item;
     int status = -1;
 
@@ -12424,13 +12468,18 @@ mpack_encode_set(EncoderState *self, PyObject *obj)
 
     if (mpack_encode_array_header(self, len, "set") < 0) return -1;
     if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
-    while (_PySet_NextEntry(obj, &ppos, &item, &hash)) {
+
+    PyObject *iter = PyObject_GetIter(obj);
+    if (iter == NULL) goto cleanup;
+
+    while ((item = PyIter_Next(iter))) {
         if (mpack_encode_inline(self, item) < 0) goto cleanup;
     }
     status = 0;
 
 cleanup:
     Py_LeaveRecursiveCall();
+    Py_XDECREF(iter);
     return status;
 }
 
@@ -12895,22 +12944,9 @@ mpack_encode_enum(EncoderState *self, PyObject *obj)
     if (PyUnicode_Check(obj))
         return mpack_encode_str(self, obj);
 
-    int status;
     PyObject *value = PyObject_GetAttr(obj, self->mod->str__value_);
     if (value == NULL) return -1;
-    if (PyLong_CheckExact(value)) {
-        status = mpack_encode_long(self, value);
-    }
-    else if (PyUnicode_CheckExact(value)) {
-        status = mpack_encode_str(self, value);
-    }
-    else {
-        PyErr_SetString(
-            self->mod->EncodeError,
-            "Only enums with int or str values are supported"
-        );
-        status = -1;
-    }
+    int status = mpack_encode(self, value);
     Py_DECREF(value);
     return status;
 }
@@ -13085,7 +13121,7 @@ mpack_encode_uncommon(EncoderState *self, PyTypeObject *type, PyObject *obj)
     else if (PyAnySet_Check(obj)) {
         return mpack_encode_set(self, obj);
     }
-    else if (type->tp_dict != NULL) {
+    else if (!PyType_Check(obj) && type->tp_dict != NULL) {
         PyObject *fields = PyObject_GetAttr(obj, self->mod->str___dataclass_fields__);
         if (fields != NULL) {
             int status = mpack_encode_dataclass(self, obj, fields);
@@ -13541,40 +13577,25 @@ json_encode_raw(EncoderState *self, PyObject *obj)
     return ms_write(self, raw->buf, raw->len);
 }
 
+static int json_encode_dict_key_noinline(EncoderState *, PyObject *);
+
 static int
 json_encode_enum(EncoderState *self, PyObject *obj, bool is_key)
 {
     if (PyLong_Check(obj)) {
-        if (MS_UNLIKELY(is_key)) {
-            return json_encode_long_as_str(self, obj);
-        }
-        return json_encode_long(self, obj);
+        return is_key ? json_encode_long_as_str(self, obj) : json_encode_long(self, obj);
     }
     if (PyUnicode_Check(obj)) {
         return json_encode_str(self, obj);
     }
 
-    int status;
     PyObject *value = PyObject_GetAttr(obj, self->mod->str__value_);
     if (value == NULL) return -1;
-    if (PyLong_CheckExact(value)) {
-        if (MS_UNLIKELY(is_key)) {
-            status = json_encode_long_as_str(self, value);
-        }
-        else {
-            status = json_encode_long(self, value);
-        }
-    }
-    else if (PyUnicode_CheckExact(value)) {
-        status = json_encode_str(self, value);
-    }
-    else {
-        PyErr_SetString(
-            self->mod->EncodeError,
-            "Only enums with int or str values are supported"
-        );
-        status = -1;
-    }
+
+    int status = (
+        is_key ? json_encode_dict_key_noinline(self, value) : json_encode(self, value)
+    );
+
     Py_DECREF(value);
     return status;
 }
@@ -13707,8 +13728,7 @@ json_encode_tuple(EncoderState *self, PyObject *obj)
 static int
 json_encode_set(EncoderState *self, PyObject *obj)
 {
-    Py_ssize_t len, ppos = 0;
-    Py_hash_t hash;
+    Py_ssize_t len = 0;
     PyObject *item;
     int status = -1;
 
@@ -13727,7 +13747,11 @@ json_encode_set(EncoderState *self, PyObject *obj)
 
     if (ms_write(self, "[", 1) < 0) return -1;
     if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
-    while (_PySet_NextEntry(obj, &ppos, &item, &hash)) {
+
+    PyObject *iter = PyObject_GetIter(obj);
+    if (iter == NULL) goto cleanup;
+
+    while ((item = PyIter_Next(iter))) {
         if (json_encode_inline(self, item) < 0) goto cleanup;
         if (ms_write(self, ",", 1) < 0) goto cleanup;
     }
@@ -13736,10 +13760,9 @@ json_encode_set(EncoderState *self, PyObject *obj)
     status = 0;
 cleanup:
     Py_LeaveRecursiveCall();
+    Py_XDECREF(iter);
     return status;
 }
-
-static int json_encode_dict_key_noinline(EncoderState *, PyObject *);
 
 static MS_INLINE int
 json_encode_dict_key(EncoderState *self, PyObject *key) {
@@ -14175,7 +14198,7 @@ json_encode_uncommon(EncoderState *self, PyTypeObject *type, PyObject *obj) {
     else if (PyAnySet_Check(obj)) {
         return json_encode_set(self, obj);
     }
-    else if (type->tp_dict != NULL) {
+    else if (!PyType_Check(obj) && type->tp_dict != NULL) {
         PyObject *fields = PyObject_GetAttr(obj, self->mod->str___dataclass_fields__);
         if (fields != NULL) {
             int status = json_encode_dataclass(self, obj, fields);
@@ -19361,17 +19384,7 @@ static PyObject * to_builtins(ToBuiltinsState *, PyObject *, bool);
 static PyObject *
 to_builtins_enum(ToBuiltinsState *self, PyObject *obj)
 {
-    PyObject *value = PyObject_GetAttr(obj, self->mod->str__value_);
-    if (value == NULL) return NULL;
-    if (PyLong_CheckExact(value) || PyUnicode_CheckExact(value)) {
-        return value;
-    }
-    Py_DECREF(value);
-    PyErr_SetString(
-        self->mod->EncodeError,
-        "Only enums with int or str values are supported"
-    );
-    return NULL;
+    return PyObject_GetAttr(obj, self->mod->str__value_);
 }
 
 static PyObject *
@@ -19868,7 +19881,7 @@ to_builtins(ToBuiltinsState *self, PyObject *obj, bool is_key) {
     else if (PyAnySet_Check(obj)) {
         return to_builtins_set(self, obj, is_key);
     }
-    else if (type->tp_dict != NULL) {
+    else if (!PyType_Check(obj) && type->tp_dict != NULL) {
         PyObject *fields = PyObject_GetAttr(obj, self->mod->str___dataclass_fields__);
         if (fields != NULL) {
             PyObject *out = to_builtins_dataclass(self, obj, fields);
@@ -20502,6 +20515,17 @@ convert_immutable(
         return obj;
     }
     return ms_validation_error(expected, type, path);
+}
+
+static PyObject *
+convert_raw(
+    ConvertState *self, PyObject *obj, TypeNode *type, PathNode *path
+) {
+    if (type->types == 0) {
+        Py_INCREF(obj);
+        return obj;
+    }
+    return ms_validation_error("raw", type, path);
 }
 
 static PyObject *
@@ -21312,6 +21336,9 @@ convert_object_to_struct(
             should_untrack = !MS_MAYBE_TRACKED(val);
         }
     }
+
+    if (Struct_decode_post_init(struct_type, out, path) < 0) goto error;
+
     Py_LeaveRecursiveCall();
     if (is_gc && !should_untrack)
         PyObject_GC_Track(out);
@@ -21610,6 +21637,9 @@ convert(
     }
     else if (pytype == &Ext_Type) {
         return convert_immutable(self, MS_TYPE_EXT, "ext", obj, type, path);
+    }
+    else if (pytype == &Raw_Type) {
+        return convert_raw(self, obj, type, path);
     }
     else if (PyAnySet_Check(obj)) {
         return convert_any_set(self, obj, type, path);

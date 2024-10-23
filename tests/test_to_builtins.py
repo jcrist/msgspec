@@ -11,7 +11,7 @@ from typing import Any, NamedTuple, Union
 
 import pytest
 
-from msgspec import UNSET, EncodeError, Struct, UnsetType, defstruct, to_builtins
+from msgspec import UNSET, Struct, UnsetType, to_builtins, defstruct
 
 PY310 = sys.version_info[:2] >= (3, 10)
 PY311 = sys.version_info[:2] >= (3, 11)
@@ -212,12 +212,12 @@ class TestToBuiltins:
         assert res == "apple"
         assert type(res) is str
 
-    def test_enum_invalid(self):
-        class Bad(enum.Enum):
+    def test_enum_complex(self):
+        class Complex(enum.Enum):
             x = (1, 2)
 
-        with pytest.raises(EncodeError, match="Only enums with int or str"):
-            to_builtins(Bad.x)
+        res = to_builtins(Complex.x)
+        assert res is Complex.x.value
 
     @pytest.mark.parametrize(
         "in_type, out_type",
@@ -423,6 +423,14 @@ class TestToBuiltins:
         msg = Ex(1, Bad())
         with pytest.raises(TypeError, match="Encoding objects of type Bad"):
             to_builtins(msg)
+
+    def test_dataclass_class_errors(self):
+        @dataclass
+        class Ex:
+            x: int
+
+        with pytest.raises(TypeError, match="Encoding objects of type type"):
+            to_builtins(Ex)
 
     @pytest.mark.parametrize("slots", [True, False])
     def test_attrs(self, slots):

@@ -82,11 +82,11 @@ setup(
     classifiers=[
         "License :: OSI Approved :: BSD License",
         "Development Status :: 4 - Beta",
-        "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.13",
     ],
     extras_require=extras_require,
     license="BSD",
@@ -99,6 +99,6 @@ setup(
         else ""
     ),
     long_description_content_type="text/markdown",
-    python_requires=">=3.8",
+    python_requires=">=3.9",
     zip_safe=False,
 )

@@ -654,6 +654,11 @@ def check_msgpack_decode_typed() -> None:
     reveal_type(o)  # assert ("List" in typ or "list" in typ) and "int" in typ
 
 
+def check_msgpack_decode_from_buffer() -> None:
+    msg = msgspec.msgpack.encode([1, 2, 3])
+    msgspec.toml.decode(memoryview(msg))
+
+
 def check_msgpack_decode_typed_union() -> None:
     o: Union[int, str] = msgspec.msgpack.decode(b"", type=Union[int, str])
     reveal_type(o)  # assert "int" in typ and "str" in typ
@@ -835,6 +840,10 @@ def check_json_decode_from_str() -> None:
     reveal_type(o)  # assert ("List" in typ or "list" in typ) and "int" in typ
 
 
+def check_json_decode_from_buffer() -> None:
+    msgspec.json.decode(memoryview(b"[1, 2, 3]"))
+
+
 def check_json_encode_enc_hook() -> None:
     msgspec.json.encode(object(), enc_hook=lambda x: None)
 
@@ -929,6 +938,10 @@ def check_yaml_decode_from_str() -> None:
     reveal_type(o)  # assert "list" in typ.lower() and "int" in typ
 
 
+def check_yaml_decode_from_buffer() -> None:
+    msgspec.yaml.decode(memoryview(b"[1, 2, 3]"))
+
+
 def check_yaml_encode_enc_hook() -> None:
     msgspec.yaml.encode(object(), enc_hook=lambda x: None)
 
@@ -975,6 +988,10 @@ def check_toml_decode_from_str() -> None:
     msgspec.toml.decode("a = 1")
     o = msgspec.toml.decode("a = 1", type=Dict[str, int])
     reveal_type(o)  # assert "dict" in typ.lower() and "int" in typ
+
+
+def check_toml_decode_from_buffer() -> None:
+    msgspec.toml.decode(memoryview(b"a = 1"))
 
 
 def check_toml_encode_enc_hook() -> None:

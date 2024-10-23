@@ -46,18 +46,3 @@ class Rand:
 @pytest.fixture
 def rand():
     yield Rand()
-
-
-@pytest.fixture
-def Annotated():
-    try:
-        from typing import Annotated
-
-        return Annotated
-    except ImportError:
-        try:
-            from typing_extensions import Annotated
-
-            return Annotated
-        except ImportError:
-            pytest.skip("Annotated types not available")

@@ -15,7 +15,15 @@ from utils import temp_module
 
 import msgspec
 from msgspec import NODEFAULT, UNSET, Struct, defstruct, field
-from msgspec.structs import StructConfig, replace
+from msgspec.structs import StructConfig
+
+if hasattr(copy, "replace"):
+    # Added in Python 3.13
+    copy_replace = copy.replace
+else:
+
+    def copy_replace(s, **changes):
+        return s.__replace__(**changes)
 
 
 @contextmanager
@@ -242,6 +250,12 @@ class TestMixins:
         with pytest.raises(TypeError, match="cannot define __new__"):
 
             class Test(Struct, Mixin):
+                pass
+
+    def test_mixin_builtin_type_errors(self):
+        with pytest.raises(TypeError):
+
+            class Test(Struct, Exception):
                 pass
 
 
@@ -2253,27 +2267,35 @@ class TestDefStruct:
         assert Test.__struct_encode_fields__ == ("myField",)
 
 
+@pytest.fixture(params=["structs.replace", "copy.replace"])
+def replace(request):
+    if request.param == "structs.replace":
+        return msgspec.structs.replace
+    else:
+        return copy_replace
+
+
 class TestReplace:
-    def test_replace_no_kwargs(self):
+    def test_replace_not_a_struct(self):
+        with pytest.raises(TypeError, match="`struct` must be a `msgspec.Struct`"):
+            msgspec.structs.replace(1, x=2)
+
+    def test_replace_no_kwargs(self, replace):
         p = Point(1, 2)
         assert replace(p) == p
 
-    def test_replace_kwargs(self):
+    def test_replace_kwargs(self, replace):
         p = Point(1, 2)
         assert replace(p, x=3) == Point(3, 2)
         assert replace(p, y=4) == Point(1, 4)
         assert replace(p, x=3, y=4) == Point(3, 4)
 
-    def test_replace_unknown_field(self):
+    def test_replace_unknown_field(self, replace):
         p = Point(1, 2)
         with pytest.raises(TypeError, match="`Point` has no field 'oops'"):
             replace(p, oops=3)
 
-    def test_replace_not_a_struct(self):
-        with pytest.raises(TypeError, match="`struct` must be a `msgspec.Struct`"):
-            replace(1, x=2)
-
-    def test_replace_errors_unset_fields(self):
+    def test_replace_errors_unset_fields(self, replace):
         p = Point(1, 2)
         del p.x
 
@@ -2285,14 +2307,14 @@ class TestReplace:
 
         assert replace(p, x=3) == Point(3, 2)
 
-    def test_replace_frozen(self):
+    def test_replace_frozen(self, replace):
         class Test(msgspec.Struct, frozen=True):
             x: int
             y: int
 
         assert replace(Test(1, 2), x=3) == Test(3, 2)
 
-    def test_replace_gc_delayed_tracking(self):
+    def test_replace_gc_delayed_tracking(self, replace):
         class Test(msgspec.Struct):
             x: int
             y: Optional[List[int]]
@@ -2308,7 +2330,7 @@ class TestReplace:
         assert gc.is_tracked(replace(obj, x=1))
         assert not gc.is_tracked(replace(obj, y=None))
 
-    def test_replace_gc_false(self):
+    def test_replace_gc_false(self, replace):
         class Test(msgspec.Struct, gc=False):
             x: int
             y: List[int]
@@ -2317,7 +2339,7 @@ class TestReplace:
         assert res == Test(3, [1, 2])
         assert not gc.is_tracked(res)
 
-    def test_replace_reference_counts(self):
+    def test_replace_reference_counts(self, replace):
         class Test(msgspec.Struct):
             x: Any
             y: int
@@ -2617,6 +2639,6 @@ class TestPostInit:
 
         x1 = Ex()
         assert count == 1
-        x2 = replace(x1)
+        x2 = msgspec.structs.replace(x1)
         assert x1 == x2
         assert count == 1

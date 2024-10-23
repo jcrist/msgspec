@@ -38,6 +38,7 @@ annotations:
 - ``__init__``
 - ``__repr__``
 - ``__copy__``
+- ``__replace__``
 - ``__eq__`` & ``__ne__``
 - ``__match_args__`` (for Python 3.10+'s `pattern matching`_)
 - ``__rich_repr__`` (for pretty printing support with rich_)
@@ -725,7 +726,7 @@ Renaming Fields
 ---------------
 
 Sometimes you want the field name used in the encoded message to differ from
-the name used your Python code. Perhaps you want a ``camelCase`` naming
+the name used by your Python code. Perhaps you want a ``camelCase`` naming
 convention in your JSON messages, but to use ``snake_case`` field names in
 Python.
 

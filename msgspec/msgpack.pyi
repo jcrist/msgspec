@@ -1,4 +1,17 @@
-from typing import Any, Callable, Generic, Literal, Optional, Type, TypeVar, Union, overload
+from typing import (
+    Any,
+    Callable,
+    Generic,
+    Literal,
+    Optional,
+    Type,
+    TypeVar,
+    Union,
+    overload,
+)
+
+from typing_extensions import Buffer
+
 
 T = TypeVar("T")
 
@@ -42,7 +55,7 @@ class Decoder(Generic[T]):
         dec_hook: dec_hook_sig = None,
         ext_hook: ext_hook_sig = None,
     ) -> None: ...
-    def decode(self, data: bytes) -> T: ...
+    def decode(self, buf: Buffer, /) -> T: ...
 
 class Encoder:
     enc_hook: enc_hook_sig
@@ -57,14 +70,15 @@ class Encoder:
         uuid_format: Literal["canonical", "hex", "bytes"] = "canonical",
         order: Literal[None, "deterministic", "sorted"] = None,
     ): ...
-    def encode(self, obj: Any) -> bytes: ...
+    def encode(self, obj: Any, /) -> bytes: ...
     def encode_into(
-        self, obj: Any, buffer: bytearray, offset: Optional[int] = 0
+        self, obj: Any, buffer: bytearray, offset: Optional[int] = 0, /
     ) -> None: ...
 
 @overload
 def decode(
-    buf: bytes,
+    buf: Buffer,
+    /,
     *,
     strict: bool = True,
     dec_hook: dec_hook_sig = None,
@@ -72,7 +86,8 @@ def decode(
 ) -> Any: ...
 @overload
 def decode(
-    buf: bytes,
+    buf: Buffer,
+    /,
     *,
     type: Type[T] = ...,
     strict: bool = True,
@@ -81,16 +96,12 @@ def decode(
 ) -> T: ...
 @overload
 def decode(
-    buf: bytes,
+    buf: Buffer,
+    /,
     *,
     type: Any = ...,
     strict: bool = True,
     dec_hook: dec_hook_sig = None,
     ext_hook: ext_hook_sig = None,
 ) -> Any: ...
-def encode(
-    obj: Any,
-    *,
-    enc_hook: enc_hook_sig = None,
-    order: Literal[None, "deterministic", "sorted"] = None,
-) -> bytes: ...
+def encode(obj: Any, /, *, enc_hook: enc_hook_sig = None, order: Literal[None, "deterministic", "sorted"] = None) -> bytes: ...

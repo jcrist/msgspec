@@ -1,9 +1,18 @@
-import datetime as _datetime
-from typing import Any, Callable, Literal, Optional, Type, TypeVar, Union, overload
+from __future__ import annotations
 
-from msgspec import DecodeError as _DecodeError
-from msgspec import convert as _convert
-from msgspec import to_builtins as _to_builtins
+import datetime as _datetime
+from typing import TYPE_CHECKING, overload, TypeVar, Any
+
+from . import (
+    DecodeError as _DecodeError,
+    convert as _convert,
+    to_builtins as _to_builtins,
+)
+
+if TYPE_CHECKING:
+    from typing import Callable, Optional, Type, Union, Literal
+    from typing_extensions import Buffer
+
 
 __all__ = ("encode", "decode")
 
@@ -101,7 +110,7 @@ T = TypeVar("T")
 
 @overload
 def decode(
-    buf: Union[bytes, str],
+    buf: Union[Buffer, str],
     *,
     strict: bool = True,
     dec_hook: Optional[Callable[[type, Any], Any]] = None,
@@ -111,7 +120,7 @@ def decode(
 
 @overload
 def decode(
-    buf: Union[bytes, str],
+    buf: Union[Buffer, str],
     *,
     type: Type[T] = ...,
     strict: bool = True,
@@ -122,7 +131,7 @@ def decode(
 
 @overload
 def decode(
-    buf: Union[bytes, str],
+    buf: Union[Buffer, str],
     *,
     type: Any = ...,
     strict: bool = True,

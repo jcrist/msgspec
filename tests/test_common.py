@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import abc
 import base64
 import collections
 import datetime
@@ -15,6 +14,7 @@ from collections import namedtuple
 from dataclasses import dataclass, field, make_dataclass
 from datetime import timedelta
 from typing import (
+    Annotated,
     ClassVar,
     Deque,
     Dict,
@@ -44,12 +44,10 @@ from msgspec import UNSET, Meta, Struct, UnsetType, ValidationError
 
 UTC = datetime.timezone.utc
 
-PY39 = sys.version_info[:2] >= (3, 9)
 PY310 = sys.version_info[:2] >= (3, 10)
 PY311 = sys.version_info[:2] >= (3, 11)
 PY312 = sys.version_info[:2] >= (3, 12)
 
-py39_plus = pytest.mark.skipif(not PY39, reason="3.9+ only")
 py310_plus = pytest.mark.skipif(not PY310, reason="3.10+ only")
 py311_plus = pytest.mark.skipif(not PY311, reason="3.11+ only")
 py312_plus = pytest.mark.skipif(not PY312, reason="3.12+ only")
@@ -156,7 +154,6 @@ class TestEncodeSubclasses:
 
 
 class TestDecoder:
-    @py39_plus
     def test_decoder_runtime_type_parameters(self, proto):
         dec = proto.Decoder[int](int)
         assert isinstance(dec, proto.Decoder)
@@ -600,20 +597,27 @@ class TestEnum:
         with pytest.raises(TypeError, match="Enum types must have at least one item"):
             proto.Decoder(Empty)
 
-    def test_unsupported_type_errors(self, proto):
-        class Bad(enum.Enum):
+    def test_encode_complex(self, proto):
+        class Complex(enum.Enum):
             A = 1.5
 
-        with pytest.raises(
-            msgspec.EncodeError, match="Only enums with int or str values are supported"
-        ):
-            proto.encode(Bad.A)
+        res = proto.encode(Complex.A)
+        sol = proto.encode(1.5)
+        assert res == sol
+
+        res = proto.encode({Complex.A: 1})
+        sol = proto.encode({1.5: 1})
+        assert res == sol
+
+    def test_decode_complex_errors(self, proto):
+        class Complex(enum.Enum):
+            A = 1.5
 
         with pytest.raises(TypeError) as rec:
-            proto.Decoder(Bad)
+            proto.Decoder(Complex)
 
         assert "Enums must contain either all str or all int values" in str(rec.value)
-        assert repr(Bad) in str(rec.value)
+        assert repr(Complex) in str(rec.value)
 
     @pytest.mark.parametrize(
         "values",
@@ -886,8 +890,6 @@ class TestLiterals:
             dec.decode(msgspec.msgpack.encode("carrot"))
 
     def test_nested_literals(self):
-        """Python 3.9+ automatically denest literals, can drop this test when
-        python 3.8 is dropped"""
         integers = Literal[-1, -2, -3]
         strings = Literal["apple", "banana"]
         both = Literal[integers, strings]
@@ -2084,10 +2086,6 @@ class TestTypedDict:
         class Ex(Base, total=False):
             c: str
 
-        if not hasattr(Ex, "__required_keys__"):
-            # This should be Python 3.8, builtin typing only
-            pytest.skip("partially optional TypedDict not supported")
-
         dec = proto.Decoder(Ex)
 
         x = {"a": 1, "b": "two", "c": "extra"}
@@ -2111,10 +2109,6 @@ class TestTypedDict:
 
         if not hasattr(ns, "Required"):
             pytest.skip(f"{module}.Required is not available")
-
-        if not hasattr(ns.TypedDict("C", {}), "__required_keys__"):
-            # This should be Python 3.8, builtin typing only
-            pytest.skip("partially optional TypedDict not supported")
 
         source = f"""
         from __future__ import annotations
@@ -2475,6 +2469,14 @@ class TestDataclass:
 
         with pytest.raises(RuntimeError, match="is not a dict"):
             proto.encode(Ex(1))
+
+    def test_encode_dataclass_class_errors(self, proto):
+        @dataclass
+        class Ex:
+            x: int
+
+        with pytest.raises(TypeError, match="Encoding objects of type type"):
+            proto.encode(Ex)
 
     def test_encode_dataclass_no_slots(self, proto):
         @dataclass
@@ -3251,7 +3253,6 @@ class TestTime:
         sol = proto.encode(t_str)
         assert res == sol
 
-    @py39_plus
     def test_encode_time_zoneinfo(self):
         import zoneinfo
 
@@ -3721,7 +3722,7 @@ class TestNewType:
         with pytest.raises(ValidationError):
             proto.decode(proto.encode("bad"), type=UserId2)
 
-    def test_decode_annotated_newtype(self, proto, Annotated):
+    def test_decode_annotated_newtype(self, proto):
         UserId = NewType("UserId", int)
         dec = proto.Decoder(Annotated[UserId, msgspec.Meta(ge=0)])
         assert dec.decode(proto.encode(1)) == 1
@@ -3729,7 +3730,7 @@ class TestNewType:
         with pytest.raises(ValidationError):
             dec.decode(proto.encode(-1))
 
-    def test_decode_newtype_annotated(self, proto, Annotated):
+    def test_decode_newtype_annotated(self, proto):
         UserId = NewType("UserId", Annotated[int, msgspec.Meta(ge=0)])
         dec = proto.Decoder(UserId)
         assert dec.decode(proto.encode(1)) == 1
@@ -3737,7 +3738,7 @@ class TestNewType:
         with pytest.raises(ValidationError):
             dec.decode(proto.encode(-1))
 
-    def test_decode_annotated_newtype_annotated(self, proto, Annotated):
+    def test_decode_annotated_newtype_annotated(self, proto):
         UserId = Annotated[
             NewType("UserId", Annotated[int, msgspec.Meta(ge=0)]), msgspec.Meta(le=10)
         ]
@@ -3949,10 +3950,9 @@ class TestAbstractTypes:
         with pytest.raises(ValidationError, match="Expected `array`, got `str`"):
             proto.decode(proto.encode("a"), type=typ)
 
-        if PY39 or type(typ) is not abc.ABCMeta:
-            assert proto.decode(msg, type=typ[int]) == sol
-            with pytest.raises(ValidationError, match="Expected `int`, got `str`"):
-                proto.decode(proto.encode(["a"]), type=typ[int])
+        assert proto.decode(msg, type=typ[int]) == sol
+        with pytest.raises(ValidationError, match="Expected `int`, got `str`"):
+            proto.decode(proto.encode(["a"]), type=typ[int])
 
     @pytest.mark.parametrize(
         "typ",
@@ -3970,10 +3970,9 @@ class TestAbstractTypes:
         with pytest.raises(ValidationError, match="Expected `object`, got `str`"):
             proto.decode(proto.encode("a"), type=typ)
 
-        if PY39 or type(typ) is not abc.ABCMeta:
-            assert proto.decode(msg, type=typ[str, int]) == sol
-            with pytest.raises(ValidationError, match="Expected `int`, got `str`"):
-                proto.decode(proto.encode({"a": "b"}), type=typ[str, int])
+        assert proto.decode(msg, type=typ[str, int]) == sol
+        with pytest.raises(ValidationError, match="Expected `int`, got `str`"):
+            proto.decode(proto.encode({"a": "b"}), type=typ[str, int])
 
 
 class TestUnset:
@@ -4215,7 +4214,7 @@ class TestFinal:
         with pytest.raises(ValidationError):
             dec.decode(proto.encode("bad"))
 
-    def test_decode_final_annotated(self, proto, Annotated):
+    def test_decode_final_annotated(self, proto):
         dec = proto.Decoder(Final[Annotated[int, msgspec.Meta(ge=0)]])
 
         assert dec.decode(proto.encode(1)) == 1
@@ -4299,7 +4298,7 @@ class TestLax:
             with pytest.raises(ValidationError, match="Expected `int`, got `float`"):
                 proto.decode(msg, type=int, strict=False)
 
-    def test_lax_int_constr(self, proto, Annotated):
+    def test_lax_int_constr(self, proto):
         typ = Annotated[int, Meta(ge=0)]
         msg = proto.encode("1")
         assert proto.decode(msg, type=typ, strict=False) == 1
@@ -4346,7 +4345,7 @@ class TestLax:
             with pytest.raises(ValidationError, match="Expected `float`, got `str`"):
                 proto.decode(msg, type=float, strict=False)
 
-    def test_lax_float_constr(self, proto, Annotated):
+    def test_lax_float_constr(self, proto):
         msg = proto.encode("1.5")
         assert proto.decode(msg, type=Annotated[float, Meta(ge=0)], strict=False) == 1.5
 
@@ -4359,7 +4358,7 @@ class TestLax:
             msg = proto.encode(x)
             assert proto.decode(msg, type=str, strict=False) == x
 
-    def test_lax_str_constr(self, proto, Annotated):
+    def test_lax_str_constr(self, proto):
         typ = Annotated[str, Meta(max_length=10)]
         msg = proto.encode("xxx")
         assert proto.decode(msg, type=typ, strict=False) == "xxx"
@@ -4414,7 +4413,7 @@ class TestLax:
                 proto.decode(msg, type=datetime.datetime, strict=False)
 
     @pytest.mark.parametrize("val", [123, -123, 123.456, "123.456"])
-    def test_lax_datetime_naive_required(self, val, proto, Annotated):
+    def test_lax_datetime_naive_required(self, val, proto):
         msg = proto.encode(val)
         with pytest.raises(ValidationError, match="no timezone component"):
             proto.decode(
@@ -4501,7 +4500,7 @@ class TestLax:
             ("100.5", "`float` <= 100.0"),
         ],
     )
-    def test_lax_union_invalid_constr(self, x, err, proto, Annotated):
+    def test_lax_union_invalid_constr(self, x, err, proto):
         """Ensure that values that parse properly but don't meet the specified
         constraints error with a specific constraint error"""
         msg = proto.encode(x)

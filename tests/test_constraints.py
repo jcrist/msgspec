@@ -1,17 +1,9 @@
 import datetime
 import math
 import re
-from typing import Dict, List, Union
+from typing import Dict, List, Union, Annotated
 
 import pytest
-
-try:
-    from typing import Annotated
-except ImportError:
-    try:
-        from typing_extensions import Annotated
-    except ImportError:
-        pytestmark = pytest.mark.skip("Annotated types not available")
 
 import msgspec
 from msgspec import Meta
@@ -23,26 +15,6 @@ def proto(request):
         return msgspec.json
     elif request.param == "msgpack":
         return msgspec.msgpack
-
-
-try:
-    nextafter = math.nextafter
-except AttributeError:
-
-    def nextafter(x, towards):
-        """This isn't a 100% accurate implementation, but is fine
-        for rough testing of Python 3.8"""
-        factor = float.fromhex("0x1.fffffffffffffp-1")
-
-        def sign(x):
-            return -1 if x < 0 else 1
-
-        scale_up = sign(x) == sign(towards)
-        if scale_up:
-            out = (abs(x) / factor) * sign(x)
-        else:
-            out = (abs(x) * factor) * sign(x)
-        return out
 
 
 FIELDS = {
@@ -396,9 +368,9 @@ class TestFloatConstraints:
 
         if name.endswith("e"):
             good = bound
-            bad = nextafter(bound, -good_dir)
+            bad = math.nextafter(bound, -good_dir)
         else:
-            good = nextafter(bound, good_dir)
+            good = math.nextafter(bound, good_dir)
             bad = bound
         good_cases = [good, good_round(good), float(good_round(good))]
         bad_cases = [bad, bad_round(bad), float(bad_round(bad))]

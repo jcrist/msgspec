@@ -14,6 +14,7 @@ import uuid
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import (
+    Annotated,
     Any,
     Dict,
     FrozenSet,
@@ -32,9 +33,6 @@ import pytest
 import msgspec
 
 UTC = datetime.timezone.utc
-
-PY39 = sys.version_info[:2] >= (3, 9)
-py39_plus = pytest.mark.skipif(not PY39, reason="3.9+ only")
 
 
 class FruitInt(enum.IntEnum):
@@ -292,10 +290,11 @@ class TestEncoderMisc:
         enc.encode_into(msg, buf, 2)
         assert buf == b"01" + encoded
 
-        # Offset out of bounds appends to end
+        # Offset out of bounds extends
         buf = bytearray(b"01234")
-        enc.encode_into(msg, buf, 1000)
-        assert buf == b"01234" + encoded
+        enc.encode_into(msg, buf, 10)
+        assert buf[:5] == b"01234"
+        assert buf[10:] == encoded
 
         # Offset -1 means append at end
         buf = bytearray(b"01234")
@@ -833,7 +832,6 @@ class TestDatetime:
         s = msgspec.json.encode(x)
         assert s == expected
 
-    @py39_plus
     def test_encode_datetime_zoneinfo(self):
         import zoneinfo
 
@@ -1099,17 +1097,30 @@ class TestIntegers:
         assert isinstance(x2, int)
         assert x2 == x
 
-    @pytest.mark.parametrize("x", [-(2**63) - 1, 2**64])
-    def test_decode_big_int_as_any(self, x):
+    @pytest.mark.parametrize(
+        "x",
+        [
+            -(2**63) - 1,
+            2**64,
+            2**64 + 10**18,
+            2**64 + 10**18 + 1,
+            19999999999999999999,
+            20000000000000000000,
+            2**64 + 10**19,  # mantissa overflows to 20 digits
+            2**64 + 10**19 - 1,
+            -(2**64),
+            -(2**64) + 10**18,
+            -(2**64) + 10**18 + 1,
+            -19999999999999999999,
+            -20000000000000000000,
+            -(2**64 + 10**19),
+            -(2**64 + 10**19 - 1),
+        ],
+    )
+    @pytest.mark.parametrize("type", [Any, int])
+    def test_decode_big_int(self, x, type):
         s = str(x).encode()
-        x2 = msgspec.json.decode(s)
-        assert isinstance(x2, int)
-        assert x2 == x
-
-    @pytest.mark.parametrize("x", [-(2**63) - 1, 2**64])
-    def test_decode_big_int_as_int(self, x):
-        s = str(x).encode()
-        x2 = msgspec.json.decode(s, type=int)
+        x2 = msgspec.json.decode(s, type=type)
         assert isinstance(x2, int)
         assert x2 == x
 
@@ -1916,12 +1927,9 @@ class TestDict:
             dec.decode(b'{"apple": 1, "carrot": 2}')
 
     def test_decode_dict_str_key_constraints(self):
-        try:
-            from typing import Annotated
-        except ImportError:
-            pytest.skip("Annotated types not available")
-
-        dec = msgspec.json.Decoder(Dict[Annotated[str, msgspec.Meta(min_length=3)], int])
+        dec = msgspec.json.Decoder(
+            Dict[Annotated[str, msgspec.Meta(min_length=3)], int]
+        )
         assert dec.decode(b'{"abc": 1, "def": 2}') == {"abc": 1, "def": 2}
 
         with pytest.raises(msgspec.ValidationError, match="Expected `str` of length >= 3"):
@@ -2012,11 +2020,6 @@ class TestDict:
         assert type(list(res)[0]) is int
 
     def test_decode_dict_int_key_constraints(self):
-        try:
-            from typing import Annotated
-        except ImportError:
-            pytest.skip("Annotated types not available")
-
         dec = msgspec.json.Decoder(Dict[Annotated[int, msgspec.Meta(ge=3)], int])
         assert dec.decode(b'{"4": 1, "5": 2}') == {4: 1, 5: 2}
 

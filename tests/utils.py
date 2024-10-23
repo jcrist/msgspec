@@ -32,9 +32,6 @@ def max_call_depth(n):
         # set a recursionlimit < the current depth will raise a RecursionError.
         # We just try again with a slightly higher limit, bailing after an
         # unreasonable amount of adjustments.
-        #
-        # Note that python 3.8 also has a minimum recursion limit of 64, so
-        # there's some additional fiddliness there.
         for i in range(64):
             try:
                 sys.setrecursionlimit(cur_depth + i + n)

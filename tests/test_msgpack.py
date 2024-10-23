@@ -416,10 +416,11 @@ class TestEncoderMisc:
         enc.encode_into(msg, buf, 2)
         assert buf == b"01" + encoded
 
-        # Offset out of bounds appends to end
+        # Offset out of bounds extends
         buf = bytearray(b"01234")
-        enc.encode_into(msg, buf, 1000)
-        assert buf == b"01234" + encoded
+        enc.encode_into(msg, buf, 10)
+        assert buf[:5] == b"01234"
+        assert buf[10:] == encoded
 
         # Offset -1 means append at end
         buf = bytearray(b"01234")

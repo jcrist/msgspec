@@ -1,4 +1,3 @@
-import abc
 import collections
 import datetime
 import decimal
@@ -10,6 +9,7 @@ from collections import namedtuple
 from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import (
+    Annotated,
     Any,
     Dict,
     Final,
@@ -33,28 +33,11 @@ import msgspec
 import msgspec.inspect as mi
 from msgspec import Meta
 
-try:
-    from typing import Annotated
-except ImportError:
-    try:
-        from typing_extensions import Annotated
-    except ImportError:
-        pytestmark = pytest.mark.skip("Annotated types not available")
 
-
-PY39 = sys.version_info[:2] >= (3, 9)
 PY312 = sys.version_info[:2] >= (3, 12)
-
 py312_plus = pytest.mark.skipif(not PY312, reason="3.12+ only")
 
 T = TypeVar("T")
-
-
-def type_index(typ, args):
-    try:
-        return typ[args]
-    except TypeError:
-        pytest.skip("Not supported in Python 3.8")
 
 
 @pytest.mark.parametrize(
@@ -224,7 +207,7 @@ def test_typealias(src, typ):
         assert mi.type_info(mod.Ex) == mi.type_info(typ)
 
 
-def test_final(Annotated):
+def test_final():
     cases = [
         (int, mi.IntType()),
         (Annotated[int, Meta(ge=0)], mi.IntType(ge=0)),
@@ -265,9 +248,9 @@ def test_sequence(kw, typ, info_type, has_item_type):
     if has_item_type:
         item_type = mi.IntType()
         if info_type is mi.VarTupleType:
-            typ = type_index(typ, (int, ...))
+            typ = typ[int, ...]
         else:
-            typ = type_index(typ, int)
+            typ = typ[int]
     else:
         item_type = mi.AnyType()
 
@@ -280,11 +263,9 @@ def test_sequence(kw, typ, info_type, has_item_type):
 
 @pytest.mark.parametrize("typ", [Tuple, tuple])
 def test_tuple(typ):
-    assert mi.type_info(type_index(typ, ())) == mi.TupleType(())
-    assert mi.type_info(type_index(typ, int)) == mi.TupleType((mi.IntType(),))
-    assert mi.type_info(type_index(typ, (int, float))) == mi.TupleType(
-        (mi.IntType(), mi.FloatType())
-    )
+    assert mi.type_info(typ[()]) == mi.TupleType(())
+    assert mi.type_info(typ[int]) == mi.TupleType((mi.IntType(),))
+    assert mi.type_info(typ[int, float]) == mi.TupleType((mi.IntType(), mi.FloatType()))
 
 
 @pytest.mark.parametrize("typ", [Dict, dict])
@@ -292,7 +273,7 @@ def test_tuple(typ):
 @pytest.mark.parametrize("has_args", [False, True])
 def test_dict(typ, kw, has_args):
     if has_args:
-        typ = type_index(typ, (int, float))
+        typ = typ[int, float]
         key = mi.IntType()
         val = mi.FloatType()
     else:
@@ -325,8 +306,7 @@ def test_abstract_sequence(typ):
         col_type = mi.ListType
 
     assert mi.type_info(typ) == col_type(mi.AnyType())
-    if PY39 or type(typ) is not abc.ABCMeta:
-        assert mi.type_info(typ[int]) == col_type(mi.IntType())
+    assert mi.type_info(typ[int]) == col_type(mi.IntType())
 
 
 @pytest.mark.parametrize(
@@ -340,8 +320,7 @@ def test_abstract_sequence(typ):
 )
 def test_abstract_mapping(typ):
     assert mi.type_info(typ) == mi.DictType(mi.AnyType(), mi.AnyType())
-    if PY39 or type(typ) is not abc.ABCMeta:
-        assert mi.type_info(typ[str, int]) == mi.DictType(mi.StrType(), mi.IntType())
+    assert mi.type_info(typ[str, int]) == mi.DictType(mi.StrType(), mi.IntType())
 
 
 @pytest.mark.parametrize("use_union_operator", [False, True])
@@ -584,10 +563,6 @@ def test_typeddict_optional(use_typing_extensions):
 
     class Example(Base, total=False):
         c: int
-
-    if not hasattr(Example, "__required_keys__"):
-        # This should be Python 3.8, builtin typing only
-        pytest.skip("partially optional TypedDict not supported")
 
     sol = mi.TypedDictType(
         Example,
