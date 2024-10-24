@@ -21,6 +21,7 @@
 #define PY311_PLUS (PY_VERSION_HEX >= 0x030b0000)
 #define PY312_PLUS (PY_VERSION_HEX >= 0x030c0000)
 #define PY313_PLUS (PY_VERSION_HEX >= 0x030d0000)
+#define PY314_PLUS (PY_VERSION_HEX >= 0x030e0000)
 
 /* Hint to the compiler not to store `x` in a register since it is likely to
  * change. Results in much higher performance on GCC, with smaller benefits on
@@ -69,6 +70,12 @@ ms_popcount(uint64_t i) {                            \
 #define MS_UNICODE_EQ(a, b) (PyUnicode_Compare(a, b) == 0)
 #else
 #define MS_UNICODE_EQ(a, b) _PyUnicode_EQ(a, b)
+#endif
+
+#if PY314_PLUS
+#define MS_IMMORTAL_INITIAL_REFCNT _Py_IMMORTAL_INITIAL_REFCNT
+#else
+#define MS_IMMORTAL_INITIAL_REFCNT _Py_IMMORTAL_REFCNT
 #endif
 
 #define DIV_ROUND_CLOSEST(n, d) ((((n) < 0) == ((d) < 0)) ? (((n) + (d)/2)/(d)) : (((n) - (d)/2)/(d)))
@@ -2155,7 +2162,7 @@ PyTypeObject NoDefault_Type = {
 #if PY312_PLUS
 PyObject _NoDefault_Object = {
     _PyObject_EXTRA_INIT
-    { _Py_IMMORTAL_REFCNT },
+    { MS_IMMORTAL_INITIAL_REFCNT },
     &NoDefault_Type
 };
 #else
@@ -2259,7 +2266,7 @@ PyTypeObject Unset_Type = {
 #if PY312_PLUS
 PyObject _Unset_Object = {
     _PyObject_EXTRA_INIT
-    { _Py_IMMORTAL_REFCNT },
+    { MS_IMMORTAL_INITIAL_REFCNT },
     &Unset_Type
 };
 #else
