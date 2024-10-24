@@ -21,6 +21,7 @@
 #define PY311_PLUS (PY_VERSION_HEX >= 0x030b0000)
 #define PY312_PLUS (PY_VERSION_HEX >= 0x030c0000)
 #define PY313_PLUS (PY_VERSION_HEX >= 0x030d0000)
+#define PY314_PLUS (PY_VERSION_HEX >= 0x030e0000)
 
 /* Hint to the compiler not to store `x` in a register since it is likely to
  * change. Results in much higher performance on GCC, with smaller benefits on
@@ -2152,7 +2153,13 @@ PyTypeObject NoDefault_Type = {
     .tp_basicsize = 0
 };
 
-#if PY312_PLUS
+#if PY314_PLUS
+PyObject _NoDefault_Object = {
+    _PyObject_EXTRA_INIT
+    { _Py_IMMORTAL_INITIAL_REFCNT },
+    &NoDefault_Type
+};
+#elif PY312_PLUS
 PyObject _NoDefault_Object = {
     _PyObject_EXTRA_INIT
     { _Py_IMMORTAL_REFCNT },
@@ -2256,7 +2263,13 @@ PyTypeObject Unset_Type = {
     .tp_basicsize = 0
 };
 
-#if PY312_PLUS
+#if PY314_PLUS
+PyObject _Unset_Object = {
+    _PyObject_EXTRA_INIT
+    { _Py_IMMORTAL_INITIAL_REFCNT },
+    &NoDefault_Type
+};
+#elif PY312_PLUS
 PyObject _Unset_Object = {
     _PyObject_EXTRA_INIT
     { _Py_IMMORTAL_REFCNT },
