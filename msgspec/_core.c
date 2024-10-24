@@ -72,6 +72,12 @@ ms_popcount(uint64_t i) {                            \
 #define MS_UNICODE_EQ(a, b) _PyUnicode_EQ(a, b)
 #endif
 
+#if PY314_PLUS
+#define MS_IMMORTAL_INITIAL_REFCNT _Py_IMMORTAL_INITIAL_REFCNT
+#else
+#define MS_IMMORTAL_INITIAL_REFCNT _Py_IMMORTAL_REFCNT
+#endif
+
 #define DIV_ROUND_CLOSEST(n, d) ((((n) < 0) == ((d) < 0)) ? (((n) + (d)/2)/(d)) : (((n) - (d)/2)/(d)))
 
 /* These macros are used to manually unroll some loops */
@@ -2153,16 +2159,10 @@ PyTypeObject NoDefault_Type = {
     .tp_basicsize = 0
 };
 
-#if PY314_PLUS
+#if PY312_PLUS
 PyObject _NoDefault_Object = {
     _PyObject_EXTRA_INIT
-    { _Py_IMMORTAL_INITIAL_REFCNT },
-    &NoDefault_Type
-};
-#elif PY312_PLUS
-PyObject _NoDefault_Object = {
-    _PyObject_EXTRA_INIT
-    { _Py_IMMORTAL_REFCNT },
+    { MS_IMMORTAL_INITIAL_REFCNT },
     &NoDefault_Type
 };
 #else
@@ -2263,16 +2263,10 @@ PyTypeObject Unset_Type = {
     .tp_basicsize = 0
 };
 
-#if PY314_PLUS
+#if PY312_PLUS
 PyObject _Unset_Object = {
     _PyObject_EXTRA_INIT
-    { _Py_IMMORTAL_INITIAL_REFCNT },
-    &NoDefault_Type
-};
-#elif PY312_PLUS
-PyObject _Unset_Object = {
-    _PyObject_EXTRA_INIT
-    { _Py_IMMORTAL_REFCNT },
+    { MS_IMMORTAL_INITIAL_REFCNT },
     &Unset_Type
 };
 #else
