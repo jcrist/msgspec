@@ -182,16 +182,6 @@ def roundtrip(obj, typ):
     return convert(to_builtins(obj), typ)
 
 
-class TestFromBuiltins:
-    """TODO: deprecated"""
-
-    def test_from_builtins(self):
-        with pytest.warns(UserWarning, match="deprecated"):
-            res = msgspec.from_builtins([1, 2], List[float])
-        assert res == [1.0, 2.0]
-        assert type(res[0]) is float
-
-
 class TestConvert:
     def test_bad_calls(self):
         with pytest.raises(TypeError):
