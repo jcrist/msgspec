@@ -177,28 +177,6 @@ def convert(
     str_keys: bool = False,
 ) -> Any: ...
 
-# TODO: deprecated
-@overload
-def from_builtins(
-    obj: Any,
-    type: Type[T],
-    *,
-    str_keys: bool = False,
-    str_values: bool = False,
-    builtin_types: Union[Iterable[type], None] = None,
-    dec_hook: Optional[Callable[[type, Any], Any]] = None,
-) -> T: ...
-@overload
-def from_builtins(
-    obj: Any,
-    type: Any,
-    *,
-    str_keys: bool = False,
-    str_values: bool = False,
-    builtin_types: Union[Iterable[type], None] = None,
-    dec_hook: Optional[Callable[[type, Any], Any]] = None,
-) -> Any: ...
-
 class MsgspecError(Exception): ...
 class EncodeError(MsgspecError): ...
 class DecodeError(MsgspecError): ...

@@ -1134,24 +1134,3 @@ def check_convert() -> None:
 
     o7 = msgspec.convert("1", int, str_keys=True)
     reveal_type(o7)  # assert "int" in typ.lower()
-
-
-def check_from_builtins() -> None:
-    """TODO: deprecated"""
-    o1 = msgspec.from_builtins(1, int)
-    reveal_type(o1)  # assert "int" in typ.lower()
-
-    o2 = msgspec.from_builtins([1, 2], List[float])
-    reveal_type(o2)  # assert "list" in typ.lower()
-
-    o3 = msgspec.from_builtins(1, int, str_keys=False)
-    reveal_type(o3)  # assert "int" in typ.lower()
-
-    o4 = msgspec.from_builtins("1", int, str_values=True)
-    reveal_type(o4)  # assert "int" in typ.lower()
-
-    o5 = msgspec.from_builtins(1, int, builtin_types=(bytes, bytearray, memoryview))
-    reveal_type(o5)  # assert "int" in typ.lower()
-
-    o6 = msgspec.from_builtins(1, int, dec_hook=lambda typ, x: None)
-    reveal_type(o6)  # assert "int" in typ.lower()
