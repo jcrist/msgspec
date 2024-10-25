@@ -10,6 +10,9 @@ exclude = [
     "test_JSONTestSuite.py",
     "conf.py",
 ]
+line-length = 88
+
+[tool.ruff.lint]
 ignore = [
     "E721", # Comparing types instead of isinstance
     "E741", # Ambiguous variable names
@@ -21,7 +24,6 @@ select = [
     "F", # Pyflakes
     "W", # PEP8 Warnings
 ]
-line-length = 88
 
-[tool.ruff.isort]
+[tool.ruff.lint.isort]
 combine-as-imports = true

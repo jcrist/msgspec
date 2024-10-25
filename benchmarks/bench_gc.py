@@ -6,6 +6,7 @@ For each type, the following is measured:
 - Time for a single full GC pass over all the data.
 - Amount of memory used to hold all the data
 """
+
 import gc
 import sys
 import time
