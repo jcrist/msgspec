@@ -695,8 +695,7 @@ class TestUUID:
                 convert(typ(u.bytes), uuid.UUID, builtin_types=(uuid.UUID,))
 
     def test_convert_uuid_subclass(self):
-        class UUID2(uuid.UUID):
-            ...
+        class UUID2(uuid.UUID): ...
 
         u1 = uuid.uuid4()
         u2 = UUID2(str(u1))
