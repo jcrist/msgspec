@@ -19,7 +19,7 @@ except ImportError:
 
 
 project = "msgspec"
-copyright = "2022, Jim Crist-Harif"
+copyright = "Jim Crist-Harif"
 author = "Jim Crist-Harif"
 
 GITHUB_LOGO = """
