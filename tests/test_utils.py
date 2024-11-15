@@ -190,3 +190,14 @@ class TestGetClassAnnotations:
             z: str
 
         assert get_class_annotations(Sub2) == {"x": int, "y": float, "z": str}
+
+    def test_generic_invalid_parameters(self):
+        class Invalid:
+            @property
+            def __parameters__(self):
+                pass
+
+        class Sub(Base[Invalid]):
+            pass
+
+        assert get_class_annotations(Sub) == {"x": Invalid}

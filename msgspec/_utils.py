@@ -50,12 +50,22 @@ else:
 
 
 def _apply_params(obj, mapping):
-    if params := getattr(obj, "__parameters__", None):
-        args = tuple(mapping.get(p, p) for p in params)
-        return obj[args]
-    elif isinstance(obj, typing.TypeVar):
+    if isinstance(obj, typing.TypeVar):
         return mapping.get(obj, obj)
-    return obj
+
+    try:
+        parameters = tuple(obj.__parameters__)
+    except Exception:
+        # Not parameterized or __parameters__ is invalid, ignore
+        return obj
+
+    if not parameters:
+        # Not parametrized
+        return obj
+
+    # Parametrized
+    args = tuple(mapping.get(p, p) for p in parameters)
+    return obj[args]
 
 
 def _get_class_mro_and_typevar_mappings(obj):
