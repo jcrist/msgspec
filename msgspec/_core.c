@@ -2377,6 +2377,7 @@ typedef struct {
     PyObject *default_value;
     PyObject *default_factory;
     PyObject *name;
+    PyObject *repr;
 } Field;
 
 PyDoc_STRVAR(Field__doc__,
@@ -2393,17 +2394,19 @@ PyDoc_STRVAR(Field__doc__,
 "    The name to use when encoding/decoding this field. If present, this\n"
 "    will override any struct-level configuration using the ``rename``\n"
 "    option for this field."
+"repr : bool or Callable, optional\n"
+"    Whether to include this field in the generated struct ``__repr__``."
 );
 static PyObject *
 Field_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
-    char *kwlist[] = {"default", "default_factory", "name", NULL};
+    char *kwlist[] = {"default", "default_factory", "name", "repr", NULL};
     PyObject *default_value = NODEFAULT, *default_factory = NODEFAULT;
-    PyObject *name = Py_None;
+    PyObject *name = Py_None; PyObject *repr = Py_True;
 
     if (
         !PyArg_ParseTupleAndKeywords(
-            args, kwargs, "|$OOO", kwlist,
-            &default_value, &default_factory, &name
+            args, kwargs, "|$OOOO", kwlist,
+            &default_value, &default_factory, &name, &repr
         )
     ) {
         return NULL;
@@ -2413,6 +2416,12 @@ Field_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
             PyExc_TypeError, "Cannot set both `default` and `default_factory`"
         );
         return NULL;
+    }
+    if (!PyBool_Check(repr)) {
+        if (!PyCallable_Check(repr)) {
+            PyErr_SetString(PyExc_TypeError, "repr must be boolean or callable");
+            return NULL;
+        }
     }
     if (default_factory != NODEFAULT) {
         if (!PyCallable_Check(default_factory)) {
@@ -2437,6 +2446,8 @@ Field_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
     self->default_factory = default_factory;
     Py_XINCREF(name);
     self->name = name;
+    Py_XINCREF(repr);
+    self->repr = repr;
     return (PyObject *)self;
 }
 
@@ -2446,6 +2457,7 @@ Field_traverse(Field *self, visitproc visit, void *arg)
     Py_VISIT(self->default_value);
     Py_VISIT(self->default_factory);
     Py_VISIT(self->name);
+    Py_VISIT(self->repr);
     return 0;
 }
 
@@ -2455,6 +2467,7 @@ Field_clear(Field *self)
     Py_CLEAR(self->default_value);
     Py_CLEAR(self->default_factory);
     Py_CLEAR(self->name);
+    Py_CLEAR(self->repr);
     return 0;
 }
 
@@ -2478,6 +2491,10 @@ static PyMemberDef Field_members[] = {
     {
         "name", T_OBJECT, offsetof(Field, name), READONLY,
         "An alternative name to use when encoding/decoding this field"
+    },
+    {
+        "repr", T_OBJECT_EX, offsetof(Field, repr), READONLY,
+        "Whether to include this field in the generated struct __repr__"
     },
     {NULL},
 };
@@ -2889,6 +2906,7 @@ typedef struct {
     PyHeapTypeObject base;
     PyObject *struct_fields;
     PyObject *struct_defaults;
+    PyObject *struct_reprs;
     Py_ssize_t *struct_offsets;
     PyObject *struct_encode_fields;
     struct StructInfo *struct_info;
@@ -5434,6 +5452,7 @@ rename_mapping(PyObject *rename, PyObject *field) {
 typedef struct {
     /* Temporary state. All owned references. */
     PyObject *defaults_lk;
+    PyObject *reprs_lk;
     PyObject *offsets_lk;
     PyObject *kwonly_fields;
     PyObject *slots;
@@ -5443,6 +5462,7 @@ typedef struct {
     PyObject *fields;
     PyObject *encode_fields;
     PyObject *defaults;
+    PyObject *reprs;
     PyObject *match_args;
     PyObject *tag;
     PyObject *tag_field;
@@ -5567,6 +5587,7 @@ structmeta_collect_base(StructMetaInfo *info, MsgspecState *mod, PyObject *base)
     PyObject *fields = st_type->struct_fields;
     PyObject *encode_fields = st_type->struct_encode_fields;
     PyObject *defaults = st_type->struct_defaults;
+    PyObject *reprs = st_type->struct_reprs;
     Py_ssize_t *offsets = st_type->struct_offsets;
     Py_ssize_t nfields = PyTuple_GET_SIZE(fields);
     Py_ssize_t nkwonly = st_type->nkwonly;
@@ -5577,10 +5598,12 @@ structmeta_collect_base(StructMetaInfo *info, MsgspecState *mod, PyObject *base)
         PyObject *field = PyTuple_GET_ITEM(fields, i);
         PyObject *encode_field = PyTuple_GET_ITEM(encode_fields, i);
         PyObject *default_val = NODEFAULT;
+        PyObject *repr_val = PyTuple_GET_ITEM(reprs, i);
         if (i >= defaults_offset) {
             default_val = PyTuple_GET_ITEM(defaults, i - defaults_offset);
         }
         if (PyDict_SetItem(info->defaults_lk, field, default_val) < 0) return -1;
+        if (PyDict_SetItem(info->reprs_lk, field, repr_val) < 0) return -1;
 
         /* Mark the field as kwonly or not */
         if (i >= (nfields - nkwonly)) {
@@ -5764,6 +5787,33 @@ error_mutable_struct:
 }
 
 static int
+structmeta_process_repr(StructMetaInfo *info, PyObject *name) {
+    PyObject *obj = PyDict_GetItem(info->namespace, name);
+
+    if (obj == NULL) {
+        return PyDict_SetItem(info->reprs_lk, name, Py_True);
+    }
+
+    PyObject* repr_val = NULL;
+    PyTypeObject *type = Py_TYPE(obj);
+
+    if (type == &Field_Type) {
+        Field *f = (Field *)obj;
+        /* Extract repr boolean or callable */
+        repr_val = f->repr;
+        Py_INCREF(repr_val);
+    }
+    else {
+        repr_val = Py_True;
+        Py_INCREF(repr_val);
+    }
+
+    int status = PyDict_SetItem(info->reprs_lk, name, repr_val);
+    Py_DECREF(repr_val);
+    return status;
+}
+
+static int
 structmeta_is_classvar(
     StructMetaInfo *info, MsgspecState *mod, PyObject *ann, PyObject **module_ns
 ) {
@@ -5865,6 +5915,7 @@ structmeta_collect_fields(StructMetaInfo *info, MsgspecState *mod, bool kwonly) 
             if (PySet_Discard(info->kwonly_fields, field) < 0) goto error;
         }
 
+        if (structmeta_process_repr(info, field) < 0) goto error;
         if (structmeta_process_default(info, field) < 0) goto error;
     }
     return 0;
@@ -5882,6 +5933,7 @@ structmeta_construct_fields(StructMetaInfo *info, MsgspecState *mod) {
     info->fields = PyTuple_New(nfields);
     if (info->fields == NULL) return -1;
     info->defaults = PyList_New(0);
+    info->reprs = PyList_New(0);
 
     /* First pass - handle all non-kwonly fields. */
     PyObject *field, *default_val;
@@ -5929,11 +5981,26 @@ structmeta_construct_fields(StructMetaInfo *info, MsgspecState *mod) {
         }
     }
 
+    /* Pass over fields again configuring repr values */
+    PyObject *repr_field, *repr_val;
+    Py_ssize_t repr_field_index = 0;
+    Py_ssize_t repr_pos = 0;
+    while (PyDict_Next(info->reprs_lk, &repr_pos, &repr_field, &repr_val)) {
+        if (PyList_Append(info->reprs, repr_val) < 0) return -1;
+        repr_field_index++;
+    }
+
     /* Convert defaults list to tuple */
     PyObject *temp_defaults = PyList_AsTuple(info->defaults);
     Py_DECREF(info->defaults);
     info->defaults = temp_defaults;
     if (info->defaults == NULL) return -1;
+
+    /* Convert reprs list to tuple */
+    PyObject *temp_reprs = PyList_AsTuple(info->reprs);
+    Py_DECREF(info->reprs);
+    info->reprs = temp_reprs;
+    if (info->reprs == NULL) return -1;
 
     /* Compute n_trailing_defaults */
     info->nkwonly = nkwonly;
@@ -6207,6 +6274,7 @@ StructMeta_new_inner(
 
     StructMetaInfo info = {
         .defaults_lk = NULL,
+        .reprs_lk = NULL,
         .offsets_lk = NULL,
         .kwonly_fields = NULL,
         .slots = NULL,
@@ -6215,6 +6283,7 @@ StructMeta_new_inner(
         .fields = NULL,
         .encode_fields = NULL,
         .defaults = NULL,
+        .reprs = NULL,
         .match_args = NULL,
         .tag = NULL,
         .tag_field = NULL,
@@ -6245,6 +6314,8 @@ StructMeta_new_inner(
 
     info.defaults_lk = PyDict_New();
     if (info.defaults_lk == NULL) goto cleanup;
+    info.reprs_lk = PyDict_New();
+    if (info.reprs_lk == NULL) goto cleanup;
     info.offsets_lk = PyDict_New();
     if (info.offsets_lk == NULL) goto cleanup;
     info.kwonly_fields = PySet_New(NULL);
@@ -6366,6 +6437,8 @@ StructMeta_new_inner(
     cls->struct_fields = info.fields;
     Py_INCREF(info.defaults);
     cls->struct_defaults = info.defaults;
+    Py_INCREF(info.reprs);
+    cls->struct_reprs = info.reprs;
     Py_INCREF(info.encode_fields);
     cls->struct_encode_fields = info.encode_fields;
     Py_INCREF(info.match_args);
@@ -6393,6 +6466,7 @@ StructMeta_new_inner(
 cleanup:
     /* Temporary structures */
     Py_XDECREF(info.defaults_lk);
+    Py_XDECREF(info.reprs_lk);
     Py_XDECREF(info.offsets_lk);
     Py_XDECREF(info.kwonly_fields);
     Py_XDECREF(info.slots);
@@ -6402,6 +6476,7 @@ cleanup:
     Py_XDECREF(info.fields);
     Py_XDECREF(info.encode_fields);
     Py_XDECREF(info.defaults);
+    Py_XDECREF(info.reprs);
     Py_XDECREF(info.match_args);
     Py_XDECREF(info.tag);
     Py_XDECREF(info.tag_field);
@@ -6796,6 +6871,7 @@ StructMeta_traverse(StructMetaObject *self, visitproc visit, void *arg)
 {
     Py_VISIT(self->struct_fields);
     Py_VISIT(self->struct_defaults);
+    Py_VISIT(self->struct_reprs);
     Py_VISIT(self->struct_encode_fields);
     Py_VISIT(self->struct_tag);  /* May be a function */
     Py_VISIT(self->rename);  /* May be a function */
@@ -6812,6 +6888,7 @@ StructMeta_clear(StructMetaObject *self)
 
     Py_CLEAR(self->struct_fields);
     Py_CLEAR(self->struct_defaults);
+    Py_CLEAR(self->struct_reprs);
     Py_CLEAR(self->struct_encode_fields);
     Py_CLEAR(self->struct_tag_field);
     Py_CLEAR(self->struct_tag_value);
@@ -7130,6 +7207,7 @@ StructMeta_config(StructMetaObject *self, void *closure) {
 static PyMemberDef StructMeta_members[] = {
     {"__struct_fields__", T_OBJECT_EX, offsetof(StructMetaObject, struct_fields), READONLY, "Struct fields"},
     {"__struct_defaults__", T_OBJECT_EX, offsetof(StructMetaObject, struct_defaults), READONLY, "Struct defaults"},
+    {"__struct_reprs__", T_OBJECT_EX, offsetof(StructMetaObject, struct_reprs), READONLY, "Struct reprs"},
     {"__struct_encode_fields__", T_OBJECT_EX, offsetof(StructMetaObject, struct_encode_fields), READONLY, "Struct encoded field names"},
     {"__match_args__", T_OBJECT_EX, offsetof(StructMetaObject, match_args), READONLY, "Positional match args"},
     {NULL},
@@ -7401,6 +7479,7 @@ Struct_repr(PyObject *self) {
     StructMetaObject *st_type = (StructMetaObject *)(Py_TYPE(self));
     bool omit_defaults = st_type->repr_omit_defaults == OPT_TRUE;
     PyObject *fields = st_type->struct_fields;
+    PyObject *reprs = st_type->struct_reprs;
     Py_ssize_t nfields = PyTuple_GET_SIZE(fields);
     PyObject *defaults = NULL;
     Py_ssize_t nunchecked = nfields;
@@ -7423,12 +7502,26 @@ Struct_repr(PyObject *self) {
 
     for (Py_ssize_t i = 0; i < nfields; i++) {
         PyObject *field = PyTuple_GET_ITEM(fields, i);
+	Py_INCREF(field);
+
         PyObject *val = Struct_get_index(self, i);
         if (val == NULL) goto error;
 
+        PyObject *repr_config = PyTuple_GET_ITEM(reprs, i);
+	Py_INCREF(repr_config);
+        if (repr_config == Py_False) {
+            Py_DECREF(repr_config);
+            continue;
+	}
+
         if (i >= nunchecked) {
             PyObject *default_val = PyTuple_GET_ITEM(defaults, i - nunchecked);
-            if (is_default(val, default_val)) continue;
+	    Py_INCREF(default_val);
+
+            if (is_default(val, default_val)) {
+                Py_DECREF(default_val);
+                continue;
+	    }
         }
 
         if (first) {
@@ -7441,7 +7534,18 @@ Struct_repr(PyObject *self) {
         if (!strbuilder_extend_unicode(&builder, field)) goto error;
         if (!strbuilder_extend_literal(&builder, "=")) goto error;
 
-        PyObject *repr = PyObject_Repr(val);
+	PyObject *repr;
+        if (PyCallable_Check(repr_config)) {
+             PyObject *repr_input;
+             repr_input = PyObject_CallFunctionObjArgs(repr_config, val, NULL);
+             if (repr_input == NULL) goto error;
+             repr = PyObject_Repr(repr_input);
+             Py_DECREF(repr_input);
+        } else {
+             repr = PyObject_Repr(val);
+        }
+	Py_DECREF(field);
+        Py_DECREF(repr_config);
         if (repr == NULL) goto error;
         bool ok = strbuilder_extend_unicode(&builder, repr);
         Py_DECREF(repr);
@@ -7986,6 +8090,7 @@ Struct_rich_repr(PyObject *self, PyObject *args) {
     StructMetaObject *st_type = (StructMetaObject *)(Py_TYPE(self));
     bool omit_defaults = st_type->repr_omit_defaults == OPT_TRUE;
     PyObject *fields = st_type->struct_fields;
+    PyObject *reprs = st_type->struct_reprs;
     Py_ssize_t nfields = PyTuple_GET_SIZE(fields);
     PyObject *defaults = NULL;
     Py_ssize_t nunchecked = nfields;
@@ -8002,14 +8107,28 @@ Struct_rich_repr(PyObject *self, PyObject *args) {
         PyObject *field = PyTuple_GET_ITEM(fields, i);
         PyObject *val = Struct_get_index(self, i);
 
+        PyObject *repr_config = PyTuple_GET_ITEM(reprs, i);
+        if (repr_config == Py_False) continue;
+
         if (i >= nunchecked) {
             PyObject *default_val = PyTuple_GET_ITEM(defaults, i - nunchecked);
             if (is_default(val, default_val)) continue;
         }
 
         if (val == NULL) goto error;
-        PyObject *part = PyTuple_Pack(2, field, val);
+
+	PyObject *packing_val;
+        if (PyCallable_Check(repr_config)) {
+             packing_val = PyObject_CallFunctionObjArgs(repr_config, val, NULL);
+             Py_DECREF(val);
+             if (packing_val == NULL) goto error;
+        } else {
+             packing_val = val;
+        }
+
+        PyObject *part = PyTuple_Pack(2, field, packing_val);
         if (part == NULL) goto error;
+
         int status = PyList_Append(out, part);
         Py_DECREF(part);
         if (status < 0) goto error;
@@ -8042,6 +8161,13 @@ StructMixin_defaults(PyObject *self, void *closure) {
     return out;
 }
 
+static PyObject *
+StructMixin_reprs(PyObject *self, void *closure) {
+    PyObject *out = ((StructMetaObject *)Py_TYPE(self))->struct_reprs;
+    Py_INCREF(out);
+    return out;
+}
+
 static PyObject*
 StructMixin_config(StructMetaObject *self, void *closure) {
     return StructConfig_New((StructMetaObject *)Py_TYPE(self));
@@ -8059,6 +8185,7 @@ static PyGetSetDef StructMixin_getset[] = {
     {"__struct_fields__", (getter) StructMixin_fields, NULL, "Struct fields", NULL},
     {"__struct_encode_fields__", (getter) StructMixin_encode_fields, NULL, "Struct encoded field names", NULL},
     {"__struct_defaults__", (getter) StructMixin_defaults, NULL, "Struct defaults", NULL},
+    {"__struct_reprs__", (getter) StructMixin_reprs, NULL, "Struct reprs", NULL},
     {"__struct_config__", (getter) StructMixin_config, NULL, "Struct configuration", NULL},
     {NULL},
 };

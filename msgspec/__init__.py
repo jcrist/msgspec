@@ -16,8 +16,10 @@ from ._core import (
 )
 
 
-def field(*, default=NODEFAULT, default_factory=NODEFAULT, name=None):
-    return _Field(default=default, default_factory=default_factory, name=name)
+def field(*, default=NODEFAULT, default_factory=NODEFAULT, name=None, repr=True):
+    return _Field(
+        default=default, default_factory=default_factory, name=name, repr=repr
+    )
 
 
 field.__doc__ = _Field.__doc__
