@@ -45,3 +45,16 @@ def max_call_depth(n):
         yield
     finally:
         sys.setrecursionlimit(orig)
+
+
+@contextmanager
+def package_not_installed(name):
+    try:
+        orig = sys.modules.get(name)
+        sys.modules[name] = None
+        yield
+    finally:
+        if orig is not None:
+            sys.modules[name] = orig
+        else:
+            del sys.modules[name]
