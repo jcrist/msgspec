@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import contextlib
 import sys
 from typing import Generic, List, Optional, Set, TypeVar
 
 import pytest
-from utils import temp_module
+from utils import temp_module, package_not_installed
 
 from msgspec._utils import get_class_annotations
 
@@ -207,23 +206,21 @@ class TestGetClassAnnotations:
         assert get_class_annotations(Sub) == {"x": Invalid}
 
     @pytest.mark.skipif(PY310, reason="<3.10 only")
-    @pytest.mark.parametrize(
-        ("matcher"),
-        [
-            # Installed, should give us the result to check
-            pytest.param(contextlib.nullcontext(), id="installed"),
-            # Not installed, sohuld throw this error
-            pytest.param(
-                pytest.raises(
-                    TypeError, match=r"or install the `eval_type_backport` package."
-                ),
-                id="not_installed",
-            ),
-        ],
-    )
-    def test_union_backcompat(self, matcher):
-        class X:
-            opt_int: int | None = None
+    def test_union_backport_not_installed(self):
+        class Ex:
+            x: int | None = None
 
-        with matcher:
-            assert get_class_annotations(X) == {"opt_int": Optional[int]}
+        with package_not_installed("eval_type_backport"):
+            with pytest.raises(
+                TypeError, match=r"or install the `eval_type_backport` package."
+            ):
+                get_class_annotations(Ex)
+
+    @pytest.mark.skipif(PY310, reason="<3.10 only")
+    def test_union_backport_installed(self):
+        class Ex:
+            x: int | None = None
+
+        pytest.importorskip("eval_type_backport")
+
+        assert get_class_annotations(Ex) == {"x": Optional[int]}
