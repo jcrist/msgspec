@@ -166,7 +166,7 @@ Converting to and from builtin types
 In some cases, ``msgspec`` will only be processing part of a message,
 so full serialization to or from text or bytes isn't desirable. For
 these situations, ``msgspec`` supports conversion to and from builtin
-types which are otherwised handled (or created) by another library.
+types which are otherwise handled (or created) by another library.
 
 "Decoding" is handled by :func:`~msgspec.convert`, while "encoding" is handled by
 :func:`~msgspec.to_builtins` (note that the input/output in this example is a
