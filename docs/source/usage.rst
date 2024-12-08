@@ -158,6 +158,40 @@ types.
     >>> msgspec.json.decode(b'[1, 2, "3"]', type=list[int], strict=False)
     [1, 2, 3]
 
+.. _builtin-conversion:
+
+Converting to and from builtin types
+------------------------------------
+
+In some cases, ``msgspec`` will only be processing part of a message,
+so full serialization to or from text or bytes isn't desirable. For
+these situations, ``msgspec`` supports conversion to and from builtin
+types which are otherwise handled (or created) by another library.
+
+"Decoding" is handled by :func:`~msgspec.convert`, while "encoding" is handled by
+:func:`~msgspec.to_builtins` (note that the input/output in this example is a
+Python dictionary, *not* an encoded string):
+
+.. code-block:: python
+
+    >>> import msgspec
+
+    >>> class User(msgspec.Struct):
+    ...     name: str
+    ...     groups: set[str] = set()
+    ...     email: str | None = None
+
+    >>> data = {"name": "bill", "groups": ["devops", "engineering"]}
+
+    >>> # Convert already decoded data into typed structs
+    ... msgspec.convert(data, User)
+    User(name='bill', groups={'devops', 'engineering'}, email=None)
+
+    >>> user = User(name="alice", groups={"admin", "engineering"}, email=None)
+
+    >>> # Convert to builtin types for subsequent encoding
+    ... msgspec.to_builtins(user)
+    {'name': 'alice', 'groups': ['engineering', 'admin']}
 
 .. _JSON: https://json.org
 .. _MessagePack: https://msgpack.org
