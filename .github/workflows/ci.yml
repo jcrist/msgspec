@@ -108,7 +108,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: github.event_name == 'release' && github.event.action == 'published'
         with:
-          name: artifact-wheels
+          name: artifact-wheels-${{ matrix.os }}
           path: ./wheelhouse/*.whl
 
   build_sdist:
