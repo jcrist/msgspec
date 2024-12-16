@@ -20000,7 +20000,7 @@ PyDoc_STRVAR(msgspec_to_builtins__doc__,
 "commonly supported by Python serialization libraries.\n"
 "\n"
 "This is useful for adding msgspec support for other protocols, as well as\n"
-"to handle cases where msgspec is only processing part of a data structure."
+"to handle cases where msgspec is only processing part of a data structure.\n"
 "\n"
 "This function respects the ``omit_defaults`` setting on structs.\n"
 "\n"
