@@ -63,7 +63,7 @@ extras_require = {
 }
 
 setup(
-    name="litestar-msgspec",
+    name="msgspec",
     version=versioneer.get_version(),
     cmdclass=versioneer.get_cmdclass(),
     maintainer="Jim Crist-Harif",
