@@ -24,7 +24,7 @@ For example, suppose we had a `msgspec.Struct` type representing a user:
 
 .. code-block:: python
 
-    >>> import msgpsec
+    >>> import msgspec
 
     >>> from typing import Set, Optional
 
@@ -48,7 +48,7 @@ accomplish this, we add ``phone`` as an _optional_ field (defaulting to
     ...     email: Optional[str] = None
     ...     phone : Optional[str] = None
 
-Messages serialized using the new and old schemas can still be exchanged
+Messages serialized using both the old and new schemas can still be exchanged
 without error. If an old message is deserialized using the new schema, the
 missing fields all have default values that will be used. Likewise, if a new
 message is deserialized with the old schema the unknown new fields will be
