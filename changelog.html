@@ -311,6 +311,36 @@
         <article role="main" id="furo-main-content">
           <section id="changelog">
 <h1>Changelog<a class="headerlink" href="#changelog" title="Link to this heading">¶</a></h1>
+<section id="version-0-19-0-2024-12-27">
+<h2>Version 0.19.0 (2024-12-27)<a class="headerlink" href="#version-0-19-0-2024-12-27" title="Link to this heading">¶</a></h2>
+<ul class="simple">
+<li><p>Improve JSON encoding performance by up to 40% (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/647">PR #647</a>).</p></li>
+<li><p>Ensure <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tuple</span></code></a> and <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#frozenset" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">frozenset</span></code></a> default values are treated identically whether
+specified by value or <code class="docutils literal notranslate"><span class="pre">default_factory</span></code> (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/653">PR #653</a>).</p></li>
+<li><p>Fix memory leak of <code class="docutils literal notranslate"><span class="pre">match_args</span></code> in <code class="docutils literal notranslate"><span class="pre">StructConfig</span></code> object (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/684">PR #684</a>).</p></li>
+<li><p>Fix memory leak in <code class="docutils literal notranslate"><span class="pre">Raw.copy()</span></code> (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/709">PR #709</a>).</p></li>
+<li><p>Update <code class="docutils literal notranslate"><span class="pre">decode</span></code> signatures for PEP 688 (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/740">PR #740</a>).</p></li>
+<li><p>Generate <code class="docutils literal notranslate"><span class="pre">__replace__</span></code> method on <code class="docutils literal notranslate"><span class="pre">Struct</span></code> types, for use with
+<a class="reference external" href="https://docs.python.org/3/library/copy.html#copy.replace" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">copy.replace</span></code></a> (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/747">PR #747</a>).</p></li>
+<li><p>Fix incorrect decoding of certain &gt; 64 bit integers (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/751">PR #751</a>).</p></li>
+<li><p>Call <code class="docutils literal notranslate"><span class="pre">__post_init__</span></code> when converting from an object to a Struct
+(<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/752">PR #752</a>).</p></li>
+<li><p><strong>BREAKING</strong>: Expand buffer when <code class="docutils literal notranslate"><span class="pre">encode_into</span></code> is passed a buffer smaller
+than <code class="docutils literal notranslate"><span class="pre">offset</span></code> (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/753">PR #753</a>).</p></li>
+<li><p>Support <a class="reference internal" href="api.html#msgspec.Raw" title="msgspec.Raw"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Raw</span></code></a> objects as inputs to <a class="reference internal" href="api.html#msgspec.convert" title="msgspec.convert"><code class="xref py py-obj docutils literal notranslate"><span class="pre">convert</span></code></a> (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/754">PR #754</a>).</p></li>
+<li><p>Error nicely when a dataclass <em>type</em> (instead of an <em>instance</em>) is passed to
+<code class="docutils literal notranslate"><span class="pre">encode</span></code> (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/755">PR #755</a>).</p></li>
+<li><p>Drop support for Python 3.8 (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/756">PR #756</a>, <a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/763">PR #763</a>).</p></li>
+<li><p>Add support for Python 3.13 (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/711">PR #711</a>).</p></li>
+<li><p>Remove deprecated <code class="docutils literal notranslate"><span class="pre">from_builtins</span></code> (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/761">PR #761</a>).</p></li>
+<li><p>Support encoding any <code class="docutils literal notranslate"><span class="pre">Enum</span></code> type whose <code class="docutils literal notranslate"><span class="pre">.value</span></code> is a supported type
+(<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/757">PR #757</a>).</p></li>
+<li><p>Don’t fail eagerly when processing generic types with unsupported
+<code class="docutils literal notranslate"><span class="pre">__parameters__</span></code> (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/772">PR #772</a>).</p></li>
+<li><p>Use <code class="docutils literal notranslate"><span class="pre">eval_type_backport</span></code> to backport type annotations to Python 3.9
+(<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/773">PR #773</a>).</p></li>
+</ul>
+</section>
 <section id="version-0-18-6-2024-01-21">
 <h2>Version 0.18.6 (2024-01-21)<a class="headerlink" href="#version-0-18-6-2024-01-21" title="Link to this heading">¶</a></h2>
 <ul class="simple">
@@ -918,6 +948,7 @@ faster decoding.</p></li>
           <div class="toc-tree">
             <ul>
 <li><a class="reference internal" href="#">Changelog</a><ul>
+<li><a class="reference internal" href="#version-0-19-0-2024-12-27">Version 0.19.0 (2024-12-27)</a></li>
 <li><a class="reference internal" href="#version-0-18-6-2024-01-21">Version 0.18.6 (2024-01-21)</a></li>
 <li><a class="reference internal" href="#version-0-18-5-2023-12-12">Version 0.18.5 (2023-12-12)</a></li>
 <li><a class="reference internal" href="#version-0-18-4-2023-10-04">Version 0.18.4 (2023-10-04)</a></li>
