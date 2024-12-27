@@ -78,7 +78,7 @@ jobs:
         os: [ubuntu-latest, macos-13, windows-latest]
 
     env:
-      CIBW_TEST_REQUIRES: "pytest msgpack pyyaml tomli tomli_w"
+      CIBW_TEST_EXTRAS: "test"
       CIBW_TEST_COMMAND: "pytest {project}/tests"
       CIBW_BUILD: "cp39-* cp310-* cp311-* cp312-* cp313-*"
       CIBW_SKIP: "*-win32 *_i686 *_s390x *_ppc64le"
@@ -102,7 +102,7 @@ jobs:
             echo "CIBW_SKIP=${CIBW_SKIP} *-musllinux_* cp39-*_aarch64 cp311-*_aarch64 cp312-*_aarch64 cp313-*_aarch64" >> $GITHUB_ENV
 
       - name: Build & Test Wheels
-        uses: pypa/cibuildwheel@v2.21.3
+        uses: pypa/cibuildwheel@v2.22.0
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
