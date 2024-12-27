@@ -1,11 +1,14 @@
 from __future__ import annotations
 
-from typing import Generic, List, Set, TypeVar
+import sys
+from typing import Generic, List, Optional, Set, TypeVar
 
 import pytest
-from utils import temp_module
+from utils import temp_module, package_not_installed
 
 from msgspec._utils import get_class_annotations
+
+PY310 = sys.version_info[:2] >= (3, 10)
 
 T = TypeVar("T")
 S = TypeVar("S")
@@ -201,3 +204,23 @@ class TestGetClassAnnotations:
             pass
 
         assert get_class_annotations(Sub) == {"x": Invalid}
+
+    @pytest.mark.skipif(PY310, reason="<3.10 only")
+    def test_union_backport_not_installed(self):
+        class Ex:
+            x: int | None = None
+
+        with package_not_installed("eval_type_backport"):
+            with pytest.raises(
+                TypeError, match=r"or install the `eval_type_backport` package."
+            ):
+                get_class_annotations(Ex)
+
+    @pytest.mark.skipif(PY310, reason="<3.10 only")
+    def test_union_backport_installed(self):
+        class Ex:
+            x: int | None = None
+
+        pytest.importorskip("eval_type_backport")
+
+        assert get_class_annotations(Ex) == {"x": Optional[int]}
