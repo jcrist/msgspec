@@ -53,15 +53,13 @@ toml_deps = ['tomli ; python_version < "3.11"', "tomli_w"]
 doc_deps = ["sphinx", "furo", "sphinx-copybutton", "sphinx-design", "ipython"]
 test_deps = [
     "pytest",
-    "mypy",
-    "pyright",
     "msgpack",
     "attrs",
     'eval-type-backport ; python_version < "3.10"',
     *yaml_deps,
     *toml_deps,
 ]
-dev_deps = ["pre-commit", "coverage", "gcovr", *doc_deps, *test_deps]
+dev_deps = ["pre-commit", "coverage", "mypy", "pyright", *doc_deps, *test_deps]
 
 extras_require = {
     "yaml": yaml_deps,
