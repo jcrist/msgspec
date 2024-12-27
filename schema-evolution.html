@@ -330,7 +330,7 @@ must be appended to the end (and have defaults).</p></li>
 <a class="reference internal" href="extending.html#defining-extensions"><span class="std std-ref">extensions</span></a> (MessagePack only).</p></li>
 </ol>
 <p>For example, suppose we had a <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> type representing a user:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">msgpsec</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">msgspec</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Set</span><span class="p">,</span> <span class="n">Optional</span>
 
@@ -353,7 +353,7 @@ accomplish this, we add <code class="docutils literal notranslate"><span class="
 <span class="gp">... </span>    <span class="n">phone</span> <span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
 </pre></div>
 </div>
-<p>Messages serialized using the new and old schemas can still be exchanged
+<p>Messages serialized using both the old and new schemas can still be exchanged
 without error. If an old message is deserialized using the new schema, the
 missing fields all have default values that will be used. Likewise, if a new
 message is deserialized with the old schema the unknown new fields will be
