@@ -3,6 +3,35 @@ Changelog
 
 .. currentmodule:: msgspec
 
+Version 0.19.0 (2024-12-27)
+---------------------------
+
+- Improve JSON encoding performance by up to 40% (:pr:`647`).
+- Ensure `tuple` and `frozenset` default values are treated identically whether
+  specified by value or ``default_factory`` (:pr:`653`).
+- Fix memory leak of ``match_args`` in ``StructConfig`` object (:pr:`684`).
+- Fix memory leak in ``Raw.copy()`` (:pr:`709`).
+- Update ``decode`` signatures for PEP 688 (:pr:`740`).
+- Generate ``__replace__`` method on ``Struct`` types, for use with
+  `copy.replace` (:pr:`747`).
+- Fix incorrect decoding of certain > 64 bit integers (:pr:`751`).
+- Call ``__post_init__`` when converting from an object to a Struct
+  (:pr:`752`).
+- **BREAKING**: Expand buffer when ``encode_into`` is passed a buffer smaller
+  than ``offset`` (:pr:`753`).
+- Support `Raw` objects as inputs to `convert` (:pr:`754`).
+- Error nicely when a dataclass *type* (instead of an *instance*) is passed to
+  ``encode`` (:pr:`755`).
+- Drop support for Python 3.8 (:pr:`756`, :pr:`763`).
+- Add support for Python 3.13 (:pr:`711`).
+- Remove deprecated ``from_builtins`` (:pr:`761`).
+- Support encoding any ``Enum`` type whose ``.value`` is a supported type
+  (:pr:`757`).
+- Don't fail eagerly when processing generic types with unsupported
+  ``__parameters__`` (:pr:`772`).
+- Use ``eval_type_backport`` to backport type annotations to Python 3.9
+  (:pr:`773`).
+
 Version 0.18.6 (2024-01-21)
 ---------------------------
 
