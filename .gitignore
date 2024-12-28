@@ -7,6 +7,8 @@
 ## PyCharm/IntelliJ-generated files
 *.iml
 .idea/
+## Vim-generated files
+*.sw[op]
 
 # Python cached sources
 __pycache__/
