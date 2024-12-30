@@ -76,7 +76,6 @@ dev_deps = [
     "pyright",
     *doc_deps,
     *test_deps,
-    *bench_deps,
 ]
 
 extras_require = {

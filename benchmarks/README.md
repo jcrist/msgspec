@@ -5,9 +5,9 @@ serialization, validation, struct, gc and memory usage.
 
 ## Setup
 
-Benchmark dependencies are included in the dev extra so simply run this:
+Benchmark additional dependencies are included in the bench extra so you will have to run this:
 ```bash
-pip install -e ".[dev]"
+pip install -e ".[dev, bench]"
 ```
 
 If you want to run the benchmarks against pydantic v1, you'll have to explicitly
