@@ -22102,7 +22102,7 @@ PyInit__core(void)
     st->DecodeError = PyErr_NewExceptionWithDoc(
         "msgspec.DecodeError",
         "An error occurred while decoding an object",
-        st->MsgspecError, NULL
+        PyTuple_Pack(2, st->MsgspecError, PyExc_ValueError), NULL
     );
     if (st->DecodeError == NULL)
         return NULL;
