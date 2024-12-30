@@ -59,13 +59,31 @@ test_deps = [
     *yaml_deps,
     *toml_deps,
 ]
-dev_deps = ["pre-commit", "coverage", "mypy", "pyright", *doc_deps, *test_deps]
+bench_deps = [
+    "cattrs",
+    "pydantic",
+    "mashumaro",
+    "orjson",
+    "ujson",
+    "python-rapidjson",
+    "pysimdjson",
+    "ormsgpack",
+]
+dev_deps = [
+    "pre-commit",
+    "coverage",
+    "mypy",
+    "pyright",
+    *doc_deps,
+    *test_deps,
+]
 
 extras_require = {
     "yaml": yaml_deps,
     "toml": toml_deps,
     "doc": doc_deps,
     "test": test_deps,
+    "bench": bench_deps,
     "dev": dev_deps,
 }
 
