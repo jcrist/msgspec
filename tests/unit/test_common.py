@@ -292,6 +292,14 @@ class TestDecoder:
         with pytest.raises(TypeError, match="Oh no!"):
             dec.decode(msg)
 
+    @pytest.mark.parametrize("err_cls", [msgspec.DecodeError, msgspec.ValidationError])
+    def test_decode_errors_subclass_of_value_error(self, err_cls):
+        assert issubclass(err_cls, ValueError)
+
+    @pytest.mark.parametrize("err_cls", [msgspec.EncodeError, msgspec.MsgspecError])
+    def test_other_errors_not_subclass_of_value_error(self, err_cls):
+        assert not issubclass(err_cls, ValueError)
+
 
 @pytest.mark.skipif(
     PY312,
