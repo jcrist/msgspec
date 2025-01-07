@@ -106,6 +106,7 @@ def decode(
     buf: Union[Buffer, str],
     *,
     strict: bool = True,
+    forbid_unknown_fields: bool = False,
     dec_hook: Optional[Callable[[type, Any], Any]] = None,
 ) -> Any:
     pass
@@ -128,12 +129,13 @@ def decode(
     *,
     type: Any = ...,
     strict: bool = True,
+    forbid_unknown_fields: bool = False,
     dec_hook: Optional[Callable[[type, Any], Any]] = None,
 ) -> Any:
     pass
 
 
-def decode(buf, *, type=Any, strict=True, dec_hook=None):
+def decode(buf, *, type=Any, strict=True, forbid_unknown_fields=False, dec_hook=None):
     """Deserialize an object from YAML.
 
     Parameters
@@ -149,6 +151,11 @@ def decode(buf, *, type=Any, strict=True, dec_hook=None):
         Whether type coercion rules should be strict. Setting to False enables
         a wider set of coercion rules from string to non-string types for all
         values. Default is True.
+    forbid_unknown_fields : bool, optional
+        If True, an error is raised if an unknown field is encountered at any point
+        in the decoding process. If False (the default), no error is raised and the
+        unknown field is skipped, unless the unknown field is for a Struct with
+        ``forbid_unknown_fields=True``.
     dec_hook : callable, optional
         An optional callback for handling decoding custom types. Should have
         the signature ``dec_hook(type: Type, obj: Any) -> Any``, where ``type``
@@ -188,5 +195,6 @@ def decode(buf, *, type=Any, strict=True, dec_hook=None):
         type,
         builtin_types=(_datetime.datetime, _datetime.date),
         strict=strict,
+        forbid_unknown_fields=forbid_unknown_fields,
         dec_hook=dec_hook,
     )

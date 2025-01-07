@@ -46,6 +46,7 @@ class Encoder:
 class Decoder(Generic[T]):
     type: Type[T]
     strict: bool
+    forbid_unknown_fields: bool
     dec_hook: dec_hook_sig
     float_hook: float_hook_sig
 
@@ -54,6 +55,7 @@ class Decoder(Generic[T]):
         self: Decoder[Any],
         *,
         strict: bool = True,
+        forbid_unknown_fields: bool = False,
         dec_hook: dec_hook_sig = None,
         float_hook: float_hook_sig = None,
     ) -> None: ...
@@ -63,6 +65,7 @@ class Decoder(Generic[T]):
         type: Type[T] = ...,
         *,
         strict: bool = True,
+        forbid_unknown_fields: bool = False,
         dec_hook: dec_hook_sig = None,
         float_hook: float_hook_sig = None,
     ) -> None: ...
@@ -72,6 +75,7 @@ class Decoder(Generic[T]):
         type: Any = ...,
         *,
         strict: bool = True,
+        forbid_unknown_fields: bool = False,
         dec_hook: dec_hook_sig = None,
         float_hook: float_hook_sig = None,
     ) -> None: ...
@@ -84,6 +88,7 @@ def decode(
     /,
     *,
     strict: bool = True,
+    forbid_unknown_fields: bool = False,
     dec_hook: dec_hook_sig = None,
 ) -> Any: ...
 @overload
@@ -93,6 +98,7 @@ def decode(
     *,
     type: Type[T] = ...,
     strict: bool = True,
+    forbid_unknown_fields: bool = False,
     dec_hook: dec_hook_sig = None,
 ) -> T: ...
 @overload
@@ -102,6 +108,7 @@ def decode(
     *,
     type: Any = ...,
     strict: bool = True,
+    forbid_unknown_fields: bool = False,
     dec_hook: dec_hook_sig = None,
 ) -> Any: ...
 def encode(obj: Any, /, *, enc_hook: enc_hook_sig = None, order: Literal[None, "deterministic", "sorted"] = None) -> bytes: ...
