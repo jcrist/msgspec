@@ -5817,7 +5817,15 @@ structmeta_collect_fields(StructMetaInfo *info, MsgspecState *mod, bool kwonly) 
     PyObject *annotations = PyDict_GetItemString(
         info->namespace, "__annotations__"
     );
-    if (annotations == NULL) return 0;
+    if (annotations == NULL) {
+        PyObject *annotate = PyDict_GetItemString(
+            info->namespace, "__annotate__"
+        );
+        if (annotate == NULL) return 0;
+        PyObject *format = PyLong_FromLong(1);  /* annotationlib.Format.VALUE */
+        annotations = PyObject_CallOneArg(annotate, format);
+        Py_XDECREF(format);
+    }
 
     if (!PyDict_Check(annotations)) {
         PyErr_SetString(PyExc_TypeError, "__annotations__ must be a dict");
