@@ -149,7 +149,12 @@ def get_class_annotations(obj):
         cls_locals = dict(vars(cls))
         cls_globals = getattr(sys.modules.get(cls.__module__, None), "__dict__", {})
 
-        ann = cls.__dict__.get("__annotations__", {})
+        if "__annotations__" in cls.__dict__:
+            ann = cls.__dict__["__annotations__"]
+        elif "__annotate__" in cls.__dict__:
+            ann = cls.__dict__["__annotate__"](1)  # annotationlib.Format.VALUE
+        else:
+            ann = {}
         for name, value in ann.items():
             if name in hints:
                 continue
