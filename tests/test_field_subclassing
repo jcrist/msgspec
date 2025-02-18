@@ -1,0 +1,30 @@
+from msgspec import Struct, _Field as Field, NODEFAULT
+from typing import Union, Optional, Any, Callable
+
+
+def test_field_subclasses():
+    class SubField(Field):
+        """This is a test subfield for testing field subclassing
+        sqlalchemy is a good example/culprit for why subclassing fields
+        in msgspec is a good idea...
+        """
+
+        def __init__(
+            self,
+            name: Union[str, None] = None,
+            default: Optional[Any] = NODEFAULT,
+            default_factory: Optional[Callable[[], Any]] = NODEFAULT,
+        ):
+            super().__init__(
+                name=name, default=default, default_factory=default_factory
+            )
+
+    class SubclassableStruct(Struct):
+        x: int
+        y: int = SubField()
+        z: int = SubField(name="field_z")
+
+    f = SubclassableStruct(0, 1, 2)
+    assert f.x == 0
+    assert f.y == 1
+    assert f.z == 2
