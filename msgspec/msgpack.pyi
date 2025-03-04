@@ -4,6 +4,7 @@ from typing import (
     Generic,
     Literal,
     Optional,
+    Tuple,
     Type,
     TypeVar,
     Union,
@@ -58,6 +59,7 @@ class Decoder(Generic[T]):
         ext_hook: ext_hook_sig = None,
     ) -> None: ...
     def decode(self, buf: Buffer, /) -> T: ...
+    def raw_decode(self, buf: Buffer, /) -> Tuple[T, int]: ...
 
 class Encoder:
     enc_hook: enc_hook_sig

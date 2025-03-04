@@ -586,6 +586,28 @@ class TestDecoderMisc:
         with pytest.raises(msgspec.DecodeError, match="truncated"):
             msgspec.msgpack.decode(b)
 
+    def test_raw_decode(self):
+        dec = msgspec.msgpack.Decoder()
+
+        msg = msgspec.msgpack.encode([1, 2, 3])
+        obj, index = dec.raw_decode(msg + b"trailing")
+        assert obj == [1, 2, 3]
+        assert index == len(msg)
+
+    def test_raw_decode_skip_invalid_submessage_raises(self):
+        """Ensure errors in submessage skipping are raised"""
+
+        class Test(msgspec.Struct):
+            x: int
+
+        msg = msgspec.msgpack.encode({"x": 1, "y": ["one", "two", "three"]})
+
+        # Break the message
+        msg = msg.replace(b"three", b"tree")
+
+        with pytest.raises(msgspec.DecodeError, match="truncated"):
+            msgspec.msgpack.Decoder(type=Test).raw_decode(msg)
+
 
 class TestTypedDecoder:
     def check_unexpected_type(self, dec_type, val, msg):
