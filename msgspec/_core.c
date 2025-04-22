@@ -15051,6 +15051,7 @@ mpack_decode_bin(
         Py_buffer *buffer = PyMemoryView_GET_BUFFER(view);
         buffer->buf = s;
         buffer->len = size;
+        buffer->shape = &(buffer->len);
         return view;
     }
 
@@ -15910,6 +15911,7 @@ mpack_decode_ext(
     buffer = PyMemoryView_GET_BUFFER(view);
     buffer->buf = data_buf;
     buffer->len = size;
+    buffer->shape = &(buffer->len);
 
     out = PyObject_CallFunctionObjArgs(self->ext_hook, pycode, view, NULL);
 done:

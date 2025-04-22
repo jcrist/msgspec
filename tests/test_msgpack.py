@@ -683,6 +683,7 @@ class TestTypedDecoder:
         res = msgspec.msgpack.decode(msg, type=memoryview)
         assert isinstance(res, memoryview)
         assert bytes(res) == b"abcde"
+        assert len(res) == 5
         if input_type is memoryview:
             assert sys.getrefcount(ref) == 3
             del msg
@@ -1301,6 +1302,7 @@ class TestExt:
         def ext_hook(code, buf):
             assert isinstance(buf, memoryview)
             assert bytes(buf) == exp_buf
+            assert len(buf) == len(exp_buf)
             assert code == 5
             return pickle.loads(buf)
 
