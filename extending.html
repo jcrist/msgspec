@@ -5,9 +5,9 @@
     <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Inspecting Types" href="inspect.html" /><link rel="prev" title="Schema Evolution" href="schema-evolution.html" />
 
-    <!-- Generated with Sphinx 8.1.3 and Furo 2024.08.06 -->
+    <!-- Generated with Sphinx 8.2.3 and Furo 2024.08.06 -->
         <title>Extending</title>
-      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=354aac6f" />
     <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="_static/sphinx-design.min.css?v=95c83b7e" />
@@ -322,13 +322,13 @@ a custom type when using <a class="reference internal" href="usage.html#typed-de
 back into custom types.</p></li>
 </ul>
 <p>These should have the following signatures:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">enc_hook</span><span class="p">(</span><span class="n">obj</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">enc_hook</span><span class="p">(</span><span class="n">obj</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Given an object that msgspec doesn&#39;t know how to serialize by</span>
 <span class="sd">    default, convert it into an object that it does know how to</span>
 <span class="sd">    serialize&quot;&quot;&quot;</span>
     <span class="k">pass</span>
 
-<span class="k">def</span> <span class="nf">dec_hook</span><span class="p">(</span><span class="nb">type</span><span class="p">:</span> <span class="n">Type</span><span class="p">,</span> <span class="n">obj</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">dec_hook</span><span class="p">(</span><span class="nb">type</span><span class="p">:</span> <span class="n">Type</span><span class="p">,</span> <span class="n">obj</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Given a type in a schema, convert ``obj`` (composed of natively</span>
 <span class="sd">    supported objects) into an object of type ``type``.</span>
 
@@ -338,7 +338,7 @@ back into custom types.</p></li>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">pass</span>
 
-<span class="k">def</span> <span class="nf">ext_hook</span><span class="p">(</span><span class="n">code</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="nb">memoryview</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">ext_hook</span><span class="p">(</span><span class="n">code</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="nb">memoryview</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;MessagePack only. Given an extension type code and data buffer,</span>
 <span class="sd">    deserialize whatever custom object the extension type represents&quot;&quot;&quot;</span>
     <span class="k">pass</span>
@@ -374,10 +374,10 @@ into a custom type when using <a class="reference internal" href="usage.html#typ
 </ul>
 <p>Here we define <code class="docutils literal notranslate"><span class="pre">enc_hook</span></code> and <code class="docutils literal notranslate"><span class="pre">dec_hook</span></code> callbacks to convert <a class="reference external" href="https://docs.python.org/3/library/functions.html#complex" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">complex</span></code></a>
 objects to/from objects, which are then natively handled by <code class="docutils literal notranslate"><span class="pre">msgspec</span></code>.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">msgspec</span>
-<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Type</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">msgspec</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Type</span>
 
-<span class="k">def</span> <span class="nf">enc_hook</span><span class="p">(</span><span class="n">obj</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">enc_hook</span><span class="p">(</span><span class="n">obj</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="nb">complex</span><span class="p">):</span>
         <span class="c1"># convert the complex to a tuple of real, imag</span>
         <span class="k">return</span> <span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">real</span><span class="p">,</span> <span class="n">obj</span><span class="o">.</span><span class="n">imag</span><span class="p">)</span>
@@ -386,7 +386,7 @@ objects to/from objects, which are then natively handled by <code class="docutil
         <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Objects of type </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span><span class="si">}</span><span class="s2"> are not supported&quot;</span><span class="p">)</span>
 
 
-<span class="k">def</span> <span class="nf">dec_hook</span><span class="p">(</span><span class="nb">type</span><span class="p">:</span> <span class="n">Type</span><span class="p">,</span> <span class="n">obj</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">dec_hook</span><span class="p">(</span><span class="nb">type</span><span class="p">:</span> <span class="n">Type</span><span class="p">,</span> <span class="n">obj</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
     <span class="c1"># `type` here is the value of the custom type annotation being decoded.</span>
     <span class="k">if</span> <span class="nb">type</span> <span class="ow">is</span> <span class="nb">complex</span><span class="p">:</span>
         <span class="c1"># Convert ``obj`` (which should be a ``tuple``) to a complex</span>
@@ -398,7 +398,7 @@ objects to/from objects, which are then natively handled by <code class="docutil
 
 
 <span class="c1"># Define a message that contains a complex type</span>
-<span class="k">class</span> <span class="nc">MyMessage</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">MyMessage</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
     <span class="n">field_1</span><span class="p">:</span> <span class="nb">str</span>
     <span class="n">field_2</span><span class="p">:</span> <span class="nb">complex</span>
 
@@ -462,16 +462,16 @@ buffer.</p>
 </div>
 <p>Here we define <code class="docutils literal notranslate"><span class="pre">enc_hook</span></code> and <code class="docutils literal notranslate"><span class="pre">ext_hook</span></code> callbacks to convert <a class="reference external" href="https://docs.python.org/3/library/functions.html#complex" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">complex</span></code></a>
 objects to/from this binary representation as a MessagePack extension.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">msgspec</span>
-<span class="kn">import</span> <span class="nn">struct</span>
-<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Any</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">msgspec</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">struct</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
 
 <span class="c1"># All extension types need a unique integer designator so the decoder knows</span>
 <span class="c1"># which type they&#39;re decoding. Here we arbitrarily choose 1, but any integer</span>
 <span class="c1"># between 0 and 127 (inclusive) would work.</span>
 <span class="n">COMPLEX_TYPE_CODE</span> <span class="o">=</span> <span class="mi">1</span>
 
-<span class="k">def</span> <span class="nf">enc_hook</span><span class="p">(</span><span class="n">obj</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">enc_hook</span><span class="p">(</span><span class="n">obj</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="nb">complex</span><span class="p">):</span>
         <span class="c1"># encode the complex number into a 16 byte buffer</span>
         <span class="n">data</span> <span class="o">=</span> <span class="n">struct</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span><span class="s1">&#39;dd&#39;</span><span class="p">,</span> <span class="n">obj</span><span class="o">.</span><span class="n">real</span><span class="p">,</span> <span class="n">obj</span><span class="o">.</span><span class="n">imag</span><span class="p">)</span>
@@ -483,7 +483,7 @@ objects to/from this binary representation as a MessagePack extension.</p>
         <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Objects of type </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span><span class="si">}</span><span class="s2"> are not supported&quot;</span><span class="p">)</span>
 
 
-<span class="k">def</span> <span class="nf">ext_hook</span><span class="p">(</span><span class="n">code</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="nb">memoryview</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">ext_hook</span><span class="p">(</span><span class="n">code</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="nb">memoryview</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
     <span class="k">if</span> <span class="n">code</span> <span class="o">==</span> <span class="n">COMPLEX_TYPE_CODE</span><span class="p">:</span>
         <span class="c1"># This extension type represents a complex number, decode the data</span>
         <span class="c1"># buffer accordingly.</span>

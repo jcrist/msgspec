@@ -5,9 +5,9 @@
     <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="API Docs" href="api.html" /><link rel="prev" title="Inspecting Types" href="inspect.html" />
 
-    <!-- Generated with Sphinx 8.1.3 and Furo 2024.08.06 -->
+    <!-- Generated with Sphinx 8.2.3 and Furo 2024.08.06 -->
         <title>Performance Tips</title>
-      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=354aac6f" />
     <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="_static/sphinx-design.min.css?v=95c83b7e" />
@@ -321,7 +321,7 @@ allocates some temporary internal state used for encoding. While fine for
 normal use, for maximum performance you’ll want to create an <code class="docutils literal notranslate"><span class="pre">Encoder</span></code> (e.g.
 <a class="reference internal" href="api.html#msgspec.json.Encoder" title="msgspec.json.Encoder"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.json.Encoder</span></code></a>) once and reuse it for all encoding calls, avoiding
 paying that setup cost for every call.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">msgspec</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">msgspec</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">encoder</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">Encoder</span><span class="p">()</span>  <span class="c1"># Create once</span>
 
@@ -333,7 +333,7 @@ paying that setup cost for every call.</p>
 performance-sensitive code path, you’ll want to create a <code class="docutils literal notranslate"><span class="pre">Decoder</span></code> (e.g.
 <a class="reference internal" href="api.html#msgspec.json.Decoder" title="msgspec.json.Decoder"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.json.Decoder</span></code></a>) once and reuse it for each call. Since decoders are
 typed, you may need to create multiple decoders, one for each type.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">msgspec</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">msgspec</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">decoder</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">Decoder</span><span class="p">(</span><span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">])</span>  <span class="c1"># Create once</span>
 
@@ -371,12 +371,12 @@ A <code class="docutils literal notranslate"><span class="pre">Tweet</span></cod
 the tweet text, the user name, and the number of favorites. By defining struct
 types with only those fields, <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> can avoid doing unnecessary work
 decoding fields that are never used.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">msgspec</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">msgspec</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">User</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">User</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
 <span class="gp">... </span>    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">Tweet</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">Tweet</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">):</span>
 <span class="gp">... </span>    <span class="n">user</span><span class="p">:</span> <span class="n">User</span>
 <span class="gp">... </span>    <span class="n">full_text</span><span class="p">:</span> <span class="nb">str</span>
 <span class="gp">... </span>    <span class="n">favorite_count</span><span class="p">:</span> <span class="nb">int</span>
@@ -446,7 +446,7 @@ method can benefit your workload.</p></li>
 where this comes up is when encoding <a class="reference external" href="https://en.wikipedia.org/wiki/JSON_streaming#Line-delimited_JSON">line-delimited JSON</a>, where every
 payload contains a JSON message followed by <code class="docutils literal notranslate"><span class="pre">b&quot;\n&quot;</span></code>.</p>
 <p>This <em>could</em> be handled in python as:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">msgspec</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">msgspec</span>
 
 <span class="n">json_msg</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">([</span><span class="s2">&quot;my&quot;</span><span class="p">,</span> <span class="s2">&quot;message&quot;</span><span class="p">])</span>
 
@@ -455,7 +455,7 @@ payload contains a JSON message followed by <code class="docutils literal notran
 </div>
 <p>However, this results in an unnecessary copy of <code class="docutils literal notranslate"><span class="pre">json_msg</span></code>, which can be
 avoided by using <a class="reference internal" href="api.html#msgspec.json.Encoder.encode_into" title="msgspec.json.Encoder.encode_into"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.json.Encoder.encode_into</span></code></a>.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">msgspec</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">msgspec</span>
 
 <span class="n">encoder</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">Encoder</span><span class="p">()</span>
 
@@ -482,7 +482,7 @@ in <a class="reference external" href="https://eli.thegreenplace.net/2011/08/02/
 , where every message is prefixed by its length stored as a fixed-width integer
 (e.g. a big-endian uint32). Like line-delimited JSON above, this is more
 efficient to do using <code class="docutils literal notranslate"><span class="pre">Encoder.encode_into</span></code> to avoid excessive copying.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">msgspec</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">msgspec</span>
 
 <span class="n">encoder</span> <span class="o">=</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">msgpack</span><span class="o">.</span><span class="n">Encoder</span><span class="p">()</span>
 
@@ -538,7 +538,7 @@ inscrutable message encoding), you can set <code class="docutils literal notrans
 definition. Structs with this option enabled are encoded/decoded like array
 types, removing the field names from the encoded message. This can provide on
 average another ~2x speedup for decoding (and ~1.5x speedup for encoding).</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">Example</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">array_like</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">Example</span><span class="p">(</span><span class="n">msgspec</span><span class="o">.</span><span class="n">Struct</span><span class="p">,</span> <span class="n">array_like</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
 <span class="gp">... </span>    <span class="n">my_first_field</span><span class="p">:</span> <span class="nb">str</span>
 <span class="gp">... </span>    <span class="n">my_second_field</span><span class="p">:</span> <span class="nb">int</span>
 
