@@ -1809,31 +1809,49 @@ class TestStructOmitDefaults:
 
 
 class TestStructForbidUnknownFields:
-    def test_forbid_unknown_fields(self, proto):
-        class Test(Struct, forbid_unknown_fields=True):
+    @pytest.mark.parametrize("forbid_on_cls", [True, False])
+    def test_forbid_unknown_fields(self, proto, forbid_on_cls):
+        class Test(Struct, forbid_unknown_fields=forbid_on_cls):
             x: int
             y: int
 
         good = Test(1, 2)
-        assert proto.decode(proto.encode(good), type=Test) == good
+        assert (
+            proto.decode(
+                proto.encode(good), type=Test, forbid_unknown_fields=not forbid_on_cls
+            )
+            == good
+        )
 
         bad = proto.encode({"x": 1, "y": 2, "z": 3})
         with pytest.raises(ValidationError, match="Object contains unknown field `z`"):
-            proto.decode(bad, type=Test)
+            proto.decode(
+                bad,
+                type=Test,
+                forbid_unknown_fields=not forbid_on_cls,
+            )
 
-    def test_forbid_unknown_fields_array_like(self, proto):
-        class Test(Struct, forbid_unknown_fields=True, array_like=True):
+    @pytest.mark.parametrize("forbid_on_cls", [True, False])
+    def test_forbid_unknown_fields_array_like(self, proto, forbid_on_cls):
+        class Test(Struct, forbid_unknown_fields=forbid_on_cls, array_like=True):
             x: int
             y: int
 
         good = Test(1, 2)
-        assert proto.decode(proto.encode(good), type=Test) == good
+        assert (
+            proto.decode(
+                proto.encode(good),
+                type=Test,
+                forbid_unknown_fields=not forbid_on_cls,
+            )
+            == good
+        )
 
         bad = proto.encode([1, 2, 3])
         with pytest.raises(
             ValidationError, match="Expected `array` of at most length 2"
         ):
-            proto.decode(bad, type=Test)
+            proto.decode(bad, type=Test, forbid_unknown_fields=not forbid_on_cls)
 
 
 class PointUpper(Struct, rename="upper"):
@@ -2065,6 +2083,17 @@ class TestTypedDict:
         with pytest.raises(ValidationError) as rec:
             dec.decode(msg)
         assert "Object missing required field `b`" == str(rec.value)
+
+    def test_forbid_unknown_fields(self, proto):
+        class Ex(TypedDict):
+            a: int
+            b: str
+
+        temp = proto.encode({"a": 1, "b": "two", "c": 3})
+        with pytest.raises(ValidationError, match="Object contains unknown field"):
+            proto.decode(temp, type=Ex, forbid_unknown_fields=True)
+
+        proto.decode(temp, type=Ex) == {"a": 1, "b": "two"}
 
     def test_total_false(self, proto):
         class Ex(TypedDict, total=False):
@@ -2672,6 +2701,9 @@ class TestDataclass:
         assert proto.decode(msg, type=Base) == Base(1)
         assert proto.decode(msg, type=Sub) == Sub(1, 2)
 
+        with pytest.raises(ValidationError, match="Object contains unknown field `y`"):
+            proto.decode(msg, type=Base, forbid_unknown_fields=True)
+
     def test_multiple_dataclasses_errors(self, proto):
         @dataclass
         class Ex1:
@@ -2749,7 +2781,8 @@ class TestDataclass:
                 proto.Decoder(mod.Ex)
 
     @pytest.mark.parametrize("slots", [False, True])
-    def test_decode_dataclass(self, proto, slots):
+    @pytest.mark.parametrize("forbid_unknown_fields", [False, True])
+    def test_decode_dataclass(self, proto, slots, forbid_unknown_fields):
         if slots:
             if not PY310:
                 pytest.skip(reason="Python 3.10+ required")
@@ -2763,16 +2796,21 @@ class TestDataclass:
             b: int
             c: int
 
-        dec = proto.Decoder(Example)
+        dec = proto.Decoder(Example, forbid_unknown_fields=forbid_unknown_fields)
         msg = Example(1, 2, 3)
         res = dec.decode(proto.encode(msg))
         assert res == msg
 
         # Extra fields ignored
-        res = dec.decode(
-            proto.encode({"x": -1, "a": 1, "y": -2, "b": 2, "z": -3, "c": 3, "": -4})
+        encoded = proto.encode(
+            {"x": -1, "a": 1, "y": -2, "b": 2, "z": -3, "c": 3, "": -4}
         )
-        assert res == msg
+        if forbid_unknown_fields:
+            with pytest.raises(ValidationError, match="Object contains unknown field"):
+                dec.decode(encoded)
+        else:
+            res = dec.decode(encoded)
+            assert res == msg
 
         # Missing fields error
         with pytest.raises(ValidationError, match="missing required field `b`"):

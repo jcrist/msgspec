@@ -1228,6 +1228,9 @@ class TestTypedDict:
         x2 = {"a": 1, "b": "two", "c": "extra"}
         assert convert(x2, Ex) == x
 
+        with pytest.raises(ValidationError, match="Object contains unknown field"):
+            convert(x2, Ex, forbid_unknown_fields=True)
+
         with pytest.raises(ValidationError) as rec:
             convert({"b": "two"}, Ex)
         assert "Object missing required field `a`" == str(rec.value)
@@ -1250,6 +1253,9 @@ class TestTypedDict:
 
         x2 = {"a": 1, "b": "two", "c": "extra"}
         assert convert(x2, Ex) == x
+
+        with pytest.raises(ValidationError, match="Object contains unknown field"):
+            convert(x2, Ex, forbid_unknown_fields=True)
 
         x3 = {"b": "two"}
         assert convert(x3, Ex) == x3
@@ -1323,6 +1329,9 @@ class TestDataclass:
 
         with pytest.raises(ValidationError, match=r"Expected `str` - at `key` in `\$`"):
             convert({"a": 1, 1: 2}, Example)
+
+        with pytest.raises(ValidationError, match="Object contains unknown field `b`"):
+            convert({"a": 1, "b": 2}, Example, forbid_unknown_fields=True)
 
     def test_from_attributes_option_disables_attribute_coercion(self):
         class Bad:
@@ -1735,19 +1744,37 @@ class TestStruct:
         ):
             convert(msg, Ex, from_attributes=True)
 
-    @pytest.mark.parametrize("forbid_unknown_fields", [False, True])
+    @pytest.mark.parametrize("forbid_unknown_fields_on_cls", [False, True])
+    @pytest.mark.parametrize("forbid_unknown_fields_on_call", [False, True])
     @mapcls_and_from_attributes
-    def test_struct_extra_fields(self, forbid_unknown_fields, mapcls, from_attributes):
-        class Ex(Struct, forbid_unknown_fields=forbid_unknown_fields):
+    def test_struct_extra_fields(
+        self,
+        forbid_unknown_fields_on_cls,
+        forbid_unknown_fields_on_call,
+        mapcls,
+        from_attributes,
+    ):
+        class Ex(Struct, forbid_unknown_fields=forbid_unknown_fields_on_cls):
             a: int
             b: int
 
         msg = mapcls(x=1, a=2, y=3, b=4, z=5)
-        if forbid_unknown_fields and issubclass(mapcls, dict):
+        forbid_unknown = forbid_unknown_fields_on_cls or forbid_unknown_fields_on_call
+        if forbid_unknown and issubclass(mapcls, dict):
             with pytest.raises(ValidationError, match="unknown field `x`"):
-                convert(msg, Ex, from_attributes=from_attributes)
+                convert(
+                    msg,
+                    Ex,
+                    from_attributes=from_attributes,
+                    forbid_unknown_fields=forbid_unknown_fields_on_call,
+                )
         else:
-            res = convert(msg, Ex, from_attributes=from_attributes)
+            res = convert(
+                msg,
+                Ex,
+                from_attributes=from_attributes,
+                forbid_unknown_fields=forbid_unknown_fields_on_call,
+            )
             assert res == Ex(2, 4)
 
     @mapcls_and_from_attributes
