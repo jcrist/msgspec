@@ -879,6 +879,25 @@ class TestEnum:
         with pytest.raises(ValidationError, match="Invalid enum value 6"):
             msgspec.convert(6, Ex)
 
+    @pytest.mark.parametrize(
+        "base_metacls", [enum.EnumMeta] + ([enum.EnumType] if PY311 else [])
+    )
+    def test_enum_with_custom_metaclass(self, base_metacls):
+        class ChoicesMeta(base_metacls):
+            """My custom enum metaclass"""
+
+        class Test(enum.Enum, metaclass=ChoicesMeta):
+            A = "apple"
+            B = "banana"
+
+        assert convert(Test.A, Test) is Test.A
+        assert convert("apple", Test) is Test.A
+        assert convert("banana", Test) is Test.B
+        with pytest.raises(ValidationError, match="Invalid enum value 'ceeee'"):
+            convert("ceeee", Test)
+        with pytest.raises(ValidationError, match="Expected `str`, got `int`"):
+            convert(1, Test)
+
 
 class TestLiteral:
     def test_str_literal(self):
