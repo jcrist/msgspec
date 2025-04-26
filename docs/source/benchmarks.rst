@@ -72,7 +72,7 @@ The libraries we're comparing are the following:
 - cattrs_ (23.2.3)
 
 Each benchmark creates a message containing one or more ``File``/``Directory``
-instances, then then serializes, deserializes, and validates it in a loop.
+instances, then serializes, deserializes, and validates it in a loop.
 
 The full benchmark source can be found
 `here <https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_validation>`__.

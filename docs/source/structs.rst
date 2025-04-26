@@ -277,7 +277,7 @@ The generated ``__init__()`` for ``Subclass`` looks like:
 
 .. code-block:: python
 
-    def __init__(self, c: float, d: bytes = b"", * a: str, b: int = 0):
+    def __init__(self, c: float, d: bytes = b"", *, a: str, b: int = 0):
 
 The field ordering rules for ``Struct`` types are identical to those for
 `dataclasses`, see the `dataclasses docs <dataclasses>`_ for more information.
