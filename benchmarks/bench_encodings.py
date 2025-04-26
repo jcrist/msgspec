@@ -7,7 +7,7 @@ import timeit
 import importlib.metadata
 from typing import Any, Literal, Callable
 
-from .generate_data import make_filesystem_data
+from generate_data import make_filesystem_data
 
 import msgspec
 
