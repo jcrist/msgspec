@@ -41,6 +41,7 @@ def field(*, name: Optional[str] = None) -> Any: ...
 @dataclass_transform(field_specifiers=(field,))
 class Struct:
     __struct_fields__: ClassVar[Tuple[str, ...]]
+    __struct_encode_fields__: ClassVar[Tuple[str, ...]]
     __struct_config__: ClassVar[structs.StructConfig]
     __match_args__: ClassVar[Tuple[str, ...]]
     # A default __init__ so that Structs with unknown field types (say
