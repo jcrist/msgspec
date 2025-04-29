@@ -2150,6 +2150,10 @@ PyObject _NoDefault_Object = {
     { MS_IMMORTAL_INITIAL_REFCNT },
     &NoDefault_Type
 };
+#elif PY313_PLUS
+PyObject _NoDefault_Object = {
+    PyObject_HEAD_INIT(&NoDefault_Type)
+};
 #else
 PyObject _NoDefault_Object = {1, &NoDefault_Type};
 #endif
@@ -2253,6 +2257,10 @@ PyObject _Unset_Object = {
     _PyObject_EXTRA_INIT
     { MS_IMMORTAL_INITIAL_REFCNT },
     &Unset_Type
+};
+#elif PY313_PLUS
+PyObject _Unset_Object = {
+    PyObject_HEAD_INIT(&Unset_Type)
 };
 #else
 PyObject _Unset_Object = {1, &Unset_Type};
