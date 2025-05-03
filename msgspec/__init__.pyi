@@ -19,6 +19,9 @@ from typing import (
 from typing_extensions import dataclass_transform, Buffer
 
 from . import inspect, json, msgpack, structs, toml, yaml
+from . import _core
+
+StructMeta: Type[type] = _core.StructMeta
 
 T = TypeVar("T")
 
@@ -39,7 +42,7 @@ def field(*, default_factory: Callable[[], T], name: Optional[str] = None) -> T:
 @overload
 def field(*, name: Optional[str] = None) -> Any: ...
 @dataclass_transform(field_specifiers=(field,))
-class Struct:
+class Struct(metaclass=StructMeta):
     __struct_fields__: ClassVar[Tuple[str, ...]]
     __struct_config__: ClassVar[structs.StructConfig]
     __match_args__: ClassVar[Tuple[str, ...]]

@@ -7146,7 +7146,7 @@ static PyTypeObject StructMetaType = {
     .tp_name = "msgspec._core.StructMeta",
     .tp_basicsize = sizeof(StructMetaObject),
     .tp_itemsize = 0,
-    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_TYPE_SUBCLASS | Py_TPFLAGS_HAVE_GC | _Py_TPFLAGS_HAVE_VECTORCALL,
+    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_TYPE_SUBCLASS | Py_TPFLAGS_HAVE_GC | _Py_TPFLAGS_HAVE_VECTORCALL | Py_TPFLAGS_BASETYPE,
     .tp_new = StructMeta_new,
     .tp_dealloc = (destructor) StructMeta_dealloc,
     .tp_clear = (inquiry) StructMeta_clear,
@@ -22069,7 +22069,13 @@ PyInit__core(void)
         return NULL;
     Py_INCREF(&Unset_Type);
     if (PyModule_AddObject(m, "UnsetType", (PyObject *)&Unset_Type) < 0)
+        return NULL;    
+    Py_INCREF((PyObject *)&StructMetaType);
+    if (PyModule_AddObject(m, "StructMeta", (PyObject *)&StructMetaType) < 0) {
+        Py_DECREF((PyObject *)&StructMetaType);
+        Py_DECREF(m);
         return NULL;
+    }
 
     st = msgspec_get_state(m);
 
