@@ -22049,6 +22049,9 @@ PyInit__core(void)
     Py_INCREF(&StructConfig_Type);
     if (PyModule_AddObject(m, "StructConfig", (PyObject *)&StructConfig_Type) < 0)
         return NULL;
+    Py_INCREF(&StructMetaType);
+    if (PyModule_AddObject(m, "StructMeta", (PyObject *)&StructMetaType) < 0)
+        return NULL;
     Py_INCREF(&Ext_Type);
     if (PyModule_AddObject(m, "Ext", (PyObject *)&Ext_Type) < 0)
         return NULL;
