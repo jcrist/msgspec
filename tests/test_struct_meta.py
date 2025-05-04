@@ -15,6 +15,7 @@ def test_struct_meta_exists():
 
 def test_struct_meta_direct_usage():
     """Test that StructMeta can be used directly as a metaclass."""
+
     class CustomStruct(metaclass=StructMeta):
         x: int
         y: str
@@ -29,6 +30,7 @@ def test_struct_meta_direct_usage():
 
 def test_struct_meta_options():
     """Test that StructMeta properly handles struct options."""
+
     class CustomStruct(metaclass=StructMeta, frozen=True):
         x: int
 
@@ -40,6 +42,7 @@ def test_struct_meta_options():
 
 def test_struct_meta_field_processing():
     """Test that StructMeta properly processes fields."""
+
     class CustomStruct(metaclass=StructMeta):
         x: int
         y: str = "default"
@@ -57,6 +60,7 @@ def test_struct_meta_field_processing():
 
 def test_struct_meta_with_struct_base():
     """Test using StructMeta with Struct as a base class."""
+
     class CustomStruct(Struct):
         x: int
         y: str
@@ -73,12 +77,14 @@ def test_struct_meta_validation():
     """Test that StructMeta validation works."""
     # Should raise TypeError for invalid field name
     with pytest.raises(TypeError):
+
         class InvalidStruct(metaclass=StructMeta):
             __dict__: int  # __dict__ is a reserved name
 
 
 def test_struct_meta_with_options():
     """Test StructMeta with various options."""
+
     class Point(metaclass=StructMeta, frozen=True, eq=True, order=True):
         x: int
         y: int
@@ -102,6 +108,7 @@ def test_struct_meta_with_options():
 
 def test_struct_meta_inheritance():
     """Test that StructMeta can be inherited in Python code."""
+
     class CustomMeta(StructMeta):
         """A custom metaclass that inherits from StructMeta.
 
@@ -115,15 +122,16 @@ def test_struct_meta_inheritance():
            use the parent's kw_only_default
         4. Otherwise, default to False
         """
+
         # Class attribute to store kw_only_default settings for each class
         _kw_only_default_settings = {}
 
         def __new__(mcls, name, bases, namespace, **kwargs):
             # Check if kw_only is explicitly specified
-            kw_only_specified = 'kw_only' in kwargs
+            kw_only_specified = "kw_only" in kwargs
 
             # Process kw_only_default parameter
-            kw_only_default = kwargs.pop('kw_only_default', None)
+            kw_only_default = kwargs.pop("kw_only_default", None)
 
             # If kw_only_default is specified, store it
             if kw_only_default is not None:
@@ -140,7 +148,7 @@ def test_struct_meta_inheritance():
 
             # If kw_only is not specified but kw_only_default is available, use it
             if not kw_only_specified and kw_only_default is not None:
-                kwargs['kw_only'] = kw_only_default
+                kwargs["kw_only"] = kw_only_default
 
             # Create the class
             cls = super().__new__(mcls, name, bases, namespace, **kwargs)
@@ -163,6 +171,7 @@ def test_struct_meta_inheritance():
     # Test setting kw_only_default=True
     class KwOnlyBase(metaclass=CustomMeta, kw_only_default=True):
         """Base class that sets kw_only_default=True"""
+
         pass
 
     # Test a simple child class, should inherit kw_only_default
@@ -202,13 +211,19 @@ def test_struct_meta_inheritance():
     assert independent.y == "test"
 
     # Print debug information
-    print(f"KwOnlyBase in _kw_only_default_settings: {'KwOnlyBase' in CustomMeta._kw_only_default_settings}")
-    print(f"KwOnlyBase default: {CustomMeta._kw_only_default_settings.get('KwOnlyBase')}")
-    print(f"SimpleChild in _kw_only_default_settings: {'SimpleChild' in CustomMeta._kw_only_default_settings}")
+    print(
+        f"KwOnlyBase in _kw_only_default_settings: {'KwOnlyBase' in CustomMeta._kw_only_default_settings}"
+    )
+    print(
+        f"KwOnlyBase default: {CustomMeta._kw_only_default_settings.get('KwOnlyBase')}"
+    )
+    print(
+        f"SimpleChild in _kw_only_default_settings: {'SimpleChild' in CustomMeta._kw_only_default_settings}"
+    )
 
     # Test that kw_only_default values are correctly passed
-    assert 'KwOnlyBase' in CustomMeta._kw_only_default_settings
-    assert CustomMeta._kw_only_default_settings['KwOnlyBase'] is True
+    assert "KwOnlyBase" in CustomMeta._kw_only_default_settings
+    assert CustomMeta._kw_only_default_settings["KwOnlyBase"] is True
 
     # Test asdict
     d = asdict(independent)
@@ -218,9 +233,11 @@ def test_struct_meta_inheritance():
 
 def test_struct_meta_subclass_functions():
     """Test if structs created by StructMeta subclasses support various function operations."""
+
     # Define a custom metaclass
     class CustomMeta(StructMeta):
         """Custom metaclass that inherits from StructMeta"""
+
         pass
 
     # Use the custom metaclass to create a struct class
@@ -279,14 +296,17 @@ def test_struct_meta_subclass_functions():
 
 def test_struct_meta_subclass_inheritance():
     """Test multi-level inheritance of StructMeta subclasses."""
+
     # Define the first level custom metaclass
     class BaseMeta(StructMeta):
         """Base custom metaclass"""
+
         pass
 
     # Define the second level custom metaclass
     class DerivedMeta(BaseMeta):
         """Derived custom metaclass"""
+
         pass
 
     # Use the second level custom metaclass to create a struct class
@@ -317,9 +337,11 @@ def test_struct_meta_subclass_inheritance():
 
 def test_struct_meta_subclass_with_encoder():
     """Test compatibility of structs created by StructMeta subclasses with encoders."""
+
     # Define a custom metaclass
     class EncoderMeta(StructMeta):
         """Custom metaclass for testing encoders"""
+
         pass
 
     # Use the custom metaclass to create a struct class
