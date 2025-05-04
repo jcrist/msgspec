@@ -19,9 +19,11 @@ from typing import (
 from typing_extensions import dataclass_transform, Buffer
 
 from . import inspect, json, msgpack, structs, toml, yaml
-from . import _core
 
-StructMeta: Type[type] = _core.StructMeta
+# Define StructMeta class as a metaclass
+class StructMeta(type):
+    """Metaclass for creating Struct classes"""
+    pass
 
 T = TypeVar("T")
 
