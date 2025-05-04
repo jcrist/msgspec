@@ -7826,7 +7826,7 @@ struct_asdict(PyObject *self, PyObject *const *args, Py_ssize_t nargs)
 {
     if (!check_positional_nargs(nargs, 1, 1)) return NULL;
     PyObject *obj = args[0];
-    if (Py_TYPE(Py_TYPE(obj)) != &StructMetaType) {
+    if (!PyType_IsSubtype(Py_TYPE(Py_TYPE(obj)), &StructMetaType)) {
         PyErr_SetString(PyExc_TypeError, "`struct` must be a `msgspec.Struct`");
         return NULL;
     }

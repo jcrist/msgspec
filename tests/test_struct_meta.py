@@ -4,6 +4,7 @@ import pytest
 
 import msgspec
 from msgspec import Struct, StructMeta
+from msgspec.structs import asdict
 
 
 def test_struct_meta_exists():
@@ -210,6 +211,14 @@ def test_struct_meta_inheritance():
     # Test that kw_only_default values are correctly passed
     assert 'KwOnlyBase' in CustomMeta._kw_only_default_settings
     assert CustomMeta._kw_only_default_settings['KwOnlyBase'] is True
+
+    # Test asdict
+    d = asdict(independent)
+    assert d["x"] == 1
+    assert d["y"] == "test"
+
+
+    
 
 
 if __name__ == "__main__":
