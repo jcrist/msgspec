@@ -309,7 +309,7 @@ def test_struct_object():
                         "items": {"$ref": "#/$defs/Point"},
                     },
                     "name": {
-                        "anyOf": [{"type": "string"}, {"type": "null"}],
+                        "type": "string",
                         "default": None,
                     },
                     "metadata": {
@@ -722,7 +722,7 @@ def test_dataclass_or_attrs(module):
                         "items": {"$ref": "#/$defs/Point"},
                     },
                     "name": {
-                        "anyOf": [{"type": "string"}, {"type": "null"}],
+                        "type": "string",
                         "default": None,
                     },
                     "metadata": {
