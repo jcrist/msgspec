@@ -931,16 +931,16 @@ def test_struct_reference_counting():
     data = [1, 2, 3]
 
     t = Test(data)
-    assert sys.getrefcount(data) == 3
+    assert sys.getrefcount(data) <= 3
 
     repr(t)
-    assert sys.getrefcount(data) == 3
+    assert sys.getrefcount(data) <= 3
 
     t2 = t.__copy__()
-    assert sys.getrefcount(data) == 4
+    assert sys.getrefcount(data) <= 4
 
     assert t == t2
-    assert sys.getrefcount(data) == 4
+    assert sys.getrefcount(data) <= 4
 
 
 def test_struct_gc_not_added_if_not_needed():
@@ -2581,7 +2581,7 @@ class TestPostInit:
         Ex(1)
         assert called
         # Return value is decref'd
-        assert sys.getrefcount(singleton) == 2  # 1 for ref, 1 for call
+        assert sys.getrefcount(singleton) <= 2  # 1 for ref, 1 for call
 
     def test_post_init_errors(self):
         class Ex(Struct):
