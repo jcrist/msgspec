@@ -2099,7 +2099,6 @@ class TestTypedDict:
 
         class Ex(Base, total=False):
             c: str
-        Ex.__annotations__ = {"c": "str"}
 
         dec = proto.Decoder(Ex)
 
