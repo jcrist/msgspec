@@ -2113,6 +2113,24 @@ class TestTypedDict:
         assert "Object missing required field `a`" == str(rec.value)
 
     @pytest.mark.parametrize("use_typing_extensions", [False, True])
+    def test_broken_typeddict(self, proto, use_typing_extensions):
+        # Check that we don't crash if a TypedDict has incorrect
+        # introspection data.
+        if use_typing_extensions:
+            tex = pytest.importorskip("typing_extensions")
+            cls = tex.TypedDict
+        else:
+            cls = TypedDict
+
+        class Ex(cls, total=False):
+            c: str
+        Ex.__annotations__ = {"c": "str"}
+        Ex.__required_keys__ = {"a", "b"}
+
+        with pytest.raises(RuntimeError):
+            proto.Decoder(Ex)
+
+    @pytest.mark.parametrize("use_typing_extensions", [False, True])
     def test_required_and_notrequired(self, proto, use_typing_extensions):
         if use_typing_extensions:
             module = "typing_extensions"
