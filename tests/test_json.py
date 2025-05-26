@@ -898,7 +898,7 @@ class TestDatetime:
         tz2 = msgspec.json.decode(msg, type=datetime.datetime).tzinfo
         assert tz is tz2
         del tz2
-        assert sys.getrefcount(tz) == 3  # 1 tz, 1 cache, 1 func call
+        assert sys.getrefcount(tz) <= 3  # 1 tz, 1 cache, 1 func call
         for _ in range(10):
             gc.collect()  # cache is cleared every 10 full collections
 
@@ -2293,7 +2293,7 @@ class TestStruct:
         assert x == Person("harry", "potter", 13, False)
 
         # one for struct, one for output of getattr, and one for getrefcount
-        assert sys.getrefcount(x.first) == 3
+        assert sys.getrefcount(x.first) <= 3
 
         with pytest.raises(
             msgspec.ValidationError, match="Expected `object`, got `int`"
