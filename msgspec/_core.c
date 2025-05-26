@@ -481,6 +481,7 @@ typedef struct {
 #endif
     PyObject *astimezone;
     PyObject *re_compile;
+    PyObject *get_annotate_from_class_namespace;
     uint8_t gc_cycle;
 } MsgspecState;
 
@@ -5827,12 +5828,45 @@ structmeta_is_classvar(
 
 static int
 structmeta_collect_fields(StructMetaInfo *info, MsgspecState *mod, bool kwonly) {
-    PyObject *annotations = PyDict_GetItemString(
+    PyObject *annotations = PyDict_GetItemString(  // borrowed reference
         info->namespace, "__annotations__"
     );
-    if (annotations == NULL) return 0;
+    if (annotations == NULL) {
+        if (mod->get_annotate_from_class_namespace != NULL) {
+            PyObject *annotate = PyObject_CallOneArg(
+                mod->get_annotate_from_class_namespace, info->namespace
+            );
+            if (annotate == NULL) {
+                return -1;
+            }
+            if (annotate == Py_None) {
+                Py_DECREF(annotate);
+                return 0;
+            }
+            PyObject *format = PyLong_FromLong(1);  /* annotationlib.Format.VALUE */
+            if (format == NULL) {
+                Py_DECREF(annotate);
+                return -1;
+            }
+            annotations = PyObject_CallOneArg(
+                annotate, format
+            );
+            Py_DECREF(annotate);
+            Py_DECREF(format);
+            if (annotations == NULL) {
+                return -1;
+            }
+        }
+        else {
+            return 0;  // No annotations, nothing to do
+        }
+    }
+    else {
+        Py_INCREF(annotations);
+    }
 
     if (!PyDict_Check(annotations)) {
+        Py_DECREF(annotations);
         PyErr_SetString(PyExc_TypeError, "__annotations__ must be a dict");
         return -1;
     }
@@ -5882,6 +5916,7 @@ structmeta_collect_fields(StructMetaInfo *info, MsgspecState *mod, bool kwonly) 
     }
     return 0;
 error:
+    Py_DECREF(annotations);
     Py_XDECREF(module_ns);
     return -1;
 }
@@ -22237,6 +22272,26 @@ PyInit__core(void)
     st->re_compile = PyObject_GetAttrString(temp_module, "compile");
     Py_DECREF(temp_module);
     if (st->re_compile == NULL) return NULL;
+
+    /* annotationlib.get_annotate_from_class_namespace */
+    temp_module = PyImport_ImportModule("annotationlib");
+    if (temp_module == NULL) {
+        if (PyErr_ExceptionMatches(PyExc_ModuleNotFoundError)) {
+            // Below Python 3.14
+            PyErr_Clear();
+            st->get_annotate_from_class_namespace = NULL;
+        }
+        else {
+            return NULL;
+        }
+    }
+    else {
+        st->get_annotate_from_class_namespace = PyObject_GetAttrString(
+            temp_module, "get_annotate_from_class_namespace"
+        );
+        Py_DECREF(temp_module);
+        if (st->get_annotate_from_class_namespace == NULL) return NULL;
+    }
 
     /* Initialize cached constant strings */
 #define CACHED_STRING(attr, str) \
