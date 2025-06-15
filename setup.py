@@ -14,10 +14,10 @@ if sys.platform == "win32" and sys.maxsize == (2**31 - 1):
 
     error = """
     ====================================================================
-    `msgspec` currently doesn't support 32-bit Python windows builds. If
+    `msgspec-x` currently doesn't support 32-bit Python windows builds. If
     this is important for your use case, please open an issue on GitHub:
 
-    https://github.com/jcrist/msgspec/issues
+    https://github.com/nightsailer/msgspec-x/issues
     ====================================================================
     """
     print(textwrap.dedent(error))
@@ -70,22 +70,23 @@ extras_require = {
 }
 
 setup(
-    name="msgspec",
+    name="msgspec-x",
     version=versioneer.get_version(),
     cmdclass=versioneer.get_cmdclass(),
-    maintainer="Jim Crist-Harif",
-    maintainer_email="jcristharif@gmail.com",
-    url="https://jcristharif.com/msgspec/",
+    maintainer="Night Sailer",
+    maintainer_email="nightsailer@gmail.com",
+    url="https://nightsailer.github.io/msgspec-x/",
     project_urls={
-        "Documentation": "https://jcristharif.com/msgspec/",
-        "Source": "https://github.com/jcrist/msgspec/",
-        "Issue Tracker": "https://github.com/jcrist/msgspec/issues",
+        "Documentation": "https://nightsailer.github.io/msgspec-x/",
+        "Source": "https://github.com/nightsailer/msgspec-x/",
+        "Issue Tracker": "https://github.com/nightsailer/msgspec-x/issues",
     },
     description=(
-        "A fast serialization and validation library, with builtin support for "
-        "JSON, MessagePack, YAML, and TOML."
+        "A community-driven fork of msgspec: fast serialization and validation library with "
+        "builtin support for JSON, MessagePack, YAML, and TOML. Provides dual namespace "
+        "architecture - 'msgspec' for full compatibility and 'msgspec_x' for extended features."
     ),
-    keywords="JSON msgpack MessagePack TOML YAML serialization validation schema",
+    keywords="JSON msgpack MessagePack TOML YAML serialization validation schema fork community",
     classifiers=[
         "License :: OSI Approved :: BSD License",
         "Development Status :: 4 - Beta",
@@ -97,8 +98,8 @@ setup(
     ],
     extras_require=extras_require,
     license="BSD",
-    packages=["msgspec"],
-    package_data={"msgspec": ["py.typed", "*.pyi"]},
+    packages=["msgspec", "msgspec_x"],
+    package_data={"msgspec": ["py.typed", "*.pyi"], "msgspec_x": ["py.typed", "*.pyi"]},
     ext_modules=ext_modules,
     long_description=(
         open("README.md", encoding="utf-8").read()
