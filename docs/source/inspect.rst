@@ -142,7 +142,7 @@ subclass. See the :ref:`API docs <inspect-api>` for a complete list of types.
 For an example of using these functions, you might find our builtin
 :doc:`jsonschema` generator implementation useful - the code for this can be
 found `here
-<https://github.com/jcrist/msgspec/blob/main/msgspec/_json_schema.py>`__. In
+<https://github.com/nightsailer/msgspec-x/blob/main/msgspec/_json_schema.py>`__. In
 particular, take a look at the large if-else statement in ``_to_schema``.
 
 

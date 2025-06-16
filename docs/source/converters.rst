@@ -127,9 +127,9 @@ support by wrapping the standard library's `tomllib` module as follows:
 ``msgspec`` uses these APIs to implement ``toml`` and ``yaml`` support,
 wrapping external serialization libraries:
 
-- ``msgspec.toml`` (`code <https://github.com/jcrist/msgspec/blob/main/msgspec/toml.py>`__)
+- ``msgspec.toml`` (`code <https://github.com/nightsailer/msgspec-x/blob/main/msgspec/toml.py>`__)
 
-- ``msgspec.yaml`` (`code <https://github.com/jcrist/msgspec/blob/main/msgspec/yaml.py>`__)
+- ``msgspec.yaml`` (`code <https://github.com/nightsailer/msgspec-x/blob/main/msgspec/yaml.py>`__)
 
 The implementation in ``msgspec.toml`` is *almost* identical to the one above,
 with some additional code for error handling.

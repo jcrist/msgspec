@@ -21,7 +21,7 @@ types, and :ref:`struct-tagged-unions` to differentiate between them. See the
 relevant docs for more information.
 
 The full example source can be found `here
-<https://github.com/jcrist/msgspec/blob/main/examples/geojson>`__.
+<https://github.com/nightsailer/msgspec-x/blob/main/examples/geojson>`__.
 
 .. literalinclude:: ../../../examples/geojson/msgspec_geojson.py
     :language: python

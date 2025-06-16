@@ -2,6 +2,7 @@ Benchmarks
 ==========
 
 .. note::
+   These benchmarks are for ``msgspec-x``, a community-driven fork of the original msgspec project.
 
     Benchmarks are *hard*.
 
