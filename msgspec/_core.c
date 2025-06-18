@@ -6097,8 +6097,18 @@ structmeta_construct_tag(StructMetaInfo *info, MsgspecState *mod, PyObject *cls)
         if (PyCallable_Check(info->temp_tag)) {
             PyObject *qualname = simple_qualname(cls);
             if (qualname == NULL) return -1;
-            info->tag_value = PyObject_CallOneArg(info->temp_tag, qualname);
-            Py_DECREF(qualname);
+
+            PyObject *temp_args = PyTuple_New(2);
+            if (temp_args == NULL) {
+                Py_DECREF(qualname);
+                return -1;
+            }
+
+            PyTuple_SetItem(temp_args, 0, qualname);
+            Py_INCREF(cls);
+            PyTuple_SetItem(temp_args, 1, cls);
+            info->tag_value = PyObject_Call(info->temp_tag, temp_args, NULL);
+            Py_DECREF(temp_args);
             if (info->tag_value == NULL) return -1;
         }
         else {
