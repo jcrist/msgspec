@@ -6104,10 +6104,19 @@ structmeta_construct_tag(StructMetaInfo *info, MsgspecState *mod, PyObject *cls)
                 return -1;
             }
 
-            PyTuple_SetItem(temp_args, 0, qualname);
             Py_INCREF(cls);
+            PyTuple_SetItem(temp_args, 0, qualname);
             PyTuple_SetItem(temp_args, 1, cls);
+
+            // Try call with two Args
             info->tag_value = PyObject_Call(info->temp_tag, temp_args, NULL);
+
+            if (info->tag_value == NULL && PyErr_ExceptionMatches(PyExc_TypeError)) {
+                PyErr_Clear(); 
+                // Call with one Arg
+                info->tag_value = PyObject_CallOneArg(info->temp_tag, qualname);
+            }
+
             Py_DECREF(temp_args);
             if (info->tag_value == NULL) return -1;
         }
