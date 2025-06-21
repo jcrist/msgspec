@@ -25,6 +25,10 @@ support for JSON_, MessagePack_, YAML_, and TOML_. It features:
   use dataclasses_ or attrs_, :doc:`structs` should feel familiar. However,
   they're :ref:`5-60x <struct-benchmark>` faster for common operations.
 
+- 🆕 **StructMeta subclasses support** for advanced metaclass programming. 
+  Create custom struct behaviors while maintaining full compatibility with
+  all msgspec operations. See :ref:`struct-meta-subclasses` for details.
+
 All of this is included in a :ref:`lightweight library
 <benchmark-library-size>` with no required dependencies.
 
@@ -100,6 +104,11 @@ Highlights
 - ``msgspec-x`` is **correct**. The encoders/decoders implemented are strictly
   compliant with their respective specifications, providing stronger guarantees
   of compatibility with other systems.
+
+- ``msgspec-x`` is **extensible**. The new :ref:`StructMeta subclasses 
+  <struct-meta-subclasses>` support enables advanced users to create custom
+  struct behaviors through metaclass programming while maintaining full
+  compatibility with all msgspec operations.
 
 Used By
 -------

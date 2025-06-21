@@ -3,6 +3,90 @@ Changelog
 
 .. currentmodule:: msgspec
 
+Version 0.20.0 (2025-01-03)
+---------------------------
+
+**🎉 MAJOR: Community Fork Release**
+
+This is the first release of ``msgspec-x``, a community-driven fork of the original msgspec library by Jim Crist-Harif. This fork was created to accelerate community contributions and provide a platform for extended features while maintaining full backward compatibility.
+
+**🚀 NEW MAJOR FEATURE: StructMeta Subclasses Support**
+
+- **Add comprehensive support for StructMeta subclasses** - the primary feature that motivated this fork.
+- Enable custom metaclasses that inherit from `StructMeta` to work seamlessly with all msgspec functions.
+- **TECHNICAL**: Modified C code to use `PyType_IsSubtype()` instead of direct type comparison for StructMeta detection.
+- Affected functions now support StructMeta subclasses:
+
+  - `msgspec.structs.asdict` - Convert struct instances to dictionaries
+  - `msgspec.structs.astuple` - Convert struct instances to tuples  
+  - `msgspec.structs.replace` - Create modified copies of struct instances
+  - `msgspec.structs.force_setattr` - Force attribute setting on frozen structs
+  - JSON encoding/decoding operations
+  - MessagePack encoding/decoding operations
+  - `msgspec.convert` - Type conversion operations
+  - `msgspec.to_builtins` - Convert to builtin types
+
+- Comprehensive test coverage for StructMeta subclasses including:
+
+  - Single-level StructMeta inheritance
+  - Multi-level StructMeta inheritance chains
+  - Integration with all struct utility functions
+  - Encoder/decoder compatibility testing
+  - Nested struct support with custom metaclasses
+
+- **Use Cases**: This enables advanced users to create custom struct behaviors through metaclass programming while maintaining full compatibility with msgspec's serialization ecosystem.
+
+**Project Rename and Fork**
+
+- **BREAKING**: Project renamed from ``msgspec`` to ``msgspec-x``. Do not install both packages simultaneously.
+- Fork created due to slow upstream maintenance and to enable faster community contribution cycles.
+- All project metadata, URLs, and documentation updated to reflect the new ``msgspec-x`` identity.
+- Repository moved to ``https://github.com/nightsailer/msgspec-x``.
+- Maintainer changed to Night Sailer (nightsailer@gmail.com).
+
+**Dual Namespace Architecture**
+
+- Introduce dual namespace architecture to support both compatibility and extensions:
+
+  - ``msgspec`` namespace: 100% API compatibility with the original library for drop-in replacement.
+  - ``msgspec_x`` namespace: Extended features and community contributions (placeholder structure created).
+
+- All existing code using ``import msgspec`` will continue to work without changes.
+- New extended features will be available under ``msgspec_x`` namespace.
+
+**Installation and Distribution**
+
+- Package name changed to ``msgspec-x`` on PyPI.
+- Updated installation commands: ``pip install msgspec-x`` and ``conda install msgspec-x -c conda-forge``.
+- Added clear warnings about not installing both ``msgspec`` and ``msgspec-x`` in the same environment.
+- Updated versioneer configuration to use ``msgspec-x-`` prefix for source distributions.
+
+**Documentation Overhaul**
+
+- Comprehensive documentation update to reflect the project fork and new architecture.
+- Added explanation of the dual namespace system and community-driven development model.
+- Updated all GitHub links, issue tracker URLs, and example source references.
+- Enhanced installation documentation with compatibility warnings.
+- Updated contributing guidelines and security policies for the new project structure.
+
+**Community and Development**
+
+- Established faster review and merge cycles for community contributions.
+- Updated GitHub issue templates and workflows for the new repository.
+- Created placeholder structure for experimental features in ``msgspec_x`` namespace.
+- Enhanced project documentation to welcome community contributions.
+
+**Technical Infrastructure**
+
+- Updated build configuration (``setup.py``, ``setup.cfg``, ``MANIFEST.in``) for the new package structure.
+- Enhanced CI/CD workflows for the dual namespace architecture.
+- Updated type stub files and package metadata for both namespaces.
+- Maintained all existing performance characteristics and API compatibility.
+
+**Acknowledgments**
+
+This release acknowledges and thanks Jim Crist-Harif for creating the original msgspec library. This fork exists to complement and extend his excellent work, not to replace it.
+
 Version 0.19.0 (2024-12-27)
 ---------------------------
 
