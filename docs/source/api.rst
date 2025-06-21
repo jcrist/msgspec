@@ -8,7 +8,9 @@ Structs
 
 .. autoclass:: Struct
 
-.. autoclass:: StructMeta
+**StructMeta**
+
+The metaclass for Struct types. This class can be subclassed to create custom struct behaviors. See :ref:`struct-meta-subclasses` for detailed information on using StructMeta subclasses.
 
 .. autofunction:: field
 

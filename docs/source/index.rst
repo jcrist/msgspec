@@ -1,5 +1,5 @@
 msgspec-x
-=======
+=========
 
 ``msgspec-x`` is a community-driven fork of the original msgspec library. It provides two namespaces:
 - ``msgspec``: 100% compatible with the original API for drop-in replacement.

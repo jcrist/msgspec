@@ -1002,7 +1002,7 @@ collected (leading to a memory leak).
 .. _struct-meta-subclasses:
 
 StructMeta Subclasses (Advanced)
--------------------------------
+---------------------------------
 
 .. versionadded:: 0.20.0
 
