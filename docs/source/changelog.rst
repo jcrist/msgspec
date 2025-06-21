@@ -3,7 +3,7 @@ Changelog
 
 .. currentmodule:: msgspec
 
-Version 0.20.0 (2025-01-03)
+Version 0.20.0 (2025-06-21)
 ---------------------------
 
 **🎉 MAJOR: Community Fork Release**
