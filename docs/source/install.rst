@@ -1,26 +1,28 @@
 Installation
 ============
 
-``msgspec`` may be installed via ``pip`` or ``conda``. Note that Python >= 3.8
-is required. The basic install has no required dependencies.
+``msgspec-x`` may be installed via ``pip`` or ``conda``. Note that Python >= 3.9 is required. The basic install has no required dependencies.
 
 **pip**
 
 .. code-block:: shell
 
-    pip install msgspec
+    pip install msgspec-x
 
 **conda**
 
 .. code-block:: shell
 
-    conda install msgspec -c conda-forge
+    conda install msgspec-x -c conda-forge
+
+.. note::
+   Do not install both ``msgspec`` and ``msgspec-x`` in the same environment.
 
 
 Optional Dependencies
 ---------------------
 
-Depending on your platform, the base install of ``msgspec`` may not support
+Depending on your platform, the base install of ``msgspec-x`` may not support
 TOML_ or YAML_ without additional dependencies.
 
 TOML
@@ -40,13 +42,13 @@ extra:
 
 .. code-block:: shell
 
-    pip install "msgspec[toml]"
+    pip install "msgspec-x[toml]"
 
 **conda**
 
 .. code-block:: shell
 
-    conda install msgspec-toml -c conda-forge
+    conda install msgspec-x-toml -c conda-forge
 
 YAML
 ~~~~
@@ -58,13 +60,13 @@ this dependency manually, or depend on the ``yaml`` extra:
 
 .. code-block:: shell
 
-    pip install "msgspec[yaml]"
+    pip install "msgspec-x[yaml]"
 
 **conda**
 
 .. code-block:: shell
 
-    conda install msgspec-yaml -c conda-forge
+    conda install msgspec-x-yaml -c conda-forge
 
 
 Installing from GitHub

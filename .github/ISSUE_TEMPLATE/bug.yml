@@ -1,5 +1,5 @@
 name: 🪲 Bug Report
-description: Report a bug or unexpected behavior in msgspec
+description: Report a bug or unexpected behavior in msgspec-x
 body:
   - type: markdown
     attributes:

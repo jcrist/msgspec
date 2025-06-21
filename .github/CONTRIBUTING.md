@@ -1,6 +1,6 @@
 # How to Contribute
 
-Thank you for taking the time to contribute to `msgspec`!
+Thank you for taking the time to contribute to `msgspec-x`!
 
 Here we document some contribution guidelines to help you ensure that your
 contribution is at its best.
@@ -17,17 +17,17 @@ Once you have those installed, you're ready to:
 
 - Clone the repository
 - Install all development dependencies
-- Build a development version of `msgspec`
+- Build a development version of `msgspec-x`
 - Install the `pre-commit` hooks
 
 ```bash
 # Clone the repository
-git clone https://github.com/jcrist/msgspec.git
+git clone https://github.com/nightsailer/msgspec-x.git
 
 # cd into the repo root directory
-cd msgspec/
+cd msgspec-x/
 
-# Build and install msgspec & all dev dependencies
+# Build and install msgspec-x & all dev dependencies
 pip install -e ".[dev]"
 
 # Install the pre-commit hooks
@@ -36,9 +36,9 @@ pre-commit install
 
 ## Editing and Rebuilding
 
-You now have a "development" build of `msgspec` installed. This means that you
+You now have a "development" build of `msgspec-x` installed. This means that you
 can make changes to the `.py` files and test them without requiring a rebuild
-of msgspec's C extension. Edit away!
+of msgspec-x's C extension. Edit away!
 
 If you do make changes to a `.c` file, you'll need to recompile. You can do
 this by running
@@ -47,7 +47,7 @@ this by running
 pip install -e .
 ```
 
-By default `msgspec` is built in release mode, with optimizations enabled. To
+By default `msgspec-x` is built in release mode, with optimizations enabled. To
 build a debug build instead (for use with e.g. `gdb` or `lldb`) define the
 `MSGSPEC_DEBUG` environment variable before building.
 
@@ -112,6 +112,6 @@ and fix any issues that come up.
 
 ## Code of Conduct
 
-``msgspec`` has a code of conduct that must be followed by all contributors to
+``msgspec-x`` has a code of conduct that must be followed by all contributors to
 the project. You may read the code of conduct
-[here](https://github.com/jcrist/msgspec/blob/main/CODE_OF_CONDUCT.md).
+[here](https://github.com/nightsailer/msgspec-x/blob/main/CODE_OF_CONDUCT.md).

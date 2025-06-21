@@ -1,7 +1,13 @@
-msgspec
-=======
+msgspec-x
+=========
 
-``msgspec`` is a *fast* serialization and validation library, with builtin
+``msgspec-x`` is a community-driven fork of the original msgspec library. It provides two namespaces:
+- ``msgspec``: 100% compatible with the original API for drop-in replacement.
+- ``msgspec_x``: Extended features and community contributions.
+
+Do not install both ``msgspec`` and ``msgspec-x`` in the same environment.
+
+``msgspec-x`` is a *fast* serialization and validation library, with builtin
 support for JSON_, MessagePack_, YAML_, and TOML_. It features:
 
 - 🚀 **High performance encoders/decoders** for common protocols. The JSON and
@@ -12,21 +18,25 @@ support for JSON_, MessagePack_, YAML_, and TOML_. It features:
   be supported through :doc:`extensions <extending>`.
 
 - 🔍 **Zero-cost schema validation** using familiar Python type annotations.
-  In :doc:`benchmarks <benchmarks>` ``msgspec`` decodes *and* validates JSON
+  In :doc:`benchmarks <benchmarks>` ``msgspec-x`` decodes *and* validates JSON
   faster than orjson_ can decode it alone.
 
 - ✨ **A speedy Struct type** for representing structured data. If you already
   use dataclasses_ or attrs_, :doc:`structs` should feel familiar. However,
   they're :ref:`5-60x <struct-benchmark>` faster for common operations.
 
+- 🆕 **StructMeta subclasses support** for advanced metaclass programming. 
+  Create custom struct behaviors while maintaining full compatibility with
+  all msgspec operations. See :ref:`struct-meta-subclasses` for details.
+
 All of this is included in a :ref:`lightweight library
 <benchmark-library-size>` with no required dependencies.
 
 -----
 
-``msgspec`` may be used for serialization alone, as a faster JSON or
+``msgspec-x`` may be used for serialization alone, as a faster JSON or
 MessagePack library. For the greatest benefit though, we recommend using
-``msgspec`` to handle the full serialization & validation workflow:
+``msgspec-x`` to handle the full serialization & validation workflow:
 
 **Define** your message schemas using standard Python type annotations.
 
@@ -66,40 +76,45 @@ MessagePack library. For the greatest benefit though, we recommend using
       File "<stdin>", line 1, in <module>
     msgspec.ValidationError: Expected `str`, got `int` - at `$.groups[0]`
 
-``msgspec`` is designed to be as performant as possible, while retaining some
+``msgspec-x`` is designed to be as performant as possible, while retaining some
 of the nicities of validation libraries like pydantic_. For supported types,
-encoding/decoding a message with ``msgspec`` can be :doc:`~10-80x faster than
+encoding/decoding a message with ``msgspec-x`` can be :doc:`~10-80x faster than
 alternative libraries <benchmarks>`.
 
 Highlights
 ----------
 
-- ``msgspec`` is **fast**. It :doc:`benchmarks <benchmarks>` as the fastest
+- ``msgspec-x`` is **fast**. It :doc:`benchmarks <benchmarks>` as the fastest
   serialization library for Python, outperforming all other JSON/MessagePack
   libraries compared.
 
-- ``msgspec`` is **friendly**. Through use of Python's type annotations,
+- ``msgspec-x`` is **friendly**. Through use of Python's type annotations,
   messages are :ref:`validated <typed-decoding>` during deserialization in a
-  declarative way. ``msgspec`` also works well with other type-checking tooling
+  declarative way. ``msgspec-x`` also works well with other type-checking tooling
   like mypy_ and pyright_, providing excellent editor integration.
 
-- ``msgspec`` is **flexible**. It natively supports a :doc:`wide range of
+- ``msgspec-x`` is **flexible**. It natively supports a :doc:`wide range of
   Python builtin types <supported-types>`. Support for additional types can
   also be added through :doc:`extensions <extending>`.
 
-- ``msgspec`` is **lightweight**. It has no required dependencies, and the
+- ``msgspec-x`` is **lightweight**. It has no required dependencies, and the
   binary size is :ref:`a fraction of that of comparable libraries
   <benchmark-library-size>`.
 
-- ``msgspec`` is **correct**. The encoders/decoders implemented are strictly
+- ``msgspec-x`` is **correct**. The encoders/decoders implemented are strictly
   compliant with their respective specifications, providing stronger guarantees
   of compatibility with other systems.
+
+- ``msgspec-x`` is **extensible**. The new :ref:`StructMeta subclasses 
+  <struct-meta-subclasses>` support enables advanced users to create custom
+  struct behaviors through metaclass programming while maintaining full
+  compatibility with all msgspec operations.
 
 Used By
 -------
 
-``msgspec`` is used by many organizations and `open source projects
-<https://github.com/jcrist/msgspec/network/dependents>`__, here we highlight a
+``msgspec-x`` is used by many organizations and `open source projects
+<https://github.com/nightsailer/msgspec-x/network/dependents>`__, here we highlight a
 few:
 
 .. grid:: 2 2 4 4

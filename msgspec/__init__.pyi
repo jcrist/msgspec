@@ -1,4 +1,5 @@
 import enum
+from inspect import Signature
 from typing import (
     Any,
     Callable,
@@ -20,6 +21,43 @@ from typing_extensions import dataclass_transform, Buffer
 
 from . import inspect, json, msgpack, structs, toml, yaml
 
+class StructMeta(type):
+     __struct_fields__: ClassVar[Tuple[str, ...]]
+     __struct_defaults__: ClassVar[Tuple[Any, ...]]
+     __struct_encode_fields__: ClassVar[Tuple[str, ...]]
+     __match_args__: ClassVar[Tuple[str, ...]]
+     @property
+     def __signature__(self) -> Signature: ...
+     @property
+     def __struct_config__(self) -> structs.StructConfig: ...
+     def __new__(
+         cls,
+         name: str,
+         bases: Tuple[type, ...],
+         namespace: Dict[str, Any],
+         *,
+         tag_field: Optional[str] = None,
+         tag: Union[None, bool, str, int, Callable[[str], Union[str, int]]] = None,
+         rename: Union[
+             None,
+             Literal["lower", "upper", "camel", "pascal", "kebab"],
+             Callable[[str], Optional[str]],
+             Mapping[str, str],
+         ] = None,
+         omit_defaults: bool = False,
+         forbid_unknown_fields: bool = False,
+         frozen: bool = False,
+         eq: bool = True,
+         order: bool = False,
+         kw_only: bool = False,
+         repr_omit_defaults: bool = False,
+         array_like: bool = False,
+         gc: bool = True,
+         weakref: bool = False,
+         dict: bool = False,
+         cache_hash: bool = False,
+     ) -> StructMeta: ...
+
 T = TypeVar("T")
 
 class UnsetType(enum.Enum):
@@ -39,7 +77,7 @@ def field(*, default_factory: Callable[[], T], name: Optional[str] = None) -> T:
 @overload
 def field(*, name: Optional[str] = None) -> Any: ...
 @dataclass_transform(field_specifiers=(field,))
-class Struct:
+class Struct(metaclass=StructMeta):
     __struct_fields__: ClassVar[Tuple[str, ...]]
     __struct_config__: ClassVar[structs.StructConfig]
     __match_args__: ClassVar[Tuple[str, ...]]

@@ -23,7 +23,7 @@ file. This includes full schema definitions for all fields in the
 ``tool``.
 
 The full example source can be found `here
-<https://github.com/jcrist/msgspec/blob/main/examples/pyproject-toml>`__.
+<https://github.com/nightsailer/msgspec-x/blob/main/examples/pyproject-toml>`__.
 
 .. literalinclude:: ../../../examples/pyproject-toml/pyproject.py
     :language: python

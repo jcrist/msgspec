@@ -18,9 +18,9 @@ except ImportError:
     pass
 
 
-project = "msgspec"
-copyright = "Jim Crist-Harif"
-author = "Jim Crist-Harif"
+project = "msgspec-x"
+copyright = "Night Sailer"
+author = "Night Sailer"
 
 GITHUB_LOGO = """
 <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 16 16">
@@ -70,7 +70,7 @@ html_theme_options = {
     "footer_icons": [
         {
             "name": "GitHub",
-            "url": "https://github.com/jcrist/msgspec",
+            "url": "https://github.com/nightsailer/msgspec-x",
             "html": GITHUB_LOGO,
             "class": "",
         },
@@ -97,8 +97,8 @@ napoleon_use_rtype = False
 napoleon_custom_sections = [("Configuration", "params_style")]
 default_role = "obj"
 extlinks = {
-    "issue": ("https://github.com/jcrist/msgspec/issues/%s", "Issue #%s"),
-    "pr": ("https://github.com/jcrist/msgspec/pull/%s", "PR #%s"),
+    "issue": ("https://github.com/nightsailer/msgspec-x/issues/%s", "Issue #%s"),
+    "pr": ("https://github.com/nightsailer/msgspec-x/pull/%s", "PR #%s"),
 }
 copybutton_prompt_text = r">>> |\.\.\. |\$ |In \[\d*\]: | {2,5}\.\.\.: "
 copybutton_prompt_is_regexp = True

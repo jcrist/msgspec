@@ -1616,5 +1616,9 @@ TOML_ types are decoded to Python types as follows:
 .. _pyright: https://github.com/microsoft/pyright
 .. _generic types:
 .. _user-defined generic types: https://docs.python.org/3/library/typing.html#user-defined-generic-types
-.. _open an issue: https://github.com/jcrist/msgspec/issues>
+.. _open an issue: https://github.com/nightsailer/msgspec-x/issues>
 .. _ISO 8601 duration strings: https://en.wikipedia.org/wiki/ISO_8601#Durations
+
+- ``msgspec`` is used by many organizations and `open source projects
+  <https://github.com/nightsailer/msgspec-x/network/dependents>`__, here we highlight a
+  few:

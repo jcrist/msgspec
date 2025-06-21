@@ -998,6 +998,201 @@ container types. It is your responsibility to ensure cycles with these objects
 don't occur, as a cycle containing only ``gc=False`` structs will *never* be
 collected (leading to a memory leak).
 
+
+.. _struct-meta-subclasses:
+
+StructMeta Subclasses (Advanced)
+---------------------------------
+
+.. versionadded:: 0.20.0
+
+``msgspec-x`` provides comprehensive support for custom metaclasses that inherit from `msgspec.StructMeta`. This advanced feature enables users to create custom struct behaviors through metaclass programming while maintaining full compatibility with msgspec's serialization ecosystem.
+
+**What are StructMeta Subclasses?**
+
+StructMeta subclasses allow you to extend or customize the behavior of struct creation and management by defining your own metaclass that inherits from `msgspec.StructMeta`. This enables advanced patterns like:
+
+- Adding custom validation logic during struct class creation
+- Implementing custom field processing or transformation
+- Integrating with external frameworks or ORMs
+- Creating domain-specific struct variants with specialized behaviors
+
+**Basic Usage**
+
+Here's a simple example of creating and using a custom StructMeta subclass:
+
+.. code-block:: python
+
+    >>> import msgspec
+    >>> from msgspec import StructMeta
+
+    >>> class CustomMeta(StructMeta):
+    ...     """A custom metaclass that extends StructMeta"""
+    ...     def __new__(cls, name, bases, namespace):
+    ...         # Custom logic during class creation
+    ...         print(f"Creating struct class: {name}")
+    ...         return super().__new__(cls, name, bases, namespace)
+
+    >>> class CustomStruct(metaclass=CustomMeta):
+    ...     x: int
+    ...     y: str
+    ...     z: float = 3.14
+    Creating struct class: CustomStruct
+
+    >>> # Instances work exactly like regular structs
+    ... obj = CustomStruct(x=42, y="hello")
+    >>> obj
+    CustomStruct(x=42, y='hello', z=3.14)
+
+**Full Compatibility with msgspec Functions**
+
+Structures created with StructMeta subclasses work seamlessly with all msgspec operations:
+
+.. code-block:: python
+
+    >>> from msgspec.structs import asdict, astuple, replace, force_setattr
+
+    >>> # All struct utility functions work
+    >>> asdict(obj)
+    {'x': 42, 'y': 'hello', 'z': 3.14}
+
+    >>> astuple(obj)
+    (42, 'hello', 3.14)
+
+    >>> replace(obj, x=100)
+    CustomStruct(x=100, y='hello', z=3.14)
+
+    >>> # JSON encoding/decoding works
+    >>> import msgspec.json
+    >>> data = msgspec.json.encode(obj)
+    >>> msgspec.json.decode(data, type=CustomStruct)
+    CustomStruct(x=42, y='hello', z=3.14)
+
+    >>> # MessagePack encoding/decoding works
+    >>> import msgspec.msgpack
+    >>> data = msgspec.msgpack.encode(obj)
+    >>> msgspec.msgpack.decode(data, type=CustomStruct)
+    CustomStruct(x=42, y='hello', z=3.14)
+
+    >>> # Type conversion works
+    >>> msgspec.convert({'x': 1, 'y': 'test', 'z': 2.5}, type=CustomStruct)
+    CustomStruct(x=1, y='test', z=2.5)
+
+**Multi-Level Inheritance**
+
+StructMeta subclasses support inheritance chains, allowing for sophisticated metaclass hierarchies:
+
+.. code-block:: python
+
+    >>> class BaseMeta(StructMeta):
+    ...     """Base custom metaclass"""
+    ...     pass
+
+    >>> class DerivedMeta(BaseMeta):
+    ...     """Derived custom metaclass"""
+    ...     def __new__(cls, name, bases, namespace):
+    ...         # Add custom behavior
+    ...         result = super().__new__(cls, name, bases, namespace)
+    ...         result._custom_attribute = f"Enhanced {name}"
+    ...         return result
+
+    >>> class EnhancedStruct(metaclass=DerivedMeta):
+    ...     value: int
+    ...     name: str
+
+    >>> obj = EnhancedStruct(value=123, name="test")
+    >>> obj._custom_attribute
+    'Enhanced EnhancedStruct'
+
+    >>> # All msgspec functions still work
+    >>> asdict(obj)
+    {'value': 123, 'name': 'test'}
+
+**Nested Structures**
+
+StructMeta subclasses work correctly with nested structures and complex serialization scenarios:
+
+.. code-block:: python
+
+    >>> class ContainerMeta(StructMeta):
+    ...     """Metaclass for container structures"""
+    ...     pass
+
+    >>> class Item(metaclass=ContainerMeta):
+    ...     id: int
+    ...     name: str
+
+    >>> class Container(metaclass=ContainerMeta):
+    ...     items: list[Item]
+    ...     count: int
+
+    >>> container = Container(
+    ...     items=[Item(id=1, name="first"), Item(id=2, name="second")],
+    ...     count=2
+    ... )
+
+    >>> # Complex nested encoding/decoding works
+    >>> data = msgspec.json.encode(container)
+    >>> decoded = msgspec.json.decode(data, type=Container)
+    >>> decoded.items[0].name
+    'first'
+
+**Integration with Struct Options**
+
+StructMeta subclasses work with all struct configuration options:
+
+.. code-block:: python
+
+    >>> class FrozenMeta(StructMeta):
+    ...     """Metaclass for immutable structures"""
+    ...     pass
+
+    >>> class ImmutablePoint(metaclass=FrozenMeta, frozen=True, order=True):
+    ...     x: float
+    ...     y: float
+
+    >>> p1 = ImmutablePoint(1.0, 2.0)
+    >>> p2 = ImmutablePoint(3.0, 4.0)
+
+    >>> # Frozen behavior works
+    >>> try:
+    ...     p1.x = 5.0
+    ... except AttributeError as e:
+    ...     print(f"Expected error: {e}")
+    Expected error: immutable type: 'ImmutablePoint'
+
+    >>> # Ordering works
+    >>> p1 < p2
+    True
+
+    >>> # All msgspec functions work
+    >>> replace(p1, x=10.0)
+    ImmutablePoint(x=10.0, y=2.0)
+
+**Technical Implementation**
+
+``msgspec-x`` achieves StructMeta subclass support by modifying the core C implementation to use `PyType_IsSubtype()` checks instead of direct type comparisons. This change affects all core msgspec operations including:
+
+- Type validation during encoding/decoding
+- Struct utility functions (asdict, astuple, replace, etc.)
+- Type conversion operations
+- Tagged union resolution
+- Performance optimizations
+
+The implementation maintains full backward compatibility - existing code continues to work unchanged, while new code can take advantage of the enhanced metaclass support.
+
+**Use Cases**
+
+StructMeta subclasses enable advanced patterns such as:
+
+- **Framework Integration**: Creating structs that automatically integrate with web frameworks, ORMs, or validation libraries
+- **Domain-Specific Languages**: Building specialized struct types for specific problem domains
+- **Automatic Documentation**: Metaclasses that generate documentation or schema information
+- **Validation Enhancement**: Adding complex validation logic at the class level
+- **Serialization Customization**: Implementing custom serialization behaviors for specific use cases
+
+This feature is particularly valuable for library authors who want to build higher-level abstractions on top of msgspec's fast serialization capabilities.
+
 .. _type annotations: https://docs.python.org/3/library/typing.html
 .. _pattern matching: https://docs.python.org/3/reference/compound_stmts.html#the-match-statement
 .. _PEP 636: https://peps.python.org/pep-0636/

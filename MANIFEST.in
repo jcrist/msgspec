@@ -3,6 +3,9 @@ include msgspec/*.h
 include msgspec/*.py
 include msgspec/*.pyi
 include msgspec/py.typed
+include msgspec_x/*.py
+include msgspec_x/*.pyi
+include msgspec_x/py.typed
 include setup.py
 include versioneer.py
 include README.md

@@ -1,5 +1,5 @@
 name: 🙌 Feature Request
-description: Suggest a new feature or change to msgspec
+description: Suggest a new feature or change to msgspec-x
 body:
   - type: markdown
     attributes:
