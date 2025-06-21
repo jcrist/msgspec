@@ -8,6 +8,8 @@ Structs
 
 .. autoclass:: Struct
 
+.. autoclass:: StructMeta
+
 .. autofunction:: field
 
 .. autofunction:: defstruct
