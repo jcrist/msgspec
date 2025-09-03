@@ -57,11 +57,47 @@ ms_popcount(uint64_t i) {                            \
 #define MS_UNICODE_EQ(a, b) _PyUnicode_EQ(a, b)
 #endif
 
-#if PY314_PLUS
-#define MS_IMMORTAL_INITIAL_REFCNT _Py_IMMORTAL_INITIAL_REFCNT
-#else
-#define MS_IMMORTAL_INITIAL_REFCNT _Py_IMMORTAL_REFCNT
+#if defined(Py_GIL_DISABLED) && !PY314_PLUS
+#error "Py_GIL_DISABLED is only supported in Python 3.14+"
 #endif
+
+#if PY314_PLUS
+#ifdef Py_GIL_DISABLED
+#define _PyObject_HEAD_INIT(type)    \
+    {                               \
+        0,                          \
+        _Py_STATICALLY_ALLOCATED_FLAG, \
+        { 0 },                      \
+        0,                          \
+        _Py_IMMORTAL_REFCNT_LOCAL,  \
+        0,                          \
+        (type),                     \
+    }
+#else
+#if SIZEOF_VOID_P > 4
+#define _PyObject_HEAD_INIT(type)         \
+    {                                     \
+        .ob_refcnt = _Py_IMMORTAL_INITIAL_REFCNT,  \
+        .ob_flags = _Py_STATIC_FLAG_BITS, \
+        .ob_type = (type)                 \
+    }
+#else
+#define _PyObject_HEAD_INIT(type)         \
+    {                                     \
+        .ob_refcnt = _Py_STATIC_IMMORTAL_INITIAL_REFCNT, \
+        .ob_type = (type)                 \
+    }
+#endif // SIZEOF_VOID_P > 4
+#endif // Py_GIL_DISABLED
+#else
+#define _PyObject_HEAD_INIT(type)         \
+    {                                     \
+        _PyObject_EXTRA_INIT              \
+        .ob_refcnt = _Py_IMMORTAL_REFCNT, \
+        .ob_type = (type)                 \
+    },
+#endif // PY314_PLUS
+
 
 #define DIV_ROUND_CLOSEST(n, d) ((((n) < 0) == ((d) < 0)) ? (((n) + (d)/2)/(d)) : (((n) - (d)/2)/(d)))
 
@@ -243,16 +279,9 @@ static const char base64_encode_table[] =
  * GC Utilities                                                          *
  *************************************************************************/
 
-/* Mirrored from pycore_gc.h in cpython */
-typedef struct {
-    uintptr_t _gc_next;
-    uintptr_t _gc_prev;
-} MS_PyGC_Head;
-
-#define MS_AS_GC(o) ((MS_PyGC_Head *)(o)-1)
 #define MS_TYPE_IS_GC(t) (((PyTypeObject *)(t))->tp_flags & Py_TPFLAGS_HAVE_GC)
 #define MS_OBJECT_IS_GC(obj) MS_TYPE_IS_GC(Py_TYPE(obj))
-#define MS_IS_TRACKED(o) (MS_AS_GC(o)->_gc_next != 0)
+#define MS_IS_TRACKED(o) PyObject_GC_IsTracked(o)
 
 /* Is this object something that is/could be GC tracked? True if
  * - the value supports GC
@@ -2144,15 +2173,7 @@ PyTypeObject NoDefault_Type = {
     .tp_basicsize = 0
 };
 
-#if PY312_PLUS
-PyObject _NoDefault_Object = {
-    _PyObject_EXTRA_INIT
-    { MS_IMMORTAL_INITIAL_REFCNT },
-    &NoDefault_Type
-};
-#else
-PyObject _NoDefault_Object = {1, &NoDefault_Type};
-#endif
+PyObject _NoDefault_Object = _PyObject_HEAD_INIT(&NoDefault_Type);
 
 /*************************************************************************
  * UNSET singleton                                                       *
@@ -2248,15 +2269,7 @@ PyTypeObject Unset_Type = {
     .tp_basicsize = 0
 };
 
-#if PY312_PLUS
-PyObject _Unset_Object = {
-    _PyObject_EXTRA_INIT
-    { MS_IMMORTAL_INITIAL_REFCNT },
-    &Unset_Type
-};
-#else
-PyObject _Unset_Object = {1, &Unset_Type};
-#endif
+PyObject _Unset_Object = _PyObject_HEAD_INIT(&Unset_Type);
 
 
 /*************************************************************************
@@ -22271,5 +22284,6 @@ PyInit__core(void)
     Py_INCREF(st->StructType);
     if (PyModule_AddObject(m, "Struct", st->StructType) < 0) return NULL;
 
+    PyUnstable_Module_SetGIL(m, Py_MOD_GIL_NOT_USED);
     return m;
 }
