@@ -92,12 +92,39 @@ ms_popcount(uint64_t i) {                            \
 #else
 #define _PyObject_HEAD_INIT(type)         \
     {                                     \
-        _PyObject_EXTRA_INIT              \
         .ob_refcnt = _Py_IMMORTAL_REFCNT, \
         .ob_type = (type)                 \
-    },
+    }
 #endif // PY314_PLUS
 
+#if PY_VERSION_HEX < 0x030D00A1
+static inline int
+PyDict_GetItemRef(PyObject *mp, PyObject *key, PyObject **result)
+{
+#if PY_VERSION_HEX >= 0x03000000
+    PyObject *item = PyDict_GetItemWithError(mp, key);
+#else
+    PyObject *item = _PyDict_GetItemWithError(mp, key);
+#endif
+    if (item != NULL) {
+        *result = Py_NewRef(item);
+        return 1;  // found
+    }
+    if (!PyErr_Occurred()) {
+        *result = NULL;
+        return 0;  // not found
+    }
+    *result = NULL;
+    return -1;
+}
+#endif // PY_VERSION_HEX < 0x030D00A1
+
+#if PY_VERSION_HEX < 0x030D00B3
+#  define Py_BEGIN_CRITICAL_SECTION(op) {
+#  define Py_END_CRITICAL_SECTION() }
+#  define Py_BEGIN_CRITICAL_SECTION2(a, b) {
+#  define Py_END_CRITICAL_SECTION2() }
+#endif // PY_VERSION_HEX < 0x030D00B3
 
 #define DIV_ROUND_CLOSEST(n, d) ((((n) < 0) == ((d) < 0)) ? (((n) + (d)/2)/(d)) : (((n) - (d)/2)/(d)))
 
@@ -147,8 +174,10 @@ unicode_str_and_size_nocheck(PyObject *str, Py_ssize_t *size) {
 /* XXX: Optimized `PyUnicode_AsUTF8AndSize` */
 static inline const char *
 unicode_str_and_size(PyObject *str, Py_ssize_t *size) {
+#ifndef Py_GIL_DISABLED
     const char *out = unicode_str_and_size_nocheck(str, size);
     if (MS_LIKELY(out != NULL)) return out;
+#endif
     return PyUnicode_AsUTF8AndSize(str, size);
 }
 
@@ -338,6 +367,7 @@ murmur2(const char *p, Py_ssize_t len) {
 /*************************************************************************
  * String Cache                                                          *
  *************************************************************************/
+#ifndef Py_GIL_DISABLED
 
 #ifndef STRING_CACHE_SIZE
 #define STRING_CACHE_SIZE 512
@@ -362,6 +392,7 @@ string_cache_clear(void) {
         }
     }
 }
+#endif
 
 /*************************************************************************
  * Endian handling macros                                                *
@@ -4411,7 +4442,7 @@ typenode_collect_convert_literals(TypeNodeCollectState *state) {
 }
 
 static int
-typenode_collect_convert_structs(TypeNodeCollectState *state) {
+typenode_collect_convert_structs_lock_held(TypeNodeCollectState *state) {
     if (state->struct_obj == NULL && state->structs_set == NULL) {
         return 0;
     }
@@ -4433,12 +4464,13 @@ typenode_collect_convert_structs(TypeNodeCollectState *state) {
      * Try looking the structs_set up in the cache first, to avoid building a
      * new one below.
      */
-    PyObject *lookup = PyDict_GetItem(
-        state->mod->struct_lookup_cache, state->structs_set
-    );
+    PyObject *lookup = NULL;
+    if (PyDict_GetItemRef(state->mod->struct_lookup_cache, state->structs_set, &lookup) < 0) {
+        return -1;
+    }
+
     if (lookup != NULL) {
         /* Lookup was in the cache, update the state and return */
-        Py_INCREF(lookup);
         state->structs_lookup = lookup;
 
         if (Lookup_array_like(lookup)) {
@@ -4584,6 +4616,16 @@ cleanup:
     Py_XDECREF(struct_info);
     return status;
 }
+
+static int
+typenode_collect_convert_structs(TypeNodeCollectState *state) {
+    int status;
+    Py_BEGIN_CRITICAL_SECTION(state->mod->struct_lookup_cache);
+    status = typenode_collect_convert_structs_lock_held(state);
+    Py_END_CRITICAL_SECTION();
+    return status;
+}
+
 
 static void
 typenode_collect_clear_state(TypeNodeCollectState *state) {
@@ -6727,7 +6769,7 @@ static PyTypeObject StructInfo_Type = {
 };
 
 static PyObject *
-StructInfo_Convert(PyObject *obj) {
+StructInfo_Convert_lock_held(PyObject *obj) {
     MsgspecState *mod = msgspec_get_global_state();
     StructMetaObject *class;
     PyObject *annotations = NULL;
@@ -6792,16 +6834,6 @@ StructInfo_Convert(PyObject *obj) {
     Py_INCREF(class);
     info->class = class;
 
-    /* Cache the new StuctInfo on the original type annotation */
-    if (is_struct) {
-        Py_INCREF(info);
-        class->struct_info = info;
-    }
-    else {
-        if (PyObject_SetAttr(obj, mod->str___msgspec_cache__, (PyObject *)info) < 0) goto error;
-    }
-    cache_set = true;
-
     /* Process all the struct fields */
     for (Py_ssize_t i = 0; i < nfields; i++) {
         PyObject *field = PyTuple_GET_ITEM(class->struct_fields, i);
@@ -6811,6 +6843,16 @@ StructInfo_Convert(PyObject *obj) {
         if (type == NULL) goto error;
         info->types[i] = type;
     }
+
+    /* Cache the new StuctInfo on the original type annotation */
+    if (is_struct) {
+        Py_INCREF(info);
+        class->struct_info = info;
+    }
+    else {
+        if (PyObject_SetAttr(obj, mod->str___msgspec_cache__, (PyObject *)info) < 0) goto error;
+    }
+    cache_set = true;
 
     Py_DECREF(class);
     Py_DECREF(annotations);
@@ -6837,6 +6879,15 @@ error:
     Py_XDECREF(annotations);
     Py_XDECREF(info);
     return NULL;
+}
+
+static PyObject *
+StructInfo_Convert(PyObject *obj) {
+    PyObject *res = NULL;
+    Py_BEGIN_CRITICAL_SECTION(obj);
+    res = StructInfo_Convert_lock_held(obj);
+    Py_END_CRITICAL_SECTION();
+    return res;
 }
 
 static int
@@ -10235,6 +10286,7 @@ ms_encode_err_type_unsupported(PyTypeObject *type) {
     ((PyDateTime_Time *)(o))->tzinfo : Py_None)
 #endif
 
+#ifndef Py_GIL_DISABLED
 #ifndef TIMEZONE_CACHE_SIZE
 #define TIMEZONE_CACHE_SIZE 512
 #endif
@@ -10260,9 +10312,11 @@ timezone_cache_clear(void) {
     }
 }
 
+#endif /* Py_GIL_DISABLED */
 /* Returns a new reference */
 static PyObject*
 timezone_from_offset(int32_t offset) {
+#ifndef Py_GIL_DISABLED
     uint32_t index = ((uint32_t)offset) % TIMEZONE_CACHE_SIZE;
     if (timezone_cache[index].offset == offset) {
         PyObject *tz = timezone_cache[index].tz;
@@ -10279,6 +10333,14 @@ timezone_from_offset(int32_t offset) {
     Py_INCREF(tz);
     timezone_cache[index].tz = tz;
     return tz;
+#else
+    PyObject *delta = PyDelta_FromDSU(0, offset * 60, 0);
+    if (delta == NULL) return NULL;
+    PyObject *tz = PyTimeZone_FromOffset(delta);
+    Py_DECREF(delta);
+    return tz;
+#endif
+
 }
 
 static bool
@@ -15595,6 +15657,7 @@ mpack_decode_key(DecoderState *self, TypeNode *type, PathNode *path) {
         char *str;
         if (MS_UNLIKELY(mpack_read(self, &str, size) < 0)) return NULL;
 
+#ifndef Py_GIL_DISABLED
         /* Attempt a cache lookup. We don't know if it's ascii yet, but
          * checking if it's ascii is more expensive than just doing a lookup,
          * and most dict key strings are ascii */
@@ -15610,16 +15673,18 @@ mpack_decode_key(DecoderState *self, TypeNode *type, PathNode *path) {
                 return existing;
             }
         }
-
+#endif
         /* Cache miss, create a new string */
         PyObject *new = PyUnicode_DecodeUTF8(str, size, NULL);
         if (new == NULL) return NULL;
 
         /* If ascii, add it to the cache */
         if (PyUnicode_IS_COMPACT_ASCII(new)) {
-            Py_XDECREF(existing);
+#ifndef Py_GIL_DISABLED
             Py_INCREF(new);
+            Py_XDECREF(existing);
             string_cache[index] = new;
+#endif
         }
         return new;
     }
@@ -16166,7 +16231,9 @@ Decoder_decode(Decoder *self, PyObject *const *args, Py_ssize_t nargs)
         state.input_pos = buffer.buf;
         state.input_end = state.input_pos + buffer.len;
 
-        PyObject *res = mpack_decode(&state, state.type, NULL, false);
+        PyObject *res = NULL;
+
+        res = mpack_decode(&state, state.type, NULL, false);
 
         if (res != NULL && mpack_has_trailing_characters(&state)) {
             Py_CLEAR(res);
@@ -17302,7 +17369,7 @@ json_decode_dict_key(JSONDecoderState *self, TypeNode *type, PathNode *path) {
 
     size = json_decode_string_view(self, &view, &is_ascii);
     if (size < 0) return NULL;
-
+#ifndef Py_GIL_DISABLED
     bool cacheable = is_str && is_ascii && size > 0 && size <= STRING_CACHE_MAX_STRING_LENGTH;
     if (MS_UNLIKELY(!cacheable)) {
         return json_decode_dict_key_fallback(self, view, size, is_ascii, type, path);
@@ -17331,6 +17398,9 @@ json_decode_dict_key(JSONDecoderState *self, TypeNode *type, PathNode *path) {
     Py_INCREF(new);
     string_cache[index] = new;
     return new;
+#else
+    return json_decode_dict_key_fallback(self, view, size, is_ascii, type, path);
+#endif
 }
 
 static PyObject *
@@ -18394,6 +18464,7 @@ json_decode_struct_map_inner(
         if (MS_LIKELY(field_index >= 0)) {
             field_path.index = field_index;
             TypeNode *type = info->types[field_index];
+            assert(type != NULL);
             val = json_decode(self, type, &field_path);
             if (val == NULL) goto error;
             Struct_set_index(out, field_index, val);
@@ -19114,8 +19185,8 @@ JSONDecoder_decode(JSONDecoder *self, PyObject *const *args, Py_ssize_t nargs)
         state.input_pos = buffer.buf;
         state.input_end = state.input_pos + buffer.len;
 
-        PyObject *res = json_decode(&state, state.type, NULL);
-
+        PyObject *res;
+        res = json_decode(&state, state.type, NULL);
         if (res != NULL && json_has_trailing_characters(&state)) {
             Py_CLEAR(res);
         }
@@ -21976,8 +22047,10 @@ msgspec_traverse(PyObject *m, visitproc visit, void *arg)
     st->gc_cycle++;
     if (st->gc_cycle == 10) {
         st->gc_cycle = 0;
+#ifndef Py_GIL_DISABLED
         string_cache_clear();
         timezone_cache_clear();
+#endif
     }
 
     Py_VISIT(st->MsgspecError);
@@ -22338,7 +22411,8 @@ PyInit__core(void)
     if (st->StructType == NULL) return NULL;
     Py_INCREF(st->StructType);
     if (PyModule_AddObject(m, "Struct", st->StructType) < 0) return NULL;
-
+#ifdef Py_GIL_DISABLED
     PyUnstable_Module_SetGIL(m, Py_MOD_GIL_NOT_USED);
+#endif
     return m;
 }
