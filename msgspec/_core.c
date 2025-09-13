@@ -9,6 +9,8 @@
 #include "Python.h"
 #include "datetime.h"
 #include "structmember.h"
+#define Py_BUILD_CORE
+#include "internal/pycore_lock.h"
 
 #include "common.h"
 #include "itoa.h"
@@ -2959,6 +2961,7 @@ typedef struct {
 typedef struct StructInfo {
     PyObject_VAR_HEAD
     StructMetaObject *class;
+    PyEvent initialized;
     TypeNode *types[];
 } StructInfo;
 
@@ -2993,7 +2996,9 @@ static PyObject* NamedTupleInfo_Convert(PyObject*);
 static MS_INLINE StructInfo *
 TypeNode_get_struct_info(TypeNode *type) {
     /* Struct types are always first */
-    return type->details[0].pointer;
+    StructInfo *info = type->details[0].pointer;
+    PyEvent_Wait(&info->initialized);
+    return info;
 }
 
 static MS_INLINE Lookup *
@@ -6831,6 +6836,7 @@ StructInfo_Convert_lock_held(PyObject *obj) {
     for (Py_ssize_t i = 0; i < nfields; i++) {
         info->types[i] = NULL;
     }
+    info->initialized = (PyEvent){0};
     Py_INCREF(class);
     info->class = class;
 
@@ -6857,6 +6863,7 @@ StructInfo_Convert_lock_held(PyObject *obj) {
     Py_DECREF(class);
     Py_DECREF(annotations);
     PyObject_GC_Track(info);
+    _PyEvent_Notify(&info->initialized);
     return (PyObject *)info;
 
 error:
