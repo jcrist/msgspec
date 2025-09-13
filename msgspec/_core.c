@@ -6834,16 +6834,6 @@ StructInfo_Convert_lock_held(PyObject *obj) {
     Py_INCREF(class);
     info->class = class;
 
-    /* Process all the struct fields */
-    for (Py_ssize_t i = 0; i < nfields; i++) {
-        PyObject *field = PyTuple_GET_ITEM(class->struct_fields, i);
-        PyObject *field_type = PyDict_GetItem(annotations, field);
-        if (field_type == NULL) goto error;
-        TypeNode *type = TypeNode_Convert(field_type);
-        if (type == NULL) goto error;
-        info->types[i] = type;
-    }
-
     /* Cache the new StuctInfo on the original type annotation */
     if (is_struct) {
         Py_INCREF(info);
@@ -6853,6 +6843,16 @@ StructInfo_Convert_lock_held(PyObject *obj) {
         if (PyObject_SetAttr(obj, mod->str___msgspec_cache__, (PyObject *)info) < 0) goto error;
     }
     cache_set = true;
+
+    /* Process all the struct fields */
+    for (Py_ssize_t i = 0; i < nfields; i++) {
+        PyObject *field = PyTuple_GET_ITEM(class->struct_fields, i);
+        PyObject *field_type = PyDict_GetItem(annotations, field);
+        if (field_type == NULL) goto error;
+        TypeNode *type = TypeNode_Convert(field_type);
+        if (type == NULL) goto error;
+        info->types[i] = type;
+    }
 
     Py_DECREF(class);
     Py_DECREF(annotations);
@@ -15876,6 +15876,7 @@ mpack_decode_struct_map(
             }
         }
         else {
+
             PathNode field_path = {path, field_index, (PyObject *)st_type};
             val = mpack_decode(self, info->types[field_index], &field_path, is_key);
             if (val == NULL) goto error;
@@ -16231,9 +16232,7 @@ Decoder_decode(Decoder *self, PyObject *const *args, Py_ssize_t nargs)
         state.input_pos = buffer.buf;
         state.input_end = state.input_pos + buffer.len;
 
-        PyObject *res = NULL;
-
-        res = mpack_decode(&state, state.type, NULL, false);
+        PyObject *res = mpack_decode(&state, state.type, NULL, false);
 
         if (res != NULL && mpack_has_trailing_characters(&state)) {
             Py_CLEAR(res);
@@ -19185,8 +19184,8 @@ JSONDecoder_decode(JSONDecoder *self, PyObject *const *args, Py_ssize_t nargs)
         state.input_pos = buffer.buf;
         state.input_end = state.input_pos + buffer.len;
 
-        PyObject *res;
-        res = json_decode(&state, state.type, NULL);
+        PyObject *res = json_decode(&state, state.type, NULL);
+
         if (res != NULL && json_has_trailing_characters(&state)) {
             Py_CLEAR(res);
         }
