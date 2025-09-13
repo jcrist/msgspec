@@ -2961,7 +2961,7 @@ typedef struct StructInfo {
     PyObject_VAR_HEAD
     StructMetaObject *class;
 #ifdef Py_GIL_DISABLED
-    uint8_t initialized;
+    _Atomic(uint8_t) initialized;
 #endif
     TypeNode *types[];
 } StructInfo;
