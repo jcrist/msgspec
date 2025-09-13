@@ -4,13 +4,12 @@
 #include <stdbool.h>
 #include <limits.h>
 #include <float.h>
+#include <stdatomic.h>
 
 #define PY_SSIZE_T_CLEAN
 #include "Python.h"
 #include "datetime.h"
 #include "structmember.h"
-#define Py_BUILD_CORE
-#include "internal/pycore_lock.h"
 
 #include "common.h"
 #include "itoa.h"
@@ -2961,7 +2960,9 @@ typedef struct {
 typedef struct StructInfo {
     PyObject_VAR_HEAD
     StructMetaObject *class;
-    PyEvent initialized;
+#ifdef Py_GIL_DISABLED
+    uint8_t initialized;
+#endif
     TypeNode *types[];
 } StructInfo;
 
@@ -2997,7 +2998,16 @@ static MS_INLINE StructInfo *
 TypeNode_get_struct_info(TypeNode *type) {
     /* Struct types are always first */
     StructInfo *info = type->details[0].pointer;
-    PyEvent_Wait(&info->initialized);
+#ifdef Py_GIL_DISABLED
+    if (atomic_load(&info->initialized)) {
+        return info;
+    }
+    Py_BEGIN_ALLOW_THREADS
+    /* wait for the StructInfo to be fully initialized by other thread */
+    while (!atomic_load(&info->initialized)) {
+    }
+    Py_END_ALLOW_THREADS
+#endif
     return info;
 }
 
@@ -6836,7 +6846,9 @@ StructInfo_Convert_lock_held(PyObject *obj) {
     for (Py_ssize_t i = 0; i < nfields; i++) {
         info->types[i] = NULL;
     }
-    info->initialized = (PyEvent){0};
+#ifdef Py_GIL_DISABLED
+    atomic_store(&info->initialized, 0);
+#endif
     Py_INCREF(class);
     info->class = class;
 
@@ -6863,7 +6875,9 @@ StructInfo_Convert_lock_held(PyObject *obj) {
     Py_DECREF(class);
     Py_DECREF(annotations);
     PyObject_GC_Track(info);
-    _PyEvent_Notify(&info->initialized);
+#ifdef Py_GIL_DISABLED
+    atomic_store(&info->initialized, 1);
+#endif
     return (PyObject *)info;
 
 error:
