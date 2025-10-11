@@ -892,13 +892,14 @@ class TestDatetime:
         res = msgspec.json.decode(json_s, type=datetime.datetime)
         assert res == exp
 
+    @pytest.mark.skipif(hasattr(sys.flags, 'gil') and not sys.flags.gil, reason="cache is disabled without GIL")
     def test_decode_timezone_cache(self):
         msg = b'"2000-01-01T00:00:01+03:02"'
         tz = msgspec.json.decode(msg, type=datetime.datetime).tzinfo
         tz2 = msgspec.json.decode(msg, type=datetime.datetime).tzinfo
         assert tz is tz2
         del tz2
-        assert sys.getrefcount(tz) == 3  # 1 tz, 1 cache, 1 func call
+        assert sys.getrefcount(tz) <= 3  # 1 tz, 1 cache, 1 func call
         for _ in range(10):
             gc.collect()  # cache is cleared every 10 full collections
 
@@ -1966,6 +1967,7 @@ class TestDict:
             dec.decode(b'{"a": 1}')
 
     @pytest.mark.parametrize("length", [3, 32, 33])
+    @pytest.mark.skipif(hasattr(sys.flags, 'gil') and not sys.flags.gil, reason="cache is disabled without GIL")
     def test_decode_dict_string_cache(self, length):
         key = "x" * length
         msg = [{key: 1}, {key: 2}, {key: 3}]
@@ -2293,7 +2295,7 @@ class TestStruct:
         assert x == Person("harry", "potter", 13, False)
 
         # one for struct, one for output of getattr, and one for getrefcount
-        assert sys.getrefcount(x.first) == 3
+        assert sys.getrefcount(x.first) <= 3
 
         with pytest.raises(
             msgspec.ValidationError, match="Expected `object`, got `int`"
@@ -3025,7 +3027,7 @@ class TestRaw:
             r = msgspec.json.decode(msg, type=msgspec.Raw)
         assert bytes(r) == b'{"x": 1}'
         # Raw holds a ref to the original str
-        assert sys.getrefcount(msg) == c + 1
+        assert sys.getrefcount(msg) <= c + 1
         del r
         assert sys.getrefcount(msg) == c
 

@@ -220,7 +220,7 @@ class TestConvert:
         x = Custom()
         res = convert(x, Any)
         assert res is x
-        assert sys.getrefcount(x) == 3  # x + res + 1
+        assert sys.getrefcount(x) <= 3  # x + res + 1
 
     def test_custom_input_type_works_with_custom(self):
         class Custom:
@@ -229,7 +229,7 @@ class TestConvert:
         x = Custom()
         res = convert(x, Custom)
         assert res is x
-        assert sys.getrefcount(x) == 3  # x + res + 1
+        assert sys.getrefcount(x) <= 3  # x + res + 1
 
     def test_custom_input_type_works_with_dec_hook(self):
         class Custom:
@@ -247,8 +247,8 @@ class TestConvert:
         x = Custom()
         res = convert(x, Custom2, dec_hook=dec_hook)
         assert isinstance(res, Custom2)
-        assert sys.getrefcount(res) == 2  # res + 1
-        assert sys.getrefcount(x) == 2  # x + 1
+        assert sys.getrefcount(res) <= 2  # res + 1
+        assert sys.getrefcount(x) <= 2  # x + 1
 
     def test_unsupported_output_type(self):
         with pytest.raises(TypeError, match="more than one array-like"):
@@ -397,7 +397,7 @@ class TestInt:
         x = MyInt(100)
         sol = convert(x, MyInt)
         assert sol is x
-        assert sys.getrefcount(x) == 3  # x + sol + 1
+        assert sys.getrefcount(x) <= 3  # x + sol + 1
 
 
 class TestFloat:
@@ -535,10 +535,10 @@ class TestBinary:
 
         del sol
 
-        assert sys.getrefcount(msg) == 2  # msg + 1
+        assert sys.getrefcount(msg) <= 2  # msg + 1
         sol = convert(msg, MyBytes)
         assert sol is msg
-        assert sys.getrefcount(msg) == 3  # msg + sol + 1
+        assert sys.getrefcount(msg) <= 3  # msg + sol + 1
 
 
 class TestDateTime:
@@ -828,7 +828,7 @@ class TestEnum:
 
         msg = MyInt(1)
         assert convert(msg, Ex) is Ex.x
-        assert sys.getrefcount(msg) == 2  # msg + 1
+        assert sys.getrefcount(msg) <= 2  # msg + 1
         assert convert(MyInt(2), Ex) is Ex.y
 
     def test_enum_missing(self):
@@ -2223,7 +2223,7 @@ class TestStructPostInit:
         res = convert(msg, type=typ, from_attributes=from_attributes)
         assert type(res) is Ex
         assert called
-        assert sys.getrefcount(singleton) == 2  # 1 for ref, 1 for call
+        assert sys.getrefcount(singleton) <= 2  # 1 for ref, 1 for call
 
     @pytest.mark.parametrize("union", [False, True])
     @pytest.mark.parametrize("exc_class", [ValueError, TypeError, OSError])

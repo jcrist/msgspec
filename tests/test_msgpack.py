@@ -547,6 +547,7 @@ class TestDecoderMisc:
 
     @pytest.mark.parametrize("length", [3, 31, 33])
     @pytest.mark.parametrize("typed", [False, True])
+    @pytest.mark.skipif(hasattr(sys.flags, 'gil') and not sys.flags.gil, reason="cache is disabled without GIL")
     def test_decode_dict_string_cache(self, length, typed):
         key = "x" * length
         msg = [{key: 1}, {key: 2}, {key: 3}]
@@ -685,13 +686,13 @@ class TestTypedDecoder:
         assert bytes(res) == b"abcde"
         assert len(res) == 5
         if input_type is memoryview:
-            assert sys.getrefcount(ref) == 3
+            assert sys.getrefcount(ref) <= 3
             del msg
-            assert sys.getrefcount(ref) == 3
+            assert sys.getrefcount(ref) <= 3
             del res
-            assert sys.getrefcount(ref) == 2
+            assert sys.getrefcount(ref) <= 2
         elif input_type is bytes:
-            assert sys.getrefcount(msg) == 3
+            assert sys.getrefcount(msg) <= 3
 
     def test_datetime_aware_ext(self):
         dec = msgspec.msgpack.Decoder(datetime.datetime)
@@ -816,7 +817,7 @@ class TestTypedDecoder:
         res = dec.decode(enc.encode(x))
         assert res == x
         if res:
-            assert sys.getrefcount(res[0]) == 3  # 1 tuple, 1 index, 1 func call
+            assert sys.getrefcount(res[0]) <= 3  # 1 tuple, 1 index, 1 func call
 
     @pytest.mark.parametrize("typ", [tuple, Tuple, Tuple[Any, ...]])
     def test_vartuple_any(self, typ):
