@@ -2633,18 +2633,24 @@ AssocList_FromDict(PyObject *dict) {
 
     PyObject *key, *val;
     Py_ssize_t pos = 0;
+    int err = 0;
+    Py_BEGIN_CRITICAL_SECTION(dict);
     while (PyDict_Next(dict, &pos, &key, &val)) {
         if (!PyUnicode_Check(key)) {
             PyErr_SetString(
                 PyExc_TypeError,
                 "Only dicts with str keys are supported when `order` is not `None`"
             );
-            goto error;
+            err = 1;
+            break;
         }
-        if (AssocList_Append(out, key, val) < 0) goto error;
+        if (AssocList_Append(out, key, val) < 0) {
+            err = 1;
+            break;
+        }
     }
-    return out;
-error:
+    Py_END_CRITICAL_SECTION();
+    if (!err) return out;
     AssocList_Free(out);
     return NULL;
 }
@@ -9206,22 +9212,32 @@ AssocList_FromObject(PyObject *obj) {
     }
 
     out = AssocList_New(max_size);
+    Py_BEGIN_CRITICAL_SECTION(obj);
     if (out == NULL) goto cleanup;
-
     /* Append everything in `__dict__` */
     if (dict != NULL) {
         PyObject *key, *val;
         Py_ssize_t pos = 0;
+        int err = 0;
+        Py_BEGIN_CRITICAL_SECTION(dict);
         while (PyDict_Next(dict, &pos, &key, &val)) {
             if (MS_LIKELY(PyUnicode_CheckExact(key))) {
                 Py_ssize_t key_len;
                 if (MS_UNLIKELY(val == UNSET)) continue;
                 const char* key_buf = unicode_str_and_size(key, &key_len);
-                if (MS_UNLIKELY(key_buf == NULL)) goto cleanup;
+                if (MS_UNLIKELY(key_buf == NULL)) {
+                    err = 1;
+                    break;
+                }
                 if (MS_UNLIKELY(*key_buf == '_')) continue;
-                if (MS_UNLIKELY(AssocList_Append(out, key, val) < 0)) goto cleanup;
+                if (MS_UNLIKELY(AssocList_Append(out, key, val) < 0)) {
+                    err = 1;
+                    break;
+                }
             }
         }
+        Py_END_CRITICAL_SECTION();
+        if (MS_UNLIKELY(err)) goto cleanup;
     }
     /* Then append everything in slots */
     type = Py_TYPE(obj);
@@ -9246,6 +9262,7 @@ AssocList_FromObject(PyObject *obj) {
 
 cleanup:
     Py_XDECREF(dict);
+    Py_END_CRITICAL_SECTION();
     Py_LeaveRecursiveCall();
     if (!ok) {
         AssocList_Free(out);
@@ -12490,8 +12507,12 @@ static int
 mpack_encode_bytearray(EncoderState *self, PyObject *obj)
 {
     Py_ssize_t len = PyByteArray_GET_SIZE(obj);
+    int ret = 0;
+    Py_BEGIN_CRITICAL_SECTION(obj);
     const char* buf = PyByteArray_AS_STRING(obj);
-    return mpack_encode_bin(self, buf, len);
+    ret = mpack_encode_bin(self, buf, len);
+    Py_END_CRITICAL_SECTION();
+    return ret;
 }
 
 static int
@@ -12559,12 +12580,14 @@ mpack_encode_list(EncoderState *self, PyObject *obj)
 
     if (mpack_encode_array_header(self, len, "list") < 0) return -1;
     if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
+    Py_BEGIN_CRITICAL_SECTION(obj);
     for (i = 0; i < len; i++) {
         if (mpack_encode_inline(self, PyList_GET_ITEM(obj, i)) < 0) {
             status = -1;
             break;
         }
     }
+    Py_END_CRITICAL_SECTION();
     Py_LeaveRecursiveCall();
     return status;
 }
@@ -12703,12 +12726,14 @@ mpack_encode_dict(EncoderState *self, PyObject *obj)
 
     if (mpack_encode_map_header(self, len, "dicts") < 0) return -1;
     if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
+    Py_BEGIN_CRITICAL_SECTION(obj);
     while (PyDict_Next(obj, &pos, &key, &val)) {
         if (mpack_encode_dict_key_inline(self, key) < 0) goto cleanup;
         if (mpack_encode_inline(self, val) < 0) goto cleanup;
     }
     status = 0;
-cleanup:
+cleanup:;
+    Py_END_CRITICAL_SECTION();
     Py_LeaveRecursiveCall();
     return status;
 }
@@ -12805,23 +12830,36 @@ mpack_encode_object(EncoderState *self, PyObject *obj)
     /* Cache header offset in case we need to adjust the header after writing */
     Py_ssize_t header_offset = self->output_len;
     if (mpack_encode_map_header(self, max_size, "objects") < 0) goto cleanup;
-
+    Py_BEGIN_CRITICAL_SECTION(obj);
     /* First encode everything in `__dict__` */
     if (dict != NULL) {
         PyObject *key, *val;
         Py_ssize_t pos = 0;
+        int err = 0;
+        Py_BEGIN_CRITICAL_SECTION(dict);
         while (PyDict_Next(dict, &pos, &key, &val)) {
             if (MS_LIKELY(PyUnicode_CheckExact(key))) {
                 Py_ssize_t key_len;
                 if (MS_UNLIKELY(val == UNSET)) continue;
                 const char* key_buf = unicode_str_and_size(key, &key_len);
-                if (MS_UNLIKELY(key_buf == NULL)) goto cleanup;
+                if (MS_UNLIKELY(key_buf == NULL)) {
+                    err = 1;
+                    break;
+                }
                 if (MS_UNLIKELY(*key_buf == '_')) continue;
-                if (MS_UNLIKELY(mpack_encode_cstr(self, key_buf, key_len) < 0)) goto cleanup;
-                if (MS_UNLIKELY(mpack_encode(self, val) < 0)) goto cleanup;
+                if (MS_UNLIKELY(mpack_encode_cstr(self, key_buf, key_len) < 0)) {
+                    err = 1;
+                    break;
+                }
+                if (MS_UNLIKELY(mpack_encode(self, val) < 0)) {
+                    err = 1;
+                    break;
+                }
                 size++;
             }
         }
+        Py_END_CRITICAL_SECTION();
+        if (MS_UNLIKELY(err)) goto cleanup;
     }
     /* Then encode everything in slots */
     type = Py_TYPE(obj);
@@ -12861,6 +12899,7 @@ mpack_encode_object(EncoderState *self, PyObject *obj)
     status = 0;
 cleanup:
     Py_XDECREF(dict);
+    Py_END_CRITICAL_SECTION();
     Py_LeaveRecursiveCall();
     return status;
 }
@@ -13835,9 +13874,13 @@ cleanup:
 static MS_NOINLINE int
 json_encode_list(EncoderState *self, PyObject *obj)
 {
-    return json_encode_sequence(
+    int ret;
+    Py_BEGIN_CRITICAL_SECTION(obj);
+    ret = json_encode_sequence(
         self, PyList_GET_SIZE(obj), ((PyListObject *)obj)->ob_item
     );
+    Py_END_CRITICAL_SECTION();
+    return ret;
 }
 
 static MS_NOINLINE int
@@ -14012,6 +14055,7 @@ json_encode_dict(EncoderState *self, PyObject *obj)
 
     if (ms_write(self, "{", 1) < 0) return -1;
     if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
+    Py_BEGIN_CRITICAL_SECTION(obj);
     while (PyDict_Next(obj, &pos, &key, &val)) {
         if (json_encode_dict_key(self, key) < 0) goto cleanup;
         if (ms_write(self, ":", 1) < 0) goto cleanup;
@@ -14022,6 +14066,7 @@ json_encode_dict(EncoderState *self, PyObject *obj)
     *(self->output_buffer_raw + self->output_len - 1) = '}';
     status = 0;
 cleanup:
+    Py_END_CRITICAL_SECTION();
     Py_LeaveRecursiveCall();
     return status;
 }
@@ -14091,25 +14136,45 @@ json_encode_object(EncoderState *self, PyObject *obj)
     if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
     /* First encode everything in `__dict__` */
     PyObject *dict = PyObject_GenericGetDict(obj, NULL);
+    Py_BEGIN_CRITICAL_SECTION(obj);
     if (MS_UNLIKELY(dict == NULL)) {
         PyErr_Clear();
     }
     else {
         PyObject *key, *val;
         Py_ssize_t pos = 0;
+        int err = 0;
+        Py_BEGIN_CRITICAL_SECTION(dict);
         while (PyDict_Next(dict, &pos, &key, &val)) {
             if (MS_LIKELY(PyUnicode_CheckExact(key))) {
                 Py_ssize_t key_len;
                 const char* key_buf = unicode_str_and_size(key, &key_len);
                 if (MS_UNLIKELY(val == UNSET)) continue;
-                if (MS_UNLIKELY(key_buf == NULL)) goto cleanup;
+                if (MS_UNLIKELY(key_buf == NULL)) {
+                    err = 1;
+                    break;
+                }
                 if (MS_UNLIKELY(*key_buf == '_')) continue;
-                if (MS_UNLIKELY(json_encode_cstr_noescape(self, key_buf, key_len) < 0)) goto cleanup;
-                if (MS_UNLIKELY(ms_write(self, ":", 1) < 0)) goto cleanup;
-                if (MS_UNLIKELY(json_encode(self, val) < 0)) goto cleanup;
-                if (MS_UNLIKELY(ms_write(self, ",", 1) < 0)) goto cleanup;
+                if (MS_UNLIKELY(json_encode_cstr_noescape(self, key_buf, key_len) < 0)) {
+                    err = 1;
+                    break;
+                }
+                if (MS_UNLIKELY(ms_write(self, ":", 1) < 0)) {
+                    err = 1;
+                    break;
+                }
+                if (MS_UNLIKELY(json_encode(self, val) < 0)) {
+                    err = 1;
+                    break;
+                }
+                if (MS_UNLIKELY(ms_write(self, ",", 1) < 0)) {
+                    err = 1;
+                    break;
+                }
             }
         }
+        Py_END_CRITICAL_SECTION();
+        if (MS_UNLIKELY(err)) goto cleanup;
     }
     /* Then encode everything in slots */
     PyTypeObject *type = Py_TYPE(obj);
@@ -14142,6 +14207,7 @@ json_encode_object(EncoderState *self, PyObject *obj)
         status = ms_write(self, "}", 1);
     }
 cleanup:
+    Py_END_CRITICAL_SECTION();
     Py_XDECREF(dict);
     Py_LeaveRecursiveCall();
     return status;
@@ -19688,6 +19754,7 @@ to_builtins_dict(ToBuiltinsState *self, PyObject *obj) {
     PyObject *new_key = NULL, *new_val = NULL, *key, *val;
     bool ok = false;
     PyObject *out = PyDict_New();
+    Py_BEGIN_CRITICAL_SECTION(obj);
     if (out == NULL) goto cleanup;
 
     Py_ssize_t pos = 0;
@@ -19721,6 +19788,7 @@ to_builtins_dict(ToBuiltinsState *self, PyObject *obj) {
     ok = true;
 
 cleanup:
+    Py_END_CRITICAL_SECTION();
     Py_LeaveRecursiveCall();
     if (!ok) {
         Py_CLEAR(out);
@@ -19861,6 +19929,7 @@ to_builtins_object(ToBuiltinsState *self, PyObject *obj) {
     if (Py_EnterRecursiveCall(" while serializing an object")) return NULL;
 
     out = PyDict_New();
+    Py_BEGIN_CRITICAL_SECTION(obj);
     if (out == NULL) goto cleanup;
 
     /* First encode everything in `__dict__` */
@@ -19871,21 +19940,34 @@ to_builtins_object(ToBuiltinsState *self, PyObject *obj) {
     else {
         PyObject *key, *val;
         Py_ssize_t pos = 0;
+        int err = 0;
+        Py_BEGIN_CRITICAL_SECTION(dict);
         while (PyDict_Next(dict, &pos, &key, &val)) {
             if (MS_LIKELY(PyUnicode_CheckExact(key))) {
                 Py_ssize_t key_len;
                 if (MS_UNLIKELY(val == UNSET)) continue;
                 const char* key_buf = unicode_str_and_size(key, &key_len);
-                if (MS_UNLIKELY(key_buf == NULL)) goto cleanup;
+                if (MS_UNLIKELY(key_buf == NULL)) {
+                    err = 1;
+                    break;
+                }
                 if (MS_UNLIKELY(*key_buf == '_')) continue;
 
                 PyObject *val2 = to_builtins(self, val, false);
-                if (val2 == NULL) goto cleanup;
+                if (val2 == NULL) {
+                    err = 1;
+                    break;
+                }
                 int status = PyDict_SetItem(out, key, val2);
                 Py_DECREF(val2);
-                if (status < 0) goto cleanup;
+                if (status < 0) {
+                    err = 1;
+                    break;
+                }
             }
         }
+        Py_END_CRITICAL_SECTION();
+        if (MS_UNLIKELY(err)) goto cleanup;
     }
     /* Then encode everything in slots */
     PyTypeObject *type = Py_TYPE(obj);
@@ -19924,6 +20006,7 @@ to_builtins_object(ToBuiltinsState *self, PyObject *obj) {
 
 cleanup:
     Py_XDECREF(dict);
+    Py_END_CRITICAL_SECTION();
     Py_LeaveRecursiveCall();
     if (!ok) {
         Py_CLEAR(out);
@@ -21345,23 +21428,28 @@ static PyObject *
 convert_dict(
     ConvertState *self, PyObject *obj, TypeNode *type, PathNode *path
 ) {
+    PyObject *res = NULL;
+    Py_BEGIN_CRITICAL_SECTION(obj);
     if (type->types & MS_TYPE_DICT) {
-        return convert_dict_to_dict(self, obj, type, path);
+        res = convert_dict_to_dict(self, obj, type, path);
     }
     else if (type->types & MS_TYPE_STRUCT) {
         StructInfo *info = TypeNode_get_struct_info(type);
-        return convert_dict_to_struct(self, obj, info, path, false);
+        res = convert_dict_to_struct(self, obj, info, path, false);
     }
     else if (type->types & MS_TYPE_STRUCT_UNION) {
-        return convert_dict_to_struct_union(self, obj, type, path);
+        res = convert_dict_to_struct_union(self, obj, type, path);
     }
     else if (type->types & MS_TYPE_TYPEDDICT) {
-        return convert_dict_to_typeddict(self, obj, type, path);
+        res = convert_dict_to_typeddict(self, obj, type, path);
     }
     else if (type->types & MS_TYPE_DATACLASS) {
-        return convert_dict_to_dataclass(self, obj, type, path);
+        res = convert_dict_to_dataclass(self, obj, type, path);
+    } else {
+        res = ms_validation_error("object", type, path);
     }
-    return ms_validation_error("object", type, path);
+    Py_END_CRITICAL_SECTION();
+    return res;
 }
 
 static PyObject *
