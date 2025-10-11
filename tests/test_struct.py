@@ -987,7 +987,10 @@ def test_struct_gc_not_added_if_not_needed():
 
 
 class TestStructGC:
-    @pytest.mark.skipif(hasattr(sys.flags, 'gil') and not sys.flags.gil, reason="object layout is different on free-threading builds")
+    @pytest.mark.skipif(
+        hasattr(sys.flags, "gil") and not sys.flags.gil,
+        reason="object layout is different on free-threading builds",
+    )
     def test_memory_layout(self):
         sizes = {}
         for has_gc in [False, True]:

@@ -892,7 +892,10 @@ class TestDatetime:
         res = msgspec.json.decode(json_s, type=datetime.datetime)
         assert res == exp
 
-    @pytest.mark.skipif(hasattr(sys.flags, 'gil') and not sys.flags.gil, reason="cache is disabled without GIL")
+    @pytest.mark.skipif(
+        hasattr(sys.flags, "gil") and not sys.flags.gil,
+        reason="cache is disabled without GIL",
+    )
     def test_decode_timezone_cache(self):
         msg = b'"2000-01-01T00:00:01+03:02"'
         tz = msgspec.json.decode(msg, type=datetime.datetime).tzinfo
@@ -1967,7 +1970,10 @@ class TestDict:
             dec.decode(b'{"a": 1}')
 
     @pytest.mark.parametrize("length", [3, 32, 33])
-    @pytest.mark.skipif(hasattr(sys.flags, 'gil') and not sys.flags.gil, reason="cache is disabled without GIL")
+    @pytest.mark.skipif(
+        hasattr(sys.flags, "gil") and not sys.flags.gil,
+        reason="cache is disabled without GIL",
+    )
     def test_decode_dict_string_cache(self, length):
         key = "x" * length
         msg = [{key: 1}, {key: 2}, {key: 3}]
