@@ -5,8 +5,8 @@ from typing import Dict, List, Union, Annotated
 
 import pytest
 
-import msgspec
-from msgspec import Meta
+import msgspec_m as msgspec
+from msgspec_m import Meta
 
 
 @pytest.fixture(params=["json", "msgpack"])
@@ -65,10 +65,10 @@ class TestMetaObject:
             assert getattr(c, f) == sol
 
     def test_repr_empty(self):
-        assert repr(Meta()) == "msgspec.Meta()"
+        assert repr(Meta()) == "msgspec_m.Meta()"
         for field in FIELDS:
             c = Meta(**{field: None})
-            assert repr(c) == "msgspec.Meta()"
+            assert repr(c) == "msgspec_m.Meta()"
 
     def test_repr_error(self):
         class Oops:
@@ -82,11 +82,11 @@ class TestMetaObject:
     @pytest.mark.parametrize("field", FIELDS)
     def test_repr_one_field(self, field):
         c = Meta(**{field: FIELDS[field]})
-        assert repr(c) == f"msgspec.Meta({field}={FIELDS[field]!r})"
+        assert repr(c) == f"msgspec_m.Meta({field}={FIELDS[field]!r})"
 
     def test_repr_multiple_fields(self):
         c = Meta(gt=0, lt=1)
-        assert repr(c) == "msgspec.Meta(gt=0, lt=1)"
+        assert repr(c) == "msgspec_m.Meta(gt=0, lt=1)"
 
     def test_rich_repr_empty(self):
         assert Meta().__rich_repr__() == []

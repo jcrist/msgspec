@@ -22,7 +22,7 @@ from typing import (
 
 import pytest
 
-import msgspec
+import msgspec_m as msgspec
 
 UTC = datetime.timezone.utc
 
@@ -514,10 +514,10 @@ class TestDecoderMisc:
     def test_decoder_repr(self):
         typ = List[Dict[int, float]]
         dec = msgspec.msgpack.Decoder(typ)
-        assert repr(dec) == f"msgspec.msgpack.Decoder({typ!r})"
+        assert repr(dec) == f"msgspec_m.msgpack.Decoder({typ!r})"
 
         dec = msgspec.msgpack.Decoder()
-        assert repr(dec) == f"msgspec.msgpack.Decoder({Any!r})"
+        assert repr(dec) == f"msgspec_m.msgpack.Decoder({Any!r})"
 
     def test_decode_with_trailing_characters_errors(self):
         dec = msgspec.msgpack.Decoder()

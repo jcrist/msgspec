@@ -1,6 +1,6 @@
 import textwrap
 
-import msgspec
+import msgspec_m as msgspec
 
 from utils import temp_module
 
@@ -16,7 +16,7 @@ def test_process_large_recursive_union():
 
     def gen_code():
         yield "from __future__ import annotations"
-        yield "from msgspec import Struct"
+        yield "from msgspec_m import Struct"
         yield "from typing import Union"
 
         for i in range(50):

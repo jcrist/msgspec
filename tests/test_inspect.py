@@ -29,9 +29,9 @@ from typing import (
 import pytest
 from utils import temp_module
 
-import msgspec
-import msgspec.inspect as mi
-from msgspec import Meta
+import msgspec_m as msgspec
+import msgspec_m.inspect as mi
+from msgspec_m import Meta
 
 
 PY312 = sys.version_info[:2] >= (3, 12)
@@ -698,9 +698,9 @@ def test_unset_fields(kind):
 def test_self_referential_objects(kind):
     if kind == "struct":
         code = """
-        import msgspec
+        import msgspec_m
 
-        class Node(msgspec.Struct):
+        class Node(msgspec_m.Struct):
             child: "Node"
         """
     elif kind == "namedtuple":

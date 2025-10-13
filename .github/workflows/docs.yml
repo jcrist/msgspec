@@ -7,6 +7,7 @@ on:
 
 jobs:
   build-docs:
+    if: ${{ false }} # Disable on our fork
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

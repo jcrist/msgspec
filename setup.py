@@ -41,8 +41,8 @@ if DEBUG:
 
 ext_modules = [
     Extension(
-        "msgspec._core",
-        [os.path.join("msgspec", "_core.c")],
+        "msgspec_m._core",
+        [os.path.join("msgspec_m", "_core.c")],
         extra_compile_args=extra_compile_args,
         extra_link_args=extra_link_args,
     )
@@ -70,7 +70,7 @@ extras_require = {
 }
 
 setup(
-    name="msgspec-m",
+    name="msgspec_m",
     version=versioneer.get_version(),
     cmdclass=versioneer.get_cmdclass(),
     maintainer="marimo team",
@@ -99,8 +99,8 @@ setup(
     ],
     extras_require=extras_require,
     license="BSD",
-    packages=["msgspec"],
-    package_data={"msgspec": ["py.typed", "*.pyi"]},
+    packages=["msgspec_m"],
+    package_data={"msgspec_m": ["py.typed", "*.pyi"]},
     ext_modules=ext_modules,
     long_description=(
         open("README.md", encoding="utf-8").read()
