@@ -1,3 +1,10 @@
+> ⚠️ **Community Fork Notice**
+> This repository is a **community-maintained fork** of [`jcrist/msgspec`](https://github.com/jcrist/msgspec).
+> The goal is to **publish wheels to PyPI** as `msgspec-m` for easier installation.
+> We are **not accepting new features or major changes** — only minimal maintenance and packaging updates.
+
+---
+
 <p align="center">
   <a href="https://jcristharif.com/msgspec/">
     <img src="https://raw.githubusercontent.com/jcrist/msgspec/main/docs/source/_static/msgspec-logo-light.svg" width="35%" alt="msgspec" />
@@ -5,26 +12,22 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/jcrist/msgspec/actions/workflows/ci.yml">
-    <img src="https://github.com/jcrist/msgspec/actions/workflows/ci.yml/badge.svg">
+  <a href="https://github.com/marimo-team/msgspec/actions/workflows/ci.yml">
+    <img src="https://github.com/marimo-team/msgspec/actions/workflows/ci.yml/badge.svg">
   </a>
   <a href="https://jcristharif.com/msgspec/">
     <img src="https://img.shields.io/badge/docs-latest-blue.svg">
   </a>
-  <a href="https://github.com/jcrist/msgspec/blob/main/LICENSE">
-    <img src="https://img.shields.io/github/license/jcrist/msgspec.svg">
+  <a href="https://github.com/marimo-team/msgspec/blob/main/LICENSE">
+    <img src="https://img.shields.io/github/license/marimo-team/msgspec.svg">
   </a>
-  <a href="https://pypi.org/project/msgspec/">
-    <img src="https://img.shields.io/pypi/v/msgspec.svg">
+  <a href="https://pypi.org/project/msgspec-m/">
+    <img src="https://img.shields.io/pypi/v/msgspec-m.svg">
   </a>
-  <a href="https://anaconda.org/conda-forge/msgspec">
-    <img src="https://img.shields.io/conda/vn/conda-forge/msgspec.svg">
-  </a>
-  <a href="https://codecov.io/gh/jcrist/msgspec">
-    <img src="https://codecov.io/gh/jcrist/msgspec/branch/main/graph/badge.svg">
+  <a href="https://codecov.io/gh/marimo-team/msgspec">
+    <img src="https://codecov.io/gh/marimo-team/msgspec/branch/main/graph/badge.svg">
   </a>
 </p>
-
 
 `msgspec` is a *fast* serialization and validation library, with builtin
 support for [JSON](https://json.org), [MessagePack](https://msgpack.org),

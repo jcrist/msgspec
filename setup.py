@@ -70,16 +70,17 @@ extras_require = {
 }
 
 setup(
-    name="msgspec",
+    name="msgspec-m",
     version=versioneer.get_version(),
     cmdclass=versioneer.get_cmdclass(),
-    maintainer="Jim Crist-Harif",
-    maintainer_email="jcristharif@gmail.com",
-    url="https://jcristharif.com/msgspec/",
+    maintainer="marimo team",
+    maintainer_email="contact@marimo.io",
+    url="https://github.com/marimo-team/msgspec",
     project_urls={
         "Documentation": "https://jcristharif.com/msgspec/",
-        "Source": "https://github.com/jcrist/msgspec/",
-        "Issue Tracker": "https://github.com/jcrist/msgspec/issues",
+        "Source": "https://github.com/marimo-team/msgspec",
+        "Issue Tracker": "https://github.com/marimo-team/msgspec/issues",
+        "Original Source": "https://github.com/jcrist/msgspec",
     },
     description=(
         "A fast serialization and validation library, with builtin support for "
