@@ -13,6 +13,12 @@ on:
       - "README.rst"
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag to rebuild wheels for (e.g., 0.19.1)'
+        required: true
+        type: string
 
 jobs:
   lint:
@@ -80,7 +86,7 @@ jobs:
     env:
       CIBW_TEST_EXTRAS: "test"
       CIBW_TEST_COMMAND: "pytest {project}/tests"
-      CIBW_BUILD: "cp39-* cp310-* cp311-* cp312-* cp313-*"
+      CIBW_BUILD: "cp39-* cp310-* cp311-* cp312-* cp313-* cp314-*"
       CIBW_SKIP: "*-win32 *_i686 *_s390x *_ppc64le"
       CIBW_ARCHS_MACOS: "x86_64 arm64"
       CIBW_ARCHS_LINUX: "x86_64 aarch64"
@@ -89,6 +95,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.version || '' }}
 
       - name: Set up QEMU
         if: runner.os == 'Linux'
@@ -97,16 +105,16 @@ jobs:
           platforms: all
 
       - name: Set up Environment
-        if: github.event_name != 'release'
+        if: github.event_name != 'release' && github.event_name != 'workflow_dispatch'
         run: |
-            echo "CIBW_SKIP=${CIBW_SKIP} *-musllinux_* cp39-*_aarch64 cp311-*_aarch64 cp312-*_aarch64 cp313-*_aarch64" >> $GITHUB_ENV
+            echo "CIBW_SKIP=${CIBW_SKIP} *-musllinux_* cp39-*_aarch64 cp311-*_aarch64 cp312-*_aarch64 cp313-*_aarch64 cp314-*_aarch64" >> $GITHUB_ENV
 
       - name: Build & Test Wheels
         uses: pypa/cibuildwheel@v2.22.0
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
-        if: github.event_name == 'release' && github.event.action == 'published'
+        if: (github.event_name == 'release' && github.event.action == 'published') || github.event_name == 'workflow_dispatch'
         with:
           name: artifact-wheels-${{ matrix.os }}
           path: ./wheelhouse/*.whl
@@ -114,10 +122,12 @@ jobs:
   build_sdist:
     name: Build Source Distribution
     runs-on: ubuntu-latest
-    if: github.event_name == 'release' && github.event.action == 'published'
+    if: (github.event_name == 'release' && github.event.action == 'published') || github.event_name == 'workflow_dispatch'
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.version || '' }}
 
       - name: Install Python
         uses: actions/setup-python@v5
@@ -138,7 +148,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       id-token: write
-    if: github.event_name == 'release' && github.event.action == 'published'
+    if: (github.event_name == 'release' && github.event.action == 'published') || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/download-artifact@v4
         with:
