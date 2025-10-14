@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=42", "wheel", "versioneer[toml]"]
+build-backend = "setuptools.build_meta"
+
 [tool.ruff]
 exclude = [
     "*.pyi",

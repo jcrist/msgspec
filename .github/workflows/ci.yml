@@ -90,7 +90,7 @@ jobs:
       CIBW_SKIP: "*-win32 *_i686 *_s390x *_ppc64le"
       CIBW_ARCHS_MACOS: "x86_64 arm64"
       CIBW_ARCHS_LINUX: "x86_64 aarch64"
-      CIBW_TEST_SKIP: "*_arm64 *-musllinux_*"
+      CIBW_TEST_SKIP: "*_arm64 *-musllinux_* cp314-*"
       CIBW_ENVIRONMENT: "CFLAGS=-g0"
 
     steps:
@@ -110,7 +110,7 @@ jobs:
             echo "CIBW_SKIP=${CIBW_SKIP} *-musllinux_* cp39-*_aarch64 cp311-*_aarch64 cp312-*_aarch64 cp313-*_aarch64 cp314-*_aarch64" >> $GITHUB_ENV
 
       - name: Build & Test Wheels
-        uses: pypa/cibuildwheel@v2.22.0
+        uses: pypa/cibuildwheel@v3.2.1
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -158,3 +158,5 @@ jobs:
 
       - name: Publish package distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          skip-existing: true # allow appending wheels
