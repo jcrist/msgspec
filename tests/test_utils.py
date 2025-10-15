@@ -6,7 +6,7 @@ from typing import Generic, List, Optional, Set, TypeVar
 import pytest
 from utils import temp_module, package_not_installed
 
-from msgspec_m._utils import get_class_annotations
+from msgspec._utils import get_class_annotations
 
 PY310 = sys.version_info[:2] >= (3, 10)
 

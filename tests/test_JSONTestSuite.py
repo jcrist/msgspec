@@ -6,7 +6,7 @@ import itertools
 
 import pytest
 
-import msgspec_m as msgspec
+import msgspec
 
 valid_cases = [
     b"[1e-2]",

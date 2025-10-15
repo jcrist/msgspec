@@ -39,8 +39,8 @@ try:
 except ImportError:
     attrs = None
 
-import msgspec_m as msgspec
-from msgspec_m import Meta, Struct, ValidationError, UNSET, UnsetType
+import msgspec
+from msgspec import Meta, Struct, ValidationError, UNSET, UnsetType
 
 UTC = datetime.timezone.utc
 
@@ -1296,7 +1296,7 @@ class TestStructUnion:
 
     @pytest.mark.parametrize("array_like", [False, True])
     def test_struct_union_cached(self, array_like, proto):
-        from msgspec_m._core import _struct_lookup_cache as cache
+        from msgspec._core import _struct_lookup_cache as cache
 
         cache.clear()
 
@@ -1320,7 +1320,7 @@ class TestStructUnion:
         assert frozenset((Test1, Test2)) in cache
 
     def test_struct_union_cache_evicted(self, proto):
-        from msgspec_m._core import _struct_lookup_cache as cache
+        from msgspec._core import _struct_lookup_cache as cache
 
         MAX_CACHE_SIZE = 64  # XXX: update if hardcoded value in `_core.c` changes
 
@@ -1429,7 +1429,7 @@ class TestGenericStruct:
         source = f"""
         from __future__ import annotations
         from typing import Union, Generic, TypeVar
-        from msgspec_m import Struct
+        from msgspec import Struct
 
         T = TypeVar("T")
 
@@ -1673,7 +1673,7 @@ class TestGenericDataclassOrAttrs:
         source = f"""
         from __future__ import annotations
         from typing import Union, Generic, TypeVar
-        from msgspec_m import Struct
+        from msgspec import Struct
         {import_}
 
         T = TypeVar("T")
@@ -3824,7 +3824,7 @@ class TestTypeAlias:
     @py312_plus
     def test_typealias_with_constraints(self, proto):
         src = """
-        import msgspec_m as msgspec
+        import msgspec
         from typing import Annotated
         type Key = Annotated[str, msgspec.Meta(max_length=4)]
         """

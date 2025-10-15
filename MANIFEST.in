@@ -1,8 +1,8 @@
-include msgspec_m/*.c
-include msgspec_m/*.h
-include msgspec_m/*.py
-include msgspec_m/*.pyi
-include msgspec_m/py.typed
+include msgspec/*.c
+include msgspec/*.h
+include msgspec/*.py
+include msgspec/*.pyi
+include msgspec/py.typed
 include setup.py
 include versioneer.py
 include README.md

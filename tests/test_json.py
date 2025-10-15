@@ -30,7 +30,7 @@ from typing import (
 
 import pytest
 
-import msgspec_m as msgspec
+import msgspec
 
 UTC = datetime.timezone.utc
 
@@ -462,10 +462,10 @@ class TestDecoderMisc:
     def test_decoder_repr(self):
         typ = List[Dict[str, float]]
         dec = msgspec.json.Decoder(typ)
-        assert repr(dec) == f"msgspec_m.json.Decoder({typ!r})"
+        assert repr(dec) == f"msgspec.json.Decoder({typ!r})"
 
         dec = msgspec.json.Decoder()
-        assert repr(dec) == f"msgspec_m.json.Decoder({Any!r})"
+        assert repr(dec) == f"msgspec.json.Decoder({Any!r})"
 
     def test_decode_with_trailing_characters_errors(self):
         dec = msgspec.json.Decoder()

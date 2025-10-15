@@ -27,8 +27,8 @@ from typing import (
 import pytest
 from utils import temp_module, max_call_depth
 
-import msgspec_m as msgspec
-from msgspec_m import Meta, Struct, ValidationError, convert, to_builtins
+import msgspec
+from msgspec import Meta, Struct, ValidationError, convert, to_builtins
 
 try:
     import attrs

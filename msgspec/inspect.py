@@ -25,8 +25,8 @@ try:
 except Exception:
     _TypeAliasType = type("TypeAliasType", (), {})  # type: ignore
 
-import msgspec_m as msgspec
-from msgspec_m import NODEFAULT, UNSET, UnsetType as _UnsetType
+import msgspec
+from msgspec import NODEFAULT, UNSET, UnsetType as _UnsetType
 
 from ._core import (  # type: ignore
     Factory as _Factory,

@@ -8,7 +8,7 @@ from typing import Dict, FrozenSet, List, Set, Tuple
 
 import pytest
 
-import msgspec_m as msgspec
+import msgspec
 
 try:
     import tomllib

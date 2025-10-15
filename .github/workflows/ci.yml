@@ -47,7 +47,7 @@ jobs:
         run: pytest tests/test_pyright.py
 
       - name: doctests
-        run: pytest --doctest-modules msgspec_m
+        run: pytest --doctest-modules msgspec
 
       - name: Rebuild with sanitizers & coverage
         env:

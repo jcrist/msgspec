@@ -13,9 +13,9 @@ from typing import Any, List, Optional, Generic, TypeVar
 import pytest
 from utils import temp_module
 
-import msgspec_m as msgspec
-from msgspec_m import NODEFAULT, UNSET, Struct, defstruct, field
-from msgspec_m.structs import StructConfig
+import msgspec
+from msgspec import NODEFAULT, UNSET, Struct, defstruct, field
+from msgspec.structs import StructConfig
 
 if hasattr(copy, "replace"):
     # Added in Python 3.13
@@ -100,7 +100,7 @@ def test_struct_class_attributes():
     assert Struct.__struct_defaults__ == ()
     assert Struct.__match_args__ == ()
     assert Struct.__slots__ == ()
-    assert Struct.__module__ == "msgspec_m"
+    assert Struct.__module__ == "msgspec"
     assert isinstance(Struct.__struct_config__, StructConfig)
 
 
@@ -2488,7 +2488,7 @@ class TestClassVar:
     def case1(self):
         return """
         from typing import ClassVar
-        from msgspec_m import Struct
+        from msgspec import Struct
 
         class Ex(Struct):
             a: int
@@ -2500,7 +2500,7 @@ class TestClassVar:
     def case2(self):
         return """
         import typing
-        from msgspec_m import Struct
+        from msgspec import Struct
 
         class Ex(Struct):
             a: int
@@ -2512,7 +2512,7 @@ class TestClassVar:
     def case3(self):
         return """
         import typing
-        from msgspec_m import Struct
+        from msgspec import Struct
 
         ClassVar = typing.List
 
@@ -2525,7 +2525,7 @@ class TestClassVar:
     def case4(self):
         return """
         from typing import ClassVar, List
-        from msgspec_m import Struct
+        from msgspec import Struct
 
         class typing:
             ClassVar = List
@@ -2541,7 +2541,7 @@ class TestClassVar:
         end there aren't treated as false-positives"""
         return """
         from typing import ClassVar, List
-        from msgspec_m import Struct
+        from msgspec import Struct
 
         ClassVariable = List
 

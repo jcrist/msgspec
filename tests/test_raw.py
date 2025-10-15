@@ -6,7 +6,7 @@ import weakref
 
 import pytest
 
-import msgspec_m as msgspec
+import msgspec
 
 
 def test_raw_noargs():
@@ -75,12 +75,12 @@ def test_raw_copy_doesnt_leak():
     """See https://github.com/jcrist/msgspec/pull/709"""
     script = textwrap.dedent(
         """
-        import msgspec_m
+        import msgspec
         import tracemalloc
 
         tracemalloc.start()
 
-        raw = msgspec_m.Raw(bytearray(1000))
+        raw = msgspec.Raw(bytearray(1000))
         for _ in range(10000):
             raw.copy()
 

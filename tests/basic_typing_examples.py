@@ -6,7 +6,7 @@ import decimal
 import pickle
 from typing import Any, Dict, Final, List, Type, Union
 
-import msgspec_m as msgspec
+import msgspec
 
 
 def check___version__() -> None:

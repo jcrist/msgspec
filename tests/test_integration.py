@@ -3,7 +3,7 @@ import sys
 
 import pytest
 
-import msgspec_m as msgspec
+import msgspec
 
 
 @pytest.fixture(params=["json", "msgpack"])
