@@ -1,6 +1,5 @@
 # type: ignore
 import collections
-import inspect
 import sys
 import typing
 
@@ -75,6 +74,7 @@ else:
 if sys.version_info >= (3, 10):
     from inspect import get_annotations as _get_class_annotations
 else:
+
     def _get_class_annotations(cls):
         return cls.__dict__.get("__annotations__", {})
 
