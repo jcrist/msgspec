@@ -1,5 +1,5 @@
-import sys
 import inspect
+import sys
 import textwrap
 import types
 import uuid

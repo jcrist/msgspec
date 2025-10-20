@@ -11,7 +11,7 @@ from typing import Any, NamedTuple, Union
 
 import pytest
 
-from msgspec import UNSET, Struct, UnsetType, to_builtins, defstruct
+from msgspec import UNSET, Struct, UnsetType, defstruct, to_builtins
 
 PY310 = sys.version_info[:2] >= (3, 10)
 PY311 = sys.version_info[:2] >= (3, 11)

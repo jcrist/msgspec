@@ -4,9 +4,10 @@ import sys
 from typing import Generic, List, Optional, Set, TypeVar
 
 import pytest
-from .utils import temp_module, package_not_installed
 
 from msgspec._utils import get_class_annotations
+
+from .utils import package_not_installed, temp_module
 
 PY310 = sys.version_info[:2] >= (3, 10)
 

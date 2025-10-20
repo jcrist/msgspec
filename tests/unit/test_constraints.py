@@ -1,7 +1,7 @@
 import datetime
 import math
 import re
-from typing import Dict, List, Union, Annotated
+from typing import Annotated, Dict, List, Union
 
 import pytest
 

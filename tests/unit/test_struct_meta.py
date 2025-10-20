@@ -1,9 +1,10 @@
 """Tests for the exposed StructMeta metaclass."""
 
 import pytest
+
 import msgspec
 from msgspec import Struct, StructMeta
-from msgspec.structs import asdict, astuple, replace, force_setattr
+from msgspec.structs import asdict, astuple, force_setattr, replace
 
 
 def test_struct_meta_exists():

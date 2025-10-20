@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 import textwrap
 from collections.abc import Iterable
-from typing import Any, Optional, Callable
+from typing import Any, Callable, Optional
 
 from . import inspect as mi, to_builtins
 
