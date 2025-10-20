@@ -2124,6 +2124,7 @@ class TestTypedDict:
 
         class Ex(cls, total=False):
             c: str
+
         Ex.__annotations__ = {"c": "str"}
         Ex.__required_keys__ = {"a", "b"}
 
