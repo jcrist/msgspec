@@ -39,6 +39,13 @@ if COVERAGE:
 if DEBUG:
     extra_compile_args.extend(["-O0", "-g", "-UNDEBUG"])
 
+# from https://py-free-threading.github.io/faq/#im-trying-to-build-a-library-on-windows-but-msvc-says-c-atomic-support-is-not-enabled
+if sys.platform == "win32":
+    extra_compile_args.extend([
+        "/std:c11",
+        "/experimental:c11atomics",
+    ])
+
 ext_modules = [
     Extension(
         "msgspec._core",
