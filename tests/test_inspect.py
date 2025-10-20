@@ -33,7 +33,6 @@ import msgspec
 import msgspec.inspect as mi
 from msgspec import Meta
 
-
 PY312 = sys.version_info[:2] >= (3, 12)
 py312_plus = pytest.mark.skipif(not PY312, reason="3.12+ only")
 

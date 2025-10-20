@@ -19,13 +19,13 @@ from typing import (
     NamedTuple,
     Set,
     Tuple,
-    TypeVar,
     TypedDict,
+    TypeVar,
     Union,
 )
 
 import pytest
-from utils import temp_module, max_call_depth
+from utils import max_call_depth, temp_module
 
 import msgspec
 from msgspec import Meta, Struct, ValidationError, convert, to_builtins

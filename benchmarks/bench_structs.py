@@ -207,8 +207,8 @@ def main():
     args = parser.parse_args()
 
     if args.versions:
-        import sys
         import importlib.metadata
+        import sys
 
         for _, lib, _ in BENCHMARKS:
             if lib is not None:

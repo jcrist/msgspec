@@ -1,5 +1,5 @@
-import sys
 import os
+import sys
 
 from setuptools import setup
 from setuptools.extension import Extension

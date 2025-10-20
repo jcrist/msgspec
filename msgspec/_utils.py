@@ -2,7 +2,6 @@
 import collections
 import sys
 import typing
-
 from typing import _AnnotatedAlias  # noqa: F401
 
 try:

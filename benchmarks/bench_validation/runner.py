@@ -1,9 +1,9 @@
+import gc
 import importlib
 import json
-import timeit
 import resource
 import sys
-import gc
+import timeit
 
 library, path = sys.argv[1:3]
 
