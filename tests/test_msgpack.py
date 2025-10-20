@@ -547,6 +547,10 @@ class TestDecoderMisc:
 
     @pytest.mark.parametrize("length", [3, 31, 33])
     @pytest.mark.parametrize("typed", [False, True])
+    @pytest.mark.skipif(
+        hasattr(sys.flags, "gil") and not sys.flags.gil,
+        reason="cache is disabled without GIL",
+    )
     def test_decode_dict_string_cache(self, length, typed):
         key = "x" * length
         msg = [{key: 1}, {key: 2}, {key: 3}]
