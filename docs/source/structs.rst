@@ -999,10 +999,10 @@ don't occur, as a cycle containing only ``gc=False`` structs will *never* be
 collected (leading to a memory leak).
 
 Struct Metaclasses (Advanced)
--------------------------
+-----------------------------
 
 :class:`msgspec.Struct` is constructed using the :class:`msgspec.StructMeta`
-_metaclass. We can extend :class:`msgspec.StructMeta` to customize this
+metaclass_. We can extend :class:`msgspec.StructMeta` to customize this
 construction. For example, we can automatically set ``kw_only=True`` in all
 subclasses of ``KwOnlyStruct``:
 
@@ -1018,6 +1018,10 @@ subclasses of ``KwOnlyStruct``:
    class KwOnlyStruct(Struct, metaclass=KwOnlyStructMeta):
        pass
 
+which permits the following syntax:
+
+.. code-block:: python
+
    class A(KwOnlyStruct):
        a: int = 1
        b: str = "hello"
@@ -1026,7 +1030,7 @@ subclasses of ``KwOnlyStruct``:
        c: int
 
 You can also mix :class:`msgspec.StructMeta` with other metaclasses. For
-example, you can create abstract Struct classes:
+example, you can create abstract Struct classes with:
 
 .. code-block:: python
 
@@ -1036,7 +1040,7 @@ example, you can create abstract Struct classes:
    class ABCStructMeta(StructMeta, ABCMeta):
        pass
 
-   class A(Struct, metaclass=ABCStructMeta):
+   class StructABC(Struct, metaclass=ABCStructMeta):
        ...
 
 .. _type annotations: https://docs.python.org/3/library/typing.html
