@@ -227,6 +227,13 @@ def get_typeddict_info(obj):
             hints[k] = v.__args__[0]
         else:
             hints[k] = v
+
+    # This can happen if there is a bug in the TypedDict implementation;
+    # such a bug was present in Python 3.14.
+    if not all(k in hints for k in required):
+        raise RuntimeError(
+            f"Required set {required} contains keys that are no in hints: {hints.keys()}"
+        )
     return hints, required
 
 
