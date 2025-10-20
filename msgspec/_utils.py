@@ -71,8 +71,8 @@ else:
     _eval_type = typing._eval_type
 
 
-if sys.version_info >= (3, 10):
-    from inspect import get_annotations as _get_class_annotations
+if sys.version_info >= (3, 14):
+    from annotationlib import get_annotations as _get_class_annotations
 else:
 
     def _get_class_annotations(cls):
