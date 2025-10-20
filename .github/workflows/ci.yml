@@ -5,12 +5,13 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
-    paths-ignore:
-      - "docs/**"
-      - "benchmarks/**"
-      - "examples/**"
-      - ".github/**"
-      - "README.rst"
+    paths:
+      - "msgspec/**"
+      - ".github/workflows/ci.yml"
+      - ".pre-commit-config.yaml"
+      - "pyproject.toml"
+      - "setup.py"
+      - "setup.cfg"
   release:
     types: [published]
   workflow_dispatch:
@@ -22,7 +23,7 @@ on:
 
 jobs:
   lint:
-    name: Lint and ruff code
+    name: Run static analysis
     runs-on: ubuntu-latest
 
     steps:
