@@ -5,18 +5,19 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
-    paths-ignore:
-      - "docs/**"
-      - "benchmarks/**"
-      - "examples/**"
-      - ".github/**"
-      - "README.rst"
+    paths:
+      - "msgspec/**"
+      - ".github/workflows/ci.yml"
+      - ".pre-commit-config.yaml"
+      - "pyproject.toml"
+      - "setup.py"
+      - "setup.cfg"
   release:
     types: [published]
 
 jobs:
   lint:
-    name: Lint and ruff code
+    name: Run static analysis
     runs-on: ubuntu-latest
 
     steps:
@@ -80,7 +81,7 @@ jobs:
     env:
       CIBW_TEST_EXTRAS: "test"
       CIBW_TEST_COMMAND: "pytest {project}/tests"
-      CIBW_BUILD: "cp39-* cp310-* cp311-* cp312-* cp313-*"
+      CIBW_BUILD: "cp39-* cp310-* cp311-* cp312-* cp313-* cp314-* cp314t-*"
       CIBW_SKIP: "*-win32 *_i686 *_s390x *_ppc64le"
       CIBW_ARCHS_MACOS: "x86_64 arm64"
       CIBW_ARCHS_LINUX: "x86_64 aarch64"
@@ -99,10 +100,10 @@ jobs:
       - name: Set up Environment
         if: github.event_name != 'release'
         run: |
-            echo "CIBW_SKIP=${CIBW_SKIP} *-musllinux_* cp39-*_aarch64 cp311-*_aarch64 cp312-*_aarch64 cp313-*_aarch64" >> $GITHUB_ENV
+            echo "CIBW_SKIP=${CIBW_SKIP} *-musllinux_* cp39-*_aarch64 cp311-*_aarch64 cp312-*_aarch64 cp313-*_aarch64 cp314-*_aarch64 cp314t-*_aarch64" >> $GITHUB_ENV
 
       - name: Build & Test Wheels
-        uses: pypa/cibuildwheel@v2.22.0
+        uses: pypa/cibuildwheel@v3.2.1
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

@@ -15,9 +15,9 @@ if sys.platform == "win32" and sys.maxsize == (2**31 - 1):
     error = """
     ====================================================================
     `msgspec` currently doesn't support 32-bit Python windows builds. If
-    this is important for your use case, please open an issue on GitHub:
+    this is important for your use case, please comment on this issue:
 
-    https://github.com/jcrist/msgspec/issues
+    https://github.com/jcrist/msgspec/issues/845
     ====================================================================
     """
     print(textwrap.dedent(error))
@@ -38,6 +38,15 @@ if COVERAGE:
     extra_link_args.append("-lgcov")
 if DEBUG:
     extra_compile_args.extend(["-O0", "-g", "-UNDEBUG"])
+
+# from https://py-free-threading.github.io/faq/#im-trying-to-build-a-library-on-windows-but-msvc-says-c-atomic-support-is-not-enabled
+if sys.platform == "win32":
+    extra_compile_args.extend(
+        [
+            "/std:c11",
+            "/experimental:c11atomics",
+        ]
+    )
 
 ext_modules = [
     Extension(
@@ -94,6 +103,7 @@ setup(
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
         "Programming Language :: Python :: 3.13",
+        "Programming Language :: Python :: 3.14",
     ],
     extras_require=extras_require,
     license="BSD",

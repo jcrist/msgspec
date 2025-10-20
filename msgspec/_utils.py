@@ -71,6 +71,14 @@ else:
     _eval_type = typing._eval_type
 
 
+if sys.version_info >= (3, 14):
+    from annotationlib import get_annotations as _get_class_annotations
+else:
+
+    def _get_class_annotations(cls):
+        return cls.__dict__.get("__annotations__", {})
+
+
 def _apply_params(obj, mapping):
     if isinstance(obj, typing.TypeVar):
         return mapping.get(obj, obj)
@@ -149,17 +157,17 @@ def get_class_annotations(obj):
         cls_locals = dict(vars(cls))
         cls_globals = getattr(sys.modules.get(cls.__module__, None), "__dict__", {})
 
-        ann = cls.__dict__.get("__annotations__", {})
+        ann = _get_class_annotations(cls)
         for name, value in ann.items():
             if name in hints:
                 continue
-            if value is None:
-                value = type(None)
-            elif isinstance(value, str):
+            if isinstance(value, str):
                 value = _forward_ref(value)
             value = _eval_type(value, cls_locals, cls_globals)
             if mapping is not None:
                 value = _apply_params(value, mapping)
+            if value is None:
+                value = type(None)
             hints[name] = value
     return hints
 
@@ -227,6 +235,13 @@ def get_typeddict_info(obj):
             hints[k] = v.__args__[0]
         else:
             hints[k] = v
+
+    # This can happen if there is a bug in the TypedDict implementation;
+    # such a bug was present in Python 3.14.
+    if not all(k in hints for k in required):
+        raise RuntimeError(
+            f"Required set {required} contains keys that are no in hints: {hints.keys()}"
+        )
     return hints, required
 
 

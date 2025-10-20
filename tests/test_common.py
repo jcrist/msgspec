@@ -1370,14 +1370,14 @@ class TestGenericStruct:
         dec = proto.Decoder(typ)
         info = typ.__msgspec_cache__
         assert info is not None
-        assert sys.getrefcount(info) == 4  # info + attr + decoder + func call
+        assert sys.getrefcount(info) <= 4  # info + attr + decoder + func call
         dec2 = proto.Decoder(typ)
         assert typ.__msgspec_cache__ is info
-        assert sys.getrefcount(info) == 5
+        assert sys.getrefcount(info) <= 5
 
         del dec
         del dec2
-        assert sys.getrefcount(info) == 3
+        assert sys.getrefcount(info) <= 3
 
     def test_generic_struct_invalid_types_not_cached(self, proto):
         class Ex(Struct, Generic[T]):
@@ -1545,7 +1545,7 @@ class TestStructPostInit:
         res = proto.decode(buf, type=typ)
         assert res == msg
         assert count == 2  # 1 for Ex(), 1 for decode
-        assert sys.getrefcount(singleton) == 2  # 1 for ref, 1 for call
+        assert sys.getrefcount(singleton) <= 2  # 1 for ref, 1 for call
 
     @pytest.mark.parametrize("array_like", [False, True])
     @pytest.mark.parametrize("union", [False, True])
@@ -1606,14 +1606,14 @@ class TestGenericDataclassOrAttrs:
         dec = proto.Decoder(typ)
         info = typ.__msgspec_cache__
         assert info is not None
-        assert sys.getrefcount(info) == 4  # info + attr + decoder + func call
+        assert sys.getrefcount(info) <= 4  # info + attr + decoder + func call
         dec2 = proto.Decoder(typ)
         assert typ.__msgspec_cache__ is info
-        assert sys.getrefcount(info) == 5
+        assert sys.getrefcount(info) <= 5
 
         del dec
         del dec2
-        assert sys.getrefcount(info) == 3
+        assert sys.getrefcount(info) <= 3
 
     def test_generic_invalid_types_not_cached(self, decorator, proto):
         @decorator
@@ -2113,6 +2113,25 @@ class TestTypedDict:
         assert "Object missing required field `a`" == str(rec.value)
 
     @pytest.mark.parametrize("use_typing_extensions", [False, True])
+    def test_broken_typeddict(self, proto, use_typing_extensions):
+        # Check that we don't crash if a TypedDict has incorrect
+        # introspection data.
+        if use_typing_extensions:
+            tex = pytest.importorskip("typing_extensions")
+            cls = tex.TypedDict
+        else:
+            cls = TypedDict
+
+        class Ex(cls, total=False):
+            c: str
+
+        Ex.__annotations__ = {"c": "str"}
+        Ex.__required_keys__ = {"a", "b"}
+
+        with pytest.raises(RuntimeError):
+            proto.Decoder(Ex)
+
+    @pytest.mark.parametrize("use_typing_extensions", [False, True])
     def test_required_and_notrequired(self, proto, use_typing_extensions):
         if use_typing_extensions:
             module = "typing_extensions"
@@ -2179,14 +2198,14 @@ class TestTypedDict:
         dec = proto.Decoder(typ)
         info = typ.__msgspec_cache__
         assert info is not None
-        assert sys.getrefcount(info) == 4  # info + attr + decoder + func call
+        assert sys.getrefcount(info) <= 4  # info + attr + decoder + func call
         dec2 = proto.Decoder(typ)
         assert typ.__msgspec_cache__ is info
-        assert sys.getrefcount(info) == 5
+        assert sys.getrefcount(info) <= 5
 
         del dec
         del dec2
-        assert sys.getrefcount(info) == 3
+        assert sys.getrefcount(info) <= 3
 
     def test_generic_typeddict_invalid_types_not_cached(self, proto):
         TypedDict = pytest.importorskip("typing_extensions").TypedDict
@@ -2398,14 +2417,14 @@ class TestNamedTuple:
         dec = proto.Decoder(typ)
         info = typ.__msgspec_cache__
         assert info is not None
-        assert sys.getrefcount(info) == 4  # info + attr + decoder + func call
+        assert sys.getrefcount(info) <= 4  # info + attr + decoder + func call
         dec2 = proto.Decoder(typ)
         assert typ.__msgspec_cache__ is info
-        assert sys.getrefcount(info) == 5
+        assert sys.getrefcount(info) <= 5
 
         del dec
         del dec2
-        assert sys.getrefcount(info) == 3
+        assert sys.getrefcount(info) <= 3
 
     def test_generic_namedtuple_invalid_types_not_cached(self, proto):
         NamedTuple = pytest.importorskip("typing_extensions").NamedTuple

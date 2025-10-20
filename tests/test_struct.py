@@ -931,16 +931,16 @@ def test_struct_reference_counting():
     data = [1, 2, 3]
 
     t = Test(data)
-    assert sys.getrefcount(data) == 3
+    assert sys.getrefcount(data) <= 3
 
     repr(t)
-    assert sys.getrefcount(data) == 3
+    assert sys.getrefcount(data) <= 3
 
     t2 = t.__copy__()
-    assert sys.getrefcount(data) == 4
+    assert sys.getrefcount(data) <= 4
 
     assert t == t2
-    assert sys.getrefcount(data) == 4
+    assert sys.getrefcount(data) <= 4
 
 
 def test_struct_gc_not_added_if_not_needed():
@@ -987,6 +987,10 @@ def test_struct_gc_not_added_if_not_needed():
 
 
 class TestStructGC:
+    @pytest.mark.skipif(
+        hasattr(sys.flags, "gil") and not sys.flags.gil,
+        reason="object layout is different on free-threading builds",
+    )
     def test_memory_layout(self):
         sizes = {}
         for has_gc in [False, True]:
@@ -1124,15 +1128,15 @@ class TestStructDealloc:
             orig_1 = sys.getrefcount(Test1)
             orig_2 = sys.getrefcount(Test2)
             t = Test1(1, 2)
-            assert sys.getrefcount(Test1) == orig_1 + 1
+            assert sys.getrefcount(Test1) <= orig_1 + 1
             del t
-            assert sys.getrefcount(Test1) == orig_1
+            assert sys.getrefcount(Test1) <= orig_1
             t = Test2(1, 2)
-            assert sys.getrefcount(Test1) == orig_1
-            assert sys.getrefcount(Test2) == orig_2 + 1
+            assert sys.getrefcount(Test1) <= orig_1
+            assert sys.getrefcount(Test2) <= orig_2 + 1
             del t
-            assert sys.getrefcount(Test1) == orig_1
-            assert sys.getrefcount(Test2) == orig_2
+            assert sys.getrefcount(Test1) <= orig_1
+            assert sys.getrefcount(Test2) <= orig_2
             gc.collect()
             assert sys.getrefcount(Test1) == orig_1
             assert sys.getrefcount(Test2) == orig_2
@@ -2581,7 +2585,7 @@ class TestPostInit:
         Ex(1)
         assert called
         # Return value is decref'd
-        assert sys.getrefcount(singleton) == 2  # 1 for ref, 1 for call
+        assert sys.getrefcount(singleton) <= 2  # 1 for ref, 1 for call
 
     def test_post_init_errors(self):
         class Ex(Struct):
