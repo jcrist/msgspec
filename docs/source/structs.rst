@@ -998,6 +998,47 @@ container types. It is your responsibility to ensure cycles with these objects
 don't occur, as a cycle containing only ``gc=False`` structs will *never* be
 collected (leading to a memory leak).
 
+Struct Metaclasses (Advanced)
+-------------------------
+
+:class:`msgspec.Struct` is constructed using the :class:`msgspec.StructMeta`
+_metaclass. We can extend :class:`msgspec.StructMeta` to customize this
+construction. For example, we can automatically set ``kw_only=True`` in all
+subclasses of ``KwOnlyStruct``:
+
+.. code-block:: python
+
+   from msgspec import Struct, StructMeta
+
+   class KwOnlyStructMeta(StructMeta):
+       def __new__(mcls, name, bases, namespace, **kwargs):
+           kwargs.setdefault("kw_only", True)
+           return super().__new__(mcls, name, bases, namespace, **kwargs)
+
+   class KwOnlyStruct(Struct, metaclass=KwOnlyStructMeta):
+       pass
+
+   class A(KwOnlyStruct):
+       a: int = 1
+       b: str = "hello"
+
+   class B(A):
+       c: int
+
+You can also mix :class:`msgspec.StructMeta` with other metaclasses. For
+example, you can create abstract Struct classes:
+
+.. code-block:: python
+
+   from msgspec import Struct, StructMeta
+   from abc import ABCMeta
+
+   class ABCStructMeta(StructMeta, ABCMeta):
+       pass
+
+   class A(Struct, metaclass=ABCStructMeta):
+       ...
+
 .. _type annotations: https://docs.python.org/3/library/typing.html
 .. _pattern matching: https://docs.python.org/3/reference/compound_stmts.html#the-match-statement
 .. _PEP 636: https://peps.python.org/pep-0636/
@@ -1013,3 +1054,4 @@ collected (leading to a memory leak).
 .. _rich: https://rich.readthedocs.io/en/stable/pretty.html
 .. _keyword-only parameters: https://docs.python.org/3/glossary.html#term-parameter
 .. _lambda: https://docs.python.org/3/tutorial/controlflow.html#lambda-expressions
+.. _metaclass: https://docs.python.org/3/reference/datamodel.html#metaclasses
