@@ -810,7 +810,7 @@ code will still refer to them using their original names.
 If renaming to camelCase, you may run into issues if your field names contain
 acronyms (e.g. ``FQDN`` in ``setHostnameAsFQDN``). Some JSON style guides
 prefer to fully-uppercase these components (``FQDN``), but ``msgspec`` has no
-way to know if a component is an acroynm or not (and so will result in
+way to know if a component is an acronym or not (and so will result in
 ``Fqdn``). As such, we recommend using an explicit dict mapping for renaming if
 generating `Struct` types to match an existing API.
 
