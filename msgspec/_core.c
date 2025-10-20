@@ -14072,7 +14072,7 @@ json_encode_dict(EncoderState *self, PyObject *obj)
     /* Overwrite trailing comma with } */
     *(self->output_buffer_raw + self->output_len - 1) = '}';
     status = 0;
-cleanup:
+cleanup:;
     Py_END_CRITICAL_SECTION();
     Py_LeaveRecursiveCall();
     return status;
@@ -14213,7 +14213,7 @@ json_encode_object(EncoderState *self, PyObject *obj)
     else {
         status = ms_write(self, "}", 1);
     }
-cleanup:
+cleanup:;
     Py_END_CRITICAL_SECTION();
     Py_XDECREF(dict);
     Py_LeaveRecursiveCall();
@@ -19794,7 +19794,7 @@ to_builtins_dict(ToBuiltinsState *self, PyObject *obj) {
     }
     ok = true;
 
-cleanup:
+cleanup:;
     Py_END_CRITICAL_SECTION();
     Py_LeaveRecursiveCall();
     if (!ok) {
