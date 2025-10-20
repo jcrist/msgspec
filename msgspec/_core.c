@@ -8377,6 +8377,9 @@ TypedDictInfo_error_missing(TypedDictInfo *self, PyObject *dict, PathNode *path)
             }
         }
     }
+    // Should be unreachable, but may happen if the TypedDict info
+    // is inconsistent.
+    assert(0);
 }
 
 static int
