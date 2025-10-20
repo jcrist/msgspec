@@ -91,6 +91,9 @@ ms_popcount(uint64_t i) {                            \
 #endif // SIZEOF_VOID_P > 4
 #endif // Py_GIL_DISABLED
 #else
+#ifndef _Py_IMMORTAL_REFCNT
+#define _Py_IMMORTAL_REFCNT 999999999
+#endif
 #define _PyObject_HEAD_INIT(type)         \
     {                                     \
         .ob_refcnt = _Py_IMMORTAL_REFCNT, \
@@ -108,7 +111,8 @@ PyDict_GetItemRef(PyObject *mp, PyObject *key, PyObject **result)
     PyObject *item = _PyDict_GetItemWithError(mp, key);
 #endif
     if (item != NULL) {
-        *result = Py_NewRef(item);
+        Py_INCREF(item);
+        *result = item;
         return 1;  // found
     }
     if (!PyErr_Occurred()) {
