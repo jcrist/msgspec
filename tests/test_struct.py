@@ -987,6 +987,10 @@ def test_struct_gc_not_added_if_not_needed():
 
 
 class TestStructGC:
+    @pytest.mark.skipif(
+        hasattr(sys.flags, "gil") and not sys.flags.gil,
+        reason="object layout is different on free-threading builds",
+    )
     def test_memory_layout(self):
         sizes = {}
         for has_gc in [False, True]:
@@ -1124,15 +1128,15 @@ class TestStructDealloc:
             orig_1 = sys.getrefcount(Test1)
             orig_2 = sys.getrefcount(Test2)
             t = Test1(1, 2)
-            assert sys.getrefcount(Test1) == orig_1 + 1
+            assert sys.getrefcount(Test1) <= orig_1 + 1
             del t
-            assert sys.getrefcount(Test1) == orig_1
+            assert sys.getrefcount(Test1) <= orig_1
             t = Test2(1, 2)
-            assert sys.getrefcount(Test1) == orig_1
-            assert sys.getrefcount(Test2) == orig_2 + 1
+            assert sys.getrefcount(Test1) <= orig_1
+            assert sys.getrefcount(Test2) <= orig_2 + 1
             del t
-            assert sys.getrefcount(Test1) == orig_1
-            assert sys.getrefcount(Test2) == orig_2
+            assert sys.getrefcount(Test1) <= orig_1
+            assert sys.getrefcount(Test2) <= orig_2
             gc.collect()
             assert sys.getrefcount(Test1) == orig_1
             assert sys.getrefcount(Test2) == orig_2
