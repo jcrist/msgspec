@@ -471,6 +471,7 @@ typedef struct {
     PyObject *str_dec_hook;
     PyObject *str_ext_hook;
     PyObject *str_strict;
+    PyObject *str_forbid_unknown_fields;
     PyObject *str_order;
     PyObject *str_utcoffset;
     PyObject *str___origin__;
@@ -14620,6 +14621,7 @@ typedef struct DecoderState {
     PyObject *dec_hook;
     PyObject *ext_hook;
     bool strict;
+    bool forbid_unknown_fields;
 
     /* Per-message attributes */
     PyObject *buffer_obj;
@@ -14635,6 +14637,7 @@ typedef struct Decoder {
     /* Configuration */
     TypeNode *type;
     char strict;
+    char forbid_unknown_fields;
     PyObject *dec_hook;
     PyObject *ext_hook;
 } Decoder;
@@ -14656,6 +14659,11 @@ PyDoc_STRVAR(Decoder__doc__,
 "    Whether type coercion rules should be strict. Setting to False enables a\n"
 "    wider set of coercion rules from string to non-string types for all values.\n"
 "    Default is True.\n"
+"forbid_unknown_fields : bool, optional\n"
+"    If True, an error is raised if an unknown field is encountered at any point\n"
+"    in the decoding process. If False (the default), no error is raised and the\n"
+"    unknown field is skipped, unless the unknown field is for a Struct with\n"
+"    ``forbid_unknown_fields=True``.\n"
 "dec_hook : callable, optional\n"
 "    An optional callback for handling decoding custom types. Should have the\n"
 "    signature ``dec_hook(type: Type, obj: Any) -> Any``, where ``type`` is the\n"
@@ -14674,21 +14682,27 @@ PyDoc_STRVAR(Decoder__doc__,
 static int
 Decoder_init(Decoder *self, PyObject *args, PyObject *kwds)
 {
-    char *kwlist[] = {"type", "strict", "dec_hook", "ext_hook", NULL};
+    char *kwlist[] = {
+      "type", "strict", "forbid_unknown_fields",
+      "dec_hook", "ext_hook", NULL
+    };
     MsgspecState *st = msgspec_get_global_state();
     PyObject *type = st->typing_any;
     PyObject *ext_hook = NULL;
     PyObject *dec_hook = NULL;
     int strict = 1;
+    int forbid_unknown_fields = 0;
 
     if (!PyArg_ParseTupleAndKeywords(
-            args, kwds, "|O$pOO", kwlist, &type, &strict, &dec_hook, &ext_hook
-        )) {
+        args, kwds, "|O$ppOO", kwlist, &type, &strict,
+        &forbid_unknown_fields, &dec_hook, &ext_hook
+    )) {
         return -1;
     }
 
-    /* Handle strict */
+    /* Handle strict and forbid_unknown_fields*/
     self->strict = strict;
+    self->forbid_unknown_fields = forbid_unknown_fields;
 
     /* Handle dec_hook */
     if (dec_hook == Py_None) {
@@ -15627,7 +15641,8 @@ mpack_decode_struct_array_inner(
         }
     }
     if (MS_UNLIKELY(size > 0)) {
-        if (MS_UNLIKELY(st_type->forbid_unknown_fields == OPT_TRUE)) {
+        if (MS_UNLIKELY(st_type->forbid_unknown_fields == OPT_TRUE ||
+                        self->forbid_unknown_fields)) {
             ms_raise_validation_error(
                 path,
                 "Expected `array` of at most length %zd, got %zd%U",
@@ -15864,8 +15879,14 @@ mpack_decode_typeddict(
             }
         }
         else {
-            /* Unknown field, skip */
-            if (mpack_skip(self) < 0) goto error;
+            /* Unknown field */
+            if (MS_UNLIKELY(self->forbid_unknown_fields)) {
+                ms_error_unknown_field(key, key_size, path);
+                goto error;
+            }
+            else {
+                if (mpack_skip(self) < 0) goto error;
+            }
         }
     }
     if (nrequired < info->nrequired) {
@@ -15916,8 +15937,14 @@ mpack_decode_dataclass(
             if (status < 0) goto error;
         }
         else {
-            /* Unknown field, skip */
-            if (mpack_skip(self) < 0) goto error;
+            /* Unknown field */
+            if (MS_UNLIKELY(self->forbid_unknown_fields)) {
+                ms_error_unknown_field(key, key_size, path);
+                goto error;
+            }
+            else {
+                if (mpack_skip(self) < 0) goto error;
+            }
         }
     }
     if (DataclassInfo_post_decode(info, out, path) < 0) goto error;
@@ -15960,7 +15987,8 @@ mpack_decode_struct_map(
             }
             else {
                 /* Unknown field */
-                if (MS_UNLIKELY(st_type->forbid_unknown_fields == OPT_TRUE)) {
+                if (MS_UNLIKELY(st_type->forbid_unknown_fields == OPT_TRUE ||
+                                self->forbid_unknown_fields)) {
                     ms_error_unknown_field(key, key_size, path);
                     goto error;
                 }
@@ -16314,6 +16342,7 @@ Decoder_decode(Decoder *self, PyObject *const *args, Py_ssize_t nargs)
     DecoderState state = {
         .type = self->type,
         .strict = self->strict,
+        .forbid_unknown_fields = self->forbid_unknown_fields,
         .dec_hook = self->dec_hook,
         .ext_hook = self->ext_hook
     };
@@ -16390,6 +16419,11 @@ PyDoc_STRVAR(msgspec_msgpack_decode__doc__,
 "    Whether type coercion rules should be strict. Setting to False enables a\n"
 "    wider set of coercion rules from string to non-string types for all values.\n"
 "    Default is True.\n"
+"forbid_unknown_fields : bool, optional\n"
+"    If True, an error is raised if an unknown field is encountered at any point\n"
+"    in the decoding process. If False (the default), no error is raised and the\n"
+"    unknown field is skipped, unless the unknown field is for a Struct with\n"
+"    ``forbid_unknown_fields=True``.\n"
 "dec_hook : callable, optional\n"
 "    An optional callback for handling decoding custom types. Should have the\n"
 "    signature ``dec_hook(type: Type, obj: Any) -> Any``, where ``type`` is the\n"
@@ -16417,10 +16451,12 @@ PyDoc_STRVAR(msgspec_msgpack_decode__doc__,
 static PyObject*
 msgspec_msgpack_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
 {
-    PyObject *res = NULL, *buf = NULL, *type = NULL, *strict_obj = NULL;
+    PyObject *res = NULL, *buf = NULL, *type = NULL;
+    PyObject *strict_obj = NULL, *forbid_unknown_fields_obj = NULL;
     PyObject *dec_hook = NULL, *ext_hook = NULL;
     MsgspecState *mod = msgspec_get_state(self);
     int strict = 1;
+    int forbid_unknown_fields = 0;
 
     /* Parse arguments */
     if (!check_positional_nargs(nargs, 1, 1)) return NULL;
@@ -16429,6 +16465,7 @@ msgspec_msgpack_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, 
         Py_ssize_t nkwargs = PyTuple_GET_SIZE(kwnames);
         if ((type = find_keyword(kwnames, args + nargs, mod->str_type)) != NULL) nkwargs--;
         if ((strict_obj = find_keyword(kwnames, args + nargs, mod->str_strict)) != NULL) nkwargs--;
+        if ((forbid_unknown_fields_obj = find_keyword(kwnames, args + nargs, mod->str_forbid_unknown_fields)) != NULL) nkwargs--;
         if ((dec_hook = find_keyword(kwnames, args + nargs, mod->str_dec_hook)) != NULL) nkwargs--;
         if ((ext_hook = find_keyword(kwnames, args + nargs, mod->str_ext_hook)) != NULL) nkwargs--;
         if (nkwargs > 0) {
@@ -16444,6 +16481,12 @@ msgspec_msgpack_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, 
     if (strict_obj != NULL) {
         strict = PyObject_IsTrue(strict_obj);
         if (strict < 0) return NULL;
+    }
+
+    /* Handle forbid_unknown_fields */
+    if (forbid_unknown_fields_obj != NULL) {
+        forbid_unknown_fields = PyObject_IsTrue(forbid_unknown_fields_obj);
+        if (forbid_unknown_fields < 0) return NULL;
     }
 
     /* Handle dec_hook */
@@ -16470,6 +16513,7 @@ msgspec_msgpack_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, 
 
     DecoderState state = {
         .strict = strict,
+        .forbid_unknown_fields = forbid_unknown_fields,
         .dec_hook = dec_hook,
         .ext_hook = ext_hook
     };
@@ -16527,6 +16571,7 @@ typedef struct JSONDecoderState {
     PyObject *dec_hook;
     PyObject *float_hook;
     bool strict;
+    bool forbid_unknown_fields;
 
     /* Temporary scratch space */
     unsigned char *scratch;
@@ -16547,6 +16592,7 @@ typedef struct JSONDecoder {
     /* Configuration */
     TypeNode *type;
     char strict;
+    char forbid_unknown_fields;
     PyObject *dec_hook;
     PyObject *float_hook;
 } JSONDecoder;
@@ -16568,6 +16614,11 @@ PyDoc_STRVAR(JSONDecoder__doc__,
 "    Whether type coercion rules should be strict. Setting to False enables a\n"
 "    wider set of coercion rules from string to non-string types for all values.\n"
 "    Default is True.\n"
+"forbid_unknown_fields : bool, optional\n"
+"    If True, an error is raised if an unknown field is encountered at any point\n"
+"    in the decoding process. If False (the default), no error is raised and the\n"
+"    unknown field is skipped, unless the unknown field is for a Struct with\n"
+"    ``forbid_unknown_fields=True``.\n"
 "dec_hook : callable, optional\n"
 "    An optional callback for handling decoding custom types. Should have the\n"
 "    signature ``dec_hook(type: Type, obj: Any) -> Any``, where ``type`` is the\n"
@@ -16586,16 +16637,21 @@ PyDoc_STRVAR(JSONDecoder__doc__,
 static int
 JSONDecoder_init(JSONDecoder *self, PyObject *args, PyObject *kwds)
 {
-    char *kwlist[] = {"type", "strict", "dec_hook", "float_hook", NULL};
+    char *kwlist[] = {
+      "type", "strict", "forbid_unknown_fields",
+      "dec_hook", "float_hook", NULL
+    };
     MsgspecState *st = msgspec_get_global_state();
     PyObject *type = st->typing_any;
     PyObject *dec_hook = NULL;
     PyObject *float_hook = NULL;
     int strict = 1;
+    int forbid_unknown_fields = 0;
 
     if (!PyArg_ParseTupleAndKeywords(
-        args, kwds, "|O$pOO", kwlist, &type, &strict, &dec_hook, &float_hook)
-    ) {
+        args, kwds, "|O$ppOO", kwlist, &type, &strict,
+        &forbid_unknown_fields, &dec_hook, &float_hook
+    )) {
         return -1;
     }
 
@@ -16625,8 +16681,9 @@ JSONDecoder_init(JSONDecoder *self, PyObject *args, PyObject *kwds)
     }
     self->float_hook = float_hook;
 
-    /* Handle strict */
+    /* Handle strict and forbid_unknown_fields */
     self->strict = strict;
+    self->forbid_unknown_fields = forbid_unknown_fields;
 
     /* Handle type */
     self->type = TypeNode_Convert(type);
@@ -17882,7 +17939,8 @@ json_decode_struct_array_inner(
             item_path.index++;
         }
         else {
-            if (MS_UNLIKELY(st_type->forbid_unknown_fields == OPT_TRUE)) {
+            if (MS_UNLIKELY(st_type->forbid_unknown_fields == OPT_TRUE ||
+                            self->forbid_unknown_fields)) {
                 ms_raise_validation_error(
                     path,
                     "Expected `array` of at most length %zd",
@@ -18378,8 +18436,14 @@ json_decode_typeddict(
             }
         }
         else {
-            /* Skip unknown fields */
-            if (json_skip(self) < 0) goto error;
+            /* Unknown field */
+            if (MS_UNLIKELY(self->forbid_unknown_fields)) {
+                ms_error_unknown_field(key, key_size, path);
+                goto error;
+            }
+            else {
+                if (json_skip(self) < 0) goto error;
+            }
         }
     }
     if (nrequired < info->nrequired) {
@@ -18475,8 +18539,14 @@ json_decode_dataclass(
             if (status < 0) goto error;
         }
         else {
-            /* Skip unknown fields */
-            if (json_skip(self) < 0) goto error;
+            /* Unknown field */
+            if (MS_UNLIKELY(self->forbid_unknown_fields)) {
+                ms_error_unknown_field(key, key_size, path);
+                goto error;
+            }
+            else {
+                if (json_skip(self) < 0) goto error;
+            }
         }
     }
     if (DataclassInfo_post_decode(info, out, path) < 0) goto error;
@@ -18571,7 +18641,8 @@ json_decode_struct_map_inner(
         }
         else {
             /* Unknown field */
-            if (MS_UNLIKELY(st_type->forbid_unknown_fields == OPT_TRUE)) {
+            if (MS_UNLIKELY(st_type->forbid_unknown_fields == OPT_TRUE ||
+                            self->forbid_unknown_fields)) {
                 ms_error_unknown_field(key, key_size, path);
                 goto error;
             }
@@ -19262,6 +19333,7 @@ JSONDecoder_decode(JSONDecoder *self, PyObject *const *args, Py_ssize_t nargs)
     JSONDecoderState state = {
         .type = self->type,
         .strict = self->strict,
+        .forbid_unknown_fields = self->forbid_unknown_fields,
         .dec_hook = self->dec_hook,
         .float_hook = self->float_hook,
         .scratch = NULL,
@@ -19443,6 +19515,11 @@ PyDoc_STRVAR(msgspec_json_decode__doc__,
 "    Whether type coercion rules should be strict. Setting to False enables a\n"
 "    wider set of coercion rules from string to non-string types for all values.\n"
 "    Default is True.\n"
+"forbid_unknown_fields : bool, optional\n"
+"    If True, an error is raised if an unknown field is encountered at any point\n"
+"    in the decoding process. If False (the default), no error is raised and the\n"
+"    unknown field is skipped, unless the unknown field is for a Struct with\n"
+"    ``forbid_unknown_fields=True``.\n"
 "dec_hook : callable, optional\n"
 "    An optional callback for handling decoding custom types. Should have the\n"
 "    signature ``dec_hook(type: Type, obj: Any) -> Any``, where ``type`` is the\n"
@@ -19462,8 +19539,10 @@ PyDoc_STRVAR(msgspec_json_decode__doc__,
 static PyObject*
 msgspec_json_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
 {
-    PyObject *res = NULL, *buf = NULL, *type = NULL, *dec_hook = NULL, *strict_obj = NULL;
+    PyObject *res = NULL, *buf = NULL, *type = NULL, *dec_hook = NULL;
+    PyObject *strict_obj = NULL, *forbid_unknown_fields_obj = NULL;
     int strict = 1;
+    int forbid_unknown_fields = 0;
     MsgspecState *mod = msgspec_get_state(self);
 
     /* Parse arguments */
@@ -19473,6 +19552,7 @@ msgspec_json_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyO
         Py_ssize_t nkwargs = PyTuple_GET_SIZE(kwnames);
         if ((type = find_keyword(kwnames, args + nargs, mod->str_type)) != NULL) nkwargs--;
         if ((strict_obj = find_keyword(kwnames, args + nargs, mod->str_strict)) != NULL) nkwargs--;
+        if ((forbid_unknown_fields_obj = find_keyword(kwnames, args + nargs, mod->str_forbid_unknown_fields)) != NULL) nkwargs--;
         if ((dec_hook = find_keyword(kwnames, args + nargs, mod->str_dec_hook)) != NULL) nkwargs--;
         if (nkwargs > 0) {
             PyErr_SetString(
@@ -19500,8 +19580,15 @@ msgspec_json_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyO
         if (strict < 0) return NULL;
     }
 
+    /* Handle forbid_unknown_fields */
+    if (forbid_unknown_fields_obj != NULL) {
+        forbid_unknown_fields = PyObject_IsTrue(forbid_unknown_fields_obj);
+        if (forbid_unknown_fields < 0) return NULL;
+    }
+
     JSONDecoderState state = {
         .strict = strict,
+        .forbid_unknown_fields = forbid_unknown_fields,
         .dec_hook = dec_hook,
         .float_hook = NULL,
         .scratch = NULL,
@@ -20348,6 +20435,7 @@ typedef struct ConvertState {
     bool str_keys;
     bool from_attributes;
     bool strict;
+    bool forbid_unknown_fields;
 } ConvertState;
 
 static PyObject * convert(ConvertState *, PyObject *, TypeNode *, PathNode *);
@@ -21059,7 +21147,8 @@ convert_seq_to_struct_array_inner(
         }
     }
     if (MS_UNLIKELY(size > 0)) {
-        if (MS_UNLIKELY(st_type->forbid_unknown_fields == OPT_TRUE)) {
+        if (MS_UNLIKELY(st_type->forbid_unknown_fields == OPT_TRUE ||
+                        self->forbid_unknown_fields)) {
             ms_raise_validation_error(
                 path,
                 "Expected `array` of at most length %zd, got %zd%U",
@@ -21294,7 +21383,8 @@ convert_dict_to_struct(
             }
             else {
                 /* Unknown field */
-                if (MS_UNLIKELY(struct_type->forbid_unknown_fields == OPT_TRUE)) {
+                if (MS_UNLIKELY(struct_type->forbid_unknown_fields == OPT_TRUE ||
+                                self->forbid_unknown_fields)) {
                     ms_error_unknown_field(key, key_size, path);
                     goto error;
                 }
@@ -21370,6 +21460,12 @@ convert_dict_to_typeddict(
             Py_DECREF(val);
             if (status < 0) goto error;
         }
+        else {
+          if (MS_UNLIKELY(self->forbid_unknown_fields)) {
+            ms_error_unknown_field(key, key_size, path);
+            goto error;
+          }
+        }
     }
     if (nrequired < info->nrequired) {
         /* A required field is missing, determine which one and raise */
@@ -21420,6 +21516,12 @@ convert_dict_to_dataclass(
             int status = PyObject_GenericSetAttr(out, field, val);
             Py_DECREF(val);
             if (status < 0) goto error;
+        }
+        else {
+          if (MS_UNLIKELY(self->forbid_unknown_fields)) {
+            ms_error_unknown_field(key, key_size, path);
+            goto error;
+          }
         }
     }
     if (DataclassInfo_post_decode(info, out, path) < 0) goto error;
@@ -21890,6 +21992,11 @@ PyDoc_STRVAR(msgspec_convert__doc__,
 "    wider set of coercion rules from string to non-string types for all values.\n"
 "    Setting ``strict=False`` implies ``str_keys=True, builtin_types=None``.\n"
 "    Default is True.\n"
+"forbid_unknown_fields: bool, optional\n"
+"    If True, an error is raised if an unknown field is encountered at any point\n"
+"    in the decoding process. If False (the default), no error is raised and the\n"
+"    unknown field is skipped, unless the unknown field is for a Struct with\n"
+"    ``forbid_unknown_fields=True``.\n"
 "from_attributes: bool, optional\n"
 "    If True, input objects may be coerced to ``Struct``/``dataclass``/``attrs``\n"
 "    types by extracting attributes from the input matching fields in the output\n"
@@ -21943,18 +22050,19 @@ static PyObject*
 msgspec_convert(PyObject *self, PyObject *args, PyObject *kwargs)
 {
     PyObject *obj = NULL, *pytype = NULL, *builtin_types = NULL, *dec_hook = NULL;
-    int str_keys = false, strict = true, from_attributes = false;
+    int str_keys = false, strict = true, forbid_unknown_fields = false, from_attributes = false;
     ConvertState state;
 
     char *kwlist[] = {
-        "obj", "type", "strict", "from_attributes", "dec_hook", "builtin_types",
+        "obj", "type", "strict", "forbid_unknown_fields", "from_attributes", "dec_hook", "builtin_types",
         "str_keys", NULL
     };
 
     /* Parse arguments */
     if (!PyArg_ParseTupleAndKeywords(
-        args, kwargs, "OO|$ppOOp", kwlist,
-        &obj, &pytype, &strict, &from_attributes, &dec_hook, &builtin_types, &str_keys
+        args, kwargs, "OO|$pppOOp", kwlist,
+        &obj, &pytype, &strict, &forbid_unknown_fields,
+        &from_attributes, &dec_hook, &builtin_types, &str_keys
     )) {
         return NULL;
     }
@@ -21963,6 +22071,7 @@ msgspec_convert(PyObject *self, PyObject *args, PyObject *kwargs)
     state.builtin_types = 0;
     state.from_attributes = from_attributes;
     state.strict = strict;
+    state.forbid_unknown_fields = forbid_unknown_fields;
     if (strict) {
         state.str_keys = str_keys;
         if (ms_process_builtin_types(state.mod, builtin_types, &(state.builtin_types), NULL) < 0) {
@@ -22079,6 +22188,7 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->str_dec_hook);
     Py_CLEAR(st->str_ext_hook);
     Py_CLEAR(st->str_strict);
+    Py_CLEAR(st->str_forbid_unknown_fields);
     Py_CLEAR(st->str_order);
     Py_CLEAR(st->str_utcoffset);
     Py_CLEAR(st->str___origin__);
@@ -22496,6 +22606,7 @@ PyInit__core(void)
     CACHED_STRING(str_dec_hook, "dec_hook");
     CACHED_STRING(str_ext_hook, "ext_hook");
     CACHED_STRING(str_strict, "strict");
+    CACHED_STRING(str_forbid_unknown_fields, "forbid_unknown_fields");
     CACHED_STRING(str_order, "order");
     CACHED_STRING(str_utcoffset, "utcoffset");
     CACHED_STRING(str___origin__, "__origin__");
