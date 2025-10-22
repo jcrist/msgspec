@@ -310,6 +310,13 @@ class _SchemaGenerator:
             if t.min_length is not None:
                 schema["minProperties"] = t.min_length
         elif isinstance(t, mi.UnionType):
+            # don't wrap simple optionals in an anyOf
+            if len(t.types) == 2 and t.includes_none:
+                return (
+                    self.to_schema(t.types[0])
+                    if not isinstance(t.types[0], mi.NoneType)
+                    else self.to_schema(t.types[1])
+                )
             structs = {}
             other = []
             tag_field = None
