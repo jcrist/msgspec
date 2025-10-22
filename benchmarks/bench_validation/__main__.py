@@ -1,7 +1,7 @@
 import argparse
 import json
 import tempfile
-from ..generate_data import make_filesystem_data
+from benchmarks.generate_data import make_filesystem_data
 import sys
 import subprocess
 
