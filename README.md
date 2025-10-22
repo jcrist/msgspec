@@ -1,6 +1,10 @@
-<div align="center">
+<p align="center">
+  <a href="https://jcristharif.com/msgspec/">
+    <img src="https://raw.githubusercontent.com/jcrist/msgspec/main/docs/source/_static/msgspec-logo-light.svg" width="35%" alt="msgspec">
+  </a>
+</p>
 
-[![msgspec](https://raw.githubusercontent.com/jcrist/msgspec/main/docs/source/_static/msgspec-logo-light.svg)](https://jcristharif.com/msgspec/)
+<p align="center">
 
 [![CI](https://github.com/jcrist/msgspec/actions/workflows/ci.yml/badge.svg)](https://github.com/jcrist/msgspec/actions/workflows/ci.yml)
 [![Documentation](https://img.shields.io/badge/docs-latest-blue.svg)](https://jcristharif.com/msgspec/)
@@ -9,7 +13,7 @@
 [![Conda Version](https://img.shields.io/conda/vn/conda-forge/msgspec.svg)](https://anaconda.org/conda-forge/msgspec)
 [![Code Coverage](https://codecov.io/gh/jcrist/msgspec/branch/main/graph/badge.svg)](https://codecov.io/gh/jcrist/msgspec)
 
-</div>
+</p>
 
 `msgspec` is a *fast* serialization and validation library, with builtin
 support for [JSON](https://json.org), [MessagePack](https://msgpack.org),
