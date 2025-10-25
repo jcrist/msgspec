@@ -17,9 +17,16 @@ from typing import (
     overload,
 )
 
-from typing_extensions import dataclass_transform, Buffer, Self
+from typing_extensions import dataclass_transform, Buffer
 
 from . import inspect, json, msgpack, structs, toml, yaml
+
+# PEP 673 explicitly rejects using Self in metaclass definitions:
+# https://peps.python.org/pep-0673/#valid-locations-for-self
+#
+# Typeshed works around this by using a type variable as well:
+# https://github.com/python/typeshed/blob/17bde1bd5e556de001adde3c2f340ba1c3581bd2/stdlib/abc.pyi#L14-L19
+_SM = TypeVar("_SM", bound="StructMeta")
 
 class StructMeta(type):
      __struct_fields__: ClassVar[Tuple[str, ...]]
@@ -31,7 +38,7 @@ class StructMeta(type):
      @property
      def __struct_config__(self) -> structs.StructConfig: ...
      def __new__(
-         mcls: Type[Self],
+         mcls: Type[_SM],
          name: str,
          bases: Tuple[type, ...],
          namespace: Dict[str, Any],
@@ -56,7 +63,7 @@ class StructMeta(type):
          weakref: bool = False,
          dict: bool = False,
          cache_hash: bool = False,
-     ) -> Self: ...
+     ) -> _SM: ...
 
 T = TypeVar("T")
 
