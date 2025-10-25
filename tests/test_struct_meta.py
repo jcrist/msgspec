@@ -151,8 +151,7 @@ def test_struct_meta_inheritance():
                 kwargs["kw_only"] = kw_only_default
 
             # Create the class
-            cls = super().__new__(mcls, name, bases, namespace, **kwargs)
-            return cls
+            return super().__new__(mcls, name, bases, namespace, **kwargs)
 
     # Test basic functionality - without kw_only_default
     class SimpleModel(metaclass=CustomMeta):
@@ -171,8 +170,6 @@ def test_struct_meta_inheritance():
     # Test setting kw_only_default=True
     class KwOnlyBase(metaclass=CustomMeta, kw_only_default=True):
         """Base class that sets kw_only_default=True"""
-
-        pass
 
     # Test a simple child class, should inherit kw_only_default
     class SimpleChild(KwOnlyBase):
@@ -238,8 +235,6 @@ def test_struct_meta_subclass_functions():
     class CustomMeta(StructMeta):
         """Custom metaclass that inherits from StructMeta"""
 
-        pass
-
     # Use the custom metaclass to create a struct class
     class CustomStruct(metaclass=CustomMeta):
         x: int
@@ -301,13 +296,9 @@ def test_struct_meta_subclass_inheritance():
     class BaseMeta(StructMeta):
         """Base custom metaclass"""
 
-        pass
-
     # Define the second level custom metaclass
     class DerivedMeta(BaseMeta):
         """Derived custom metaclass"""
-
-        pass
 
     # Use the second level custom metaclass to create a struct class
     class DerivedStruct(metaclass=DerivedMeta):
@@ -342,8 +333,6 @@ def test_struct_meta_subclass_with_encoder():
     class EncoderMeta(StructMeta):
         """Custom metaclass for testing encoders"""
 
-        pass
-
     # Use the custom metaclass to create a struct class
     class EncoderStruct(metaclass=EncoderMeta):
         id: int
@@ -373,7 +362,3 @@ def test_struct_meta_subclass_with_encoder():
     assert decoded.count == 1
     assert decoded.item.id == 123
     assert decoded.item.name == "test"
-
-
-if __name__ == "__main__":
-    pytest.main(["-xvs", __file__])

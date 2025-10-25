@@ -1001,47 +1001,53 @@ collected (leading to a memory leak).
 Struct Metaclasses (Advanced)
 -----------------------------
 
-:class:`msgspec.Struct` is constructed using the :class:`msgspec.StructMeta`
-metaclass_. We can extend :class:`msgspec.StructMeta` to customize this
-construction. For example, we can automatically set ``kw_only=True`` in all
-subclasses of ``KwOnlyStruct``:
+You can define project-wide :class:`msgspec.Struct` policies at class-creation
+time by extending the :class:`msgspec.StructMeta` metaclass.
+
+In the following example, we flip the default value of ``kw_only`` to ``True``
+in all subclasses of ``KwOnlyStruct``.
 
 .. code-block:: python
 
-   from msgspec import Struct, StructMeta
+    >>> from msgspec import Struct, StructMeta
 
-   class KwOnlyStructMeta(StructMeta):
-       def __new__(mcls, name, bases, namespace, **kwargs):
-           kwargs.setdefault("kw_only", True)
-           return super().__new__(mcls, name, bases, namespace, **kwargs)
+    >>> class KwOnlyStructMeta(StructMeta):
+    ...     def __new__(mcls, name, bases, namespace, **kwargs):
+    ...         kwargs.setdefault("kw_only", True)
+    ...         return super().__new__(mcls, name, bases, namespace, **kwargs)
 
-   class KwOnlyStruct(Struct, metaclass=KwOnlyStructMeta):
-       pass
+    >>> class KwOnlyStruct(Struct, metaclass=KwOnlyStructMeta): ...
 
-which permits the following syntax:
+    >>> class Example(KwOnlyStruct):
+    ...     a: str = ""
+    ...     b: int
 
-.. code-block:: python
+    >>> Example()
+    Traceback (most recent call last):
+      File "<python-input-3>", line 1, in <module>
+        Example()
+        ~~~~~~~^^
+    TypeError: Missing required argument 'b'
 
-   class A(KwOnlyStruct):
-       a: int = 1
-       b: str = "hello"
-
-   class B(A):
-       c: int
+    >>> Example(b=123)
+    Example(a='', b=123)
 
 You can also mix :class:`msgspec.StructMeta` with other metaclasses. For
-example, you can create abstract Struct classes with:
+example, here we create an abstract :class:`msgspec.Struct` class:
 
 .. code-block:: python
 
-   from msgspec import Struct, StructMeta
-   from abc import ABCMeta
+    >>> from msgspec import Struct, StructMeta
 
-   class ABCStructMeta(StructMeta, ABCMeta):
-       pass
+    >>> from abc import ABCMeta
 
-   class StructABC(Struct, metaclass=ABCStructMeta):
-       ...
+    >>> class ABCStructMeta(StructMeta, ABCMeta): ...
+
+    >>> class StructABC(Struct, metaclass=ABCStructMeta): ...
+
+.. note::
+
+    When inheriting from multiple metaclasses, put :class:`msgspec.StructMeta` first.
 
 .. _type annotations: https://docs.python.org/3/library/typing.html
 .. _pattern matching: https://docs.python.org/3/reference/compound_stmts.html#the-match-statement

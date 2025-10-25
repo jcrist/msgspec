@@ -17,7 +17,7 @@ from typing import (
     overload,
 )
 
-from typing_extensions import dataclass_transform, Buffer
+from typing_extensions import dataclass_transform, Buffer, Self
 
 from . import inspect, json, msgpack, structs, toml, yaml
 
@@ -31,7 +31,7 @@ class StructMeta(type):
      @property
      def __struct_config__(self) -> structs.StructConfig: ...
      def __new__(
-         cls,
+         mcls: Type[Self],
          name: str,
          bases: Tuple[type, ...],
          namespace: Dict[str, Any],
@@ -56,7 +56,7 @@ class StructMeta(type):
          weakref: bool = False,
          dict: bool = False,
          cache_hash: bool = False,
-     ) -> StructMeta: ...
+     ) -> Self: ...
 
 T = TypeVar("T")
 
