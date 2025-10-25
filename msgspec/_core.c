@@ -4948,7 +4948,7 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
     ) {
         out = typenode_collect_struct(state, t);
     }
-    else if (Py_TYPE(t) == state->mod->EnumMetaType) {
+    else if (PyType_IsSubtype(Py_TYPE(t), state->mod->EnumMetaType)) {
         out = typenode_collect_enum(state, t);
     }
     else if (origin == (PyObject*)(&PyDict_Type)) {
@@ -13310,7 +13310,7 @@ mpack_encode_uncommon(EncoderState *self, PyTypeObject *type, PyObject *obj)
     else if (type == &Raw_Type) {
         return mpack_encode_raw(self, obj);
     }
-    else if (Py_TYPE(type) == self->mod->EnumMetaType) {
+    else if (PyType_IsSubtype(Py_TYPE(type), self->mod->EnumMetaType)) {
         return mpack_encode_enum(self, obj);
     }
     else if (type == (PyTypeObject *)(self->mod->DecimalType)) {
@@ -13987,7 +13987,7 @@ json_encode_dict_key_noinline(EncoderState *self, PyObject *obj) {
     else if (type == &PyFloat_Type) {
         return json_encode_float_as_str(self, obj);
     }
-    else if (Py_TYPE(type) == self->mod->EnumMetaType) {
+    else if (PyType_IsSubtype(Py_TYPE(type), self->mod->EnumMetaType)) {
         return json_encode_enum(self, obj, true);
     }
     else if (type == PyDateTimeAPI->DateTimeType) {
@@ -14414,7 +14414,7 @@ json_encode_uncommon(EncoderState *self, PyTypeObject *type, PyObject *obj) {
     else if (type == &Raw_Type) {
         return json_encode_raw(self, obj);
     }
-    else if (Py_TYPE(type) == self->mod->EnumMetaType) {
+    else if (PyType_IsSubtype(Py_TYPE(type), self->mod->EnumMetaType)) {
         return json_encode_enum(self, obj, false);
     }
     else if (PyType_IsSubtype(type, (PyTypeObject *)(self->mod->UUIDType))) {
@@ -20119,7 +20119,7 @@ to_builtins(ToBuiltinsState *self, PyObject *obj, bool is_key) {
     else if (PyType_IsSubtype(Py_TYPE(type), &StructMetaType)) {
         return to_builtins_struct(self, obj, is_key);
     }
-    else if (Py_TYPE(type) == self->mod->EnumMetaType) {
+    else if (PyType_IsSubtype(Py_TYPE(type), self->mod->EnumMetaType)) {
         return to_builtins_enum(self, obj);
     }
     else if (is_key & PyUnicode_Check(obj)) {
@@ -21888,7 +21888,7 @@ convert(
     else if (pytype == (PyTypeObject *)self->mod->DecimalType) {
         return convert_decimal(self, obj, type, path);
     }
-    else if (Py_TYPE(pytype) == self->mod->EnumMetaType) {
+    else if (PyType_IsSubtype(Py_TYPE(pytype), self->mod->EnumMetaType)) {
         return convert_enum(self, obj, type, path);
     }
     else if (pytype == &Ext_Type) {
