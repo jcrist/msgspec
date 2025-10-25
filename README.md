@@ -1,30 +1,19 @@
 <p align="center">
   <a href="https://jcristharif.com/msgspec/">
-    <img src="https://raw.githubusercontent.com/jcrist/msgspec/main/docs/source/_static/msgspec-logo-light.svg" width="35%" alt="msgspec" />
+    <img src="https://raw.githubusercontent.com/jcrist/msgspec/main/docs/source/_static/msgspec-logo-light.svg" width="35%" alt="msgspec">
   </a>
 </p>
 
-<p align="center">
-  <a href="https://github.com/jcrist/msgspec/actions/workflows/ci.yml">
-    <img src="https://github.com/jcrist/msgspec/actions/workflows/ci.yml/badge.svg">
-  </a>
-  <a href="https://jcristharif.com/msgspec/">
-    <img src="https://img.shields.io/badge/docs-latest-blue.svg">
-  </a>
-  <a href="https://github.com/jcrist/msgspec/blob/main/LICENSE">
-    <img src="https://img.shields.io/github/license/jcrist/msgspec.svg">
-  </a>
-  <a href="https://pypi.org/project/msgspec/">
-    <img src="https://img.shields.io/pypi/v/msgspec.svg">
-  </a>
-  <a href="https://anaconda.org/conda-forge/msgspec">
-    <img src="https://img.shields.io/conda/vn/conda-forge/msgspec.svg">
-  </a>
-  <a href="https://codecov.io/gh/jcrist/msgspec">
-    <img src="https://codecov.io/gh/jcrist/msgspec/branch/main/graph/badge.svg">
-  </a>
-</p>
+<div align="center">
 
+[![CI](https://github.com/jcrist/msgspec/actions/workflows/ci.yml/badge.svg)](https://github.com/jcrist/msgspec/actions/workflows/ci.yml)
+[![Documentation](https://img.shields.io/badge/docs-latest-blue.svg)](https://jcristharif.com/msgspec/)
+[![License](https://img.shields.io/github/license/jcrist/msgspec.svg)](https://github.com/jcrist/msgspec/blob/main/LICENSE)
+[![PyPI Version](https://img.shields.io/pypi/v/msgspec.svg)](https://pypi.org/project/msgspec/)
+[![Conda Version](https://img.shields.io/conda/vn/conda-forge/msgspec.svg)](https://anaconda.org/conda-forge/msgspec)
+[![Code Coverage](https://codecov.io/gh/jcrist/msgspec/branch/main/graph/badge.svg)](https://codecov.io/gh/jcrist/msgspec)
+
+</div>
 
 `msgspec` is a *fast* serialization and validation library, with builtin
 support for [JSON](https://json.org), [MessagePack](https://msgpack.org),

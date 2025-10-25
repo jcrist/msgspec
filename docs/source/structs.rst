@@ -931,6 +931,58 @@ has a signature similar to `dataclasses.make_dataclass`. See
     Point(x=1.0, y=2.0)
 
 
+Metaclasses
+-----------
+
+You can define project-wide :class:`msgspec.Struct` policies at class-creation
+time by extending the :class:`msgspec.StructMeta` metaclass.
+
+In the following example, we flip the default value of ``kw_only`` to ``True``
+in all subclasses of ``KwOnlyStruct``.
+
+.. code-block:: python
+
+    >>> from msgspec import Struct, StructMeta
+
+    >>> class KwOnlyStructMeta(StructMeta):
+    ...     def __new__(mcls, name, bases, namespace, **struct_config):
+    ...         struct_config.setdefault("kw_only", True)
+    ...         return super().__new__(mcls, name, bases, namespace, **struct_config)
+
+    >>> class KwOnlyStruct(Struct, metaclass=KwOnlyStructMeta): ...
+
+    >>> class Example(KwOnlyStruct):
+    ...     a: str = ""
+    ...     b: int
+
+    >>> Example()
+    Traceback (most recent call last):
+      File "<python-input-3>", line 1, in <module>
+        Example()
+        ~~~~~~~^^
+    TypeError: Missing required argument 'b'
+
+    >>> Example(b=123)
+    Example(a='', b=123)
+
+You can also mix :class:`msgspec.StructMeta` with other metaclasses. For
+example, here we create an abstract :class:`msgspec.Struct` class:
+
+.. code-block:: python
+
+    >>> from msgspec import Struct, StructMeta
+
+    >>> from abc import ABCMeta
+
+    >>> class ABCStructMeta(StructMeta, ABCMeta): ...
+
+    >>> class StructABC(Struct, metaclass=ABCStructMeta): ...
+
+.. note::
+
+    When inheriting from multiple metaclasses, put :class:`msgspec.StructMeta` first.
+
+
 .. _struct-gc:
 
 Disabling Garbage Collection (Advanced)
@@ -1013,3 +1065,4 @@ collected (leading to a memory leak).
 .. _rich: https://rich.readthedocs.io/en/stable/pretty.html
 .. _keyword-only parameters: https://docs.python.org/3/glossary.html#term-parameter
 .. _lambda: https://docs.python.org/3/tutorial/controlflow.html#lambda-expressions
+.. _metaclass: https://docs.python.org/3/reference/datamodel.html#metaclasses

@@ -8,6 +8,8 @@ Structs
 
 .. autoclass:: Struct
 
+.. autoclass:: StructMeta(name, bases, namespace, /, *, **struct_config)
+
 .. autofunction:: field
 
 .. autofunction:: defstruct
