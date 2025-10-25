@@ -1119,6 +1119,52 @@ has a signature similar to <a class="reference external" href="https://docs.pyth
 </pre></div>
 </div>
 </section>
+<section id="metaclasses">
+<h2>Metaclasses<a class="headerlink" href="#metaclasses" title="Link to this heading">¶</a></h2>
+<p>You can define project-wide <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-class docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> policies at class-creation
+time by extending the <a class="reference internal" href="api.html#msgspec.StructMeta" title="msgspec.StructMeta"><code class="xref py py-class docutils literal notranslate"><span class="pre">msgspec.StructMeta</span></code></a> metaclass.</p>
+<p>In the following example, we flip the default value of <code class="docutils literal notranslate"><span class="pre">kw_only</span></code> to <code class="docutils literal notranslate"><span class="pre">True</span></code>
+in all subclasses of <code class="docutils literal notranslate"><span class="pre">KwOnlyStruct</span></code>.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">msgspec</span><span class="w"> </span><span class="kn">import</span> <span class="n">Struct</span><span class="p">,</span> <span class="n">StructMeta</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">KwOnlyStructMeta</span><span class="p">(</span><span class="n">StructMeta</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="k">def</span><span class="w"> </span><span class="fm">__new__</span><span class="p">(</span><span class="n">mcls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">bases</span><span class="p">,</span> <span class="n">namespace</span><span class="p">,</span> <span class="o">**</span><span class="n">struct_config</span><span class="p">):</span>
+<span class="gp">... </span>        <span class="n">struct_config</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s2">&quot;kw_only&quot;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+<span class="gp">... </span>        <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="n">mcls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">bases</span><span class="p">,</span> <span class="n">namespace</span><span class="p">,</span> <span class="o">**</span><span class="n">struct_config</span><span class="p">)</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">KwOnlyStruct</span><span class="p">(</span><span class="n">Struct</span><span class="p">,</span> <span class="n">metaclass</span><span class="o">=</span><span class="n">KwOnlyStructMeta</span><span class="p">):</span> <span class="o">...</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">Example</span><span class="p">(</span><span class="n">KwOnlyStruct</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="n">a</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+<span class="gp">... </span>    <span class="n">b</span><span class="p">:</span> <span class="nb">int</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">Example</span><span class="p">()</span>
+<span class="gt">Traceback (most recent call last):</span>
+  File <span class="nb">&quot;&lt;python-input-3&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+<span class="w">    </span><span class="n">Example</span><span class="p">()</span>
+<span class="w">    </span><span class="pm">~~~~~~~^^</span>
+<span class="gr">TypeError</span>: <span class="n">Missing required argument &#39;b&#39;</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">Example</span><span class="p">(</span><span class="n">b</span><span class="o">=</span><span class="mi">123</span><span class="p">)</span>
+<span class="go">Example(a=&#39;&#39;, b=123)</span>
+</pre></div>
+</div>
+<p>You can also mix <a class="reference internal" href="api.html#msgspec.StructMeta" title="msgspec.StructMeta"><code class="xref py py-class docutils literal notranslate"><span class="pre">msgspec.StructMeta</span></code></a> with other metaclasses. For
+example, here we create an abstract <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-class docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> class:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">msgspec</span><span class="w"> </span><span class="kn">import</span> <span class="n">Struct</span><span class="p">,</span> <span class="n">StructMeta</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">ABCMeta</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">ABCStructMeta</span><span class="p">(</span><span class="n">StructMeta</span><span class="p">,</span> <span class="n">ABCMeta</span><span class="p">):</span> <span class="o">...</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">StructABC</span><span class="p">(</span><span class="n">Struct</span><span class="p">,</span> <span class="n">metaclass</span><span class="o">=</span><span class="n">ABCStructMeta</span><span class="p">):</span> <span class="o">...</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>When inheriting from multiple metaclasses, put <a class="reference internal" href="api.html#msgspec.StructMeta" title="msgspec.StructMeta"><code class="xref py py-class docutils literal notranslate"><span class="pre">msgspec.StructMeta</span></code></a> first.</p>
+</div>
+</section>
 <section id="disabling-garbage-collection-advanced">
 <span id="struct-gc"></span><h2>Disabling Garbage Collection (Advanced)<a class="headerlink" href="#disabling-garbage-collection-advanced" title="Link to this heading">¶</a></h2>
 <div class="admonition warning">
@@ -1256,6 +1302,7 @@ collected (leading to a memory leak).</p>
 <li><a class="reference internal" href="#renaming-fields">Renaming Fields</a></li>
 <li><a class="reference internal" href="#encoding-decoding-as-arrays">Encoding/Decoding as Arrays</a></li>
 <li><a class="reference internal" href="#runtime-definition">Runtime Definition</a></li>
+<li><a class="reference internal" href="#metaclasses">Metaclasses</a></li>
 <li><a class="reference internal" href="#disabling-garbage-collection-advanced">Disabling Garbage Collection (Advanced)</a></li>
 </ul>
 </li>

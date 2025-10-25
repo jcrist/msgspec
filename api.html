@@ -402,6 +402,35 @@ we define a new <a class="reference internal" href="#msgspec.Struct" title="msgs
 </div>
 </dd></dl>
 
+<dl class="py class">
+<dt class="sig sig-object py" id="msgspec.StructMeta">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">msgspec.</span></span><span class="sig-name descname"><span class="pre">StructMeta</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bases</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">namespace</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">/</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">**struct_config</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.StructMeta" title="Link to this definition">¶</a></dt>
+<dd><p>The metaclass for creating <a class="reference internal" href="#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code></a> types. See its documentation for the
+available configuration options when subclassing.</p>
+<p class="rubric">Examples</p>
+<p>Here we define a metaclass that modifies the default configuration and use
+it to create a new <a class="reference internal" href="#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code></a> base class.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">msgspec</span><span class="w"> </span><span class="kn">import</span> <span class="n">Struct</span><span class="p">,</span> <span class="n">StructMeta</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">KwOnlyStructMeta</span><span class="p">(</span><span class="n">StructMeta</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="k">def</span><span class="w"> </span><span class="fm">__new__</span><span class="p">(</span><span class="n">mcls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">bases</span><span class="p">,</span> <span class="n">namespace</span><span class="p">,</span> <span class="o">**</span><span class="n">struct_config</span><span class="p">):</span>
+<span class="gp">... </span>        <span class="n">struct_config</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s2">&quot;kw_only&quot;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+<span class="gp">... </span>        <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="n">mcls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">bases</span><span class="p">,</span> <span class="n">namespace</span><span class="p">,</span> <span class="o">**</span><span class="n">struct_config</span><span class="p">)</span>
+<span class="gp">...</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">KwOnlyStruct</span><span class="p">(</span><span class="n">Struct</span><span class="p">,</span> <span class="n">metaclass</span><span class="o">=</span><span class="n">KwOnlyStructMeta</span><span class="p">):</span> <span class="o">...</span>
+</pre></div>
+</div>
+<p>Any subclass of <code class="docutils literal notranslate"><span class="pre">KwOnlyStruct</span></code> will have <code class="docutils literal notranslate"><span class="pre">kw_only</span></code> set to <code class="docutils literal notranslate"><span class="pre">True</span></code> by
+default.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">Example</span><span class="p">(</span><span class="n">KwOnlyStruct</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="n">a</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span>
+<span class="gp">... </span>    <span class="n">b</span><span class="p">:</span> <span class="nb">int</span>
+<span class="gp">...</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">Example</span><span class="p">(</span><span class="n">b</span><span class="o">=</span><span class="mi">123</span><span class="p">)</span>
+<span class="go">Example(a=&#39;&#39;, b=123)</span>
+</pre></div>
+</div>
+</dd></dl>
+
 <dl class="py function">
 <dt class="sig sig-object py" id="msgspec.field">
 <span class="sig-prename descclassname"><span class="pre">msgspec.</span></span><span class="sig-name descname"><span class="pre">field</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">default</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">NODEFAULT</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">default_factory</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">NODEFAULT</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.field" title="Link to this definition">¶</a></dt>
@@ -2202,6 +2231,7 @@ is set.</p></li>
 <li><a class="reference internal" href="#">API Docs</a><ul>
 <li><a class="reference internal" href="#structs">Structs</a><ul>
 <li><a class="reference internal" href="#msgspec.Struct"><code class="docutils literal notranslate"><span class="pre">Struct</span></code></a></li>
+<li><a class="reference internal" href="#msgspec.StructMeta"><code class="docutils literal notranslate"><span class="pre">StructMeta</span></code></a></li>
 <li><a class="reference internal" href="#msgspec.field"><code class="docutils literal notranslate"><span class="pre">field()</span></code></a></li>
 <li><a class="reference internal" href="#msgspec.defstruct"><code class="docutils literal notranslate"><span class="pre">defstruct()</span></code></a></li>
 <li><a class="reference internal" href="#msgspec.structs.replace"><code class="docutils literal notranslate"><span class="pre">replace()</span></code></a></li>
