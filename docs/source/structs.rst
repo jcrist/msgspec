@@ -945,9 +945,9 @@ in all subclasses of ``KwOnlyStruct``.
     >>> from msgspec import Struct, StructMeta
 
     >>> class KwOnlyStructMeta(StructMeta):
-    ...     def __new__(mcls, name, bases, namespace, **kwargs):
-    ...         kwargs.setdefault("kw_only", True)
-    ...         return super().__new__(mcls, name, bases, namespace, **kwargs)
+    ...     def __new__(mcls, name, bases, namespace, **struct_config):
+    ...         struct_config.setdefault("kw_only", True)
+    ...         return super().__new__(mcls, name, bases, namespace, **struct_config)
 
     >>> class KwOnlyStruct(Struct, metaclass=KwOnlyStructMeta): ...
 

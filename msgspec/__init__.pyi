@@ -29,41 +29,42 @@ from . import inspect, json, msgpack, structs, toml, yaml
 _SM = TypeVar("_SM", bound="StructMeta")
 
 class StructMeta(type):
-     __struct_fields__: ClassVar[Tuple[str, ...]]
-     __struct_defaults__: ClassVar[Tuple[Any, ...]]
-     __struct_encode_fields__: ClassVar[Tuple[str, ...]]
-     __match_args__: ClassVar[Tuple[str, ...]]
-     @property
-     def __signature__(self) -> Signature: ...
-     @property
-     def __struct_config__(self) -> structs.StructConfig: ...
-     def __new__(
-         mcls: Type[_SM],
-         name: str,
-         bases: Tuple[type, ...],
-         namespace: Dict[str, Any],
-         *,
-         tag_field: Optional[str] = None,
-         tag: Union[None, bool, str, int, Callable[[str], Union[str, int]]] = None,
-         rename: Union[
-             None,
-             Literal["lower", "upper", "camel", "pascal", "kebab"],
-             Callable[[str], Optional[str]],
-             Mapping[str, str],
-         ] = None,
-         omit_defaults: bool = False,
-         forbid_unknown_fields: bool = False,
-         frozen: bool = False,
-         eq: bool = True,
-         order: bool = False,
-         kw_only: bool = False,
-         repr_omit_defaults: bool = False,
-         array_like: bool = False,
-         gc: bool = True,
-         weakref: bool = False,
-         dict: bool = False,
-         cache_hash: bool = False,
-     ) -> _SM: ...
+    __struct_fields__: ClassVar[Tuple[str, ...]]
+    __struct_defaults__: ClassVar[Tuple[Any, ...]]
+    __struct_encode_fields__: ClassVar[Tuple[str, ...]]
+    __match_args__: ClassVar[Tuple[str, ...]]
+    @property
+    def __signature__(self) -> Signature: ...
+    @property
+    def __struct_config__(self) -> structs.StructConfig: ...
+    def __new__(
+        mcls: Type[_SM],
+        name: str,
+        bases: Tuple[type, ...],
+        namespace: Dict[str, Any],
+        /,
+        *,
+        tag: Union[None, bool, str, int, Callable[[str], Union[str, int]]] = None,
+        tag_field: Union[None, str] = None,
+        rename: Union[
+            None,
+            Literal["lower", "upper", "camel", "pascal", "kebab"],
+            Callable[[str], Optional[str]],
+            Mapping[str, str],
+        ] = None,
+        omit_defaults: bool = False,
+        forbid_unknown_fields: bool = False,
+        frozen: bool = False,
+        eq: bool = True,
+        order: bool = False,
+        kw_only: bool = False,
+        repr_omit_defaults: bool = False,
+        array_like: bool = False,
+        gc: bool = True,
+        weakref: bool = False,
+        dict: bool = False,
+        cache_hash: bool = False,
+    ) -> _SM: ...
 
 T = TypeVar("T")
 
