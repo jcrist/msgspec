@@ -30,6 +30,6 @@ def test_pyright():
         try:
             exec(check, {"typ": typ})
         except Exception:
-            assert (
-                False
-            ), f"Failed check at {PATH}:{lineno}: {check!r}, where 'typ' is {typ!r}"
+            assert False, (
+                f"Failed check at {PATH}:{lineno}: {check!r}, where 'typ' is {typ!r}"
+            )

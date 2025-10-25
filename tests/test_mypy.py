@@ -32,8 +32,8 @@ def test_mypy():
             try:
                 exec(check, {"typ": typ})
             except Exception:
-                assert (
-                    False
-                ), f"Failed check at {PATH}:{lineno}: {check!r}, where 'typ' is {typ!r}"
+                assert False, (
+                    f"Failed check at {PATH}:{lineno}: {check!r}, where 'typ' is {typ!r}"
+                )
         elif "success" not in line.lower():
             assert False, line
