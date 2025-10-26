@@ -1597,8 +1597,8 @@ TOML_ types are decoded to Python types as follows:
 .. _JSON: https://json.org
 .. _MessagePack: https://msgpack.org
 .. _YAML: https://yaml.org
-.. _TOML: https://toml.io
-.. _pydantic: https://pydantic-docs.helpmanual.io/
+.. _TOML: https://toml.io/en/
+.. _pydantic: https://docs.pydantic.dev/latest/
 .. _pendulum: https://pendulum.eustace.io/
 .. _RFC8259: https://datatracker.ietf.org/doc/html/rfc8259
 .. _RFC3339: https://datatracker.ietf.org/doc/html/rfc3339
@@ -1608,7 +1608,7 @@ TOML_ types are decoded to Python types as follows:
 .. _dataclasses: https://docs.python.org/3/library/dataclasses.html
 .. _attrs: https://www.attrs.org/en/stable/index.html
 .. _timezone-aware: https://docs.python.org/3/library/datetime.html#aware-and-naive-objects
-.. _mypy: https://mypy.readthedocs.io
+.. _mypy: https://mypy.readthedocs.io/en/stable/
 .. _pyright: https://github.com/microsoft/pyright
 .. _generic types:
 .. _user-defined generic types: https://docs.python.org/3/library/typing.html#user-defined-generic-types

@@ -377,7 +377,7 @@ supported by default (see <a class="reference internal" href="extending.html"><s
 protocols.</p>
 <section id="none">
 <h2><code class="docutils literal notranslate"><span class="pre">None</span></code><a class="headerlink" href="#none" title="Link to this heading">¶</a></h2>
-<p><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a> maps to the <code class="docutils literal notranslate"><span class="pre">null</span></code> value in all supported protocols. Note that <a class="reference external" href="https://toml.io">TOML</a>
+<p><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a> maps to the <code class="docutils literal notranslate"><span class="pre">null</span></code> value in all supported protocols. Note that <a class="reference external" href="https://toml.io/en/">TOML</a>
 lacks a <code class="docutils literal notranslate"><span class="pre">null</span></code> value, attempted to encode a message containing <code class="docutils literal notranslate"><span class="pre">None</span></code> to
 <code class="docutils literal notranslate"><span class="pre">TOML</span></code> will result in an error.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
@@ -718,7 +718,7 @@ needed.</p></li>
 <ul class="simple">
 <li><p>Java’s <code class="docutils literal notranslate"><span class="pre">time.Duration.parse</span></code> (<a class="reference external" href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/Duration.html#parse(java.lang.CharSequence)">docs</a>)</p></li>
 <li><p>Javascript’s proposed <code class="docutils literal notranslate"><span class="pre">Temporal.Duration</span></code> standard API (<a class="reference external" href="https://tc39.es/proposal-temporal/docs/duration.html">docs</a>)</p></li>
-<li><p>Python libraries like <a class="reference external" href="https://pendulum.eustace.io/">pendulum</a> or <a class="reference external" href="https://pydantic-docs.helpmanual.io/">pydantic</a>.</p></li>
+<li><p>Python libraries like <a class="reference external" href="https://pendulum.eustace.io/">pendulum</a> or <a class="reference external" href="https://docs.pydantic.dev/latest/">pydantic</a>.</p></li>
 </ul>
 <p>Duration strings produced by msgspec should be interchangeable with these
 libraries, as well as similar ones in other language ecosystems.</p>
@@ -1114,7 +1114,7 @@ additional features.</p>
 <section id="struct">
 <h2><code class="docutils literal notranslate"><span class="pre">Struct</span></code><a class="headerlink" href="#struct" title="Link to this heading">¶</a></h2>
 <p>Structs are the preferred way of defining structured data types in <code class="docutils literal notranslate"><span class="pre">msgspec</span></code>.
-You can think of them as similar to <a class="reference external" href="https://docs.python.org/3/library/dataclasses.html">dataclasses</a>/<a class="reference external" href="https://www.attrs.org/en/stable/index.html">attrs</a>/<a class="reference external" href="https://pydantic-docs.helpmanual.io/">pydantic</a>, but much
+You can think of them as similar to <a class="reference external" href="https://docs.python.org/3/library/dataclasses.html">dataclasses</a>/<a class="reference external" href="https://www.attrs.org/en/stable/index.html">attrs</a>/<a class="reference external" href="https://docs.pydantic.dev/latest/">pydantic</a>, but much
 faster to create/compare/encode/decode. For more information, see the
 <a class="reference internal" href="structs.html"><span class="doc">Structs</span></a> page.</p>
 <p>By default <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> types map to objects/maps in all protocols. During
@@ -1346,7 +1346,7 @@ values, or doesn’t match any of their component types.</p>
 <section id="newtype">
 <h2><code class="docutils literal notranslate"><span class="pre">NewType</span></code><a class="headerlink" href="#newtype" title="Link to this heading">¶</a></h2>
 <p><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.NewType" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.NewType</span></code></a> types are treated identically to their base type. Their
-support here is purely to aid static analysis tools like <a class="reference external" href="https://mypy.readthedocs.io">mypy</a> or <a class="reference external" href="https://github.com/microsoft/pyright">pyright</a>.</p>
+support here is purely to aid static analysis tools like <a class="reference external" href="https://mypy.readthedocs.io/en/stable/">mypy</a> or <a class="reference external" href="https://github.com/microsoft/pyright">pyright</a>.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">NewType</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="n">UserId</span> <span class="o">=</span> <span class="n">NewType</span><span class="p">(</span><span class="s2">&quot;UserId&quot;</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span>
@@ -1712,7 +1712,7 @@ by default.</p>
 <li><p><code class="docutils literal notranslate"><span class="pre">date</span></code>: <a class="reference external" href="https://docs.python.org/3/library/datetime.html#datetime.date" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime.date</span></code></a></p></li>
 </ul>
 <p><strong>TOML</strong></p>
-<p><a class="reference external" href="https://toml.io">TOML</a> types are decoded to Python types as follows:</p>
+<p><a class="reference external" href="https://toml.io/en/">TOML</a> types are decoded to Python types as follows:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">bool</span></code>: <a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bool</span></code></a></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">string</span></code>: <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">str</span></code></a></p></li>

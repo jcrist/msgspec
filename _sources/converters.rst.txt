@@ -135,4 +135,4 @@ The implementation in ``msgspec.toml`` is *almost* identical to the one above,
 with some additional code for error handling.
 
 
-.. _TOML: https://toml.io
+.. _TOML: https://toml.io/en/

@@ -23,13 +23,13 @@ file. This includes full schema definitions for all fields in the
 ``tool``.
 
 The full example source can be found `here
-<https://github.com/jcrist/msgspec/blob/main/examples/pyproject-toml>`__.
+<https://github.com/jcrist/msgspec/tree/main/examples/pyproject-toml>`__.
 
 .. literalinclude:: ../../../examples/pyproject-toml/pyproject.py
     :language: python
 
 Here we use it to load the `pyproject.toml for Starlette
-<https://github.com/encode/starlette/blob/master/pyproject.toml>`__:
+<https://github.com/Kludex/starlette/blob/main/pyproject.toml>`__:
 
 .. code-block:: ipython3
 
@@ -37,7 +37,7 @@ Here we use it to load the `pyproject.toml for Starlette
 
     In [2]: import urllib.request
 
-    In [3]: url = "https://raw.githubusercontent.com/encode/starlette/master/pyproject.toml"
+    In [3]: url = "https://raw.githubusercontent.com/Kludex/starlette/HEAD/pyproject.toml"
 
     In [4]: with urllib.request.urlopen(url) as f:
        ...:     data = f.read()
@@ -109,8 +109,8 @@ a single string:
 .. _PEP 517: https://peps.python.org/pep-0517/
 .. _PEP 518: https://peps.python.org/pep-0518/
 .. _PEP 621: https://peps.python.org/pep-0621/
-.. _black: https://black.readthedocs.io
-.. _mypy: https://mypy.readthedocs.io
+.. _black: https://black.readthedocs.io/en/stable/
+.. _mypy: https://mypy.readthedocs.io/en/stable/
 .. _pyright: https://github.com/microsoft/pyright
-.. _pytest: https://docs.pytest.org
+.. _pytest: https://docs.pytest.org/en/stable/
 .. _dependency specifiers: https://packaging.python.org/en/latest/specifications/dependency-specifiers/

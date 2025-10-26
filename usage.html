@@ -308,7 +308,7 @@ separate submodules:</p>
 <li><p><code class="docutils literal notranslate"><span class="pre">msgspec.json</span></code> (<a class="reference external" href="https://json.org">JSON</a>)</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">msgspec.msgpack</span></code> (<a class="reference external" href="https://msgpack.org">MessagePack</a>)</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">msgspec.yaml</span></code> (<a class="reference external" href="https://yaml.org">YAML</a>)</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">msgspec.toml</span></code> (<a class="reference external" href="https://toml.io">TOML</a>)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">msgspec.toml</span></code> (<a class="reference external" href="https://toml.io/en/">TOML</a>)</p></li>
 </ul>
 <p>Each supports a consistent interface, making it simple to switch between
 protocols as needed.</p>
@@ -382,7 +382,7 @@ or <a class="reference external" href="https://msgpack.org">MessagePack</a>. Spe
 into types other than the defaults described above (e.g. decoding JSON
 objects into a <a class="reference internal" href="structs.html"><span class="doc">Struct</span></a> instead of the default <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a>).</p></li>
 <li><p>The <a class="reference external" href="https://docs.python.org/3/library/typing.html">type annotations</a> used to describe the expected types are compatible
-with tools like <a class="reference external" href="https://mypy.readthedocs.io">mypy</a> or <a class="reference external" href="https://github.com/microsoft/pyright">pyright</a>, providing excellent editor integration.</p></li>
+with tools like <a class="reference external" href="https://mypy.readthedocs.io/en/stable/">mypy</a> or <a class="reference external" href="https://github.com/microsoft/pyright">pyright</a>, providing excellent editor integration.</p></li>
 </ul>
 <p><code class="docutils literal notranslate"><span class="pre">msgspec</span></code> uses Python <a class="reference external" href="https://docs.python.org/3/library/typing.html">type annotations</a> to describe the expected types. A
 <a class="reference internal" href="supported-types.html"><span class="doc">wide variety of builtin types are supported</span></a>.</p>
@@ -414,7 +414,7 @@ the type to <code class="docutils literal notranslate"><span class="pre">decode<
 </div>
 <section id="strict-vs-lax-mode">
 <span id="strict-vs-lax"></span><h3>“Strict” vs “Lax” Mode<a class="headerlink" href="#strict-vs-lax-mode" title="Link to this heading">¶</a></h3>
-<p>Unlike some other libraries (e.g. <a class="reference external" href="https://pydantic-docs.helpmanual.io/">pydantic</a>), <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> won’t perform any
+<p>Unlike some other libraries (e.g. <a class="reference external" href="https://docs.pydantic.dev/latest/">pydantic</a>), <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> won’t perform any
 unsafe implicit conversion by default (“strict” mode). For example, if an
 integer is specified and a string is provided instead, an error is raised
 rather than attempting to cast the string to an int.</p>

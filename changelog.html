@@ -503,8 +503,8 @@ decoders (<a class="extlink-pr reference external" href="https://github.com/jcri
 <h2>Version 0.15.0 (2023-05-10)<a class="headerlink" href="#version-0-15-0-2023-05-10" title="Link to this heading">¶</a></h2>
 <ul class="simple">
 <li><p>Add support for Generic <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code></a> types (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/386">PR #386</a>, <a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/393">PR #393</a>).</p></li>
-<li><p>Add support for Generic <a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#module-dataclasses" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses</span></code></a> and <a class="reference external" href="https://attrs.org">attrs</a> types
-(<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/396">PR #396</a>).</p></li>
+<li><p>Add support for Generic <a class="reference external" href="https://docs.python.org/3/library/dataclasses.html#module-dataclasses" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dataclasses</span></code></a> and
+<a class="reference external" href="https://www.attrs.org/en/stable/">attrs</a> types (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/396">PR #396</a>).</p></li>
 <li><p>Add support for Generic <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypedDict" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.TypedDict</span></code></a> and <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.NamedTuple" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">typing.NamedTuple</span></code></a> types
 (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/398">PR #398</a>).</p></li>
 <li><p><strong>BREAKING</strong>: No longer normalize timezones to UTC when decoding <a class="reference external" href="https://docs.python.org/3/library/datetime.html#module-datetime" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">datetime</span></code></a>
@@ -546,7 +546,8 @@ is constructed (<a class="extlink-pr reference external" href="https://github.co
 <section id="version-0-14-0-2023-04-02">
 <h2>Version 0.14.0 (2023-04-02)<a class="headerlink" href="#version-0-14-0-2023-04-02" title="Link to this heading">¶</a></h2>
 <ul class="simple">
-<li><p>Support encoding and decoding <a class="reference external" href="https://attrs.org">attrs</a> types (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/323">PR #323</a>).</p></li>
+<li><p>Support encoding and decoding <a class="reference external" href="https://www.attrs.org/en/stable/">attrs</a>
+types (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/323">PR #323</a>).</p></li>
 <li><p>Add <code class="docutils literal notranslate"><span class="pre">repr_omit_defaults</span></code> configuration option for omitting struct default
 values in the <code class="docutils literal notranslate"><span class="pre">repr</span></code> (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/322">PR #322</a>).</p></li>
 <li><p>Expose a struct’s configuration through a <code class="docutils literal notranslate"><span class="pre">__struct_config__</span></code> attribute

@@ -361,7 +361,7 @@ into user-friendly python objects.</p></li>
 <ul class="simple">
 <li><p><a class="reference external" href="https://jcristharif.com/msgspec/">msgspec</a> (0.18.5)</p></li>
 <li><p><a class="reference external" href="https://github.com/Fatal1ty/mashumaro">mashumaro</a> (3.11)</p></li>
-<li><p><a class="reference external" href="https://pydantic-docs.helpmanual.io/">pydantic</a> (both 1.10.13 and 2.5.2)</p></li>
+<li><p><a class="reference external" href="https://docs.pydantic.dev/latest/">pydantic</a> (both 1.10.13 and 2.5.2)</p></li>
 <li><p><a class="reference external" href="https://catt.rs/en/latest/">cattrs</a> (23.2.3)</p></li>
 </ul>
 <p>Each benchmark creates a message containing one or more <code class="docutils literal notranslate"><span class="pre">File</span></code>/<code class="docutils literal notranslate"><span class="pre">Directory</span></code>
@@ -373,13 +373,13 @@ than <code class="docutils literal notranslate"><span class="pre">cattrs</span><
 <code class="docutils literal notranslate"><span class="pre">pydantic</span></code> V1.</p>
 <p>This plot shows the performance benefit of performing type validation during
 message decoding (as done by <code class="docutils literal notranslate"><span class="pre">msgspec</span></code>) rather than as a secondary step with
-a third-party library like <a class="reference external" href="https://catt.rs/en/latest/">cattrs</a> or <a class="reference external" href="https://pydantic-docs.helpmanual.io/">pydantic</a> V1. Validating after decoding
+a third-party library like <a class="reference external" href="https://catt.rs/en/latest/">cattrs</a> or <a class="reference external" href="https://docs.pydantic.dev/latest/">pydantic</a> V1. Validating after decoding
 is slower for two reasons:</p>
 <ul class="simple">
 <li><p>It requires traversing over the entire output structure a second time (which
 can be slow due to pointer chasing)</p></li>
 <li><p>It may require converting some python objects to their desired output types
-(e.g. converting a decoded <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a> to a <a class="reference external" href="https://pydantic-docs.helpmanual.io/">pydantic</a> model), resulting in
+(e.g. converting a decoded <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a> to a <a class="reference external" href="https://docs.pydantic.dev/latest/">pydantic</a> model), resulting in
 allocating many temporary python objects.</p></li>
 </ul>
 <p>In contrast, libraries like <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> that validate during decoding have none
@@ -406,7 +406,7 @@ popular Python JSON libraries.</p>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/json.html">json</a> (standard library)</p></li>
 </ul>
 <p>The full benchmark source can be found
-<a class="reference external" href="https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_encodings.py">here</a>.</p>
+<a class="reference external" href="https://github.com/jcrist/msgspec/blob/main/benchmarks/bench_encodings.py">here</a>.</p>
 <div id="bench-json" style="width:75%"></div><p>In this case <code class="docutils literal notranslate"><span class="pre">msgspec</span> <span class="pre">structs</span></code> (which measures <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> with
 <code class="docutils literal notranslate"><span class="pre">msgspec.Struct</span></code> schemas pre-defined) is the fastest. When used without
 schemas, <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> is on-par with <code class="docutils literal notranslate"><span class="pre">orjson</span></code> (the next fastest JSON library).</p>
@@ -445,7 +445,7 @@ compare the following libraries:</p>
 </ul>
 <p>For each library, we measure both the peak increase in memory usage (RSS) and
 the time to JSON decode the file.</p>
-<p>The full benchmark source can be found <a class="reference external" href="https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_large_json.py">here</a>.</p>
+<p>The full benchmark source can be found <a class="reference external" href="https://github.com/jcrist/msgspec/blob/main/benchmarks/bench_large_json.py">here</a>.</p>
 <p><strong>Results (smaller is better):</strong></p>
 <div class="table-wrapper docutils container">
 <table class="docutils align-default">
@@ -530,8 +530,8 @@ performance against other similar libraries. The cases compared are:</p>
 <li><p>Standard Python classes</p></li>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/dataclasses.html">dataclasses</a></p></li>
 <li><p><a class="reference external" href="https://jcristharif.com/msgspec/">msgspec</a> (0.18.5)</p></li>
-<li><p><a class="reference external" href="https://www.attrs.org">attrs</a> (23.1.0)</p></li>
-<li><p><a class="reference external" href="https://pydantic-docs.helpmanual.io/">pydantic</a> (2.5.2)</p></li>
+<li><p><a class="reference external" href="https://www.attrs.org/en/stable/">attrs</a> (23.1.0)</p></li>
+<li><p><a class="reference external" href="https://docs.pydantic.dev/latest/">pydantic</a> (2.5.2)</p></li>
 </ul>
 <p>For each library, the following operations are benchmarked:</p>
 <ul class="simple">
@@ -542,7 +542,7 @@ libraries that make use of these classes.</p></li>
 <li><p>Time to compare two instances for equality (<code class="docutils literal notranslate"><span class="pre">==</span></code>/<code class="docutils literal notranslate"><span class="pre">!=</span></code>).</p></li>
 <li><p>Time to compare two instances for order (<code class="docutils literal notranslate"><span class="pre">&lt;</span></code>/<code class="docutils literal notranslate"><span class="pre">&gt;</span></code>/<code class="docutils literal notranslate"><span class="pre">&lt;=</span></code>/<code class="docutils literal notranslate"><span class="pre">&gt;=</span></code>)</p></li>
 </ul>
-<p>The full benchmark source can be found <a class="reference external" href="https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_structs.py">here</a>.</p>
+<p>The full benchmark source can be found <a class="reference external" href="https://github.com/jcrist/msgspec/blob/main/benchmarks/bench_structs.py">here</a>.</p>
 <p><strong>Results (smaller is better):</strong></p>
 <div class="table-wrapper docutils container">
 <table class="docutils align-default">
@@ -613,7 +613,7 @@ of the benchmarked type, then measure:</p>
 <li><p>The amount of time it takes to do a full garbage collection (gc) pass</p></li>
 <li><p>The total amount of memory used by this data structure</p></li>
 </ul>
-<p>The full benchmark source can be found <a class="reference external" href="https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_gc.py">here</a>.</p>
+<p>The full benchmark source can be found <a class="reference external" href="https://github.com/jcrist/msgspec/blob/main/benchmarks/bench_gc.py">here</a>.</p>
 <p><strong>Results (smaller is better):</strong></p>
 <div class="table-wrapper docutils container">
 <table class="docutils align-default">
@@ -663,7 +663,7 @@ composing dict can be skipped during GC traversal.</p></li>
 <span id="benchmark-library-size"></span><h2>Library Size<a class="headerlink" href="#library-size" title="Link to this heading">¶</a></h2>
 <p>Here we compare the on-disk size of <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> and <code class="docutils literal notranslate"><span class="pre">pydantic</span></code>, its closest
 equivalent.</p>
-<p>The full benchmark source can be found <a class="reference external" href="https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_library_size.py">here</a>.</p>
+<p>The full benchmark source can be found <a class="reference external" href="https://github.com/jcrist/msgspec/blob/main/benchmarks/bench_library_size.py">here</a>.</p>
 <p><strong>Results (smaller is better)</strong></p>
 <div class="table-wrapper docutils container">
 <table class="docutils align-default">

@@ -305,7 +305,7 @@
 <p>Structs are the preferred way of defining structured data types in <code class="docutils literal notranslate"><span class="pre">msgspec</span></code>.
 They’re written in C and are quite speedy and lightweight (<a class="reference internal" href="benchmarks.html"><span class="doc">measurably
 faster</span></a> to create/compare/encode/decode than similar options like
-<a class="reference external" href="https://docs.python.org/3/library/dataclasses.html">dataclasses</a>, <a class="reference external" href="https://www.attrs.org/en/stable/index.html">attrs</a>, or <a class="reference external" href="https://pydantic-docs.helpmanual.io/">pydantic</a>). They’re great for representing structured
+<a class="reference external" href="https://docs.python.org/3/library/dataclasses.html">dataclasses</a>, <a class="reference external" href="https://www.attrs.org/en/stable/index.html">attrs</a>, or <a class="reference external" href="https://docs.pydantic.dev/latest/">pydantic</a>). They’re great for representing structured
 data both for serialization and for use in an application.</p>
 <p>Structs are defined by subclassing from <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> and annotating the
 types of individual fields. Default values can also be provided for any
@@ -578,7 +578,7 @@ detected.</p>
 </section>
 <section id="type-validation">
 <h2>Type Validation<a class="headerlink" href="#type-validation" title="Link to this heading">¶</a></h2>
-<p>Unlike some other libraries (e.g. <a class="reference external" href="https://pydantic-docs.helpmanual.io/">pydantic</a>), the type annotations on a
+<p>Unlike some other libraries (e.g. <a class="reference external" href="https://docs.pydantic.dev/latest/">pydantic</a>), the type annotations on a
 <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> class are not checked at runtime during normal use. Types are
 only checked when <em>decoding</em> a serialized message when using a <code class="xref py py-obj docutils literal notranslate"><span class="pre">typed</span> <span class="pre">decoder</span></code>.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">msgspec</span>

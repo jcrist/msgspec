@@ -308,7 +308,7 @@ can use for configuring:</p>
 <li><p>Metadata (name, version, …)</p></li>
 <li><p>Dependencies</p></li>
 <li><p>Build systems</p></li>
-<li><p>Additional development tools (<a class="reference external" href="https://black.readthedocs.io">black</a>, <a class="reference external" href="https://mypy.readthedocs.io">mypy</a>, <a class="reference external" href="https://docs.pytest.org">pytest</a>, … all support
+<li><p>Additional development tools (<a class="reference external" href="https://black.readthedocs.io/en/stable/">black</a>, <a class="reference external" href="https://mypy.readthedocs.io/en/stable/">mypy</a>, <a class="reference external" href="https://docs.pytest.org/en/stable/">pytest</a>, … all support
 <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code> files for configuration).</p></li>
 </ul>
 <p>The format was defined in a series of Python Enhancement Proposals (PEPs),
@@ -322,7 +322,7 @@ which also serve as the main documentation for the file schema.</p>
 file. This includes full schema definitions for all fields in the
 <code class="docutils literal notranslate"><span class="pre">build-system</span></code> and <code class="docutils literal notranslate"><span class="pre">project</span></code> tables, as well as an untyped table under
 <code class="docutils literal notranslate"><span class="pre">tool</span></code>.</p>
-<p>The full example source can be found <a class="reference external" href="https://github.com/jcrist/msgspec/blob/main/examples/pyproject-toml">here</a>.</p>
+<p>The full example source can be found <a class="reference external" href="https://github.com/jcrist/msgspec/tree/main/examples/pyproject-toml">here</a>.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">msgspec</span>
@@ -407,12 +407,12 @@ file. This includes full schema definitions for all fields in the
     <span class="k">return</span> <span class="n">msgspec</span><span class="o">.</span><span class="n">toml</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
 </pre></div>
 </div>
-<p>Here we use it to load the <a class="reference external" href="https://github.com/encode/starlette/blob/master/pyproject.toml">pyproject.toml for Starlette</a>:</p>
+<p>Here we use it to load the <a class="reference external" href="https://github.com/Kludex/starlette/blob/main/pyproject.toml">pyproject.toml for Starlette</a>:</p>
 <div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="gp">In [1]: </span><span class="kn">import</span><span class="w"> </span><span class="nn">pyproject</span>
 
 <span class="gp">In [2]: </span><span class="kn">import</span><span class="w"> </span><span class="nn">urllib.request</span>
 
-<span class="gp">In [3]: </span><span class="n">url</span> <span class="o">=</span> <span class="s2">&quot;https://raw.githubusercontent.com/encode/starlette/master/pyproject.toml&quot;</span>
+<span class="gp">In [3]: </span><span class="n">url</span> <span class="o">=</span> <span class="s2">&quot;https://raw.githubusercontent.com/Kludex/starlette/HEAD/pyproject.toml&quot;</span>
 
 <span class="gp">In [4]: </span><span class="k">with</span> <span class="n">urllib</span><span class="o">.</span><span class="n">request</span><span class="o">.</span><span class="n">urlopen</span><span class="p">(</span><span class="n">url</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
 <span class="gp">   ...: </span>    <span class="n">data</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
@@ -444,7 +444,7 @@ configuration files, as the misspelled field names won’t be silently ignored.<
 <li><p>Type errors for fields will also be caught, with a nice error raised.</p></li>
 <li><p>Any downstream consumers of <code class="docutils literal notranslate"><span class="pre">decode</span></code> have a nice high-level object to work
 with, complete with type annotations. This plays well with tab-completion and
-tools like <a class="reference external" href="https://mypy.readthedocs.io">mypy</a> or <a class="reference external" href="https://github.com/microsoft/pyright">pyright</a>, improving usability.</p></li>
+tools like <a class="reference external" href="https://mypy.readthedocs.io/en/stable/">mypy</a> or <a class="reference external" href="https://github.com/microsoft/pyright">pyright</a>, improving usability.</p></li>
 </ul>
 <p>For example, here’s an invalid <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code>.</p>
 <div class="highlight-toml notranslate"><div class="highlight"><pre><span></span><span class="k">[build-system]</span>
