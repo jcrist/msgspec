@@ -259,7 +259,6 @@
 <li class="toctree-l2"><a class="reference internal" href="examples/asyncio-kv.html">Asyncio TCP Key-Value Server</a></li>
 <li class="toctree-l2"><a class="reference internal" href="examples/conda-repodata.html">Conda Repodata</a></li>
 <li class="toctree-l2"><a class="reference internal" href="examples/pyproject-toml.html">Parsing <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="examples/edgedb.html">Usage with EdgeDB</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="changelog.html">Changelog</a></li>
@@ -1016,7 +1015,7 @@ prefer to fully-uppercase these components (<code class="docutils literal notran
 way to know if a component is an acronym or not (and so will result in
 <code class="docutils literal notranslate"><span class="pre">Fqdn</span></code>). As such, we recommend using an explicit dict mapping for renaming if
 generating <code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code> types to match an existing API.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.19/#podspec-v1-core</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/pod-v1/#PodSpec</span>
 <span class="c1"># An explicit mapping from python name -&gt; JSON field name</span>
 <span class="n">v1podspec_names</span> <span class="o">=</span> <span class="p">{</span>
     <span class="o">...</span>

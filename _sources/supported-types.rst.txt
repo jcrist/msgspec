@@ -712,25 +712,22 @@ already using them elsewhere, or if you have downstream code that requires a
       File "<stdin>", line 1, in <module>
     msgspec.ValidationError: Expected `int`, got `str` - at `$[1]`
 
-Other types that duck-type as ``NamedTuple`` (for example
-`edgedb NamedTuples <https://www.edgedb.com/docs/clients/python/api/types#named-tuples>`__)
-are also supported.
+Other types that duck-type as ``NamedTuple`` are also supported, such as
+`os.stat_result`.
 
 .. code-block:: python
 
-    >>> import edgedb
+    >>> import os
 
-    >>> client = edgedb.create_client()
+    >>> import sys
 
-    >>> alice = client.query_single(
-    ...     "SELECT (name := 'Alice', dob := <cal::local_date>'1984-03-01')"
-    ... )
+    >>> result = os.stat(sys.executable)
 
-    >>> alice
-    (name := 'Alice', dob := datetime.date(1984, 3, 1))
+    >>> result
+    os.stat_result(st_mode=33261, st_ino=5396073, st_dev=105, st_nlink=1, st_uid=0, st_gid=0, st_size=18440, st_atime=1760547094, st_mtime=1760547094, st_ctime=1760907672)
 
-    >>> msgspec.json.encode(alice)
-    b'["Alice","1984-03-01"]'
+    >>> msgspec.json.encode(result)
+    b'[33261,5396073,105,1,0,0,18440,1760547094,1760547094,1760907672]'
 
 ``dict``
 --------
@@ -847,29 +844,28 @@ additional features.
       File "<stdin>", line 1, in <module>
     msgspec.ValidationError: Expected `int`, got `str` - at `$.age`
 
-Other types that duck-type as ``dataclasses`` (for example
-`edgedb Objects <https://www.edgedb.com/docs/clients/python/api/types#objects>`__ or
-`pydantic dataclasses <https://docs.pydantic.dev/latest/usage/dataclasses/>`__)
-are also supported.
+Other types that duck-type as ``dataclasses`` are also supported, such as
+`pydantic dataclasses <https://docs.pydantic.dev/latest/usage/dataclasses/>`__.
 
 .. code-block:: python
 
-    >>> import edgedb
+    >>> from datetime import datetime
 
-    >>> client = edgedb.create_client()
+    >>> from pydantic.dataclasses import dataclass
 
-    >>> alice = client.query_single(
-    ...     "SELECT User {name, dob} FILTER .name = <str>$name LIMIT 1",
-    ...     name="Alice"
-    ... )
+    >>> @dataclass
+    ... class User:
+    ...     id: int
+    ...     name: str = 'John Doe'
+    ...     signup_ts: datetime | None = None
 
-    >>> alice
-    Object{name := 'Alice', dob := datetime.date(1984, 3, 1)}
+    >>> user = User(id='42', signup_ts='2032-06-21T12:00')
 
-    >>> msgspec.json.encode(alice)
-    b'{"id":"a6b951cc-2d00-11ee-91aa-b3f17e9898ce","name":"Alice","dob":"1984-03-01"}'
+    >>> user
+    User(id=42, name='John Doe', signup_ts=datetime.datetime(2032, 6, 21, 12, 0))
 
-For a more complete example using EdgeDB, see :doc:`examples/edgedb`.
+    >>> msgspec.json.encode(user)
+    b'{"id":42,"name":"John Doe","signup_ts":"2032-06-21T12:00:00"}'
 
 ``attrs``
 ---------

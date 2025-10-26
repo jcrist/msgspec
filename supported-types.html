@@ -259,7 +259,6 @@
 <li class="toctree-l2"><a class="reference internal" href="examples/asyncio-kv.html">Asyncio TCP Key-Value Server</a></li>
 <li class="toctree-l2"><a class="reference internal" href="examples/conda-repodata.html">Conda Repodata</a></li>
 <li class="toctree-l2"><a class="reference internal" href="examples/pyproject-toml.html">Parsing <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="examples/edgedb.html">Usage with EdgeDB</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="changelog.html">Changelog</a></li>
@@ -936,22 +935,19 @@ already using them elsewhere, or if you have downstream code that requires a
 <span class="gr">msgspec.ValidationError</span>: <span class="n">Expected `int`, got `str` - at `$[1]`</span>
 </pre></div>
 </div>
-<p>Other types that duck-type as <code class="docutils literal notranslate"><span class="pre">NamedTuple</span></code> (for example
-<a class="reference external" href="https://www.edgedb.com/docs/clients/python/api/types#named-tuples">edgedb NamedTuples</a>)
-are also supported.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">edgedb</span>
+<p>Other types that duck-type as <code class="docutils literal notranslate"><span class="pre">NamedTuple</span></code> are also supported, such as
+<a class="reference external" href="https://docs.python.org/3/library/os.html#os.stat_result" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">os.stat_result</span></code></a>.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">client</span> <span class="o">=</span> <span class="n">edgedb</span><span class="o">.</span><span class="n">create_client</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">alice</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">query_single</span><span class="p">(</span>
-<span class="gp">... </span>    <span class="s2">&quot;SELECT (name := &#39;Alice&#39;, dob := &lt;cal::local_date&gt;&#39;1984-03-01&#39;)&quot;</span>
-<span class="gp">... </span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">result</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">stat</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">executable</span><span class="p">)</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">alice</span>
-<span class="go">(name := &#39;Alice&#39;, dob := datetime.date(1984, 3, 1))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">result</span>
+<span class="go">os.stat_result(st_mode=33261, st_ino=5396073, st_dev=105, st_nlink=1, st_uid=0, st_gid=0, st_size=18440, st_atime=1760547094, st_mtime=1760547094, st_ctime=1760907672)</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">alice</span><span class="p">)</span>
-<span class="go">b&#39;[&quot;Alice&quot;,&quot;1984-03-01&quot;]&#39;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
+<span class="go">b&#39;[33261,5396073,105,1,0,0,18440,1760547094,1760547094,1760907672]&#39;</span>
 </pre></div>
 </div>
 </section>
@@ -1054,27 +1050,27 @@ additional features.</p>
 <span class="gr">msgspec.ValidationError</span>: <span class="n">Expected `int`, got `str` - at `$.age`</span>
 </pre></div>
 </div>
-<p>Other types that duck-type as <code class="docutils literal notranslate"><span class="pre">dataclasses</span></code> (for example
-<a class="reference external" href="https://www.edgedb.com/docs/clients/python/api/types#objects">edgedb Objects</a> or
-<a class="reference external" href="https://docs.pydantic.dev/latest/usage/dataclasses/">pydantic dataclasses</a>)
-are also supported.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">edgedb</span>
+<p>Other types that duck-type as <code class="docutils literal notranslate"><span class="pre">dataclasses</span></code> are also supported, such as
+<a class="reference external" href="https://docs.pydantic.dev/latest/usage/dataclasses/">pydantic dataclasses</a>.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">client</span> <span class="o">=</span> <span class="n">edgedb</span><span class="o">.</span><span class="n">create_client</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic.dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">alice</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">query_single</span><span class="p">(</span>
-<span class="gp">... </span>    <span class="s2">&quot;SELECT User {name, dob} FILTER .name = &lt;str&gt;$name LIMIT 1&quot;</span><span class="p">,</span>
-<span class="gp">... </span>    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;Alice&quot;</span>
-<span class="gp">... </span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nd">@dataclass</span>
+<span class="gp">... </span><span class="k">class</span><span class="w"> </span><span class="nc">User</span><span class="p">:</span>
+<span class="gp">... </span>    <span class="nb">id</span><span class="p">:</span> <span class="nb">int</span>
+<span class="gp">... </span>    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;John Doe&#39;</span>
+<span class="gp">... </span>    <span class="n">signup_ts</span><span class="p">:</span> <span class="n">datetime</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">alice</span>
-<span class="go">Object{name := &#39;Alice&#39;, dob := datetime.date(1984, 3, 1)}</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">user</span> <span class="o">=</span> <span class="n">User</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="s1">&#39;42&#39;</span><span class="p">,</span> <span class="n">signup_ts</span><span class="o">=</span><span class="s1">&#39;2032-06-21T12:00&#39;</span><span class="p">)</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">alice</span><span class="p">)</span>
-<span class="go">b&#39;{&quot;id&quot;:&quot;a6b951cc-2d00-11ee-91aa-b3f17e9898ce&quot;,&quot;name&quot;:&quot;Alice&quot;,&quot;dob&quot;:&quot;1984-03-01&quot;}&#39;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">user</span>
+<span class="go">User(id=42, name=&#39;John Doe&#39;, signup_ts=datetime.datetime(2032, 6, 21, 12, 0))</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">user</span><span class="p">)</span>
+<span class="go">b&#39;{&quot;id&quot;:42,&quot;name&quot;:&quot;John Doe&quot;,&quot;signup_ts&quot;:&quot;2032-06-21T12:00:00&quot;}&#39;</span>
 </pre></div>
 </div>
-<p>For a more complete example using EdgeDB, see <a class="reference internal" href="examples/edgedb.html"><span class="doc">Usage with EdgeDB</span></a>.</p>
 </section>
 <section id="attrs">
 <h2><code class="docutils literal notranslate"><span class="pre">attrs</span></code><a class="headerlink" href="#attrs" title="Link to this heading">¶</a></h2>

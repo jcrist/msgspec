@@ -3,7 +3,7 @@
   <head><meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
-<link rel="index" title="Index" href="genindex.html"><link rel="search" title="Search" href="search.html"><link rel="prev" title="Usage with EdgeDB" href="examples/edgedb.html">
+<link rel="index" title="Index" href="genindex.html"><link rel="search" title="Search" href="search.html"><link rel="prev" title="Parsing pyproject.toml" href="examples/pyproject-toml.html">
         <link rel="prefetch" href="_static/msgspec-logo-light.svg" as="image">
         <link rel="prefetch" href="_static/msgspec-logo-dark.svg" as="image">
 
@@ -259,7 +259,6 @@
 <li class="toctree-l2"><a class="reference internal" href="examples/asyncio-kv.html">Asyncio TCP Key-Value Server</a></li>
 <li class="toctree-l2"><a class="reference internal" href="examples/conda-repodata.html">Conda Repodata</a></li>
 <li class="toctree-l2"><a class="reference internal" href="examples/pyproject-toml.html">Parsing <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="examples/edgedb.html">Usage with EdgeDB</a></li>
 </ul>
 </li>
 <li class="toctree-l1 current current-page"><a class="current reference internal" href="#">Changelog</a></li>
@@ -745,7 +744,7 @@ when your messages have a common structure, but in cases where no type is
 provided decoding is now much more performant (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/120">PR #120</a>, <a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/121">PR #121</a>).</p></li>
 <li><p>Adds <code class="docutils literal notranslate"><span class="pre">order</span></code> and <code class="docutils literal notranslate"><span class="pre">eq</span></code> configuration options for <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code></a> types, mirroring
 the <code class="docutils literal notranslate"><span class="pre">dataclasses</span></code> options of the same name. Order comparisons for Struct
-types are very performant, roughly <a class="reference external" href="https://jcristharif.com/msgspec/benchmarks.html#benchmark-structs">10x to 70x faster</a> than
+types are very performant, roughly <a class="reference external" href="https://jcristharif.com/msgspec/benchmarks.html#structs">10x to 70x faster</a> than
 alternative libraries (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/122">PR #122</a>).</p></li>
 <li><p>Speedup <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code></a> decoding for both JSON and MessagePack, on average 20%
 faster (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/119">PR #119</a>).</p></li>
@@ -764,20 +763,20 @@ Struct instance you now want to specify <code class="docutils literal notranslat
 <section id="version-0-6-0-2022-04-06">
 <h2>Version 0.6.0 (2022-04-06)<a class="headerlink" href="#version-0-6-0-2022-04-06" title="Link to this heading">¶</a></h2>
 <ul class="simple">
-<li><p>Add a new <a class="reference external" href="https://jcristharif.com/msgspec/usage.html#raw">msgspec.Raw</a>
+<li><p>Add a new <a class="reference external" href="https://jcristharif.com/msgspec/api.html#msgspec.Raw">msgspec.Raw</a>
 type for delayed decoding of message fields / serializing already encoded
 fields (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/92">PR #92</a>).</p></li>
 <li><p>Add <code class="docutils literal notranslate"><span class="pre">omit_defaults</span></code> option to <code class="docutils literal notranslate"><span class="pre">Struct</span></code> types (<a class="reference external" href="https://jcristharif.com/msgspec/structs.html#omitting-default-values">docs</a>).
 If enabled, fields containing their respective default value will be omitted
 from serialized message. This improves both encode and decode performance
 (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/94">PR #94</a>).</p></li>
-<li><p>Add <code class="docutils literal notranslate"><span class="pre">rename</span></code> option to <code class="docutils literal notranslate"><span class="pre">Struct</span></code> types (<a class="reference external" href="https://jcristharif.com/msgspec/structs.html#renaming-field-names">docs</a>) for
+<li><p>Add <code class="docutils literal notranslate"><span class="pre">rename</span></code> option to <code class="docutils literal notranslate"><span class="pre">Struct</span></code> types (<a class="reference external" href="https://jcristharif.com/msgspec/structs.html#renaming-fields">docs</a>) for
 altering the field names used for encoding. A major use of this is supporting
 <code class="docutils literal notranslate"><span class="pre">camelCase</span></code> JSON field names, while letting Python code use the more
 standard <code class="docutils literal notranslate"><span class="pre">snake_case</span></code> field names (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/98">PR #98</a>).</p></li>
 <li><p>Improve performance of <code class="docutils literal notranslate"><span class="pre">nogc=True</span></code> structs (<a class="reference external" href="https://jcristharif.com/msgspec/structs.html#disabling-garbage-collection-advanced">docs</a>).
 GC is now avoided in more cases, and <code class="docutils literal notranslate"><span class="pre">nogc=True</span></code> structs use 16 fewer bytes
-per instance. Also added a <a class="reference external" href="https://jcristharif.com/msgspec/benchmarks.html#benchmark-garbage-collection">benchmark</a>
+per instance. Also added a <a class="reference external" href="https://jcristharif.com/msgspec/benchmarks.html#garbage-collection">benchmark</a>
 for how <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> can interact with application GC usage (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/93">PR #93</a>).</p></li>
 <li><p>Cache creation of <a class="reference external" href="https://jcristharif.com/msgspec/structs.html#tagged-unions">tagged union</a> lookup
 tables, reducing memory usage for applications making heavy use of tagged
@@ -893,14 +892,14 @@ faster decoding.</p></li>
         
         <div class="related-pages">
           
-          <a class="prev-page" href="examples/edgedb.html">
+          <a class="prev-page" href="examples/pyproject-toml.html">
               <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
               <div class="page-info">
                 <div class="context">
                   <span>Previous</span>
                 </div>
                 
-                <div class="title">Usage with EdgeDB</div>
+                <div class="title">Parsing <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code></div>
                 
               </div>
             </a>
