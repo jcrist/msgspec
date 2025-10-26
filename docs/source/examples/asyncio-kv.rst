@@ -23,7 +23,7 @@ messages. The length of each message is prefixed to each message
 to make it easier to efficiently determine message boundaries.
 
 The full example source can be found `here
-<https://github.com/jcrist/msgspec/blob/main/examples/asyncio-kv>`__.
+<https://github.com/jcrist/msgspec/tree/main/examples/asyncio-kv>`__.
 
 .. literalinclude:: ../../../examples/asyncio-kv/kv.py
     :language: python

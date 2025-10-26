@@ -50,5 +50,5 @@ quick to learn and friendly to use, letting you focus less on serialization and
 more on your application code.
 
 
-.. _mypy: https://mypy.readthedocs.io
+.. _mypy: https://mypy.readthedocs.io/en/stable/
 .. _pyright: https://github.com/microsoft/pyright

@@ -1056,7 +1056,7 @@ collected (leading to a memory leak).
 .. _PEP 563: https://peps.python.org/pep-0563/
 .. _dataclasses: https://docs.python.org/3/library/dataclasses.html
 .. _attrs: https://www.attrs.org/en/stable/index.html
-.. _pydantic: https://pydantic-docs.helpmanual.io/
+.. _pydantic: https://docs.pydantic.dev/latest/
 .. _mypy: https://mypy.readthedocs.io/en/stable/
 .. _pyright: https://github.com/microsoft/pyright
 .. _reference counting: https://en.wikipedia.org/wiki/Reference_counting

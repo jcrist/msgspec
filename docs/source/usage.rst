@@ -162,8 +162,8 @@ types.
 .. _JSON: https://json.org
 .. _MessagePack: https://msgpack.org
 .. _YAML: https://yaml.org
-.. _TOML: https://toml.io
+.. _TOML: https://toml.io/en/
 .. _type annotations: https://docs.python.org/3/library/typing.html
-.. _pydantic: https://pydantic-docs.helpmanual.io/
-.. _mypy: https://mypy.readthedocs.io
+.. _pydantic: https://docs.pydantic.dev/latest/
+.. _mypy: https://mypy.readthedocs.io/en/stable/
 .. _pyright: https://github.com/microsoft/pyright
