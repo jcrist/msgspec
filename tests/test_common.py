@@ -2624,9 +2624,10 @@ class TestDataclass:
 
     @pytest.mark.parametrize("present", ["ab", "a", "b", ""])
     def test_encode_dataclass_ducktyped(self, proto, present):
-        """edgedb.Object looks like a dataclass, but the implementation doesn't
+        """gel.Object looks like a dataclass, but the implementation doesn't
         match the one from dataclasses. This ducktyped implementation tries to
-        mirror the one in edgedb for testing purposes."""
+        mirror the one in gel for testing purposes. Ref:
+        https://docs.geldata.com/reference/using/python/api/types#gel.Object"""
 
         @dataclass
         class Ex:

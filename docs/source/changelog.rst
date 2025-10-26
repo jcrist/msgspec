@@ -424,7 +424,7 @@ Version 0.7.0 (2022-06-20)
 - Adds ``order`` and ``eq`` configuration options for `Struct` types, mirroring
   the ``dataclasses`` options of the same name. Order comparisons for Struct
   types are very performant, roughly `10x to 70x faster
-  <https://jcristharif.com/msgspec/benchmarks.html#benchmark-structs>`__ than
+  <https://jcristharif.com/msgspec/benchmarks.html#structs>`__ than
   alternative libraries (:pr:`122`).
 - Speedup `Struct` decoding for both JSON and MessagePack, on average 20%
   faster (:pr:`119`).
@@ -443,7 +443,7 @@ Version 0.7.0 (2022-06-20)
 Version 0.6.0 (2022-04-06)
 --------------------------
 
-- Add a new `msgspec.Raw <https://jcristharif.com/msgspec/usage.html#raw>`__
+- Add a new `msgspec.Raw <https://jcristharif.com/msgspec/api.html#msgspec.Raw>`__
   type for delayed decoding of message fields / serializing already encoded
   fields (:pr:`92`).
 - Add ``omit_defaults`` option to ``Struct`` types (`docs
@@ -452,7 +452,7 @@ Version 0.6.0 (2022-04-06)
   from serialized message. This improves both encode and decode performance
   (:pr:`94`).
 - Add ``rename`` option to ``Struct`` types (`docs
-  <https://jcristharif.com/msgspec/structs.html#renaming-field-names>`__) for
+  <https://jcristharif.com/msgspec/structs.html#renaming-fields>`__) for
   altering the field names used for encoding. A major use of this is supporting
   ``camelCase`` JSON field names, while letting Python code use the more
   standard ``snake_case`` field names (:pr:`98`).
@@ -460,7 +460,7 @@ Version 0.6.0 (2022-04-06)
   <https://jcristharif.com/msgspec/structs.html#disabling-garbage-collection-advanced>`__).
   GC is now avoided in more cases, and ``nogc=True`` structs use 16 fewer bytes
   per instance. Also added a `benchmark
-  <https://jcristharif.com/msgspec/benchmarks.html#benchmark-garbage-collection>`__
+  <https://jcristharif.com/msgspec/benchmarks.html#garbage-collection>`__
   for how ``msgspec`` can interact with application GC usage (:pr:`93`).
 - Cache creation of `tagged union
   <https://jcristharif.com/msgspec/structs.html#tagged-unions>`__ lookup
