@@ -2,18 +2,21 @@ name: Build and Test
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
   pull_request:
-    branches: [main]
+    branches:
+    - main
     paths:
-      - "msgspec/**"
-      - ".github/workflows/ci.yml"
-      - ".pre-commit-config.yaml"
-      - "pyproject.toml"
-      - "setup.py"
-      - "setup.cfg"
+    - "msgspec/**"
+    - ".github/workflows/ci.yml"
+    - ".pre-commit-config.yaml"
+    - "pyproject.toml"
+    - "setup.py"
+    - "setup.cfg"
   release:
-    types: [published]
+    types:
+    - published
 
 jobs:
   lint:
@@ -21,91 +24,93 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v5
 
-      - name: Install Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
+    - name: Install Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: "3.11"
 
-      - name: Build msgspec and install dependencies
-        run: |
-          pip install -e ".[dev]"
+    - name: Build msgspec and install dependencies
+      run: |
+        pip install -e ".[dev]"
 
-      - name: Run pre-commit hooks
-        uses: pre-commit/action@v3.0.0
+    - name: Run pre-commit hooks
+      uses: pre-commit/action@v3.0.0
 
-      - name: mypy
-        run: pytest tests/test_mypy.py
+    - name: mypy
+      run: pytest tests/test_mypy.py
 
-      - name: pyright
-        run: pytest tests/test_pyright.py
+    - name: pyright
+      run: pytest tests/test_pyright.py
 
-      - name: doctests
-        run: pytest --doctest-modules msgspec
+    - name: doctests
+      run: pytest --doctest-modules msgspec
 
-      - name: Rebuild with sanitizers & coverage
-        env:
-          MSGSPEC_SANITIZE: "true"
-          MSGSPEC_COVERAGE: "true"
-        run: |
-          python setup.py clean --all
-          # I know this is deprecated, but I can't find a way to keep the build
-          # directory around anymore on new versions of setuptools
-          python setup.py develop
+    - name: Rebuild with sanitizers & coverage
+      env:
+        MSGSPEC_SANITIZE: "true"
+        MSGSPEC_COVERAGE: "true"
+      run: |
+        python setup.py clean --all
+        # I know this is deprecated, but I can't find a way to keep the build
+        # directory around anymore on new versions of setuptools
+        python setup.py develop
 
-      - name: Run tests with sanitizers
-        env:
-          PYTHONMALLOC: "malloc"
-          ASAN_OPTIONS: "detect_leaks=0"
-        run: |
-          LD_PRELOAD=`gcc -print-file-name=libasan.so` coverage run -m pytest -s -m "not mypy and not pyright"
+    - name: Run tests with sanitizers
+      env:
+        PYTHONMALLOC: "malloc"
+        ASAN_OPTIONS: "detect_leaks=0"
+      run: |
+        LD_PRELOAD=`gcc -print-file-name=libasan.so` coverage run -m pytest -s -m "not mypy and not pyright"
 
-      - name: Generate coverage files
-        run: |
-          coverage xml
-          gcov -abcu `find build/ -name *.o`
+    - name: Generate coverage files
+      run: |
+        coverage xml
+        gcov -abcu `find build/ -name *.o`
 
-      - name: Upload Codecov
-        uses: codecov/codecov-action@v3
-        with:
-          files: coverage.xml,_core.c.gcov,atof.h.gcov,ryu.h.gcov
+    - name: Upload Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        files: coverage.xml,_core.c.gcov,atof.h.gcov,ryu.h.gcov
 
-  build_sdist:
+  build-sdist:
     name: Build Source Distribution
     runs-on: ubuntu-latest
 
     outputs:
-      artifact-name: ${{ steps.locate-artifact.outputs.file-name }}
+      artifact-name: "${{ steps.locate-artifact.outputs.file-name }}"
 
     steps:
-      - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v5
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
+    - name: Install uv
+      uses: astral-sh/setup-uv@v7
 
-      - name: Build source distribution
-        run: uv build --sdist
+    - name: Build source distribution
+      run: uv build --sdist
 
-      - name: Locate source distribution
-        id: locate-artifact
-        run: |-
-          sdist_name=$(basename dist/*)
-          echo "file-name=${sdist_name}" >> $GITHUB_OUTPUT
+    - name: Locate source distribution
+      id: locate-artifact
+      run: |-
+        sdist_name=$(basename dist/*)
+        echo "file-name=${sdist_name}" >> $GITHUB_OUTPUT
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: artifact-sdist
-          path: dist/${{ steps.locate-artifact.outputs.file-name }}
-          if-no-files-found: error
+    - name: Upload artifact
+      uses: actions/upload-artifact@v5
+      with:
+        name: artifact-sdist
+        path: dist/${{ steps.locate-artifact.outputs.file-name }}
+        if-no-files-found: error
 
-  build_wheels:
+  build-wheels:
     name: Build wheels on ${{ matrix.os }} for ${{ matrix.archs }}
     needs:
-      - build_sdist
-      - lint
-    runs-on: ${{ matrix.os }}
+    - build-sdist
+    - lint
+    runs-on: "${{ matrix.os }}"
     strategy:
       fail-fast: false
       matrix:
@@ -123,59 +128,55 @@ jobs:
         - os: windows-latest
           archs: AMD64
 
+    env:
+      CIBW_SKIP: "${{ github.event_name != 'release' && '*-musllinux_*' || '' }}"
+
     steps:
-      - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v5
 
-      - name: Set up QEMU
-        if: runner.os == 'Linux'
-        uses: docker/setup-qemu-action@v1
-        with:
-          platforms: all
+    - name: Download source distribution
+      uses: actions/download-artifact@v6
+      with:
+        name: artifact-sdist
+        path: dist
 
-      - name: Set up Environment
-        if: github.event_name != 'release'
-        run: |
-            echo "CIBW_SKIP=${CIBW_SKIP} *-musllinux_* cp39-*_aarch64 cp311-*_aarch64 cp312-*_aarch64 cp313-*_aarch64 cp314-*_aarch64 cp314t-*_aarch64" >> $GITHUB_ENV
+    # TODO: Remove this once the action supports specifying extras, see:
+    # https://github.com/pypa/cibuildwheel/pull/2630
+    - name: Install uv
+      if: runner.os != 'Linux'
+      uses: astral-sh/setup-uv@v7
 
-      - name: Download source distribution
-        uses: actions/download-artifact@v4
-        with:
-          name: artifact-sdist
-          path: dist
+    - name: Build & Test Wheels
+      uses: pypa/cibuildwheel@v3.2.1
+      with:
+        package-dir: dist/${{ needs.build-sdist.outputs.artifact-name }}
+      env:
+        CIBW_ARCHS: "${{ matrix.archs }}"
 
-      # TODO: Remove this once the action supports specifying extras, see:
-      # https://github.com/pypa/cibuildwheel/pull/2630
-      - name: Install uv
-        if: runner.os != 'Linux'
-        uses: astral-sh/setup-uv@v7
+    - name: Upload artifact
+      uses: actions/upload-artifact@v5
+      with:
+        name: artifact-wheels-${{ matrix.os }}-${{ matrix.archs }}
+        path: wheelhouse/*.whl
+        if-no-files-found: error
 
-      - name: Build & Test Wheels
-        uses: pypa/cibuildwheel@v3.2.1
-        with:
-          package-dir: dist/${{ needs.build_sdist.outputs.artifact-name }}
-        env:
-          CIBW_ARCHS: ${{ matrix.archs }}
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        if: github.event_name == 'release' && github.event.action == 'published'
-        with:
-          name: artifact-wheels-${{ matrix.os }}-${{ matrix.archs }}
-          path: ./wheelhouse/*.whl
-          if-no-files-found: error
-
-  upload_pypi:
-    needs: [build_wheels, build_sdist]
+  upload-pypi:
+    name: Upload artifacts to PyPI
+    if: github.event_name == 'release' && github.event.action == 'published'
+    needs:
+    - build-sdist
+    - build-wheels
     runs-on: ubuntu-latest
     permissions:
       id-token: write
-    if: github.event_name == 'release' && github.event.action == 'published'
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          merge-multiple: true
-          path: dist
-          pattern: artifact-*
 
-      - name: Publish package distributions to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+    steps:
+    - uses: actions/download-artifact@v6
+      with:
+        pattern: artifact-*
+        merge-multiple: true
+        path: dist
+
+    - name: Publish package distributions to PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1

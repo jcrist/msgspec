@@ -28,6 +28,9 @@ htmlcov/
 # Docs build
 docs/build/
 
+# Docs link check cache
+/.lycheecache
+
 # Benchmark outputs
 benchmarks/*.html
 benchmarks/*.json
