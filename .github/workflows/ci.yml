@@ -23,6 +23,10 @@ jobs:
     name: Run static analysis
     runs-on: ubuntu-latest
 
+    env:
+      UV_NO_SYNC: "true"
+      UV_NO_EDITABLE: "true"
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v5
@@ -32,48 +36,117 @@ jobs:
       with:
         python-version: "3.11"
 
-    - name: Build msgspec and install dependencies
-      run: |
-        pip install -e ".[dev]"
+    - name: Install uv
+      uses: astral-sh/setup-uv@v7
+
+    - name: Install project and dev dependencies
+      run: uv sync --extra dev
 
     - name: Run pre-commit hooks
-      uses: pre-commit/action@v3.0.0
+      run: uv run -- pre-commit run --show-diff-on-failure --all-files
 
     - name: mypy
-      run: pytest tests/test_mypy.py
+      run: uv run -- pytest tests/test_mypy.py
 
     - name: pyright
-      run: pytest tests/test_pyright.py
+      run: uv run -- pytest tests/test_pyright.py
 
     - name: doctests
-      run: pytest --doctest-modules msgspec
+      run: uv run -- pytest --doctest-modules --pyargs msgspec
+
+    - name: See files
+      run: ls -lah
 
     - name: Rebuild with sanitizers & coverage
       env:
         MSGSPEC_SANITIZE: "true"
         MSGSPEC_COVERAGE: "true"
+      run: >-
+        uv sync
+        --reinstall-package msgspec
+        --inexact
+        --config-settings=--global-option=--build-temp="${{ github.workspace }}/build/temp"
+        --config-settings=--global-option=--build-lib="${{ github.workspace }}/build/lib"
+
+    - name: See files
       run: |
-        python setup.py clean --all
-        # I know this is deprecated, but I can't find a way to keep the build
-        # directory around anymore on new versions of setuptools
-        python setup.py develop
+        ls -lah
+        ls -lah .venv/lib/python3.11/site-packages/msgspec
+        tree -sh build
 
     - name: Run tests with sanitizers
       env:
         PYTHONMALLOC: "malloc"
         ASAN_OPTIONS: "detect_leaks=0"
       run: |
-        LD_PRELOAD=`gcc -print-file-name=libasan.so` coverage run -m pytest -s -m "not mypy and not pyright"
+        LD_PRELOAD=`gcc -print-file-name=libasan.so` uv run -- coverage run -m pytest -s -m "not mypy and not pyright"
+
+    - name: See files
+      run: |
+        ls -lah
+        ls -lah src/msgspec
+        ls -lah .venv/lib/python3.11/site-packages/msgspec
+        tree -sh build
 
     - name: Generate coverage files
       run: |
-        coverage xml
+        uv run -- coverage xml
         gcov -abcu `find build/ -name *.o`
 
-    - name: Upload Codecov
-      uses: codecov/codecov-action@v3
+    - name: See files
+      run: |
+        ls -lah
+        ls -lah src/msgspec
+        ls -lah .venv/lib/python3.11/site-packages/msgspec
+        tree -sh build
+
+    - name: Upload coverage artifacts
+      uses: actions/upload-artifact@v5
       with:
-        files: coverage.xml,_core.c.gcov,atof.h.gcov,ryu.h.gcov
+        name: coverage-files
+        path: |-
+          coverage.xml
+          _core.c.gcov
+          atof.h.gcov
+          ryu.h.gcov
+        if-no-files-found: error
+
+  upload-coverage:
+    name: Upload coverage files to Codecov
+    needs:
+    - lint
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v5
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v7
+
+    - name: Build with sanitizers & coverage
+      env:
+        MSGSPEC_SANITIZE: "true"
+        MSGSPEC_COVERAGE: "true"
+      run: >-
+        uv sync
+        --no-editable
+        --config-settings=--global-option=--build-temp="${{ github.workspace }}/build/temp"
+        --config-settings=--global-option=--build-lib="${{ github.workspace }}/build/lib"
+
+    - uses: actions/download-artifact@v6
+      with:
+        pattern: coverage-files
+        merge-multiple: true
+        path: coverage-files
+
+    - name: Upload Codecov
+      uses: codecov/codecov-action@v5
+      with:
+        use_oidc: true
+        directory: coverage-files
 
   build-sdist:
     name: Build Source Distribution
@@ -85,6 +158,11 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v5
+
+    - name: Install Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: "3.13"
 
     - name: Install uv
       uses: astral-sh/setup-uv@v7

@@ -1,8 +1,5 @@
-include msgspec/*.c
-include msgspec/*.h
-include msgspec/*.py
-include msgspec/*.pyi
-include msgspec/py.typed
+recursive-include src/msgspec *.c *.h *.py *.pyi
+include src/msgspec/py.typed
 include setup.py
 include versioneer.py
 include README.md

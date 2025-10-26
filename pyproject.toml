@@ -1,3 +1,89 @@
+[build-system]
+requires = [
+  "setuptools",
+  "versioneer[toml]",
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "msgspec"
+dynamic = [
+  "version",
+]
+description = "A fast serialization and validation library, with builtin support for JSON, MessagePack, YAML, and TOML."
+readme = "README.md"
+license = "BSD-3-Clause"
+license-files = [
+  "LICENSE",
+]
+requires-python = ">=3.9"
+maintainers = [
+  { name = "Jim Crist-Harif", email = "jcristharif@gmail.com" },
+]
+keywords = [
+  "JSON",
+  "MessagePack",
+  "TOML",
+  "YAML",
+  "msgpack",
+  "schema",
+  "serialization",
+  "validation",
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+]
+
+[project.optional-dependencies]
+dev = [
+  "msgspec[doc,test]",
+  "coverage",
+  "mypy",
+  "pre-commit",
+  "pyright",
+]
+doc = [
+  "furo",
+  "ipython",
+  "sphinx",
+  "sphinx-copybutton",
+  "sphinx-design",
+]
+test = [
+  "msgspec[toml,yaml]",
+  "attrs",
+  "eval-type-backport ; python_version < '3.10'",
+  "msgpack",
+  "pytest",
+]
+toml = [
+  "tomli ; python_version < '3.11'",
+  "tomli_w",
+]
+yaml = [
+  "pyyaml",
+]
+
+[project.urls]
+Homepage = "https://jcristharif.com/msgspec/"
+"Issue Tracker" = "https://github.com/jcrist/msgspec/issues"
+Source = "https://github.com/jcrist/msgspec"
+
+[tool.setuptools]
+packages = ["msgspec"]
+
+[tool.setuptools.package-dir]
+"" = "src"
+
+[tool.uv.config-settings]
+editable_mode = "compat"
+
 [tool.ruff]
 extend-exclude = [
   "*.pyi",
@@ -9,6 +95,8 @@ extend-exclude = [
   "msgpack.py",
   "test_JSONTestSuite.py",
   "conf.py",
+  # TODO: remove when this when we drop support for Python 3.9 (example uses match statements)
+  "examples/asyncio-kv/kv.py",
 ]
 line-length = 88
 
@@ -39,3 +127,31 @@ CFLAGS = "-g0"
 
 # [tool.cibuildwheel.linux]
 # environment-pass = ["CFLAGS"]
+
+[tool.codespell]
+skip = "*.py,*.c,*.h"
+
+[tool.coverage.run]
+omit = [
+  "src/msgspec/_version.py",
+  "tests/basic_typing_examples.py",
+  "tests/test_mypy.py",
+  "tests/test_pyright.py",
+]
+
+[tool.pytest.ini_options]
+markers = [
+  "mypy",
+  "pyright",
+]
+filterwarnings = [
+  "error",
+]
+
+[tool.versioneer]
+VCS = "git"
+style = "pep440"
+versionfile_source = "src/msgspec/_version.py"
+versionfile_build = "msgspec/_version.py"
+tag_prefix = ""
+parentdir_prefix = "msgspec-"
