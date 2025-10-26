@@ -816,7 +816,7 @@ generating `Struct` types to match an existing API.
 
 .. code-block:: python
 
-    # https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.19/#podspec-v1-core
+    # https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/pod-v1/#PodSpec
     # An explicit mapping from python name -> JSON field name
     v1podspec_names = {
         ...

@@ -26,6 +26,14 @@ jobs:
           make html
           popd
 
+      - name: Check links
+        uses: lycheeverse/lychee-action@v2
+        with:
+          lycheeVersion: v0.21.0
+          fail: true
+          failIfEmpty: true
+          args: README.md docs/build
+
       - name: Deploy
         uses: peaceiris/actions-gh-pages@v3
         if: github.ref == 'refs/heads/main'
