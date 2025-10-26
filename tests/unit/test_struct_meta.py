@@ -1,4 +1,8 @@
 """Tests for the exposed StructMeta metaclass."""
+import gc
+import re
+import secrets
+import uuid
 
 from abc import ABCMeta, _abc_init, abstractmethod
 
@@ -624,3 +628,22 @@ def test_struct_abc_via_init_subclass_and__abc_init():
 
     c = Concrete(5)
     assert c.foo() == 5
+
+
+def test_struct_meta_pattern_ref_leak():
+    # ensure that we're not keeping around references to re.Pattern longer than necessary
+    # see https://github.com/jcrist/msgspec/pull/899 for details
+
+    # clear cache to get a baseline
+    re.purge()
+
+    # use a random string to create a pattern, to ensure there can never be an overlap
+    # with any cached pattern
+    pattern_string = secrets.token_hex()
+    msgspec.Meta(pattern=pattern_string)
+    # purge cache and gc again
+    re.purge()
+    gc.collect()
+    # there should be no re.Pattern any more with our pattern anymore. if there is, it's
+    # being kept alive by some reference
+    assert not any(o for o in gc.get_objects() if isinstance(o, re.Pattern) and o.pattern == pattern_string)
