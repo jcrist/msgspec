@@ -1,8 +1,8 @@
 import textwrap
 
-import msgspec
-
 from utils import temp_module
+
+import msgspec
 
 
 def test_process_large_recursive_union():

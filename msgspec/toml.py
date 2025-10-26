@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import datetime as _datetime
-from typing import TYPE_CHECKING, overload, TypeVar, Any
+from typing import TYPE_CHECKING, Any, TypeVar, overload
 
 from . import (
     DecodeError as _DecodeError,
@@ -10,7 +10,8 @@ from . import (
 )
 
 if TYPE_CHECKING:
-    from typing import Callable, Optional, Type, Union, Literal
+    from typing import Callable, Literal, Optional, Type, Union
+
     from typing_extensions import Buffer
 
 

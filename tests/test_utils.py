@@ -4,7 +4,7 @@ import sys
 from typing import Generic, List, Optional, Set, TypeVar
 
 import pytest
-from utils import temp_module, package_not_installed
+from utils import package_not_installed, temp_module
 
 from msgspec._utils import get_class_annotations
 

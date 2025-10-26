@@ -22,6 +22,7 @@ ignore = [
 select = [
     "E", # PEP8 Errors
     "F", # Pyflakes
+    "I", # Import sorting
     "W", # PEP8 Warnings
 ]
 

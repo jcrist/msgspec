@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-import sys
 import dataclasses
-import json
-import timeit
 import importlib.metadata
-from typing import Any, Literal, Callable
-
-from .generate_data import make_filesystem_data
+import json
+import sys
+import timeit
+from typing import Any, Callable, Literal
 
 import msgspec
+
+from .generate_data import make_filesystem_data
 
 
 class File(msgspec.Struct, kw_only=True, omit_defaults=True, tag="file"):
@@ -61,9 +61,9 @@ class Benchmark:
 
 def json_benchmarks():
     import orjson
-    import ujson
     import rapidjson
     import simdjson
+    import ujson
 
     simdjson_ver = importlib.metadata.version("pysimdjson")
 

@@ -8,7 +8,7 @@ import sys
 import weakref
 from contextlib import contextmanager
 from inspect import Parameter, Signature
-from typing import Any, List, Optional, Generic, TypeVar
+from typing import Any, Generic, List, Optional, TypeVar
 
 import pytest
 from utils import temp_module
