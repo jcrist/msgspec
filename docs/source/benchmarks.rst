@@ -130,7 +130,7 @@ popular Python JSON libraries.
 - json_ (standard library)
 
 The full benchmark source can be found
-`here <https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_encodings.py>`__.
+`here <https://github.com/jcrist/msgspec/blob/main/benchmarks/bench_encodings.py>`__.
 
 .. raw:: html
 
@@ -187,7 +187,7 @@ For each library, we measure both the peak increase in memory usage (RSS) and
 the time to JSON decode the file.
 
 The full benchmark source can be found `here
-<https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_large_json.py>`__.
+<https://github.com/jcrist/msgspec/blob/main/benchmarks/bench_large_json.py>`__.
 
 **Results (smaller is better):**
 
@@ -252,7 +252,7 @@ For each library, the following operations are benchmarked:
 - Time to compare two instances for order (``<``/``>``/``<=``/``>=``)
 
 The full benchmark source can be found `here
-<https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_structs.py>`__.
+<https://github.com/jcrist/msgspec/blob/main/benchmarks/bench_structs.py>`__.
 
 **Results (smaller is better):**
 
@@ -299,7 +299,7 @@ of the benchmarked type, then measure:
 - The total amount of memory used by this data structure
 
 The full benchmark source can be found `here
-<https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_gc.py>`__.
+<https://github.com/jcrist/msgspec/blob/main/benchmarks/bench_gc.py>`__.
 
 **Results (smaller is better):**
 
@@ -342,7 +342,7 @@ Here we compare the on-disk size of ``msgspec`` and ``pydantic``, its closest
 equivalent.
 
 The full benchmark source can be found `here
-<https://github.com/jcrist/msgspec/tree/main/benchmarks/bench_library_size.py>`__.
+<https://github.com/jcrist/msgspec/blob/main/benchmarks/bench_library_size.py>`__.
 
 **Results (smaller is better)**
 
@@ -540,9 +540,9 @@ smaller on disk.
 .. _simdjson: https://github.com/TkTech/pysimdjson
 .. _ujson: https://github.com/ultrajson/ultrajson
 .. _rapidjson: https://github.com/python-rapidjson/python-rapidjson
-.. _attrs: https://www.attrs.org
+.. _attrs: https://www.attrs.org/en/stable/
 .. _dataclasses: https://docs.python.org/3/library/dataclasses.html
-.. _pydantic: https://pydantic-docs.helpmanual.io/
+.. _pydantic: https://docs.pydantic.dev/latest/
 .. _cattrs: https://catt.rs/en/latest/
 .. _mashumaro: https://github.com/Fatal1ty/mashumaro
 .. _conda-forge: https://conda-forge.org/

@@ -80,7 +80,7 @@ install from the `development branch on GitHub
 
 
 .. _YAML: https://yaml.org
-.. _TOML: https://toml.io
+.. _TOML: https://toml.io/en/
 .. _PyYAML: https://pyyaml.org/
 .. _tomli: https://github.com/hukkin/tomli
 .. _tomli_w: https://github.com/hukkin/tomli-w

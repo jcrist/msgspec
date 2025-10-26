@@ -194,8 +194,8 @@ Version 0.15.0 (2023-05-10)
 ---------------------------
 
 - Add support for Generic `Struct` types (:pr:`386`, :pr:`393`).
-- Add support for Generic `dataclasses` and `attrs <https://attrs.org>`__ types
-  (:pr:`396`).
+- Add support for Generic `dataclasses` and
+  `attrs <https://www.attrs.org/en/stable/>`__ types (:pr:`396`).
 - Add support for Generic `typing.TypedDict` and `typing.NamedTuple` types
   (:pr:`398`).
 - **BREAKING**: No longer normalize timezones to UTC when decoding `datetime`
@@ -234,7 +234,8 @@ Version 0.14.1 (2023-04-07)
 Version 0.14.0 (2023-04-02)
 ---------------------------
 
-- Support encoding and decoding `attrs <https://attrs.org>`__ types (:pr:`323`).
+- Support encoding and decoding `attrs <https://www.attrs.org/en/stable/>`__
+  types (:pr:`323`).
 - Add ``repr_omit_defaults`` configuration option for omitting struct default
   values in the ``repr`` (:pr:`322`).
 - Expose a struct's configuration through a ``__struct_config__`` attribute

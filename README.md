@@ -11,13 +11,13 @@
 [![License](https://img.shields.io/github/license/jcrist/msgspec.svg)](https://github.com/jcrist/msgspec/blob/main/LICENSE)
 [![PyPI Version](https://img.shields.io/pypi/v/msgspec.svg)](https://pypi.org/project/msgspec/)
 [![Conda Version](https://img.shields.io/conda/vn/conda-forge/msgspec.svg)](https://anaconda.org/conda-forge/msgspec)
-[![Code Coverage](https://codecov.io/gh/jcrist/msgspec/branch/main/graph/badge.svg)](https://codecov.io/gh/jcrist/msgspec)
+[![Code Coverage](https://codecov.io/gh/jcrist/msgspec/branch/main/graph/badge.svg)](https://app.codecov.io/gh/jcrist/msgspec)
 
 </div>
 
 `msgspec` is a *fast* serialization and validation library, with builtin
 support for [JSON](https://json.org), [MessagePack](https://msgpack.org),
-[YAML](https://yaml.org), and [TOML](https://toml.io). It features:
+[YAML](https://yaml.org), and [TOML](https://toml.io/en/). It features:
 
 - 🚀 **High performance encoders/decoders** for common protocols. The JSON and
   MessagePack implementations regularly
@@ -35,7 +35,7 @@ support for [JSON](https://json.org), [MessagePack](https://msgpack.org),
 
 - ✨ **A speedy Struct type** for representing structured data. If you already
   use [dataclasses](https://docs.python.org/3/library/dataclasses.html) or
-  [attrs](https://www.attrs.org),
+  [attrs](https://www.attrs.org/en/stable/),
   [structs](https://jcristharif.com/msgspec/structs.html) should feel familiar.
   However, they're
   [5-60x faster](https://jcristharif.com/msgspec/benchmarks.html#structs)
@@ -91,7 +91,7 @@ msgspec.ValidationError: Expected `str`, got `int` - at `$.groups[0]`
 
 `msgspec` is designed to be as performant as possible, while retaining some of
 the nicities of validation libraries like
-[pydantic](https://pydantic-docs.helpmanual.io/). For supported types,
+[pydantic](https://docs.pydantic.dev/latest/). For supported types,
 encoding/decoding a message with `msgspec` can be
 [~10-80x faster than alternative libraries](https://jcristharif.com/msgspec/benchmarks.html).
 

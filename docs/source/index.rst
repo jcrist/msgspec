@@ -139,22 +139,22 @@ few:
 
         .. image:: _static/anywidget.png
 
-    .. grid-item-card:: esmerald
-        :link: https://esmerald.dev/
+    .. grid-item-card:: Ravyn
+        :link: https://www.ravyn.dev/
 
-        .. image:: _static/esmerald.png
+        .. image:: _static/ravyn.png
 
 
 .. _type annotations: https://docs.python.org/3/library/typing.html
 .. _JSON: https://json.org
 .. _MessagePack: https://msgpack.org
 .. _YAML: https://yaml.org
-.. _TOML: https://toml.io
-.. _attrs: https://www.attrs.org
+.. _TOML: https://toml.io/en/
+.. _attrs: https://www.attrs.org/en/stable/
 .. _dataclasses: https://docs.python.org/3/library/dataclasses.html
 .. _orjson: https://github.com/ijl/orjson
-.. _pydantic: https://pydantic-docs.helpmanual.io/
-.. _mypy: https://mypy.readthedocs.io
+.. _pydantic: https://docs.pydantic.dev/latest/
+.. _mypy: https://mypy.readthedocs.io/en/stable/
 .. _pyright: https://github.com/microsoft/pyright
 
 .. toctree::

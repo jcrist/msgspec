@@ -64,7 +64,7 @@ determine the top 10 packages by file size.
 **Source**
 
 The full example source can be found `here
-<https://github.com/jcrist/msgspec/blob/main/examples/conda-repodata>`__.
+<https://github.com/jcrist/msgspec/tree/main/examples/conda-repodata>`__.
 
 .. literalinclude:: ../../../examples/conda-repodata/query_repodata.py
     :language: python
