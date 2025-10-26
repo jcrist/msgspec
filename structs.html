@@ -1013,7 +1013,7 @@ code will still refer to them using their original names.</p>
 <p>If renaming to camelCase, you may run into issues if your field names contain
 acronyms (e.g. <code class="docutils literal notranslate"><span class="pre">FQDN</span></code> in <code class="docutils literal notranslate"><span class="pre">setHostnameAsFQDN</span></code>). Some JSON style guides
 prefer to fully-uppercase these components (<code class="docutils literal notranslate"><span class="pre">FQDN</span></code>), but <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> has no
-way to know if a component is an acroynm or not (and so will result in
+way to know if a component is an acronym or not (and so will result in
 <code class="docutils literal notranslate"><span class="pre">Fqdn</span></code>). As such, we recommend using an explicit dict mapping for renaming if
 generating <code class="xref py py-obj docutils literal notranslate"><span class="pre">Struct</span></code> types to match an existing API.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.19/#podspec-v1-core</span>
