@@ -27,3 +27,15 @@ select = [
 
 [tool.ruff.lint.isort]
 combine-as-imports = true
+
+[tool.cibuildwheel]
+build = "cp39-* cp310-* cp311-* cp312-* cp313-* cp314-* cp314t-*"
+build-frontend = "build[uv]"
+test-command = "pytest {project}/tests"
+test-extras = ["test"]
+
+[tool.cibuildwheel.environment]
+CFLAGS = "-g0"
+
+# [tool.cibuildwheel.linux]
+# environment-pass = ["CFLAGS"]

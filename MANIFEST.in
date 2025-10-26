@@ -8,3 +8,4 @@ include versioneer.py
 include README.md
 include LICENSE
 include MANIFEST.in
+recursive-include tests *

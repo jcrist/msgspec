@@ -71,22 +71,57 @@ jobs:
         with:
           files: coverage.xml,_core.c.gcov,atof.h.gcov,ryu.h.gcov
 
+  build_sdist:
+    name: Build Source Distribution
+    runs-on: ubuntu-latest
+
+    outputs:
+      artifact-name: ${{ steps.locate-artifact.outputs.file-name }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Build source distribution
+        run: uv build --sdist
+
+      - name: Locate source distribution
+        id: locate-artifact
+        run: |-
+          sdist_name=$(basename dist/*)
+          echo "file-name=${sdist_name}" >> $GITHUB_OUTPUT
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifact-sdist
+          path: dist/${{ steps.locate-artifact.outputs.file-name }}
+          if-no-files-found: error
+
   build_wheels:
-    name: Build wheels on ${{ matrix.os }}
+    name: Build wheels on ${{ matrix.os }} for ${{ matrix.archs }}
+    needs:
+      - build_sdist
+      - lint
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-13, windows-latest]
-
-    env:
-      CIBW_TEST_EXTRAS: "test"
-      CIBW_TEST_COMMAND: "pytest {project}/tests"
-      CIBW_BUILD: "cp39-* cp310-* cp311-* cp312-* cp313-* cp314-* cp314t-*"
-      CIBW_SKIP: "*-win32 *_i686 *_s390x *_ppc64le"
-      CIBW_ARCHS_MACOS: "x86_64 arm64"
-      CIBW_ARCHS_LINUX: "x86_64 aarch64"
-      CIBW_TEST_SKIP: "*_arm64 *-musllinux_*"
-      CIBW_ENVIRONMENT: "CFLAGS=-g0"
+        include:
+        - os: ubuntu-24.04-arm
+          archs: aarch64
+        - os: ubuntu-latest
+          archs: x86_64
+        - os: macos-latest
+          archs: arm64
+        - os: macos-15-intel
+          archs: x86_64
+        # - os: windows-11-arm
+        #   archs: ARM64
+        - os: windows-latest
+          archs: AMD64
 
     steps:
       - uses: actions/checkout@v4
@@ -102,37 +137,32 @@ jobs:
         run: |
             echo "CIBW_SKIP=${CIBW_SKIP} *-musllinux_* cp39-*_aarch64 cp311-*_aarch64 cp312-*_aarch64 cp313-*_aarch64 cp314-*_aarch64 cp314t-*_aarch64" >> $GITHUB_ENV
 
+      - name: Download source distribution
+        uses: actions/download-artifact@v4
+        with:
+          name: artifact-sdist
+          path: dist
+
+      # TODO: Remove this once the action supports specifying extras, see:
+      # https://github.com/pypa/cibuildwheel/pull/2630
+      - name: Install uv
+        if: runner.os != 'Linux'
+        uses: astral-sh/setup-uv@v7
+
       - name: Build & Test Wheels
         uses: pypa/cibuildwheel@v3.2.1
+        with:
+          package-dir: dist/${{ needs.build_sdist.outputs.artifact-name }}
+        env:
+          CIBW_ARCHS: ${{ matrix.archs }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         if: github.event_name == 'release' && github.event.action == 'published'
         with:
-          name: artifact-wheels-${{ matrix.os }}
+          name: artifact-wheels-${{ matrix.os }}-${{ matrix.archs }}
           path: ./wheelhouse/*.whl
-
-  build_sdist:
-    name: Build Source Distribution
-    runs-on: ubuntu-latest
-    if: github.event_name == 'release' && github.event.action == 'published'
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Build source distribution
-        run: python setup.py sdist
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: artifact-sdist
-          path: dist/*.tar.gz
+          if-no-files-found: error
 
   upload_pypi:
     needs: [build_wheels, build_sdist]
