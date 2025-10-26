@@ -2,45 +2,59 @@ name: documentation
 
 on:
   push:
-    branches: [main]
+    branches:
+    - main
   pull_request: null
 
 jobs:
-  build-docs:
+  build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v5
 
-      - name: Install Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
+    - name: Install Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: "3.11"
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
+    - name: Install uv
+      uses: astral-sh/setup-uv@v7
 
-      - name: Install msgspec and dependencies
-        run: |
-          uv venv --no-project
-          uv pip install -e ".[doc]"
+    - name: Install msgspec and dependencies
+      run: |
+        uv venv --no-project
+        uv pip install -e ".[doc]"
 
-      - name: Build Docs
-        run: |
-          pushd docs
-          uv run make html
-          popd
+    - name: Build Docs
+      run: |
+        pushd docs
+        uv run make html
+        popd
 
-      - name: Check links
-        uses: lycheeverse/lychee-action@v2
-        with:
-          lycheeVersion: v0.21.0
-          fail: true
-          failIfEmpty: true
-          args: README.md docs/build
+    - name: Restore link check cache
+      uses: actions/cache@v4
+      with:
+        path: .lycheecache
+        key: cache-lychee-${{ github.sha }}
+        restore-keys: cache-lychee-
 
-      - name: Deploy
-        uses: peaceiris/actions-gh-pages@v3
-        if: github.ref == 'refs/heads/main'
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./docs/build/html
+    - name: Check links
+      uses: lycheeverse/lychee-action@v2
+      with:
+        lycheeVersion: v0.21.0
+        fail: true
+        failIfEmpty: true
+        token: "${{ github.token }}"
+        args: >-
+          --verbose
+          --no-progress
+          README.md
+          docs/build
+
+    - name: Deploy
+      uses: peaceiris/actions-gh-pages@v4
+      if: github.ref == 'refs/heads/main'
+      with:
+        github_token: "${{ github.token }}"
+        publish_dir: docs/build/html
