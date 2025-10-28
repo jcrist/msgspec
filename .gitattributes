@@ -1,1 +1,4 @@
-msgspec/_version.py export-subst
+* text=auto eol=lf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+*.cmd text eol=crlf

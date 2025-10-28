@@ -1,3 +1,29 @@
+[build-system]
+requires = [
+  "setuptools>=80",
+  "setuptools-scm>=8",
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "msgspec"
+dynamic = [
+  "classifiers",
+  "description",
+  "keywords",
+  "license",
+  "maintainers",
+  "optional-dependencies",
+  "readme",
+  "requires-python",
+  "urls",
+  "version",
+]
+
+[tool.setuptools_scm]
+version_file = "msgspec/_version.py"
+parentdir_prefix_version = "msgspec-"
+
 [tool.ruff]
 extend-exclude = [
   "*.pyi",
@@ -39,3 +65,23 @@ CFLAGS = "-g0"
 
 # [tool.cibuildwheel.linux]
 # environment-pass = ["CFLAGS"]
+
+[tool.codespell]
+skip = "*.py,*.c,*.h"
+
+[tool.coverage.run]
+omit = [
+  "src/msgspec/_version.py",
+  "tests/basic_typing_examples.py",
+  "tests/test_mypy.py",
+  "tests/test_pyright.py",
+]
+
+[tool.pytest.ini_options]
+markers = [
+  "mypy",
+  "pyright",
+]
+filterwarnings = [
+  "error",
+]

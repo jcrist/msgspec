@@ -16,6 +16,12 @@ __pycache__/
 .venv*/
 venv*/
 
+# Version file
+/msgspec/_version.py
+
+# uv dependency lock file
+uv.lock
+
 # Pytest and coverage
 .coverage
 .pytest/
