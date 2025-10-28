@@ -16,21 +16,17 @@ jobs:
     - name: Install Python
       uses: actions/setup-python@v6
       with:
-        python-version: "3.11"
+        python-version: "3.13"
 
     - name: Install uv
       uses: astral-sh/setup-uv@v7
 
     - name: Install msgspec and dependencies
-      run: |
-        uv venv --no-project
-        uv pip install -e ".[doc]"
+      run: uv sync
 
     - name: Build Docs
       run: |
-        pushd docs
-        uv run make html
-        popd
+        uv run --directory docs -- make html
 
     - name: Restore link check cache
       uses: actions/cache@v4
