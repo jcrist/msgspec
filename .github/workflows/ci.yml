@@ -35,6 +35,7 @@ jobs:
     - name: Build msgspec and install dependencies
       run: |
         pip install -e ".[dev]"
+        pip install setuptools setuptools-scm
 
     - name: Run pre-commit hooks
       uses: pre-commit/action@v3.0.0
