@@ -73,6 +73,32 @@ Homepage = "https://jcristharif.com/msgspec/"
 "Issue Tracker" = "https://github.com/jcrist/msgspec/issues"
 Source = "https://github.com/jcrist/msgspec"
 
+[dependency-groups]
+dev = [
+  { include-group = "doc" },
+  { include-group = "test" },
+  "mypy",
+  "pre-commit",
+  "pyright",
+]
+doc = [
+  "furo",
+  "ipython",
+  "sphinx",
+  "sphinx-copybutton",
+  "sphinx-design",
+]
+test = [
+  "attrs",
+  "coverage",
+  "eval-type-backport; python_version < '3.10'",
+  "msgpack",
+  "pytest",
+  "pyyaml",
+  "tomli; python_version < '3.11'",
+  "tomli-w",
+]
+
 [tool.setuptools]
 packages = ["msgspec"]
 
