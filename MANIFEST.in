@@ -1,11 +1,7 @@
-include msgspec/*.c
-include msgspec/*.h
-include msgspec/*.py
-include msgspec/*.pyi
-include msgspec/py.typed
-include setup.py
-include versioneer.py
-include README.md
-include LICENSE
-include MANIFEST.in
-recursive-include tests *
+prune .github
+prune benchmarks
+prune docs
+prune examples
+prune scripts
+exclude .*
+exclude lychee.toml

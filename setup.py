@@ -4,8 +4,6 @@ import os
 from setuptools import setup
 from setuptools.extension import Extension
 
-import versioneer
-
 # Check for 32-bit windows builds, which currently aren't supported. We can't
 # rely on `platform.architecture` here since users can still run 32-bit python
 # builds on 64 bit architectures.
@@ -80,8 +78,6 @@ extras_require = {
 
 setup(
     name="msgspec",
-    version=versioneer.get_version(),
-    cmdclass=versioneer.get_cmdclass(),
     maintainer="Jim Crist-Harif",
     maintainer_email="jcristharif@gmail.com",
     url="https://jcristharif.com/msgspec/",
