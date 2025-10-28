@@ -70,10 +70,41 @@ jobs:
         coverage xml
         gcov -abcu `find build/ -name *.o`
 
-    - name: Upload Codecov
-      uses: codecov/codecov-action@v3
+    - name: Upload coverage artifacts
+      uses: actions/upload-artifact@v5
       with:
-        files: coverage.xml,_core.c.gcov,atof.h.gcov,ryu.h.gcov
+        name: coverage-files
+        path: |-
+          coverage.xml
+          _core.c.gcov
+          atof.h.gcov
+          ryu.h.gcov
+        if-no-files-found: error
+
+  upload-coverage:
+    name: Upload coverage files to Codecov
+    needs:
+    - lint
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v5
+
+    - name: Download coverage artifacts
+      uses: actions/download-artifact@v5
+      with:
+        pattern: coverage-files
+        merge-multiple: true
+        path: coverage-files
+
+    - name: Upload Codecov
+      uses: codecov/codecov-action@v5
+      with:
+        use_oidc: true
+        directory: coverage-files
 
   build-sdist:
     name: Build Source Distribution
