@@ -1002,4 +1002,4 @@ class _Translator:
             )
             return out
         else:
-            return CustomType(t)
+            return CustomType(t[args] if args else t)

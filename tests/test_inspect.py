@@ -228,6 +228,13 @@ def test_custom():
     assert mi.type_info(complex) == mi.CustomType(complex)
 
 
+def test_custom_with_args():
+    class MyGeneric(Generic[T]):
+        value: T
+
+    assert mi.type_info(MyGeneric[int]) == mi.CustomType(MyGeneric[int])
+
+
 @pytest.mark.parametrize(
     "kw",
     [{}, dict(min_length=0), dict(max_length=3)],
