@@ -49,7 +49,7 @@ if sys.platform == "win32":
 ext_modules = [
     Extension(
         "msgspec._core",
-        [os.path.join("msgspec", "_core.c")],
+        [os.path.join("src", "msgspec", "_core.c")],
         extra_compile_args=extra_compile_args,
         extra_link_args=extra_link_args,
     )
@@ -57,8 +57,8 @@ ext_modules = [
 
 setup(
     name="msgspec",
-    license="BSD",
     packages=["msgspec"],
+    package_dir={"": "src"},
     package_data={"msgspec": ["py.typed", "*.pyi"]},
     ext_modules=ext_modules,
 )

@@ -12,6 +12,10 @@ dynamic = [
 ]
 description = "A fast serialization and validation library, with builtin support for JSON, MessagePack, YAML, and TOML."
 readme = "README.md"
+license = "BSD-3-Clause"
+license-files = [
+  "LICENSE",
+]
 requires-python = ">=3.9"
 maintainers = [
   { name = "Jim Crist-Harif", email = "jcristharif@gmail.com" },
@@ -29,7 +33,6 @@ keywords = [
 ]
 classifiers = [
   "Development Status :: 4 - Beta",
-  "License :: OSI Approved :: BSD License",
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
@@ -79,6 +82,7 @@ dev = [
   { include-group = "test" },
   "mypy",
   "pre-commit",
+  "pre-commit-uv",
   "pyright",
 ]
 doc = [
@@ -102,6 +106,9 @@ test = [
 [tool.setuptools]
 packages = ["msgspec"]
 
+[tool.setuptools.package-dir]
+"" = "src"
+
 [tool.setuptools.exclude-package-data]
 msgspec = [
   "*.c",
@@ -109,7 +116,7 @@ msgspec = [
 ]
 
 [tool.setuptools_scm]
-version_file = "msgspec/_version.py"
+version_file = "src/msgspec/_version.py"
 parentdir_prefix_version = "msgspec-"
 
 [tool.uv.config-settings]
@@ -119,8 +126,7 @@ editable_mode = "compat"
 extend-exclude = [
   "*.pyi",
   "__init__.py",
-  "_version.py",
-  "versioneer.py",
+  "src/msgspec/_version.py",
   "basic_typing_examples.py",
   "json.py",
   "msgpack.py",
@@ -151,6 +157,8 @@ combine-as-imports = true
 skip = "*.py,*.c,*.h"
 
 [tool.coverage.run]
+source_pkgs = ["msgspec"]
+source_dirs = ["tests"]
 omit = [
   "src/msgspec/_version.py",
   "tests/basic_typing_examples.py",
@@ -158,7 +166,22 @@ omit = [
   "tests/test_pyright.py",
 ]
 
+[tool.coverage.paths]
+msgspec = [
+  "src/msgspec",
+  "*/msgspec/src/msgspec",
+  "*.venv/*/lib*/python*/site-packages/msgspec",
+  "*.venv\\*\\Lib\\site-packages\\msgspec",
+]
+tests = [
+  "tests",
+  "*/msgspec/tests",
+]
+
 [tool.pytest.ini_options]
+testpaths = [
+  "tests",
+]
 markers = [
   "mypy",
   "pyright",
