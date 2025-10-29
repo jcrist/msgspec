@@ -71,6 +71,8 @@ T = TypeVar("T")
 class UnsetType(enum.Enum):
     UNSET = "UNSET"
 
+    def __bool__() -> Literal[False]:...
+
 UNSET = UnsetType.UNSET
 
 class _NoDefault(enum.Enum):
