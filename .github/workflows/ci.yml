@@ -18,10 +18,20 @@ on:
     types:
     - published
 
+env:
+  # We want to test a real installation as a user.
+  UV_NO_EDITABLE: "true"
+
 jobs:
   lint:
     name: Run static analysis
     runs-on: ubuntu-latest
+
+    env:
+      # We manually select the required dependency groups rather than installing
+      # everything with the default `dev` group and don't want to redundantly
+      # supply the same flags to `uv run`.
+      UV_NO_SYNC: "true"
 
     steps:
     - name: Checkout code
@@ -32,42 +42,43 @@ jobs:
       with:
         python-version: "3.11"
 
+    - name: Install uv
+      uses: astral-sh/setup-uv@v7
+
     - name: Build msgspec and install dependencies
-      run: |
-        pip install -e ".[dev]"
+      run: uv sync
 
     - name: Run pre-commit hooks
-      uses: pre-commit/action@v3.0.0
+      run: uv run -- pre-commit run --all-files --show-diff-on-failure
 
     - name: mypy
-      run: pytest tests/test_mypy.py
+      run: uv run -- pytest tests/test_mypy.py
 
     - name: pyright
-      run: pytest tests/test_pyright.py
+      run: uv run -- pytest tests/test_pyright.py
 
     - name: doctests
-      run: pytest --doctest-modules msgspec
+      run: uv run -- pytest --doctest-modules --pyargs msgspec
 
     - name: Rebuild with sanitizers & coverage
       env:
         MSGSPEC_SANITIZE: "true"
         MSGSPEC_COVERAGE: "true"
       run: |
-        python setup.py clean --all
-        # I know this is deprecated, but I can't find a way to keep the build
-        # directory around anymore on new versions of setuptools
-        python setup.py develop
+        git clean -fdX
+        uv sync --reinstall-package msgspec
 
     - name: Run tests with sanitizers
       env:
         PYTHONMALLOC: "malloc"
         ASAN_OPTIONS: "detect_leaks=0"
-      run: |
-        LD_PRELOAD=`gcc -print-file-name=libasan.so` coverage run -m pytest -s -m "not mypy and not pyright"
+      run: >-
+        LD_PRELOAD=`gcc -print-file-name=libasan.so` uv run --
+        coverage run -m pytest -s -m "not mypy and not pyright"
 
     - name: Generate coverage files
       run: |
-        coverage xml
+        uv run -- coverage xml
         gcov -abcu `find build/ -name *.o`
 
     - name: Upload coverage artifacts
