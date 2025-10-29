@@ -12952,17 +12952,36 @@ mpack_encode_struct_array(
     int tagged = tag_value != NULL;
     PyObject *fields = struct_type->struct_encode_fields;
     Py_ssize_t nfields = PyTuple_GET_SIZE(fields);
-    Py_ssize_t len = nfields + tagged;
+    Py_ssize_t len = nfields + tagged, actual_len = len;
 
     if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
 
+    Py_ssize_t header_offset = self->output_len;
     if (mpack_encode_array_header(self, len, "structs") < 0) goto cleanup;
     if (tagged) {
         if (mpack_encode(self, tag_value) < 0) goto cleanup;
     }
     for (Py_ssize_t i = 0; i < nfields; i++) {
         PyObject *val = Struct_get_index(obj, i);
-        if (val == NULL || mpack_encode(self, val) < 0) goto cleanup;
+        if (val == UNSET) {
+            actual_len--;
+        } else if (val == NULL || mpack_encode(self, val) < 0) {
+            goto cleanup;
+        }
+    }
+    if (MS_UNLIKELY(actual_len != len)) {
+        /* Fixup the header length after we know how many fields were
+         * actually written */
+        char *header_loc = self->output_buffer_raw + header_offset;
+        if (len < 16) {
+            *header_loc = MP_FIXARRAY | actual_len;
+        } else if (len < (1 << 16)) {
+            *header_loc++ = MP_ARRAY16;
+            _msgspec_store16(header_loc, (uint16_t)actual_len);
+        } else {
+            *header_loc++ = MP_ARRAY32;
+            _msgspec_store32(header_loc, (uint32_t)actual_len);
+        }
     }
     status = 0;
 cleanup:
@@ -14351,11 +14370,16 @@ json_encode_struct_array(
     for (Py_ssize_t i = 0; i < nfields; i++) {
         PyObject *val = Struct_get_index(obj, i);
         if (val == NULL) goto cleanup;
+        if (val == UNSET) continue;
         if (json_encode(self, val) < 0) goto cleanup;
         if (ms_write(self, ",", 1) < 0) goto cleanup;
     }
     /* Overwrite trailing comma with ] */
-    *(self->output_buffer_raw + self->output_len - 1) = ']';
+    if (*(self->output_buffer_raw + self->output_len - 1) == ',') {
+        *(self->output_buffer_raw + self->output_len - 1) = ']';
+    } else {
+        if (ms_write(self, "]", 1) < 0) goto cleanup;
+    }
     status = 0;
 cleanup:
     Py_LeaveRecursiveCall();

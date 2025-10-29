@@ -4080,6 +4080,17 @@ class TestUnset:
             sol = proto.encode(y)
             assert res == sol
 
+    def test_unset_encode_struct_array_like(self, proto):
+        class Ex(Struct, array_like=True):
+            x: Union[int, UnsetType] = UNSET
+            y: Union[int, UnsetType] = UNSET
+            z: int = 0
+
+        for x, y in [(Ex(), [0]), (Ex(x=1), [1, 0]), (Ex(y=2), [2, 0])]:
+            res = proto.encode(x)
+            sol = proto.encode(y)
+            assert res == sol
+
 
 class TestOrder:
     def test_encoder_order_attribute(self, proto):
