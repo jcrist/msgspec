@@ -13981,7 +13981,10 @@ static MS_NOINLINE int
 json_encode_dict_key_noinline(EncoderState *self, PyObject *obj) {
     PyTypeObject *type = Py_TYPE(obj);
 
-    if (type == &PyLong_Type) {
+    if (type == &PyUnicode_Type) {
+        return json_encode_str(self, obj);
+    }
+    else if (type == &PyLong_Type) {
         return json_encode_long_as_str(self, obj);
     }
     else if (type == &PyFloat_Type) {
