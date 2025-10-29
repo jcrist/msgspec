@@ -64,7 +64,7 @@ JSON
     :members: encode, encode_lines, encode_into
 
 .. autoclass:: Decoder
-    :members: decode, decode_lines
+    :members: decode, decode_lines, raw_decode
 
 .. autofunction:: encode
 
@@ -82,7 +82,7 @@ MessagePack
     :members: encode, encode_into
 
 .. autoclass:: Decoder
-    :members: decode
+    :members: decode, raw_decode
 
 .. autoclass:: Ext
     :members:

@@ -640,6 +640,22 @@ def check_msgpack_Decoder_decode_type_comment() -> None:
     reveal_type(o)  # assert ("List" in typ or "list" in typ) and "int" in typ
 
 
+def check_msgpack_Decoder_raw_decode_any() -> None:
+    dec = msgspec.msgpack.Decoder()
+    b = msgspec.msgpack.encode([1, 2, 3])
+    o = dec.raw_decode(b)
+
+    reveal_type(o)  # assert "tuple" in typ.lower() and "Any" in typ and "int" in typ
+
+
+def check_msgpack_Decoder_raw_decode_typed() -> None:
+    dec = msgspec.msgpack.Decoder(int)
+    b = msgspec.msgpack.encode(1)
+    o = dec.raw_decode(b)
+
+    reveal_type(o)  # assert ("Tuple" in typ or "tuple" in typ) and typ.count("int") == 2
+
+
 def check_msgpack_decode_any() -> None:
     b = msgspec.msgpack.encode([1, 2, 3])
     o = msgspec.msgpack.decode(b)
@@ -812,6 +828,19 @@ def check_json_Decoder_decode_lines_typed() -> None:
     dec = msgspec.json.Decoder(int)
     o = dec.decode_lines(b'1\n2\n3')
     reveal_type(o)  # assert "list" in typ.lower() and "int" in typ.lower()
+
+
+def check_json_Decoder_raw_decode_any() -> None:
+    dec = msgspec.json.Decoder()
+    o = dec.raw_decode(b'1')
+
+    reveal_type(o)  # assert "tuple" in typ.lower() and "any" in typ.lower() and "int" in typ.lower()
+
+
+def check_json_Decoder_raw_decode_typed() -> None:
+    dec = msgspec.json.Decoder(int)
+    o = dec.raw_decode(b'1')
+    reveal_type(o)  # assert "tuple" in typ.lower() and typ.lower().count("int") == 2
 
 
 def check_json_decode_any() -> None:

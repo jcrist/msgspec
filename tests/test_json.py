@@ -527,6 +527,30 @@ class TestDecoderMisc:
         with pytest.raises(TypeError):
             dec.decode(1)
 
+    def test_raw_decode(self):
+        dec = msgspec.json.Decoder()
+
+        obj, index = dec.raw_decode(b"[1, 2, 3]trailing invalid")
+        assert obj == [1, 2, 3]
+        assert index == len(b"[1, 2, 3]")
+
+    def test_raw_decode_malformed(self):
+        dec = msgspec.json.Decoder()
+        with pytest.raises(msgspec.DecodeError, match="malformed"):
+            dec.raw_decode(b'{"x": efg')
+
+    def test_raw_decode_bad_call(self):
+        dec = msgspec.json.Decoder()
+
+        with pytest.raises(TypeError):
+            dec.raw_decode()
+
+        with pytest.raises(TypeError):
+            dec.raw_decode("{}", 2)
+
+        with pytest.raises(TypeError):
+            dec.raw_decode(1)
+
     def test_decoder_init_float_hook(self):
         dec = msgspec.json.Decoder()
         assert dec.float_hook is None

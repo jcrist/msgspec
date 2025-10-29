@@ -16370,10 +16370,70 @@ Decoder_decode(Decoder *self, PyObject *const *args, Py_ssize_t nargs)
     return NULL;
 }
 
+PyDoc_STRVAR(Decoder_raw_decode__doc__,
+"raw_decode(self, buf)\n"
+"--\n"
+"\n"
+"Deserialize an object from MessagePack, allowing trailing data.\n"
+"\n"
+"Parameters\n"
+"----------\n"
+"buf : bytes-like\n"
+"    The message to decode.\n"
+"\n"
+"Returns\n"
+"-------\n"
+"obj_and_index : 2-tuple of Any and int\n"
+"    A tuple containing the deserialized object, as well as the index into\n"
+"    the input at which the object ended.\n"
+);
+static PyObject*
+Decoder_raw_decode(Decoder *self, PyObject *const *args, Py_ssize_t nargs)
+{
+    if (!check_positional_nargs(nargs, 1, 1)) {
+        return NULL;
+    }
+
+    DecoderState state = {
+        .type = self->type,
+        .strict = self->strict,
+        .dec_hook = self->dec_hook,
+        .ext_hook = self->ext_hook
+    };
+
+    Py_buffer buffer;
+    buffer.buf = NULL;
+    if (PyObject_GetBuffer(args[0], &buffer, PyBUF_CONTIG_RO) >= 0) {
+        state.buffer_obj = args[0];
+        state.input_start = buffer.buf;
+        state.input_pos = buffer.buf;
+        state.input_end = state.input_pos + buffer.len;
+
+        PyObject *res = mpack_decode(&state, state.type, NULL, false);
+
+        if (res != NULL) {
+            PyObject *tup = Py_BuildValue(
+                "(On)", res,
+                (Py_ssize_t)(state.input_pos - state.input_start)
+            );
+            Py_CLEAR(res);
+            res = tup;
+        }
+
+        PyBuffer_Release(&buffer);
+        return res;
+    }
+    return NULL;
+}
+
 static struct PyMethodDef Decoder_methods[] = {
     {
         "decode", (PyCFunction) Decoder_decode, METH_FASTCALL,
         Decoder_decode__doc__,
+    },
+    {
+        "raw_decode", (PyCFunction) Decoder_raw_decode, METH_FASTCALL,
+        Decoder_raw_decode__doc__,
     },
     {"__class_getitem__", Py_GenericAlias, METH_O|METH_CLASS},
     {NULL, NULL}                /* sentinel */
@@ -19420,6 +19480,72 @@ JSONDecoder_decode_lines(JSONDecoder *self, PyObject *const *args, Py_ssize_t na
     return NULL;
 }
 
+PyDoc_STRVAR(JSONDecoder_raw_decode__doc__,
+"raw_decode(self, buf)\n"
+"--\n"
+"\n"
+"Deserialize an object from JSON, allowing trailing data.\n"
+"\n"
+"Parameters\n"
+"----------\n"
+"buf : bytes-like or str\n"
+"    The message to decode.\n"
+"\n"
+"Returns\n"
+"-------\n"
+"obj_and_index : 2-tuple of Any and int\n"
+"    A tuple containing the deserialized object, as well as the index into\n"
+"    the input at which the object ended.\n"
+);
+static PyObject*
+JSONDecoder_raw_decode(
+    JSONDecoder *self,
+    PyObject *const *args,
+    Py_ssize_t nargs
+) {
+    if (!check_positional_nargs(nargs, 1, 1)) {
+        return NULL;
+    }
+
+    JSONDecoderState state = {
+        .type = self->type,
+        .strict = self->strict,
+        .dec_hook = self->dec_hook,
+        .float_hook = self->float_hook,
+        .scratch = NULL,
+        .scratch_capacity = 0,
+        .scratch_len = 0
+    };
+
+    Py_buffer buffer;
+    buffer.buf = NULL;
+    if (ms_get_buffer(args[0], &buffer) >= 0) {
+
+        state.buffer_obj = args[0];
+        state.input_start = buffer.buf;
+        state.input_pos = buffer.buf;
+        state.input_end = state.input_pos + buffer.len;
+
+        PyObject *res = json_decode(&state, state.type, NULL);
+
+        if (res != NULL) {
+            PyObject *tup = Py_BuildValue(
+                "(On)", res,
+                (Py_ssize_t)(state.input_pos - state.input_start)
+            );
+            Py_CLEAR(res);
+            res = tup;
+        }
+
+        ms_release_buffer(&buffer);
+
+        PyMem_Free(state.scratch);
+        return res;
+    }
+
+    return NULL;
+}
+
 static struct PyMethodDef JSONDecoder_methods[] = {
     {
         "decode", (PyCFunction) JSONDecoder_decode, METH_FASTCALL,
@@ -19428,6 +19554,10 @@ static struct PyMethodDef JSONDecoder_methods[] = {
     {
         "decode_lines", (PyCFunction) JSONDecoder_decode_lines, METH_FASTCALL,
         JSONDecoder_decode_lines__doc__,
+    },
+    {
+        "raw_decode", (PyCFunction) JSONDecoder_raw_decode, METH_FASTCALL,
+        JSONDecoder_raw_decode__doc__,
     },
     {"__class_getitem__", Py_GenericAlias, METH_O|METH_CLASS},
     {NULL, NULL}                /* sentinel */
