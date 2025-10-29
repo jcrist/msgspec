@@ -29,6 +29,7 @@ class Ext:
 class Decoder(Generic[T]):
     type: Type[T]
     strict: bool
+    forbid_unknown_fields: bool
     dec_hook: dec_hook_sig
     ext_hook: ext_hook_sig
     @overload
@@ -36,6 +37,7 @@ class Decoder(Generic[T]):
         self: Decoder[Any],
         *,
         strict: bool = True,
+        forbid_unknown_fields: bool = False,
         dec_hook: dec_hook_sig = None,
         ext_hook: ext_hook_sig = None,
     ) -> None: ...
@@ -45,6 +47,7 @@ class Decoder(Generic[T]):
         type: Type[T] = ...,
         *,
         strict: bool = True,
+        forbid_unknown_fields: bool = False,
         dec_hook: dec_hook_sig = None,
         ext_hook: ext_hook_sig = None,
     ) -> None: ...
@@ -54,6 +57,7 @@ class Decoder(Generic[T]):
         type: Any = ...,
         *,
         strict: bool = True,
+        forbid_unknown_fields: bool = False,
         dec_hook: dec_hook_sig = None,
         ext_hook: ext_hook_sig = None,
     ) -> None: ...
@@ -83,6 +87,7 @@ def decode(
     /,
     *,
     strict: bool = True,
+    forbid_unknown_fields: bool = False,
     dec_hook: dec_hook_sig = None,
     ext_hook: ext_hook_sig = None,
 ) -> Any: ...
@@ -93,6 +98,7 @@ def decode(
     *,
     type: Type[T] = ...,
     strict: bool = True,
+    forbid_unknown_fields: bool = False,
     dec_hook: dec_hook_sig = None,
     ext_hook: ext_hook_sig = None,
 ) -> T: ...
@@ -103,6 +109,7 @@ def decode(
     *,
     type: Any = ...,
     strict: bool = True,
+    forbid_unknown_fields: bool = False,
     dec_hook: dec_hook_sig = None,
     ext_hook: ext_hook_sig = None,
 ) -> Any: ...
