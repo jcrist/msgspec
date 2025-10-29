@@ -258,6 +258,9 @@ def get_dataclass_info(obj):
     if hasattr(cls, "__dataclass_fields__"):
         from dataclasses import _FIELD, _FIELD_INITVAR, MISSING
 
+        if hasattr(cls, "__pydantic_fields__"):
+            raise TypeError("Pydantic dataclasses are not supported")
+
         for field in cls.__dataclass_fields__.values():
             if field._field_type is not _FIELD:
                 if field._field_type is _FIELD_INITVAR:
