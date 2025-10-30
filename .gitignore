@@ -8,6 +8,11 @@
 *.iml
 .idea/
 
+# Dotenv files meant for local use or those containing secrets
+.env
+.env.local
+.env.*.local
+
 # Python cached sources
 __pycache__/
 *.pyc

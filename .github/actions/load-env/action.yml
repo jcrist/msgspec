@@ -1,0 +1,21 @@
+name: Load Environment File
+description: Load environment variables from a file
+inputs:
+  path:
+    description: The path to the environment file to load
+    required: true
+    default: .github/env/uv.env
+
+runs:
+  using: composite
+  steps:
+  - name: Load environment file
+    shell: bash
+    run: |-
+      if [ ! -f "${{ inputs.path }}" ]; then
+        echo "::error::Environment file not found at ${{ inputs.path }}"
+        exit 1
+      fi
+
+      # Filter out comments and empty lines
+      grep -vE '^\s*(#|$)' "${{ inputs.path }}" >> "$GITHUB_ENV"
