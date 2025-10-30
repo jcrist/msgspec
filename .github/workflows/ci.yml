@@ -3,7 +3,7 @@ name: Build and Test
 on:
   push:
     branches:
-      - main
+    - main
   pull_request:
     branches:
     - main
@@ -18,73 +18,119 @@ on:
     types:
     - published
 
-env:
-  # We want to test a real installation as a user.
-  UV_NO_EDITABLE: "true"
-
 jobs:
-  lint:
-    name: Run static analysis
+  validate:
+    name: Run static analysis and smoke tests
     runs-on: ubuntu-latest
 
-    env:
-      # We manually select the required dependency groups rather than installing
-      # everything with the default `dev` group and don't want to redundantly
-      # supply the same flags to `uv run`.
-      UV_NO_SYNC: "true"
+    outputs:
+      sdist-name: "${{ steps.build-sdist.outputs.file-name }}"
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v5
 
+    - name: Load environment file
+      uses: ./.github/actions/load-env
+
     - name: Install Python
       uses: actions/setup-python@v6
       with:
-        python-version: "3.11"
+        python-version-file: pyproject.toml
 
     - name: Install uv
       uses: astral-sh/setup-uv@v7
 
-    - name: Build msgspec and install dependencies
-      run: uv sync
-
     - name: Run pre-commit hooks
-      run: uv run -- pre-commit run --all-files --show-diff-on-failure
+      # Run `pre-commit` in an isolated environment to prevent test pollution.
+      run: uvx --with pre-commit-uv pre-commit run --all-files --show-diff-on-failure
 
-    - name: mypy
+    - name: Install project and test dependencies
+      run: uv sync --group test
+
+    - name: Test Mypy compatibility
       run: uv run -- pytest tests/test_mypy.py
 
-    - name: pyright
+    - name: Test Pyright compatibility
       run: uv run -- pytest tests/test_pyright.py
 
-    - name: doctests
+    - name: Run Doctests
       run: uv run -- pytest --doctest-modules --pyargs msgspec
 
-    - name: Rebuild with sanitizers & coverage
+    - name: Build source distribution
+      id: build-sdist
+      run: |-
+        git clean -fdX
+        uv build --sdist
+        sdist_name=$(basename dist/*.tar.gz)
+        echo "file-name=${sdist_name}" >> $GITHUB_OUTPUT
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v5
+      with:
+        name: artifact-sdist
+        path: dist/${{ steps.build-sdist.outputs.file-name }}
+        if-no-files-found: error
+
+  test:
+    name: Test Python ${{ matrix.python-version }} on ${{ startsWith(matrix.os, 'macos-') && 'macOS' || startsWith(matrix.os, 'windows-') && 'Windows' || 'Linux' }}
+    needs:
+    - validate
+    runs-on: "${{ matrix.os }}"
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+        - ubuntu-latest
+        # - windows-latest
+        # - macos-latest
+        python-version:
+        - "3.9"
+        - "3.10"
+        - "3.11"
+        - "3.12"
+        # TODO: Enable this once fixed https://github.com/jcrist/msgspec/issues/910
+        # - "3.13"
+        - "3.14"
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v5
+
+    - name: Load environment file
+      uses: ./.github/actions/load-env
+
+    - name: Install Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: "${{ matrix.python-version }}"
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v7
+
+    - name: Install project with sanitizers & coverage
       env:
         MSGSPEC_SANITIZE: "true"
         MSGSPEC_COVERAGE: "true"
-      run: |
-        git clean -fdX
-        uv sync --reinstall-package msgspec
+      run: uv sync --group test-unit
 
     - name: Run tests with sanitizers
       env:
         PYTHONMALLOC: "malloc"
         ASAN_OPTIONS: "detect_leaks=0"
       run: >-
-        LD_PRELOAD=`gcc -print-file-name=libasan.so` uv run --
-        coverage run -m pytest -s -m "not mypy and not pyright"
+        LD_PRELOAD=`gcc -print-file-name=libasan.so`
+        uv run -- coverage run -m pytest -s
 
     - name: Generate coverage files
-      run: |
+      run: |-
         uv run -- coverage xml
-        gcov -abcu `find build/ -name *.o`
+        gcov -abcu `find build/temp*/ -name *.o`
 
     - name: Upload coverage artifacts
       uses: actions/upload-artifact@v5
       with:
-        name: coverage-files
+        name: coverage-${{ matrix.python-version }}-${{ matrix.os }}
         path: |-
           coverage.xml
           _core.c.gcov
@@ -95,7 +141,7 @@ jobs:
   upload-coverage:
     name: Upload coverage files to Codecov
     needs:
-    - lint
+    - test
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -107,9 +153,11 @@ jobs:
     - name: Download coverage artifacts
       uses: actions/download-artifact@v5
       with:
-        pattern: coverage-files
-        merge-multiple: true
+        pattern: coverage-*
         path: coverage-files
+
+    - name: See the coverage files
+      run: tree -sh coverage-files
 
     - name: Upload Codecov
       uses: codecov/codecov-action@v5
@@ -117,46 +165,11 @@ jobs:
         use_oidc: true
         directory: coverage-files
 
-  build-sdist:
-    name: Build Source Distribution
-    runs-on: ubuntu-latest
-
-    outputs:
-      artifact-name: "${{ steps.locate-artifact.outputs.file-name }}"
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v5
-
-    - name: Install Python
-      uses: actions/setup-python@v6
-      with:
-        python-version: "3.13"
-
-    - name: Install uv
-      uses: astral-sh/setup-uv@v7
-
-    - name: Build source distribution
-      run: uv build --sdist
-
-    - name: Locate source distribution
-      id: locate-artifact
-      run: |-
-        sdist_name=$(basename dist/*)
-        echo "file-name=${sdist_name}" >> $GITHUB_OUTPUT
-
-    - name: Upload artifact
-      uses: actions/upload-artifact@v5
-      with:
-        name: artifact-sdist
-        path: dist/${{ steps.locate-artifact.outputs.file-name }}
-        if-no-files-found: error
-
   build-wheels:
     name: Build wheels on ${{ matrix.os }} for ${{ matrix.archs }}
     needs:
-    - build-sdist
-    - lint
+    - test
+    - validate
     runs-on: "${{ matrix.os }}"
     strategy:
       fail-fast: false
@@ -197,7 +210,7 @@ jobs:
     - name: Build & Test Wheels
       uses: pypa/cibuildwheel@v3.2.1
       with:
-        package-dir: dist/${{ needs.build-sdist.outputs.artifact-name }}
+        package-dir: dist/${{ needs.validate.outputs.sdist-name }}
       env:
         CIBW_ARCHS: "${{ matrix.archs }}"
 
@@ -212,7 +225,7 @@ jobs:
     name: Upload artifacts to PyPI
     if: github.event_name == 'release' && github.event.action == 'published'
     needs:
-    - build-sdist
+    - validate
     - build-wheels
     runs-on: ubuntu-latest
     permissions:
