@@ -149,6 +149,11 @@ few:
 
         .. image:: _static/faststream.png
 
+    .. grid-item-card:: django-modern-rest
+        :link: https://django-modern-rest.rtfd.io/
+
+        .. image:: _static/django-modern-rest.png
+
 .. _type annotations: https://docs.python.org/3/library/typing.html
 .. _JSON: https://json.org
 .. _MessagePack: https://msgpack.org
