@@ -144,6 +144,10 @@ few:
 
         .. image:: _static/ravyn.png
 
+    .. grid-item-card:: Faststream
+        :link: https://faststream.ag2.ai/
+
+        .. image:: _static/faststream.png
 
 .. _type annotations: https://docs.python.org/3/library/typing.html
 .. _JSON: https://json.org
