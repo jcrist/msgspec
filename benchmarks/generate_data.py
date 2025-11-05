@@ -42,7 +42,7 @@ class Generator:
         self.random = random.Random(seed)
 
     def randdt(self, min, max):
-        ts = self.random.randint(min.timestamp(), max.timestamp())
+        ts = self.random.randint(int(min.timestamp()), int(max.timestamp()))
         return datetime.datetime.fromtimestamp(ts).replace(tzinfo=self.UTC)
 
     def randstr(self, min=None, max=None):

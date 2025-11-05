@@ -41,21 +41,20 @@ jobs:
     - name: Install uv
       uses: astral-sh/setup-uv@v7
 
-    - name: Run pre-commit hooks
-      # Run `pre-commit` in an isolated environment to prevent test pollution.
-      run: uvx --with pre-commit-uv pre-commit run --all-files --show-diff-on-failure
+    - name: Install command runner
+      run: uv tool install rust-just
 
-    - name: Install project and test dependencies
-      run: uv sync --group test
+    - name: Install static analysis dependencies
+      run: just env-sync hooks
 
-    - name: Test Mypy compatibility
-      run: uv run -- pytest tests/test_mypy.py
+    - name: Run hooks
+      run: just hooks-check
 
-    - name: Test Pyright compatibility
-      run: uv run -- pytest tests/test_pyright.py
+    - name: Install testing dependencies
+      run: just env-sync test
 
-    - name: Run Doctests
-      run: uv run -- pytest --doctest-modules --pyargs msgspec
+    - name: Run tests
+      run: just test-all
 
     - name: Build source distribution
       id: build-sdist
@@ -108,11 +107,14 @@ jobs:
     - name: Install uv
       uses: astral-sh/setup-uv@v7
 
-    - name: Install project with sanitizers & coverage
+    - name: Install command runner
+      run: uv tool install rust-just
+
+    - name: Install testing dependencies
       env:
         MSGSPEC_SANITIZE: "true"
         MSGSPEC_COVERAGE: "true"
-      run: uv sync --group test-unit
+      run: just env-sync test
 
     - name: Run tests with sanitizers
       env:
@@ -120,11 +122,11 @@ jobs:
         ASAN_OPTIONS: "detect_leaks=0"
       run: >-
         LD_PRELOAD=`gcc -print-file-name=libasan.so`
-        uv run -- coverage run -m pytest -s
+        just test-env coverage run -m pytest -s
 
     - name: Generate coverage files
       run: |-
-        uv run -- coverage xml
+        just test-env coverage xml
         gcov -abcu `find build/temp*/ -name *.o`
 
     - name: Upload coverage artifacts

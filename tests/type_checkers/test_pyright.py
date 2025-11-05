@@ -8,7 +8,9 @@ pytestmark = pytest.mark.pyright
 
 pyright = pytest.importorskip("pyright")
 
-PATH = os.path.join(os.path.dirname(__file__), "basic_typing_examples.py")
+PATH = os.path.join(
+    os.path.dirname(os.path.dirname(__file__)), "basic_typing_examples.py"
+)
 
 
 def test_pyright():

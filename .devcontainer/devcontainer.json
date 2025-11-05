@@ -1,0 +1,48 @@
+{
+  "name": "msgspec",
+  "build": {
+    "cacheFrom": "ghcr.io/jcrist/msgspec",
+    "dockerfile": "Dockerfile"
+  },
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "python.defaultInterpreterPath": "/home/vscode/.local/share/msgspec/dev/venvs/test/bin/python",
+        "python.testing.pytestEnabled": true,
+        "[python]": {
+          "editor.codeActionsOnSave": {
+            "source.fixAll.ruff": "explicit",
+            "source.organizeImports.ruff": "explicit"
+          },
+          "editor.defaultFormatter": "charliermarsh.ruff",
+          "editor.formatOnSave": true
+        },
+        "ruff.configurationPreference": "filesystemFirst",
+        "ruff.importStrategy": "fromEnvironment",
+        "ruff.interpreter": ["/home/vscode/.local/share/msgspec/dev/venvs/test/bin/python"]
+      },
+      "extensions": [
+        "charliermarsh.ruff",
+        "github.vscode-github-actions",
+        "ms-python.python",
+        "ms-vscode.cpptools",
+        "nefrob.vscode-just-syntax",
+        "tamasfe.even-better-toml",
+        "yzhang.markdown-all-in-one"
+      ]
+    }
+  },
+  "postCreateCommand": "just env-sync test && just env-sync hooks",
+  "remoteEnv": {
+    "PYTHONUNBUFFERED": "1",
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "UV_MANAGED_PYTHON": "1"
+  },
+  // Defaults for the base Ubuntu image:
+  // https://github.com/devcontainers/images/blob/main/src/base-ubuntu/.devcontainer/devcontainer.json
+  "features": {
+    "ghcr.io/devcontainers/features/common-utils:2": {
+      "configureZshAsDefaultShell": true
+    }
+  }
+}
