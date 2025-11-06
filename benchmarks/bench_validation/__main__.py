@@ -4,6 +4,7 @@ import tempfile
 from ..generate_data import make_filesystem_data
 import sys
 import subprocess
+import shutil
 
 
 LIBRARIES = ["msgspec", "mashumaro", "cattrs", "pydantic"]
@@ -56,16 +57,35 @@ if args.versions:
 
 data = json.dumps(make_filesystem_data(args.n)).encode("utf-8")
 
+header = "-" * shutil.get_terminal_size().columns
 results = []
 with tempfile.NamedTemporaryFile() as f:
     f.write(data)
     f.flush()
 
     for lib in args.libs:
-        res = subprocess.check_output(
-            [sys.executable, "-m", "benchmarks.bench_validation.runner", lib, f.name]
-        )
-        results.append(json.loads(res))
+        try:
+            res = subprocess.check_output(
+                [
+                    sys.executable,
+                    "-m",
+                    "benchmarks.bench_validation.runner",
+                    lib,
+                    f.name,
+                ],
+                stderr=subprocess.STDOUT,
+            )
+            results.append(json.loads(res))
+        except subprocess.CalledProcessError as e:
+            if not args.json:
+                print(header, file=sys.stderr)
+                print(f"Warning: {lib} failed to run, skipping...", file=sys.stderr)
+                print(e.output.decode("utf-8", errors="replace"), file=sys.stderr)
+                print(header, file=sys.stderr)
+
+if not results:
+    print("Error: All libraries failed to run. No results to display.", file=sys.stderr)
+    sys.exit(1)
 
 if args.json:
     for line in results:
@@ -76,7 +96,8 @@ else:
     best_et = results[0]["encode"]
     best_dt = results[0]["decode"]
     best_tt = best_et + best_dt
-    best_mem = results[0]["memory"]
+    # Avoid division by zero if memory is 0
+    best_mem = results[0]["memory"] or 1.0
 
     columns = (
         "",

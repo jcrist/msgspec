@@ -77,11 +77,14 @@ Homepage = "https://jcristharif.com/msgspec/"
 Source = "https://github.com/jcrist/msgspec"
 
 [dependency-groups]
+bench = [
+  "cattrs==25.3.0",
+  "mashumaro==3.17",
+  "orjson==3.11.4",
+  "pydantic==2.12.4",
+]
 dev = [
-  { include-group = "doc" },
-  { include-group = "test" },
-  "pre-commit",
-  "pre-commit-uv",
+  "rust-just",
 ]
 doc = [
   "furo",
@@ -89,6 +92,11 @@ doc = [
   "sphinx",
   "sphinx-copybutton",
   "sphinx-design",
+]
+hooks = [
+  "codespell==2.4.1",
+  "prek>=0.2.13",
+  "ruff==0.14.1",
 ]
 test = [
   { include-group = "test-unit" },
@@ -157,7 +165,7 @@ select = [
 combine-as-imports = true
 
 [tool.codespell]
-skip = "*.py,*.c,*.h"
+skip = "./docs/build/html,./.venv,*.py,*.c,*.h"
 
 [tool.coverage.run]
 source_pkgs = ["msgspec"]
@@ -188,6 +196,7 @@ testpaths = [
 markers = [
   "mypy",
   "pyright",
+  "types",
 ]
 filterwarnings = [
   "error",
@@ -196,7 +205,7 @@ filterwarnings = [
 [tool.cibuildwheel]
 build = "cp39-* cp310-* cp311-* cp312-* cp313-* cp314-* cp314t-*"
 build-frontend = "build[uv]"
-test-command = "pytest {project}/tests"
+test-command = "pytest {project}/tests -m \"not types\""
 test-groups = ["test-unit"]
 
 [tool.cibuildwheel.environment]
