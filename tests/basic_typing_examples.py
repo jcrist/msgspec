@@ -28,11 +28,17 @@ def check_unset() -> None:
     pickle.dumps(msgspec.UNSET)
 
 
-def check_unset_type_lowering(x: int | msgspec.UnsetType) -> None:
+def check_unset_type_lowering_identity(x: int | msgspec.UnsetType) -> None:
     if x is msgspec.UNSET:
         reveal_type(x)  # assert "int" not in typ.lower()
     else:
         reveal_type(x)  # assert "unset" not in typ.lower()
+
+def check_unset_type_lowering_truthiness(x: int | msgspec.UnsetType) -> None:
+    if x:
+        reveal_type(x)  # assert "unset" not in typ.lower()
+    else:
+        reveal_type(x)  # assert "unset" in typ.lower()
 
 
 def check_nodefault() -> None:
