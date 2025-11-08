@@ -32,7 +32,10 @@
       ]
     }
   },
-  "postCreateCommand": "just env-sync test && just env-sync hooks",
+  "postCreateCommand": {
+    "sync-deps": ["zsh", "-c", "just env-sync test && just env-sync hooks"],
+    "git-safe-directory": ["git", "config", "--global", "--add", "safe.directory", "/workspaces/${localWorkspaceFolderBasename}"]
+  },
   "remoteEnv": {
     "PYTHONUNBUFFERED": "1",
     "PYTHONDONTWRITEBYTECODE": "1",

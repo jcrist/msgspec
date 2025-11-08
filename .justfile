@@ -7,16 +7,19 @@ set unstable
 # Configure the shell for Windows.
 set windows-shell := ["pwsh.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command"]
 
+# Provide a consistent experience across Docker-compatible CLIs.
+export DOCKER_CLI_HINTS := "0"
+
 # We don't want to install any dev dependencies by default.
 export UV_NO_DEV := "true"
 
-# Provide a consistent experience across Docker-compatible CLIs.
-export DOCKER_CLI_HINTS := "0"
+# We don't want activated virtual environments to interfere with environment management.
+unexport VIRTUAL_ENV
 
 # We apply a unique label to each dev container that is used to find the container ID.
 # The devcontainer CLI automatically adds the `devcontainer.local_folder` label but on
 # Windows the drive letter is lowercased.
-repo_id := sha256(justfile_directory())
+repo_id := sha256(lowercase(justfile_directory()))
 
 # This is the parent directory for virtual environments.
 env_base := join(data_local_directory(), "msgspec", "dev", repo_id, "venvs")
@@ -64,7 +67,11 @@ alias check := hooks-check
 
 # Run all tests.
 [group: "Testing"]
-test-all *args: (test-env "pytest" args) (test-doc args)
+test-all *args: (
+  test-env "pytest" args
+) (
+  test-doc args
+)
 
 # Run unit tests.
 [group: "Testing"]
@@ -121,11 +128,18 @@ doc-env +cmd: (
 
 # Run benchmarks.
 [group: "Benchmarking"]
-bench-run *args: (
+bench-run name="" *args: (
   _env_run "bench"
-  "python -m benchmarks.bench_validation"
+  (
+    if name == "" {
+      "python -c \"import os;print(os.linesep.join(sorted(e[6:].split('.')[0] for e in os.listdir('benchmarks') if e.startswith('bench_'))))\""
+    } else {
+      "python -m benchmarks.bench_" + name
+    }
+  )
   args
 )
+alias bench := bench-run
 
 # Run a command within the `bench` environment.
 [group: "Benchmarking"]
@@ -134,11 +148,26 @@ bench-env +cmd: (
   cmd
 )
 
-
 # Sync an environment's dependencies.
 [group: "Environment Management"]
 env-sync env="test": (
-  _with_env env "sync"
+  _with_env (
+    if env == "all" { "none" } else { env }
+  ) (
+    if env == "all" { "run" } else { "sync" }
+  ) (
+    if env == "all" { "just _env_sync_all" } else { "" }
+  )
+)
+
+# Sync dependencies for all environments.
+[private]
+_env_sync_all: (
+  _with_env "test" "sync"
+) (
+  _with_env "doc" "sync"
+) (
+  _with_env "bench" "sync"
 )
 
 # Display the path to an environment.
@@ -159,16 +188,19 @@ dev-start:
 
 # Run a command within the dev container.
 [group: "Dev Container"]
-dev-exec +cmd:
-  devcontainer exec --workspace-folder . --id-label repo.id={{ repo_id }} -- {{ cmd }}
-alias dev := dev-exec
+dev-run +cmd: (
+  _with_dev_container_id
+  "docker exec --user vscode -it $id zsh -lc " + quote(cmd)
+)
+alias run := dev-run
 
 # Open a shell in the dev container.
 [group: "Dev Container"]
-dev-shell: (
-  dev-exec
-  "zsh"
+dev-shell cmd="zsh -l": (
+  _with_dev_container_id
+  "docker exec --user vscode -it $id " + cmd
 )
+alias shell := dev-shell
 
 # Stop the dev container.
 [group: "Dev Container"]
@@ -206,22 +238,36 @@ _env_run env cmd *args: (
 [no-cd]
 _with_env env action *args:
   {{ \
-    if os() == "windows" { \
-      "$env:UV_PROJECT_ENVIRONMENT=" + quote(join(env_base, env)) + ";" \
+    if env == "none" { \
+      "" \
     } else { \
-      "UV_PROJECT_ENVIRONMENT=" + quote(join(env_base, env)) \
+      if os() == "windows" { \
+        "$env:UV_PROJECT_ENVIRONMENT=" + quote(join(env_base, env)) + "; " \
+      } else { \
+        "UV_PROJECT_ENVIRONMENT=" + quote(join(env_base, env)) + " " \
+      } \
+    } \
+  }}{{ \
+    if python == "" { \
+      "" \
+    } else { \
+      if os() == "windows" { \
+        "$env:UV_PYTHON=" + quote(python) + "; " \
+      } else { \
+        "UV_PYTHON=" + quote(python) + " " \
+      } \
     } \
   }}{{ \
     if debug =~ "^(true|1)$" { \
       if os() == "windows" { \
-        " $env:MSGSPEC_DEBUG='1';" \
+        "$env:MSGSPEC_DEBUG='1'; " \
       } else { \
-        " MSGSPEC_DEBUG='1'" \
+        "MSGSPEC_DEBUG='1' " \
       } \
     } else { \
       "" \
     } \
-  }} uv {{ \
+  }}uv {{ \
     if action == "run" { \
       "run" \
     } else if action == "sync" { \
@@ -230,18 +276,12 @@ _with_env env action *args:
       error("Unknown action: " + action) \
     } \
   }}{{ \
-    if python != "" { \
-      " --python " + python \
+    if rebuild =~ "^(true|1)$" { \
+      " --reinstall-package msgspec" \
     } else { \
       "" \
     } \
   }} {{ \
-    if rebuild =~ "^(true|1)$" { \
-      "--reinstall-package msgspec " \
-    } else { \
-      "" \
-    } \
-  }}{{ \
     if env == "test" { \
       "--group test" \
     } else if env == "doc" { \
@@ -250,6 +290,8 @@ _with_env env action *args:
       "--group bench" \
     } else if env == "hooks" { \
       "--only-group hooks" \
+    } else if env == "none" { \
+      "--isolated --no-sync --no-config" \
     } else { \
       error("Unknown environment: " + env) \
     } \
