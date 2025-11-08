@@ -16,25 +16,34 @@ Before getting started, you will need to already have installed:
 - [uv](https://docs.astral.sh/uv/)
 - A C compiler (`gcc`, `clang`, and `msvc` are all tested)
 
-Once you have those installed, you're ready to:
+Once you have those installed, you're ready to clone the repository:
 
-- Clone the repository
-- Install the command runner [`just`](https://just.systems/man/en/)
-- (Optional) Install the Git hooks
-
-```bash
-# Clone the repository
+```
 git clone https://github.com/jcrist/msgspec.git
-
-# cd into the repo root directory
 cd msgspec/
+```
 
-# Install `just`
+Next, you'll need to install the command runner [`just`](https://just.systems/man/en/):
+
+```
 uv tool install rust-just
+```
 
-# Install the Git hooks
+This will output extra information if the installation directory is not already on your `PATH`. If you do not want the `just` binary on your `PATH`, you can use uv to invoke it via a virtual environment:
+
+```
+uv run --only-dev just --help
+```
+
+At this point you're all set up to start contributing to `msgspec`!
+
+If you'd like to install the Git hooks, you can do so by running:
+
+```
 just pre-commit install
 ```
+
+Not installing the Git hooks will mean that the linters will not run automatically when you commit changes and instead must be run [manually](#linting).
 
 ## Editing and Rebuilding
 
@@ -45,7 +54,7 @@ of msgspec's C extension. Edit away!
 If you do make changes to a `.c` file, you'll need to recompile. You can do
 this by running commands with the `rebuild` variable set to `true` or `1`:
 
-```bash
+```
 just rebuild=1 test
 ```
 
@@ -53,7 +62,7 @@ By default `msgspec` is built in release mode, with optimizations enabled. To
 build a debug build instead (for use with e.g. `gdb` or `lldb`) set the
 `debug` variable to `true` or `1` when running the command:
 
-```bash
+```
 just rebuild=1 debug=1 test
 ```
 
@@ -65,26 +74,26 @@ additional tests to ensure correctness. The tests are broken into various
 
 The recipes prefixed with `test-` use `pytest` to run the tests. For example:
 
-```bash
+```
 just test-all
 ```
 
 All such recipes accept additional arguments that are passed to `pytest`. For
 example, if you want to run a specific test file:
 
-```bash
+```
 just test tests/test_json.py
 ```
 
 To invoke `pytest` directly, you can use the `test-env` recipe:
 
-```bash
+```
 just test-env pytest --help
 ```
 
 To run tests with a specific version of Python, you can use the `python` variable:
 
-```bash
+```
 just python=3.12 test
 ```
 
@@ -96,19 +105,19 @@ should already have `prek` and all the Git hooks installed.
 
 These hooks will run whenever you try to commit changes.
 
-```bash
+```
 git commit  # linters will run automatically here
 ```
 
 If you wish to run the linters manually without committing, you can run:
 
-```bash
+```
 just hooks
 ```
 
 You may also run the same hooks without applying fixes:
 
-```bash
+```
 just check
 ```
 
@@ -117,13 +126,13 @@ just check
 The source of the documentation can be found under `docs/source/`. They are
 built using `Sphinx` and can be built locally by running:
 
-```bash
+```
 just doc-build
 ```
 
 The built HTML documentation can be served locally by running:
 
-```bash
+```
 just doc-serve
 ```
 
@@ -131,11 +140,11 @@ just doc-serve
 
 To run benchmarks, you can use the `bench-run` recipe:
 
-```bash
-just bench-run --libs msgspec
+```
+just bench-run --lib msgspec
 ```
 
-To run benchmarks against all libraries, omit the `--libs` argument.
+To run benchmarks against all libraries, omit the `--lib` argument(s).
 
 ## Dev Container
 
@@ -146,31 +155,44 @@ You can manually use dev containers as long as the official [`devcontainer`](htt
 >
 > 1. [Install](https://mise.jdx.dev/installing-mise.html) `mise`
 > 2. Add the [shim directory](https://mise.jdx.dev/dev-tools/shims.html#mise-activate-shims) to your PATH in one of the following ways:
->     1. Manually by finding the path in the output of `mise doctor`
->     2. Automatically by running `mise activate [SHELL] --shims` (see the help text for the supported shells)
-> 3. Install the `devcontainer` CLI with `mise use -g npm:@devcontainers/cli`
+>     - Manually, by finding the path in the output of `mise doctor`
+>     - Automatically, by configuring your shell with the output of the following command (see the help text for the supported shells):
+>        ```
+>        mise activate [SHELL] --shims
+>        ```
+> 3. Install the `devcontainer` CLI by running:
+>     ```
+>     mise use -g node@lts
+>     mise use -g npm:@devcontainers/cli
+>     ```
 
 To start the dev container, you can use the `dev-start` recipe:
 
-```bash
+```
 just dev-start
 ```
 
 To open a shell in the dev container, you can use the `dev-shell` recipe:
 
-```bash
+```
 just dev-shell
+```
+
+To run a command in the dev container as if you were in a shell, you can use the `dev` recipe:
+
+```
+just dev just test
 ```
 
 To stop the dev container, you can use the `dev-stop` recipe:
 
-```bash
+```
 just dev-stop
 ```
 
 To remove the dev container, you can use the `dev-remove` recipe:
 
-```bash
+```
 just dev-remove
 ```
 

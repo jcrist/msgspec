@@ -80,8 +80,14 @@ Source = "https://github.com/jcrist/msgspec"
 bench = [
   "cattrs==25.3.0",
   "mashumaro==3.17",
+  "msgpack==1.1.2",
   "orjson==3.11.4",
+  "ormsgpack==1.11.0",
   "pydantic==2.12.4",
+  "python-rapidjson==1.22",
+  "pysimdjson==7.0.2",
+  "requests",
+  "ujson==5.11.0",
 ]
 dev = [
   "rust-just",

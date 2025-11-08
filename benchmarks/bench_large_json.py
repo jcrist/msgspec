@@ -88,16 +88,6 @@ decode = msgspec.json.Decoder(RepoData).decode
 def main():
     import argparse
 
-    parser = argparse.ArgumentParser(
-        description="Benchmark decoding a large JSON message using various JSON libraries"
-    )
-    parser.add_argument(
-        "--versions",
-        action="store_true",
-        help="Output library version info, and exit immediately",
-    )
-    args = parser.parse_args()
-
     benchmarks = [
         ("json", None, JSON),
         ("ujson", "ujson", UJSON),
@@ -107,6 +97,30 @@ def main():
         ("msgspec", "msgspec", MSGSPEC),
         ("msgspec structs", None, MSGSPEC_STRUCTS),
     ]
+    benchmark_names = [bench_data[0] for bench_data in benchmarks]
+
+    parser = argparse.ArgumentParser(
+        description="Benchmark decoding a large JSON message using various JSON libraries"
+    )
+    parser.add_argument(
+        "-b",
+        "--bench-name",
+        dest="bench_names",
+        nargs="*",
+        choices=benchmark_names,
+        default=benchmark_names,
+        help="A list of benchmark names to run. Defaults to all.",
+    )
+    parser.add_argument(
+        "--versions",
+        action="store_true",
+        help="Output library version info, and exit immediately",
+    )
+    args = parser.parse_args()
+
+    bench_names = set(args.bench_names)
+    # Used as the baseline for comparisons
+    bench_names.add("msgspec structs")
 
     if args.versions:
         import importlib.metadata
@@ -129,14 +143,19 @@ def main():
         results = {}
         import ast
 
-        for lib, _, setup in benchmarks:
+        for name, _, setup in benchmarks:
+            if name not in bench_names:
+                continue
             script = TEMPLATE.format(path=f.name, setup=setup)
             # We execute each script in a subprocess to isolate their memory usage
             output = subprocess.check_output([sys.executable, "-c", script])
-            results[lib] = ast.literal_eval(output.decode())
+            results[name] = ast.literal_eval(output.decode())
 
         # Compose the results table
         best_mem, best_time = results["msgspec structs"]
+        # Avoid division by zero if memory is 0
+        if not best_mem:
+            best_mem = 1.0
         columns = (
             "",
             "memory (MiB)",
@@ -146,13 +165,13 @@ def main():
         )
         rows = [
             (
-                f"**{lib}**",
+                f"**{name}**",
                 f"{mem:.1f}",
                 f"{mem / best_mem:.1f}x",
                 f"{time:.1f}",
                 f"{time / best_time:.1f}x",
             )
-            for lib, (mem, time) in results.items()
+            for name, (mem, time) in results.items()
         ]
         rows.sort(key=lambda x: float(x[1]))
         widths = tuple(

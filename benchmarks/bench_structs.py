@@ -110,6 +110,7 @@ BENCHMARKS = [
     ("dataclasses", None, dataclasses_template),
     ("pydantic", "pydantic", pydantic_template),
 ]
+BENCHMARK_NAMES = [bench_data[0] for bench_data in BENCHMARKS]
 
 
 def bench(name, template):
@@ -200,6 +201,15 @@ def main():
 
     parser = argparse.ArgumentParser(description="Benchmark msgspec Struct operations")
     parser.add_argument(
+        "-b",
+        "--bench-name",
+        dest="bench_names",
+        nargs="*",
+        choices=BENCHMARK_NAMES,
+        default=BENCHMARK_NAMES,
+        help="A list of benchmark names to run. Defaults to all.",
+    )
+    parser.add_argument(
         "--versions",
         action="store_true",
         help="Output library version info, and exit immediately",
@@ -218,6 +228,8 @@ def main():
 
     results = []
     for name, _, source in BENCHMARKS:
+        if name not in args.bench_names:
+            continue
         results.append(bench(name, source))
 
     print(format_table(results))
