@@ -11,6 +11,7 @@ on:
     - "msgspec/**"
     - ".github/workflows/ci.yml"
     - ".pre-commit-config.yaml"
+    - ".justfile"
     - "pyproject.toml"
     - "setup.py"
     - "setup.cfg"

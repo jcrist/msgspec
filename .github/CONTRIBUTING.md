@@ -91,12 +91,6 @@ To invoke `pytest` directly, you can use the `test-env` recipe:
 just test-env pytest --help
 ```
 
-To run tests with a specific version of Python, you can use the `python` variable:
-
-```
-just python=3.12 test
-```
-
 ## Linting
 
 We use [`prek`](https://github.com/j178/prek) to automatically run a few code
@@ -138,13 +132,29 @@ just doc-serve
 
 ## Benchmarking
 
-To run benchmarks, you can use the `bench-run` recipe:
+You can run all [benchmarks](https://jcristharif.com/msgspec/benchmarks.html) with the `bench` recipe, for example:
 
 ```
-just bench-run --lib msgspec
+just bench encodings
 ```
 
-To run benchmarks against all libraries, omit the `--lib` argument(s).
+Omit the benchmark name to list all available benchmarks.
+
+## Python Version Management
+
+You can use the `python` variable to specify the version of Python to use for each environment. For example, to run tests with Python 3.12:
+
+```
+just python=3.12 test
+```
+
+Existing environments will be re-created if they are using a different version of Python. Environments will continue using the same version of Python until an invocation specifies a different version.
+
+You can update the Python version for all environments with the `env-sync` recipe:
+
+```
+just python=3.12 env-sync all
+```
 
 ## Dev Container
 
@@ -175,13 +185,13 @@ just dev-start
 To open a shell in the dev container, you can use the `dev-shell` recipe:
 
 ```
-just dev-shell
+just shell
 ```
 
 To run a command in the dev container as if you were in a shell, you can use the `dev` recipe:
 
 ```
-just dev just test
+just run just test
 ```
 
 To stop the dev container, you can use the `dev-stop` recipe:
