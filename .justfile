@@ -91,7 +91,7 @@ test-doc *args: (
   args
 )
 
-# Run a command within the test environment.
+# Run a command within the `test` environment.
 [group: "Testing"]
 test-env +cmd: (
   _env_run "test"
@@ -112,12 +112,26 @@ doc-serve: (
   "python -c \"import pathlib,webbrowser;webbrowser.open_new_tab(pathlib.Path('docs/build/html/index.html').absolute().as_uri())\""
 )
 
+# Run a command within the `doc` environment.
+[group: "Documentation"]
+doc-env +cmd: (
+  _env_run "doc"
+  cmd
+)
+
 # Run benchmarks.
 [group: "Benchmarking"]
 bench-run *args: (
   _env_run "bench"
   "python -m benchmarks.bench_validation"
   args
+)
+
+# Run a command within the `bench` environment.
+[group: "Benchmarking"]
+bench-env +cmd: (
+  _env_run "bench"
+  cmd
 )
 
 
@@ -143,10 +157,18 @@ env-path env="":
 dev-start:
   devcontainer up --workspace-folder . --id-label repo.id={{ repo_id }}
 
+# Run a command within the dev container.
+[group: "Dev Container"]
+dev-exec +cmd:
+  devcontainer exec --workspace-folder . --id-label repo.id={{ repo_id }} -- {{ cmd }}
+alias dev := dev-exec
+
 # Open a shell in the dev container.
 [group: "Dev Container"]
-dev-shell:
-  devcontainer exec --workspace-folder . --id-label repo.id={{ repo_id }} -- zsh
+dev-shell: (
+  dev-exec
+  "zsh"
+)
 
 # Stop the dev container.
 [group: "Dev Container"]

@@ -10,15 +10,6 @@ import shutil
 LIBRARIES = ["msgspec", "mashumaro", "cattrs", "pydantic"]
 
 
-def parse_list(value):
-    libs = [lib.strip() for lib in value.split(",")]
-    for lib in libs:
-        if lib not in LIBRARIES:
-            print(f"{lib!r} is not a supported library, choose from {LIBRARIES}")
-            sys.exit(1)
-    return libs
-
-
 parser = argparse.ArgumentParser(
     description="Benchmark different python validation libraries"
 )
@@ -34,10 +25,12 @@ parser.add_argument(
     default=1000,
 )
 parser.add_argument(
-    "--libs",
-    type=parse_list,
-    help="A comma-separated list of libraries to benchmark. Defaults to all.",
+    "--lib",
+    dest="libs",
+    nargs="*",
+    choices=LIBRARIES,
     default=LIBRARIES,
+    help="A list of libraries to benchmark. Defaults to all.",
 )
 parser.add_argument(
     "--versions",
