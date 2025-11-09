@@ -5,7 +5,17 @@ import resource
 import sys
 import gc
 
-library, path = sys.argv[1:3]
+library, path, runs, repeats = sys.argv[1:5]
+num_runs = int(runs)
+num_repeats = int(repeats)
+
+if num_runs:
+    def measure(timer):
+        return min(timer.repeat(repeat=num_repeats, number=num_runs)) / num_runs
+else:
+    def measure(timer):
+        n, t = timer.autorange()
+        return t / n
 
 with open(path, "rb") as f:
     json_data = f.read()
@@ -17,18 +27,20 @@ mod = importlib.import_module(f"benchmarks.bench_validation.bench_{library}")
 msg = mod.decode(json_data)
 
 gc.collect()
-timer = timeit.Timer("func(data)", setup="", globals={"func": mod.encode, "data": msg})
-n, t = timer.autorange()
-encode_time = t / n
+encode_time = measure(
+    timeit.Timer(
+        "func(data)", setup="", globals={"func": mod.encode, "data": msg}
+    )
+)
 
 del msg
 
 gc.collect()
-timer = timeit.Timer(
-    "func(data)", setup="", globals={"func": mod.decode, "data": json_data}
+decode_time = measure(
+    timeit.Timer(
+        "func(data)", setup="", globals={"func": mod.decode, "data": json_data}
+    )
 )
-n, t = timer.autorange()
-decode_time = t / n
 
 max_rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
 

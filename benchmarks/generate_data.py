@@ -50,11 +50,11 @@ class Generator:
             min = self.random.randint(min, max)
         return "".join(self.random.choices(string.ascii_letters, k=min))
 
-    def make(self, is_dir):
+    def _node_base(self, is_dir):
         name = self.randstr(4, 30)
         created_by = self.random.choice(self.NAMES)
         created_at = self.randdt(self.DATE_2018, self.DATE_2023)
-        data = {
+        d = {
             "type": "directory" if is_dir else "file",
             "name": name,
             "created_by": created_by,
@@ -63,18 +63,46 @@ class Generator:
         if self.random.random() > 0.75:
             updated_by = self.random.choice(self.NAMES)
             updated_at = self.randdt(created_at, self.DATE_2023)
-            data.update(
-                updated_by=updated_by,
-                updated_at=updated_at.isoformat(),
-            )
+            d.update(updated_by=updated_by, updated_at=updated_at.isoformat())
         if is_dir:
-            n = min(self.random.randint(0, 30), self.capacity)
-            self.capacity -= n
-            data["contents"] = [self.make_node() for _ in range(n)]
+            d["contents"] = []
         else:
-            data["nbytes"] = self.random.randint(0, 1000000)
-            data["permissions"] = self.random.choice(self.PERMISSIONS)
-        return data
+            d["nbytes"] = self.random.randint(0, 1_000_000)
+            d["permissions"] = self.random.choice(self.PERMISSIONS)
+        return d
+
+    def _draw_children(self):
+        n = min(self.random.randint(0, 30), self.capacity)
+        self.capacity -= n
+        return n
+
+    def _expand_dir_dfs(self, root):
+        # Stack frames: (parent, total_children, made_so_far)
+        stack = [(root, self._draw_children(), 0)]
+        while stack:
+            parent, total, made = stack.pop()
+            if made == total:
+                continue
+
+            # Create the next child in-order
+            is_dir = self.random.random() > 0.8
+            child = self._node_base(is_dir)
+            parent["contents"].append(child)
+
+            # Resume this parent after handling the child
+            stack.append((parent, total, made + 1))
+
+            # Expand child immediately if it's a directory
+            if is_dir:
+                stack.append((child, self._draw_children(), 0))
+
+    def make(self, is_dir):
+        if not is_dir:
+            return self._node_base(False)
+
+        root = self._node_base(True)
+        self._expand_dir_dfs(root)
+        return root
 
     def make_node(self):
         return self.make(self.random.random() > 0.8)

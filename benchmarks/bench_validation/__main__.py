@@ -19,10 +19,24 @@ parser.add_argument(
     help="Whether to output the results as json",
 )
 parser.add_argument(
-    "-n",
+    "--size",
+    "-s",
     type=int,
     help="The number of objects in the generated data, defaults to 1000",
     default=1000,
+)
+parser.add_argument(
+    "--iterations",
+    "-n",
+    type=int,
+    help="The number of iterations to perform for each library, defaults to auto-detection",
+)
+parser.add_argument(
+    "--rounds",
+    "-r",
+    type=int,
+    help="The number of times to repeat the benchmark for each library if --iterations is selected, defaults to 5",
+    default=5,
 )
 parser.add_argument(
     "--lib",
@@ -48,8 +62,10 @@ if args.versions:
     sys.exit(0)
 
 
-data = json.dumps(make_filesystem_data(args.n)).encode("utf-8")
+data = json.dumps(make_filesystem_data(int(args.size))).encode("utf-8")
 
+iterations = str(args.iterations or 0)
+rounds = str(args.rounds or 0)
 header = "-" * shutil.get_terminal_size().columns
 results = []
 with tempfile.NamedTemporaryFile() as f:
@@ -65,6 +81,8 @@ with tempfile.NamedTemporaryFile() as f:
                     "benchmarks.bench_validation.runner",
                     lib,
                     f.name,
+                    iterations,
+                    rounds,
                 ],
                 stderr=subprocess.STDOUT,
             )
