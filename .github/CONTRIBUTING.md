@@ -85,10 +85,10 @@ example, if you want to run a specific test file:
 just test tests/test_json.py
 ```
 
-To invoke `pytest` directly, you can use the `test-env` recipe:
+To invoke `pytest` directly, you can use the `env` recipe with the `test` environment:
 
 ```
-just test-env pytest --help
+just env test pytest --help
 ```
 
 ## Linting

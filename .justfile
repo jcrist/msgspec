@@ -42,7 +42,7 @@ default:
 # Invoke the Git hook manager.
 [group: "Static Analysis"]
 prek arg="--help" *args: (
-  _env_run "hooks"
+  env-run "hooks"
   "prek" arg args
 )
 alias pre-commit := prek
@@ -50,7 +50,7 @@ alias pre-commit := prek
 # Run the hooks.
 [group: "Static Analysis"]
 hooks-fix *args: (
-  _env_run "hooks"
+  env-run "hooks"
   "prek run --show-diff-on-failure"
   args
 )
@@ -59,7 +59,7 @@ alias hooks := hooks-fix
 # Run the hooks without applying fixes.
 [group: "Static Analysis"]
 hooks-check *args: (
-  _env_run "hooks"
+  env-run "hooks"
   "prek run --show-diff-on-failure --hook-stage manual"
   args
 )
@@ -68,7 +68,7 @@ alias check := hooks-check
 # Run all tests.
 [group: "Testing"]
 test-all *args: (
-  test-env "pytest" args
+  env-run "test" "pytest" args
 ) (
   test-doc args
 )
@@ -76,7 +76,7 @@ test-all *args: (
 # Run unit tests.
 [group: "Testing"]
 test-unit *args: (
-  _env_run "test"
+  env-run "test"
   "pytest -m \"not types\""
   args
 )
@@ -85,7 +85,7 @@ alias test := test-unit
 # Run type checker compatibility tests.
 [group: "Testing"]
 test-types *args: (
-  _env_run "test"
+  env-run "test"
   "pytest -m \"types\""
   args
 )
@@ -93,43 +93,29 @@ test-types *args: (
 # Run doctests.
 [group: "Testing"]
 test-doc *args: (
-  _env_run "test"
+  env-run "test"
   "pytest --doctest-modules --pyargs msgspec"
   args
-)
-
-# Run a command within the `test` environment.
-[group: "Testing"]
-test-env +cmd: (
-  _env_run "test"
-  cmd
 )
 
 # Build the documentation.
 [group: "Documentation"]
 doc-build: (
-  _env_run "doc"
+  env-run "doc"
   "sphinx-build -M html docs/source docs/build --fail-on-warning"
 )
 
 # Serve the documentation.
 [group: "Documentation"]
 doc-serve: (
-  _env_run "doc"
+  env-run "doc"
   "python -c \"import pathlib,webbrowser;webbrowser.open_new_tab(pathlib.Path('docs/build/html/index.html').absolute().as_uri())\""
-)
-
-# Run a command within the `doc` environment.
-[group: "Documentation"]
-doc-env +cmd: (
-  _env_run "doc"
-  cmd
 )
 
 # Run benchmarks.
 [group: "Benchmarking"]
 bench-run name="" *args: (
-  _env_run "bench"
+  env-run "bench"
   (
     if name == "" {
       "python -c \"import os;print(os.linesep.join(sorted(e[6:].split('.')[0] for e in os.listdir('benchmarks') if e.startswith('bench_'))))\""
@@ -141,12 +127,12 @@ bench-run name="" *args: (
 )
 alias bench := bench-run
 
-# Run a command within the `bench` environment.
-[group: "Benchmarking"]
-bench-env +cmd: (
-  _env_run "bench"
-  cmd
+# Run a command within an environment.
+[group: "Environment Management"]
+env-run env +cmd: (
+  _with_env env "run" "--" cmd
 )
+alias env := env-run
 
 # Sync an environment's dependencies.
 [group: "Environment Management"]
@@ -159,16 +145,7 @@ env-sync env="test": (
     if env == "all" { "just _env_sync_all" } else { "" }
   )
 )
-
-# Sync dependencies for all environments.
-[private]
-_env_sync_all: (
-  _with_env "test" "sync"
-) (
-  _with_env "doc" "sync"
-) (
-  _with_env "bench" "sync"
-)
+alias sync := env-sync
 
 # Display the path to an environment.
 [group: "Environment Management"]
@@ -229,8 +206,12 @@ _with_dev_container_id cmd:
   }}
 
 [private]
-_env_run env cmd *args: (
-  _with_env env "run" "--" cmd args
+_env_sync_all: (
+  _with_env "test" "sync"
+) (
+  _with_env "doc" "sync"
+) (
+  _with_env "bench" "sync"
 )
 
 [private]
