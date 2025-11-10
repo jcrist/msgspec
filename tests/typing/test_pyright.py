@@ -1,23 +1,14 @@
-import os
 import re
 import subprocess
 
-import pytest
-
-pytestmark = pytest.mark.pyright
-
-pyright = pytest.importorskip("pyright")
-
-PATH = os.path.join(
-    os.path.dirname(os.path.dirname(__file__)), "basic_typing_examples.py"
-)
+import pyright
 
 
-def test_pyright():
-    with open(PATH, "r") as fil:
+def test_pyright(typing_examples_file):
+    with open(typing_examples_file, "r") as fil:
         ex_lines = fil.readlines()
 
-    result = pyright.run(PATH, stdout=subprocess.PIPE)
+    result = pyright.run(typing_examples_file, stdout=subprocess.PIPE)
     if result.returncode != 0:
         assert False, f"Unexpected pyright error:\n{result.stdout}"
     for line in result.stdout.decode().splitlines():
@@ -33,5 +24,6 @@ def test_pyright():
             exec(check, {"typ": typ})
         except Exception:
             assert False, (
-                f"Failed check at {PATH}:{lineno}: {check!r}, where 'typ' is {typ!r}"
+                f"Failed check at {typing_examples_file}:{lineno}: "
+                f"{check!r}, where 'typ' is {typ!r}"
             )

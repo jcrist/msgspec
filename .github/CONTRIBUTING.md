@@ -82,7 +82,7 @@ All such recipes accept additional arguments that are passed to `pytest`. For
 example, if you want to run a specific test file:
 
 ```
-just test tests/test_json.py
+just test tests/unit/test_json.py
 ```
 
 To invoke `pytest` directly, you can use the `env` recipe with the `test` environment:

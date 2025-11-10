@@ -1,15 +1,6 @@
-import os
 import re
 
-import pytest
-
-pytestmark = pytest.mark.mypy
-
-api = pytest.importorskip("mypy.api")
-
-PATH = os.path.join(
-    os.path.dirname(os.path.dirname(__file__)), "basic_typing_examples.py"
-)
+from mypy import api
 
 
 def get_lineno_type(line):
@@ -21,11 +12,11 @@ def get_lineno_type(line):
     return lineno, typ
 
 
-def test_mypy():
-    with open(PATH, "r") as fil:
+def test_mypy(typing_examples_file):
+    with open(typing_examples_file, "r") as fil:
         ex_lines = fil.readlines()
 
-    stdout, stderr, code = api.run([PATH])
+    stdout, stderr, code = api.run([typing_examples_file])
     lines = stdout.splitlines()
     for line in lines:
         if "revealed type" in line.lower():
@@ -35,7 +26,8 @@ def test_mypy():
                 exec(check, {"typ": typ})
             except Exception:
                 assert False, (
-                    f"Failed check at {PATH}:{lineno}: {check!r}, where 'typ' is {typ!r}"
+                    f"Failed check at {typing_examples_file}:{lineno}: "
+                    f"{check!r}, where 'typ' is {typ!r}"
                 )
         elif "success" not in line.lower():
             assert False, line

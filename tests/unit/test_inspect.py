@@ -27,7 +27,7 @@ from typing import (
 )
 
 import pytest
-from utils import temp_module
+from .utils import temp_module
 
 import msgspec
 import msgspec.inspect as mi

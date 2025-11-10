@@ -51,7 +51,7 @@ alias pre-commit := prek
 [group: "Static Analysis"]
 hooks-fix *args: (
   env-run "hooks"
-  "prek run --show-diff-on-failure"
+  "prek run --show-diff-on-failure --all-files"
   args
 )
 alias hooks := hooks-fix
@@ -60,7 +60,7 @@ alias hooks := hooks-fix
 [group: "Static Analysis"]
 hooks-check *args: (
   env-run "hooks"
-  "prek run --show-diff-on-failure --hook-stage manual"
+  "prek run --show-diff-on-failure --all-files --hook-stage manual"
   args
 )
 alias check := hooks-check
@@ -77,16 +77,16 @@ test-all *args: (
 [group: "Testing"]
 test-unit *args: (
   env-run "test"
-  "pytest -m \"not types\""
+  "pytest tests/unit"
   args
 )
 alias test := test-unit
 
 # Run type checker compatibility tests.
 [group: "Testing"]
-test-types *args: (
+test-typing *args: (
   env-run "test"
-  "pytest -m \"types\""
+  "pytest tests/typing"
   args
 )
 
@@ -264,7 +264,7 @@ _with_env env action *args:
     } \
   }} {{ \
     if env == "test" { \
-      "--group test" \
+      "--group test-unit --group test-typing" \
     } else if env == "doc" { \
       "--group doc" \
     } else if env == "bench" { \

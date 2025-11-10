@@ -46,3 +46,8 @@ class Rand:
 @pytest.fixture
 def rand():
     yield Rand()
+
+
+@pytest.fixture(scope="session")
+def package_dir(pytestconfig):
+    return pytestconfig.rootpath.joinpath("src", "msgspec")

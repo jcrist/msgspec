@@ -30,7 +30,7 @@ repos:
     <<: *local-manual
   - id: python-format-check
     name: Format Python code (check-only)
-    entry: ruff format --check
+    entry: ruff format --diff
     <<: *local-manual
 
   # These hooks never apply fixes and run in all cases.

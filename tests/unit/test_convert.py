@@ -25,7 +25,7 @@ from typing import (
 )
 
 import pytest
-from utils import temp_module, max_call_depth
+from .utils import temp_module, max_call_depth
 
 import msgspec
 from msgspec import Meta, Struct, ValidationError, convert, to_builtins
