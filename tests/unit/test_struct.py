@@ -11,7 +11,7 @@ from inspect import Parameter, Signature
 from typing import Any, List, Optional, Generic, TypeVar
 
 import pytest
-from utils import temp_module
+from .utils import temp_module
 
 import msgspec
 from msgspec import NODEFAULT, UNSET, Struct, defstruct, field
@@ -2118,7 +2118,7 @@ class TestDefStruct:
         Point = defstruct("Point", ["x", "y"])
         assert issubclass(Point, Struct)
         assert as_tuple(Point(1, 2)) == (1, 2)
-        assert Point.__module__ == "test_struct"
+        assert Point.__module__ == "tests.unit.test_struct"
 
     def test_defstruct_empty(self):
         Empty = defstruct("Empty", [])
@@ -2180,7 +2180,7 @@ class TestDefStruct:
 
     def test_defstruct_module_none(self):
         Test = defstruct("Test", [], module=None)
-        assert Test.__module__ == "test_struct"
+        assert Test.__module__ == "tests.unit.test_struct"
 
     def test_defstruct_namespace(self):
         Test = defstruct(

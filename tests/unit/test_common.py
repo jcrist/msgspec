@@ -32,7 +32,7 @@ from typing import (
 )
 
 import pytest
-from utils import temp_module, max_call_depth
+from .utils import temp_module, max_call_depth
 
 try:
     import attrs

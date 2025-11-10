@@ -24,7 +24,7 @@ from typing import (
 )
 
 import pytest
-from utils import temp_module
+from .utils import temp_module
 
 import msgspec
 from msgspec import Meta

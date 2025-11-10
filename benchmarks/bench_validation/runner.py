@@ -10,12 +10,15 @@ num_runs = int(runs)
 num_repeats = int(repeats)
 
 if num_runs:
+
     def measure(timer):
         return min(timer.repeat(repeat=num_repeats, number=num_runs)) / num_runs
 else:
+
     def measure(timer):
         n, t = timer.autorange()
         return t / n
+
 
 with open(path, "rb") as f:
     json_data = f.read()
@@ -28,9 +31,7 @@ msg = mod.decode(json_data)
 
 gc.collect()
 encode_time = measure(
-    timeit.Timer(
-        "func(data)", setup="", globals={"func": mod.encode, "data": msg}
-    )
+    timeit.Timer("func(data)", setup="", globals={"func": mod.encode, "data": msg})
 )
 
 del msg

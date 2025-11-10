@@ -123,11 +123,11 @@ jobs:
         ASAN_OPTIONS: "detect_leaks=0"
       run: >-
         LD_PRELOAD=`gcc -print-file-name=libasan.so`
-        just env test coverage run -m pytest -s
+        just env-run test coverage run -m pytest tests/unit -s
 
     - name: Generate coverage files
       run: |-
-        just env test coverage xml
+        just env-run test coverage xml
         gcov -abcu `find build/temp*/ -name *.o`
 
     - name: Upload coverage artifacts

@@ -2,7 +2,7 @@ import textwrap
 
 import msgspec
 
-from utils import temp_module
+from .utils import temp_module
 
 
 def test_process_large_recursive_union():

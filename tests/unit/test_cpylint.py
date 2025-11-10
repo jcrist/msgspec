@@ -3,21 +3,12 @@ catch cpython capi bugs. These are naive string-munging checks, if you write
 some code that _is_ correct but is failing, add `/* cpylint-ignore */` on the
 failing source line and it will be ignored."""
 
-import os
-
 import pytest
-
-MSGSPEC_CORE_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-    "src",
-    "msgspec",
-    "_core.c",
-)
 
 
 @pytest.fixture
-def source():
-    with open(MSGSPEC_CORE_PATH, "r") as f:
+def source(package_dir):
+    with package_dir.joinpath("_core.c").open() as f:
         return f.read().splitlines()
 
 

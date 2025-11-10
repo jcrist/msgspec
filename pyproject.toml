@@ -104,10 +104,10 @@ hooks = [
   "prek>=0.2.13",
   "ruff==0.14.1",
 ]
-test = [
-  { include-group = "test-unit" },
+test-typing = [
   "mypy",
   "pyright",
+  "pytest",
 ]
 test-unit = [
   "attrs",
@@ -175,34 +175,28 @@ skip = "./docs/build/html,./.venv,*.py,*.c,*.h"
 
 [tool.coverage.run]
 source_pkgs = ["msgspec"]
-source_dirs = ["tests"]
+source_dirs = ["tests/unit"]
 omit = [
   "src/msgspec/_version.py",
-  "tests/basic_typing_examples.py",
-  "tests/test_mypy.py",
-  "tests/test_pyright.py",
 ]
 
 [tool.coverage.paths]
 msgspec = [
   "src/msgspec",
   "*/msgspec/src/msgspec",
-  "*.venv/*/lib*/python*/site-packages/msgspec",
-  "*.venv\\*\\Lib\\site-packages\\msgspec",
+  "*/msgspec/dev/*/venvs/*/lib*/python*/site-packages/msgspec",
+  "*\\msgspec\\dev\\*\\venvs\\*\\Lib\\site-packages\\msgspec",
 ]
 tests = [
-  "tests",
-  "*/msgspec/tests",
+  "tests/unit",
+  "*/msgspec/tests/unit",
 ]
 
 [tool.pytest.ini_options]
 testpaths = [
-  "tests",
-]
-markers = [
-  "mypy",
-  "pyright",
-  "types",
+  # The order here determines the order in which tests are run.
+  "tests/unit",
+  "tests/typing",
 ]
 filterwarnings = [
   "error",
@@ -211,7 +205,7 @@ filterwarnings = [
 [tool.cibuildwheel]
 build = "cp39-* cp310-* cp311-* cp312-* cp313-* cp314-* cp314t-*"
 build-frontend = "build[uv]"
-test-command = "pytest {project}/tests -m \"not types\""
+test-command = "pytest {project}/tests/unit"
 test-groups = ["test-unit"]
 
 [tool.cibuildwheel.environment]
