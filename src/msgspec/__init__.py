@@ -6,7 +6,6 @@ from ._core import (
     MsgspecError,
     Raw,
     Struct,
-    StructMeta,
     UnsetType,
     UNSET,
     NODEFAULT,

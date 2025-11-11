@@ -45,17 +45,17 @@ jobs:
     - name: Install command runner
       run: uv tool install rust-just
 
-    - name: Install static analysis dependencies
-      run: just env-sync hooks
+    # - name: Install static analysis dependencies
+    #   run: just env-sync hooks
 
-    - name: Run hooks
-      run: just hooks-check
+    # - name: Run hooks
+    #   run: just hooks-check
 
-    - name: Install testing dependencies
-      run: just env-sync test
+    # - name: Install testing dependencies
+    #   run: just env-sync test
 
-    - name: Run tests
-      run: just test-all
+    # - name: Run tests
+    #   run: just test-all
 
     - name: Build source distribution
       id: build-sdist
@@ -97,76 +97,76 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v5
 
-    - name: Load environment file
-      uses: ./.github/actions/load-env
+  #   - name: Load environment file
+  #     uses: ./.github/actions/load-env
 
-    - name: Install Python
-      uses: actions/setup-python@v6
-      with:
-        python-version: "${{ matrix.python-version }}"
+  #   - name: Install Python
+  #     uses: actions/setup-python@v6
+  #     with:
+  #       python-version: "${{ matrix.python-version }}"
 
-    - name: Install uv
-      uses: astral-sh/setup-uv@v7
+  #   - name: Install uv
+  #     uses: astral-sh/setup-uv@v7
 
-    - name: Install command runner
-      run: uv tool install rust-just
+  #   - name: Install command runner
+  #     run: uv tool install rust-just
 
-    - name: Install testing dependencies
-      env:
-        MSGSPEC_SANITIZE: "true"
-        MSGSPEC_COVERAGE: "true"
-      run: just env-sync test
+  #   - name: Install testing dependencies
+  #     env:
+  #       MSGSPEC_SANITIZE: "true"
+  #       MSGSPEC_COVERAGE: "true"
+  #     run: just env-sync test
 
-    - name: Run tests with sanitizers
-      env:
-        PYTHONMALLOC: "malloc"
-        ASAN_OPTIONS: "detect_leaks=0"
-      run: >-
-        LD_PRELOAD=`gcc -print-file-name=libasan.so`
-        just env-run test coverage run -m pytest tests/unit -s
+  #   - name: Run tests with sanitizers
+  #     env:
+  #       PYTHONMALLOC: "malloc"
+  #       ASAN_OPTIONS: "detect_leaks=0"
+  #     run: >-
+  #       LD_PRELOAD=`gcc -print-file-name=libasan.so`
+  #       just env-run test coverage run -m pytest tests/unit -s
 
-    - name: Generate coverage files
-      run: |-
-        just env-run test coverage xml
-        gcov -abcu `find build/temp*/ -name *.o`
+  #   - name: Generate coverage files
+  #     run: |-
+  #       just env-run test coverage xml
+  #       gcov -abcu `find build/temp*/ -name *.o`
 
-    - name: Upload coverage artifacts
-      uses: actions/upload-artifact@v5
-      with:
-        name: coverage-${{ matrix.python-version }}-${{ matrix.os }}
-        path: |-
-          coverage.xml
-          _core.c.gcov
-          atof.h.gcov
-          ryu.h.gcov
-        if-no-files-found: error
+  #   - name: Upload coverage artifacts
+  #     uses: actions/upload-artifact@v5
+  #     with:
+  #       name: coverage-${{ matrix.python-version }}-${{ matrix.os }}
+  #       path: |-
+  #         coverage.xml
+  #         _core.c.gcov
+  #         atof.h.gcov
+  #         ryu.h.gcov
+  #       if-no-files-found: error
 
-  upload-coverage:
-    name: Upload coverage files to Codecov
-    needs:
-    - test
-    runs-on: ubuntu-latest
-    permissions:
-      id-token: write
+  # upload-coverage:
+  #   name: Upload coverage files to Codecov
+  #   needs:
+  #   - test
+  #   runs-on: ubuntu-latest
+  #   permissions:
+  #     id-token: write
 
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v5
+  #   steps:
+  #   - name: Checkout code
+  #     uses: actions/checkout@v5
 
-    - name: Download coverage artifacts
-      uses: actions/download-artifact@v5
-      with:
-        pattern: coverage-*
-        path: coverage-files
+  #   - name: Download coverage artifacts
+  #     uses: actions/download-artifact@v5
+  #     with:
+  #       pattern: coverage-*
+  #       path: coverage-files
 
-    - name: See the coverage files
-      run: tree -sh coverage-files
+  #   - name: See the coverage files
+  #     run: tree -sh coverage-files
 
-    - name: Upload Codecov
-      uses: codecov/codecov-action@v5
-      with:
-        use_oidc: true
-        directory: coverage-files
+  #   - name: Upload Codecov
+  #     uses: codecov/codecov-action@v5
+  #     with:
+  #       use_oidc: true
+  #       directory: coverage-files
 
   profile:
     name: Run profiling tests

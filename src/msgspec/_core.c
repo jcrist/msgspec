@@ -4943,8 +4943,8 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
         out = typenode_collect_typevar(state, t);
     }
     else if (
-        PyType_IsSubtype(Py_TYPE(t), &StructMetaType) ||
-        (origin != NULL && PyType_IsSubtype(Py_TYPE(origin), &StructMetaType))
+        Py_TYPE(t) == &StructMetaType ||
+        (origin != NULL && Py_TYPE(origin) == &StructMetaType)
     ) {
         out = typenode_collect_struct(state, t);
     }
@@ -5598,7 +5598,7 @@ structmeta_collect_base(StructMetaInfo *info, MsgspecState *mod, PyObject *base)
         return -1;
     }
 
-    if (!PyType_IsSubtype(Py_TYPE(base), &StructMetaType)) {
+    if (Py_TYPE(base) != &StructMetaType) {
         if (((PyTypeObject *)base)->tp_dictoffset) {
             info->has_non_slots_bases = true;
         }
@@ -5805,7 +5805,7 @@ structmeta_process_default(StructMetaInfo *info, PyObject *name) {
         if (default_val == NULL) return -1;
     }
     else if (
-        (PyType_IsSubtype(Py_TYPE(type), &StructMetaType)) &&
+        (Py_TYPE(type) == &StructMetaType) &&
         ((StructMetaObject *)type)->frozen != OPT_TRUE
     ) {
         goto error_mutable_struct;
@@ -6800,7 +6800,7 @@ StructInfo_Convert_lock_held(PyObject *obj) {
     PyObject *annotations = NULL;
     StructInfo *info = NULL;
     bool cache_set = false;
-    bool is_struct = PyType_IsSubtype(Py_TYPE(obj), &StructMetaType);
+    bool is_struct = Py_TYPE(obj) == &StructMetaType;
 
     /* Check for a cached StructInfo, and return if one exists */
     if (MS_LIKELY(is_struct)) {
@@ -6818,7 +6818,7 @@ StructInfo_Convert_lock_held(PyObject *obj) {
         }
         PyObject *origin = PyObject_GetAttr(obj, mod->str___origin__);
         if (origin == NULL) return NULL;
-        if (!PyType_IsSubtype(Py_TYPE(origin), &StructMetaType)) {
+        if (Py_TYPE(origin) != &StructMetaType) {
             Py_DECREF(origin);
             PyErr_SetString(
                 PyExc_RuntimeError, "Expected __origin__ to be a Struct type"
@@ -7271,44 +7271,12 @@ static PyGetSetDef StructMeta_getset[] = {
     {NULL},
 };
 
-PyDoc_STRVAR(StructMeta__doc__,
-"StructMeta(name, bases, namespace, /, *, **struct_config)\n"
-"--\n"
-"\n"
-"The metaclass for creating `Struct` types. See its documentation for the\n"
-"available configuration options when subclassing.\n"
-"\n"
-"Examples\n"
-"--------\n"
-"Here we define a metaclass that modifies the default configuration and use\n"
-"it to create a new `Struct` base class.\n"
-"\n"
-">>> from msgspec import Struct, StructMeta\n"
-">>> class KwOnlyStructMeta(StructMeta):\n"
-"...     def __new__(mcls, name, bases, namespace, **struct_config):\n"
-"...         struct_config.setdefault(\"kw_only\", True)\n"
-"...         return super().__new__(mcls, name, bases, namespace, **struct_config)\n"
-"...\n"
-">>> class KwOnlyStruct(Struct, metaclass=KwOnlyStructMeta): ...\n"
-"\n"
-"Any subclass of ``KwOnlyStruct`` will have ``kw_only`` set to ``True`` by\n"
-"default.\n"
-"\n"
-">>> class Example(KwOnlyStruct):\n"
-"...     a: str = ""\n"
-"...     b: int\n"
-"...\n"
-">>> Example(b=123)\n"
-"Example(a='', b=123)\n"
-);
-
 static PyTypeObject StructMetaType = {
     PyVarObject_HEAD_INIT(NULL, 0)
     .tp_name = "msgspec._core.StructMeta",
-    .tp_doc = StructMeta__doc__,
     .tp_basicsize = sizeof(StructMetaObject),
     .tp_itemsize = 0,
-    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_TYPE_SUBCLASS | Py_TPFLAGS_HAVE_GC | _Py_TPFLAGS_HAVE_VECTORCALL | Py_TPFLAGS_BASETYPE,
+    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_TYPE_SUBCLASS | Py_TPFLAGS_HAVE_GC | _Py_TPFLAGS_HAVE_VECTORCALL,
     .tp_new = StructMeta_new,
     .tp_dealloc = (destructor) StructMeta_dealloc,
     .tp_clear = (inquiry) StructMeta_clear,
@@ -7947,7 +7915,7 @@ struct_replace(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject
 
     if (!check_positional_nargs(nargs, 1, 1)) return NULL;
     PyObject *obj = args[0];
-    if (!PyType_IsSubtype(Py_TYPE(Py_TYPE(obj)), &StructMetaType)) {
+    if (Py_TYPE(Py_TYPE(obj)) != &StructMetaType) {
         PyErr_SetString(PyExc_TypeError, "`struct` must be a `msgspec.Struct`");
         return NULL;
     }
@@ -7988,7 +7956,7 @@ struct_asdict(PyObject *self, PyObject *const *args, Py_ssize_t nargs)
 {
     if (!check_positional_nargs(nargs, 1, 1)) return NULL;
     PyObject *obj = args[0];
-    if (!PyType_IsSubtype(Py_TYPE(Py_TYPE(obj)), &StructMetaType)) {
+    if (Py_TYPE(Py_TYPE(obj)) != &StructMetaType) {
         PyErr_SetString(PyExc_TypeError, "`struct` must be a `msgspec.Struct`");
         return NULL;
     }
@@ -8046,7 +8014,7 @@ struct_astuple(PyObject *self, PyObject *const *args, Py_ssize_t nargs)
 {
     if (!check_positional_nargs(nargs, 1, 1)) return NULL;
     PyObject *obj = args[0];
-    if (!PyType_IsSubtype(Py_TYPE(Py_TYPE(obj)), &StructMetaType)) {
+    if (Py_TYPE(Py_TYPE(obj)) != &StructMetaType) {
         PyErr_SetString(PyExc_TypeError, "`struct` must be a `msgspec.Struct`");
         return NULL;
     }
@@ -8098,7 +8066,7 @@ struct_force_setattr(PyObject *self, PyObject *const *args, Py_ssize_t nargs)
     PyObject *obj = args[0];
     PyObject *name = args[1];
     PyObject *value = args[2];
-    if (!PyType_IsSubtype(Py_TYPE(Py_TYPE(obj)), &StructMetaType)) {
+    if (Py_TYPE(Py_TYPE(obj)) != &StructMetaType) {
         PyErr_SetString(PyExc_TypeError, "`struct` must be a `msgspec.Struct`");
         return NULL;
     }
@@ -13277,7 +13245,7 @@ mpack_encode_uncommon(EncoderState *self, PyTypeObject *type, PyObject *obj)
     else if (type == &PyBool_Type) {
         return mpack_encode_bool(self, obj);
     }
-    else if (PyType_IsSubtype(Py_TYPE(type), &StructMetaType)) {
+    else if (Py_TYPE(type) == &StructMetaType) {
         return mpack_encode_struct(self, obj);
     }
     else if (type == &PyBytes_Type) {
@@ -14384,7 +14352,7 @@ json_encode_uncommon(EncoderState *self, PyTypeObject *type, PyObject *obj) {
     else if (obj == Py_False) {
         return ms_write(self, "false", 5);
     }
-    else if (PyType_IsSubtype(Py_TYPE(type), &StructMetaType)) {
+    else if (Py_TYPE(type) == &StructMetaType) {
         return json_encode_struct(self, obj);
     }
     else if (PyTuple_Check(obj)) {
@@ -16513,7 +16481,7 @@ msgspec_msgpack_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, 
     if (type == NULL || type == mod->typing_any) {
         state.type = &typenode_any;
     }
-    else if (PyType_IsSubtype(Py_TYPE(type), &StructMetaType)) {
+    else if (Py_TYPE(type) == &StructMetaType) {
         PyObject *info = StructInfo_Convert(type);
         if (info == NULL) return NULL;
         bool array_like = ((StructMetaObject *)type)->array_like == OPT_TRUE;
@@ -19548,7 +19516,7 @@ msgspec_json_decode(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyO
     if (type == NULL || type == mod->typing_any) {
         state.type = &typenode_any;
     }
-    else if (PyType_IsSubtype(Py_TYPE(type), &StructMetaType)) {
+    else if (Py_TYPE(type) == &StructMetaType) {
         PyObject *info = StructInfo_Convert(type);
         if (info == NULL) return NULL;
         bool array_like = ((StructMetaObject *)type)->array_like == OPT_TRUE;
@@ -20116,7 +20084,7 @@ to_builtins(ToBuiltinsState *self, PyObject *obj, bool is_key) {
     else if (PyDict_Check(obj)) {
         return to_builtins_dict(self, obj);
     }
-    else if (PyType_IsSubtype(Py_TYPE(type), &StructMetaType)) {
+    else if (Py_TYPE(type) == &StructMetaType) {
         return to_builtins_struct(self, obj, is_key);
     }
     else if (Py_TYPE(type) == self->mod->EnumMetaType) {
@@ -22015,7 +21983,7 @@ msgspec_convert(PyObject *self, PyObject *args, PyObject *kwargs)
     state.dec_hook = dec_hook;
 
     /* Avoid allocating a new TypeNode for struct types */
-    if (PyType_IsSubtype(Py_TYPE(pytype), &StructMetaType)) {
+    if (Py_TYPE(pytype) == &StructMetaType) {
         PyObject *info = StructInfo_Convert(pytype);
         if (info == NULL) return NULL;
         bool array_like = ((StructMetaObject *)pytype)->array_like == OPT_TRUE;
@@ -22338,12 +22306,6 @@ PyInit__core(void)
     Py_INCREF(&Unset_Type);
     if (PyModule_AddObject(m, "UnsetType", (PyObject *)&Unset_Type) < 0)
         return NULL;
-    Py_INCREF((PyObject *)&StructMetaType);
-    if (PyModule_AddObject(m, "StructMeta", (PyObject *)&StructMetaType) < 0) {
-        Py_DECREF((PyObject *)&StructMetaType);
-        Py_DECREF(m);
-        return NULL;
-    }
 
     st = msgspec_get_state(m);
 
