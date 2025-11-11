@@ -7271,12 +7271,44 @@ static PyGetSetDef StructMeta_getset[] = {
     {NULL},
 };
 
+PyDoc_STRVAR(StructMeta__doc__,
+"StructMeta(name, bases, namespace, /, *, **struct_config)\n"
+"--\n"
+"\n"
+"The metaclass for creating `Struct` types. See its documentation for the\n"
+"available configuration options when subclassing.\n"
+"\n"
+"Examples\n"
+"--------\n"
+"Here we define a metaclass that modifies the default configuration and use\n"
+"it to create a new `Struct` base class.\n"
+"\n"
+">>> from msgspec import Struct, StructMeta\n"
+">>> class KwOnlyStructMeta(StructMeta):\n"
+"...     def __new__(mcls, name, bases, namespace, **struct_config):\n"
+"...         struct_config.setdefault(\"kw_only\", True)\n"
+"...         return super().__new__(mcls, name, bases, namespace, **struct_config)\n"
+"...\n"
+">>> class KwOnlyStruct(Struct, metaclass=KwOnlyStructMeta): ...\n"
+"\n"
+"Any subclass of ``KwOnlyStruct`` will have ``kw_only`` set to ``True`` by\n"
+"default.\n"
+"\n"
+">>> class Example(KwOnlyStruct):\n"
+"...     a: str = ""\n"
+"...     b: int\n"
+"...\n"
+">>> Example(b=123)\n"
+"Example(a='', b=123)\n"
+);
+
 static PyTypeObject StructMetaType = {
     PyVarObject_HEAD_INIT(NULL, 0)
     .tp_name = "msgspec._core.StructMeta",
+    .tp_doc = StructMeta__doc__,
     .tp_basicsize = sizeof(StructMetaObject),
     .tp_itemsize = 0,
-    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_TYPE_SUBCLASS | Py_TPFLAGS_HAVE_GC | _Py_TPFLAGS_HAVE_VECTORCALL,
+    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_TYPE_SUBCLASS | Py_TPFLAGS_HAVE_GC | _Py_TPFLAGS_HAVE_VECTORCALL | Py_TPFLAGS_BASETYPE,
     .tp_new = StructMeta_new,
     .tp_dealloc = (destructor) StructMeta_dealloc,
     .tp_clear = (inquiry) StructMeta_clear,
@@ -22306,6 +22338,12 @@ PyInit__core(void)
     Py_INCREF(&Unset_Type);
     if (PyModule_AddObject(m, "UnsetType", (PyObject *)&Unset_Type) < 0)
         return NULL;
+    Py_INCREF((PyObject *)&StructMetaType);
+    if (PyModule_AddObject(m, "StructMeta", (PyObject *)&StructMetaType) < 0) {
+        Py_DECREF((PyObject *)&StructMetaType);
+        Py_DECREF(m);
+        return NULL;
+    }
 
     st = msgspec_get_state(m);
 
