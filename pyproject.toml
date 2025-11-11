@@ -104,6 +104,12 @@ hooks = [
   "prek>=0.2.13",
   "ruff==0.14.1",
 ]
+prof = [
+  "memray; sys_platform != 'win32'",
+  "pytest",
+  "pytest-benchmark",
+  "pytest-memray; sys_platform != 'win32'",
+]
 test-typing = [
   "mypy",
   "pyright",
