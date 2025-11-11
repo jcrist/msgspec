@@ -26,3 +26,4 @@ field.__doc__ = _Field.__doc__
 
 from . import inspect, json, msgpack, structs, toml, yaml
 from ._version import __version__
+from ._utils import RegexPatternProtocol
