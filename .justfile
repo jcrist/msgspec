@@ -51,7 +51,7 @@ alias pre-commit := prek
 [group: "Static Analysis"]
 hooks-fix *args: (
   env-run "hooks"
-  "prek run --show-diff-on-failure --all-files"
+  "prek run --all-files"
   args
 )
 alias hooks := hooks-fix
@@ -60,7 +60,7 @@ alias hooks := hooks-fix
 [group: "Static Analysis"]
 hooks-check *args: (
   env-run "hooks"
-  "prek run --show-diff-on-failure --all-files --hook-stage manual"
+  "prek run --all-files --hook-stage manual"
   args
 )
 alias check := hooks-check
@@ -112,13 +112,38 @@ doc-serve: (
   "python -c \"import pathlib,webbrowser;webbrowser.open_new_tab(pathlib.Path('docs/build/html/index.html').absolute().as_uri())\""
 )
 
+# Run performance tests.
+[group: "Profiling"]
+test-perf name="" *args: (
+  env-run "prof"
+  (
+    if name == "" {
+      "python -c \"import os;print('Available tests:', os.linesep.join(['', *sorted(e[5:].split('.')[0] for e in os.listdir('tests/prof/perf') if e.startswith('test_')), 'all (run everything)']))\""
+    } else {
+      (
+        if name =~ "^-" {
+          error(
+            "Invalid test name: " + name
+          )
+        } else if name == "all" {
+          "pytest -o testpaths=tests/prof/perf"
+        } else {
+          "pytest tests/prof/perf/test_" + name + ".py"
+        }
+      )
+      + " --benchmark-name short --benchmark-disable-gc"
+    }
+  )
+  args
+)
+
 # Run benchmarks.
 [group: "Benchmarking"]
 bench-run name="" *args: (
   env-run "bench"
   (
     if name == "" {
-      "python -c \"import os;print(os.linesep.join(sorted(e[6:].split('.')[0] for e in os.listdir('benchmarks') if e.startswith('bench_'))))\""
+      "python -c \"import os;print('Available benchmarks:', os.linesep.join(['', *sorted(e[6:].split('.')[0] for e in os.listdir('benchmarks') if e.startswith('bench_')), 'all (run everything)']))\""
     } else {
       "python -m benchmarks.bench_" + name
     }
@@ -212,6 +237,8 @@ _env_sync_all: (
   _with_env "doc" "sync"
 ) (
   _with_env "bench" "sync"
+) (
+  _with_env "prof" "sync"
 )
 
 [private]
@@ -254,7 +281,9 @@ _with_env env action *args:
     } else if action == "sync" { \
       "sync" \
     } else { \
-      error("Unknown action: " + action) \
+      error( \
+        "Unknown action: " + action \
+      ) \
     } \
   }}{{ \
     if rebuild =~ "^(true|1)$" { \
@@ -267,6 +296,8 @@ _with_env env action *args:
       "--group test-unit --group test-typing" \
     } else if env == "doc" { \
       "--group doc" \
+    } else if env == "prof" { \
+      "--group prof" \
     } else if env == "bench" { \
       "--group bench" \
     } else if env == "hooks" { \
@@ -274,6 +305,8 @@ _with_env env action *args:
     } else if env == "none" { \
       "--isolated --no-sync --no-config" \
     } else { \
-      error("Unknown environment: " + env) \
+      error( \
+        "Unknown environment: " + env \
+      ) \
     } \
   }} {{ args }}

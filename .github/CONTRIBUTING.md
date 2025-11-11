@@ -140,6 +140,16 @@ just bench encodings
 
 Omit the benchmark name to list all available benchmarks.
 
+## Profiling
+
+You can run all performance profiling tests with the `test-perf` recipe, for example:
+
+```
+just test-perf basic
+```
+
+Omit the profiling test name to list all available profiling tests.
+
 ## Python Version Management
 
 You can use the `python` variable to specify the version of Python to use for each environment. For example, to run tests with Python 3.12:

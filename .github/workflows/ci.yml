@@ -168,6 +168,37 @@ jobs:
         use_oidc: true
         directory: coverage-files
 
+  profile:
+    name: Run profiling tests
+    needs:
+    - test
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v5
+
+    - name: Load environment file
+      uses: ./.github/actions/load-env
+
+    - name: Install Python
+      uses: actions/setup-python@v6
+      with:
+        python-version-file: pyproject.toml
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v7
+
+    - name: Install command runner
+      run: uv tool install rust-just
+
+    - name: Install profiling dependencies
+      run: just env-sync prof
+
+    # TODO: set up infra to commit results after each merge and then make tests compare
+    - name: Run profiling tests
+      run: just test-perf all --calibrate --rounds 10000
+
   build-wheels:
     name: Build wheels on ${{ matrix.os }} for ${{ matrix.archs }}
     needs:
