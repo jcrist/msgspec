@@ -382,7 +382,7 @@ def test_struct_meta_pattern_ref_leak():
     # purge cache and gc again
     re.purge()
     gc.collect()
-    # there should be no re.Pattern any more with our pattern anymore. if there is, it's
+    # there shouldn't be an re.Pattern with our pattern any more. if there is, it's
     # being kept alive by some reference
     assert not any(
         o
