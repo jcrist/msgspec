@@ -3004,22 +3004,29 @@ static PyObject* NamedTupleInfo_Convert(PyObject*);
 #define OPT_TRUE 1
 #define STRUCT_MERGE_OPTIONS(opt1, opt2) (((opt2) != OPT_UNSET) ? (opt2) : (opt1))
 
-/* Check if a class object's metaclass is StructMetaType or subclass */
 static MS_INLINE int
 ms_is_struct_cls(PyTypeObject *cls) {
-    return PyObject_TypeCheck((PyObject *)cls, &StructMetaType);
+    /* Check if a class object's metaclass is StructMetaType or subclass */
+    PyTypeObject *mt = Py_TYPE((PyObject *)cls);
+    return MS_LIKELY(mt == &StructMetaType)
+        || PyType_IsSubtype(mt, &StructMetaType);
 }
 
-/* Check if a PyObject* representing a class has StructMetaType as metaclass */
 static MS_INLINE int
 ms_is_struct_cls_obj(PyObject *cls_obj) {
-    return PyObject_TypeCheck(cls_obj, &StructMetaType);
+    /* Check if a PyObject* representing a class has StructMetaType as metaclass */
+    PyTypeObject *mt = Py_TYPE(cls_obj);
+    return MS_LIKELY(mt == &StructMetaType)
+        || PyType_IsSubtype(mt, &StructMetaType);
 }
 
-/* Check if an instance's type has StructMetaType as metaclass */
 static MS_INLINE int
 ms_is_struct_inst(PyObject *obj) {
-    return PyObject_TypeCheck((PyObject *)Py_TYPE(obj), &StructMetaType);
+    /* Check if an instance's type has StructMetaType as metaclass */
+    PyTypeObject *cls = Py_TYPE(obj);
+    PyTypeObject *mt  = Py_TYPE((PyObject *)cls);
+    return MS_LIKELY(mt == &StructMetaType)
+        || PyType_IsSubtype(mt, &StructMetaType);
 }
 
 static MS_INLINE StructInfo *
