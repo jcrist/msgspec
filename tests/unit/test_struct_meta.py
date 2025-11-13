@@ -1,5 +1,9 @@
 """Tests for the exposed StructMeta metaclass."""
 
+import gc
+import re
+import secrets
+
 import pytest
 import msgspec
 from msgspec import Struct, StructMeta
@@ -362,3 +366,26 @@ def test_struct_meta_subclass_with_encoder():
     assert decoded.count == 1
     assert decoded.item.id == 123
     assert decoded.item.name == "test"
+
+
+def test_struct_meta_pattern_ref_leak():
+    # ensure that we're not keeping around references to re.Pattern longer than necessary
+    # see https://github.com/jcrist/msgspec/pull/899 for details
+
+    # clear cache to get a baseline
+    re.purge()
+
+    # use a random string to create a pattern, to ensure there can never be an overlap
+    # with any cached pattern
+    pattern_string = secrets.token_hex()
+    msgspec.Meta(pattern=pattern_string)
+    # purge cache and gc again
+    re.purge()
+    gc.collect()
+    # there shouldn't be an re.Pattern with our pattern any more. if there is, it's
+    # being kept alive by some reference
+    assert not any(
+        o
+        for o in gc.get_objects()
+        if isinstance(o, re.Pattern) and o.pattern == pattern_string
+    )
