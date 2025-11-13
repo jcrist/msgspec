@@ -20,6 +20,7 @@ from typing import (
 from typing_extensions import dataclass_transform, Buffer
 
 from . import inspect, json, msgpack, structs, toml, yaml
+from ._utils import RegexPatternProtocol
 
 # PEP 673 explicitly rejects using Self in metaclass definitions:
 # https://peps.python.org/pep-0673/#valid-locations-for-self
@@ -166,7 +167,7 @@ class Meta:
         lt: Union[int, float, None] = None,
         le: Union[int, float, None] = None,
         multiple_of: Union[int, float, None] = None,
-        pattern: Union[str, None] = None,
+        pattern: Union[str, RegexPatternProtocol, None] = None,
         min_length: Union[int, None] = None,
         max_length: Union[int, None] = None,
         tz: Union[bool, None] = None,
@@ -181,7 +182,7 @@ class Meta:
     lt: Final[Union[int, float, None]]
     le: Final[Union[int, float, None]]
     multiple_of: Final[Union[int, float, None]]
-    pattern: Final[Union[str, None]]
+    pattern: Final[Union[str, RegexPatternProtocol, None]]
     min_length: Final[Union[int, None]]
     max_length: Final[Union[int, None]]
     tz: Final[Union[int, None]]

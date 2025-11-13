@@ -332,3 +332,14 @@ def _wrap_attrs_validators(fields, post_init):
 def rebuild(cls, kwargs):
     """Used to unpickle Structs with keyword-only fields"""
     return cls(**kwargs)
+
+
+class RegexPatternProtocol(typing.Protocol):
+    pattern: str
+
+    def search(
+        self,
+        string: str,
+        pos: int = 0,
+        endpos: int = sys.maxsize,
+    ) -> object | None: ...

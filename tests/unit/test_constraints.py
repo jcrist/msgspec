@@ -173,7 +173,7 @@ class TestMetaObject:
         with pytest.raises(ValueError, match=f"{field}` must be >= 0, got -10"):
             Meta(**{field: -10})
 
-    @pytest.mark.parametrize("field", ["pattern", "title", "description"])
+    @pytest.mark.parametrize("field", ["title", "description"])
     def test_string_fields(self, field):
         Meta(**{field: "good"})
         with pytest.raises(TypeError, match=f"`{field}` must be a str, got bytes"):
@@ -201,6 +201,14 @@ class TestMetaObject:
     def test_invalid_pattern_errors(self):
         with pytest.raises(re.error):
             Meta(pattern="[abc")
+
+    @pytest.mark.parametrize("good", ("string", re.compile("string")))
+    def test_pattern_valid_type(self, good):
+        Meta(pattern=good)
+
+    def test_pattern_invalid_type(self):
+        with pytest.raises(TypeError, match=f"`pattern` must be a str, or an re.Pattern like type, got bytes"):
+            Meta(pattern=b"bad")
 
     def test_conflicting_bounds_errors(self):
         with pytest.raises(ValueError, match="both `gt` and `ge`"):
@@ -443,6 +451,14 @@ class TestFloatConstraints:
                 assert dec.decode(proto.encode(Ex(x)))
 
 
+class CustomRegexPattern:
+    def __init__(self, pattern: str) -> None:
+        self.pattern = pattern
+
+    def search(self, v: str) -> re.Match[str] | None:
+        return re.search(self.pattern, v)
+
+
 class TestStrConstraints:
     def test_min_length(self, proto):
         class Ex(msgspec.Struct):
@@ -478,6 +494,8 @@ class TestStrConstraints:
             ("", ["", "test"], []),
             ("as", ["as", "ease", "ast", "pass"], ["", "nope"]),
             ("^pre[123]*$", ["pre1", "pre123"], ["apre1", "pre1two"]),
+            pytest.param(re.compile("as"), ["as"], ["nope"], id="re.Pattern"),
+            pytest.param(CustomRegexPattern("as"), ["as"], ["nope"], id="CustomPattern"),
         ],
     )
     def test_pattern(self, proto, pattern, good, bad):
@@ -489,7 +507,8 @@ class TestStrConstraints:
         for x in good:
             assert dec.decode(proto.encode(Ex(x))).x == x
 
-        err_msg = f"Expected `str` matching regex {pattern!r} - at `$.x`"
+        raw_pattern = pattern if isinstance(pattern, str) else pattern.pattern
+        err_msg = f"Expected `str` matching regex {raw_pattern!r} - at `$.x`"
         for x in bad:
             with pytest.raises(msgspec.ValidationError) as rec:
                 dec.decode(proto.encode(Ex(x)))

@@ -31,3 +31,4 @@ from . import toml
 from . import inspect
 from . import structs
 from ._version import __version__
+from ._utils import RegexPatternProtocol

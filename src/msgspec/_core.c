@@ -1707,6 +1707,20 @@ ensure_is_finite_numeric(PyObject *val, const char *param, bool positive) {
     return true;
 }
 
+static bool
+ensure_is_re_pattern_compatible (PyObject *val, const char *param) {
+    if (PyUnicode_CheckExact(val)) return true;
+    if (PyObject_HasAttrString(val, "pattern") && PyObject_HasAttrString(val, "search")) {
+        return true;
+    }
+    PyErr_Format(
+        PyExc_TypeError,
+        "`%s` must be a str, or an re.Pattern like type, got %.200s",
+        param, Py_TYPE(val)->tp_name
+    );
+    return false;
+}
+
 PyDoc_STRVAR(Meta__doc__,
 "Meta(*, gt=None, ge=None, lt=None, le=None, multiple_of=None, pattern=None, "
 "min_length=None, max_length=None, tz=None, title=None, description=None, "
@@ -1823,7 +1837,7 @@ Meta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
     if (lt != NULL && !ensure_is_finite_numeric(lt, "lt", false)) return NULL;
     if (le != NULL && !ensure_is_finite_numeric(le, "le", false)) return NULL;
     if (multiple_of != NULL && !ensure_is_finite_numeric(multiple_of, "multiple_of", true)) return NULL;
-    if (pattern != NULL && !ensure_is_string(pattern, "pattern")) return NULL;
+    if (pattern != NULL && !ensure_is_re_pattern_compatible(pattern, "pattern")) return NULL;
     if (min_length != NULL && !ensure_is_nonnegative_integer(min_length, "min_length")) return NULL;
     if (max_length != NULL && !ensure_is_nonnegative_integer(max_length, "max_length")) return NULL;
     if (tz != NULL && !ensure_is_bool(tz, "tz")) return NULL;
@@ -1878,9 +1892,16 @@ Meta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
 
     /* regex compile pattern if provided */
     if (pattern != NULL) {
-        MsgspecState *mod = msgspec_get_global_state();
-        regex = PyObject_CallOneArg(mod->re_compile, pattern);
-        if (regex == NULL) return NULL;
+        if (PyUnicode_Check(pattern)) {
+            // 'pattern' is a string; compile it using re.compile
+            MsgspecState *mod = msgspec_get_global_state();
+            regex = PyObject_CallOneArg(mod->re_compile, pattern);
+            if (regex == NULL) return NULL;
+        } else {
+            // 'pattern' is an re.Pattern like object. no need to do anything
+            // do no Py_INCREF here, since will be done during SET_FIELD later
+            regex = pattern;
+        }
     }
 
     Meta *out = (Meta *)Meta_Type.tp_alloc(&Meta_Type, 0);
