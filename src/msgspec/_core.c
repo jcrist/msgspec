@@ -3004,33 +3004,55 @@ static PyObject* NamedTupleInfo_Convert(PyObject*);
 #define OPT_TRUE 1
 #define STRUCT_MERGE_OPTIONS(opt1, opt2) (((opt2) != OPT_UNSET) ? (opt2) : (opt1))
 
-static MS_INLINE int
-ms_is_struct_meta(PyTypeObject *mt) {
-    /* Checks whether `mt` is StructMeta (or a subclass); first tries an exact
-       metaclass pointer match, otherwise walks the metaclass inheritance chain
-       to determine if `mt` derives from StructMeta. */
-    if (MS_LIKELY(mt == &StructMetaType)) {
-        return 1;
+static int
+_ms_is_struct_meta_scan(PyTypeObject *mt) {
+    /* Common path: scan mt->tp_mro for StructMeta without a function call.
+     * This logic is adapted from the CPython implementation:
+     * https://github.com/python/cpython/blob/26b7df2430cd5a9ee772bfa6ee03a73bd0b11619/Objects/typeobject.c#L2890-L2919 */
+    PyObject *mro = mt->tp_mro;
+    if (MS_LIKELY(mro != NULL)) {
+        /* Skip index 0 since we already checked exact equality. */
+        Py_ssize_t n = PyTuple_GET_SIZE(mro);
+        for (Py_ssize_t i = 1; i < n; i++) {
+            if (PyTuple_GET_ITEM(mro, i) == (PyObject *)&StructMetaType) {
+                return 1;
+            }
+        }
+        return 0;
     }
+
+    /* Very rare during type construction: use CPython's base-chain/MRO logic. */
     return PyType_IsSubtype(mt, &StructMetaType);
 }
 
 static MS_INLINE int
+ms_is_struct_meta(PyTypeObject *mt) {
+    /* Checks whether `mt` is StructMeta or a subclass thereof; first tries an exact
+     * metaclass pointer match, otherwise walks the metaclass inheritance chain
+     * to determine if `mt` derives from StructMeta. */
+    if (MS_LIKELY(mt == &StructMetaType)) {
+        return 1;
+    }
+
+    return _ms_is_struct_meta_scan(mt);
+}
+
+static MS_INLINE int
 ms_is_struct_type(PyTypeObject *t) {
-    /* Checks whether the metaclass of type `t` is StructMeta (or a subclass). */
+    /* Checks whether the metaclass of type `t` is StructMeta or a subclass thereof. */
     return ms_is_struct_meta(Py_TYPE((PyObject *)t));
 }
 
 static MS_INLINE int
 ms_is_struct_cls(PyObject *o) {
-    /* Checks whether the metaclass of class object `o` is StructMeta (or a subclass).
-       Expects `o` to be a type/class object. */
+    /* Checks whether the metaclass of class object `o` is StructMeta or a subclass thereof.
+     * Expects `o` to be a type/class object. */
     return ms_is_struct_meta(Py_TYPE(o));
 }
 
 static MS_INLINE int
 ms_is_struct_inst(PyObject *o) {
-    /* Checks whether the metaclass of `type(o)` is StructMeta (or a subclass). */
+    /* Checks whether the metaclass of `type(o)` is StructMeta or a subclass thereof. */
     return ms_is_struct_meta(Py_TYPE((PyObject *)Py_TYPE(o)));
 }
 
