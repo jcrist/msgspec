@@ -3004,7 +3004,7 @@ static PyObject* NamedTupleInfo_Convert(PyObject*);
 #define OPT_TRUE 1
 #define STRUCT_MERGE_OPTIONS(opt1, opt2) (((opt2) != OPT_UNSET) ? (opt2) : (opt1))
 
-static int
+static MS_NOINLINE int
 _ms_is_struct_meta_scan(PyTypeObject *mt) {
     /* Common path: scan mt->tp_mro for StructMeta without a function call.
      * This logic is adapted from the CPython implementation:
