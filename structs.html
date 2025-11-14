@@ -1148,20 +1148,47 @@ in all subclasses of <code class="docutils literal notranslate"><span class="pre
 <span class="go">Example(a=&#39;&#39;, b=123)</span>
 </pre></div>
 </div>
-<p>You can also mix <a class="reference internal" href="api.html#msgspec.StructMeta" title="msgspec.StructMeta"><code class="xref py py-class docutils literal notranslate"><span class="pre">msgspec.StructMeta</span></code></a> with other metaclasses. For
-example, here we create an abstract <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-class docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> class:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">msgspec</span><span class="w"> </span><span class="kn">import</span> <span class="n">Struct</span><span class="p">,</span> <span class="n">StructMeta</span>
+<p>You can also mix <a class="reference internal" href="api.html#msgspec.StructMeta" title="msgspec.StructMeta"><code class="xref py py-class docutils literal notranslate"><span class="pre">msgspec.StructMeta</span></code></a> with other metaclasses. One common
+use case is combining it with <a class="reference external" href="https://docs.python.org/3/library/abc.html#abc.ABCMeta" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">abc.ABCMeta</span></code></a> to define abstract base
+Structs.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">ABCMeta</span><span class="p">,</span> <span class="n">abstractmethod</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">ABCMeta</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">msgspec</span><span class="w"> </span><span class="kn">import</span> <span class="n">Struct</span><span class="p">,</span> <span class="n">StructMeta</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">ABCStructMeta</span><span class="p">(</span><span class="n">StructMeta</span><span class="p">,</span> <span class="n">ABCMeta</span><span class="p">):</span> <span class="o">...</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">EventMeta</span><span class="p">(</span><span class="n">StructMeta</span><span class="p">,</span> <span class="n">ABCMeta</span><span class="p">):</span> <span class="o">...</span>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">StructABC</span><span class="p">(</span><span class="n">Struct</span><span class="p">,</span> <span class="n">metaclass</span><span class="o">=</span><span class="n">ABCStructMeta</span><span class="p">):</span> <span class="o">...</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">Event</span><span class="p">(</span><span class="n">Struct</span><span class="p">,</span> <span class="n">metaclass</span><span class="o">=</span><span class="n">EventMeta</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="nb">id</span><span class="p">:</span> <span class="nb">int</span>
+<span class="gp">... </span>    <span class="nd">@abstractmethod</span>
+<span class="gp">... </span>    <span class="k">def</span><span class="w"> </span><span class="nf">kind</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span> <span class="o">...</span>
+<span class="gp">...</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">Event</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<span class="gt">Traceback (most recent call last):</span>
+  File <span class="nb">&quot;&lt;python-input-4&gt;&quot;</span>, line <span class="m">1</span>, in <span class="n">&lt;module&gt;</span>
+<span class="w">    </span><span class="n">Event</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<span class="w">    </span><span class="pm">~~~~~^^^^^^</span>
+<span class="gr">TypeError</span>: <span class="n">Can&#39;t instantiate abstract class Event without an implementation for abstract method &#39;kind&#39;</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">UserCreated</span><span class="p">(</span><span class="n">Event</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="n">username</span><span class="p">:</span> <span class="nb">str</span>
+<span class="gp">... </span>    <span class="k">def</span><span class="w"> </span><span class="nf">kind</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="gp">... </span>        <span class="k">return</span> <span class="s2">&quot;user_created&quot;</span>
+<span class="gp">...</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">UserCreated</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">username</span><span class="o">=</span><span class="s2">&quot;alice&quot;</span><span class="p">)</span>
+<span class="go">UserCreated(id=1, username=&#39;alice&#39;)</span>
 </pre></div>
 </div>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>When inheriting from multiple metaclasses, put <a class="reference internal" href="api.html#msgspec.StructMeta" title="msgspec.StructMeta"><code class="xref py py-class docutils literal notranslate"><span class="pre">msgspec.StructMeta</span></code></a> first.</p>
+<p>Here <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-class docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> participates fully in the ABC machinery:
+abstract base Structs (like <code class="docutils literal notranslate"><span class="pre">Event</span></code>) cannot be instantiated, and
+<a class="reference external" href="https://docs.python.org/3/library/functions.html#isinstance" title="(in Python v3.14)"><code class="xref py py-func docutils literal notranslate"><span class="pre">isinstance()</span></code></a> and <a class="reference external" href="https://docs.python.org/3/library/functions.html#issubclass" title="(in Python v3.14)"><code class="xref py py-func docutils literal notranslate"><span class="pre">issubclass()</span></code></a> checks behave the same as for normal
+ABCs.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Mixing <a class="reference internal" href="api.html#msgspec.StructMeta" title="msgspec.StructMeta"><code class="xref py py-class docutils literal notranslate"><span class="pre">msgspec.StructMeta</span></code></a> with arbitrary metaclasses
+is not supported. Only combinations involving <a class="reference external" href="https://docs.python.org/3/library/abc.html#abc.ABCMeta" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">abc.ABCMeta</span></code></a>
+(or its subclasses) are guaranteed to work. Prefer using
+<a class="reference external" href="https://docs.python.org/3/reference/datamodel.html#object.__init_subclass__" title="(in Python v3.14)"><code class="xref py py-meth docutils literal notranslate"><span class="pre">object.__init_subclass__()</span></code></a> on a <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-class docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> base class
+instead of additional custom metaclasses.</p>
 </div>
 </section>
 <section id="disabling-garbage-collection-advanced">
