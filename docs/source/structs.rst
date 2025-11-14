@@ -161,6 +161,14 @@ at the end of the generated ``__init__`` method. It has the same semantics as th
 This method may be useful for adding additional logic to the init (such as
 custom validation).
 
+.. important::
+
+    ``__post_init__`` will *not* be called when using any of
+
+    - :func:`msgspec.structs.replace`,
+    - :func:`copy.replace`,
+    - :func:`copy.copy`,
+
 In addition to in ``__init__``, the ``__post_init__`` hook is also called when:
 
 - Decoding into a struct type (e.g. ``msgspec.json.decode(..., type=MyStruct)``)

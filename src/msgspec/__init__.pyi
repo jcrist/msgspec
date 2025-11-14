@@ -17,7 +17,7 @@ from typing import (
     overload,
 )
 
-from typing_extensions import dataclass_transform, Buffer
+from typing_extensions import dataclass_transform, Buffer, Self
 
 from . import inspect, json, msgpack, structs, toml, yaml
 
@@ -118,6 +118,7 @@ class Struct(metaclass=StructMeta):
     def __rich_repr__(
         self,
     ) -> Iterable[Union[Any, Tuple[Any], Tuple[str, Any], Tuple[str, Any, Any]]]: ...
+    def __replace__(self, **changes: Any) -> Self: ...
 
 def defstruct(
     name: str,
