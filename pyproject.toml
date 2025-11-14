@@ -217,5 +217,5 @@ test-groups = ["test-unit"]
 [tool.cibuildwheel.environment]
 CFLAGS = "-g0"
 
-# [tool.cibuildwheel.linux]
-# environment-pass = ["CFLAGS"]
+[tool.cibuildwheel.linux]
+environment-pass = ["CFLAGS"]
