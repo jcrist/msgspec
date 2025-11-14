@@ -1,5 +1,6 @@
 """Tests for the exposed StructMeta metaclass."""
 
+from abc import ABCMeta, abstractmethod, _abc_init
 import pytest
 import msgspec
 from msgspec import Struct, StructMeta
@@ -362,3 +363,262 @@ def test_struct_meta_subclass_with_encoder():
     assert decoded.count == 1
     assert decoded.item.id == 123
     assert decoded.item.name == "test"
+
+
+def test_structmeta_abcmeta_mixed_behaves_like_abc():
+    class IntegerStructMeta(StructMeta, ABCMeta):
+        pass
+
+    class IntegerStructBase(Struct, metaclass=IntegerStructMeta):
+        @abstractmethod
+        def to_integer(self) -> int: ...
+
+        @classmethod
+        @abstractmethod
+        def from_integer(cls, val: int) -> "IntegerStructBase": ...
+
+    class ConcreteIntStruct(IntegerStructBase):
+        val: int
+
+        def to_integer(self) -> int:
+            return self.val << 2
+
+        @classmethod
+        def from_integer(cls, val: int) -> "ConcreteIntStruct":
+            return cls(val)
+
+    # Abstract base cannot be instantiated when there are abstract methods
+    with pytest.raises(
+        TypeError,
+        match=(
+            r"^Can't instantiate abstract class IntegerStructBase without an "
+            r"implementation for abstract methods 'from_integer', 'to_integer'$"
+        ),
+    ):
+        IntegerStructBase()
+
+    # Concrete subclass is fine when all abstract methods are implemented
+    obj = ConcreteIntStruct(1)
+    assert obj.to_integer() == 4
+
+    # ABC semantics: issubclass / isinstance must work and not raise
+    assert issubclass(ConcreteIntStruct, IntegerStructBase)
+    assert isinstance(obj, IntegerStructBase)
+
+    # msgspec roundtrip still works
+    encoded = msgspec.json.encode(obj)
+    decoded = msgspec.json.decode(encoded, type=ConcreteIntStruct)
+    assert decoded == obj
+
+    # Repeated checks must continue working (no latent _abc_impl issues)
+    for _ in range(5):
+        assert issubclass(ConcreteIntStruct, IntegerStructBase)
+        assert isinstance(obj, IntegerStructBase)
+
+
+def test_structmeta_abcmeta_intermediate_still_abstract_and_message():
+    class IntegerStructMeta(StructMeta, ABCMeta):
+        pass
+
+    class IntegerStructBase(Struct, metaclass=IntegerStructMeta):
+        @abstractmethod
+        def to_integer(self) -> int: ...
+
+        @classmethod
+        @abstractmethod
+        def from_integer(cls, val: int) -> "IntegerStructBase": ...
+
+    class Intermediate(IntegerStructBase):
+        # Implement only one of the abstract methods
+        @classmethod
+        def from_integer(cls, val: int) -> "Intermediate":
+            return cls()
+
+    # Intermediate remains abstract: only to_integer is missing
+    with pytest.raises(
+        TypeError,
+        match=(
+            r"^Can't instantiate abstract class Intermediate without an "
+            r"implementation for abstract method 'to_integer'$"
+        ),
+    ):
+        Intermediate()
+
+
+def test_structmeta_abcmeta_single_abstract_method_message():
+    class IntegerStructMeta(StructMeta, ABCMeta):
+        pass
+
+    class SingleAbstract(Struct, metaclass=IntegerStructMeta):
+        @abstractmethod
+        def only(self) -> int: ...
+
+    with pytest.raises(
+        TypeError,
+        match=(
+            r"^Can't instantiate abstract class SingleAbstract without an "
+            r"implementation for abstract method 'only'$"
+        ),
+    ):
+        SingleAbstract()
+
+
+def test_structmeta_abcmeta_mixed_reverse_order():
+    class IntegerStructMeta(ABCMeta, StructMeta):
+        pass
+
+    class IntegerStructBase(Struct, metaclass=IntegerStructMeta):
+        @abstractmethod
+        def to_integer(self) -> int: ...
+
+        @classmethod
+        @abstractmethod
+        def from_integer(cls, val: int) -> "IntegerStructBase": ...
+
+    class ConcreteIntStruct(IntegerStructBase):
+        val: int
+
+        def to_integer(self) -> int:
+            return self.val + 1
+
+        @classmethod
+        def from_integer(cls, val: int) -> "ConcreteIntStruct":
+            return cls(val)
+
+    obj = ConcreteIntStruct(10)
+
+    assert issubclass(ConcreteIntStruct, IntegerStructBase)
+    assert isinstance(obj, IntegerStructBase)
+
+    encoded = msgspec.json.encode(obj)
+    decoded = msgspec.json.decode(encoded, type=ConcreteIntStruct)
+    assert decoded == obj
+
+
+def test_structmeta_abcmeta_mixed_supports_register():
+    class IntegerStructMeta(StructMeta, ABCMeta):
+        pass
+
+    class IntegerStructBase(Struct, metaclass=IntegerStructMeta):
+        @abstractmethod
+        def to_integer(self) -> int: ...
+
+        @classmethod
+        @abstractmethod
+        def from_integer(cls, val: int) -> "IntegerStructBase": ...
+
+    class OtherStruct(Struct):
+        val: int
+
+    # Register a non-subclass as a virtual subclass
+    IntegerStructBase.register(OtherStruct)
+
+    other = OtherStruct(5)
+
+    # Virtual subclassing should work
+    assert issubclass(OtherStruct, IntegerStructBase)
+    assert isinstance(other, IntegerStructBase)
+
+    # msgspec usage should still be fine
+    encoded = msgspec.json.encode(other)
+    decoded = msgspec.json.decode(encoded, type=OtherStruct)
+    assert decoded == other
+
+
+def test_plain_struct_not_treated_as_abc():
+    class Plain(Struct):
+        x: int
+
+    obj = Plain(1)
+
+    # Normal msgspec behaviour works
+    encoded = msgspec.json.encode(obj)
+    decoded = msgspec.json.decode(encoded, type=Plain)
+    assert decoded == obj
+
+    # Sanity: Plain should not suddenly be an ABC
+    # (we don't rely on _abc_impl directly, but this is a cheap guard)
+    assert not any(
+        base.__module__ == "abc" and base.__name__ == "ABC" for base in Plain.__mro__
+    )
+
+
+def test_structmeta_abcmeta_mixed_nested_subclass():
+    class IntegerStructMeta(StructMeta, ABCMeta):
+        pass
+
+    class IntegerStructBase(Struct, metaclass=IntegerStructMeta):
+        @abstractmethod
+        def to_integer(self) -> int: ...
+
+        @classmethod
+        @abstractmethod
+        def from_integer(cls, val: int) -> "IntegerStructBase": ...
+
+    class Intermediate(IntegerStructBase):
+        @classmethod
+        def from_integer(cls, val: int) -> "Intermediate":
+            return cls()
+
+    class Concrete(Intermediate):
+        val: int
+
+        def to_integer(self) -> int:
+            return self.val
+
+        @classmethod
+        def from_integer(cls, val: int) -> "Concrete":
+            return cls(val)
+
+    obj = Concrete(7)
+
+    assert issubclass(Concrete, IntegerStructBase)
+    assert isinstance(obj, IntegerStructBase)
+    assert isinstance(obj, Intermediate)
+
+
+def test_structmeta_abcmeta_with_no_abstract_methods_is_concrete():
+    class IntegerStructMeta(StructMeta, ABCMeta):
+        pass
+
+    class ConcreteBase(Struct, metaclass=IntegerStructMeta):
+        # no @abstractmethod
+        def foo(self) -> int:
+            return 1
+
+    # Should be instantiable (no TypeError)
+    obj = ConcreteBase()
+    assert obj.foo() == 1
+
+    # And should not be considered abstract
+    assert getattr(ConcreteBase, "__abstractmethods__", frozenset()) in (
+        frozenset(),
+        set(),
+    )
+
+
+def test_struct_abc_via_init_subclass_and__abc_init():
+    class ABCStruct(Struct):
+        def __init_subclass__(cls, **kwargs):
+            super().__init_subclass__(**kwargs)
+            _abc_init(cls)
+
+    class Base(ABCStruct):
+        @abstractmethod
+        def foo(self) -> int: ...
+
+    # Base is abstract; instantiation should fail
+    with pytest.raises(
+        TypeError,
+        match=r"Can't instantiate abstract class Base without an implementation for abstract method 'foo'",
+    ):
+        Base()
+
+    class Concrete(Base):
+        x: int
+
+        def foo(self) -> int:
+            return self.x
+
+    c = Concrete(5)
+    assert c.foo() == 5

@@ -458,6 +458,8 @@ typedef struct {
     PyObject *ValidationError;
     PyObject *StructType;
     PyTypeObject *EnumMetaType;
+    PyTypeObject *ABCMetaType;
+    PyObject *_abc_init;
     PyObject *struct_lookup_cache;
     PyObject *str___weakref__;
     PyObject *str___dict__;
@@ -6488,6 +6490,19 @@ StructMeta_new_inner(
     Py_CLEAR(args);
     if (cls == NULL) goto cleanup;
 
+    /* If the metaclass participates in abc.ABCMeta, initialise ABC
+     * bookkeeping so issubclass/isinstance work correctly when the
+     * metaclass is mixed with StructMeta. */
+    if (mod != NULL && mod->ABCMetaType != NULL && mod->_abc_init != NULL) {
+        int is_abc_meta = PyType_IsSubtype(type, mod->ABCMetaType);
+        if (is_abc_meta < 0) goto cleanup;
+        if (is_abc_meta) {
+            PyObject *res = PyObject_CallOneArg(mod->_abc_init, (PyObject *)cls);
+            if (res == NULL) goto cleanup;
+            Py_DECREF(res);
+        }
+    }
+
     /* Fill in type methods */
     ((PyTypeObject *)cls)->tp_vectorcall = (vectorcallfunc)Struct_vectorcall;
     if (info.gc == OPT_FALSE) {
@@ -7330,6 +7345,10 @@ PyDoc_STRVAR(StructMeta__doc__,
 "The metaclass for creating `Struct` types. See its documentation for the\n"
 "available configuration options when subclassing.\n"
 "\n"
+"StructMeta can be subclassed, and may be combined with `abc.ABCMeta` to define\n"
+"abstract base Structs. Other metaclass combinations are not supported; they\n"
+"may work by accident but are not considered part of the public API.\n"
+"\n"
 "Examples\n"
 "--------\n"
 "Here we define a metaclass that modifies the default configuration and use\n"
@@ -7491,8 +7510,63 @@ missing_required:
     return -1;
 }
 
+static MS_NOINLINE void
+Struct_build_abstract_error(PyTypeObject *cls) {
+    /* This function is adapted from CPython's object machinery.
+     * https://github.com/python/cpython/blob/a486d45/Objects/typeobject.c#L7147-L7193 */
+    PyObject *abstract_methods = PyObject_GetAttrString((PyObject *)cls, "__abstractmethods__");
+    if (abstract_methods == NULL) {
+        return;
+    }
+
+    PyObject *sorted_methods = PySequence_List(abstract_methods);
+    Py_DECREF(abstract_methods);
+    if (sorted_methods == NULL) {
+        return;
+    }
+
+    if (PyList_Sort(sorted_methods) < 0) {
+        Py_DECREF(sorted_methods);
+        return;
+    }
+
+    Py_ssize_t method_count = PyList_GET_SIZE(sorted_methods);
+    if (method_count < 0) {
+        Py_DECREF(sorted_methods);
+        return;
+    }
+
+    PyObject *sep = PyUnicode_FromString("', '");
+    if (sep == NULL) {
+        Py_DECREF(sorted_methods);
+        return;
+    }
+
+    PyObject *joined = PyUnicode_Join(sep, sorted_methods);
+    Py_DECREF(sep);
+    Py_DECREF(sorted_methods);
+    if (joined == NULL) {
+        return;
+    }
+
+    PyErr_Format(
+        PyExc_TypeError,
+        "Can't instantiate abstract class %s without "
+        "an implementation for abstract method%s '%U'",
+        cls->tp_name,
+        method_count > 1 ? "s" : "",
+        joined
+    );
+    Py_DECREF(joined);
+}
+
 static PyObject *
 Struct_vectorcall(PyTypeObject *cls, PyObject *const *args, size_t nargsf, PyObject *kwnames) {
+    if (MS_UNLIKELY(cls->tp_flags & Py_TPFLAGS_IS_ABSTRACT)) {
+        Struct_build_abstract_error(cls);
+        return NULL;
+    }
+
     Py_ssize_t nargs = PyVectorcall_NARGS(nargsf);
     Py_ssize_t nkwargs = (kwnames == NULL) ? 0 : PyTuple_GET_SIZE(kwnames);
 
@@ -22150,6 +22224,8 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->DecodeError);
     Py_CLEAR(st->StructType);
     Py_CLEAR(st->EnumMetaType);
+    Py_CLEAR(st->ABCMetaType);
+    Py_CLEAR(st->_abc_init);
     Py_CLEAR(st->struct_lookup_cache);
     Py_CLEAR(st->str___weakref__);
     Py_CLEAR(st->str___dict__);
@@ -22257,6 +22333,8 @@ msgspec_traverse(PyObject *m, visitproc visit, void *arg)
     Py_VISIT(st->DecodeError);
     Py_VISIT(st->StructType);
     Py_VISIT(st->EnumMetaType);
+    Py_VISIT(st->ABCMetaType);
+    Py_VISIT(st->_abc_init);
     Py_VISIT(st->struct_lookup_cache);
     Py_VISIT(st->typing_union);
     Py_VISIT(st->typing_any);
@@ -22516,6 +22594,30 @@ PyInit__core(void)
         return NULL;
     }
     st->EnumMetaType = (PyTypeObject *)temp_obj;
+
+    /* Get the abc.ABCMeta type and _abc_init helper */
+    temp_module = PyImport_ImportModule("abc");
+    if (temp_module == NULL)
+        return NULL;
+
+    temp_obj = PyObject_GetAttrString(temp_module, "ABCMeta");
+    if (temp_obj == NULL) {
+        Py_DECREF(temp_module);
+        return NULL;
+    }
+    if (!PyType_Check(temp_obj)) {
+        Py_DECREF(temp_obj);
+        Py_DECREF(temp_module);
+        PyErr_SetString(PyExc_TypeError, "abc.ABCMeta should be a type");
+        return NULL;
+    }
+    st->ABCMetaType = (PyTypeObject *)temp_obj;
+
+    temp_obj = PyObject_GetAttrString(temp_module, "_abc_init");
+    Py_DECREF(temp_module);
+    if (temp_obj == NULL)
+        return NULL;
+    st->_abc_init = temp_obj;
 
     /* Get the datetime.datetime.astimezone method */
     temp_module = PyImport_ImportModule("datetime");

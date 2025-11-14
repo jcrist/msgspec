@@ -965,22 +965,50 @@ in all subclasses of ``KwOnlyStruct``.
     >>> Example(b=123)
     Example(a='', b=123)
 
-You can also mix :class:`msgspec.StructMeta` with other metaclasses. For
-example, here we create an abstract :class:`msgspec.Struct` class:
+You can also mix :class:`msgspec.StructMeta` with other metaclasses. One common
+use case is combining it with :class:`abc.ABCMeta` to define abstract base
+Structs.
 
 .. code-block:: python
 
+    >>> from abc import ABCMeta, abstractmethod
+
     >>> from msgspec import Struct, StructMeta
 
-    >>> from abc import ABCMeta
+    >>> class EventMeta(StructMeta, ABCMeta): ...
 
-    >>> class ABCStructMeta(StructMeta, ABCMeta): ...
+    >>> class Event(Struct, metaclass=EventMeta):
+    ...     id: int
+    ...     @abstractmethod
+    ...     def kind(self) -> str: ...
+    ...
+    >>> Event(id=1)
+    Traceback (most recent call last):
+      File "<python-input-4>", line 1, in <module>
+        Event(id=1)
+        ~~~~~^^^^^^
+    TypeError: Can't instantiate abstract class Event without an implementation for abstract method 'kind'
 
-    >>> class StructABC(Struct, metaclass=ABCStructMeta): ...
+    >>> class UserCreated(Event):
+    ...     username: str
+    ...     def kind(self) -> str:
+    ...         return "user_created"
+    ...
+    >>> UserCreated(id=1, username="alice")
+    UserCreated(id=1, username='alice')
 
-.. note::
+Here :class:`msgspec.Struct` participates fully in the ABC machinery:
+abstract base Structs (like ``Event``) cannot be instantiated, and
+:func:`isinstance` and :func:`issubclass` checks behave the same as for normal
+ABCs.
 
-    When inheriting from multiple metaclasses, put :class:`msgspec.StructMeta` first.
+.. warning::
+
+    Mixing :class:`msgspec.StructMeta` with arbitrary metaclasses
+    is not supported. Only combinations involving :class:`abc.ABCMeta`
+    (or its subclasses) are guaranteed to work. Prefer using
+    :meth:`object.__init_subclass__` on a :class:`msgspec.Struct` base class
+    instead of additional custom metaclasses.
 
 
 .. _struct-gc:
