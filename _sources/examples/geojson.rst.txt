@@ -23,7 +23,7 @@ relevant docs for more information.
 The full example source can be found `here
 <https://github.com/jcrist/msgspec/tree/main/examples/geojson>`__.
 
-.. literalinclude:: ../../../examples/geojson/msgspec_geojson.py
+.. literalinclude:: ../../examples/geojson/msgspec_geojson.py
     :language: python
 
 

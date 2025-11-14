@@ -25,7 +25,7 @@ to make it easier to efficiently determine message boundaries.
 The full example source can be found `here
 <https://github.com/jcrist/msgspec/tree/main/examples/asyncio-kv>`__.
 
-.. literalinclude:: ../../../examples/asyncio-kv/kv.py
+.. literalinclude:: ../../examples/asyncio-kv/kv.py
     :language: python
 
 
