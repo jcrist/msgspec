@@ -117,14 +117,13 @@ just check
 
 ## Documentation
 
-The source of the documentation can be found under `docs/source/`. They are
-built using `Sphinx` and can be built locally by running:
+The source of the documentation can be found under the `docs/` directory. They are built into the `site/` directory using `Sphinx` with the following command:
 
 ```
 just doc-build
 ```
 
-The built HTML documentation can be served locally by running:
+The HTML documentation can be viewed locally by running:
 
 ```
 just doc-serve

@@ -102,14 +102,14 @@ test-doc *args: (
 [group: "Documentation"]
 doc-build: (
   env-run "doc"
-  "sphinx-build -M html docs/source docs/build --fail-on-warning"
+  "sphinx-build -b html docs site --fail-on-warning"
 )
 
 # Serve the documentation.
 [group: "Documentation"]
 doc-serve: (
   env-run "doc"
-  "python -c \"import pathlib,webbrowser;webbrowser.open_new_tab(pathlib.Path('docs/build/html/index.html').absolute().as_uri())\""
+  "python -c \"import pathlib,webbrowser;webbrowser.open_new_tab(pathlib.Path('site/index.html').absolute().as_uri())\""
 )
 
 # Run performance tests.

@@ -1,6 +1,6 @@
 <p align="center">
   <a href="https://jcristharif.com/msgspec/">
-    <img src="https://raw.githubusercontent.com/jcrist/msgspec/main/docs/source/_static/msgspec-logo-light.svg" width="35%" alt="msgspec">
+    <img src="https://raw.githubusercontent.com/jcrist/msgspec/main/docs/_static/msgspec-logo-light.svg" width="35%" alt="msgspec">
   </a>
 </p>
 
@@ -97,7 +97,7 @@ encoding/decoding a message with `msgspec` can be
 
 <p align="center">
   <a href="https://jcristharif.com/msgspec/benchmarks.html">
-    <img src="https://raw.githubusercontent.com/jcrist/msgspec/main/docs/source/_static/bench-validation.svg">
+    <img src="https://raw.githubusercontent.com/jcrist/msgspec/main/docs/_static/bench-validation.svg">
   </a>
 </p>
 

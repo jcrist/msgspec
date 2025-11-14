@@ -25,7 +25,7 @@ file. This includes full schema definitions for all fields in the
 The full example source can be found `here
 <https://github.com/jcrist/msgspec/tree/main/examples/pyproject-toml>`__.
 
-.. literalinclude:: ../../../examples/pyproject-toml/pyproject.py
+.. literalinclude:: ../../examples/pyproject-toml/pyproject.py
     :language: python
 
 Here we use it to load the `pyproject.toml for Starlette
