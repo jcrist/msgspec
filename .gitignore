@@ -37,7 +37,7 @@ htmlcov/
 .mypy_cache/
 
 # Docs build
-docs/build/
+site/
 
 # Docs link check cache
 /.lycheecache

@@ -51,11 +51,11 @@ jobs:
           --verbose
           --no-progress
           README.md
-          docs/build
+          site
 
     - name: Deploy
       uses: peaceiris/actions-gh-pages@v4
       if: github.ref == 'refs/heads/main'
       with:
         github_token: "${{ github.token }}"
-        publish_dir: docs/build/html
+        publish_dir: site

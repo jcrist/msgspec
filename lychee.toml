@@ -6,6 +6,8 @@ remap = [
   "https://github.com/(.*?)/(.*?)/blob/(.*?)/(.*#.*)$ https://raw.githubusercontent.com/$1/$2/$3/$4"
 ]
 exclude = [
+  # This is way too flaky https://github.com/lycheeverse/lychee/issues/1884
+  '^https://toml.io/.*',
   # TODO: remove when this is fixed https://github.com/pradyunsg/furo/issues/907
   '^http://github\.com/cferdinandi/gumshoe$',
 ]
