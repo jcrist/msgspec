@@ -1,10 +1,8 @@
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from typing import (
     Any,
-    Callable,
     Dict,
     Generic,
-    Iterable,
     Literal,
     Optional,
     Tuple,
@@ -104,13 +102,19 @@ def decode(
     strict: bool = True,
     dec_hook: dec_hook_sig = None,
 ) -> Any: ...
-def encode(obj: Any, /, *, enc_hook: enc_hook_sig = None, order: Literal[None, "deterministic", "sorted"] = None) -> bytes: ...
+def encode(
+    obj: Any,
+    /,
+    *,
+    enc_hook: enc_hook_sig = None,
+    order: Literal[None, "deterministic", "sorted"] = None,
+) -> bytes: ...
 def schema(type: Any, *, schema_hook: schema_hook_sig = None) -> Dict[str, Any]: ...
 def schema_components(
     types: Iterable[Any],
     *,
     schema_hook: schema_hook_sig = None,
-    ref_template: str = "#/$defs/{name}"
+    ref_template: str = "#/$defs/{name}",
 ) -> Tuple[Tuple[Dict[str, Any], ...], Dict[str, Any]]: ...
 @overload
 def format(buf: str, /, *, indent: int = 2) -> str: ...

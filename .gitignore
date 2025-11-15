@@ -33,6 +33,9 @@ uv.lock
 .pytest_cache/
 htmlcov/
 
+# Ruff Cache
+.ruff_cache/
+
 # Mypy Cache
 .mypy_cache/
 

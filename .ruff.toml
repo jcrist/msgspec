@@ -1,13 +1,8 @@
 line-length = 88
 extend-exclude = [
-  "*.pyi",
-  "src/msgspec/__init__.py",
   "src/msgspec/_version.py",
-  "src/msgspec/json.py",
-  "src/msgspec/msgpack.py",
   "tests/typing/basic_typing_examples.py",
   "tests/unit/test_JSONTestSuite.py",
-  "docs/conf.py",
   # TODO: remove when this when we drop support for Python 3.9 (example uses match statements)
   "examples/asyncio-kv/kv.py",
 ]
@@ -25,6 +20,12 @@ ignore = [
   "E501", # Conflicts with ruff format
   "W191", # Conflicts with ruff format
 ]
+
+[lint.extend-per-file-ignores]
+"src/msgspec/__init__.py" = ["E402", "F401"]
+"src/msgspec/__init__.pyi" = ["F401"]
+"src/msgspec/json.py" = ["F401"]
+"src/msgspec/msgpack.py" = ["F401"]
 
 [lint.isort]
 combine-as-imports = true
