@@ -8,8 +8,8 @@ from ._core import (  # noqa
     StructConfig,
     asdict,
     astuple,
-    replace,
     force_setattr,
+    replace,
 )
 from ._utils import get_class_annotations as _get_class_annotations
 

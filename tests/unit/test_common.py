@@ -32,7 +32,8 @@ from typing import (
 )
 
 import pytest
-from .utils import temp_module, max_call_depth
+
+from .utils import max_call_depth, temp_module
 
 try:
     import attrs
@@ -40,7 +41,7 @@ except ImportError:
     attrs = None
 
 import msgspec
-from msgspec import Meta, Struct, ValidationError, UNSET, UnsetType
+from msgspec import UNSET, Meta, Struct, UnsetType, ValidationError
 
 UTC = datetime.timezone.utc
 

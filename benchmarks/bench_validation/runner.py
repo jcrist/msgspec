@@ -1,9 +1,9 @@
+import gc
 import importlib
 import json
-import timeit
 import resource
 import sys
-import gc
+import timeit
 
 library, path, runs, repeats = sys.argv[1:5]
 num_runs = int(runs)
