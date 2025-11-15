@@ -14,14 +14,13 @@ on:
     - ".justfile"
     - "pyproject.toml"
     - "setup.py"
-    - "setup.cfg"
   release:
     types:
     - published
 
 jobs:
   validate:
-    name: Run static analysis and smoke tests
+    name: Run static analysis and prepare build
     runs-on: ubuntu-latest
 
     outputs:
@@ -30,6 +29,11 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v5
+
+    - name: Fetch release history
+      uses: ./.github/actions/fetch-release-history
+      with:
+        github-token: "${{ github.token }}"
 
     - name: Load environment file
       uses: ./.github/actions/load-env
@@ -51,16 +55,9 @@ jobs:
     - name: Run hooks
       run: just hooks-check
 
-    - name: Install testing dependencies
-      run: just env-sync test
-
-    - name: Run tests
-      run: just test-all
-
     - name: Build source distribution
       id: build-sdist
       run: |-
-        git clean -fdX
         uv build --sdist
         sdist_name=$(basename dist/*.tar.gz)
         echo "file-name=${sdist_name}" >> $GITHUB_OUTPUT
@@ -168,8 +165,8 @@ jobs:
         use_oidc: true
         directory: coverage-files
 
-  profile:
-    name: Run profiling tests
+  test-integration:
+    name: Run integration tests
     needs:
     - test
     runs-on: ubuntu-latest
@@ -192,12 +189,14 @@ jobs:
     - name: Install command runner
       run: uv tool install rust-just
 
-    - name: Install profiling dependencies
-      run: just env-sync prof
+    - name: Install testing dependencies
+      run: just env-sync test
 
-    # TODO: set up infra to commit results after each merge and then make tests compare
-    - name: Run profiling tests
-      run: just test-perf all --calibrate --rounds 10000
+    - name: Run doctests
+      run: just test-doc
+
+    - name: Run type checker compatibility tests
+      run: just test-typing
 
   build-wheels:
     name: Build wheels on ${{ matrix.os }} for ${{ matrix.archs }}
@@ -207,7 +206,7 @@ jobs:
     runs-on: "${{ matrix.os }}"
     strategy:
       fail-fast: false
-      matrix:
+      matrix: &build-matrix
         include:
         - os: ubuntu-24.04-arm
           archs: aarch64
@@ -254,6 +253,59 @@ jobs:
         name: artifact-wheels-${{ matrix.os }}-${{ matrix.archs }}
         path: wheelhouse/*.whl
         if-no-files-found: error
+
+  profile:
+    name: Run profiling tests on ${{ matrix.os }}
+    needs:
+    - build-wheels
+    runs-on: "${{ matrix.os }}"
+    strategy:
+      fail-fast: false
+      matrix: *build-matrix
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v5
+
+    - name: Load environment file
+      uses: ./.github/actions/load-env
+
+    - name: Install Python
+      uses: actions/setup-python@v6
+      with:
+        python-version-file: pyproject.toml
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v7
+
+    - name: Install command runner
+      run: uv tool install rust-just
+
+    - name: Save path to profiling environment
+      id: env-path
+      run: echo "path=$(just env-path prof)" >> $GITHUB_OUTPUT
+      shell: bash
+
+    - name: Install profiling dependencies
+      env:
+        UV_PROJECT_ENVIRONMENT: "${{ steps.env-path.outputs.path }}"
+      run: uv sync --only-group prof
+
+    - name: Download artifacts
+      uses: actions/download-artifact@v6
+      with:
+        name: artifact-wheels-${{ matrix.os }}-${{ matrix.archs }}
+        path: dist
+        merge-multiple: true
+
+    - name: Install project from artifact
+      env:
+        VIRTUAL_ENV: "${{ steps.env-path.outputs.path }}"
+      run: uv pip install --no-index --find-links dist msgspec
+
+    # TODO: set up infra to commit results after each merge and then make tests compare
+    - name: Run profiling tests
+      run: just test-perf all --calibrate --rounds 10000
 
   upload-pypi:
     name: Upload artifacts to PyPI
