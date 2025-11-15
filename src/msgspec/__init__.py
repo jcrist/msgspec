@@ -1,4 +1,6 @@
 from ._core import (
+    NODEFAULT,
+    UNSET,
     DecodeError,
     EncodeError,
     Field as _Field,
@@ -8,11 +10,9 @@ from ._core import (
     Struct,
     StructMeta,
     UnsetType,
-    UNSET,
-    NODEFAULT,
     ValidationError,
-    defstruct,
     convert,
+    defstruct,
     to_builtins,
 )
 
@@ -24,10 +24,5 @@ def field(*, default=NODEFAULT, default_factory=NODEFAULT, name=None):
 field.__doc__ = _Field.__doc__
 
 
-from . import msgpack
-from . import json
-from . import yaml
-from . import toml
-from . import inspect
-from . import structs
+from . import inspect, json, msgpack, structs, toml, yaml
 from ._version import __version__

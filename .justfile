@@ -77,7 +77,7 @@ test-all *args: (
 [group: "Testing"]
 test-unit *args: (
   env-run "test"
-  "pytest tests/unit"
+  "pytest -o testpaths=tests/unit"
   args
 )
 alias test := test-unit
@@ -86,7 +86,7 @@ alias test := test-unit
 [group: "Testing"]
 test-typing *args: (
   env-run "test"
-  "pytest tests/typing"
+  "pytest -o testpaths=tests/typing"
   args
 )
 

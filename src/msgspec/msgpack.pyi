@@ -12,7 +12,6 @@ from typing import (
 
 from typing_extensions import Buffer
 
-
 T = TypeVar("T")
 
 enc_hook_sig = Optional[Callable[[Any], Any]]
@@ -106,4 +105,10 @@ def decode(
     dec_hook: dec_hook_sig = None,
     ext_hook: ext_hook_sig = None,
 ) -> Any: ...
-def encode(obj: Any, /, *, enc_hook: enc_hook_sig = None, order: Literal[None, "deterministic", "sorted"] = None) -> bytes: ...
+def encode(
+    obj: Any,
+    /,
+    *,
+    enc_hook: enc_hook_sig = None,
+    order: Literal[None, "deterministic", "sorted"] = None,
+) -> bytes: ...

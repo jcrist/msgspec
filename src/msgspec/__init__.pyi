@@ -17,7 +17,7 @@ from typing import (
     overload,
 )
 
-from typing_extensions import dataclass_transform, Buffer
+from typing_extensions import Buffer, dataclass_transform
 
 from . import inspect, json, msgpack, structs, toml, yaml
 
