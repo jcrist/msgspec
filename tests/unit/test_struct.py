@@ -8,7 +8,7 @@ import sys
 import weakref
 from contextlib import contextmanager
 from inspect import Parameter, Signature
-from typing import Any, Generic, List, Optional, TypeVar, Callable
+from typing import Any, Generic, List, Optional, TypeVar
 
 import pytest
 
@@ -24,25 +24,6 @@ else:
 
     def copy_replace(s, **changes):
         return s.__replace__(**changes)
-
-
-StructT = TypeVar("StructT", bound=Struct)
-
-ReplaceFn = Callable[[StructT], StructT]
-
-
-@pytest.fixture(
-    params=[
-        pytest.param(msgspec.structs.replace, id="msgspec.replace"),
-        pytest.param(
-            copy_replace,
-            id="copy.replace",
-            marks=[pytest.mark.skipif("sys.version_info < (3, 13)")],
-        ),
-    ]
-)
-def replace_fn(request: pytest.FixtureRequest) -> ReplaceFn:
-    return request.param
 
 
 @contextmanager
@@ -2682,7 +2663,7 @@ class TestPostInit:
         assert x1 == x2
         assert count == 1
 
-    def test_post_init_called_on_replace(self, replace_fn: ReplaceFn):
+    def test_post_init_called_on_replace(self, replace):
         count = 0
 
         class Ex(Struct):
@@ -2692,6 +2673,6 @@ class TestPostInit:
 
         x1 = Ex()
         assert count == 1
-        x2 = replace_fn(x1)
+        x2 = replace(x1)
         assert x1 == x2
         assert count == 2
