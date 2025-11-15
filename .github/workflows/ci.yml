@@ -206,7 +206,7 @@ jobs:
     runs-on: "${{ matrix.os }}"
     strategy:
       fail-fast: false
-      matrix: &build-matrix
+      matrix:
         include:
         - os: ubuntu-24.04-arm
           archs: aarch64
@@ -255,57 +255,12 @@ jobs:
         if-no-files-found: error
 
   profile:
-    name: Run profiling tests on ${{ matrix.os }}
+    name: Run profiling tests
     needs:
     - build-wheels
-    runs-on: "${{ matrix.os }}"
-    strategy:
-      fail-fast: false
-      matrix: *build-matrix
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v5
-
-    - name: Load environment file
-      uses: ./.github/actions/load-env
-
-    - name: Install Python
-      uses: actions/setup-python@v6
-      with:
-        python-version-file: pyproject.toml
-
-    - name: Install uv
-      uses: astral-sh/setup-uv@v7
-
-    - name: Install command runner
-      run: uv tool install rust-just
-
-    - name: Save path to profiling environment
-      id: env-path
-      run: echo "path=$(just env-path prof)" >> $GITHUB_OUTPUT
-      shell: bash
-
-    - name: Install profiling dependencies
-      env:
-        UV_PROJECT_ENVIRONMENT: "${{ steps.env-path.outputs.path }}"
-      run: uv sync --only-group prof
-
-    - name: Download artifacts
-      uses: actions/download-artifact@v6
-      with:
-        name: artifact-wheels-${{ matrix.os }}-${{ matrix.archs }}
-        path: dist
-        merge-multiple: true
-
-    - name: Install project from artifact
-      env:
-        VIRTUAL_ENV: "${{ steps.env-path.outputs.path }}"
-      run: uv pip install --no-index --find-links dist msgspec
-
-    # TODO: set up infra to commit results after each merge and then make tests compare
-    - name: Run profiling tests
-      run: just test-perf all --calibrate --rounds 10000
+    uses: ./.github/workflows/profile.yml
+    with:
+      version: dev
 
   upload-pypi:
     name: Upload artifacts to PyPI
