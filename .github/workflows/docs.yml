@@ -13,6 +13,11 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v5
 
+    - name: Fetch release history
+      uses: ./.github/actions/fetch-release-history
+      with:
+        github-token: "${{ github.token }}"
+
     - name: Load environment file
       uses: ./.github/actions/load-env
 

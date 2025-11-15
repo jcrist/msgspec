@@ -1,0 +1,41 @@
+name: Fetch Release History
+description: Fast, minimal fetch of commits since the latest release for version calculation with Git describe
+inputs:
+  github-token:
+    description: The GitHub token to use for the API
+    required: true
+
+runs:
+  using: composite
+  steps:
+  - name: Fetch release history
+    env:
+      GH_TOKEN: ${{ inputs.github-token }}
+    shell: bash
+    run: |-
+      latest_tag=$(
+        gh api "repos/${{ github.repository }}/releases/latest" \
+          --jq '.tag_name'
+      )
+      echo "Detected latest release tag: $latest_tag"
+
+      ahead_by=$(
+        gh api "repos/${{ github.repository }}/compare/${latest_tag}...${{ github.sha }}" \
+          --jq '.ahead_by'
+      )
+      echo "Commits since last release: $ahead_by"
+
+      if [ "$ahead_by" -gt 0 ]; then
+        echo "Fetching commits since last release"
+        git -c protocol.version=2 fetch \
+          --no-tags --no-recurse-submodules --filter=blob:none \
+          --deepen="$ahead_by" origin \
+          "${{ github.ref }}" \
+          "refs/tags/$latest_tag:refs/tags/$latest_tag"
+      else
+        echo "No commits since last release, fetching release tag only"
+        git -c protocol.version=2 fetch \
+          --no-tags --no-recurse-submodules --filter=blob:none \
+          origin \
+          "refs/tags/$latest_tag:refs/tags/$latest_tag"
+      fi
