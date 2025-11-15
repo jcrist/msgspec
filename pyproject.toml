@@ -104,23 +104,27 @@ hooks = [
   "prek>=0.2.13",
   "ruff==0.14.1",
 ]
-prof = [
+test-base = [
+  # TODO: require >=9 once we drop support for Python 3.9
+  "pytest>=8",
+]
+test-prof = [
+  { include-group = "test-base" },
   "memray; sys_platform != 'win32'",
-  "pytest",
   "pytest-benchmark",
   "pytest-memray; sys_platform != 'win32'",
 ]
 test-typing = [
+  { include-group = "test-base" },
   "mypy",
   "pyright",
-  "pytest",
 ]
 test-unit = [
+  { include-group = "test-base" },
   "attrs",
   "coverage",
   "eval-type-backport; python_version < '3.10'",
   "msgpack",
-  "pytest",
   "pyyaml",
   "tomli; python_version < '3.11'",
   "tomli-w",
@@ -144,73 +148,3 @@ parentdir_prefix_version = "msgspec-"
 
 [tool.uv.config-settings]
 editable_mode = "compat"
-
-[tool.ruff]
-extend-exclude = [
-  "*.pyi",
-  "__init__.py",
-  "src/msgspec/_version.py",
-  "basic_typing_examples.py",
-  "json.py",
-  "msgpack.py",
-  "test_JSONTestSuite.py",
-  "conf.py",
-  # TODO: remove when this when we drop support for Python 3.9 (example uses match statements)
-  "examples/asyncio-kv/kv.py",
-]
-line-length = 88
-
-[tool.ruff.lint]
-ignore = [
-  "E721", # Comparing types instead of isinstance
-  "E741", # Ambiguous variable names
-  "E501", # Conflicts with ruff format
-  "W191", # Conflicts with ruff format
-]
-select = [
-  "E", # PEP8 Errors
-  "F", # Pyflakes
-  "I", # Import sorting
-  "W", # PEP8 Warnings
-]
-
-[tool.ruff.lint.isort]
-combine-as-imports = true
-
-[tool.codespell]
-skip = "./site,./.venv,*.py,*.c,*.h"
-
-[tool.coverage.run]
-source_pkgs = ["msgspec"]
-source_dirs = ["tests/unit"]
-omit = [
-  "src/msgspec/_version.py",
-]
-
-[tool.coverage.paths]
-msgspec = [
-  "src/msgspec",
-  "*/msgspec/src/msgspec",
-  "*/msgspec/dev/*/venvs/*/lib*/python*/site-packages/msgspec",
-  "*\\msgspec\\dev\\*\\venvs\\*\\Lib\\site-packages\\msgspec",
-]
-tests = [
-  "tests/unit",
-  "*/msgspec/tests/unit",
-]
-
-[tool.pytest.ini_options]
-testpaths = [
-  # The order here determines the order in which tests are run.
-  "tests/unit",
-  "tests/typing",
-]
-filterwarnings = [
-  "error",
-]
-
-[tool.cibuildwheel]
-build = "cp39-* cp310-* cp311-* cp312-* cp313-* cp314-* cp314t-*"
-build-frontend = "build[uv]"
-test-command = "pytest {project}/tests/unit"
-test-groups = ["test-unit"]

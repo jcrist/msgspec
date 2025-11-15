@@ -1,0 +1,11 @@
+[pytest]
+# This determines which tests are collected when no arguments are passed.
+# We default to all non-profiling test suites and we run unit tests first.
+testpaths = [
+  "tests/unit",
+  "tests/typing",
+]
+# Turn all warnings into errors.
+filterwarnings = [
+  "error",
+]

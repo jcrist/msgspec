@@ -297,7 +297,7 @@ _with_env env action *args:
     } else if env == "doc" { \
       "--group doc" \
     } else if env == "prof" { \
-      "--group prof" \
+      "--group test-prof" \
     } else if env == "bench" { \
       "--group bench" \
     } else if env == "hooks" { \

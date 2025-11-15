@@ -1,0 +1,2 @@
+[codespell]
+skip = ./site,./.venv,*.py,*.c,*.h

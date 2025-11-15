@@ -1,6 +1,7 @@
 """Tests for the exposed StructMeta metaclass."""
 
-from abc import ABCMeta, abstractmethod, _abc_init
+from abc import ABCMeta, _abc_init, abstractmethod
+
 import pytest
 
 import msgspec
