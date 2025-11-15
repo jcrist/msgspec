@@ -15,6 +15,7 @@ import pytest
 import msgspec
 from msgspec import NODEFAULT, UNSET, Struct, defstruct, field
 from msgspec.structs import StructConfig
+from .utils import temp_module
 
 from .utils import temp_module
 
@@ -2640,7 +2641,7 @@ class TestPostInit:
         assert x1 == x2
         assert count == 1
 
-    def test_post_init_not_called_on_replace(self):
+    def test_post_init_called_on_replace(self, replace):
         count = 0
 
         class Ex(Struct):
@@ -2650,6 +2651,6 @@ class TestPostInit:
 
         x1 = Ex()
         assert count == 1
-        x2 = msgspec.structs.replace(x1)
+        x2 = replace(x1)
         assert x1 == x2
-        assert count == 1
+        assert count == 2
