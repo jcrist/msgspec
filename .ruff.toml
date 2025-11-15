@@ -1,0 +1,30 @@
+line-length = 88
+extend-exclude = [
+  "*.pyi",
+  "src/msgspec/__init__.py",
+  "src/msgspec/_version.py",
+  "src/msgspec/json.py",
+  "src/msgspec/msgpack.py",
+  "tests/typing/basic_typing_examples.py",
+  "tests/unit/test_JSONTestSuite.py",
+  "docs/conf.py",
+  # TODO: remove when this when we drop support for Python 3.9 (example uses match statements)
+  "examples/asyncio-kv/kv.py",
+]
+
+[lint]
+select = [
+  "E", # PEP8 Errors
+  "F", # Pyflakes
+  "I", # Import sorting
+  "W", # PEP8 Warnings
+]
+ignore = [
+  "E721", # Comparing types instead of isinstance
+  "E741", # Ambiguous variable names
+  "E501", # Conflicts with ruff format
+  "W191", # Conflicts with ruff format
+]
+
+[lint.isort]
+combine-as-imports = true

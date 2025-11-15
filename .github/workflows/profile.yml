@@ -73,7 +73,7 @@ jobs:
     - name: Install profiling dependencies
       env:
         UV_PROJECT_ENVIRONMENT: "${{ steps.metadata.outputs.env-path }}"
-      run: uv sync --only-group prof
+      run: uv sync --only-group test-prof
 
     - name: Download artifacts
       if: inputs.version == 'dev'

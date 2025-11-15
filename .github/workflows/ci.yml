@@ -8,12 +8,24 @@ on:
     branches:
     - main
     paths:
-    - "src/msgspec/**"
-    - ".github/workflows/ci.yml"
-    - ".pre-commit-config.yaml"
-    - ".justfile"
-    - "pyproject.toml"
-    - "setup.py"
+    # Changes to the package itself
+    - src/msgspec/**
+    - pyproject.toml
+    - setup.py
+    - MANIFEST.in
+    # Changes to CI execution
+    - .github/workflows/ci.yml
+    - .github/workflows/profile.yml
+    - .cibuildwheel.toml
+    - .justfile
+    # Changes to testing
+    - tests/**
+    - .codecov.yml
+    - .codespellrc
+    - .coveragerc
+    - .pre-commit-config.yaml
+    - .pytest.toml
+    - .ruff.toml
   release:
     types:
     - published
@@ -243,6 +255,7 @@ jobs:
     - name: Build & Test Wheels
       uses: pypa/cibuildwheel@v3.2.1
       with:
+        config-file: .cibuildwheel.toml
         package-dir: dist/${{ needs.validate.outputs.sdist-name }}
       env:
         CIBW_ARCHS: "${{ matrix.archs }}"

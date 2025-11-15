@@ -1,0 +1,17 @@
+[run]
+source_pkgs =
+    msgspec
+source_dirs =
+    tests/unit
+omit =
+    src/msgspec/_version.py
+
+[paths]
+msgspec =
+    src/msgspec
+    */msgspec/src/msgspec
+    */msgspec/dev/*/venvs/*/lib*/python*/site-packages/msgspec
+    *\msgspec\dev\*\venvs\*\Lib\site-packages\msgspec
+tests =
+    tests/unit
+    */msgspec/tests/unit
