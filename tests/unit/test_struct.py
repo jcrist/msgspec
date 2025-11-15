@@ -41,7 +41,7 @@ ReplaceFn = Callable[[StructT], StructT]
         ),
     ]
 )
-def replace_fn(self, request: pytest.FixtureRequest) -> ReplaceFn:
+def replace_fn(request: pytest.FixtureRequest) -> ReplaceFn:
     return request.param
 
 
