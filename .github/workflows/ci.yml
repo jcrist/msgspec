@@ -31,12 +31,13 @@ on:
     - published
 
 jobs:
-  validate:
+  prepare:
     name: Run static analysis and prepare build
     runs-on: ubuntu-latest
 
     outputs:
       sdist-name: "${{ steps.build-sdist.outputs.file-name }}"
+      latest-supported-python: "${{ steps.latest-supported-python.outputs.version }}"
 
     steps:
     - name: Checkout code
@@ -81,10 +82,16 @@ jobs:
         path: dist/${{ steps.build-sdist.outputs.file-name }}
         if-no-files-found: error
 
+    - name: Fetch latest supported Python
+      id: latest-supported-python
+      uses: ./.github/actions/latest-supported-python
+      with:
+        github-token: "${{ github.token }}"
+
   test:
     name: Test Python ${{ matrix.python-version }} on ${{ startsWith(matrix.os, 'macos-') && 'macOS' || startsWith(matrix.os, 'windows-') && 'Windows' || 'Linux' }}
     needs:
-    - validate
+    - prepare
     runs-on: "${{ matrix.os }}"
     strategy:
       fail-fast: false
@@ -214,7 +221,7 @@ jobs:
     name: Build wheels on ${{ matrix.os }} for ${{ matrix.archs }}
     needs:
     - test
-    - validate
+    - prepare
     runs-on: "${{ matrix.os }}"
     strategy:
       fail-fast: false
@@ -256,7 +263,7 @@ jobs:
       uses: pypa/cibuildwheel@v3.2.1
       with:
         config-file: .cibuildwheel.toml
-        package-dir: dist/${{ needs.validate.outputs.sdist-name }}
+        package-dir: dist/${{ needs.prepare.outputs.sdist-name }}
       env:
         CIBW_ARCHS: "${{ matrix.archs }}"
 
@@ -268,18 +275,20 @@ jobs:
         if-no-files-found: error
 
   profile:
-    name: Run profiling tests
+    name: Run profiling tests on Python ${{ needs.prepare.outputs.latest-supported-python }}
     needs:
+    - prepare
     - build-wheels
     uses: ./.github/workflows/profile.yml
     with:
       version: dev
+      python: "${{ needs.prepare.outputs.latest-supported-python }}"
 
   upload-pypi:
     name: Upload artifacts to PyPI
     if: github.event_name == 'release' && github.event.action == 'published'
     needs:
-    - validate
+    - prepare
     - build-wheels
     runs-on: ubuntu-latest
     permissions:

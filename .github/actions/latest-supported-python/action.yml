@@ -1,0 +1,46 @@
+name: Latest Supported Python
+description: Fetch the highest minor version of Python with a wheel in the latest release on PyPI
+inputs:
+  github-token:
+    description: The token to use for the GitHub API
+    required: true
+outputs:
+  version:
+    description: The highest minor version of Python with a wheel
+    value: ${{ steps.python-version.outputs.version }}
+
+runs:
+  using: composite
+  steps:
+  - name: Fetch latest release on GitHub
+    id: latest-release
+    env:
+      GH_TOKEN: ${{ inputs.github-token }}
+    shell: bash
+    run: |-
+      latest_release=$(
+        gh api "repos/${{ github.repository }}/releases/latest" \
+          --jq '.tag_name'
+      )
+      echo "Latest release: $latest_release"
+      echo "tag=$latest_release" >> $GITHUB_OUTPUT
+
+  - name: Fetch latest release on PyPI
+    id: python-version
+    shell: bash
+    run: |-
+      python_version=$(
+        curl -s "https://pypi.org/pypi/msgspec/${{ steps.latest-release.outputs.tag }}/json" \
+          | jq -r '
+            [ .urls[]
+              | select(.packagetype == "bdist_wheel")
+              | .filename
+              | capture("cp(?<cp>[0-9]+)").cp
+              | tonumber
+            ]
+            | max
+            | "3.\(tostring | .[1:])"
+          '
+      )
+      echo "Python version: $python_version"
+      echo "version=$python_version" >> $GITHUB_OUTPUT
