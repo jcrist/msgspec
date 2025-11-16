@@ -1,0 +1,67 @@
+name: Build Wheels
+
+on:
+  workflow_call:
+    inputs:
+      sdist-name:
+        description: Name of the source distribution file
+        required: true
+        type: string
+      build-all:
+        description: Build all wheels including musllinux
+        type: boolean
+
+jobs:
+  build-wheels:
+    name: Build wheels on ${{ matrix.os }} for ${{ matrix.archs }}
+    runs-on: "${{ matrix.os }}"
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - os: ubuntu-24.04-arm
+          archs: aarch64
+        - os: ubuntu-latest
+          archs: x86_64
+        - os: macos-latest
+          archs: arm64
+        - os: macos-15-intel
+          archs: x86_64
+        # - os: windows-11-arm
+        #   archs: ARM64
+        - os: windows-latest
+          archs: AMD64
+
+    env:
+      CIBW_SKIP: "${{ !inputs.build-all && '*-musllinux_*' || '' }}"
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v5
+
+    - name: Download source distribution
+      uses: actions/download-artifact@v6
+      with:
+        name: artifact-sdist
+        path: dist
+
+    # TODO: Remove this once the action supports specifying extras, see:
+    # https://github.com/pypa/cibuildwheel/pull/2630
+    - name: Install uv
+      if: runner.os != 'Linux'
+      uses: astral-sh/setup-uv@v7
+
+    - name: Build & Test Wheels
+      uses: pypa/cibuildwheel@v3.2.1
+      with:
+        config-file: .cibuildwheel.toml
+        package-dir: dist/${{ inputs.sdist-name }}
+      env:
+        CIBW_ARCHS: "${{ matrix.archs }}"
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v5
+      with:
+        name: artifact-wheels-${{ matrix.os }}-${{ matrix.archs }}
+        path: wheelhouse/*.whl
+        if-no-files-found: error

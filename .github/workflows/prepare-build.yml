@@ -1,0 +1,80 @@
+name: Prepare Build
+
+on:
+  workflow_call:
+    inputs:
+      run-static-analysis:
+        description: Whether to run static analysis checks
+        type: boolean
+      fetch-latest-python:
+        description: Whether to fetch the latest supported Python version
+        type: boolean
+    outputs:
+      sdist-name:
+        description: Name of the source distribution file
+        value: "${{ jobs.prepare.outputs.sdist-name }}"
+      latest-supported-python:
+        description: Latest supported Python version
+        value: "${{ jobs.prepare.outputs.latest-supported-python }}"
+
+jobs:
+  prepare:
+    name: Prepare build ${{ inputs.run-static-analysis && 'with static analysis' || '' }}
+    runs-on: ubuntu-latest
+
+    outputs:
+      sdist-name: "${{ steps.build-sdist.outputs.file-name }}"
+      latest-supported-python: "${{ steps.latest-supported-python.outputs.version }}"
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v5
+
+    - name: Fetch release history
+      uses: ./.github/actions/fetch-release-history
+      with:
+        github-token: "${{ github.token }}"
+
+    - name: Load environment file
+      uses: ./.github/actions/load-env
+
+    - name: Install Python
+      uses: actions/setup-python@v6
+      with:
+        python-version-file: pyproject.toml
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v7
+
+    - name: Install command runner
+      if: inputs.run-static-analysis
+      run: uv tool install rust-just
+
+    - name: Install static analysis dependencies
+      if: inputs.run-static-analysis
+      run: just env-sync hooks
+
+    - name: Run hooks
+      if: inputs.run-static-analysis
+      run: just hooks-check
+
+    - name: Build source distribution
+      id: build-sdist
+      run: |-
+        uv build --sdist
+        sdist_name=$(basename dist/*.tar.gz)
+        echo "file-name=${sdist_name}" >> $GITHUB_OUTPUT
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v5
+      with:
+        name: artifact-sdist
+        path: dist/${{ steps.build-sdist.outputs.file-name }}
+        if-no-files-found: error
+
+    - name: Fetch latest supported Python
+      if: inputs.fetch-latest-python
+      id: latest-supported-python
+      uses: ./.github/actions/latest-supported-python
+      with:
+        github-token: "${{ github.token }}"

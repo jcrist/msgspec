@@ -1,0 +1,39 @@
+name: Manual Profile
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version of msgspec to profile from PyPI (leave empty to build from source)
+        type: string
+      python:
+        description: Minor version of Python to use for profiling
+        type: string
+
+jobs:
+  prepare:
+    name: Prepare build
+    if: inputs.version == ''
+    uses: ./.github/workflows/prepare-build.yml
+    with:
+      run-static-analysis: false
+      fetch-latest-python: false
+
+  build-wheels:
+    name: Build wheels
+    if: inputs.version == ''
+    needs:
+    - prepare
+    uses: ./.github/workflows/build-wheels.yml
+    with:
+      sdist-name: "${{ needs.prepare.outputs.sdist-name }}"
+
+  profile:
+    name: Run profiling tests
+    needs:
+    - build-wheels
+    if: always() && (needs.build-wheels.result == 'success' || needs.build-wheels.result == 'skipped')
+    uses: ./.github/workflows/profile.yml
+    with:
+      version: "${{ inputs.version }}"
+      python: "${{ inputs.python }}"

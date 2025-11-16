@@ -1,20 +1,10 @@
 name: Profile
 
 on:
-  workflow_dispatch:
-    inputs:
-      version:
-        description: Version of msgspec to profile
-        required: true
-        type: string
-      python:
-        description: Minor version of Python to use for profiling
-        type: string
   workflow_call:
     inputs:
       version:
-        description: Version of msgspec to profile
-        required: true
+        description: Version of msgspec to profile from PyPI (leave empty to use artifacts)
         type: string
       python:
         description: Minor version of Python to use for profiling
@@ -81,19 +71,19 @@ jobs:
       run: uv sync --only-group test-prof
 
     - name: Download artifacts
-      if: inputs.version == 'dev'
+      if: inputs.version == ''
       uses: actions/download-artifact@v6
       with:
         name: artifact-wheels-${{ matrix.os }}-${{ matrix.archs }}
         path: dist
         merge-multiple: true
 
-    - name: Install version ${{ inputs.version }} from ${{ inputs.version == 'dev' && 'artifact' || 'PyPI' }}
+    - name: Install from ${{ inputs.version == '' && 'artifact' || format('PyPI (version {0})', inputs.version) }}
       env:
         VIRTUAL_ENV: "${{ steps.metadata.outputs.env-path }}"
       run: >-
-        uv pip install${{ inputs.version == 'dev' && ' --no-index --find-links dist' || '' }}
-        ${{ format('msgspec{0}{1}', inputs.version != 'dev' && '==' || '', inputs.version != 'dev' && inputs.version || '') }}
+        uv pip install${{ inputs.version == '' && ' --no-index --find-links dist' || '' }}
+        ${{ inputs.version == '' && 'msgspec' || format('msgspec=={0}', inputs.version) }}
 
     # TODO: set up infra to commit results after each merge and then make tests compare
     - name: Run profiling tests on Python ${{ steps.metadata.outputs.python-version }}
