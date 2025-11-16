@@ -32,61 +32,11 @@ on:
 
 jobs:
   prepare:
-    name: Run static analysis and prepare build
-    runs-on: ubuntu-latest
-
-    outputs:
-      sdist-name: "${{ steps.build-sdist.outputs.file-name }}"
-      latest-supported-python: "${{ steps.latest-supported-python.outputs.version }}"
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v5
-
-    - name: Fetch release history
-      uses: ./.github/actions/fetch-release-history
-      with:
-        github-token: "${{ github.token }}"
-
-    - name: Load environment file
-      uses: ./.github/actions/load-env
-
-    - name: Install Python
-      uses: actions/setup-python@v6
-      with:
-        python-version-file: pyproject.toml
-
-    - name: Install uv
-      uses: astral-sh/setup-uv@v7
-
-    - name: Install command runner
-      run: uv tool install rust-just
-
-    - name: Install static analysis dependencies
-      run: just env-sync hooks
-
-    - name: Run hooks
-      run: just hooks-check
-
-    - name: Build source distribution
-      id: build-sdist
-      run: |-
-        uv build --sdist
-        sdist_name=$(basename dist/*.tar.gz)
-        echo "file-name=${sdist_name}" >> $GITHUB_OUTPUT
-
-    - name: Upload artifact
-      uses: actions/upload-artifact@v5
-      with:
-        name: artifact-sdist
-        path: dist/${{ steps.build-sdist.outputs.file-name }}
-        if-no-files-found: error
-
-    - name: Fetch latest supported Python
-      id: latest-supported-python
-      uses: ./.github/actions/latest-supported-python
-      with:
-        github-token: "${{ github.token }}"
+    name: Validate build
+    uses: ./.github/workflows/prepare-build.yml
+    with:
+      run-static-analysis: true
+      fetch-latest-python: true
 
   test:
     name: Test Python ${{ matrix.python-version }} on ${{ startsWith(matrix.os, 'macos-') && 'macOS' || startsWith(matrix.os, 'windows-') && 'Windows' || 'Linux' }}
@@ -218,61 +168,14 @@ jobs:
       run: just test-typing
 
   build-wheels:
-    name: Build wheels on ${{ matrix.os }} for ${{ matrix.archs }}
+    name: Build wheels ${{ github.event_name == 'release' && 'for release' || '' }}
     needs:
     - test
     - prepare
-    runs-on: "${{ matrix.os }}"
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-        - os: ubuntu-24.04-arm
-          archs: aarch64
-        - os: ubuntu-latest
-          archs: x86_64
-        - os: macos-latest
-          archs: arm64
-        - os: macos-15-intel
-          archs: x86_64
-        # - os: windows-11-arm
-        #   archs: ARM64
-        - os: windows-latest
-          archs: AMD64
-
-    env:
-      CIBW_SKIP: "${{ github.event_name != 'release' && '*-musllinux_*' || '' }}"
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v5
-
-    - name: Download source distribution
-      uses: actions/download-artifact@v6
-      with:
-        name: artifact-sdist
-        path: dist
-
-    # TODO: Remove this once the action supports specifying extras, see:
-    # https://github.com/pypa/cibuildwheel/pull/2630
-    - name: Install uv
-      if: runner.os != 'Linux'
-      uses: astral-sh/setup-uv@v7
-
-    - name: Build & Test Wheels
-      uses: pypa/cibuildwheel@v3.2.1
-      with:
-        config-file: .cibuildwheel.toml
-        package-dir: dist/${{ needs.prepare.outputs.sdist-name }}
-      env:
-        CIBW_ARCHS: "${{ matrix.archs }}"
-
-    - name: Upload artifact
-      uses: actions/upload-artifact@v5
-      with:
-        name: artifact-wheels-${{ matrix.os }}-${{ matrix.archs }}
-        path: wheelhouse/*.whl
-        if-no-files-found: error
+    uses: ./.github/workflows/build-wheels.yml
+    with:
+      sdist-name: "${{ needs.prepare.outputs.sdist-name }}"
+      build-all: ${{ github.event_name == 'release' }}
 
   profile:
     name: Run profiling tests on Python ${{ needs.prepare.outputs.latest-supported-python }}
@@ -281,7 +184,6 @@ jobs:
     - build-wheels
     uses: ./.github/workflows/profile.yml
     with:
-      version: dev
       python: "${{ needs.prepare.outputs.latest-supported-python }}"
 
   upload-pypi:
