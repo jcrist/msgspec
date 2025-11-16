@@ -10,7 +10,6 @@ on:
       python:
         description: Minor version of Python to use for profiling
         type: string
-        default: latest
   workflow_call:
     inputs:
       version:
@@ -20,7 +19,6 @@ on:
       python:
         description: Minor version of Python to use for profiling
         type: string
-        default: latest
 
 jobs:
   profile:
@@ -61,14 +59,21 @@ jobs:
     - name: Install command runner
       run: uv tool install rust-just
 
+    - name: Fetch latest supported Python
+      if: inputs.python == ''
+      id: latest-supported-python
+      uses: ./.github/actions/latest-supported-python
+      with:
+        github-token: "${{ github.token }}"
+
     - name: Set profiling environment metadata
       id: metadata
       shell: bash
       run: |-
+        python_version="${{ inputs.python || steps.latest-supported-python.outputs.version }}"
+        echo "UV_PYTHON=$python_version" >> $GITHUB_ENV
+        echo "python-version=$python_version" >> $GITHUB_OUTPUT
         echo "env-path=$(just env-path prof)" >> $GITHUB_OUTPUT
-        if [[ "${{ inputs.python }}" != "latest" ]]; then
-          echo "UV_PYTHON=${{ inputs.python }}" >> $GITHUB_ENV
-        fi
 
     - name: Install profiling dependencies
       env:
@@ -91,5 +96,5 @@ jobs:
         ${{ format('msgspec{0}{1}', inputs.version != 'dev' && '==' || '', inputs.version != 'dev' && inputs.version || '') }}
 
     # TODO: set up infra to commit results after each merge and then make tests compare
-    - name: Run profiling tests
+    - name: Run profiling tests on Python ${{ steps.metadata.outputs.python-version }}
       run: just test-perf all --calibrate --rounds 10000
