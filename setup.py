@@ -38,6 +38,8 @@ if DEBUG:
     extra_compile_args.extend(["-O0", "-g", "-UNDEBUG"])
 elif sys.platform != "win32":
     extra_compile_args.extend(["-g0"])
+    extra_compile_args.extend(["-flto"])
+    extra_link_args.extend(["-flto"])
 
 # from https://py-free-threading.github.io/faq/#im-trying-to-build-a-library-on-windows-but-msvc-says-c-atomic-support-is-not-enabled
 if sys.platform == "win32":
