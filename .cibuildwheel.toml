@@ -3,11 +3,3 @@ build = "cp39-* cp310-* cp311-* cp312-* cp313-* cp314-* cp314t-*"
 build-frontend = "build[uv]"
 test-command = "pytest {project}/tests/unit"
 test-groups = ["test-unit"]
-
-[tool.cibuildwheel.linux]
-before-build = [
-  "yum install -y clang gcc",
-]
-
-[tool.cibuildwheel.linux.environment]
-CC = "clang"
