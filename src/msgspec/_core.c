@@ -179,10 +179,8 @@ unicode_str_and_size_nocheck(PyObject *str, Py_ssize_t *size) {
 /* XXX: Optimized `PyUnicode_AsUTF8AndSize` */
 static inline const char *
 unicode_str_and_size(PyObject *str, Py_ssize_t *size) {
-#ifndef Py_GIL_DISABLED
     const char *out = unicode_str_and_size_nocheck(str, size);
     if (MS_LIKELY(out != NULL)) return out;
-#endif
     return PyUnicode_AsUTF8AndSize(str, size);
 }
 
