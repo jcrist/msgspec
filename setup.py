@@ -37,8 +37,7 @@ if COVERAGE:
 if DEBUG:
     extra_compile_args.extend(["-O0", "-g", "-UNDEBUG"])
 elif sys.platform != "win32":
-    # extra_compile_args.extend(["-g0", "-fvisibility=hidden"])
-    extra_compile_args.extend(["-g0"])
+    extra_compile_args.extend(["-g0", "-fvisibility=hidden"])
     if sys.platform == "darwin":
         extra_compile_args.extend(["-flto=thin"])
         extra_link_args.extend(["-flto=thin"])
