@@ -659,23 +659,24 @@ strbuilder_build(strbuilder *self) {
 
 static MS_INLINE PyObject *
 ms_get_annotate_from_class_namespace(PyObject *namespace) {
+    /* We replicate the behavior of the standard library utility to avoid
+     * unnecessary function call overhead.
+     * https://docs.python.org/3/library/annotationlib.html#annotationlib.get_annotate_from_class_namespace */
     PyObject *annotate;
 
-    /* Equivalent to: obj["__annotate__"] */
-    annotate = PyDict_GetItemString(namespace, "__annotate__");  /* borrowed */
+    annotate = PyDict_GetItemString(namespace, "__annotate__");
     if (annotate != NULL) {
         Py_INCREF(annotate);
         return annotate;
     }
 
-    /* Equivalent to: obj.get("__annotate_func__", None) */
-    annotate = PyDict_GetItemString(namespace, "__annotate_func__");  /* borrowed */
+    annotate = PyDict_GetItemString(namespace, "__annotate_func__");
     if (annotate != NULL) {
         Py_INCREF(annotate);
         return annotate;
     }
 
-    Py_RETURN_NONE;  /* Neither key present */
+    Py_RETURN_NONE;
 }
 
 /*************************************************************************
