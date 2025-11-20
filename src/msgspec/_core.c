@@ -519,7 +519,6 @@ typedef struct {
 #endif
     PyObject *astimezone;
     PyObject *re_compile;
-    PyObject *get_annotate_from_class_namespace;
     uint8_t gc_cycle;
 } MsgspecState;
 
@@ -656,6 +655,28 @@ strbuilder_build(strbuilder *self) {
     PyObject *out = PyUnicode_FromStringAndSize(self->buffer, self->size);
     strbuilder_reset(self);
     return out;
+}
+
+static MS_INLINE PyObject *
+ms_get_annotate_from_class_namespace(PyObject *namespace) {
+    /* We replicate the behavior of the standard library utility to avoid
+     * unnecessary function call overhead.
+     * https://docs.python.org/3/library/annotationlib.html#annotationlib.get_annotate_from_class_namespace */
+    PyObject *annotate;
+
+    annotate = PyDict_GetItemString(namespace, "__annotate__");
+    if (annotate != NULL) {
+        Py_INCREF(annotate);
+        return annotate;
+    }
+
+    annotate = PyDict_GetItemString(namespace, "__annotate_func__");
+    if (annotate != NULL) {
+        Py_INCREF(annotate);
+        return annotate;
+    }
+
+    Py_RETURN_NONE;
 }
 
 /*************************************************************************
@@ -5953,36 +5974,28 @@ structmeta_collect_fields(StructMetaInfo *info, MsgspecState *mod, bool kwonly) 
         info->namespace, "__annotations__"
     );
     if (annotations == NULL) {
-        if (mod->get_annotate_from_class_namespace != NULL) {
-            PyObject *annotate = PyObject_CallOneArg(
-                mod->get_annotate_from_class_namespace, info->namespace
-            );
-            if (annotate == NULL) {
-                return -1;
-            }
-            if (annotate == Py_None) {
-                Py_DECREF(annotate);
-                return 0;
-            }
-            PyObject *format = PyLong_FromLong(1);  /* annotationlib.Format.VALUE */
-            if (format == NULL) {
-                Py_DECREF(annotate);
-                return -1;
-            }
-            annotations = PyObject_CallOneArg(
-                annotate, format
-            );
+        PyObject *annotate = ms_get_annotate_from_class_namespace(info->namespace);
+        if (annotate == NULL) {
+            return -1;
+        }
+        if (annotate == Py_None) {
             Py_DECREF(annotate);
-            Py_DECREF(format);
-            if (annotations == NULL) {
-                return -1;
-            }
+            return 0;
         }
-        else {
-            return 0;  // No annotations, nothing to do
+        PyObject *format = PyLong_FromLong(1);  /* annotationlib.Format.VALUE */
+        if (format == NULL) {
+            Py_DECREF(annotate);
+            return -1;
         }
-    }
-    else {
+        annotations = PyObject_CallOneArg(
+            annotate, format
+        );
+        Py_DECREF(annotate);
+        Py_DECREF(format);
+        if (annotations == NULL) {
+            return -1;
+        }
+    } else {
         Py_INCREF(annotations);
     }
 
@@ -22652,26 +22665,6 @@ PyInit__core(void)
     st->re_compile = PyObject_GetAttrString(temp_module, "compile");
     Py_DECREF(temp_module);
     if (st->re_compile == NULL) return NULL;
-
-    /* annotationlib.get_annotate_from_class_namespace */
-    temp_module = PyImport_ImportModule("annotationlib");
-    if (temp_module == NULL) {
-        if (PyErr_ExceptionMatches(PyExc_ModuleNotFoundError)) {
-            // Below Python 3.14
-            PyErr_Clear();
-            st->get_annotate_from_class_namespace = NULL;
-        }
-        else {
-            return NULL;
-        }
-    }
-    else {
-        st->get_annotate_from_class_namespace = PyObject_GetAttrString(
-            temp_module, "get_annotate_from_class_namespace"
-        );
-        Py_DECREF(temp_module);
-        if (st->get_annotate_from_class_namespace == NULL) return NULL;
-    }
 
     /* Initialize cached constant strings */
 #define CACHED_STRING(attr, str) \
