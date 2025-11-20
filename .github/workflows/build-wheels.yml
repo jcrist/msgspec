@@ -27,8 +27,8 @@ jobs:
           archs: arm64
         - os: macos-15-intel
           archs: x86_64
-        # - os: windows-11-arm
-        #   archs: ARM64
+        - os: windows-11-arm
+          archs: ARM64
         - os: windows-latest
           archs: AMD64
 
