@@ -178,13 +178,13 @@ jobs:
       build-all: ${{ github.event_name == 'release' }}
 
   profile:
-    name: Run profiling tests on Python ${{ needs.prepare.outputs.latest-supported-python }}
+    name: Run profiling tests on Python 3.14
     needs:
     - prepare
     - build-wheels
     uses: ./.github/workflows/profile.yml
     with:
-      python: "${{ needs.prepare.outputs.latest-supported-python }}"
+      python: "3.14"
 
   upload-pypi:
     name: Upload artifacts to PyPI
