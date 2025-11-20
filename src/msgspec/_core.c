@@ -131,18 +131,6 @@ PyDict_GetItemRef(PyObject *mp, PyObject *key, PyObject **result)
 #  define Py_END_CRITICAL_SECTION2() }
 #endif // PY_VERSION_HEX < 0x030D00B3
 
-#ifdef Py_GIL_DISABLED
-#  define MS_BEGIN_CRITICAL_SECTION(op)    Py_BEGIN_CRITICAL_SECTION(op)
-#  define MS_END_CRITICAL_SECTION()        Py_END_CRITICAL_SECTION()
-#  define MS_BEGIN_CRITICAL_SECTION2(a, b) Py_BEGIN_CRITICAL_SECTION2(a, b)
-#  define MS_END_CRITICAL_SECTION2()       Py_END_CRITICAL_SECTION2()
-#else
-#  define MS_BEGIN_CRITICAL_SECTION(op)    do { } while (0)
-#  define MS_END_CRITICAL_SECTION()        do { } while (0)
-#  define MS_BEGIN_CRITICAL_SECTION2(a, b) do { } while (0)
-#  define MS_END_CRITICAL_SECTION2()       do { } while (0)
-#endif
-
 #define DIV_ROUND_CLOSEST(n, d) ((((n) < 0) == ((d) < 0)) ? (((n) + (d)/2)/(d)) : (((n) - (d)/2)/(d)))
 
 /* These macros are used to manually unroll some loops */
@@ -531,7 +519,6 @@ typedef struct {
 #endif
     PyObject *astimezone;
     PyObject *re_compile;
-    PyObject *get_annotate_from_class_namespace;
     uint8_t gc_cycle;
 } MsgspecState;
 
@@ -668,6 +655,27 @@ strbuilder_build(strbuilder *self) {
     PyObject *out = PyUnicode_FromStringAndSize(self->buffer, self->size);
     strbuilder_reset(self);
     return out;
+}
+
+static MS_INLINE PyObject *
+ms_get_annotate_from_class_namespace(PyObject *namespace) {
+    PyObject *annotate;
+
+    /* Equivalent to: obj["__annotate__"] */
+    annotate = PyDict_GetItemString(namespace, "__annotate__");  /* borrowed */
+    if (annotate != NULL) {
+        Py_INCREF(annotate);
+        return annotate;
+    }
+
+    /* Equivalent to: obj.get("__annotate_func__", None) */
+    annotate = PyDict_GetItemString(namespace, "__annotate_func__");  /* borrowed */
+    if (annotate != NULL) {
+        Py_INCREF(annotate);
+        return annotate;
+    }
+
+    Py_RETURN_NONE;  /* Neither key present */
 }
 
 /*************************************************************************
@@ -2652,7 +2660,7 @@ AssocList_FromDict(PyObject *dict) {
     PyObject *key, *val;
     Py_ssize_t pos = 0;
     int err = 0;
-    MS_BEGIN_CRITICAL_SECTION(dict);
+    Py_BEGIN_CRITICAL_SECTION(dict);
     while (PyDict_Next(dict, &pos, &key, &val)) {
         if (!PyUnicode_Check(key)) {
             PyErr_SetString(
@@ -2667,7 +2675,7 @@ AssocList_FromDict(PyObject *dict) {
             break;
         }
     }
-    MS_END_CRITICAL_SECTION();
+    Py_END_CRITICAL_SECTION();
     if (!err) return out;
     AssocList_Free(out);
     return NULL;
@@ -4711,9 +4719,9 @@ cleanup:
 static int
 typenode_collect_convert_structs(TypeNodeCollectState *state) {
     int status;
-    MS_BEGIN_CRITICAL_SECTION(state->mod->struct_lookup_cache);
+    Py_BEGIN_CRITICAL_SECTION(state->mod->struct_lookup_cache);
     status = typenode_collect_convert_structs_lock_held(state);
-    MS_END_CRITICAL_SECTION();
+    Py_END_CRITICAL_SECTION();
     return status;
 }
 
@@ -5965,36 +5973,28 @@ structmeta_collect_fields(StructMetaInfo *info, MsgspecState *mod, bool kwonly) 
         info->namespace, "__annotations__"
     );
     if (annotations == NULL) {
-        if (mod->get_annotate_from_class_namespace != NULL) {
-            PyObject *annotate = PyObject_CallOneArg(
-                mod->get_annotate_from_class_namespace, info->namespace
-            );
-            if (annotate == NULL) {
-                return -1;
-            }
-            if (annotate == Py_None) {
-                Py_DECREF(annotate);
-                return 0;
-            }
-            PyObject *format = PyLong_FromLong(1);  /* annotationlib.Format.VALUE */
-            if (format == NULL) {
-                Py_DECREF(annotate);
-                return -1;
-            }
-            annotations = PyObject_CallOneArg(
-                annotate, format
-            );
+        PyObject *annotate = ms_get_annotate_from_class_namespace(info->namespace);
+        if (annotate == NULL) {
+            return -1;
+        }
+        if (annotate == Py_None) {
             Py_DECREF(annotate);
-            Py_DECREF(format);
-            if (annotations == NULL) {
-                return -1;
-            }
+            return 0;
         }
-        else {
-            return 0;  // No annotations, nothing to do
+        PyObject *format = PyLong_FromLong(1);  /* annotationlib.Format.VALUE */
+        if (format == NULL) {
+            Py_DECREF(annotate);
+            return -1;
         }
-    }
-    else {
+        annotations = PyObject_CallOneArg(
+            annotate, format
+        );
+        Py_DECREF(annotate);
+        Py_DECREF(format);
+        if (annotations == NULL) {
+            return -1;
+        }
+    } else {
         Py_INCREF(annotations);
     }
 
@@ -6994,9 +6994,9 @@ error:
 static PyObject *
 StructInfo_Convert(PyObject *obj) {
     PyObject *res = NULL;
-    MS_BEGIN_CRITICAL_SECTION(obj);
+    Py_BEGIN_CRITICAL_SECTION(obj);
     res = StructInfo_Convert_lock_held(obj);
-    MS_END_CRITICAL_SECTION();
+    Py_END_CRITICAL_SECTION();
     return res;
 }
 
@@ -9389,14 +9389,14 @@ AssocList_FromObject(PyObject *obj) {
     }
 
     out = AssocList_New(max_size);
-    MS_BEGIN_CRITICAL_SECTION(obj);
+    Py_BEGIN_CRITICAL_SECTION(obj);
     if (out == NULL) goto cleanup;
     /* Append everything in `__dict__` */
     if (dict != NULL) {
         PyObject *key, *val;
         Py_ssize_t pos = 0;
         int err = 0;
-        MS_BEGIN_CRITICAL_SECTION(dict);
+        Py_BEGIN_CRITICAL_SECTION(dict);
         while (PyDict_Next(dict, &pos, &key, &val)) {
             if (MS_LIKELY(PyUnicode_CheckExact(key))) {
                 Py_ssize_t key_len;
@@ -9413,7 +9413,7 @@ AssocList_FromObject(PyObject *obj) {
                 }
             }
         }
-        MS_END_CRITICAL_SECTION();
+        Py_END_CRITICAL_SECTION();
         if (MS_UNLIKELY(err)) goto cleanup;
     }
     /* Then append everything in slots */
@@ -9439,7 +9439,7 @@ AssocList_FromObject(PyObject *obj) {
 
 cleanup:
     Py_XDECREF(dict);
-    MS_END_CRITICAL_SECTION();
+    Py_END_CRITICAL_SECTION();
     Py_LeaveRecursiveCall();
     if (!ok) {
         AssocList_Free(out);
@@ -12685,10 +12685,10 @@ mpack_encode_bytearray(EncoderState *self, PyObject *obj)
 {
     Py_ssize_t len = PyByteArray_GET_SIZE(obj);
     int ret = 0;
-    MS_BEGIN_CRITICAL_SECTION(obj);
+    Py_BEGIN_CRITICAL_SECTION(obj);
     const char* buf = PyByteArray_AS_STRING(obj);
     ret = mpack_encode_bin(self, buf, len);
-    MS_END_CRITICAL_SECTION();
+    Py_END_CRITICAL_SECTION();
     return ret;
 }
 
@@ -12757,14 +12757,14 @@ mpack_encode_list(EncoderState *self, PyObject *obj)
 
     if (mpack_encode_array_header(self, len, "list") < 0) return -1;
     if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
-    MS_BEGIN_CRITICAL_SECTION(obj);
+    Py_BEGIN_CRITICAL_SECTION(obj);
     for (i = 0; i < len; i++) {
         if (mpack_encode_inline(self, PyList_GET_ITEM(obj, i)) < 0) {
             status = -1;
             break;
         }
     }
-    MS_END_CRITICAL_SECTION();
+    Py_END_CRITICAL_SECTION();
     Py_LeaveRecursiveCall();
     return status;
 }
@@ -12903,14 +12903,14 @@ mpack_encode_dict(EncoderState *self, PyObject *obj)
 
     if (mpack_encode_map_header(self, len, "dicts") < 0) return -1;
     if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
-    MS_BEGIN_CRITICAL_SECTION(obj);
+    Py_BEGIN_CRITICAL_SECTION(obj);
     while (PyDict_Next(obj, &pos, &key, &val)) {
         if (mpack_encode_dict_key_inline(self, key) < 0) goto cleanup;
         if (mpack_encode_inline(self, val) < 0) goto cleanup;
     }
     status = 0;
 cleanup:;
-    MS_END_CRITICAL_SECTION();
+    Py_END_CRITICAL_SECTION();
     Py_LeaveRecursiveCall();
     return status;
 }
@@ -13007,13 +13007,13 @@ mpack_encode_object(EncoderState *self, PyObject *obj)
     /* Cache header offset in case we need to adjust the header after writing */
     Py_ssize_t header_offset = self->output_len;
     if (mpack_encode_map_header(self, max_size, "objects") < 0) goto cleanup;
-    MS_BEGIN_CRITICAL_SECTION(obj);
+    Py_BEGIN_CRITICAL_SECTION(obj);
     /* First encode everything in `__dict__` */
     if (dict != NULL) {
         PyObject *key, *val;
         Py_ssize_t pos = 0;
         int err = 0;
-        MS_BEGIN_CRITICAL_SECTION(dict);
+        Py_BEGIN_CRITICAL_SECTION(dict);
         while (PyDict_Next(dict, &pos, &key, &val)) {
             if (MS_LIKELY(PyUnicode_CheckExact(key))) {
                 Py_ssize_t key_len;
@@ -13035,7 +13035,7 @@ mpack_encode_object(EncoderState *self, PyObject *obj)
                 size++;
             }
         }
-        MS_END_CRITICAL_SECTION();
+        Py_END_CRITICAL_SECTION();
         if (MS_UNLIKELY(err)) goto cleanup;
     }
     /* Then encode everything in slots */
@@ -13076,7 +13076,7 @@ mpack_encode_object(EncoderState *self, PyObject *obj)
     status = 0;
 cleanup:
     Py_XDECREF(dict);
-    MS_END_CRITICAL_SECTION();
+    Py_END_CRITICAL_SECTION();
     Py_LeaveRecursiveCall();
     return status;
 }
@@ -14052,11 +14052,11 @@ static MS_NOINLINE int
 json_encode_list(EncoderState *self, PyObject *obj)
 {
     int ret;
-    MS_BEGIN_CRITICAL_SECTION(obj);
+    Py_BEGIN_CRITICAL_SECTION(obj);
     ret = json_encode_sequence(
         self, PyList_GET_SIZE(obj), ((PyListObject *)obj)->ob_item
     );
-    MS_END_CRITICAL_SECTION();
+    Py_END_CRITICAL_SECTION();
     return ret;
 }
 
@@ -14232,7 +14232,7 @@ json_encode_dict(EncoderState *self, PyObject *obj)
 
     if (ms_write(self, "{", 1) < 0) return -1;
     if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
-    MS_BEGIN_CRITICAL_SECTION(obj);
+    Py_BEGIN_CRITICAL_SECTION(obj);
     while (PyDict_Next(obj, &pos, &key, &val)) {
         if (json_encode_dict_key(self, key) < 0) goto cleanup;
         if (ms_write(self, ":", 1) < 0) goto cleanup;
@@ -14243,7 +14243,7 @@ json_encode_dict(EncoderState *self, PyObject *obj)
     *(self->output_buffer_raw + self->output_len - 1) = '}';
     status = 0;
 cleanup:;
-    MS_END_CRITICAL_SECTION();
+    Py_END_CRITICAL_SECTION();
     Py_LeaveRecursiveCall();
     return status;
 }
@@ -14313,7 +14313,7 @@ json_encode_object(EncoderState *self, PyObject *obj)
     if (Py_EnterRecursiveCall(" while serializing an object")) return -1;
     /* First encode everything in `__dict__` */
     PyObject *dict = PyObject_GenericGetDict(obj, NULL);
-    MS_BEGIN_CRITICAL_SECTION(obj);
+    Py_BEGIN_CRITICAL_SECTION(obj);
     if (MS_UNLIKELY(dict == NULL)) {
         PyErr_Clear();
     }
@@ -14321,7 +14321,7 @@ json_encode_object(EncoderState *self, PyObject *obj)
         PyObject *key, *val;
         Py_ssize_t pos = 0;
         int err = 0;
-        MS_BEGIN_CRITICAL_SECTION(dict);
+        Py_BEGIN_CRITICAL_SECTION(dict);
         while (PyDict_Next(dict, &pos, &key, &val)) {
             if (MS_LIKELY(PyUnicode_CheckExact(key))) {
                 Py_ssize_t key_len;
@@ -14350,7 +14350,7 @@ json_encode_object(EncoderState *self, PyObject *obj)
                 }
             }
         }
-        MS_END_CRITICAL_SECTION();
+        Py_END_CRITICAL_SECTION();
         if (MS_UNLIKELY(err)) goto cleanup;
     }
     /* Then encode everything in slots */
@@ -14384,7 +14384,7 @@ json_encode_object(EncoderState *self, PyObject *obj)
         status = ms_write(self, "}", 1);
     }
 cleanup:;
-    MS_END_CRITICAL_SECTION();
+    Py_END_CRITICAL_SECTION();
     Py_XDECREF(dict);
     Py_LeaveRecursiveCall();
     return status;
@@ -19931,7 +19931,7 @@ to_builtins_dict(ToBuiltinsState *self, PyObject *obj) {
     PyObject *new_key = NULL, *new_val = NULL, *key, *val;
     bool ok = false;
     PyObject *out = PyDict_New();
-    MS_BEGIN_CRITICAL_SECTION(obj);
+    Py_BEGIN_CRITICAL_SECTION(obj);
     if (out == NULL) goto cleanup;
 
     Py_ssize_t pos = 0;
@@ -19965,7 +19965,7 @@ to_builtins_dict(ToBuiltinsState *self, PyObject *obj) {
     ok = true;
 
 cleanup:;
-    MS_END_CRITICAL_SECTION();
+    Py_END_CRITICAL_SECTION();
     Py_LeaveRecursiveCall();
     if (!ok) {
         Py_CLEAR(out);
@@ -20106,7 +20106,7 @@ to_builtins_object(ToBuiltinsState *self, PyObject *obj) {
     if (Py_EnterRecursiveCall(" while serializing an object")) return NULL;
 
     out = PyDict_New();
-    MS_BEGIN_CRITICAL_SECTION(obj);
+    Py_BEGIN_CRITICAL_SECTION(obj);
     if (out == NULL) goto cleanup;
 
     /* First encode everything in `__dict__` */
@@ -20118,7 +20118,7 @@ to_builtins_object(ToBuiltinsState *self, PyObject *obj) {
         PyObject *key, *val;
         Py_ssize_t pos = 0;
         int err = 0;
-        MS_BEGIN_CRITICAL_SECTION(dict);
+        Py_BEGIN_CRITICAL_SECTION(dict);
         while (PyDict_Next(dict, &pos, &key, &val)) {
             if (MS_LIKELY(PyUnicode_CheckExact(key))) {
                 Py_ssize_t key_len;
@@ -20143,7 +20143,7 @@ to_builtins_object(ToBuiltinsState *self, PyObject *obj) {
                 }
             }
         }
-        MS_END_CRITICAL_SECTION();
+        Py_END_CRITICAL_SECTION();
         if (MS_UNLIKELY(err)) goto cleanup;
     }
     /* Then encode everything in slots */
@@ -20183,7 +20183,7 @@ to_builtins_object(ToBuiltinsState *self, PyObject *obj) {
 
 cleanup:
     Py_XDECREF(dict);
-    MS_END_CRITICAL_SECTION();
+    Py_END_CRITICAL_SECTION();
     Py_LeaveRecursiveCall();
     if (!ok) {
         Py_CLEAR(out);
@@ -21606,7 +21606,7 @@ convert_dict(
     ConvertState *self, PyObject *obj, TypeNode *type, PathNode *path
 ) {
     PyObject *res = NULL;
-    MS_BEGIN_CRITICAL_SECTION(obj);
+    Py_BEGIN_CRITICAL_SECTION(obj);
     if (type->types & MS_TYPE_DICT) {
         res = convert_dict_to_dict(self, obj, type, path);
     }
@@ -21625,7 +21625,7 @@ convert_dict(
     } else {
         res = ms_validation_error("object", type, path);
     }
-    MS_END_CRITICAL_SECTION();
+    Py_END_CRITICAL_SECTION();
     return res;
 }
 
@@ -22664,26 +22664,6 @@ PyInit__core(void)
     st->re_compile = PyObject_GetAttrString(temp_module, "compile");
     Py_DECREF(temp_module);
     if (st->re_compile == NULL) return NULL;
-
-    /* annotationlib.get_annotate_from_class_namespace */
-    temp_module = PyImport_ImportModule("annotationlib");
-    if (temp_module == NULL) {
-        if (PyErr_ExceptionMatches(PyExc_ModuleNotFoundError)) {
-            // Below Python 3.14
-            PyErr_Clear();
-            st->get_annotate_from_class_namespace = NULL;
-        }
-        else {
-            return NULL;
-        }
-    }
-    else {
-        st->get_annotate_from_class_namespace = PyObject_GetAttrString(
-            temp_module, "get_annotate_from_class_namespace"
-        );
-        Py_DECREF(temp_module);
-        if (st->get_annotate_from_class_namespace == NULL) return NULL;
-    }
 
     /* Initialize cached constant strings */
 #define CACHED_STRING(attr, str) \
