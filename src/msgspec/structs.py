@@ -6,6 +6,7 @@ from . import NODEFAULT, Struct, field
 from ._core import (  # noqa
     Factory as _Factory,
     StructConfig,
+    StructMeta,
     asdict,
     astuple,
     force_setattr,
@@ -60,7 +61,7 @@ class FieldInfo(Struct):
         return self.default is NODEFAULT and self.default_factory is NODEFAULT
 
 
-def fields(type_or_instance: Struct | type[Struct]) -> tuple[FieldInfo]:
+def fields(type_or_instance: Struct | StructMeta) -> tuple[FieldInfo]:
     """Get information about the fields in a Struct.
 
     Parameters
@@ -77,7 +78,10 @@ def fields(type_or_instance: Struct | type[Struct]) -> tuple[FieldInfo]:
     else:
         annotated_cls = type_or_instance
         cls = getattr(type_or_instance, "__origin__", type_or_instance)
-        if not (isinstance(cls, type) and issubclass(cls, Struct)):
+        if not (
+            isinstance(cls, type)
+            and (issubclass(cls, Struct) or issubclass(type(cls), StructMeta))
+        ):
             raise TypeError("Must be called with a struct type or instance")
 
     hints = _get_class_annotations(annotated_cls)
