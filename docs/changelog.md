@@ -1,10 +1,8 @@
-Changelog
-=========
+# Changelog
 
 .. currentmodule:: msgspec
 
-Version 0.19.0 (2024-12-27)
----------------------------
+## Version 0.19.0 (2024-12-27)
 
 - Improve JSON encoding performance by up to 40% (:pr:`647`).
 - Ensure `tuple` and `frozenset` default values are treated identically whether
@@ -32,8 +30,7 @@ Version 0.19.0 (2024-12-27)
 - Use ``eval_type_backport`` to backport type annotations to Python 3.9
   (:pr:`773`).
 
-Version 0.18.6 (2024-01-21)
----------------------------
+## Version 0.18.6 (2024-01-21)
 
 - Support coercing integral floats to ints when ``strict=False`` (:pr:`619`).
 - Preserve leading ``_`` when renaming fields to camel or pascal case (:pr:`620`).
@@ -49,8 +46,7 @@ Version 0.18.6 (2024-01-21)
   non-dict mappings or arbitrary objects to ``Struct`` types in
   ``msgspec.convert`` (:pr:`636`).
 
-Version 0.18.5 (2023-12-12)
----------------------------
+## Version 0.18.5 (2023-12-12)
 
 - Support unhashable ``Annotated`` metadata in `msgspec.inspect.type_info`
   (:pr:`566`).
@@ -73,20 +69,17 @@ Version 0.18.5 (2023-12-12)
 - Add a ``schema_hook`` for generating JSON schemas for custom types (:pr:`605`).
 - Add support for Python 3.12's ``type`` aliases (:pr:`606`).
 
-Version 0.18.4 (2023-10-04)
----------------------------
+## Version 0.18.4 (2023-10-04)
 
 - Resolve an issue leading to periodic segfaults when importing ``msgspec`` on
   CPython 3.12 (:pr:`561`)
 
-Version 0.18.3 (2023-10-03)
----------------------------
+## Version 0.18.3 (2023-10-03)
 
 - Improve type annotation for ``Struct.__rich_repr__`` (:pr:`557`)
 - Add pre-built wheels for Python 3.12 (:pr:`558`)
 
-Version 0.18.2 (2023-08-26)
----------------------------
+## Version 0.18.2 (2023-08-26)
 
 - Support ``Enum._missing_`` hooks for handling unknown enum values (:pr:`532`).
 - Fix JSON encoding of `datetime.datetime` objects with `zoneinfo.ZoneInfo`
@@ -96,16 +89,14 @@ Version 0.18.2 (2023-08-26)
 - Relax datetime/time parsing format to allow some RFC3339 extensions from
   ISO8601 (:pr:`539`).
 
-Version 0.18.1 (2023-08-16)
----------------------------
+## Version 0.18.1 (2023-08-16)
 
 - Support custom ``builtin_types`` in `msgspec.to_builtins` (:pr:`517`).
 - Try ``getattr`` before ``getitem`` when converting with
   ``from_attributes=True`` (:pr:`519`).
 - More efficient module state access in top-level functions (:pr:`521`).
 
-Version 0.18.0 (2023-08-10)
----------------------------
+## Version 0.18.0 (2023-08-10)
 
 - Add a new `msgspec.json.Decoder.decode_lines` method for decoding
   newline-delimited JSON into a list of values (:pr:`485`).
@@ -122,8 +113,7 @@ Version 0.18.0 (2023-08-10)
 - Add ``float_hook`` to `msgspec.json.Decoder` to support changing the default
   for how JSON floats are decoded (:pr:`511`).
 
-Version 0.17.0 (2023-07-11)
----------------------------
+## Version 0.17.0 (2023-07-11)
 
 - Ensure ``None`` may be explicitly passed to `defstruct` for
   ``module``/``namespace``/``bases`` (:pr:`445`).
@@ -155,8 +145,7 @@ Version 0.17.0 (2023-07-11)
 - Add a new `msgspec.json.Encoder.encode_lines` method for encoding an iterable
   of values as newline-delimited JSON (:pr:`479`).
 
-Version 0.16.0 (2023-06-12)
----------------------------
+## Version 0.16.0 (2023-06-12)
 
 - Deprecate ``msgspec.from_builtins`` in favor of `msgspec.convert`. The new
   ``convert`` function provides a superset of the functionality available in
@@ -180,8 +169,7 @@ Version 0.16.0 (2023-06-12)
 - Support parametrizing ``Decoder`` types at runtime (:pr:`415`).
 - Support encoding subclasses of ``UUID`` (:pr:`429`).
 
-Version 0.15.1 (2023-05-19)
----------------------------
+## Version 0.15.1 (2023-05-19)
 
 - Fix a reference counting bug introduced in 0.15.0 when decoding naive (no
   timezone) ``datetime``/``time`` objects in both the ``msgpack`` and ``json``
@@ -190,8 +178,7 @@ Version 0.15.1 (2023-05-19)
   `typing.Required`/`typing.NotRequired` in `typing.TypedDict` when
   ``__future__.annotations`` is enabled (:pr:`410`).
 
-Version 0.15.0 (2023-05-10)
----------------------------
+## Version 0.15.0 (2023-05-10)
 
 - Add support for Generic `Struct` types (:pr:`386`, :pr:`393`).
 - Add support for Generic `dataclasses` and
@@ -210,8 +197,7 @@ Version 0.15.0 (2023-05-10)
 - Make all ``Encoder``/``Decoder`` methods threadsafe (:pr:`402`).
 - **BREAKING**: Drop the ``write_buffer_size`` kwarg to ``Encoder`` (:pr:`402`).
 
-Version 0.14.2 (2023-04-19)
----------------------------
+## Version 0.14.2 (2023-04-19)
 
 - Remove ``__del__`` trashcan usage for structs with ``gc=False`` (:pr:`369`).
 - Support overriding ``__setattr__`` in Struct types (:pr:`376`).
@@ -223,16 +209,14 @@ Version 0.14.2 (2023-04-19)
   doesn't support will now error at decode time, rather than when the decoder
   is constructed (:pr:`381`).
 
-Version 0.14.1 (2023-04-07)
----------------------------
+## Version 0.14.1 (2023-04-07)
 
 - Further optimize decoding of JSON arrays into lists (:pr:`363`).
 - Fix a bug preventing using structs configured with ``dict=True`` on Python
   3.11 (:pr:`365`).
 - Avoid preallocating large lists/tuples in the msgpack decoder (:pr:`367`).
 
-Version 0.14.0 (2023-04-02)
----------------------------
+## Version 0.14.0 (2023-04-02)
 
 - Support encoding and decoding `attrs <https://www.attrs.org/en/stable/>`__
   types (:pr:`323`).
@@ -266,14 +250,12 @@ Version 0.14.0 (2023-04-02)
 - **BREAKING**: The rules around class inheritance and a struct's ``rename``
   option have changed. See :pr:`356` for more information.
 
-Version 0.13.1 (2023-02-09)
----------------------------
+## Version 0.13.1 (2023-02-09)
 
 - Fix a memory leak in the JSON decoder introduced in 0.13.0, caused by a
   reference counting bug when decoding into ``Struct`` types (:pr:`312`).
 
-Version 0.13.0 (2023-02-08)
----------------------------
+## Version 0.13.0 (2023-02-08)
 
 - Add `to_builtins` function for converting messages composed of any supported
   type to ones composed of only simple builtin types commonly supported by
@@ -308,8 +290,7 @@ Version 0.13.0 (2023-02-08)
   encoders (:pr:`294`, :pr:`298`).
 
 
-Version 0.12.0 (2023-01-05)
----------------------------
+## Version 0.12.0 (2023-01-05)
 
 - Support encoding ``set`` and ``frozenset`` subclasses (:pr:`249`).
 - Support encoding/decoding `typing.NewType` types (:pr:`251`).
@@ -322,8 +303,7 @@ Version 0.12.0 (2023-01-05)
   metadata (:pr:`255`).
 - Improved performance for JSON encoding strings (:pr:`256`).
 
-Version 0.11.0 (2022-12-19)
----------------------------
+## Version 0.11.0 (2022-12-19)
 
 - Improve performance of constructors for `Struct` types when using keyword
   arguments (:pr:`237`).
@@ -343,14 +323,12 @@ Version 0.11.0 (2022-12-19)
   See :ref:`struct-field-ordering` for more information (:pr:`242`).
 - Support encoding/decoding dictionaries with integer keys for JSON (:pr:`243`).
 
-Version 0.10.1 (2022-12-08)
----------------------------
+## Version 0.10.1 (2022-12-08)
 
 - Ignore attributes with leading underscores (``"_"``) when encoding
   `dataclasses` (:pr:`234`)
 
-Version 0.10.0 (2022-12-07)
----------------------------
+## Version 0.10.0 (2022-12-07)
 
 - Add ``forbid_unknown_fields`` configuration option to `Struct` types (:pr:`210`)
 - **BREAKING**: Encode all `enum` types by value, rather than name (:pr:`211`)
@@ -368,15 +346,13 @@ Version 0.10.0 (2022-12-07)
 - Support decoding JSON from strings instead of just bytes-like objects
   (:pr:`229`)
 
-Version 0.9.1 (2022-10-27)
---------------------------
+## Version 0.9.1 (2022-10-27)
 
 - Enable Python 3.11 builds (:pr:`205`)
 - Support greater than microsecond resolution when parsing JSON timestamps (:pr:`201`)
 - Work around a limitation in mypy for typed decoders (:pr:`191`)
 
-Version 0.9.0 (2022-09-13)
---------------------------
+## Version 0.9.0 (2022-09-13)
 
 - Support for :doc:`constraints <constraints>` during validation. For example,
   this allows ensuring a field is an integer >= 0. (:pr:`176`)
@@ -388,8 +364,7 @@ Version 0.9.0 (2022-09-13)
 - Builtin support for renaming fields using kebab-case (:pr:`175`)
 - Support for passing a mapping when renaming fields (:pr:`185`)
 
-Version 0.8.0 (2022-08-01)
---------------------------
+## Version 0.8.0 (2022-08-01)
 
 - Support integer tag values when using :ref:`tagged unions
   <struct-tagged-unions>` (:pr:`135`).
@@ -403,8 +378,7 @@ Version 0.8.0 (2022-08-01)
 - Fix a bug preventing decoding custom types wrapped in a `typing.Optional`
   (:pr:`162`).
 
-Version 0.7.1 (2022-06-27)
---------------------------
+## Version 0.7.1 (2022-06-27)
 
 - Further reduce the size of packaged wheels (:pr:`130`).
 - Add `weakref` support for `Struct` types through a new ``weakref``
@@ -412,8 +386,7 @@ Version 0.7.1 (2022-06-27)
 - Fix a couple unlikely (but possible) bugs in the deallocation routine for
   Struct types (:pr:`131`).
 
-Version 0.7.0 (2022-06-20)
---------------------------
+## Version 0.7.0 (2022-06-20)
 
 - Dramatically speedup JSON string decoding, up to 2x speedup in some cases
   (:pr:`118`).
@@ -441,8 +414,7 @@ Version 0.7.0 (2022-06-20)
   (:pr:`124`).
 
 
-Version 0.6.0 (2022-04-06)
---------------------------
+## Version 0.6.0 (2022-04-06)
 
 - Add a new `msgspec.Raw <https://jcristharif.com/msgspec/api.html#msgspec.Raw>`__
   type for delayed decoding of message fields / serializing already encoded
@@ -471,8 +443,7 @@ Version 0.6.0 (2022-04-06)
 - A smattering of other performance improvements.
 
 
-Version 0.5.0 (2022-03-09)
---------------------------
+## Version 0.5.0 (2022-03-09)
 
 - Support `tagged unions
   <https://jcristharif.com/msgspec/structs.html#tagged-unions>`__ for
@@ -487,8 +458,7 @@ Version 0.5.0 (2022-03-09)
 - **BREAKING**: Rename the Struct option ``asarray`` to ``array_like`` (:pr:`85`).
 
 
-Version 0.4.2 (2022-02-28)
---------------------------
+## Version 0.4.2 (2022-02-28)
 
 - Support ``typing.Literal`` string types as dict keys in JSON (:pr:`78`).
 - Support Python 3.10 style unions (for example, ``int | float | None``)
@@ -496,8 +466,7 @@ Version 0.4.2 (2022-02-28)
 - Publish Python 3.10 wheels (:pr:`80`).
 
 
-Version 0.4.1 (2022-02-23)
---------------------------
+## Version 0.4.1 (2022-02-23)
 
 - Optimize decoding of ``Enum`` types, on average ~10x faster (:pr:`69`).
 - Optimize decoding of ``IntEnum`` types, on average ~12x faster (:pr:`68`).
@@ -506,8 +475,7 @@ Version 0.4.1 (2022-02-23)
   collector for their instances (:pr:`72`).
 
 
-Version 0.4.0 (2022-02-08)
---------------------------
+## Version 0.4.0 (2022-02-08)
 
 - Moved MessagePack support to the ``msgspec.msgpack`` submodule (:pr:`56`).
 - New JSON support available in ``msgspec.json`` (:pr:`56`).
@@ -526,24 +494,21 @@ Version 0.4.0 (2022-02-08)
 - General performance improvements across all encoders/decoders.
 
 
-Version 0.3.2 (2021-07-23)
---------------------------
+## Version 0.3.2 (2021-07-23)
 
 - Faster float encoding and decoding (:pr:`47`).
 - General micro-optimizations for MessagePack encode/decode. This is most
   visible for large messages (:pr:`48`, :pr:`50`).
 
 
-Version 0.3.1 (2021-07-12)
---------------------------
+## Version 0.3.1 (2021-07-12)
 
 - Use a freelist for small structs to improve struct allocation time
   (:pr:`44`).
 - Small performance improvements for struct serialization (:pr:`45`).
 
 
-Version 0.3.0 (2021-07-07)
---------------------------
+## Version 0.3.0 (2021-07-07)
 
 - Add ``Encoder.encode_into`` api, for encoding into an existing buffer without
   copying (:pr:`34`).
@@ -558,14 +523,12 @@ Version 0.3.0 (2021-07-07)
   faster decoding.
 
 
-Version 0.2.0 (2021-02-25)
---------------------------
+## Version 0.2.0 (2021-02-25)
 
 - Add ``default`` callback to ``encode``/``Encoder`` (:pr:`21`).
 - Fix bug in ``Encoder`` dealloc (:pr:`21`).
 
 
-Version 0.1.0 (2021-02-23)
---------------------------
+## Version 0.1.0 (2021-02-23)
 
 - Initial Release
