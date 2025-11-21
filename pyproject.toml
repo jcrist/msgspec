@@ -95,6 +95,7 @@ dev = [
 doc = [
   "furo",
   "ipython",
+  "myst-parser",
   "sphinx",
   "sphinx-copybutton",
   "sphinx-design",
