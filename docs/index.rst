@@ -199,4 +199,4 @@ few:
 
     api.rst
     examples/index.rst
-    changelog.rst
+    changelog.md
