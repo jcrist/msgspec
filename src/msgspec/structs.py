@@ -73,7 +73,9 @@ def fields(type_or_instance: Struct | StructMeta) -> tuple[FieldInfo]:
     -------
     tuple[FieldInfo]
     """
-    if isinstance(type_or_instance, Struct):
+    if isinstance(type_or_instance, Struct) or issubclass(
+        type(type_or_instance.__class__), StructMeta
+    ):
         annotated_cls = cls = type(type_or_instance)
     else:
         annotated_cls = type_or_instance
