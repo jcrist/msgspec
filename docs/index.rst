@@ -149,6 +149,11 @@ few:
 
         .. image:: _static/faststream.png
 
+    .. grid-item-card:: Meltano
+        :link: https://sdk.meltano.com/en/latest/guides/performance.html#use-a-different-message-writer-or-reader
+
+        .. image:: _static/meltano.svg
+
 .. _type annotations: https://docs.python.org/3/library/typing.html
 .. _JSON: https://json.org
 .. _MessagePack: https://msgpack.org
