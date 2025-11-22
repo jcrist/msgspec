@@ -42,27 +42,6 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-dev = [
-  "msgspec[doc,test]",
-  "coverage",
-  "mypy",
-  "pre-commit",
-  "pyright",
-]
-doc = [
-  "furo",
-  "ipython",
-  "sphinx",
-  "sphinx-copybutton",
-  "sphinx-design",
-]
-test = [
-  "msgspec[toml,yaml]",
-  "attrs",
-  "eval-type-backport ; python_version < '3.10'",
-  "msgpack",
-  "pytest",
-]
 toml = [
   "tomli ; python_version < '3.11'",
   "tomli_w",
