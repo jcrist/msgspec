@@ -62,9 +62,5 @@ ext_modules = [
 ]
 
 setup(
-    name="msgspec",
-    packages=["msgspec"],
-    package_dir={"": "src"},
-    package_data={"msgspec": ["py.typed", "*.pyi"]},
     ext_modules=ext_modules,
 )
