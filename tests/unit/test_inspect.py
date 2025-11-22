@@ -786,3 +786,32 @@ def test_multi_type_info():
     res = mi.multi_type_info([Example, List[Example]])
     assert res == (ex_type, mi.ListType(ex_type))
     assert res[0] is res[1].item_type
+
+
+def test_type_info_custom_base_class():
+    class CustomMeta(msgspec.StructMeta):
+        pass
+
+    class Base(metaclass=CustomMeta):
+        pass
+
+    class Model(Base):
+        foo: str
+
+    assert mi.type_info(Model) == mi.StructType(
+        cls=Model,
+        fields=(
+            mi.Field(
+                name="foo",
+                encode_name="foo",
+                type=mi.StrType(min_length=None, max_length=None, pattern=None),
+                required=True,
+                default=msgspec.NODEFAULT,
+                default_factory=msgspec.NODEFAULT,
+            ),
+        ),
+        tag_field=None,
+        tag=None,
+        array_like=False,
+        forbid_unknown_fields=False,
+    )
