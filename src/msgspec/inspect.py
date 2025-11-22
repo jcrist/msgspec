@@ -675,7 +675,8 @@ def _origin_args_metadata(t):
 
 
 def _is_struct(t):
-    return type(t) is type(msgspec.Struct)
+    t_type = type(t)
+    return t_type is type(msgspec.Struct) or issubclass(t_type, msgspec.StructMeta)
 
 
 def _is_enum(t):
