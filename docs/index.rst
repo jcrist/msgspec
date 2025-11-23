@@ -154,10 +154,10 @@ few:
 
         .. image:: _static/django-modern-rest.png
 
-    .. grid-item-card:: Meltano
-        :link: https://sdk.meltano.com/en/latest/guides/performance.html#use-a-different-message-writer-or-reader
+    .. grid-item-card:: `Meltano <https://sdk.meltano.com/en/latest/guides/performance.html#use-a-different-message-writer-or-reader>`_
 
         .. image:: _static/meltano.svg
+            :target: https://meltano.com/
 
 .. _type annotations: https://docs.python.org/3/library/typing.html
 .. _JSON: https://json.org
