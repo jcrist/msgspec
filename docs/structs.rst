@@ -1020,7 +1020,7 @@ ABCs.
 .. _struct-gc:
 
 Disabling Garbage Collection
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. warning::
 
