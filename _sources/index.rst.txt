@@ -104,55 +104,55 @@ few:
 
 .. grid:: 2 2 4 4
 
-    .. grid-item-card:: NautilusTrader
-        :link: https://nautilustrader.io/
+    .. grid-item-card:: `NautilusTrader <https://nautilustrader.io/docs/latest/api_reference/serialization/#class-msgspecserializer>`_
 
         .. image:: _static/nautilus-trader.png
+            :target: https://nautilustrader.io/
 
-    .. grid-item-card:: Litestar
-        :link: https://litestar.dev/
+    .. grid-item-card:: `Litestar <https://docs.litestar.dev/latest/reference/dto/msgspec_dto.html>`_
 
         .. image:: _static/litestar.png
+            :target: https://litestar.dev/
 
-    .. grid-item-card:: Sanic
-        :link: https://sanic.dev/en/
+    .. grid-item-card:: `Sanic <https://github.com/sanic-org/sanic-ext/pull/197>`_
 
         .. image:: _static/sanic.png
+            :target: https://sanic.dev/en/
 
-    .. grid-item-card:: Mosec
-        :link: https://mosecorg.github.io/mosec/
+    .. grid-item-card:: `Mosec <https://mosecorg.github.io/mosec/examples/validate.html>`_
 
         .. image:: _static/mosec.png
+            :target: https://mosecorg.github.io/mosec/
 
-    .. grid-item-card:: Pioreactor
-        :link: https://pioreactor.com/
+    .. grid-item-card:: `Pioreactor <https://github.com/Pioreactor/pioreactor/blob/5e13e709cc76b88661a650882fb02b7e1d30c62e/requirements/requirements.txt#L5>`_
 
         .. image:: _static/pioreactor.png
+            :target: https://pioreactor.com/
 
-    .. grid-item-card:: Zero
-        :link: https://github.com/Ananto30/zero
+    .. grid-item-card:: `Zero <https://github.com/Ananto30/zero/blob/f2a1f10d8c65c1df7358a16fb70dac7d47e28dc4/README.md#default-serializer>`_
 
         .. image:: _static/zero.png
+            :target: https://github.com/Ananto30/zero
 
-    .. grid-item-card:: anywidget
-        :link: https://anywidget.dev/
+    .. grid-item-card:: `anywidget <https://anywidget.dev/en/experimental/#mimebundle-descriptor>`_
 
         .. image:: _static/anywidget.png
+            :target: https://anywidget.dev/
 
-    .. grid-item-card:: Ravyn
-        :link: https://www.ravyn.dev/
+    .. grid-item-card:: `Ravyn <https://www.ravyn.dev/encoders/#example>`_
 
         .. image:: _static/ravyn.png
+            :target: https://www.ravyn.dev/
 
-    .. grid-item-card:: Faststream
-        :link: https://faststream.ag2.ai/
+    .. grid-item-card:: `Faststream <https://faststream.ag2.ai/latest/getting-started/subscription/msgspec/>`_
 
         .. image:: _static/faststream.png
+            :target: https://faststream.ag2.ai/
 
-    .. grid-item-card:: django-modern-rest
-        :link: https://django-modern-rest.rtfd.io/
+    .. grid-item-card:: `django-modern-rest <https://django-modern-rest.readthedocs.io/en/latest/pages/getting-started.html#showcase>`_
 
         .. image:: _static/django-modern-rest.png
+            :target: https://django-modern-rest.rtfd.io/
 
     .. grid-item-card:: `Meltano <https://sdk.meltano.com/en/latest/guides/performance.html#use-a-different-message-writer-or-reader>`_
 
