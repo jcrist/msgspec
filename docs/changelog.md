@@ -4,6 +4,7 @@
 
 - Support Python 3.14, including freethreaded mode ({pr}`852`, {pr}`877`).
 - Expose the `StructMeta` metaclass ({pr}`890`, {pr}`927`, {pr}`928`, {pr}`940`, {pr}`945`).
+- Add `msgspec.inspect.is_struct` and `msgspec.inspect.is_struct_type` functions for checking whether an object is a `msgspec.Struct`-like instance or class ({pr}`950`).
 - Support Windows `arm64` builds ({pr}`943`).
 - Enable ThinLTO on macOS `aarch64` builds ({pr}`937`).
 - Fix leaks of `re.Pattern` objects when using `pattern` constraints of `msgspec.Meta` ({pr}`899`).

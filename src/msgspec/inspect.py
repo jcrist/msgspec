@@ -32,6 +32,7 @@ from ._core import (  # type: ignore
     Factory as _Factory,
     to_builtins as _to_builtins,
 )
+from ._typing_utils import is_struct, is_struct_type
 from ._utils import (  # type: ignore
     _CONCRETE_TYPES,
     _AnnotatedAlias,
@@ -78,6 +79,8 @@ __all__ = (
     "NamedTupleType",
     "DataclassType",
     "StructType",
+    "is_struct",
+    "is_struct_type",
 )
 
 
@@ -674,10 +677,6 @@ def _origin_args_metadata(t):
     return origin, args, tuple(metadata)
 
 
-def _is_struct(t):
-    return isinstance(t, msgspec.StructMeta)
-
-
 def _is_enum(t):
     return type(t) is enum.EnumMeta
 
@@ -889,7 +888,7 @@ class _Translator:
             return LiteralType(tuple(sorted(args)))
         elif _is_enum(t):
             return EnumType(t)
-        elif _is_struct(t):
+        elif is_struct_type(t):
             cls = t[args] if args else t
             if cls in self.cache:
                 return self.cache[cls]

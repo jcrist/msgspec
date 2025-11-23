@@ -815,3 +815,61 @@ def test_type_info_custom_base_class():
         array_like=False,
         forbid_unknown_fields=False,
     )
+
+
+def test_is_struct_runtime():
+    class Base(msgspec.Struct):
+        x: int
+
+    class Derived(Base):
+        pass
+
+    Generated = msgspec.defstruct("InspectStructRuntime", ["x"])
+
+    class CustomMeta(msgspec.StructMeta):
+        pass
+
+    class CustomBase(metaclass=CustomMeta):
+        x: int
+
+    class Custom(CustomBase):
+        pass
+
+    class NotStruct:
+        pass
+
+    assert mi.is_struct(Base(1))
+    assert mi.is_struct(Derived(1))
+    assert mi.is_struct(Generated(1))
+    assert mi.is_struct(Custom(1))
+    assert not mi.is_struct(NotStruct())
+    assert not mi.is_struct(object())
+
+
+def test_is_struct_type_runtime():
+    class Base(msgspec.Struct):
+        x: int
+
+    class Derived(Base):
+        pass
+
+    Generated = msgspec.defstruct("InspectStructTypeRuntime", ["x"])
+
+    class CustomMeta(msgspec.StructMeta):
+        pass
+
+    class CustomBase(metaclass=CustomMeta):
+        pass
+
+    class Custom(CustomBase):
+        x: int
+
+    class NotStruct:
+        pass
+
+    assert mi.is_struct_type(Base)
+    assert mi.is_struct_type(Derived)
+    assert mi.is_struct_type(Generated)
+    assert mi.is_struct_type(Custom)
+    assert not mi.is_struct_type(NotStruct)
+    assert not mi.is_struct_type(object)

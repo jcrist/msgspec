@@ -1070,6 +1070,40 @@ def check_consume_inspect_types() -> None:
     reveal_type(t.includes_none)  # assert "bool" in typ.lower()
 
 
+def check_inspect_is_struct() -> None:
+    class Point(msgspec.Struct):
+        x: int
+
+    obj: object = Point(1)
+    if msgspec.inspect.is_struct(obj):
+        reveal_type(obj)  # assert "Struct" in typ
+    else:
+        reveal_type(obj)  # assert "Struct" not in typ
+
+    ns: object = object()
+    if msgspec.inspect.is_struct(ns):
+        reveal_type(ns)  # assert "Struct" in typ
+    else:
+        reveal_type(ns)  # assert "Struct" not in typ
+
+
+def check_inspect_is_struct_type() -> None:
+    class Point(msgspec.Struct):
+        x: int
+
+    tp: type[Any] = Point
+    if msgspec.inspect.is_struct_type(tp):
+        reveal_type(tp)  # assert "type" in typ and "Struct" in typ
+    else:
+        reveal_type(tp)  # assert "Struct" not in typ
+
+    other: type[Any] = type("NotStruct", (), {})
+    if msgspec.inspect.is_struct_type(other):
+        reveal_type(other)  # assert "Struct" in typ
+    else:
+        reveal_type(other)  # assert "Struct" not in typ
+
+
 ##########################################################
 # JSON Schema                                            #
 ##########################################################
