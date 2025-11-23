@@ -1907,16 +1907,22 @@ Meta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
     }
 
     Meta *out = (Meta *)Meta_Type.tp_alloc(&Meta_Type, 0);
-    if (out == NULL) return NULL;
+    if (out == NULL) {
+        Py_XDECREF(regex);
+        return NULL;
+    }
 
-// set fields on Meta and increase their refcount
+/* SET_FIELD handles borrowed values that need an extra INCREF.
+ * SET_FIELD_OWNED passes through references we already own. */
 #define SET_FIELD(x) do { Py_XINCREF(x); out->x = x; } while(0)
+#define SET_FIELD_OWNED(x) do { out->x = x; } while(0)
     SET_FIELD(gt);
     SET_FIELD(ge);
     SET_FIELD(lt);
     SET_FIELD(le);
     SET_FIELD(multiple_of);
     SET_FIELD(pattern);
+    SET_FIELD_OWNED(regex);
     SET_FIELD(min_length);
     SET_FIELD(max_length);
     SET_FIELD(tz);
@@ -1926,10 +1932,7 @@ Meta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
     SET_FIELD(extra_json_schema);
     SET_FIELD(extra);
 #undef SET_FIELD
-
-    // set fields on Meta without increasing their refcount
-    // regex was created by a PyObject_CallOneArg call, so refcount started out as 1; no need to increase
-    out->regex = regex;
+#undef SET_FIELD_OWNED
 
     return (PyObject *)out;
 }
