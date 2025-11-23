@@ -3,7 +3,6 @@
 import gc
 import re
 import secrets
-
 from abc import ABCMeta, _abc_init, abstractmethod
 
 import pytest
