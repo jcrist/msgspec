@@ -931,8 +931,11 @@ has a signature similar to `dataclasses.make_dataclass`. See
     Point(x=1.0, y=2.0)
 
 
+Advanced
+--------
+
 Metaclasses
------------
+~~~~~~~~~~~
 
 You can define project-wide :class:`msgspec.Struct` policies at class-creation
 time by extending the :class:`msgspec.StructMeta` metaclass.
@@ -1002,19 +1005,22 @@ abstract base Structs (like ``Event``) cannot be instantiated, and
 :func:`isinstance` and :func:`issubclass` checks behave the same as for normal
 ABCs.
 
-.. warning::
+.. important::
 
-    Mixing :class:`msgspec.StructMeta` with arbitrary metaclasses
-    is not supported. Only combinations involving :class:`abc.ABCMeta`
-    (or its subclasses) are guaranteed to work. Prefer using
-    :meth:`object.__init_subclass__` on a :class:`msgspec.Struct` base class
-    instead of additional custom metaclasses.
+    - Classes with a :class:`msgspec.StructMeta`-derived metaclass do not
+      *technically* need to inherit from :class:`msgspec.Struct`, but it is
+      recommended to do so for static typing support in IDEs and other tools.
+    - Mixing :class:`msgspec.StructMeta` with arbitrary metaclasses
+      is not supported. Only combinations involving :class:`abc.ABCMeta`
+      (or its subclasses) are guaranteed to work. Prefer using
+      :meth:`object.__init_subclass__` on a :class:`msgspec.Struct` base class
+      instead of additional custom metaclasses.
 
 
 .. _struct-gc:
 
-Disabling Garbage Collection (Advanced)
----------------------------------------
+Disabling Garbage Collection
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. warning::
 

@@ -2412,6 +2412,30 @@ class TestInspectFields:
             with pytest.raises(TypeError, match="struct type or instance"):
                 msgspec.structs.fields(val)
 
+    def test_fields_struct_meta(self):
+        class CustomMeta(msgspec.StructMeta):
+            pass
+
+        class Base(metaclass=CustomMeta):
+            pass
+
+        class Model(Base):
+            pass
+
+        assert msgspec.structs.fields(Model) == ()
+
+    def test_fields_struct_meta_instance(self):
+        class CustomMeta(msgspec.StructMeta):
+            pass
+
+        class Base(metaclass=CustomMeta):
+            pass
+
+        class Model(Base):
+            pass
+
+        assert msgspec.structs.fields(Model()) == ()
+
     def test_fields_no_fields(self):
         assert msgspec.structs.fields(msgspec.Struct) == ()
 

@@ -6,6 +6,7 @@ from . import NODEFAULT, Struct, field
 from ._core import (  # noqa
     Factory as _Factory,
     StructConfig,
+    StructMeta,
     asdict,
     astuple,
     force_setattr,
@@ -72,12 +73,19 @@ def fields(type_or_instance: Struct | type[Struct]) -> tuple[FieldInfo]:
     -------
     tuple[FieldInfo]
     """
-    if isinstance(type_or_instance, Struct):
-        annotated_cls = cls = type(type_or_instance)
+    obj = type_or_instance
+
+    # Struct class
+    if isinstance(obj, StructMeta):
+        annotated_cls = cls = obj
+    # Struct instance
+    elif isinstance(type(obj), StructMeta):
+        annotated_cls = cls = type(obj)
+    # Generic alias
     else:
-        annotated_cls = type_or_instance
-        cls = getattr(type_or_instance, "__origin__", type_or_instance)
-        if not (isinstance(cls, type) and issubclass(cls, Struct)):
+        annotated_cls = obj
+        cls = getattr(obj, "__origin__", obj)
+        if not isinstance(cls, StructMeta):
             raise TypeError("Must be called with a struct type or instance")
 
     hints = _get_class_annotations(annotated_cls)

@@ -149,6 +149,11 @@ few:
 
         .. image:: _static/faststream.png
 
+    .. grid-item-card:: django-modern-rest
+        :link: https://django-modern-rest.rtfd.io/
+
+        .. image:: _static/django-modern-rest.png
+
     .. grid-item-card:: Meltano
         :link: https://sdk.meltano.com/en/latest/guides/performance.html#use-a-different-message-writer-or-reader
 
@@ -204,4 +209,4 @@ few:
 
     api.rst
     examples/index.rst
-    changelog.rst
+    changelog.md

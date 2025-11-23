@@ -85,6 +85,7 @@ extensions = [
     "sphinx_copybutton",
     "sphinx_design",
     "IPython.sphinxext.ipython_console_highlighting",
+    "myst_parser",
 ]
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
