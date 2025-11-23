@@ -302,6 +302,21 @@
         <article role="main" id="furo-main-content">
           <section id="changelog">
 <h1>Changelog<a class="headerlink" href="#changelog" title="Link to this heading">¶</a></h1>
+<section id="version-0-20-0-2025-11-23">
+<h2>Version 0.20.0 (2025-11-23)<a class="headerlink" href="#version-0-20-0-2025-11-23" title="Link to this heading">¶</a></h2>
+<ul class="simple">
+<li><p>Support Python 3.14, including freethreaded mode (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/852">PR #852</a>, <a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/877">PR #877</a>).</p></li>
+<li><p>Expose the <code class="docutils literal notranslate"><span class="pre">StructMeta</span></code> metaclass (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/890">PR #890</a>, <a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/927">PR #927</a>, <a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/928">PR #928</a>, <a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/940">PR #940</a>, <a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/945">PR #945</a>).</p></li>
+<li><p>Support Windows <code class="docutils literal notranslate"><span class="pre">arm64</span></code> builds (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/943">PR #943</a>).</p></li>
+<li><p>Enable ThinLTO on macOS <code class="docutils literal notranslate"><span class="pre">aarch64</span></code> builds (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/937">PR #937</a>).</p></li>
+<li><p>Fix leaks of <code class="docutils literal notranslate"><span class="pre">re.Pattern</span></code> objects when using <code class="docutils literal notranslate"><span class="pre">pattern</span></code> constraints of <code class="docutils literal notranslate"><span class="pre">msgspec.Meta</span></code> (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/899">PR #899</a>).</p></li>
+<li><p>Fixed <code class="docutils literal notranslate"><span class="pre">memoryview</span></code> support for <code class="docutils literal notranslate"><span class="pre">msgspec.msgpack</span></code> (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/836">PR #836</a>).</p></li>
+<li><p>Fix crash when <code class="docutils literal notranslate"><span class="pre">typing.TypedDict</span></code> contains incorrect metadata (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/853">PR #853</a>, <a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/947">PR #947</a>).</p></li>
+<li><p>Add <code class="docutils literal notranslate"><span class="pre">setuptools-scm</span></code> as a build dependency instead of vendoring <code class="docutils literal notranslate"><span class="pre">versioneer</span></code> (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/905">PR #905</a>).</p></li>
+<li><p>Remove support for legacy packaging builds (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/907">PR #907</a>).</p></li>
+<li><p>Improved the developer experience by adding the <code class="docutils literal notranslate"><span class="pre">just</span></code> command runner and Dev Container support (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/918">PR #918</a>).</p></li>
+</ul>
+</section>
 <section id="version-0-19-0-2024-12-27">
 <h2>Version 0.19.0 (2024-12-27)<a class="headerlink" href="#version-0-19-0-2024-12-27" title="Link to this heading">¶</a></h2>
 <ul class="simple">
@@ -938,6 +953,7 @@ faster decoding.</p></li>
           <div class="toc-tree">
             <ul>
 <li><a class="reference internal" href="#">Changelog</a><ul>
+<li><a class="reference internal" href="#version-0-20-0-2025-11-23">Version 0.20.0 (2025-11-23)</a></li>
 <li><a class="reference internal" href="#version-0-19-0-2024-12-27">Version 0.19.0 (2024-12-27)</a></li>
 <li><a class="reference internal" href="#version-0-18-6-2024-01-21">Version 0.18.6 (2024-01-21)</a></li>
 <li><a class="reference internal" href="#version-0-18-5-2023-12-12">Version 0.18.5 (2023-12-12)</a></li>

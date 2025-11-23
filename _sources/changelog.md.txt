@@ -1,5 +1,18 @@
 # Changelog
 
+## Version 0.20.0 (2025-11-23)
+
+- Support Python 3.14, including freethreaded mode ({pr}`852`, {pr}`877`).
+- Expose the `StructMeta` metaclass ({pr}`890`, {pr}`927`, {pr}`928`, {pr}`940`, {pr}`945`).
+- Support Windows `arm64` builds ({pr}`943`).
+- Enable ThinLTO on macOS `aarch64` builds ({pr}`937`).
+- Fix leaks of `re.Pattern` objects when using `pattern` constraints of `msgspec.Meta` ({pr}`899`).
+- Fixed `memoryview` support for `msgspec.msgpack` ({pr}`836`).
+- Fix crash when `typing.TypedDict` contains incorrect metadata ({pr}`853`, {pr}`947`).
+- Add `setuptools-scm` as a build dependency instead of vendoring `versioneer` ({pr}`905`).
+- Remove support for legacy packaging builds ({pr}`907`).
+- Improved the developer experience by adding the `just` command runner and Dev Container support ({pr}`918`).
+
 ## Version 0.19.0 (2024-12-27)
 
 - Improve JSON encoding performance by up to 40% ({pr}`647`).
