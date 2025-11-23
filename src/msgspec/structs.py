@@ -61,7 +61,7 @@ class FieldInfo(Struct):
         return self.default is NODEFAULT and self.default_factory is NODEFAULT
 
 
-def fields(type_or_instance: Struct | StructMeta) -> tuple[FieldInfo]:
+def fields(type_or_instance: Struct | type[Struct]) -> tuple[FieldInfo]:
     """Get information about the fields in a Struct.
 
     Parameters
@@ -73,17 +73,19 @@ def fields(type_or_instance: Struct | StructMeta) -> tuple[FieldInfo]:
     -------
     tuple[FieldInfo]
     """
-    if isinstance(type_or_instance, Struct) or issubclass(
-        type(type_or_instance.__class__), StructMeta
-    ):
-        annotated_cls = cls = type(type_or_instance)
+    obj = type_or_instance
+
+    # Struct class
+    if isinstance(obj, StructMeta):
+        annotated_cls = cls = obj
+    # Struct instance
+    elif isinstance(type(obj), StructMeta):
+        annotated_cls = cls = type(obj)
+    # Generic alias
     else:
-        annotated_cls = type_or_instance
-        cls = getattr(type_or_instance, "__origin__", type_or_instance)
-        if not (
-            isinstance(cls, type)
-            and (issubclass(cls, Struct) or issubclass(type(cls), StructMeta))
-        ):
+        annotated_cls = obj
+        cls = getattr(obj, "__origin__", obj)
+        if not isinstance(cls, StructMeta):
             raise TypeError("Must be called with a struct type or instance")
 
     hints = _get_class_annotations(annotated_cls)

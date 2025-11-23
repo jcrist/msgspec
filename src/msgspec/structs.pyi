@@ -1,6 +1,6 @@
 from typing import Any, TypeVar, Union
 
-from . import NODEFAULT, Struct, StructMeta
+from . import NODEFAULT, Struct
 
 S = TypeVar("S", bound=Struct)
 
@@ -34,4 +34,4 @@ class FieldInfo(Struct):
     @property
     def required(self) -> bool: ...
 
-def fields(type_or_instance: Struct | StructMeta) -> tuple[FieldInfo]: ...
+def fields(type_or_instance: S | type[S]) -> tuple[FieldInfo]: ...
