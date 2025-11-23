@@ -140,6 +140,8 @@ Inspect
 
 .. currentmodule:: msgspec.inspect
 
+.. autofunction:: is_struct
+.. autofunction:: is_struct_type
 .. autofunction:: type_info
 .. autofunction:: multi_type_info
 .. autoclass:: Type

@@ -1629,6 +1629,41 @@ disable conversion by passing in the types to <code class="docutils literal notr
 <section id="inspect">
 <h2>Inspect<a class="headerlink" href="#inspect" title="Link to this heading">¶</a></h2>
 <dl class="py function">
+<dt class="sig sig-object py" id="msgspec.inspect.is_struct">
+<span class="sig-prename descclassname"><span class="pre">msgspec.inspect.</span></span><span class="sig-name descname"><span class="pre">is_struct</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">obj</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.inspect.is_struct" title="Link to this definition">¶</a></dt>
+<dd><p>Check whether <code class="docutils literal notranslate"><span class="pre">obj</span></code> is a <a class="reference internal" href="#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a>-like instance.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>obj</strong> – Object to check.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><em>bool</em> – <a class="reference external" href="https://docs.python.org/3/library/constants.html#True" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">True</span></code></a> if <code class="docutils literal notranslate"><span class="pre">obj</span></code> is an instance of a class whose metaclass is
+<a class="reference internal" href="#msgspec.StructMeta" title="msgspec.StructMeta"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.StructMeta</span></code></a> (or a subclass of it), and <a class="reference external" href="https://docs.python.org/3/library/constants.html#False" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">False</span></code></a> otherwise.
+Static type checkers treat a successful <code class="docutils literal notranslate"><span class="pre">is_struct(obj)</span></code> check as
+narrowing <code class="docutils literal notranslate"><span class="pre">obj</span></code> to <a class="reference internal" href="#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> within the true branch, even if
+the runtime class does not literally inherit <a class="reference internal" href="#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a>.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="msgspec.inspect.is_struct_type">
+<span class="sig-prename descclassname"><span class="pre">msgspec.inspect.</span></span><span class="sig-name descname"><span class="pre">is_struct_type</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">tp</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.inspect.is_struct_type" title="Link to this definition">¶</a></dt>
+<dd><p>Check whether <code class="docutils literal notranslate"><span class="pre">tp</span></code> is a <a class="reference internal" href="#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a>-like class.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>tp</strong> – Object to check, typically a class object.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><em>bool</em> – <a class="reference external" href="https://docs.python.org/3/library/constants.html#True" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">True</span></code></a> if <code class="docutils literal notranslate"><span class="pre">tp</span></code> is a class whose metaclass is <a class="reference internal" href="#msgspec.StructMeta" title="msgspec.StructMeta"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.StructMeta</span></code></a>
+(or a subclass of it), and <a class="reference external" href="https://docs.python.org/3/library/constants.html#False" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">False</span></code></a> otherwise. Static type checkers
+treat a successful <code class="docutils literal notranslate"><span class="pre">is_struct_type(tp)</span></code> check as narrowing
+<code class="docutils literal notranslate"><span class="pre">tp</span></code> to <code class="xref py py-obj docutils literal notranslate"><span class="pre">type[msgspec.Struct]</span></code> within the true branch.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
 <dt class="sig sig-object py" id="msgspec.inspect.type_info">
 <span class="sig-prename descclassname"><span class="pre">msgspec.inspect.</span></span><span class="sig-name descname"><span class="pre">type_info</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">type</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#msgspec.inspect.type_info" title="Link to this definition">¶</a></dt>
 <dd><p>Get information about a msgspec-compatible type.</p>
@@ -2319,6 +2354,8 @@ is set.</p></li>
 </ul>
 </li>
 <li><a class="reference internal" href="#inspect">Inspect</a><ul>
+<li><a class="reference internal" href="#msgspec.inspect.is_struct"><code class="docutils literal notranslate"><span class="pre">is_struct()</span></code></a></li>
+<li><a class="reference internal" href="#msgspec.inspect.is_struct_type"><code class="docutils literal notranslate"><span class="pre">is_struct_type()</span></code></a></li>
 <li><a class="reference internal" href="#msgspec.inspect.type_info"><code class="docutils literal notranslate"><span class="pre">type_info()</span></code></a></li>
 <li><a class="reference internal" href="#msgspec.inspect.multi_type_info"><code class="docutils literal notranslate"><span class="pre">multi_type_info()</span></code></a></li>
 <li><a class="reference internal" href="#msgspec.inspect.Type"><code class="docutils literal notranslate"><span class="pre">Type</span></code></a></li>
