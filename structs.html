@@ -1118,8 +1118,10 @@ has a signature similar to <a class="reference external" href="https://docs.pyth
 </pre></div>
 </div>
 </section>
+<section id="advanced">
+<h2>Advanced<a class="headerlink" href="#advanced" title="Link to this heading">¶</a></h2>
 <section id="metaclasses">
-<h2>Metaclasses<a class="headerlink" href="#metaclasses" title="Link to this heading">¶</a></h2>
+<h3>Metaclasses<a class="headerlink" href="#metaclasses" title="Link to this heading">¶</a></h3>
 <p>You can define project-wide <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-class docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> policies at class-creation
 time by extending the <a class="reference internal" href="api.html#msgspec.StructMeta" title="msgspec.StructMeta"><code class="xref py py-class docutils literal notranslate"><span class="pre">msgspec.StructMeta</span></code></a> metaclass.</p>
 <p>In the following example, we flip the default value of <code class="docutils literal notranslate"><span class="pre">kw_only</span></code> to <code class="docutils literal notranslate"><span class="pre">True</span></code>
@@ -1182,17 +1184,22 @@ Structs.</p>
 abstract base Structs (like <code class="docutils literal notranslate"><span class="pre">Event</span></code>) cannot be instantiated, and
 <a class="reference external" href="https://docs.python.org/3/library/functions.html#isinstance" title="(in Python v3.14)"><code class="xref py py-func docutils literal notranslate"><span class="pre">isinstance()</span></code></a> and <a class="reference external" href="https://docs.python.org/3/library/functions.html#issubclass" title="(in Python v3.14)"><code class="xref py py-func docutils literal notranslate"><span class="pre">issubclass()</span></code></a> checks behave the same as for normal
 ABCs.</p>
-<div class="admonition warning">
-<p class="admonition-title">Warning</p>
-<p>Mixing <a class="reference internal" href="api.html#msgspec.StructMeta" title="msgspec.StructMeta"><code class="xref py py-class docutils literal notranslate"><span class="pre">msgspec.StructMeta</span></code></a> with arbitrary metaclasses
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<ul class="simple">
+<li><p>Classes with a <a class="reference internal" href="api.html#msgspec.StructMeta" title="msgspec.StructMeta"><code class="xref py py-class docutils literal notranslate"><span class="pre">msgspec.StructMeta</span></code></a>-derived metaclass do not
+<em>technically</em> need to inherit from <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-class docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a>, but it is
+recommended to do so for static typing support in IDEs and other tools.</p></li>
+<li><p>Mixing <a class="reference internal" href="api.html#msgspec.StructMeta" title="msgspec.StructMeta"><code class="xref py py-class docutils literal notranslate"><span class="pre">msgspec.StructMeta</span></code></a> with arbitrary metaclasses
 is not supported. Only combinations involving <a class="reference external" href="https://docs.python.org/3/library/abc.html#abc.ABCMeta" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">abc.ABCMeta</span></code></a>
 (or its subclasses) are guaranteed to work. Prefer using
 <a class="reference external" href="https://docs.python.org/3/reference/datamodel.html#object.__init_subclass__" title="(in Python v3.14)"><code class="xref py py-meth docutils literal notranslate"><span class="pre">object.__init_subclass__()</span></code></a> on a <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-class docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> base class
-instead of additional custom metaclasses.</p>
+instead of additional custom metaclasses.</p></li>
+</ul>
 </div>
 </section>
-<section id="disabling-garbage-collection-advanced">
-<span id="struct-gc"></span><h2>Disabling Garbage Collection (Advanced)<a class="headerlink" href="#disabling-garbage-collection-advanced" title="Link to this heading">¶</a></h2>
+<section id="disabling-garbage-collection">
+<span id="struct-gc"></span><h3>Disabling Garbage Collection<a class="headerlink" href="#disabling-garbage-collection" title="Link to this heading">¶</a></h3>
 <div class="admonition warning">
 <p class="admonition-title">Warning</p>
 <p>This is an advanced optimization, and only recommended for users who fully
@@ -1250,6 +1257,7 @@ later generations.</p></li>
 container types. It is your responsibility to ensure cycles with these objects
 don’t occur, as a cycle containing only <code class="docutils literal notranslate"><span class="pre">gc=False</span></code> structs will <em>never</em> be
 collected (leading to a memory leak).</p>
+</section>
 </section>
 </section>
 
@@ -1328,8 +1336,11 @@ collected (leading to a memory leak).</p>
 <li><a class="reference internal" href="#renaming-fields">Renaming Fields</a></li>
 <li><a class="reference internal" href="#encoding-decoding-as-arrays">Encoding/Decoding as Arrays</a></li>
 <li><a class="reference internal" href="#runtime-definition">Runtime Definition</a></li>
+<li><a class="reference internal" href="#advanced">Advanced</a><ul>
 <li><a class="reference internal" href="#metaclasses">Metaclasses</a></li>
-<li><a class="reference internal" href="#disabling-garbage-collection-advanced">Disabling Garbage Collection (Advanced)</a></li>
+<li><a class="reference internal" href="#disabling-garbage-collection">Disabling Garbage Collection</a></li>
+</ul>
+</li>
 </ul>
 </li>
 </ul>
