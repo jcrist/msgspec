@@ -29,18 +29,58 @@ runs:
     id: python-version
     shell: bash
     run: |-
+      set -euo pipefail
+
+      release_event='${{ github.event_name == 'release' && github.event.action == 'published' }}'
+      if [[ "$release_event" == 'true' ]]; then
+        echo "Release workflow detected; selecting the latest stable version already available on PyPI."
+        version=$(
+          curl -fsS "https://pypi.org/pypi/msgspec/json" \
+            | jq -r '
+              .releases
+              | to_entries
+              | map(
+                  select(
+                    [ .value[]
+                        | select(.packagetype == "bdist_wheel")
+                    ] | length > 0
+                  )
+                )
+              | map(select(.key | test("(a|b|rc)"; "i") | not))
+              | map(.key)
+              | .[]
+            ' \
+            | sort -V \
+            | tail -n 1
+        )
+
+        if [[ -z "$version" ]]; then
+          echo "Failed to find a stable PyPI release with wheels" >&2
+          exit 1
+        fi
+
+        echo "Selected PyPI release: $version"
+      else
+        version='${{ steps.latest-release.outputs.tag }}'
+        echo "Selected GitHub release: $version"
+      fi
+
+      pypi_url="https://pypi.org/pypi/msgspec/$version/json"
+
       python_version=$(
-        curl -s "https://pypi.org/pypi/msgspec/${{ steps.latest-release.outputs.tag }}/json" \
+        curl -fsS "$pypi_url" \
           | jq -r '
-            [ .urls[]
-              | select(.packagetype == "bdist_wheel")
-              | .filename
-              | capture("cp(?<cp>[0-9]+)").cp
-              | tonumber
-            ]
+            .urls
+            | [ .[]
+                | select(.packagetype == "bdist_wheel")
+                | .filename
+                | capture("cp(?<cp>[0-9]+)").cp
+                | tonumber
+              ]
             | max
             | "3.\(tostring | .[1:])"
           '
       )
+
       echo "Python version: $python_version"
       echo "version=$python_version" >> $GITHUB_OUTPUT
