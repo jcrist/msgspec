@@ -1041,7 +1041,7 @@ def check_inspect_multi_type_info() -> None:
     msgspec.inspect.multi_type_info([int])
 
 
-def max_depth(t: msgspec.inspect.type, depth: int = 0) -> int:
+def max_depth(t: msgspec.inspect.Type, depth: int = 0) -> int:
     # This isn't actually a complete max_depth implementation
     if isinstance(t, msgspec.inspect.CollectionType):
         reveal_type(t.item_type)  # assert "type" in typ
