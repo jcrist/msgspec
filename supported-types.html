@@ -378,7 +378,7 @@ protocols.</p>
 <section id="none">
 <h2><code class="docutils literal notranslate"><span class="pre">None</span></code><a class="headerlink" href="#none" title="Link to this heading">¶</a></h2>
 <p><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a> maps to the <code class="docutils literal notranslate"><span class="pre">null</span></code> value in all supported protocols. Note that <a class="reference external" href="https://toml.io/en/">TOML</a>
-lacks a <code class="docutils literal notranslate"><span class="pre">null</span></code> value, attempted to encode a message containing <code class="docutils literal notranslate"><span class="pre">None</span></code> to
+lacks a <code class="docutils literal notranslate"><span class="pre">null</span></code> value, attempting to encode a message containing <code class="docutils literal notranslate"><span class="pre">None</span></code> to
 <code class="docutils literal notranslate"><span class="pre">TOML</span></code> will result in an error.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">msgspec</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
 <span class="go">b&#39;null&#39;</span>
@@ -1575,10 +1575,10 @@ multiple struct types are only supported through <a class="reference internal" h
 </section>
 <section id="raw">
 <h2><code class="docutils literal notranslate"><span class="pre">Raw</span></code><a class="headerlink" href="#raw" title="Link to this heading">¶</a></h2>
-<p><a class="reference internal" href="api.html#msgspec.Raw" title="msgspec.Raw"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Raw</span></code></a> is a buffer-like type containing an already encoded messages.
+<p><a class="reference internal" href="api.html#msgspec.Raw" title="msgspec.Raw"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Raw</span></code></a> is a buffer-like type containing an already-encoded message.
 They have two common uses:</p>
 <p><strong>1. Avoiding unnecessary encoding cost</strong></p>
-<p>Wrapping an already encoded buffer in <a class="reference internal" href="api.html#msgspec.Raw" title="msgspec.Raw"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Raw</span></code></a> lets the encoder avoid
+<p>Wrapping an already-encoded buffer in <a class="reference internal" href="api.html#msgspec.Raw" title="msgspec.Raw"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Raw</span></code></a> lets the encoder avoid
 re-encoding the message, instead it will simply be copied to the output buffer.
 This can be useful when part of a message already exists in an encoded format
 (e.g. reading JSON bytes from a database and returning them as part of a larger
