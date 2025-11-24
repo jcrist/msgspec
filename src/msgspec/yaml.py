@@ -10,7 +10,7 @@ from . import (
 )
 
 if TYPE_CHECKING:
-    from typing import Callable, Literal, Optional, Type, Union
+    from typing import Callable, Literal
 
     from typing_extensions import Buffer
 
@@ -39,7 +39,7 @@ def _import_pyyaml(name):
 def encode(
     obj: Any,
     *,
-    enc_hook: Optional[Callable[[Any], Any]] = None,
+    enc_hook: Callable[[Any], Any] | None = None,
     order: Literal[None, "deterministic", "sorted"] = None,
 ) -> bytes:
     """Serialize an object as YAML.
@@ -104,32 +104,32 @@ T = TypeVar("T")
 
 @overload
 def decode(
-    buf: Union[Buffer, str],
+    buf: Buffer | str,
     *,
     strict: bool = True,
-    dec_hook: Optional[Callable[[type, Any], Any]] = None,
+    dec_hook: Callable[[type[Any], Any], Any] | None = None,
 ) -> Any:
     pass
 
 
 @overload
 def decode(
-    buf: Union[bytes, str],
+    buf: bytes | str,
     *,
-    type: Type[T] = ...,
+    type: type[T] = ...,
     strict: bool = True,
-    dec_hook: Optional[Callable[[type, Any], Any]] = None,
+    dec_hook: Callable[[type[Any], Any], Any] | None = None,
 ) -> T:
     pass
 
 
 @overload
 def decode(
-    buf: Union[bytes, str],
+    buf: bytes | str,
     *,
     type: Any = ...,
     strict: bool = True,
-    dec_hook: Optional[Callable[[type, Any], Any]] = None,
+    dec_hook: Callable[[type[Any], Any], Any] | None = None,
 ) -> Any:
     pass
 
@@ -152,7 +152,7 @@ def decode(buf, *, type=Any, strict=True, dec_hook=None):
         values. Default is True.
     dec_hook : callable, optional
         An optional callback for handling decoding custom types. Should have
-        the signature ``dec_hook(type: Type, obj: Any) -> Any``, where ``type``
+        the signature ``dec_hook(type: type[Any], obj: Any) -> Any``, where ``type``
         is the expected message type, and ``obj`` is the decoded representation
         composed of only basic YAML types. This hook should transform ``obj``
         into type ``type``, or raise a ``NotImplementedError`` if unsupported.
