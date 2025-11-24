@@ -82,7 +82,7 @@ protocols.
 --------
 
 `None` maps to the ``null`` value in all supported protocols. Note that TOML_
-lacks a ``null`` value, attempted to encode a message containing ``None`` to
+lacks a ``null`` value, attempting to encode a message containing ``None`` to
 ``TOML`` will result in an error.
 
 .. code-block:: python
@@ -1436,12 +1436,12 @@ Union restrictions are as follows:
 ``Raw``
 -------
 
-`msgspec.Raw` is a buffer-like type containing an already encoded messages.
+`msgspec.Raw` is a buffer-like type containing an already-encoded message.
 They have two common uses:
 
 **1. Avoiding unnecessary encoding cost**
 
-Wrapping an already encoded buffer in `msgspec.Raw` lets the encoder avoid
+Wrapping an already-encoded buffer in `msgspec.Raw` lets the encoder avoid
 re-encoding the message, instead it will simply be copied to the output buffer.
 This can be useful when part of a message already exists in an encoded format
 (e.g. reading JSON bytes from a database and returning them as part of a larger
