@@ -526,6 +526,7 @@ typedef struct {
 #endif
     PyObject *astimezone;
     PyObject *re_compile;
+    PyObject *copy_deepcopy;
     uint8_t gc_cycle;
 } MsgspecState;
 
@@ -7930,6 +7931,66 @@ error:
     return NULL;
 }
 
+
+static PyObject* get_deepcopy_func() {
+    // lazily copy.deepcopy and cache in global state
+    PyObject *copy_mod, *deepcopy_func;
+    MsgspecState* st = msgspec_get_global_state();
+    deepcopy_func = st->copy_deepcopy;
+    if (deepcopy_func == NULL) {
+        copy_mod = PyImport_ImportModule("copy");
+        if (copy_mod == NULL) return NULL;
+        deepcopy_func = PyObject_GetAttrString(copy_mod, "deepcopy");
+        st->copy_deepcopy = deepcopy_func;
+        Py_DECREF(copy_mod);
+        if (st->copy_deepcopy == NULL) return NULL;
+    }
+
+    return deepcopy_func;
+}
+
+static PyObject *
+Struct_deepcopy(PyObject *self, PyObject *args)
+{
+    PyObject *memo;
+    PyObject *val = NULL, *res = NULL, *dc_val = NULL;
+    PyObject *deepcopy_func;
+    Py_ssize_t i, nfields;
+
+    if (!PyArg_ParseTuple(args, "O!:__deepcopy__", &PyDict_Type, &memo))
+        return NULL;
+
+    deepcopy_func = get_deepcopy_func();
+
+    res = Struct_alloc(Py_TYPE(self));
+    if (res == NULL)
+        return NULL;
+
+    nfields = StructMeta_GET_NFIELDS(Py_TYPE(self));
+    for (i = 0; i < nfields; i++) {
+        val = Struct_get_index(self, i);
+        if (val == NULL)
+            goto error;
+
+        dc_val = PyObject_CallFunctionObjArgs(deepcopy_func, val, memo, NULL);
+        if (dc_val == NULL)
+            goto error;
+
+        Struct_set_index(res, i, dc_val);
+    }
+
+    /* If self is tracked, then copy is tracked */
+    if (MS_OBJECT_IS_GC(self) && MS_IS_TRACKED(self))
+        PyObject_GC_Track(res);
+
+    return res;
+
+error:
+    Py_DECREF(res);
+    return NULL;
+}
+
+
 static PyObject *
 Struct_replace(
     PyObject *self,
@@ -8351,6 +8412,7 @@ StructMixin_config(StructMetaObject *self, void *closure) {
 
 static PyMethodDef Struct_methods[] = {
     {"__copy__", Struct_copy, METH_NOARGS, "copy a struct"},
+    {"__deepcopy__", Struct_deepcopy, METH_VARARGS, "deepcopy a struct"},
     {"__replace__", (PyCFunction) Struct_replace, METH_FASTCALL | METH_KEYWORDS, "create a new struct with replacements" },
     {"__reduce__", Struct_reduce, METH_NOARGS, "reduce a struct"},
     {"__rich_repr__", Struct_rich_repr, METH_NOARGS, "rich repr"},
@@ -22299,6 +22361,7 @@ msgspec_clear(PyObject *m)
 #endif
     Py_CLEAR(st->astimezone);
     Py_CLEAR(st->re_compile);
+    Py_CLEAR(st->copy_deepcopy);
     return 0;
 }
 
@@ -22371,6 +22434,7 @@ msgspec_traverse(PyObject *m, visitproc visit, void *arg)
 #endif
     Py_VISIT(st->astimezone);
     Py_VISIT(st->re_compile);
+    Py_VISIT(st->copy_deepcopy);
     return 0;
 }
 
@@ -22664,6 +22728,9 @@ PyInit__core(void)
     st->re_compile = PyObject_GetAttrString(temp_module, "compile");
     Py_DECREF(temp_module);
     if (st->re_compile == NULL) return NULL;
+
+    // cache for 'copy.deepcopy'. to access this function, use 'get_deepcopy_func'
+    st->copy_deepcopy = NULL;
 
     /* Initialize cached constant strings */
 #define CACHED_STRING(attr, str) \

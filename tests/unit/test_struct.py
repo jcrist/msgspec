@@ -15,6 +15,7 @@ import pytest
 import msgspec
 from msgspec import NODEFAULT, UNSET, Struct, defstruct, field
 from msgspec.structs import StructConfig
+
 from .utils import temp_module
 
 if hasattr(copy, "replace"):
@@ -809,10 +810,63 @@ def test_struct_copy():
         b: int
         a: int
 
-    x = copy.copy(Test(1, 2))
+    o = Test(1, 2)
+    x = copy.copy(o)
     assert type(x) is Test
+    assert x is not o
     assert x.b == 1
     assert x.a == 2
+
+
+def test_struct_deepcopy():
+    o = Struct()
+    x = copy.deepcopy(Struct())
+    assert type(x) is Struct
+    assert x is not o
+
+    class Sub(Struct):
+        one: str
+        two: list[int]
+
+    class Test(Struct):
+        a: int
+        b: int
+        c: list[str]
+        sub: Sub
+
+    o = Test(
+        a=1,
+        b=2,
+        c=["1", "2"],
+        sub=Sub(one="hello", two=[3]),
+    )
+    x = copy.deepcopy(o)
+    assert type(x) is Test
+    assert x.a == 1
+    assert x.b == 2
+    assert x.c == ["1", "2"]
+    assert x.c is not o.c
+    assert x.sub is not o.sub
+    assert x.sub.one == "hello"
+    assert x.sub.two == [3]
+    assert x.sub.two is not o.sub.two
+
+
+def test_struct_deepcopy_custom_impl():
+    # ensure we respect custom __deepcopy__ methods
+    class CustomThing:
+        def __init__(self, value):
+            self.value = value
+
+        def __deepcopy__(self, memo):
+            return CustomThing(value=self.value + 1)
+
+    class TestWithCustom(Struct):
+        custom: CustomThing
+
+    t = TestWithCustom(CustomThing(1))
+    tc = copy.deepcopy(t)
+    assert tc.custom.value == 2
 
 
 class FrozenPoint(Struct, frozen=True):
@@ -2660,6 +2714,20 @@ class TestPostInit:
         x1 = Ex()
         assert count == 1
         x2 = x1.__copy__()
+        assert x1 == x2
+        assert count == 1
+
+    def test_post_init_not_called_on_deepcopy(self):
+        count = 0
+
+        class Ex(Struct):
+            def __post_init__(self):
+                nonlocal count
+                count += 1
+
+        x1 = Ex()
+        assert count == 1
+        x2 = copy.deepcopy(x1)
         assert x1 == x2
         assert count == 1
 
