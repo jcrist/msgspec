@@ -38,23 +38,23 @@ jobs:
     - name: Load environment file
       uses: ./.github/actions/load-env
 
-    - name: Install Python
-      uses: actions/setup-python@v6
-      with:
-        python-version-file: pyproject.toml
-
-    - name: Install uv
-      uses: astral-sh/setup-uv@v7
-
-    - name: Install command runner
-      run: uv tool install rust-just
-
     - name: Fetch latest supported Python
       if: inputs.python == ''
       id: latest-supported-python
       uses: ./.github/actions/latest-supported-python
       with:
         github-token: "${{ github.token }}"
+
+    - name: Install Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: "${{ inputs.python || steps.latest-supported-python.outputs.version }}"
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v7
+
+    - name: Install command runner
+      run: uv tool install rust-just
 
     - name: Set profiling environment metadata
       id: metadata
