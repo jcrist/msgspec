@@ -23,6 +23,11 @@
 #define PY313_PLUS (PY_VERSION_HEX >= 0x030d0000)
 #define PY314_PLUS (PY_VERSION_HEX >= 0x030e0000)
 
+#if PY313_PLUS && !PY314_PLUS
+    #define Py_BUILD_CORE
+    #include "internal/pycore_frame.h"
+#endif
+
 /* Hint to the compiler not to store `x` in a register since it is likely to
  * change. Results in much higher performance on GCC, with smaller benefits on
  * clang */
