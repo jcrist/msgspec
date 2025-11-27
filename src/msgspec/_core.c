@@ -5337,6 +5337,11 @@ Struct_alloc(PyTypeObject *type) {
     if (obj == NULL) return NULL;
     /* Zero out slot fields */
     memset((char *)obj + sizeof(PyObject), '\0', type->tp_basicsize - sizeof(PyObject));
+#if PY313_PLUS && !PY314_PLUS
+    if (type->tp_flags & Py_TPFLAGS_INLINE_VALUES) {
+        _PyObject_InitInlineValues(obj, type);
+    }
+#endif
     return obj;
 }
 
