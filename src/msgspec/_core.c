@@ -4964,11 +4964,36 @@ convert_types_generic_alias(TypeNodeCollectState *state, PyObject *obj, PyObject
     // built-in container generic, such as 'collections.abc.Mapping'
 
     if (MS_UNLIKELY(Py_TYPE(obj) == (PyTypeObject *)state->mod->types_generic_alias)) {
-        PyObject *genericAliasArgsList = Py_BuildValue("OO", origin, args);
+        // subscribed typing._GenericAlias instances are cached within the typing module
+        // we make use of this fact, by storing a __msgspec_cache__ attribute on the
+        // subscribed instance. only subscribed types are cache, so
+        // 'typing._GenericAlias(list, int) is typing._GenericAlias(list, int)' would be
+        // false.
+        // to achieve the same behaviour when re-creating a typing._GenericAlias from a
+        // types.GenericAlias, we first construct a temporary *unbound*
+        // typing._GenericAlias, on which we then call __getattr__. effectively doing
+        // typing._GenericAlias(list, T)[int], for which
+        // 'typing._GenericAlias(list, T)[int] is typing._GenericAlias(list, T)[int]'
+        // holds true
+        PyObject *params = PyObject_GetAttrString(origin, "__parameters__");
+        if (params == NULL) {
+            Py_DECREF(origin);
+            return NULL;
+        }
 
-        PyObject *newGenericAlias = PyObject_CallObject(state->mod->typing_generic_alias, genericAliasArgsList);
-        Py_DECREF(genericAliasArgsList);
-        return newGenericAlias;
+        // create a new typing._GenericAlias with the unbound type params of the
+        // original types.GenericAlias.
+        // given a Mapping[str, int], this would produce a _GenericAlias(Mapping, (~K, ~V))
+        PyObject *new_alias = PyObject_CallFunctionObjArgs(state->mod->typing_generic_alias, origin, params, NULL);
+        if (new_alias == NULL) {
+            return NULL;
+        }
+
+        // bind it to the concrete types.
+        // given a _GenericAlias(Mapping, (~K, ~V)), produce a Mapping[str, int] again
+        PyObject *result = PyObject_CallMethod(new_alias, "__getitem__", "O", args);
+        Py_DECREF(new_alias);
+        return result;
     }
     return obj;
 }

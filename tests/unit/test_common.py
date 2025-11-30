@@ -56,6 +56,13 @@ py312_plus = pytest.mark.skipif(not PY312, reason="3.12+ only")
 T = TypeVar("T")
 
 
+def make_new_alias(alias):
+    """Replicate the logic to produce a types._GenericAlias from a typing.GenericAlias"""
+    return typing._GenericAlias(
+        alias.__origin__, alias.__origin__.__parameters__
+    ).__getitem__(*alias.__args__)
+
+
 def assert_eq(x, y):
     assert x == y
     assert type(x) is type(y)
@@ -1648,6 +1655,49 @@ class TestGenericStruct:
             msgspec.msgpack.encode(mod.Foo({"x": 1})), type=mod.Foo[int]
         )
 
+    @pytest.mark.parametrize(
+        "mapping_type", ["collections.abc.Mapping", "typing.Mapping"]
+    )
+    @py312_plus
+    def test_inherited_builtin_generic_typevar_syntax_info_cached(
+        self, mapping_type: str
+    ):
+        source = f"""
+            from msgspec import Struct, StructMeta
+            import collections
+            import abc
+            import typing
+
+            class CombinedMeta(StructMeta, abc.ABCMeta):
+                pass
+
+            class Foo[T]({mapping_type}[str, T], Struct, metaclass=CombinedMeta):
+                data: dict[str, T]
+
+                def __getitem__(self, x):
+                    return self.data[x]
+
+                def __len__(self):
+                    return len(self.data)
+
+                def __iter__(self):
+                    return iter(self.data)
+            """
+
+        with temp_module(source) as mod:
+            typ = mod.Foo[int]
+            dec = msgspec.json.Decoder(typ)
+            info = make_new_alias(typ).__msgspec_cache__
+            assert info is not None
+            assert sys.getrefcount(info) <= 4  # info + attr + decoder + func call
+            dec2 = msgspec.json.Decoder(typ)
+            assert make_new_alias(typ).__msgspec_cache__ is info
+            assert sys.getrefcount(info) <= 5
+
+            del dec
+            del dec2
+            assert sys.getrefcount(info) <= 3
+
 
 class TestStructPostInit:
     @pytest.mark.parametrize("array_like", [False, True])
@@ -1966,6 +2016,46 @@ class TestGenericDataclassOrAttrs:
         msgspec.msgpack.decode(
             msgspec.msgpack.encode(mod.Foo({"x": 1})), type=mod.Foo[int]
         )
+
+    @pytest.mark.parametrize(
+        "mapping_type", ["collections.abc.Mapping", "typing.Mapping"]
+    )
+    @py312_plus
+    def test_inherited_builtin_generic_typevar_syntax_info_cached(
+        self, mapping_type: str
+    ):
+        source = f"""
+        import dataclasses
+        import collections
+        import typing
+
+        @dataclasses.dataclass
+        class Foo[T]({mapping_type}[str, T]):
+            data: dict[str, T]
+
+            def __getitem__(self, x):
+                return self.data[x]
+
+            def __len__(self):
+                return len(self.data)
+
+            def __iter__(self):
+                return iter(self.data)
+        """
+
+        with temp_module(source) as mod:
+            typ = mod.Foo[int]
+            dec = msgspec.json.Decoder(typ)
+            info = make_new_alias(typ).__msgspec_cache__
+            assert info is not None
+            assert sys.getrefcount(info) <= 4  # info + attr + decoder + func call
+            dec2 = msgspec.json.Decoder(typ)
+            assert make_new_alias(typ).__msgspec_cache__ is info
+            assert sys.getrefcount(info) <= 5
+
+            del dec
+            del dec2
+            assert sys.getrefcount(info) <= 3
 
 
 class TestStructOmitDefaults:
