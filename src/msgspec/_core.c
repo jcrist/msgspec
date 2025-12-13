@@ -23,11 +23,6 @@
 #define PY313_PLUS (PY_VERSION_HEX >= 0x030d0000)
 #define PY314_PLUS (PY_VERSION_HEX >= 0x030e0000)
 
-#if PY313_PLUS && !PY314_PLUS
-    #define Py_BUILD_CORE
-    #include "internal/pycore_frame.h"
-#endif
-
 /* Hint to the compiler not to store `x` in a register since it is likely to
  * change. Results in much higher performance on GCC, with smaller benefits on
  * clang */
@@ -5333,6 +5328,10 @@ Struct_alloc(PyTypeObject *type) {
     PyObject *obj;
     bool is_gc = MS_TYPE_IS_GC(type);
 
+#if PY313_PLUS && !PY314_PLUS
+    type->tp_flags &= ~Py_TPFLAGS_INLINE_VALUES;
+#endif
+
     if (is_gc) {
         obj = PyObject_GC_New(PyObject, type);
     }
@@ -5342,11 +5341,6 @@ Struct_alloc(PyTypeObject *type) {
     if (obj == NULL) return NULL;
     /* Zero out slot fields */
     memset((char *)obj + sizeof(PyObject), '\0', type->tp_basicsize - sizeof(PyObject));
-#if PY313_PLUS && !PY314_PLUS
-    if (type->tp_flags & Py_TPFLAGS_INLINE_VALUES) {
-        _PyObject_InitInlineValues(obj, type);
-    }
-#endif
     return obj;
 }
 
