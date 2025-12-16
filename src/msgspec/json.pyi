@@ -1,14 +1,9 @@
 from collections.abc import Callable, Iterable
 from typing import (
     Any,
-    Dict,
     Generic,
     Literal,
-    Optional,
-    Tuple,
-    Type,
     TypeVar,
-    Union,
     overload,
 )
 
@@ -16,10 +11,10 @@ from typing_extensions import Buffer
 
 T = TypeVar("T")
 
-enc_hook_sig = Optional[Callable[[Any], Any]]
-dec_hook_sig = Optional[Callable[[type, Any], Any]]
-float_hook_sig = Optional[Callable[[str], Any]]
-schema_hook_sig = Optional[Callable[[type], dict[str, Any]]]
+enc_hook_sig = Callable[[Any], Any] | None
+dec_hook_sig = Callable[[type, Any], Any] | None
+float_hook_sig = Callable[[str], Any] | None
+schema_hook_sig = Callable[[type], dict[str, Any]] | None
 
 class Encoder:
     enc_hook: enc_hook_sig
@@ -38,11 +33,11 @@ class Encoder:
     def encode(self, obj: Any, /) -> bytes: ...
     def encode_lines(self, items: Iterable, /) -> bytes: ...
     def encode_into(
-        self, obj: Any, buffer: bytearray, offset: Optional[int] = 0, /
+        self, obj: Any, buffer: bytearray, offset: int | None = 0, /
     ) -> None: ...
 
 class Decoder(Generic[T]):
-    type: Type[T]
+    type: type[T]
     strict: bool
     dec_hook: dec_hook_sig
     float_hook: float_hook_sig
@@ -58,7 +53,7 @@ class Decoder(Generic[T]):
     @overload
     def __init__(
         self: Decoder[T],
-        type: Type[T] = ...,
+        type: type[T] = ...,
         *,
         strict: bool = True,
         dec_hook: dec_hook_sig = None,
@@ -73,12 +68,12 @@ class Decoder(Generic[T]):
         dec_hook: dec_hook_sig = None,
         float_hook: float_hook_sig = None,
     ) -> None: ...
-    def decode(self, buf: Union[Buffer, str], /) -> T: ...
-    def decode_lines(self, buf: Union[Buffer, str], /) -> list[T]: ...
+    def decode(self, buf: Buffer | str, /) -> T: ...
+    def decode_lines(self, buf: Buffer | str, /) -> list[T]: ...
 
 @overload
 def decode(
-    buf: Union[Buffer, str],
+    buf: Buffer | str,
     /,
     *,
     strict: bool = True,
@@ -86,16 +81,16 @@ def decode(
 ) -> Any: ...
 @overload
 def decode(
-    buf: Union[Buffer, str],
+    buf: Buffer | str,
     /,
     *,
-    type: Type[T] = ...,
+    type: type[T] = ...,
     strict: bool = True,
     dec_hook: dec_hook_sig = None,
 ) -> T: ...
 @overload
 def decode(
-    buf: Union[Buffer, str],
+    buf: Buffer | str,
     /,
     *,
     type: Any = ...,
@@ -109,13 +104,13 @@ def encode(
     enc_hook: enc_hook_sig = None,
     order: Literal[None, "deterministic", "sorted"] = None,
 ) -> bytes: ...
-def schema(type: Any, *, schema_hook: schema_hook_sig = None) -> Dict[str, Any]: ...
+def schema(type: Any, *, schema_hook: schema_hook_sig = None) -> dict[str, Any]: ...
 def schema_components(
     types: Iterable[Any],
     *,
     schema_hook: schema_hook_sig = None,
     ref_template: str = "#/$defs/{name}",
-) -> Tuple[Tuple[Dict[str, Any], ...], Dict[str, Any]]: ...
+) -> tuple[tuple[dict[str, Any], ...], dict[str, Any]]: ...
 @overload
 def format(buf: str, /, *, indent: int = 2) -> str: ...
 @overload

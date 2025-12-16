@@ -1,4 +1,4 @@
-from typing import Any, TypeVar, Union
+from typing import Any, TypeVar
 
 from . import NODEFAULT, Struct
 
@@ -21,8 +21,8 @@ class StructConfig:
     weakref: bool
     dict: bool
     cache_hash: bool
-    tag: Union[str, int, None]
-    tag_field: Union[str, None]
+    tag: str | int | None
+    tag_field: str | None
 
 class FieldInfo(Struct):
     name: str
