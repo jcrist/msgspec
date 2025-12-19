@@ -5322,26 +5322,9 @@ ms_maybe_wrap_validation_error(PathNode *path) {
 static PyTypeObject StructMixinType;
 
 
-/* Note this always allocates an UNTRACKED object */
 static PyObject *
 Struct_alloc(PyTypeObject *type) {
-    PyObject *obj;
-    bool is_gc = MS_TYPE_IS_GC(type);
-
-#if PY313_PLUS && !PY314_PLUS
-    type->tp_flags &= ~Py_TPFLAGS_INLINE_VALUES;
-#endif
-
-    if (is_gc) {
-        obj = PyObject_GC_New(PyObject, type);
-    }
-    else {
-        obj = PyObject_New(PyObject, type);
-    }
-    if (obj == NULL) return NULL;
-    /* Zero out slot fields */
-    memset((char *)obj + sizeof(PyObject), '\0', type->tp_basicsize - sizeof(PyObject));
-    return obj;
+    return type->tp_alloc(type, type->tp_itemsize);
 }
 
 /* Mirrored from cpython Objects/typeobject.c */
@@ -7493,7 +7476,6 @@ Struct_decode_post_init(StructMetaObject *st_type, PyObject *obj, PathNode *path
     return 0;
 }
 
-/* ASSUMPTION - obj is untracked and allocated via Struct_alloc */
 static int
 Struct_fill_in_defaults(StructMetaObject *st_type, PyObject *obj, PathNode *path) {
     Py_ssize_t nfields, ndefaults, i;
@@ -7521,8 +7503,8 @@ Struct_fill_in_defaults(StructMetaObject *st_type, PyObject *obj, PathNode *path
         }
     }
 
-    if (is_gc && !should_untrack)
-        PyObject_GC_Track(obj);
+    if (is_gc && should_untrack && MS_IS_TRACKED(obj))
+        PyObject_GC_UnTrack(obj);
 
     if (Struct_decode_post_init(st_type, obj, path) < 0) return -1;
 
@@ -7698,8 +7680,8 @@ kw_found:
         }
     }
 
-    if (is_gc && !should_untrack)
-        PyObject_GC_Track(self);
+    if (is_gc && should_untrack && MS_IS_TRACKED(self))
+        PyObject_GC_UnTrack(self);
 
     if (Struct_post_init(st_type, self) < 0) goto error;
     return self;
@@ -7934,8 +7916,8 @@ Struct_copy(PyObject *self, PyObject *args)
         Struct_set_index(res, i, val);
     }
     /* If self is tracked, then copy is tracked */
-    if (MS_OBJECT_IS_GC(self) && MS_IS_TRACKED(self))
-        PyObject_GC_Track(res);
+    if (MS_OBJECT_IS_GC(self) && !MS_IS_TRACKED(self))
+        PyObject_GC_UnTrack(res);
     return res;
 error:
     Py_DECREF(res);
@@ -8006,9 +7988,8 @@ Struct_replace(
         }
     }
 
-    if (is_gc && !should_untrack) {
-        PyObject_GC_Track(out);
-    }
+    if (is_gc && should_untrack && MS_IS_TRACKED(out))
+        PyObject_GC_UnTrack(out);
     return out;
 
 error:
@@ -15830,8 +15811,8 @@ mpack_decode_struct_array_inner(
     }
     if (Struct_decode_post_init(st_type, res, path) < 0) goto error;
     Py_LeaveRecursiveCall();
-    if (is_gc && !should_untrack)
-        PyObject_GC_Track(res);
+    if (is_gc && should_untrack && MS_IS_TRACKED(res))
+        PyObject_GC_UnTrack(res);
     return res;
 error:
     Py_LeaveRecursiveCall();
@@ -18103,8 +18084,8 @@ json_decode_struct_array_inner(
     }
     if (Struct_decode_post_init(st_type, out, path) < 0) goto error;
     Py_LeaveRecursiveCall();
-    if (is_gc && !should_untrack)
-        PyObject_GC_Track(out);
+    if (is_gc && should_untrack && MS_IS_TRACKED(out))
+        PyObject_GC_UnTrack(out);
     return out;
 error:
     Py_LeaveRecursiveCall();
@@ -21254,8 +21235,8 @@ convert_seq_to_struct_array_inner(
     }
     if (Struct_decode_post_init(st_type, out, path) < 0) goto error;
     Py_LeaveRecursiveCall();
-    if (is_gc && !should_untrack)
-        PyObject_GC_Track(out);
+    if (is_gc && should_untrack && MS_IS_TRACKED(out))
+        PyObject_GC_UnTrack(out);
     return out;
 error:
     Py_LeaveRecursiveCall();
@@ -21747,8 +21728,8 @@ convert_object_to_struct(
     if (Struct_decode_post_init(struct_type, out, path) < 0) goto error;
 
     Py_LeaveRecursiveCall();
-    if (is_gc && !should_untrack)
-        PyObject_GC_Track(out);
+    if (is_gc && should_untrack && MS_IS_TRACKED(out))
+        PyObject_GC_UnTrack(out);
     return out;
 
 error:
