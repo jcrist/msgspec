@@ -139,7 +139,7 @@ few:
         .. image:: _static/anywidget.png
             :target: https://anywidget.dev/
 
-    .. grid-item-card:: `Ravyn <https://www.ravyn.dev/encoders/#example>`_
+    .. grid-item-card:: `Ravyn <https://www.ravyn.dev/encoders/#msgspec-encoder>`_
 
         .. image:: _static/ravyn.png
             :target: https://www.ravyn.dev/
