@@ -35,6 +35,11 @@ def check_unset_type_lowering(x: int | msgspec.UnsetType) -> None:
         reveal_type(x)  # assert "unset" not in typ.lower()
 
 
+def check_unset_type_truthiness_lowering(x: str | msgspec.UnsetType) -> None:
+    if x:
+        reveal_type(x)  # assert "unset" not in typ.lower()
+
+
 def check_nodefault() -> None:
     reveal_type(msgspec.NODEFAULT)  # assert "Any" not in typ
     str(msgspec.NODEFAULT)
