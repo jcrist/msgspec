@@ -602,6 +602,42 @@ numbers by creating a ``Encoder`` and specifying ``decimal_format='number'``.
     >>> encoder.encode(x)
     b'1.2345'
 
+You may also optionally specify a target precision for rounding
+Decimal values before encoding using the ``decimal_quantize`` parameter.
+If provided, all `decimal.Decimal`` values will be quantized (rounded)
+to the same scale as this value using the `Decimal.quantize()` method.
+This is useful for ensuring consistent precision of decimal values
+during serialization, particularly in financial or monetary contexts.
+
+.. code-block:: python
+
+    >>> import decimal
+
+    >>> encoder = msgspec.json.Encoder(decimal_quantize=decimal.Decimal("0.00"))
+
+    >>> encoder.encode(decimal.Decimal("1.23456789"))
+    b'"1.23"'
+
+The optional ``decimal_rounding`` parameter allows you to specify
+the rounding mode to use when quantizing Decimal values. It accepts
+one of the standard rounding mode strings from Python's decimal module,
+such as ``'ROUND_DOWN'`` , ``'ROUND_HALF_UP'`` , etc. If not specified,
+the default rounding mode is used (``'ROUND_HALF_EVEN'``).
+
+.. code-block:: python
+
+    >>> encoder = msgspec.json.Encoder(
+    ...     decimal_quantize=decimal.Decimal("0.00"),
+    ...     decimal_rounding=decimal.ROUND_UP,
+    ... )
+
+    >>> encoder.encode(decimal.Decimal("1.235"))  # Rounded up to two decimal places
+    b'"1.24"'
+
+.. note::
+
+  This parameter has no effect unless ``decimal_quantize`` is also specified.
+
 This setting is not yet supported for YAML or TOML - if this option is
 important for you please `open an issue`_.
 
