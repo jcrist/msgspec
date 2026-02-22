@@ -22,6 +22,16 @@
 #define PY313_PLUS (PY_VERSION_HEX >= 0x030d0000)
 #define PY314_PLUS (PY_VERSION_HEX >= 0x030e0000)
 
+/* In Python 3.14+, tuples cache their hash value in ob_hash. When a tuple is
+ * allocated via tp_alloc (which zero-initializes memory), ob_hash is 0 — a
+ * valid cached hash — so tuple_hash() returns 0 without computing the real
+ * hash. Reset it to -1 ("not yet computed") after allocation. */
+#if PY314_PLUS
+#define MS_TUPLE_RESET_HASH(op) (((PyTupleObject *)(op))->ob_hash = -1)
+#else
+#define MS_TUPLE_RESET_HASH(op) ((void)0)
+#endif
+
 /* Hint to the compiler not to store `x` in a register since it is likely to
  * change. Results in much higher performance on GCC, with smaller benefits on
  * clang */
@@ -15630,6 +15640,7 @@ mpack_decode_namedtuple(
     PyTypeObject *nt_type = (PyTypeObject *)(info->class);
     PyObject *res = nt_type->tp_alloc(nt_type, nfields);
     if (res == NULL) goto error;
+    MS_TUPLE_RESET_HASH(res);
     for (Py_ssize_t i = 0; i < nfields; i++) {
         PyTuple_SET_ITEM(res, i, NULL);
     }
@@ -17909,6 +17920,7 @@ json_decode_namedtuple(JSONDecoderState *self, TypeNode *type, PathNode *path) {
     PyTypeObject *nt_type = (PyTypeObject *)(info->class);
     PyObject *out = nt_type->tp_alloc(nt_type, nfields);
     if (out == NULL) goto error;
+    MS_TUPLE_RESET_HASH(out);
     for (Py_ssize_t i = 0; i < nfields; i++) {
         PyTuple_SET_ITEM(out, i, NULL);
     }
@@ -21072,6 +21084,7 @@ convert_seq_to_namedtuple(
     PyTypeObject *nt_type = (PyTypeObject *)(info->class);
     PyObject *out = nt_type->tp_alloc(nt_type, nfields);
     if (out == NULL) goto error;
+    MS_TUPLE_RESET_HASH(out);
     for (Py_ssize_t i = 0; i < nfields; i++) {
         PyTuple_SET_ITEM(out, i, NULL);
     }

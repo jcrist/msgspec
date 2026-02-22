@@ -2493,6 +2493,30 @@ class TestNamedTuple:
             assert "Expected `int`, got `str`" in str(rec.value)
 
 
+    def test_namedtuple_hash_preserved_after_roundtrip(self, proto):
+        """Hash of deserialized NamedTuple matches hash of original.
+
+        Regression test for gh-967. In Python 3.14+, tuples cache their hash
+        in ob_hash. When msgspec allocates NamedTuples via tp_alloc (which
+        zero-initializes memory), ob_hash was left at 0 — a valid cached hash
+        — so hash() returned 0 for all deserialized NamedTuples."""
+
+        class Key(NamedTuple):
+            value: int
+
+        original = Key(value=42)
+        encoded = proto.encode(original)
+        decoded = proto.decode(encoded, type=Key)
+
+        assert original == decoded
+        assert hash(original) == hash(decoded)
+
+        # Verify dict lookup works (requires matching hash)
+        d = {original: "found"}
+        assert decoded in d
+        assert d[decoded] == "found"
+
+
 class TestDataclass:
     def test_encode_dataclass_err_invalid_dataclass_fields(self, proto):
         @dataclass

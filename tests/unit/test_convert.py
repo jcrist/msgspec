@@ -1113,6 +1113,23 @@ class TestNamedTuple:
         with pytest.raises(ValidationError, match="Expected `str`, got `int`"):
             convert(msg, Ex3)
 
+    def test_namedtuple_hash_preserved(self):
+        """Hash of converted NamedTuple matches hash of original.
+
+        Regression test for gh-967."""
+
+        class Key(NamedTuple):
+            value: int
+
+        original = Key(value=42)
+        converted = convert([42], Key)
+
+        assert original == converted
+        assert hash(original) == hash(converted)
+
+        d = {original: "found"}
+        assert converted in d
+
 
 class TestDict:
     def test_any_dict(self, dictcls):
