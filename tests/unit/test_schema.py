@@ -173,32 +173,24 @@ def test_newtype():
     }
 
 
-@pytest.mark.parametrize(
-    "typ", [list, tuple, List, Tuple]
-)
+@pytest.mark.parametrize("typ", [list, tuple, List, Tuple])
 def test_sequence_any(typ):
     assert msgspec.json.schema(typ) == {"type": "array"}
 
 
-@pytest.mark.parametrize(
-    "cls", [list, tuple, List, Tuple]
-)
+@pytest.mark.parametrize("cls", [list, tuple, List, Tuple])
 def test_sequence_typed(cls):
     args = (int, ...) if cls in (tuple, Tuple) else int
     typ = cls[args]
     assert msgspec.json.schema(typ) == {"type": "array", "items": {"type": "integer"}}
 
 
-@pytest.mark.parametrize(
-    "typ", [set, frozenset, Set, FrozenSet]
-)
+@pytest.mark.parametrize("typ", [set, frozenset, Set, FrozenSet])
 def test_set_any(typ):
     assert msgspec.json.schema(typ) == {"type": "array", "uniqueItems": True}
 
 
-@pytest.mark.parametrize(
-    "cls", [set, frozenset, Set, FrozenSet]
-)
+@pytest.mark.parametrize("cls", [set, frozenset, Set, FrozenSet])
 def test_set_typed(cls):
     typ = cls[int]
     assert msgspec.json.schema(typ) == {
