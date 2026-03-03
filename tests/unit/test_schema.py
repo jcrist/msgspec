@@ -174,19 +174,38 @@ def test_newtype():
 
 
 @pytest.mark.parametrize(
-    "typ", [list, tuple, set, frozenset, List, Tuple, Set, FrozenSet]
+    "typ", [list, tuple, List, Tuple]
 )
 def test_sequence_any(typ):
     assert msgspec.json.schema(typ) == {"type": "array"}
 
 
 @pytest.mark.parametrize(
-    "cls", [list, tuple, set, frozenset, List, Tuple, Set, FrozenSet]
+    "cls", [list, tuple, List, Tuple]
 )
 def test_sequence_typed(cls):
     args = (int, ...) if cls in (tuple, Tuple) else int
     typ = cls[args]
     assert msgspec.json.schema(typ) == {"type": "array", "items": {"type": "integer"}}
+
+
+@pytest.mark.parametrize(
+    "typ", [set, frozenset, Set, FrozenSet]
+)
+def test_set_any(typ):
+    assert msgspec.json.schema(typ) == {"type": "array", "uniqueItems": True}
+
+
+@pytest.mark.parametrize(
+    "cls", [set, frozenset, Set, FrozenSet]
+)
+def test_set_typed(cls):
+    typ = cls[int]
+    assert msgspec.json.schema(typ) == {
+        "type": "array",
+        "uniqueItems": True,
+        "items": {"type": "integer"},
+    }
 
 
 @pytest.mark.parametrize("cls", [tuple, Tuple])
@@ -1105,7 +1124,7 @@ def test_binary_metadata(typ, field, n, constraint):
     }
 
 
-@pytest.mark.parametrize("typ", [list, tuple, set, frozenset])
+@pytest.mark.parametrize("typ", [list, tuple])
 @pytest.mark.parametrize(
     "field, constraint",
     [("min_length", "minItems"), ("max_length", "maxItems")],
@@ -1113,6 +1132,21 @@ def test_binary_metadata(typ, field, n, constraint):
 def test_array_metadata(typ, field, constraint):
     typ = Annotated[typ, Meta(**{field: 2})]
     assert msgspec.json.schema(typ) == {"type": "array", constraint: 2}
+
+
+@pytest.mark.parametrize("typ", [set, frozenset])
+@pytest.mark.parametrize(
+    "field, constraint",
+    [("min_length", "minItems"), ("max_length", "maxItems")],
+)
+def test_set_metadata(typ, field, constraint):
+    typ = Annotated[typ[int], Meta(**{field: 2})]
+    assert msgspec.json.schema(typ) == {
+        "type": "array",
+        "uniqueItems": True,
+        "items": {"type": "integer"},
+        constraint: 2,
+    }
 
 
 @pytest.mark.parametrize(
