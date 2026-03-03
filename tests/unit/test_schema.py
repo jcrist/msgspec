@@ -1235,7 +1235,15 @@ def test_schema_components_collects_subtypes():
             "properties": {
                 "b": {
                     "anyOf": [
-                        {"items": {"items": r1, "type": "array"}, "type": "array"},
+                        {
+                            "items": {
+                                "items": r1,
+                                "type": "array",
+                                "uniqueItems": True,
+                            },
+                            "type": "array",
+                            "uniqueItems": True,
+                        },
                         {"type": "integer"},
                     ]
                 }
