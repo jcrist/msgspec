@@ -12793,9 +12793,13 @@ mpack_encode_set(EncoderState *self, PyObject *obj)
     if (iter == NULL) goto cleanup;
 
     while ((item = PyIter_Next(iter))) {
-        if (mpack_encode_inline(self, item) < 0) goto cleanup;
+        if (mpack_encode_inline(self, item) < 0) {
+            Py_DECREF(item);
+            goto cleanup;
+        }
+        Py_DECREF(item);
     }
-    status = 0;
+    if (!PyErr_Occurred()) status = 0;
 
 cleanup:
     Py_LeaveRecursiveCall();
@@ -14092,12 +14096,18 @@ json_encode_set(EncoderState *self, PyObject *obj)
     if (iter == NULL) goto cleanup;
 
     while ((item = PyIter_Next(iter))) {
-        if (json_encode_inline(self, item) < 0) goto cleanup;
+        if (json_encode_inline(self, item) < 0) {
+            Py_DECREF(item);
+            goto cleanup;
+        }
+        Py_DECREF(item);
         if (ms_write(self, ",", 1) < 0) goto cleanup;
     }
     /* Overwrite trailing comma with ] */
-    *(self->output_buffer_raw + self->output_len - 1) = ']';
-    status = 0;
+    if (!PyErr_Occurred()) {
+        *(self->output_buffer_raw + self->output_len - 1) = ']';
+        status = 0;
+    }
 cleanup:
     Py_LeaveRecursiveCall();
     Py_XDECREF(iter);
