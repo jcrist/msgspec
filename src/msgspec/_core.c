@@ -5108,6 +5108,15 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
             if (out < 0) break;
         }
         Py_LeaveRecursiveCall();
+        /* Derive constraint kind from the non-None types in the union */
+        uint64_t types_no_none = state->types & ~MS_TYPE_NONE;
+        if (types_no_none == MS_TYPE_INT) kind = CK_INT;
+        else if (types_no_none == MS_TYPE_FLOAT) kind = CK_FLOAT;
+        else if (types_no_none == MS_TYPE_STR) kind = CK_STR;
+        else if (types_no_none == MS_TYPE_BYTES || types_no_none == MS_TYPE_BYTEARRAY || types_no_none == MS_TYPE_MEMORYVIEW) kind = CK_BYTES;
+        else if (types_no_none == MS_TYPE_DATETIME || types_no_none == MS_TYPE_TIME) kind = CK_TIME;
+        else if (types_no_none & (MS_TYPE_LIST | MS_TYPE_SET | MS_TYPE_FROZENSET | MS_TYPE_VARTUPLE)) kind = CK_ARRAY;
+        else if (types_no_none & MS_TYPE_DICT) kind = CK_MAP;
     }
     else if (origin == state->mod->typing_literal) {
         if (state->literals == NULL) {

@@ -807,3 +807,46 @@ class TestUnionConstraints:
         for x in [{}, [1], "x"]:
             with pytest.raises(msgspec.ValidationError):
                 dec.decode(proto.encode(Ex(x)))
+
+    def test_optional_str_min_length(self, proto):
+        """Constraints should work on Optional[str] (str | None) types."""
+
+        class Ex(msgspec.Struct):
+            x: Annotated[Union[str, None], Meta(min_length=3)]
+
+        dec = proto.Decoder(Ex)
+
+        assert dec.decode(proto.encode(Ex(None))).x is None
+        assert dec.decode(proto.encode(Ex("abc"))).x == "abc"
+        assert dec.decode(proto.encode(Ex("abcdef"))).x == "abcdef"
+
+        with pytest.raises(msgspec.ValidationError):
+            dec.decode(proto.encode(Ex("ab")))
+
+    def test_optional_int_gt(self, proto):
+        """Numeric constraints should work on Optional[int] types."""
+
+        class Ex(msgspec.Struct):
+            x: Annotated[Union[int, None], Meta(gt=0)]
+
+        dec = proto.Decoder(Ex)
+
+        assert dec.decode(proto.encode(Ex(None))).x is None
+        assert dec.decode(proto.encode(Ex(5))).x == 5
+
+        with pytest.raises(msgspec.ValidationError):
+            dec.decode(proto.encode(Ex(0)))
+
+    def test_optional_float_ge(self, proto):
+        """Numeric constraints should work on Optional[float] types."""
+
+        class Ex(msgspec.Struct):
+            x: Annotated[Union[float, None], Meta(ge=0.0)]
+
+        dec = proto.Decoder(Ex)
+
+        assert dec.decode(proto.encode(Ex(None))).x is None
+        assert dec.decode(proto.encode(Ex(0.0))).x == 0.0
+
+        with pytest.raises(msgspec.ValidationError):
+            dec.decode(proto.encode(Ex(-1.0)))
