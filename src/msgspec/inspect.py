@@ -315,11 +315,11 @@ class LiteralType(Type):
     Parameters
     ----------
     values: tuple
-        A tuple of possible values for this literal instance. Only `str` or
-        `int` literals are supported.
+        A tuple of possible values for this literal instance. Only `bool`,
+        `str`, or `int` literals are supported.
     """
 
-    values: Union[Tuple[str, ...], Tuple[int, ...]]
+    values: Union[Tuple[bool, ...], Tuple[str, ...], Tuple[int, ...]]
 
 
 class CustomType(Type):
