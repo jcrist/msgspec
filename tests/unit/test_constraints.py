@@ -499,7 +499,6 @@ class TestDecimalConstraints:
             dec.decode(proto.encode(Ex(Decimal("100"))))
 
     def test_convert(self):
-
         typ = Annotated[Decimal, Meta(gt=0)]
         assert msgspec.convert(Decimal("1"), typ) == Decimal("1")
 
