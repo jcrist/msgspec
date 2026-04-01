@@ -472,7 +472,6 @@ class TestDecimalConstraints:
                 dec.decode(proto.encode(Ex(Decimal(x))))
 
     def test_multiple_of(self, proto):
-
         class Ex(msgspec.Struct):
             x: Annotated[Decimal, Meta(multiple_of=Decimal("0.1"))]
 
@@ -485,7 +484,6 @@ class TestDecimalConstraints:
             dec.decode(proto.encode(Ex(Decimal("0.05"))))
 
     def test_combinations(self, proto):
-
         class Ex(msgspec.Struct):
             x: Annotated[Decimal, Meta(ge=0, lt=100)]
 
