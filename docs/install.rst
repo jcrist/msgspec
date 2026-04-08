@@ -1,20 +1,18 @@
 Installation
 ============
 
-``msgspec`` may be installed via ``pip`` or ``conda``. Note that Python >= 3.8
+``msgspec-arise`` may be installed via ``pip``. Note that Python >= 3.10
 is required. The basic install has no required dependencies.
+
+``msgspec-arise`` is a community fork of ``msgspec``. It provides the same
+``import msgspec`` interface — the two packages should not be installed
+side-by-side.
 
 **pip**
 
 .. code-block:: shell
 
-    pip install msgspec
-
-**conda**
-
-.. code-block:: shell
-
-    conda install msgspec -c conda-forge
+    pip install msgspec-arise
 
 
 Optional Dependencies
@@ -40,13 +38,7 @@ extra:
 
 .. code-block:: shell
 
-    pip install "msgspec[toml]"
-
-**conda**
-
-.. code-block:: shell
-
-    conda install msgspec-toml -c conda-forge
+    pip install "msgspec-arise[toml]"
 
 YAML
 ~~~~
@@ -58,25 +50,19 @@ this dependency manually, or depend on the ``yaml`` extra:
 
 .. code-block:: shell
 
-    pip install "msgspec[yaml]"
-
-**conda**
-
-.. code-block:: shell
-
-    conda install msgspec-yaml -c conda-forge
+    pip install "msgspec-arise[yaml]"
 
 
 Installing from GitHub
 ----------------------
 
-If you want wish to use a feature that hasn't been released yet, you may
+If you want to use a feature that hasn't been released yet, you may
 install from the `development branch on GitHub
-<https://github.com/jcrist/msgspec>`__ using ``pip``:
+<https://github.com/Siyet/msgspec-arise>`__ using ``pip``:
 
 .. code-block:: shell
 
-    pip install git+https://github.com/jcrist/msgspec.git
+    pip install git+https://github.com/Siyet/msgspec-arise.git
 
 
 .. _YAML: https://yaml.org

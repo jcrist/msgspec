@@ -6,7 +6,7 @@ requires = [
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "msgspec"
+name = "msgspec-arise"
 dynamic = [
   "version",
 ]
@@ -18,8 +18,7 @@ license-files = [
 ]
 requires-python = ">=3.10"
 maintainers = [
-  { name = "Jim Crist-Harif", email = "jcristharif@gmail.com" },
-  { name = "Ofek Lev", email = "oss@ofek.dev" },
+  { name = "Aleksandr Tseluyko" },
 ]
 keywords = [
   "JSON",
@@ -50,9 +49,9 @@ yaml = [
 ]
 
 [project.urls]
-Homepage = "https://jcristharif.com/msgspec/"
-"Issue Tracker" = "https://github.com/jcrist/msgspec/issues"
-Source = "https://github.com/jcrist/msgspec"
+Homepage = "https://github.com/Siyet/msgspec-arise"
+"Issue Tracker" = "https://github.com/Siyet/msgspec-arise/issues"
+Source = "https://github.com/Siyet/msgspec-arise"
 
 [dependency-groups]
 bench = [
@@ -121,7 +120,7 @@ msgspec = [
 
 [tool.setuptools_scm]
 version_file = "src/msgspec/_version.py"
-parentdir_prefix_version = "msgspec-"
+parentdir_prefix_version = "msgspec-arise-"
 
 [tool.uv.config-settings]
 editable_mode = "compat"

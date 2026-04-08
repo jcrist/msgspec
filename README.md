@@ -1,19 +1,22 @@
 <p align="center">
-  <a href="https://jcristharif.com/msgspec/">
-    <img src="https://raw.githubusercontent.com/jcrist/msgspec/main/docs/_static/msgspec-logo-light.svg" width="35%" alt="msgspec">
+  <a href="https://github.com/Siyet/msgspec-arise">
+    <img src="https://raw.githubusercontent.com/jcrist/msgspec/main/docs/_static/msgspec-logo-light.svg" width="35%" alt="msgspec-arise">
   </a>
 </p>
 
 <div align="center">
 
-[![CI](https://github.com/jcrist/msgspec/actions/workflows/ci.yml/badge.svg)](https://github.com/jcrist/msgspec/actions/workflows/ci.yml)
-[![Documentation](https://img.shields.io/badge/docs-latest-blue.svg)](https://jcristharif.com/msgspec/)
-[![License](https://img.shields.io/github/license/jcrist/msgspec.svg)](https://github.com/jcrist/msgspec/blob/main/LICENSE)
-[![PyPI Version](https://img.shields.io/pypi/v/msgspec.svg)](https://pypi.org/project/msgspec/)
-[![Conda Version](https://img.shields.io/conda/vn/conda-forge/msgspec.svg)](https://anaconda.org/conda-forge/msgspec)
-[![Code Coverage](https://codecov.io/gh/jcrist/msgspec/branch/main/graph/badge.svg)](https://app.codecov.io/gh/jcrist/msgspec)
+[![CI](https://github.com/Siyet/msgspec-arise/actions/workflows/ci.yml/badge.svg)](https://github.com/Siyet/msgspec-arise/actions/workflows/ci.yml)
+[![License](https://img.shields.io/github/license/Siyet/msgspec-arise.svg)](https://github.com/Siyet/msgspec-arise/blob/main/LICENSE)
+[![PyPI Version](https://img.shields.io/pypi/v/msgspec-arise.svg)](https://pypi.org/project/msgspec-arise/)
 
 </div>
+
+> **Temporary community fork of [msgspec](https://github.com/jcrist/msgspec).**
+> The original project is [no longer maintained](https://github.com/jcrist/msgspec/issues/990) — the sole owner is unreachable and the only other collaborator has stepped away.
+> This fork exists to keep the project alive: merge pending fixes, review community PRs, and publish new releases.
+> If `jcrist` returns and resumes maintenance, this fork will be archived.
+> Drop-in replacement — `import msgspec` works as before.
 
 `msgspec` is a *fast* serialization and validation library, with builtin
 support for [JSON](https://json.org), [MessagePack](https://msgpack.org),
@@ -103,8 +106,18 @@ encoding/decoding a message with `msgspec` can be
 
 See [the documentation](https://jcristharif.com/msgspec/) for more information.
 
+## Installation
+
+```bash
+pip install msgspec-arise
+```
 
 ## LICENSE
 
 New BSD. See the
-[License File](https://github.com/jcrist/msgspec/blob/main/LICENSE).
+[License File](https://github.com/Siyet/msgspec-arise/blob/main/LICENSE).
+
+## Acknowledgments
+
+This is a community fork of [msgspec](https://github.com/jcrist/msgspec) by Jim Crist-Harif.
+All credit for the original library goes to the original author and contributors.

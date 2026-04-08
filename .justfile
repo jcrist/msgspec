@@ -287,7 +287,7 @@ _with_env env action *args:
     } \
   }}{{ \
     if rebuild =~ "^(true|1)$" { \
-      " --reinstall-package msgspec" \
+      " --reinstall-package msgspec-arise" \
     } else { \
       "" \
     } \
