@@ -300,6 +300,8 @@ class _SchemaGenerator:
                 schema["maxItems"] = t.max_length
             if t.min_length is not None:
                 schema["minItems"] = t.min_length
+            if isinstance(t, (mi.SetType, mi.FrozenSetType)):
+                schema["uniqueItems"] = True
         elif isinstance(t, mi.TupleType):
             schema["type"] = "array"
             schema["minItems"] = schema["maxItems"] = len(t.item_types)
