@@ -648,6 +648,20 @@ class TestEnum:
 
         assert proto.encode(Test.A) == proto.encode("apple")
 
+    @pytest.mark.parametrize(
+        "base_metacls", [enum.EnumMeta] + ([enum.EnumType] if PY311 else [])
+    )
+    def test_enum_with_custom_enum_metaclass(self, proto, base_metacls):
+        class ChoicesMeta(base_metacls):
+            """My custom enum metaclass"""
+
+        class Test(enum.Enum, metaclass=ChoicesMeta):
+            A = "apple"
+            B = "banana"
+
+        assert proto.encode(Test.A) == proto.encode("apple")
+        assert proto.decode(proto.encode("apple"), type=Test) is Test.A
+
     @pytest.mark.parametrize("base_cls", [StrEnum, enum.Enum])
     def test_decode(self, proto, base_cls):
         class Test(base_cls):
