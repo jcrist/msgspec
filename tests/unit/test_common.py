@@ -2492,7 +2492,6 @@ class TestNamedTuple:
             assert "`$[1][0]`" in str(rec.value)
             assert "Expected `int`, got `str`" in str(rec.value)
 
-
     def test_namedtuple_hash_preserved_after_roundtrip(self, proto):
         """Hash of deserialized NamedTuple matches hash of original.
 
