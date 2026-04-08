@@ -88,6 +88,13 @@ def fields(type_or_instance: Struct | type[Struct]) -> tuple[FieldInfo]:
         if not isinstance(cls, StructMeta):
             raise TypeError("Must be called with a struct type or instance")
 
+    # Return cached result for non-generic structs
+    is_generic = annotated_cls is not cls
+    if not is_generic:
+        cached = cls.__dict__.get("__struct_field_info__")
+        if cached is not None:
+            return cached
+
     hints = _get_class_annotations(annotated_cls)
     npos = len(cls.__struct_fields__) - len(cls.__struct_defaults__)
     fields = []
@@ -111,4 +118,10 @@ def fields(type_or_instance: Struct | type[Struct]) -> tuple[FieldInfo]:
         )
         fields.append(field)
 
-    return tuple(fields)
+    result = tuple(fields)
+
+    # Cache for non-generic structs
+    if not is_generic:
+        cls.__struct_field_info__ = result
+
+    return result
