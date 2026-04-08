@@ -178,7 +178,7 @@ def decode(buf, *, type=Any, strict=True, dec_hook=None):
         # call `memoryview` first, since `bytes(1)` is actually valid
         buf = bytes(memoryview(buf))
     try:
-        obj = yaml.load(buf, Loader)
+        obj = yaml.safe_load(buf, Loader)
     except yaml.YAMLError as exc:
         raise _DecodeError(str(exc)) from None
 
