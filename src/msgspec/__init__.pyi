@@ -70,6 +70,7 @@ T = TypeVar("T")
 
 class UnsetType(enum.Enum):
     UNSET = "UNSET"
+    def __bool__(self) -> Literal[False]: ...
 
 UNSET = UnsetType.UNSET
 
