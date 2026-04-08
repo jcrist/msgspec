@@ -7994,6 +7994,8 @@ Struct_replace(
         }
     }
 
+    if (Struct_post_init(struct_type, out) < 0) goto error;
+
     if (is_gc && should_untrack && MS_IS_TRACKED(out))
         PyObject_GC_UnTrack(out);
     return out;
