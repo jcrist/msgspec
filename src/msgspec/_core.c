@@ -22506,29 +22506,31 @@ PyInit__core(void)
         "Base class for all Msgspec exceptions",
         NULL, NULL
     );
-    if (st->MsgspecError == NULL)
-        return NULL;
+    if (st->MsgspecError == NULL) return NULL;
+
     st->EncodeError = PyErr_NewExceptionWithDoc(
         "msgspec.EncodeError",
         "An error occurred while encoding an object",
         st->MsgspecError, NULL
     );
-    if (st->EncodeError == NULL)
-        return NULL;
+    if (st->EncodeError == NULL) return NULL;
+
+    temp_obj = PyTuple_Pack(2, st->MsgspecError, PyExc_ValueError);
+    if (temp_obj == NULL) return NULL;
     st->DecodeError = PyErr_NewExceptionWithDoc(
         "msgspec.DecodeError",
         "An error occurred while decoding an object",
-        st->MsgspecError, NULL
+        temp_obj, NULL
     );
-    if (st->DecodeError == NULL)
-        return NULL;
+    Py_XDECREF(temp_obj);
+    if (st->DecodeError == NULL) return NULL;
+
     st->ValidationError = PyErr_NewExceptionWithDoc(
         "msgspec.ValidationError",
         "The message didn't match the expected schema",
         st->DecodeError, NULL
     );
-    if (st->ValidationError == NULL)
-        return NULL;
+    if (st->ValidationError == NULL) return NULL;
 
     Py_INCREF(st->MsgspecError);
     if (PyModule_AddObject(m, "MsgspecError", st->MsgspecError) < 0)
