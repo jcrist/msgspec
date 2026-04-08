@@ -12,7 +12,11 @@
 
 </div>
 
-> **Community fork of [msgspec](https://github.com/jcrist/msgspec).** Drop-in replacement — `import msgspec` works as before.
+> **Temporary community fork of [msgspec](https://github.com/jcrist/msgspec).**
+> The original project is [no longer maintained](https://github.com/jcrist/msgspec/issues/990) — the sole owner is unreachable and the only other collaborator has stepped away.
+> This fork exists to keep the project alive: merge pending fixes, review community PRs, and publish new releases.
+> If `jcrist` returns and resumes maintenance, this fork will be archived.
+> Drop-in replacement — `import msgspec` works as before.
 
 `msgspec` is a *fast* serialization and validation library, with builtin
 support for [JSON](https://json.org), [MessagePack](https://msgpack.org),
