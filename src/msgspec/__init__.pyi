@@ -17,7 +17,7 @@ from typing import (
     overload,
 )
 
-from typing_extensions import Buffer, dataclass_transform
+from typing_extensions import Buffer, Self, dataclass_transform
 
 from . import inspect, json, msgpack, structs, toml, yaml
 
@@ -70,6 +70,7 @@ T = TypeVar("T")
 
 class UnsetType(enum.Enum):
     UNSET = "UNSET"
+    def __bool__(self) -> Literal[False]: ...
 
 UNSET = UnsetType.UNSET
 
@@ -118,6 +119,7 @@ class Struct(metaclass=StructMeta):
     def __rich_repr__(
         self,
     ) -> Iterable[Union[Any, Tuple[Any], Tuple[str, Any], Tuple[str, Any, Any]]]: ...
+    def __replace__(self, **changes: Any) -> Self: ...
 
 def defstruct(
     name: str,
