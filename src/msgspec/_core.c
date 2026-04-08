@@ -4610,6 +4610,7 @@ typenode_collect_convert_structs_lock_held(TypeNodeCollectState *state) {
     set_iter = PyObject_GetIter(state->structs_set);
     while ((set_item = PyIter_Next(set_iter))) {
         struct_info = StructInfo_Convert(set_item);
+        Py_DECREF(set_item);
         if (struct_info == NULL) goto cleanup;
 
         StructMetaObject *struct_type = ((StructInfo *)struct_info)->class;
@@ -12793,7 +12794,9 @@ mpack_encode_set(EncoderState *self, PyObject *obj)
     if (iter == NULL) goto cleanup;
 
     while ((item = PyIter_Next(iter))) {
-        if (mpack_encode_inline(self, item) < 0) goto cleanup;
+        int status = mpack_encode_inline(self, item);
+        Py_DECREF(item);
+        if (status < 0) goto cleanup;
     }
     status = 0;
 
@@ -14092,7 +14095,9 @@ json_encode_set(EncoderState *self, PyObject *obj)
     if (iter == NULL) goto cleanup;
 
     while ((item = PyIter_Next(iter))) {
-        if (json_encode_inline(self, item) < 0) goto cleanup;
+        int status = json_encode_inline(self, item);
+        Py_DECREF(item);
+        if (status < 0) goto cleanup;
         if (ms_write(self, ",", 1) < 0) goto cleanup;
     }
     /* Overwrite trailing comma with ] */
@@ -14690,7 +14695,9 @@ JSONEncoder_encode_lines(Encoder *self, PyObject *const *args, Py_ssize_t nargs)
 
         PyObject *item;
         while ((item = PyIter_Next(iter))) {
-            if (json_encode(&state, item) < 0) goto error;
+            int status = json_encode(&state, item);
+            Py_DECREF(item);
+            if (status < 0) goto error;
             if (ms_write(&state, "\n", 1) < 0) goto error;
         }
         if (PyErr_Occurred()) goto error;
