@@ -1,5 +1,18 @@
 # Changelog
 
+## Version 0.21.0 (2026-04-08)
+
+- Fix a segfault on Python 3.13+ that could occur when creating structs that contained a
+  `__dict__`, instead of only using `__slots__` ({pr}`960`).
+- Improve type annotations for `msgspec.UNSET` ({pr}`975`).
+- Fix hashing of decoded tuples on Python 3.14 ({pr}`980`).
+- Add `ref_template` arg to `msgspec.json.schema` ({pr}`983`).
+- Add missing `libm` linkage to some architectures ({pr}`993`).
+- Fix memory leak when decoding sets ({pr}`991`).
+- Add `uniqueItems` annotation to `set`/`frozenset` JSON schemas ({pr}`984`).
+- **BREAKING**: Call `__post_init__` from
+  `msgspec.structs.replace`/`copy.replace` ({pr}`1000`).
+
 ## Version 0.20.0 (2025-11-23)
 
 - Support Python 3.14, including freethreaded mode ({pr}`852`, {pr}`877`).
