@@ -201,6 +201,7 @@ few:
     extending.rst
     inspect.rst
     perf-tips.rst
+    porting-from-orjson.rst
 
 .. toctree::
     :hidden:
