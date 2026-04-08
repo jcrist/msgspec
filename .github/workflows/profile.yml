@@ -83,7 +83,7 @@ jobs:
         VIRTUAL_ENV: "${{ steps.metadata.outputs.env-path }}"
       run: >-
         uv pip install${{ inputs.version == '' && ' --no-index --find-links dist' || '' }}
-        ${{ inputs.version == '' && 'msgspec' || format('msgspec=={0}', inputs.version) }}
+        ${{ inputs.version == '' && 'msgspec-arise' || format('msgspec-arise=={0}', inputs.version) }}
 
     # TODO: set up infra to commit results after each merge and then make tests compare
     - name: Run profiling tests on Python ${{ steps.metadata.outputs.python-version }}

@@ -18,8 +18,8 @@ except ImportError:
     pass
 
 
-project = "msgspec"
-copyright = "Jim Crist-Harif"
+project = "msgspec-arise"
+copyright = "Jim Crist-Harif, Aleksandr Tseluyko"
 author = "Jim Crist-Harif"
 
 GITHUB_LOGO = """
