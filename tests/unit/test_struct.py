@@ -2379,6 +2379,20 @@ class TestReplace:
         assert sys.getrefcount(x2) == x2_count + 1
         del t2
 
+    def test_replace_calls_post_init(self, replace):
+        count = 0
+
+        class Ex(Struct):
+            def __post_init__(self):
+                nonlocal count
+                count += 1
+
+        x1 = Ex()
+        assert count == 1
+        x2 = replace(x1)
+        assert x1 == x2
+        assert count == 2
+
 
 class TestAsDictAndAsTuple:
     def test_asdict(self):
@@ -2661,19 +2675,5 @@ class TestPostInit:
         x1 = Ex()
         assert count == 1
         x2 = x1.__copy__()
-        assert x1 == x2
-        assert count == 1
-
-    def test_post_init_not_called_on_replace(self):
-        count = 0
-
-        class Ex(Struct):
-            def __post_init__(self):
-                nonlocal count
-                count += 1
-
-        x1 = Ex()
-        assert count == 1
-        x2 = msgspec.structs.replace(x1)
         assert x1 == x2
         assert count == 1
