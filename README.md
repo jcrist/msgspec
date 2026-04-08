@@ -1,19 +1,22 @@
 <p align="center">
-  <a href="https://jcristharif.com/msgspec/">
-    <img src="https://raw.githubusercontent.com/jcrist/msgspec/main/docs/_static/msgspec-logo-light.svg" width="35%" alt="msgspec">
+  <a href="https://github.com/Siyet/msgspec-arise">
+    <img src="https://raw.githubusercontent.com/jcrist/msgspec/main/docs/_static/msgspec-logo-light.svg" width="35%" alt="msgspec-arise">
   </a>
 </p>
 
 <div align="center">
 
-[![CI](https://github.com/jcrist/msgspec/actions/workflows/ci.yml/badge.svg)](https://github.com/jcrist/msgspec/actions/workflows/ci.yml)
-[![Documentation](https://img.shields.io/badge/docs-latest-blue.svg)](https://jcristharif.com/msgspec/)
-[![License](https://img.shields.io/github/license/jcrist/msgspec.svg)](https://github.com/jcrist/msgspec/blob/main/LICENSE)
-[![PyPI Version](https://img.shields.io/pypi/v/msgspec.svg)](https://pypi.org/project/msgspec/)
-[![Conda Version](https://img.shields.io/conda/vn/conda-forge/msgspec.svg)](https://anaconda.org/conda-forge/msgspec)
-[![Code Coverage](https://codecov.io/gh/jcrist/msgspec/branch/main/graph/badge.svg)](https://app.codecov.io/gh/jcrist/msgspec)
+[![CI](https://github.com/Siyet/msgspec-arise/actions/workflows/ci.yml/badge.svg)](https://github.com/Siyet/msgspec-arise/actions/workflows/ci.yml)
+[![License](https://img.shields.io/github/license/Siyet/msgspec-arise.svg)](https://github.com/Siyet/msgspec-arise/blob/main/LICENSE)
+[![PyPI Version](https://img.shields.io/pypi/v/msgspec-arise.svg)](https://pypi.org/project/msgspec-arise/)
 
 </div>
+
+> **Temporary community fork of [msgspec](https://github.com/jcrist/msgspec).**
+> The original project is [no longer maintained](https://github.com/jcrist/msgspec/issues/990) — the sole owner is unreachable and the only other collaborator has stepped away.
+> This fork exists to keep the project alive: merge pending fixes, review community PRs, and publish new releases.
+> If `jcrist` returns and resumes maintenance, this fork will be archived.
+> Drop-in replacement — `import msgspec` works as before.
 
 `msgspec` is a *fast* serialization and validation library, with builtin
 support for [JSON](https://json.org), [MessagePack](https://msgpack.org),
@@ -21,28 +24,28 @@ support for [JSON](https://json.org), [MessagePack](https://msgpack.org),
 
 - 🚀 **High performance encoders/decoders** for common protocols. The JSON and
   MessagePack implementations regularly
-  [benchmark](https://jcristharif.com/msgspec/benchmarks.html) as the fastest
+  [benchmark](https://siyet.github.io/msgspec-arise/benchmarks.html) as the fastest
   options for Python.
 
 - 🎉 **Support for a wide variety of Python types**. Additional types may be
   supported through
-  [extensions](https://jcristharif.com/msgspec/extending.html).
+  [extensions](https://siyet.github.io/msgspec-arise/extending.html).
 
 - 🔍 **Zero-cost schema validation** using familiar Python type annotations. In
-  [benchmarks](https://jcristharif.com/msgspec/benchmarks.html) `msgspec`
+  [benchmarks](https://siyet.github.io/msgspec-arise/benchmarks.html) `msgspec`
   decodes *and* validates JSON faster than
   [orjson](https://github.com/ijl/orjson) can decode it alone.
 
 - ✨ **A speedy Struct type** for representing structured data. If you already
   use [dataclasses](https://docs.python.org/3/library/dataclasses.html) or
   [attrs](https://www.attrs.org/en/stable/),
-  [structs](https://jcristharif.com/msgspec/structs.html) should feel familiar.
+  [structs](https://siyet.github.io/msgspec-arise/structs.html) should feel familiar.
   However, they're
-  [5-60x faster](https://jcristharif.com/msgspec/benchmarks.html#structs)
+  [5-60x faster](https://siyet.github.io/msgspec-arise/benchmarks.html#structs)
   for common operations.
 
 All of this is included in a
-[lightweight library](https://jcristharif.com/msgspec/benchmarks.html#library-size)
+[lightweight library](https://siyet.github.io/msgspec-arise/benchmarks.html#library-size)
 with no required dependencies.
 
 ---
@@ -93,18 +96,28 @@ msgspec.ValidationError: Expected `str`, got `int` - at `$.groups[0]`
 the nicities of validation libraries like
 [pydantic](https://docs.pydantic.dev/latest/). For supported types,
 encoding/decoding a message with `msgspec` can be
-[~10-80x faster than alternative libraries](https://jcristharif.com/msgspec/benchmarks.html).
+[~10-80x faster than alternative libraries](https://siyet.github.io/msgspec-arise/benchmarks.html).
 
 <p align="center">
-  <a href="https://jcristharif.com/msgspec/benchmarks.html">
+  <a href="https://siyet.github.io/msgspec-arise/benchmarks.html">
     <img src="https://raw.githubusercontent.com/jcrist/msgspec/main/docs/_static/bench-validation.svg">
   </a>
 </p>
 
-See [the documentation](https://jcristharif.com/msgspec/) for more information.
+See [the documentation](https://siyet.github.io/msgspec-arise/) for more information.
 
+## Installation
+
+```bash
+pip install msgspec-arise
+```
 
 ## LICENSE
 
 New BSD. See the
-[License File](https://github.com/jcrist/msgspec/blob/main/LICENSE).
+[License File](https://github.com/Siyet/msgspec-arise/blob/main/LICENSE).
+
+## Acknowledgments
+
+This is a community fork of [msgspec](https://github.com/jcrist/msgspec) by Jim Crist-Harif.
+All credit for the original library goes to the original author and contributors.

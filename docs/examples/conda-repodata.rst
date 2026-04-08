@@ -112,6 +112,6 @@ The full example source can be found `here
 .. _current_repodata.json: https://conda.anaconda.org/conda-forge/noarch/current_repodata.json
 .. _json: https://docs.python.org/3/library/json.html
 .. _ujson: https://github.com/ultrajson/ultrajson
-.. _msgspec: https://jcristharif.com/msgspec/
+.. _msgspec: https://siyet.github.io/msgspec-arise/
 .. _orjson: https://github.com/ijl/orjson
 .. _simdjson: https://github.com/TkTech/pysimdjson

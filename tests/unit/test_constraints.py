@@ -1,6 +1,7 @@
 import datetime
 import math
 import re
+from decimal import Decimal
 from typing import Annotated, Dict, List, Union
 
 import pytest
@@ -152,7 +153,7 @@ class TestMetaObject:
         Meta(**{field: 1})
         Meta(**{field: 2.5})
         with pytest.raises(
-            TypeError, match=f"`{field}` must be an int or float, got str"
+            TypeError, match=f"`{field}` must be an int, float, or Decimal, got str"
         ):
             Meta(**{field: "bad"})
 
@@ -441,6 +442,68 @@ class TestFloatConstraints:
         for x in bad:
             with pytest.raises(msgspec.ValidationError):
                 assert dec.decode(proto.encode(Ex(x)))
+
+
+class TestDecimalConstraints:
+    @pytest.mark.parametrize(
+        "name, bound, good, bad",
+        [
+            ("gt", 0, ["0.1", "1", "100"], ["0", "-1"]),
+            ("ge", 0, ["0", "0.1", "100"], ["-0.1"]),
+            ("lt", 100, ["99.9", "0", "-1"], ["100"]),
+            ("le", 100, ["100", "99.9", "0"], ["100.1"]),
+        ],
+        ids=["gt", "ge", "lt", "le"],
+    )
+    def test_bounds(self, proto, name, bound, good, bad):
+        class Ex(msgspec.Struct):
+            x: Annotated[Decimal, Meta(**{name: bound})]
+
+        dec = proto.Decoder(Ex)
+        op = {"gt": ">", "ge": ">=", "lt": "<", "le": "<="}[name]
+
+        for x in good:
+            assert dec.decode(proto.encode(Ex(Decimal(x)))).x == Decimal(x)
+
+        for x in bad:
+            with pytest.raises(
+                msgspec.ValidationError, match=re.escape(f"Expected `Decimal` {op}")
+            ):
+                dec.decode(proto.encode(Ex(Decimal(x))))
+
+    def test_multiple_of(self, proto):
+        class Ex(msgspec.Struct):
+            x: Annotated[Decimal, Meta(multiple_of=Decimal("0.1"))]
+
+        dec = proto.Decoder(Ex)
+
+        for x in [Decimal("0"), Decimal("0.1"), Decimal("0.3"), Decimal("1.0")]:
+            assert dec.decode(proto.encode(Ex(x))).x == x
+
+        with pytest.raises(msgspec.ValidationError, match="multiple of"):
+            dec.decode(proto.encode(Ex(Decimal("0.05"))))
+
+    def test_combinations(self, proto):
+        class Ex(msgspec.Struct):
+            x: Annotated[Decimal, Meta(ge=0, lt=100)]
+
+        dec = proto.Decoder(Ex)
+
+        for x in [Decimal("0"), Decimal("50"), Decimal("99.9")]:
+            assert dec.decode(proto.encode(Ex(x))).x == x
+
+        with pytest.raises(msgspec.ValidationError):
+            dec.decode(proto.encode(Ex(Decimal("-1"))))
+
+        with pytest.raises(msgspec.ValidationError):
+            dec.decode(proto.encode(Ex(Decimal("100"))))
+
+    def test_convert(self):
+        typ = Annotated[Decimal, Meta(gt=0)]
+        assert msgspec.convert(Decimal("1"), typ) == Decimal("1")
+
+        with pytest.raises(msgspec.ValidationError):
+            msgspec.convert(Decimal("0"), typ)
 
 
 class TestStrConstraints:
@@ -807,3 +870,46 @@ class TestUnionConstraints:
         for x in [{}, [1], "x"]:
             with pytest.raises(msgspec.ValidationError):
                 dec.decode(proto.encode(Ex(x)))
+
+    def test_optional_str_min_length(self, proto):
+        """Constraints should work on Optional[str] (str | None) types."""
+
+        class Ex(msgspec.Struct):
+            x: Annotated[Union[str, None], Meta(min_length=3)]
+
+        dec = proto.Decoder(Ex)
+
+        assert dec.decode(proto.encode(Ex(None))).x is None
+        assert dec.decode(proto.encode(Ex("abc"))).x == "abc"
+        assert dec.decode(proto.encode(Ex("abcdef"))).x == "abcdef"
+
+        with pytest.raises(msgspec.ValidationError):
+            dec.decode(proto.encode(Ex("ab")))
+
+    def test_optional_int_gt(self, proto):
+        """Numeric constraints should work on Optional[int] types."""
+
+        class Ex(msgspec.Struct):
+            x: Annotated[Union[int, None], Meta(gt=0)]
+
+        dec = proto.Decoder(Ex)
+
+        assert dec.decode(proto.encode(Ex(None))).x is None
+        assert dec.decode(proto.encode(Ex(5))).x == 5
+
+        with pytest.raises(msgspec.ValidationError):
+            dec.decode(proto.encode(Ex(0)))
+
+    def test_optional_float_ge(self, proto):
+        """Numeric constraints should work on Optional[float] types."""
+
+        class Ex(msgspec.Struct):
+            x: Annotated[Union[float, None], Meta(ge=0.0)]
+
+        dec = proto.Decoder(Ex)
+
+        assert dec.decode(proto.encode(Ex(None))).x is None
+        assert dec.decode(proto.encode(Ex(0.0))).x == 0.0
+
+        with pytest.raises(msgspec.ValidationError):
+            dec.decode(proto.encode(Ex(-1.0)))
