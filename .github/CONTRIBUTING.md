@@ -131,7 +131,7 @@ just doc-serve
 
 ## Benchmarking
 
-You can run all [benchmarks](https://jcristharif.com/msgspec/benchmarks.html) with the `bench` recipe, for example:
+You can run all [benchmarks](https://siyet.github.io/msgspec-arise/benchmarks.html) with the `bench` recipe, for example:
 
 ```
 just bench encodings
@@ -225,4 +225,4 @@ and fix any issues that come up.
 
 `msgspec` has a code of conduct that must be followed by all contributors to
 the project. You may read the code of conduct
-[here](https://github.com/jcrist/msgspec/blob/main/.github/CODE_OF_CONDUCT.md).
+[here](https://github.com/Siyet/msgspec-arise/blob/main/.github/CODE_OF_CONDUCT.md).
