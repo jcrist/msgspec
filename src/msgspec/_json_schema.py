@@ -3,15 +3,20 @@ from __future__ import annotations
 import re
 import textwrap
 from collections.abc import Iterable
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Final, Optional
 
 from . import inspect as mi, to_builtins
 
 __all__ = ("schema", "schema_components")
 
+_REF_TEMPLATE: Final = "#/$defs/{name}"
+
 
 def schema(
-    type: Any, *, schema_hook: Optional[Callable[[type], dict[str, Any]]] = None
+    type: Any,
+    *,
+    schema_hook: Optional[Callable[[type], dict[str, Any]]] = None,
+    ref_template: str = _REF_TEMPLATE,
 ) -> dict[str, Any]:
     """Generate a JSON Schema for a given type.
 
@@ -29,6 +34,13 @@ def schema(
         An optional callback to use for generating JSON schemas of custom
         types. Will be called with the custom type, and should return a dict
         representation of the JSON schema for that type.
+    ref_template : str, optional
+        A template to use when generating ``"$ref"`` fields. This template is
+        formatted with the type name as ``template.format(name=name)``. This
+        can be useful if you intend to store the ``components`` mapping
+        somewhere other than a top-level ``"$defs"`` field. For example, you
+        might use ``ref_template="#/components/{name}"`` if generating an
+        OpenAPI schema.
 
     Returns
     -------
@@ -39,7 +51,11 @@ def schema(
     --------
     schema_components
     """
-    (out,), components = schema_components((type,), schema_hook=schema_hook)
+    (out,), components = schema_components(
+        (type,),
+        schema_hook=schema_hook,
+        ref_template=ref_template,
+    )
     if components:
         out["$defs"] = components
     return out
@@ -49,7 +65,7 @@ def schema_components(
     types: Iterable[Any],
     *,
     schema_hook: Optional[Callable[[type], dict[str, Any]]] = None,
-    ref_template: str = "#/$defs/{name}",
+    ref_template: str = _REF_TEMPLATE,
 ) -> tuple[tuple[dict[str, Any], ...], dict[str, Any]]:
     """Generate JSON Schemas for one or more types.
 
@@ -284,6 +300,8 @@ class _SchemaGenerator:
                 schema["maxItems"] = t.max_length
             if t.min_length is not None:
                 schema["minItems"] = t.min_length
+            if isinstance(t, (mi.SetType, mi.FrozenSetType)):
+                schema["uniqueItems"] = True
         elif isinstance(t, mi.TupleType):
             schema["type"] = "array"
             schema["minItems"] = schema["maxItems"] = len(t.item_types)

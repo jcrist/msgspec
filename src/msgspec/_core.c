@@ -17,11 +17,20 @@
 #include "atof.h"
 
 /* Python version checks */
-#define PY310_PLUS (PY_VERSION_HEX >= 0x030a0000)
 #define PY311_PLUS (PY_VERSION_HEX >= 0x030b0000)
 #define PY312_PLUS (PY_VERSION_HEX >= 0x030c0000)
 #define PY313_PLUS (PY_VERSION_HEX >= 0x030d0000)
 #define PY314_PLUS (PY_VERSION_HEX >= 0x030e0000)
+
+/* In Python 3.14+, tuples cache their hash value in ob_hash. When a tuple is
+ * allocated via tp_alloc (which zero-initializes memory), ob_hash is 0 — a
+ * valid cached hash — so tuple_hash() returns 0 without computing the real
+ * hash. Reset it to -1 ("not yet computed") after allocation. */
+#if PY314_PLUS
+#define MS_TUPLE_RESET_HASH(op) (((PyTupleObject *)(op))->ob_hash = -1)
+#else
+#define MS_TUPLE_RESET_HASH(op) ((void)0)
+#endif
 
 /* Hint to the compiler not to store `x` in a register since it is likely to
  * change. Results in much higher performance on GCC, with smaller benefits on
@@ -511,9 +520,7 @@ typedef struct {
     PyObject *get_typeddict_info;
     PyObject *get_dataclass_info;
     PyObject *rebuild;
-#if PY310_PLUS
     PyObject *types_uniontype;
-#endif
 #if PY312_PLUS
     PyObject *typing_typealiastype;
 #endif
@@ -4613,6 +4620,7 @@ typenode_collect_convert_structs_lock_held(TypeNodeCollectState *state) {
     set_iter = PyObject_GetIter(state->structs_set);
     while ((set_item = PyIter_Next(set_iter))) {
         struct_info = StructInfo_Convert(set_item);
+        Py_DECREF(set_item);
         if (struct_info == NULL) goto cleanup;
 
         StructMetaObject *struct_type = ((StructInfo *)struct_info)->class;
@@ -4899,7 +4907,6 @@ typenode_origin_args_metadata(
         }
     }
 
-    #if PY310_PLUS
     if (Py_TYPE(t) == (PyTypeObject *)(state->mod->types_uniontype)) {
         /* Handle types.UnionType unions (`int | float | ...`) */
         args = PyObject_GetAttr(t, state->mod->str___args__);
@@ -4907,7 +4914,6 @@ typenode_origin_args_metadata(
         origin = state->mod->typing_union;
         Py_INCREF(origin);
     }
-    #endif
 
     *out_origin = origin;
     *out_args = args;
@@ -5322,22 +5328,9 @@ ms_maybe_wrap_validation_error(PathNode *path) {
 static PyTypeObject StructMixinType;
 
 
-/* Note this always allocates an UNTRACKED object */
 static PyObject *
 Struct_alloc(PyTypeObject *type) {
-    PyObject *obj;
-    bool is_gc = MS_TYPE_IS_GC(type);
-
-    if (is_gc) {
-        obj = PyObject_GC_New(PyObject, type);
-    }
-    else {
-        obj = PyObject_New(PyObject, type);
-    }
-    if (obj == NULL) return NULL;
-    /* Zero out slot fields */
-    memset((char *)obj + sizeof(PyObject), '\0', type->tp_basicsize - sizeof(PyObject));
-    return obj;
+    return type->tp_alloc(type, type->tp_itemsize);
 }
 
 /* Mirrored from cpython Objects/typeobject.c */
@@ -7489,7 +7482,6 @@ Struct_decode_post_init(StructMetaObject *st_type, PyObject *obj, PathNode *path
     return 0;
 }
 
-/* ASSUMPTION - obj is untracked and allocated via Struct_alloc */
 static int
 Struct_fill_in_defaults(StructMetaObject *st_type, PyObject *obj, PathNode *path) {
     Py_ssize_t nfields, ndefaults, i;
@@ -7517,8 +7509,8 @@ Struct_fill_in_defaults(StructMetaObject *st_type, PyObject *obj, PathNode *path
         }
     }
 
-    if (is_gc && !should_untrack)
-        PyObject_GC_Track(obj);
+    if (is_gc && should_untrack && MS_IS_TRACKED(obj))
+        PyObject_GC_UnTrack(obj);
 
     if (Struct_decode_post_init(st_type, obj, path) < 0) return -1;
 
@@ -7694,8 +7686,8 @@ kw_found:
         }
     }
 
-    if (is_gc && !should_untrack)
-        PyObject_GC_Track(self);
+    if (is_gc && should_untrack && MS_IS_TRACKED(self))
+        PyObject_GC_UnTrack(self);
 
     if (Struct_post_init(st_type, self) < 0) goto error;
     return self;
@@ -7930,8 +7922,8 @@ Struct_copy(PyObject *self, PyObject *args)
         Struct_set_index(res, i, val);
     }
     /* If self is tracked, then copy is tracked */
-    if (MS_OBJECT_IS_GC(self) && MS_IS_TRACKED(self))
-        PyObject_GC_Track(res);
+    if (MS_OBJECT_IS_GC(self) && !MS_IS_TRACKED(self))
+        PyObject_GC_UnTrack(res);
     return res;
 error:
     Py_DECREF(res);
@@ -8002,9 +7994,8 @@ Struct_replace(
         }
     }
 
-    if (is_gc && !should_untrack) {
-        PyObject_GC_Track(out);
-    }
+    if (is_gc && should_untrack && MS_IS_TRACKED(out))
+        PyObject_GC_UnTrack(out);
     return out;
 
 error:
@@ -10500,15 +10491,8 @@ ms_encode_err_type_unsupported(PyTypeObject *type) {
  *************************************************************************/
 
 #define MS_HAS_TZINFO(o)  (((_PyDateTime_BaseTZInfo *)(o))->hastzinfo)
-#if PY310_PLUS
 #define MS_DATE_GET_TZINFO(o) PyDateTime_DATE_GET_TZINFO(o)
 #define MS_TIME_GET_TZINFO(o) PyDateTime_TIME_GET_TZINFO(o)
-#else
-#define MS_DATE_GET_TZINFO(o)      (MS_HAS_TZINFO(o) ? \
-    ((PyDateTime_DateTime *)(o))->tzinfo : Py_None)
-#define MS_TIME_GET_TZINFO(o)      (MS_HAS_TZINFO(o) ? \
-    ((PyDateTime_Time *)(o))->tzinfo : Py_None)
-#endif
 
 #ifndef Py_GIL_DISABLED
 #ifndef TIMEZONE_CACHE_SIZE
@@ -12805,7 +12789,9 @@ mpack_encode_set(EncoderState *self, PyObject *obj)
     if (iter == NULL) goto cleanup;
 
     while ((item = PyIter_Next(iter))) {
-        if (mpack_encode_inline(self, item) < 0) goto cleanup;
+        int status = mpack_encode_inline(self, item);
+        Py_DECREF(item);
+        if (status < 0) goto cleanup;
     }
     status = 0;
 
@@ -14104,7 +14090,9 @@ json_encode_set(EncoderState *self, PyObject *obj)
     if (iter == NULL) goto cleanup;
 
     while ((item = PyIter_Next(iter))) {
-        if (json_encode_inline(self, item) < 0) goto cleanup;
+        int status = json_encode_inline(self, item);
+        Py_DECREF(item);
+        if (status < 0) goto cleanup;
         if (ms_write(self, ",", 1) < 0) goto cleanup;
     }
     /* Overwrite trailing comma with ] */
@@ -14702,7 +14690,9 @@ JSONEncoder_encode_lines(Encoder *self, PyObject *const *args, Py_ssize_t nargs)
 
         PyObject *item;
         while ((item = PyIter_Next(iter))) {
-            if (json_encode(&state, item) < 0) goto error;
+            int status = json_encode(&state, item);
+            Py_DECREF(item);
+            if (status < 0) goto error;
             if (ms_write(&state, "\n", 1) < 0) goto error;
         }
         if (PyErr_Occurred()) goto error;
@@ -15642,6 +15632,7 @@ mpack_decode_namedtuple(
     PyTypeObject *nt_type = (PyTypeObject *)(info->class);
     PyObject *res = nt_type->tp_alloc(nt_type, nfields);
     if (res == NULL) goto error;
+    MS_TUPLE_RESET_HASH(res);
     for (Py_ssize_t i = 0; i < nfields; i++) {
         PyTuple_SET_ITEM(res, i, NULL);
     }
@@ -15826,8 +15817,8 @@ mpack_decode_struct_array_inner(
     }
     if (Struct_decode_post_init(st_type, res, path) < 0) goto error;
     Py_LeaveRecursiveCall();
-    if (is_gc && !should_untrack)
-        PyObject_GC_Track(res);
+    if (is_gc && should_untrack && MS_IS_TRACKED(res))
+        PyObject_GC_UnTrack(res);
     return res;
 error:
     Py_LeaveRecursiveCall();
@@ -17921,6 +17912,7 @@ json_decode_namedtuple(JSONDecoderState *self, TypeNode *type, PathNode *path) {
     PyTypeObject *nt_type = (PyTypeObject *)(info->class);
     PyObject *out = nt_type->tp_alloc(nt_type, nfields);
     if (out == NULL) goto error;
+    MS_TUPLE_RESET_HASH(out);
     for (Py_ssize_t i = 0; i < nfields; i++) {
         PyTuple_SET_ITEM(out, i, NULL);
     }
@@ -18099,8 +18091,8 @@ json_decode_struct_array_inner(
     }
     if (Struct_decode_post_init(st_type, out, path) < 0) goto error;
     Py_LeaveRecursiveCall();
-    if (is_gc && !should_untrack)
-        PyObject_GC_Track(out);
+    if (is_gc && should_untrack && MS_IS_TRACKED(out))
+        PyObject_GC_UnTrack(out);
     return out;
 error:
     Py_LeaveRecursiveCall();
@@ -21084,6 +21076,7 @@ convert_seq_to_namedtuple(
     PyTypeObject *nt_type = (PyTypeObject *)(info->class);
     PyObject *out = nt_type->tp_alloc(nt_type, nfields);
     if (out == NULL) goto error;
+    MS_TUPLE_RESET_HASH(out);
     for (Py_ssize_t i = 0; i < nfields; i++) {
         PyTuple_SET_ITEM(out, i, NULL);
     }
@@ -21250,8 +21243,8 @@ convert_seq_to_struct_array_inner(
     }
     if (Struct_decode_post_init(st_type, out, path) < 0) goto error;
     Py_LeaveRecursiveCall();
-    if (is_gc && !should_untrack)
-        PyObject_GC_Track(out);
+    if (is_gc && should_untrack && MS_IS_TRACKED(out))
+        PyObject_GC_UnTrack(out);
     return out;
 error:
     Py_LeaveRecursiveCall();
@@ -21743,8 +21736,8 @@ convert_object_to_struct(
     if (Struct_decode_post_init(struct_type, out, path) < 0) goto error;
 
     Py_LeaveRecursiveCall();
-    if (is_gc && !should_untrack)
-        PyObject_GC_Track(out);
+    if (is_gc && should_untrack && MS_IS_TRACKED(out))
+        PyObject_GC_UnTrack(out);
     return out;
 
 error:
@@ -22298,9 +22291,7 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->get_typeddict_info);
     Py_CLEAR(st->get_dataclass_info);
     Py_CLEAR(st->rebuild);
-#if PY310_PLUS
     Py_CLEAR(st->types_uniontype);
-#endif
 #if PY312_PLUS
     Py_CLEAR(st->typing_typealiastype);
 #endif
@@ -22372,9 +22363,7 @@ msgspec_traverse(PyObject *m, visitproc visit, void *arg)
     Py_VISIT(st->get_typeddict_info);
     Py_VISIT(st->get_dataclass_info);
     Py_VISIT(st->rebuild);
-#if PY310_PLUS
     Py_VISIT(st->types_uniontype);
-#endif
 #if PY312_PLUS
     Py_VISIT(st->typing_typealiastype);
 #endif
@@ -22517,29 +22506,31 @@ PyInit__core(void)
         "Base class for all Msgspec exceptions",
         NULL, NULL
     );
-    if (st->MsgspecError == NULL)
-        return NULL;
+    if (st->MsgspecError == NULL) return NULL;
+
     st->EncodeError = PyErr_NewExceptionWithDoc(
         "msgspec.EncodeError",
         "An error occurred while encoding an object",
         st->MsgspecError, NULL
     );
-    if (st->EncodeError == NULL)
-        return NULL;
+    if (st->EncodeError == NULL) return NULL;
+
+    temp_obj = PyTuple_Pack(2, st->MsgspecError, PyExc_ValueError);
+    if (temp_obj == NULL) return NULL;
     st->DecodeError = PyErr_NewExceptionWithDoc(
         "msgspec.DecodeError",
         "An error occurred while decoding an object",
-        st->MsgspecError, NULL
+        temp_obj, NULL
     );
-    if (st->DecodeError == NULL)
-        return NULL;
+    Py_XDECREF(temp_obj);
+    if (st->DecodeError == NULL) return NULL;
+
     st->ValidationError = PyErr_NewExceptionWithDoc(
         "msgspec.ValidationError",
         "The message didn't match the expected schema",
         st->DecodeError, NULL
     );
-    if (st->ValidationError == NULL)
-        return NULL;
+    if (st->ValidationError == NULL) return NULL;
 
     Py_INCREF(st->MsgspecError);
     if (PyModule_AddObject(m, "MsgspecError", st->MsgspecError) < 0)
@@ -22594,12 +22585,10 @@ PyInit__core(void)
     SET_REF(rebuild, "rebuild");
     Py_DECREF(temp_module);
 
-#if PY310_PLUS
     temp_module = PyImport_ImportModule("types");
     if (temp_module == NULL) return NULL;
     SET_REF(types_uniontype, "UnionType");
     Py_DECREF(temp_module);
-#endif
 
     /* Get the EnumMeta type */
     temp_module = PyImport_ImportModule("enum");

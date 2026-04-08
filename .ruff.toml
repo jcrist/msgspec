@@ -3,8 +3,6 @@ extend-exclude = [
   "src/msgspec/_version.py",
   "tests/typing/basic_typing_examples.py",
   "tests/unit/test_JSONTestSuite.py",
-  # TODO: remove when this when we drop support for Python 3.9 (example uses match statements)
-  "examples/asyncio-kv/kv.py",
 ]
 
 [lint]

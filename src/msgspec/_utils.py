@@ -44,28 +44,7 @@ if sys.version_info >= (3, 13):
 
     def _eval_type(t, globalns, localns):
         return typing._eval_type(t, globalns, localns, ())
-elif sys.version_info < (3, 10):
 
-    def _eval_type(t, globalns, localns):
-        try:
-            return typing._eval_type(t, globalns, localns)
-        except TypeError as e:
-            try:
-                from eval_type_backport import eval_type_backport
-            except ImportError:
-                raise TypeError(
-                    f"Unable to evaluate type annotation {t.__forward_arg__!r}. If you are making use "
-                    "of the new typing syntax (unions using `|` since Python 3.10 or builtins subscripting "
-                    "since Python 3.9), you should either replace the use of new syntax with the existing "
-                    "`typing` constructs or install the `eval_type_backport` package."
-                ) from e
-
-            return eval_type_backport(
-                t,
-                globalns,
-                localns,
-                try_default=False,
-            )
 else:
     _eval_type = typing._eval_type
 
