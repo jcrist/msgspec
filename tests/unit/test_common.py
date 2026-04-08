@@ -4082,6 +4082,22 @@ class TestUnset:
             assert res == sol
 
 
+class TestSet:
+    def test_encode_set_doesnt_leak_item_refs(self, proto):
+        class Ex:
+            pass
+
+        items = {Ex(), Ex(), Ex()}
+        refs = [weakref.ref(item) for item in items]
+
+        proto.Encoder(enc_hook=lambda x: None).encode(items)
+
+        del items
+        gc.collect()
+
+        assert all(ref() is None for ref in refs)
+
+
 class TestOrder:
     def test_encoder_order_attribute(self, proto):
         enc = proto.Encoder()
