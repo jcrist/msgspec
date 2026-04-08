@@ -104,7 +104,7 @@ few:
 
 .. grid:: 2 2 4 4
 
-    .. grid-item-card:: `NautilusTrader <https://nautilustrader.io/docs/latest/api_reference/serialization/#class-msgspecserializer>`_
+    .. grid-item-card:: `NautilusTrader <https://nautilustrader.io>`_
 
         .. image:: _static/nautilus-trader.png
             :target: https://nautilustrader.io/
@@ -149,10 +149,10 @@ few:
         .. image:: _static/faststream.png
             :target: https://faststream.ag2.ai/
 
-    .. grid-item-card:: `django-modern-rest <https://django-modern-rest.readthedocs.io/en/latest/pages/getting-started.html#showcase>`_
+    .. grid-item-card:: `django-modern-rest <https://django-modern-rest.readthedocs.io/en/latest/>`_
 
         .. image:: _static/django-modern-rest.png
-            :target: https://django-modern-rest.rtfd.io/
+            :target: https://django-modern-rest.readthedocs.io/en/latest/
 
     .. grid-item-card:: `Meltano <https://sdk.meltano.com/en/latest/guides/performance.html#use-a-different-message-writer-or-reader>`_
 

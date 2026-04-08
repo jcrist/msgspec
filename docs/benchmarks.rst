@@ -533,7 +533,7 @@ smaller on disk.
 
 .. _msgspec: https://jcristharif.com/msgspec/
 .. _msgpack: https://github.com/msgpack/msgpack-python
-.. _ormsgpack: https://github.com/aviramha/ormsgpack
+.. _ormsgpack: https://github.com/ormsgpack/ormsgpack
 .. _MessagePack: https://msgpack.org
 .. _orjson: https://github.com/ijl/orjson
 .. _json: https://docs.python.org/3/library/json.html
