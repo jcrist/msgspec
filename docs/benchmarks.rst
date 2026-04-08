@@ -531,7 +531,7 @@ smaller on disk.
     </script>
 
 
-.. _msgspec: https://jcristharif.com/msgspec/
+.. _msgspec: https://siyet.github.io/msgspec-arise/
 .. _msgpack: https://github.com/msgpack/msgpack-python
 .. _ormsgpack: https://github.com/aviramha/ormsgpack
 .. _MessagePack: https://msgpack.org

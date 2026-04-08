@@ -24,28 +24,28 @@ support for [JSON](https://json.org), [MessagePack](https://msgpack.org),
 
 - 🚀 **High performance encoders/decoders** for common protocols. The JSON and
   MessagePack implementations regularly
-  [benchmark](https://jcristharif.com/msgspec/benchmarks.html) as the fastest
+  [benchmark](https://siyet.github.io/msgspec-arise/benchmarks.html) as the fastest
   options for Python.
 
 - 🎉 **Support for a wide variety of Python types**. Additional types may be
   supported through
-  [extensions](https://jcristharif.com/msgspec/extending.html).
+  [extensions](https://siyet.github.io/msgspec-arise/extending.html).
 
 - 🔍 **Zero-cost schema validation** using familiar Python type annotations. In
-  [benchmarks](https://jcristharif.com/msgspec/benchmarks.html) `msgspec`
+  [benchmarks](https://siyet.github.io/msgspec-arise/benchmarks.html) `msgspec`
   decodes *and* validates JSON faster than
   [orjson](https://github.com/ijl/orjson) can decode it alone.
 
 - ✨ **A speedy Struct type** for representing structured data. If you already
   use [dataclasses](https://docs.python.org/3/library/dataclasses.html) or
   [attrs](https://www.attrs.org/en/stable/),
-  [structs](https://jcristharif.com/msgspec/structs.html) should feel familiar.
+  [structs](https://siyet.github.io/msgspec-arise/structs.html) should feel familiar.
   However, they're
-  [5-60x faster](https://jcristharif.com/msgspec/benchmarks.html#structs)
+  [5-60x faster](https://siyet.github.io/msgspec-arise/benchmarks.html#structs)
   for common operations.
 
 All of this is included in a
-[lightweight library](https://jcristharif.com/msgspec/benchmarks.html#library-size)
+[lightweight library](https://siyet.github.io/msgspec-arise/benchmarks.html#library-size)
 with no required dependencies.
 
 ---
@@ -96,15 +96,15 @@ msgspec.ValidationError: Expected `str`, got `int` - at `$.groups[0]`
 the nicities of validation libraries like
 [pydantic](https://docs.pydantic.dev/latest/). For supported types,
 encoding/decoding a message with `msgspec` can be
-[~10-80x faster than alternative libraries](https://jcristharif.com/msgspec/benchmarks.html).
+[~10-80x faster than alternative libraries](https://siyet.github.io/msgspec-arise/benchmarks.html).
 
 <p align="center">
-  <a href="https://jcristharif.com/msgspec/benchmarks.html">
+  <a href="https://siyet.github.io/msgspec-arise/benchmarks.html">
     <img src="https://raw.githubusercontent.com/jcrist/msgspec/main/docs/_static/bench-validation.svg">
   </a>
 </p>
 
-See [the documentation](https://jcristharif.com/msgspec/) for more information.
+See [the documentation](https://siyet.github.io/msgspec-arise/) for more information.
 
 ## Installation
 
