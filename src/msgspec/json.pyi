@@ -109,7 +109,12 @@ def encode(
     enc_hook: enc_hook_sig = None,
     order: Literal[None, "deterministic", "sorted"] = None,
 ) -> bytes: ...
-def schema(type: Any, *, schema_hook: schema_hook_sig = None) -> Dict[str, Any]: ...
+def schema(
+    type: Any,
+    *,
+    schema_hook: schema_hook_sig = None,
+    ref_template: str = "#/$defs/{name}",
+) -> Dict[str, Any]: ...
 def schema_components(
     types: Iterable[Any],
     *,
