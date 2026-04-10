@@ -838,9 +838,10 @@ respectively. Defaults to ‘canonical’.</p></li>
 <ul>
 <li><p><code class="docutils literal notranslate"><span class="pre">None</span></code>: All objects are encoded in the most efficient manner matching
 their in-memory representations. The default.</p></li>
-<li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">'deterministic'</span></code>: Unordered collections (sets, dicts) are sorted to
-ensure a consistent output between runs. Useful when comparison/hashing
-of the encoded binary output is necessary.</p></li>
+<li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">'deterministic'</span></code>: Dict keys and set elements are sorted so that values
+which compare equal produce identical encoded output, regardless of
+insertion or iteration order. Useful when comparison/hashing of the
+encoded binary output is necessary.</p></li>
 <li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">'sorted'</span></code>: Like <code class="xref py py-obj docutils literal notranslate"><span class="pre">'deterministic'</span></code>, but <em>all</em> object-like types (structs,
 dataclasses, …) are also sorted by field name before encoding. This is
 slower than <code class="xref py py-obj docutils literal notranslate"><span class="pre">'deterministic'</span></code>, but may produce more human-readable output.</p></li>
@@ -994,9 +995,10 @@ the unsupported object and should return a supported object, or raise a
 <ul>
 <li><p><code class="docutils literal notranslate"><span class="pre">None</span></code>: All objects are encoded in the most efficient manner matching
 their in-memory representations. The default.</p></li>
-<li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">'deterministic'</span></code>: Unordered collections (sets, dicts) are sorted to
-ensure a consistent output between runs. Useful when comparison/hashing
-of the encoded binary output is necessary.</p></li>
+<li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">'deterministic'</span></code>: Dict keys and set elements are sorted so that values
+which compare equal produce identical encoded output, regardless of
+insertion or iteration order. Useful when comparison/hashing of the
+encoded binary output is necessary.</p></li>
 <li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">'sorted'</span></code>: Like <code class="xref py py-obj docutils literal notranslate"><span class="pre">'deterministic'</span></code>, but <em>all</em> object-like types (structs,
 dataclasses, …) are also sorted by field name before encoding. This is
 slower than <code class="xref py py-obj docutils literal notranslate"><span class="pre">'deterministic'</span></code>, but may produce more human-readable output.</p></li>
@@ -1092,9 +1094,10 @@ representations of the corresponding 128-bit integers. Defaults to
 <ul>
 <li><p><code class="docutils literal notranslate"><span class="pre">None</span></code>: All objects are encoded in the most efficient manner matching
 their in-memory representations. The default.</p></li>
-<li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">'deterministic'</span></code>: Unordered collections (sets, dicts) are sorted to
-ensure a consistent output between runs. Useful when comparison/hashing
-of the encoded binary output is necessary.</p></li>
+<li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">'deterministic'</span></code>: Dict keys and set elements are sorted so that values
+which compare equal produce identical encoded output, regardless of
+insertion or iteration order. Useful when comparison/hashing of the
+encoded binary output is necessary.</p></li>
 <li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">'sorted'</span></code>: Like <code class="xref py py-obj docutils literal notranslate"><span class="pre">'deterministic'</span></code>, but <em>all</em> object-like types (structs,
 dataclasses, …) are also sorted by field name before encoding. This is
 slower than <code class="xref py py-obj docutils literal notranslate"><span class="pre">'deterministic'</span></code>, but may produce more human-readable output.</p></li>
@@ -1228,9 +1231,10 @@ the unsupported object and should return a supported object, or raise a
 <ul>
 <li><p><code class="docutils literal notranslate"><span class="pre">None</span></code>: All objects are encoded in the most efficient manner matching
 their in-memory representations. The default.</p></li>
-<li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">'deterministic'</span></code>: Unordered collections (sets, dicts) are sorted to
-ensure a consistent output between runs. Useful when comparison/hashing
-of the encoded binary output is necessary.</p></li>
+<li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">'deterministic'</span></code>: Dict keys and set elements are sorted so that values
+which compare equal produce identical encoded output, regardless of
+insertion or iteration order. Useful when comparison/hashing of the
+encoded binary output is necessary.</p></li>
 <li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">'sorted'</span></code>: Like <code class="xref py py-obj docutils literal notranslate"><span class="pre">'deterministic'</span></code>, but <em>all</em> object-like types (structs,
 dataclasses, …) are also sorted by field name before encoding. This is
 slower than <code class="xref py py-obj docutils literal notranslate"><span class="pre">'deterministic'</span></code>, but may produce more human-readable output.</p></li>
@@ -1305,8 +1309,9 @@ raise a <code class="docutils literal notranslate"><span class="pre">NotImplemen
 <ul>
 <li><p><code class="docutils literal notranslate"><span class="pre">None</span></code>: All objects are encoded in the most efficient manner
 matching their in-memory representations. The default.</p></li>
-<li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">'deterministic'</span></code>: Unordered collections (sets, dicts) are sorted to
-ensure a consistent output between runs. Useful when
+<li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">'deterministic'</span></code>: Dict keys and set elements are sorted so that
+values which compare equal produce identical encoded output,
+regardless of insertion or iteration order. Useful when
 comparison/hashing of the encoded binary output is necessary.</p></li>
 <li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">'sorted'</span></code>: Like <code class="xref py py-obj docutils literal notranslate"><span class="pre">'deterministic'</span></code>, but <em>all</em> object-like types
 (structs, dataclasses, …) are also sorted by field name before
@@ -1380,8 +1385,9 @@ raise a <code class="docutils literal notranslate"><span class="pre">NotImplemen
 <ul>
 <li><p><code class="docutils literal notranslate"><span class="pre">None</span></code>: All objects are encoded in the most efficient manner
 matching their in-memory representations. The default.</p></li>
-<li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">'deterministic'</span></code>: Unordered collections (sets, dicts) are sorted to
-ensure a consistent output between runs. Useful when
+<li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">'deterministic'</span></code>: Dict keys and set elements are sorted so that
+values which compare equal produce identical encoded output,
+regardless of insertion or iteration order. Useful when
 comparison/hashing of the encoded binary output is necessary.</p></li>
 <li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">'sorted'</span></code>: Like <code class="xref py py-obj docutils literal notranslate"><span class="pre">'deterministic'</span></code>, but <em>all</em> object-like types
 (structs, dataclasses, …) are also sorted by field name before
@@ -1591,9 +1597,10 @@ the unsupported object and should return a supported object, or raise a
 <ul>
 <li><p><code class="docutils literal notranslate"><span class="pre">None</span></code>: All objects are converted in the most efficient manner matching
 their in-memory representations. The default.</p></li>
-<li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">'deterministic'</span></code>: Unordered collections (sets, dicts) are sorted to
-ensure a consistent output between runs. Useful when comparison/hashing
-of the converted output is necessary.</p></li>
+<li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">'deterministic'</span></code>: Dict keys and set elements are sorted so that values
+which compare equal produce identical converted output, regardless of
+insertion or iteration order. Useful when comparison/hashing of the
+converted output is necessary.</p></li>
 <li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">'sorted'</span></code>: Like <code class="xref py py-obj docutils literal notranslate"><span class="pre">'deterministic'</span></code>, but <em>all</em> object-like types (structs,
 dataclasses, …) are also sorted by field name before encoding. This is
 slower than <code class="xref py py-obj docutils literal notranslate"><span class="pre">'deterministic'</span></code>, but may produce more human-readable output.</p></li>
