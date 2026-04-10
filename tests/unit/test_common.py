@@ -903,10 +903,10 @@ class TestLiterals:
         for val in [-1, -2, -3, "apple", "banana"]:
             assert dec.decode(msgspec.msgpack.encode(val)) == val
 
-        with pytest.raises(ValidationError, match="Invalid enum value 4"):
+        with pytest.raises(ValidationError, match="Invalid value 4"):
             dec.decode(msgspec.msgpack.encode(4))
 
-        with pytest.raises(ValidationError, match="Invalid enum value 'carrot'"):
+        with pytest.raises(ValidationError, match="Invalid value 'carrot'"):
             dec.decode(msgspec.msgpack.encode("carrot"))
 
     def test_nested_literals(self):
@@ -921,10 +921,10 @@ class TestLiterals:
         for val in [-1, -2, -3, "apple", "banana"]:
             assert dec.decode(msgspec.msgpack.encode(val)) == val
 
-        with pytest.raises(ValidationError, match="Invalid enum value 4"):
+        with pytest.raises(ValidationError, match="Invalid value 4"):
             dec.decode(msgspec.msgpack.encode(4))
 
-        with pytest.raises(ValidationError, match="Invalid enum value 'carrot'"):
+        with pytest.raises(ValidationError, match="Invalid value 'carrot'"):
             dec.decode(msgspec.msgpack.encode("carrot"))
 
     @pytest.mark.parametrize(
@@ -947,7 +947,7 @@ class TestLiterals:
 
     def test_literal_bool_error_message(self):
         dec = msgspec.msgpack.Decoder(Literal[True])
-        with pytest.raises(ValidationError, match="Invalid enum value False"):
+        with pytest.raises(ValidationError, match="Invalid value False"):
             dec.decode(msgspec.msgpack.encode(False))
 
     def test_mix_bool_and_bool_literal(self):
@@ -4451,7 +4451,7 @@ class TestLax:
 
         assert roundtrip("1") == 1
         assert roundtrip("-2") == -2
-        with pytest.raises(ValidationError, match="Invalid enum value 3"):
+        with pytest.raises(ValidationError, match="Invalid value 3"):
             roundtrip("3")
         with pytest.raises(ValidationError, match="Expected `int`, got `str`"):
             roundtrip("A")
