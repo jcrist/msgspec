@@ -361,7 +361,7 @@ into user-friendly python objects.</p></li>
 <ul class="simple">
 <li><p><a class="reference external" href="https://jcristharif.com/msgspec/">msgspec</a> (0.18.5)</p></li>
 <li><p><a class="reference external" href="https://github.com/Fatal1ty/mashumaro">mashumaro</a> (3.11)</p></li>
-<li><p><a class="reference external" href="https://docs.pydantic.dev/latest/">pydantic</a> (both 1.10.13 and 2.5.2)</p></li>
+<li><p><a class="reference external" href="https://pydantic.dev/docs/validation/latest/get-started/">pydantic</a> (both 1.10.13 and 2.5.2)</p></li>
 <li><p><a class="reference external" href="https://catt.rs/en/latest/">cattrs</a> (23.2.3)</p></li>
 </ul>
 <p>Each benchmark creates a message containing one or more <code class="docutils literal notranslate"><span class="pre">File</span></code>/<code class="docutils literal notranslate"><span class="pre">Directory</span></code>
@@ -373,13 +373,13 @@ than <code class="docutils literal notranslate"><span class="pre">cattrs</span><
 <code class="docutils literal notranslate"><span class="pre">pydantic</span></code> V1.</p>
 <p>This plot shows the performance benefit of performing type validation during
 message decoding (as done by <code class="docutils literal notranslate"><span class="pre">msgspec</span></code>) rather than as a secondary step with
-a third-party library like <a class="reference external" href="https://catt.rs/en/latest/">cattrs</a> or <a class="reference external" href="https://docs.pydantic.dev/latest/">pydantic</a> V1. Validating after decoding
+a third-party library like <a class="reference external" href="https://catt.rs/en/latest/">cattrs</a> or <a class="reference external" href="https://pydantic.dev/docs/validation/latest/get-started/">pydantic</a> V1. Validating after decoding
 is slower for two reasons:</p>
 <ul class="simple">
 <li><p>It requires traversing over the entire output structure a second time (which
 can be slow due to pointer chasing)</p></li>
 <li><p>It may require converting some python objects to their desired output types
-(e.g. converting a decoded <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a> to a <a class="reference external" href="https://docs.pydantic.dev/latest/">pydantic</a> model), resulting in
+(e.g. converting a decoded <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code></a> to a <a class="reference external" href="https://pydantic.dev/docs/validation/latest/get-started/">pydantic</a> model), resulting in
 allocating many temporary python objects.</p></li>
 </ul>
 <p>In contrast, libraries like <code class="docutils literal notranslate"><span class="pre">msgspec</span></code> that validate during decoding have none
@@ -531,7 +531,7 @@ performance against other similar libraries. The cases compared are:</p>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/dataclasses.html">dataclasses</a></p></li>
 <li><p><a class="reference external" href="https://jcristharif.com/msgspec/">msgspec</a> (0.18.5)</p></li>
 <li><p><a class="reference external" href="https://www.attrs.org/en/stable/">attrs</a> (23.1.0)</p></li>
-<li><p><a class="reference external" href="https://docs.pydantic.dev/latest/">pydantic</a> (2.5.2)</p></li>
+<li><p><a class="reference external" href="https://pydantic.dev/docs/validation/latest/get-started/">pydantic</a> (2.5.2)</p></li>
 </ul>
 <p>For each library, the following operations are benchmarked:</p>
 <ul class="simple">

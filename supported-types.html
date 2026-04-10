@@ -718,7 +718,7 @@ needed.</p></li>
 <ul class="simple">
 <li><p>Java’s <code class="docutils literal notranslate"><span class="pre">time.Duration.parse</span></code> (<a class="reference external" href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/Duration.html#parse(java.lang.CharSequence)">docs</a>)</p></li>
 <li><p>Javascript’s proposed <code class="docutils literal notranslate"><span class="pre">Temporal.Duration</span></code> standard API (<a class="reference external" href="https://tc39.es/proposal-temporal/docs/duration.html">docs</a>)</p></li>
-<li><p>Python libraries like <a class="reference external" href="https://pendulum.eustace.io/">pendulum</a> or <a class="reference external" href="https://docs.pydantic.dev/latest/">pydantic</a>.</p></li>
+<li><p>Python libraries like <a class="reference external" href="https://pendulum.eustace.io/">pendulum</a> or <a class="reference external" href="https://pydantic.dev/docs/validation/latest/get-started/">pydantic</a>.</p></li>
 </ul>
 <p>Duration strings produced by msgspec should be interchangeable with these
 libraries, as well as similar ones in other language ecosystems.</p>
@@ -1051,7 +1051,7 @@ additional features.</p>
 </pre></div>
 </div>
 <p>Other types that duck-type as <code class="docutils literal notranslate"><span class="pre">dataclasses</span></code> are also supported, such as
-<a class="reference external" href="https://docs.pydantic.dev/latest/usage/dataclasses/">pydantic dataclasses</a>.</p>
+<a class="reference external" href="https://pydantic.dev/docs/validation/latest/concepts/dataclasses/">pydantic dataclasses</a>.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic.dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
@@ -1114,7 +1114,7 @@ additional features.</p>
 <section id="struct">
 <h2><code class="docutils literal notranslate"><span class="pre">Struct</span></code><a class="headerlink" href="#struct" title="Link to this heading">¶</a></h2>
 <p>Structs are the preferred way of defining structured data types in <code class="docutils literal notranslate"><span class="pre">msgspec</span></code>.
-You can think of them as similar to <a class="reference external" href="https://docs.python.org/3/library/dataclasses.html">dataclasses</a>/<a class="reference external" href="https://www.attrs.org/en/stable/index.html">attrs</a>/<a class="reference external" href="https://docs.pydantic.dev/latest/">pydantic</a>, but much
+You can think of them as similar to <a class="reference external" href="https://docs.python.org/3/library/dataclasses.html">dataclasses</a>/<a class="reference external" href="https://www.attrs.org/en/stable/index.html">attrs</a>/<a class="reference external" href="https://pydantic.dev/docs/validation/latest/get-started/">pydantic</a>, but much
 faster to create/compare/encode/decode. For more information, see the
 <a class="reference internal" href="structs.html"><span class="doc">Structs</span></a> page.</p>
 <p>By default <a class="reference internal" href="api.html#msgspec.Struct" title="msgspec.Struct"><code class="xref py py-obj docutils literal notranslate"><span class="pre">msgspec.Struct</span></code></a> types map to objects/maps in all protocols. During
