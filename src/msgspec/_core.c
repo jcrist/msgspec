@@ -5285,18 +5285,11 @@ ms_maybe_wrap_validation_error(PathNode *path) {
     MsgspecState *mod = msgspec_get_global_state();
 
     /* If it's a TypeError or ValueError, wrap it in a ValidationError.
-     * Otherwise we reraise the original error below
-     * Special case ValidationError and DecodeError which are also reraised, even though
-     * they inherit from ValueError. */
+     * Otherwise we reraise the original error below.
+     * Since DecodeError (and ValidationError) subclass from ValueError, we need
+     * to special case them below - we don't wrap in those cases. */
     if (
-        !(
-            PyType_IsSubtype(
-                (PyTypeObject *)exc_type, (PyTypeObject *)mod->ValidationError
-            ) ||
-            PyType_IsSubtype(
-                (PyTypeObject *)exc_type, (PyTypeObject *)mod->DecodeError
-            )
-        )
+        !PyType_IsSubtype((PyTypeObject *)exc_type, (PyTypeObject *)mod->DecodeError)
         &&
         (
             PyType_IsSubtype(
