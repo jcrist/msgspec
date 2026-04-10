@@ -5282,14 +5282,29 @@ ms_maybe_wrap_validation_error(PathNode *path) {
     /* If null, some other c-extension has borked, just return */
     if (exc_type == NULL) return;
 
+    MsgspecState *mod = msgspec_get_global_state();
+
     /* If it's a TypeError or ValueError, wrap it in a ValidationError.
-     * Otherwise we reraise the original error below */
+     * Otherwise we reraise the original error below
+     * Special case ValidationError and DecodeError which are also reraised, even though
+     * they inherit from ValueError. */
     if (
-        PyType_IsSubtype(
-            (PyTypeObject *)exc_type, (PyTypeObject *)PyExc_ValueError
-        ) ||
-        PyType_IsSubtype(
-            (PyTypeObject *)exc_type, (PyTypeObject *)PyExc_TypeError
+        !(
+            PyType_IsSubtype(
+                (PyTypeObject *)exc_type, (PyTypeObject *)mod->ValidationError
+            ) ||
+            PyType_IsSubtype(
+                (PyTypeObject *)exc_type, (PyTypeObject *)mod->DecodeError
+            )
+        )
+        &&
+        (
+            PyType_IsSubtype(
+                (PyTypeObject *)exc_type, (PyTypeObject *)PyExc_ValueError
+            ) ||
+            PyType_IsSubtype(
+                (PyTypeObject *)exc_type, (PyTypeObject *)PyExc_TypeError
+            )
         )
     ) {
         PyObject *exc_type2, *exc2, *tb2;
