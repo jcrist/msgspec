@@ -542,7 +542,7 @@ smaller on disk.
 .. _rapidjson: https://github.com/python-rapidjson/python-rapidjson
 .. _attrs: https://www.attrs.org/en/stable/
 .. _dataclasses: https://docs.python.org/3/library/dataclasses.html
-.. _pydantic: https://docs.pydantic.dev/latest/
+.. _pydantic: https://pydantic.dev/docs/validation/latest/get-started/
 .. _cattrs: https://catt.rs/en/latest/
 .. _mashumaro: https://github.com/Fatal1ty/mashumaro
 .. _conda-forge: https://conda-forge.org/
