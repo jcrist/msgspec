@@ -905,7 +905,7 @@ class TestLiteral:
         typ = Literal["A", "B"]
         assert convert("A", typ) == "A"
         assert convert("B", typ) == "B"
-        with pytest.raises(ValidationError, match="Invalid enum value 'C'"):
+        with pytest.raises(ValidationError, match="Invalid value 'C'"):
             convert("C", typ)
         with pytest.raises(ValidationError, match="Expected `str`, got `int`"):
             convert(1, typ)
@@ -914,9 +914,9 @@ class TestLiteral:
         typ = Literal[1, -2]
         assert convert(1, typ) == 1
         assert convert(-2, typ) == -2
-        with pytest.raises(ValidationError, match="Invalid enum value 3"):
+        with pytest.raises(ValidationError, match="Invalid value 3"):
             convert(3, typ)
-        with pytest.raises(ValidationError, match="Invalid enum value -3"):
+        with pytest.raises(ValidationError, match="Invalid value -3"):
             convert(-3, typ)
         with pytest.raises(ValidationError, match="Expected `int`, got `str`"):
             convert("A", typ)
@@ -2378,7 +2378,7 @@ class TestLax:
         typ = Literal[1, -2]
         assert convert("1", typ, strict=False) == 1
         assert convert("-2", typ, strict=False) == -2
-        with pytest.raises(ValidationError, match="Invalid enum value 3"):
+        with pytest.raises(ValidationError, match="Invalid value 3"):
             convert("3", typ, strict=False)
         with pytest.raises(ValidationError, match="Expected `int`, got `str`"):
             convert("A", typ, strict=False)
