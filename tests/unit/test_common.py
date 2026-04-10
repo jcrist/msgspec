@@ -945,6 +945,11 @@ class TestLiterals:
             with pytest.raises(ValidationError):
                 dec.decode(msgspec.msgpack.encode(val))
 
+    def test_literal_bool_error_message(self):
+        dec = msgspec.msgpack.Decoder(Literal[True])
+        with pytest.raises(ValidationError, match="Invalid enum value False"):
+            dec.decode(msgspec.msgpack.encode(False))
+
     def test_mix_bool_and_bool_literal(self):
         dec = msgspec.msgpack.Decoder(Union[Literal[True], bool])
         assert dec.decode(msgspec.msgpack.encode(True)) is True

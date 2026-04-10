@@ -3453,7 +3453,7 @@ typenode_simple_repr(TypeNode *self) {
     if (self->types & (MS_TYPE_ANY | MS_TYPE_CUSTOM | MS_TYPE_CUSTOM_GENERIC) || self->types == 0) {
         return PyUnicode_FromString("any");
     }
-    if (self->types & (MS_TYPE_BOOL | MS_TYPE_BOOLLITERAL_TRUE | MS_TYPE_BOOLLITERAL_FALSE)) {
+    if (self->types & MS_TYPE_BOOL) {
         if (!strbuilder_extend_literal(&builder, "bool")) return NULL;
     }
     if (self->types & (MS_TYPE_INT | MS_TYPE_INTENUM | MS_TYPE_INTLITERAL)) {
@@ -15365,6 +15365,10 @@ mpack_decode_bool(DecoderState *self, PyObject *val, TypeNode *type, PathNode *p
         Py_INCREF(Py_False);
         return Py_False;
     }
+    if (type->types & (MS_TYPE_BOOLLITERAL_TRUE | MS_TYPE_BOOLLITERAL_FALSE)) {
+        ms_raise_validation_error(path, "Invalid enum value %R%U", val);
+        return NULL;
+    }
     return ms_validation_error("bool", type, path);
 }
 
@@ -16994,6 +16998,10 @@ json_decode_true(JSONDecoderState *self, TypeNode *type, PathNode *path) {
         Py_INCREF(Py_True);
         return Py_True;
     }
+    if (type->types & MS_TYPE_BOOLLITERAL_FALSE) {
+        ms_raise_validation_error(path, "Invalid enum value %R%U", Py_True);
+        return NULL;
+    }
     return ms_validation_error("bool", type, path);
 }
 
@@ -17014,6 +17022,10 @@ json_decode_false(JSONDecoderState *self, TypeNode *type, PathNode *path) {
     if (type->types & (MS_TYPE_ANY | MS_TYPE_BOOL | MS_TYPE_BOOLLITERAL_FALSE)) {
         Py_INCREF(Py_False);
         return Py_False;
+    }
+    if (type->types & MS_TYPE_BOOLLITERAL_TRUE) {
+        ms_raise_validation_error(path, "Invalid enum value %R%U", Py_False);
+        return NULL;
     }
     return ms_validation_error("bool", type, path);
 }
@@ -20669,6 +20681,10 @@ convert_bool(
     if (obj == Py_False && (type->types & MS_TYPE_BOOLLITERAL_FALSE)) {
         Py_INCREF(Py_False);
         return Py_False;
+    }
+    if (type->types & (MS_TYPE_BOOLLITERAL_TRUE | MS_TYPE_BOOLLITERAL_FALSE)) {
+        ms_raise_validation_error(path, "Invalid enum value %R%U", obj);
+        return NULL;
     }
     return ms_validation_error("bool", type, path);
 }
