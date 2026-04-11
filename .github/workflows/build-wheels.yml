@@ -23,6 +23,8 @@ jobs:
           archs: aarch64
         - os: ubuntu-latest
           archs: x86_64
+        - os: ubuntu-24.04-riscv
+          archs: riscv64
         - os: macos-latest
           archs: arm64
         - os: macos-15-intel
@@ -51,7 +53,21 @@ jobs:
       if: runner.os != 'Linux'
       uses: astral-sh/setup-uv@v7
 
+    # On riscv64 the pypa/cibuildwheel action calls actions/setup-python
+    # internally, which has no riscv64 binaries. Install and run cibuildwheel
+    # directly via pip instead.
+    - name: Build & Test Wheels (riscv64 native)
+      if: matrix.archs == 'riscv64'
+      run: |
+        export PATH="/opt/python-3.12/bin:$PATH"
+        pip install cibuildwheel==3.2.1
+        python3 -m cibuildwheel --output-dir wheelhouse dist/${{ inputs.sdist-name }}
+      env:
+        CIBW_ARCHS: riscv64
+        CIBW_CONFIG_FILE: .cibuildwheel.toml
+
     - name: Build & Test Wheels
+      if: matrix.archs != 'riscv64'
       uses: pypa/cibuildwheel@v3.2.1
       with:
         config-file: .cibuildwheel.toml

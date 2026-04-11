@@ -1,0 +1,59 @@
+name: Benchmark riscv64 wheel build
+
+on:
+  workflow_dispatch:
+
+# Standalone riscv64-only wheel build for timing purposes.
+# Bypasses the full CI pipeline (which requires a release to exist on the fork).
+# Produces real build times on ubuntu-24.04-riscv (RISE native runner) for
+# upstream discussion at jcrist/msgspec#987.
+
+permissions:
+  contents: read
+
+jobs:
+  sdist:
+    name: Build source distribution
+    runs-on: ubuntu-latest
+    outputs:
+      sdist-name: ${{ steps.build.outputs.sdist-name }}
+    steps:
+    - uses: actions/checkout@v5
+    - uses: astral-sh/setup-uv@v7
+    - name: Build sdist
+      id: build
+      run: |
+        uv build --sdist
+        sdist_name=$(basename dist/*.tar.gz)
+        echo "sdist-name=${sdist_name}" >> "$GITHUB_OUTPUT"
+    - uses: actions/upload-artifact@v5
+      with:
+        name: artifact-sdist
+        path: dist/${{ steps.build.outputs.sdist-name }}
+        if-no-files-found: error
+
+  build-riscv64:
+    name: Build wheels on ubuntu-24.04-riscv for riscv64
+    needs: sdist
+    runs-on: ubuntu-24.04-riscv
+    env:
+      SDIST_NAME: ${{ needs.sdist.outputs.sdist-name }}
+    steps:
+    - uses: actions/checkout@v5
+    - name: Download source distribution
+      uses: actions/download-artifact@v6
+      with:
+        name: artifact-sdist
+        path: dist
+    - name: Build & Test Wheels (riscv64 native)
+      run: |
+        /opt/python-3.12/bin/python3.12 -m pip install cibuildwheel==3.2.1
+        /opt/python-3.12/bin/python3.12 -m cibuildwheel --output-dir wheelhouse "dist/${SDIST_NAME}"
+      env:
+        CIBW_ARCHS: riscv64
+        CIBW_CONFIG_FILE: .cibuildwheel.toml
+    - uses: actions/upload-artifact@v5
+      with:
+        name: artifact-wheels-riscv64
+        path: wheelhouse/*.whl
+        if-no-files-found: error
