@@ -292,6 +292,26 @@ class TestDecoder:
         with pytest.raises(TypeError, match="Oh no!"):
             dec.decode(msg)
 
+    @pytest.mark.parametrize(
+        "base_error_cls", [msgspec.ValidationError, msgspec.DecodeError]
+    )
+    def test_dec_hook_validation_error_subclass_propagates_directly(
+        self, proto, base_error_cls
+    ):
+        class MyError(base_error_cls):
+            pass
+
+        class Foo:
+            pass
+
+        def dec_hook(tp, val):
+            raise MyError("custom message")
+
+        dec = proto.Decoder(type=Foo, dec_hook=dec_hook)
+
+        with pytest.raises(MyError, match="custom message"):
+            dec.decode(b"[]")
+
 
 @pytest.mark.skipif(
     PY312,

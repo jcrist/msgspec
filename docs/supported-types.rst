@@ -845,7 +845,7 @@ additional features.
     msgspec.ValidationError: Expected `int`, got `str` - at `$.age`
 
 Other types that duck-type as ``dataclasses`` are also supported, such as
-`pydantic dataclasses <https://docs.pydantic.dev/latest/usage/dataclasses/>`__.
+`pydantic dataclasses <https://pydantic.dev/docs/validation/latest/concepts/dataclasses/>`__.
 
 .. code-block:: python
 
@@ -1605,7 +1605,7 @@ TOML_ types are decoded to Python types as follows:
 .. _MessagePack: https://msgpack.org
 .. _YAML: https://yaml.org
 .. _TOML: https://toml.io/en/
-.. _pydantic: https://docs.pydantic.dev/latest/
+.. _pydantic: https://pydantic.dev/docs/validation/latest/get-started/
 .. _pendulum: https://pendulum.eustace.io/
 .. _RFC8259: https://datatracker.ietf.org/doc/html/rfc8259
 .. _RFC3339: https://datatracker.ietf.org/doc/html/rfc3339
