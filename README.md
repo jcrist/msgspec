@@ -1,6 +1,10 @@
 <p align="center">
   <a href="https://jcristharif.com/msgspec/">
-    <img src="https://raw.githubusercontent.com/jcrist/msgspec/main/docs/_static/msgspec-logo-light.svg" width="35%" alt="msgspec">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/jcrist/msgspec/main/docs/_static/msgspec-logo-dark.svg">
+      <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/jcrist/msgspec/main/docs/_static/msgspec-logo-light.svg">
+      <img src="https://raw.githubusercontent.com/jcrist/msgspec/main/docs/_static/msgspec-logo-light.svg" width="35%" alt="msgspec">
+    </picture>
   </a>
 </p>
 
@@ -91,7 +95,7 @@ msgspec.ValidationError: Expected `str`, got `int` - at `$.groups[0]`
 
 `msgspec` is designed to be as performant as possible, while retaining some of
 the nicities of validation libraries like
-[pydantic](https://docs.pydantic.dev/latest/). For supported types,
+[pydantic](https://pydantic.dev/docs/validation/latest/get-started/). For supported types,
 encoding/decoding a message with `msgspec` can be
 [~10-80x faster than alternative libraries](https://jcristharif.com/msgspec/benchmarks.html).
 
