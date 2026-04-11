@@ -2820,6 +2820,8 @@ AssocList_Sort(AssocList* list) {
 #define MS_TYPE_TYPEDDICT           (1ull << 33)
 #define MS_TYPE_DATACLASS           (1ull << 34)
 #define MS_TYPE_NAMEDTUPLE          (1ull << 35)
+#define MS_TYPE_BOOLLITERAL_TRUE    (1ull << 36)
+#define MS_TYPE_BOOLLITERAL_FALSE   (1ull << 37)
 /* Constraints */
 #define MS_CONSTR_INT_MIN           (1ull << 42)
 #define MS_CONSTR_INT_MAX           (1ull << 43)
@@ -2943,6 +2945,8 @@ typedef struct {
     PyObject *int_lookup;
     PyObject *str_lookup;
     bool literal_none;
+    bool literal_bool_true;
+    bool literal_bool_false;
 } LiteralInfo;
 
 typedef struct {
@@ -3543,6 +3547,8 @@ typedef struct {
     PyObject *literal_str_values;
     PyObject *literal_str_lookup;
     bool literal_none;
+    bool literal_bool_true;
+    bool literal_bool_false;
     /* Constraints */
     int64_t c_int_min;
     int64_t c_int_max;
@@ -4433,6 +4439,14 @@ typenode_collect_literal(TypeNodeCollectState *state, PyObject *literal) {
         if (obj == Py_None || obj == NONE_TYPE) {
             state->literal_none = true;
         }
+        else if (type == &PyBool_Type) {
+            if (obj == Py_True) {
+                state->literal_bool_true = true;
+            }
+            else {
+                state->literal_bool_false = true;
+            }
+        }
         else if (type == &PyLong_Type) {
             if (state->literal_int_values == NULL) {
                 state->literal_int_values = PySet_New(NULL);
@@ -4469,7 +4483,7 @@ typenode_collect_literal(TypeNodeCollectState *state, PyObject *literal) {
 invalid:
     PyErr_Format(
         PyExc_TypeError,
-        "Literal may only contain None/integers/strings - %R is not supported",
+        "Literal may only contain None/booleans/integers/strings - %R is not supported",
         literal
     );
 
@@ -4507,6 +4521,12 @@ typenode_collect_convert_literals(TypeNodeCollectState *state) {
             if (info->literal_none) {
                 state->types |= MS_TYPE_NONE;
             }
+            if (info->literal_bool_true) {
+                state->types |= MS_TYPE_BOOLLITERAL_TRUE;
+            }
+            if (info->literal_bool_false) {
+                state->types |= MS_TYPE_BOOLLITERAL_FALSE;
+            }
             Py_DECREF(cached);
             return 0;
         }
@@ -4535,6 +4555,12 @@ typenode_collect_convert_literals(TypeNodeCollectState *state) {
     if (state->literal_none) {
         state->types |= MS_TYPE_NONE;
     }
+    if (state->literal_bool_true) {
+        state->types |= MS_TYPE_BOOLLITERAL_TRUE;
+    }
+    if (state->literal_bool_false) {
+        state->types |= MS_TYPE_BOOLLITERAL_FALSE;
+    }
 
     if (n == 1) {
         /* A single `Literal` object, cache the lookups on it */
@@ -4545,6 +4571,8 @@ typenode_collect_convert_literals(TypeNodeCollectState *state) {
         Py_XINCREF(state->literal_str_lookup);
         info->str_lookup = state->literal_str_lookup;
         info->literal_none = state->literal_none;
+        info->literal_bool_true = state->literal_bool_true;
+        info->literal_bool_false = state->literal_bool_false;
         PyObject_GC_Track(info);
         PyObject *literal = PyList_GET_ITEM(state->literals, 0);
         int status = PyObject_SetAttr(
@@ -15341,6 +15369,18 @@ mpack_decode_bool(DecoderState *self, PyObject *val, TypeNode *type, PathNode *p
         Py_INCREF(val);
         return val;
     }
+    if (val == Py_True && (type->types & MS_TYPE_BOOLLITERAL_TRUE)) {
+        Py_INCREF(Py_True);
+        return Py_True;
+    }
+    if (val == Py_False && (type->types & MS_TYPE_BOOLLITERAL_FALSE)) {
+        Py_INCREF(Py_False);
+        return Py_False;
+    }
+    if (type->types & (MS_TYPE_BOOLLITERAL_TRUE | MS_TYPE_BOOLLITERAL_FALSE)) {
+        ms_raise_validation_error(path, "Invalid enum value %R%U", val);
+        return NULL;
+    }
     return ms_validation_error("bool", type, path);
 }
 
@@ -16966,9 +17006,13 @@ json_decode_true(JSONDecoderState *self, TypeNode *type, PathNode *path) {
     if (MS_UNLIKELY(c1 != 'r' || c2 != 'u' || c3 != 'e')) {
         return json_err_invalid(self, "invalid character");
     }
-    if (type->types & (MS_TYPE_ANY | MS_TYPE_BOOL)) {
+    if (type->types & (MS_TYPE_ANY | MS_TYPE_BOOL | MS_TYPE_BOOLLITERAL_TRUE)) {
         Py_INCREF(Py_True);
         return Py_True;
+    }
+    if (type->types & MS_TYPE_BOOLLITERAL_FALSE) {
+        ms_raise_validation_error(path, "Invalid enum value %R%U", Py_True);
+        return NULL;
     }
     return ms_validation_error("bool", type, path);
 }
@@ -16987,9 +17031,13 @@ json_decode_false(JSONDecoderState *self, TypeNode *type, PathNode *path) {
     if (MS_UNLIKELY(c1 != 'a' || c2 != 'l' || c3 != 's' || c4 != 'e')) {
         return json_err_invalid(self, "invalid character");
     }
-    if (type->types & (MS_TYPE_ANY | MS_TYPE_BOOL)) {
+    if (type->types & (MS_TYPE_ANY | MS_TYPE_BOOL | MS_TYPE_BOOLLITERAL_FALSE)) {
         Py_INCREF(Py_False);
         return Py_False;
+    }
+    if (type->types & MS_TYPE_BOOLLITERAL_TRUE) {
+        ms_raise_validation_error(path, "Invalid enum value %R%U", Py_False);
+        return NULL;
     }
     return ms_validation_error("bool", type, path);
 }
@@ -20638,6 +20686,18 @@ convert_bool(
     if (type->types & MS_TYPE_BOOL) {
         Py_INCREF(obj);
         return obj;
+    }
+    if (obj == Py_True && (type->types & MS_TYPE_BOOLLITERAL_TRUE)) {
+        Py_INCREF(Py_True);
+        return Py_True;
+    }
+    if (obj == Py_False && (type->types & MS_TYPE_BOOLLITERAL_FALSE)) {
+        Py_INCREF(Py_False);
+        return Py_False;
+    }
+    if (type->types & (MS_TYPE_BOOLLITERAL_TRUE | MS_TYPE_BOOLLITERAL_FALSE)) {
+        ms_raise_validation_error(path, "Invalid enum value %R%U", obj);
+        return NULL;
     }
     return ms_validation_error("bool", type, path);
 }
