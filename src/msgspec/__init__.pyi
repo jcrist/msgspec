@@ -1,5 +1,6 @@
 import enum
 from inspect import Signature
+from types import UnionType
 from typing import (
     Any,
     Callable,
@@ -123,7 +124,7 @@ class Struct(metaclass=StructMeta):
 
 def defstruct(
     name: str,
-    fields: Iterable[Union[str, Tuple[str, type], Tuple[str, type, Any]]],
+    fields: Iterable[Union[str, Tuple[str, Union[type, UnionType]], Tuple[str, Union[type, UnionType], Any]]],
     *,
     bases: Optional[Tuple[Type[Struct], ...]] = None,
     module: Optional[str] = None,
