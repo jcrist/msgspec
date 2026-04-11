@@ -2526,6 +2526,44 @@ class TestInspectFields:
         )
         assert msgspec.structs.fields(Example[str])
 
+    def test_fields_cached(self):
+        class Example(msgspec.Struct):
+            x: int
+            y: str = "hello"
+
+        result1 = msgspec.structs.fields(Example)
+        result2 = msgspec.structs.fields(Example)
+        assert result1 is result2
+
+    def test_fields_cached_instance(self):
+        class Example(msgspec.Struct):
+            x: int
+
+        result1 = msgspec.structs.fields(Example)
+        result2 = msgspec.structs.fields(Example(1))
+        assert result1 is result2
+
+    def test_fields_generic_not_cached_across_params(self):
+        T = TypeVar("T")
+
+        class Example(msgspec.Struct, Generic[T]):
+            x: T
+
+        result1 = msgspec.structs.fields(Example[str])
+        result2 = msgspec.structs.fields(Example[int])
+        assert result1 is not result2
+
+    def test_fields_cached_frozen_struct(self):
+        # frozen=True blocks setattr on instances, not on the class itself,
+        # so the cache slot is still writable via StructMeta's tp_setattro.
+        class Example(msgspec.Struct, frozen=True):
+            x: int
+            y: str = "hello"
+
+        result1 = msgspec.structs.fields(Example)
+        result2 = msgspec.structs.fields(Example)
+        assert result1 is result2
+
 
 class TestClassVar:
     def case1(self):
