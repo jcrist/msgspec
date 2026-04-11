@@ -36,6 +36,8 @@ jobs:
     name: Build wheels on ubuntu-24.04-riscv for riscv64
     needs: sdist
     runs-on: ubuntu-24.04-riscv
+    env:
+      SDIST_NAME: ${{ needs.sdist.outputs.sdist-name }}
     steps:
     - uses: actions/checkout@v5
     - name: Download source distribution
@@ -45,9 +47,8 @@ jobs:
         path: dist
     - name: Build & Test Wheels (riscv64 native)
       run: |
-        export PATH="/opt/python-3.12/bin:$PATH"
-        pip install cibuildwheel==3.2.1
-        python3 -m cibuildwheel --output-dir wheelhouse dist/${{ needs.sdist.outputs.sdist-name }}
+        /opt/python-3.12/bin/python3.12 -m pip install cibuildwheel==3.2.1
+        /opt/python-3.12/bin/python3.12 -m cibuildwheel --output-dir wheelhouse "dist/${SDIST_NAME}"
       env:
         CIBW_ARCHS: riscv64
         CIBW_CONFIG_FILE: .cibuildwheel.toml
