@@ -164,6 +164,6 @@ types.
 .. _YAML: https://yaml.org
 .. _TOML: https://toml.io/en/
 .. _type annotations: https://docs.python.org/3/library/typing.html
-.. _pydantic: https://docs.pydantic.dev/latest/
+.. _pydantic: https://pydantic.dev/docs/validation/latest/get-started/
 .. _mypy: https://mypy.readthedocs.io/en/stable/
 .. _pyright: https://github.com/microsoft/pyright

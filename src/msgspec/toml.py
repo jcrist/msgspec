@@ -78,8 +78,9 @@ def encode(
 
         - ``None``: All objects are encoded in the most efficient manner
           matching their in-memory representations. The default.
-        - `'deterministic'`: Unordered collections (sets, dicts) are sorted to
-          ensure a consistent output between runs. Useful when
+        - `'deterministic'`: Dict keys and set elements are sorted so that
+          values which compare equal produce identical encoded output,
+          regardless of insertion or iteration order. Useful when
           comparison/hashing of the encoded binary output is necessary.
         - `'sorted'`: Like `'deterministic'`, but *all* object-like types
           (structs, dataclasses, ...) are also sorted by field name before

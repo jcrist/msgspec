@@ -52,10 +52,15 @@ if sys.platform == "win32":
         ]
     )
 
+libraries = []
+if sys.platform != "win32":
+    libraries.append("m")
+
 ext_modules = [
     Extension(
         "msgspec._core",
         [os.path.join("src", "msgspec", "_core.c")],
+        libraries=libraries,
         extra_compile_args=extra_compile_args,
         extra_link_args=extra_link_args,
     )

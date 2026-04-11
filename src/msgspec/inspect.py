@@ -251,7 +251,7 @@ class DateTimeType(Type):
     tz: bool
         The timezone-requirements for an instance of this type. ``True``
         indicates a timezone-aware value is required, ``False`` indicates a
-        timezone-aware value is required. The default is ``None``, which
+        timezone-naive value is required. The default is ``None``, which
         accepts either timezone-aware or timezone-naive values.
     """
 

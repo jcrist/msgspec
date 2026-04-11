@@ -104,7 +104,7 @@ few:
 
 .. grid:: 2 2 4 4
 
-    .. grid-item-card:: `NautilusTrader <https://nautilustrader.io/docs/latest/api_reference/serialization/#class-msgspecserializer>`_
+    .. grid-item-card:: `NautilusTrader <https://nautilustrader.io>`_
 
         .. image:: _static/nautilus-trader.png
             :target: https://nautilustrader.io/
@@ -139,7 +139,7 @@ few:
         .. image:: _static/anywidget.png
             :target: https://anywidget.dev/
 
-    .. grid-item-card:: `Ravyn <https://www.ravyn.dev/encoders/#example>`_
+    .. grid-item-card:: `Ravyn <https://www.ravyn.dev/encoders/#msgspec-encoder>`_
 
         .. image:: _static/ravyn.png
             :target: https://www.ravyn.dev/
@@ -149,10 +149,10 @@ few:
         .. image:: _static/faststream.png
             :target: https://faststream.ag2.ai/
 
-    .. grid-item-card:: `django-modern-rest <https://django-modern-rest.readthedocs.io/en/latest/pages/getting-started.html#showcase>`_
+    .. grid-item-card:: `django-modern-rest <https://django-modern-rest.readthedocs.io/en/latest/>`_
 
         .. image:: _static/django-modern-rest.png
-            :target: https://django-modern-rest.rtfd.io/
+            :target: https://django-modern-rest.readthedocs.io/en/latest/
 
     .. grid-item-card:: `Meltano <https://sdk.meltano.com/en/latest/guides/performance.html#use-a-different-message-writer-or-reader>`_
 
@@ -167,7 +167,7 @@ few:
 .. _attrs: https://www.attrs.org/en/stable/
 .. _dataclasses: https://docs.python.org/3/library/dataclasses.html
 .. _orjson: https://github.com/ijl/orjson
-.. _pydantic: https://docs.pydantic.dev/latest/
+.. _pydantic: https://pydantic.dev/docs/validation/latest/get-started/
 .. _mypy: https://mypy.readthedocs.io/en/stable/
 .. _pyright: https://github.com/microsoft/pyright
 
