@@ -167,7 +167,7 @@ few:
 .. _attrs: https://www.attrs.org/en/stable/
 .. _dataclasses: https://docs.python.org/3/library/dataclasses.html
 .. _orjson: https://github.com/ijl/orjson
-.. _pydantic: https://docs.pydantic.dev/latest/
+.. _pydantic: https://pydantic.dev/docs/validation/latest/get-started/
 .. _mypy: https://mypy.readthedocs.io/en/stable/
 .. _pyright: https://github.com/microsoft/pyright
 
