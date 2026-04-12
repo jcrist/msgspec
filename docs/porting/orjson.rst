@@ -172,21 +172,26 @@ Appending newlines
 Naive datetimes
 ^^^^^^^^^^^^^^^
 
+By default, both libraries encode naive datetimes identically (without
+timezone info):
+
 .. code-block:: python
 
     import datetime
 
     dt = datetime.datetime(2024, 1, 1, 12, 0, 0)
 
-    # orjson with OPT_NAIVE_UTC -- treats naive as UTC, adds "+00:00"
+    orjson.dumps(dt)           # b'"2024-01-01T12:00:00"'
+    msgspec.json.encode(dt)    # b'"2024-01-01T12:00:00"'
+
+``orjson`` has ``OPT_NAIVE_UTC`` to force treating naive datetimes as UTC:
+
+.. code-block:: python
+
     orjson.dumps(dt, option=orjson.OPT_NAIVE_UTC)
     # b'"2024-01-01T12:00:00+00:00"'
 
-    # msgspec -- encodes naive datetimes without timezone
-    msgspec.json.encode(dt)
-    # b'"2024-01-01T12:00:00"'
-
-If you need to force UTC, convert before encoding:
+``msgspec`` has no equivalent flag. Convert before encoding instead:
 
 .. code-block:: python
 
