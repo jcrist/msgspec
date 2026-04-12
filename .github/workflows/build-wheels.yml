@@ -50,21 +50,20 @@ jobs:
     # TODO: Remove this once the action supports specifying extras, see:
     # https://github.com/pypa/cibuildwheel/pull/2630
     - name: Install uv
-      if: runner.os != 'Linux'
+      if: runner.os != 'Linux' || matrix.archs == 'riscv64'
       uses: astral-sh/setup-uv@v7
 
     # On riscv64 the pypa/cibuildwheel action calls actions/setup-python
-    # internally, which has no riscv64 binaries. Install and run cibuildwheel
-    # directly via pip instead.
+    # internally, which has no riscv64 binaries. Run cibuildwheel via uvx
+    # instead. Keep version in sync with pypa/cibuildwheel@v3.2.1 below.
     - name: Build & Test Wheels (riscv64 native)
       if: matrix.archs == 'riscv64'
       run: |
-        export PATH="/opt/python-3.12/bin:$PATH"
-        pip install cibuildwheel==3.2.1
-        python3 -m cibuildwheel --output-dir wheelhouse dist/${{ inputs.sdist-name }}
+        uvx cibuildwheel==3.2.1 --output-dir wheelhouse \
+          dist/${{ inputs.sdist-name }}
       env:
         CIBW_ARCHS: riscv64
-        CIBW_CONFIG_FILE: .cibuildwheel.toml
+        CIBW_CONFIG_FILE: ${{ github.workspace }}/.cibuildwheel.toml
 
     - name: Build & Test Wheels
       if: matrix.archs != 'riscv64'
