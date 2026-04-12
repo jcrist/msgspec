@@ -54,6 +54,9 @@ jobs:
           "dist/${SDIST_NAME}"
       env:
         CIBW_ARCHS: riscv64
+        # build[uv] from .cibuildwheel.toml requires uv inside the container,
+        # which is not pre-installed in the musllinux image. Override to pip.
+        CIBW_BUILD_FRONTEND: pip
     - uses: actions/upload-artifact@v5
       with:
         name: artifact-wheels-riscv64
