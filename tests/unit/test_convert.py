@@ -921,6 +921,18 @@ class TestLiteral:
         with pytest.raises(ValidationError, match="Expected `int`, got `str`"):
             convert("A", typ)
 
+    def test_bool_literal(self):
+        assert convert(True, Literal[True]) is True
+        assert convert(False, Literal[False]) is False
+        assert convert(True, Literal[True, False]) is True
+        assert convert(False, Literal[True, False]) is False
+        with pytest.raises(ValidationError, match="Invalid enum value False"):
+            convert(False, Literal[True])
+        with pytest.raises(ValidationError, match="Invalid enum value True"):
+            convert(True, Literal[False])
+        with pytest.raises(ValidationError, match="Expected `bool`, got `str`"):
+            convert("yes", Literal[True])
+
 
 class TestSequences:
     def test_any_sequence(self):
