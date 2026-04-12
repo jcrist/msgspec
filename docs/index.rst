@@ -201,7 +201,13 @@ few:
     extending.rst
     inspect.rst
     perf-tips.rst
-    porting-from-orjson.rst
+
+.. toctree::
+    :hidden:
+    :maxdepth: 2
+    :caption: Porting
+
+    porting/index.rst
 
 .. toctree::
     :hidden:

@@ -9,20 +9,18 @@ Why migrate?
 ------------
 
 Both ``orjson`` and ``msgspec`` are high-performance JSON libraries written in
-compiled languages. Performance is generally comparable -- for some schemas
-``msgspec`` is faster, for others ``orjson`` is. For common message schemas
-things are roughly equivalent.
+compiled languages.
 
 There are a few reasons you might prefer ``msgspec``:
 
 - **Typed decoding and validation**. ``orjson.loads`` always returns plain
   Python builtins (``dict``, ``list``, ...). With ``msgspec`` you can decode
   directly into typed objects (``Struct``, ``dataclass``, ``TypedDict``, etc.)
-  while validating the schema in a single pass. See :doc:`usage` for details.
+  while validating the schema in a single pass. See :doc:`../usage` for details.
 
 - **Schema evolution**. ``msgspec`` has first-class support for evolving
   schemas over time without breaking existing clients. See
-  :doc:`schema-evolution`.
+  :doc:`../schema-evolution`.
 
 - **Multiple protocols**. ``msgspec`` also supports MessagePack, YAML, and
   TOML with a consistent API, making it easy to switch between formats.
@@ -131,8 +129,9 @@ Pretty-printing
     raw = msgspec.json.encode(obj)
     pretty = msgspec.json.format(raw, indent=2)
 
-Note that ``msgspec.json.format`` works on any JSON bytes/str, not just
-``msgspec``-encoded data. It also supports arbitrary indent levels.
+Unlike ``orjson``'s single-pass approach, ``msgspec`` uses a two-step process:
+encode first, then format. ``msgspec.json.format`` works on any JSON bytes/str,
+not just ``msgspec``-encoded data, and supports arbitrary indent levels.
 
 Custom type serialization
 ^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -311,12 +310,16 @@ through other means:
    * - ``OPT_NON_STR_KEYS``
      - Use ``enc_hook``/``dec_hook`` or ``msgspec.to_builtins(obj, str_keys=True)``
    * - ``OPT_OMIT_MICROSECONDS``
-     - Handle via ``enc_hook``
+     - Convert before encoding: ``dt.replace(microsecond=0)``. ``enc_hook`` cannot
+       be used here because ``datetime`` is a natively supported type.
    * - ``OPT_STRICT_INTEGER`` (53-bit)
      - Use ``Meta(ge=-(2**53 - 1), le=2**53 - 1)`` constraint
    * - ``OPT_PASSTHROUGH_DATACLASS``
-     - Use ``enc_hook`` to override default dataclass serialization
+     - Not directly supported. ``dataclass`` is natively supported, so ``enc_hook``
+       is not called for it. Convert to a ``dict`` before encoding if you need
+       custom serialization.
    * - ``OPT_PASSTHROUGH_SUBCLASS``
-     - ``msgspec`` does not serialize subclasses of builtins by default
+     - Not applicable. ``msgspec`` always serializes subclasses of builtins as
+       their parent type, with no option to redirect them to ``enc_hook``.
 
 .. _orjson: https://github.com/ijl/orjson
