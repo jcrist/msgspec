@@ -1008,13 +1008,13 @@ class TestTypedDecoder:
         assert dec.decode(enc.encode("one")) == "one"
 
         with pytest.raises(
-            msgspec.ValidationError, match="Invalid enum value 'MISSING'"
+            msgspec.ValidationError, match="Invalid value 'MISSING'"
         ):
             dec.decode(enc.encode("MISSING"))
 
         with pytest.raises(
             msgspec.ValidationError,
-            match=r"Invalid enum value 'MISSING' - at `\$\[0\]`",
+            match=r"Invalid value 'MISSING' - at `\$\[0\]`",
         ):
             msgspec.msgpack.decode(enc.encode(["MISSING"]), type=List[literal])
 
@@ -1025,11 +1025,11 @@ class TestTypedDecoder:
 
         assert dec.decode(enc.encode(1)) == 1
 
-        with pytest.raises(msgspec.ValidationError, match="Invalid enum value 1000"):
+        with pytest.raises(msgspec.ValidationError, match="Invalid value 1000"):
             dec.decode(enc.encode(1000))
 
         with pytest.raises(
-            msgspec.ValidationError, match=r"Invalid enum value 1000 - at `\$\[0\]`"
+            msgspec.ValidationError, match=r"Invalid value 1000 - at `\$\[0\]`"
         ):
             msgspec.msgpack.decode(enc.encode([1000]), type=List[literal])
 
