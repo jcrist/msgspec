@@ -10140,6 +10140,7 @@ ms_passes_big_int_constraints(PyObject *obj, TypeNode *type, PathNode *path) {
         Py_DECREF(base);
         if (remainder == NULL) return false;
         long iremainder = PyLong_AsLong(remainder);
+        Py_DECREF(remainder);
         if (iremainder != 0) {
             _err_int_constraint(
                 "Expected `int` that's a multiple of %lld%U", c, path
