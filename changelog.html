@@ -309,6 +309,17 @@
         <article role="main" id="furo-main-content">
           <section id="changelog">
 <h1>Changelog<a class="headerlink" href="#changelog" title="Link to this heading">¶</a></h1>
+<section id="version-0-21-1-2026-04-13">
+<h2>Version 0.21.1 (2026-04-13)<a class="headerlink" href="#version-0-21-1-2026-04-13" title="Link to this heading">¶</a></h2>
+<ul class="simple">
+<li><p>Fix <code class="docutils literal notranslate"><span class="pre">ValidationError</span></code> and <code class="docutils literal notranslate"><span class="pre">DecodeError</span></code> raised in <code class="docutils literal notranslate"><span class="pre">dec_hook</span></code> being incorrectly wrapped in another <code class="docutils literal notranslate"><span class="pre">ValidationError</span></code> (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/1013">PR #1013</a>).</p></li>
+<li><p>Fix a potential <code class="docutils literal notranslate"><span class="pre">NULL</span></code> dereference in <code class="docutils literal notranslate"><span class="pre">structmeta_get_module_ns</span></code> (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/1016">PR #1016</a>).</p></li>
+<li><p>Fix a reference leak in <code class="docutils literal notranslate"><span class="pre">ms_passes_big_int_constraints</span></code> (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/1017">PR #1017</a>).</p></li>
+<li><p>Fix missing <code class="docutils literal notranslate"><span class="pre">ref_template</span></code> parameter in <code class="docutils literal notranslate"><span class="pre">msgspec.json.schema</span></code> type stub (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/1002">PR #1002</a>).</p></li>
+<li><p>Clarify <code class="docutils literal notranslate"><span class="pre">order='deterministic'</span></code> encoder docstrings (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/1011">PR #1011</a>).</p></li>
+<li><p>Add a porting guide for users migrating from orjson (<a class="extlink-pr reference external" href="https://github.com/jcrist/msgspec/pull/1007">PR #1007</a>).</p></li>
+</ul>
+</section>
 <section id="version-0-21-0-2026-04-08">
 <h2>Version 0.21.0 (2026-04-08)<a class="headerlink" href="#version-0-21-0-2026-04-08" title="Link to this heading">¶</a></h2>
 <ul class="simple">
@@ -976,6 +987,7 @@ faster decoding.</p></li>
           <div class="toc-tree">
             <ul>
 <li><a class="reference internal" href="#">Changelog</a><ul>
+<li><a class="reference internal" href="#version-0-21-1-2026-04-13">Version 0.21.1 (2026-04-13)</a></li>
 <li><a class="reference internal" href="#version-0-21-0-2026-04-08">Version 0.21.0 (2026-04-08)</a></li>
 <li><a class="reference internal" href="#version-0-20-0-2025-11-23">Version 0.20.0 (2025-11-23)</a></li>
 <li><a class="reference internal" href="#version-0-19-0-2024-12-27">Version 0.19.0 (2024-12-27)</a></li>
