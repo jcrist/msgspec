@@ -5326,14 +5326,22 @@ ms_maybe_wrap_validation_error(PathNode *path) {
     /* If null, some other c-extension has borked, just return */
     if (exc_type == NULL) return;
 
+    MsgspecState *mod = msgspec_get_global_state();
+
     /* If it's a TypeError or ValueError, wrap it in a ValidationError.
-     * Otherwise we reraise the original error below */
+     * Otherwise we reraise the original error below.
+     * Since DecodeError (and ValidationError) subclass from ValueError, we need
+     * to special case them below - we don't wrap in those cases. */
     if (
-        PyType_IsSubtype(
-            (PyTypeObject *)exc_type, (PyTypeObject *)PyExc_ValueError
-        ) ||
-        PyType_IsSubtype(
-            (PyTypeObject *)exc_type, (PyTypeObject *)PyExc_TypeError
+        !PyType_IsSubtype((PyTypeObject *)exc_type, (PyTypeObject *)mod->DecodeError)
+        &&
+        (
+            PyType_IsSubtype(
+                (PyTypeObject *)exc_type, (PyTypeObject *)PyExc_ValueError
+            ) ||
+            PyType_IsSubtype(
+                (PyTypeObject *)exc_type, (PyTypeObject *)PyExc_TypeError
+            )
         )
     ) {
         PyObject *exc_type2, *exc2, *tb2;
@@ -12483,9 +12491,10 @@ PyDoc_STRVAR(Encoder__doc__,
 "\n"
 "    - ``None``: All objects are encoded in the most efficient manner matching\n"
 "      their in-memory representations. The default.\n"
-"    - `'deterministic'`: Unordered collections (sets, dicts) are sorted to\n"
-"      ensure a consistent output between runs. Useful when comparison/hashing\n"
-"      of the encoded binary output is necessary.\n"
+"    - `'deterministic'`: Dict keys and set elements are sorted so that values\n"
+"      which compare equal produce identical encoded output, regardless of\n"
+"      insertion or iteration order. Useful when comparison/hashing of the\n"
+"      encoded binary output is necessary.\n"
 "    - `'sorted'`: Like `'deterministic'`, but *all* object-like types (structs,\n"
 "      dataclasses, ...) are also sorted by field name before encoding. This is\n"
 "      slower than `'deterministic'`, but may produce more human-readable output."
@@ -13645,9 +13654,10 @@ PyDoc_STRVAR(msgspec_msgpack_encode__doc__,
 "\n"
 "    - ``None``: All objects are encoded in the most efficient manner matching\n"
 "      their in-memory representations. The default.\n"
-"    - `'deterministic'`: Unordered collections (sets, dicts) are sorted to\n"
-"      ensure a consistent output between runs. Useful when comparison/hashing\n"
-"      of the encoded binary output is necessary.\n"
+"    - `'deterministic'`: Dict keys and set elements are sorted so that values\n"
+"      which compare equal produce identical encoded output, regardless of\n"
+"      insertion or iteration order. Useful when comparison/hashing of the\n"
+"      encoded binary output is necessary.\n"
 "    - `'sorted'`: Like `'deterministic'`, but *all* object-like types (structs,\n"
 "      dataclasses, ...) are also sorted by field name before encoding. This is\n"
 "      slower than `'deterministic'`, but may produce more human-readable output.\n"
@@ -13698,9 +13708,10 @@ PyDoc_STRVAR(JSONEncoder__doc__,
 "\n"
 "    - ``None``: All objects are encoded in the most efficient manner matching\n"
 "      their in-memory representations. The default.\n"
-"    - `'deterministic'`: Unordered collections (sets, dicts) are sorted to\n"
-"      ensure a consistent output between runs. Useful when comparison/hashing\n"
-"      of the encoded binary output is necessary.\n"
+"    - `'deterministic'`: Dict keys and set elements are sorted so that values\n"
+"      which compare equal produce identical encoded output, regardless of\n"
+"      insertion or iteration order. Useful when comparison/hashing of the\n"
+"      encoded binary output is necessary.\n"
 "    - `'sorted'`: Like `'deterministic'`, but *all* object-like types (structs,\n"
 "      dataclasses, ...) are also sorted by field name before encoding. This is\n"
 "      slower than `'deterministic'`, but may produce more human-readable output."
@@ -14803,9 +14814,10 @@ PyDoc_STRVAR(msgspec_json_encode__doc__,
 "\n"
 "    - ``None``: All objects are encoded in the most efficient manner matching\n"
 "      their in-memory representations. The default.\n"
-"    - `'deterministic'`: Unordered collections (sets, dicts) are sorted to\n"
-"      ensure a consistent output between runs. Useful when comparison/hashing\n"
-"      of the encoded binary output is necessary.\n"
+"    - `'deterministic'`: Dict keys and set elements are sorted so that values\n"
+"      which compare equal produce identical encoded output, regardless of\n"
+"      insertion or iteration order. Useful when comparison/hashing of the\n"
+"      encoded binary output is necessary.\n"
 "    - `'sorted'`: Like `'deterministic'`, but *all* object-like types (structs,\n"
 "      dataclasses, ...) are also sorted by field name before encoding. This is\n"
 "      slower than `'deterministic'`, but may produce more human-readable output.\n"
@@ -20466,9 +20478,10 @@ PyDoc_STRVAR(msgspec_to_builtins__doc__,
 "\n"
 "    - ``None``: All objects are converted in the most efficient manner matching\n"
 "      their in-memory representations. The default.\n"
-"    - `'deterministic'`: Unordered collections (sets, dicts) are sorted to\n"
-"      ensure a consistent output between runs. Useful when comparison/hashing\n"
-"      of the converted output is necessary.\n"
+"    - `'deterministic'`: Dict keys and set elements are sorted so that values\n"
+"      which compare equal produce identical converted output, regardless of\n"
+"      insertion or iteration order. Useful when comparison/hashing of the\n"
+"      converted output is necessary.\n"
 "    - `'sorted'`: Like `'deterministic'`, but *all* object-like types (structs,\n"
 "      dataclasses, ...) are also sorted by field name before encoding. This is\n"
 "      slower than `'deterministic'`, but may produce more human-readable output.\n"
