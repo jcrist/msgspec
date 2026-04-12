@@ -5658,7 +5658,7 @@ structmeta_get_module_ns(MsgspecState *mod, StructMetaInfo *info) {
     PyObject *modules = PySys_GetObject("modules");
     if (modules == NULL) return NULL;
     PyObject *module = PyDict_GetItem(modules, name);
-    if (mod == NULL) return NULL;
+    if (module == NULL) return NULL;
     return PyObject_GetAttr(module, mod->str___dict__);
 }
 
