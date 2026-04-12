@@ -47,10 +47,13 @@ jobs:
         name: artifact-sdist
         path: dist
     - name: Build & Test Wheels (riscv64 native)
-      run: uvx cibuildwheel==3.2.1 --output-dir wheelhouse "dist/${SDIST_NAME}"
+      run: |
+        uvx cibuildwheel==3.2.1 \
+          --config-file "$GITHUB_WORKSPACE/.cibuildwheel.toml" \
+          --output-dir wheelhouse \
+          "dist/${SDIST_NAME}"
       env:
         CIBW_ARCHS: riscv64
-        CIBW_CONFIG_FILE: ${{ github.workspace }}/.cibuildwheel.toml
     - uses: actions/upload-artifact@v5
       with:
         name: artifact-wheels-riscv64
