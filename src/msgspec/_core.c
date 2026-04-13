@@ -4415,7 +4415,7 @@ typenode_collect_literal(TypeNodeCollectState *state, PyObject *literal) {
     if (args == NULL) return -1;
 
     Py_ssize_t size = PyTuple_GET_SIZE(args);
-    if (size < 0) return -1;
+    if (size < 0) goto error;
 
     if (size == 0) {
         PyErr_Format(
@@ -4423,7 +4423,7 @@ typenode_collect_literal(TypeNodeCollectState *state, PyObject *literal) {
             "Literal types must have at least one item, %R is invalid",
             literal
         );
-        return -1;
+        goto error;
     }
 
     for (Py_ssize_t i = 0; i < size; i++) {
