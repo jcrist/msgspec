@@ -10204,14 +10204,21 @@ ms_decode_bigint(const char *buf, Py_ssize_t size, TypeNode *type, PathNode *pat
     if (MS_UNLIKELY(out == NULL)) {
         PyObject *exc_type, *exc, *tb;
 
-        /* Fetch the exception state */
+        /* Fetch the exception state. Take a reference to each if not NULL */
         PyErr_Fetch(&exc_type, &exc, &tb);
 
         if (exc_type == NULL) {
-            /* Some other c-extension has borked, just return */
+            /* Some other c-extension has borked, just return.
+            * References might still have been taken, so decred just in case */
+            Py_XDECREF(exc_type);
+            Py_XDECREF(exc);
+            Py_XDECREF(tb);
             return NULL;
         }
         else if (exc_type == PyExc_ValueError) {
+            Py_XDECREF(exc_type);
+            Py_XDECREF(exc);
+            Py_XDECREF(tb);
             goto out_of_range;
         }
         else {
