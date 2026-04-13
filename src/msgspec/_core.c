@@ -10222,7 +10222,8 @@ ms_decode_bigint(const char *buf, Py_ssize_t size, TypeNode *type, PathNode *pat
             goto out_of_range;
         }
         else {
-            /* Restore the exception state */
+            /* Restore the exception state.
+            * No need to decref here as PyErr_Restore steals references to the args */
             PyErr_Restore(exc_type, exc, tb);
         }
     }
