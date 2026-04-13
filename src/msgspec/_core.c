@@ -2040,7 +2040,10 @@ Meta_rich_repr(PyObject *py_self, PyObject *args) {
 #define DO_REPR(field) do { \
     if (self->field != NULL) { \
         PyObject *part = Py_BuildValue("(UO)", #field, self->field); \
-        if (part == NULL || (PyList_Append(out, part) < 0)) goto error;\
+        if (part == NULL) goto error;\
+        int ret = PyList_Append(out, part);\
+        Py_DECREF(part);\
+        if (ret < 0) goto error;\
     } } while(0)
     DO_REPR(gt);
     DO_REPR(ge);
