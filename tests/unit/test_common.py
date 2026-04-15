@@ -3991,6 +3991,155 @@ class TestDecimal:
         s = str(d)
         assert proto.encode(d) == proto.encode(s)
 
+    def test_encoder_decimal_quantize(self, proto):
+        assert proto.Encoder().decimal_quantize is None
+        assert proto.Encoder(
+            decimal_quantize=decimal.Decimal("1.00"),
+        ).decimal_quantize == decimal.Decimal("1.00")
+
+    def test_encoder_decimal_rounding(self, proto):
+        assert proto.Encoder().decimal_rounding is None
+        assert (
+            proto.Encoder(decimal_rounding=decimal.ROUND_UP).decimal_rounding
+            == decimal.ROUND_UP
+        )
+
+    @pytest.mark.parametrize(
+        ("decimal_quantize", "expected"),
+        [
+            (decimal.Decimal("1.00000"), "1.34490"),
+            (decimal.Decimal("1.0000"), "1.3449"),
+            (decimal.Decimal("1.000"), "1.345"),
+            (decimal.Decimal("1.00"), "1.34"),
+            (decimal.Decimal("-1.0"), "1.3"),
+            (decimal.Decimal("1.0"), "1.3"),
+            (decimal.Decimal("1"), "1"),
+            (decimal.Decimal("0"), "1"),
+        ],
+    )
+    def test_Encoder_encode_decimal_quantize(
+        self,
+        proto,
+        decimal_quantize: decimal.Decimal,
+        expected: str,
+    ):
+        enc = proto.Encoder(decimal_quantize=decimal_quantize)
+        msg = enc.encode(decimal.Decimal("1.3449"))
+        assert msg == enc.encode(expected)
+
+    @pytest.mark.parametrize(
+        ("decimal_quantize", "expected"),
+        [
+            (decimal.Decimal("1.0000"), "1.3449"),
+            (decimal.Decimal("1.000"), "1.345"),
+            (decimal.Decimal("1.00"), "1.34"),
+            (decimal.Decimal("1.0"), "1.3"),
+            (decimal.Decimal("-1.0"), "1.3"),
+        ],
+    )
+    def test_Encoder_encode_decimal_quantize_to_number(
+        self,
+        proto,
+        decimal_quantize: decimal.Decimal,
+        expected: str,
+    ):
+        enc = proto.Encoder(
+            decimal_format="number",
+            decimal_quantize=decimal_quantize,
+        )
+        msg = enc.encode(decimal.Decimal("1.3449"))
+        assert msg == enc.encode(float(expected))
+
+    @pytest.mark.parametrize(
+        ("rounding", "value", "expected"),
+        [
+            pytest.param(
+                None,
+                decimal.Decimal("0.446"),
+                "0.45",
+                id="ROUND_HALF_EVEN by default",
+            ),
+            pytest.param(
+                None,
+                decimal.Decimal("-0.445"),
+                "-0.44",
+                id="ROUND_HALF_EVEN by default",
+            ),
+            # ROUND_DOWN
+            (decimal.ROUND_DOWN, decimal.Decimal("3.706"), "3.70"),
+            (decimal.ROUND_DOWN, decimal.Decimal("2.206"), "2.20"),
+            (decimal.ROUND_DOWN, decimal.Decimal("-1.504"), "-1.50"),
+            # ROUND_UP
+            (decimal.ROUND_UP, decimal.Decimal("2.101"), "2.11"),
+            (decimal.ROUND_UP, decimal.Decimal("2.501"), "2.51"),
+            (decimal.ROUND_UP, decimal.Decimal("-2.101"), "-2.11"),
+            (decimal.ROUND_UP, decimal.Decimal("-2.501"), "-2.51"),
+            # ROUND_HALF_UP
+            (decimal.ROUND_HALF_UP, decimal.Decimal("0.444"), "0.44"),
+            (decimal.ROUND_HALF_UP, decimal.Decimal("0.445"), "0.45"),
+            (decimal.ROUND_HALF_UP, decimal.Decimal("-0.554"), "-0.55"),
+            (decimal.ROUND_HALF_UP, decimal.Decimal("-0.555"), "-0.56"),
+            # ROUND_HALF_EVEN
+            (decimal.ROUND_HALF_EVEN, decimal.Decimal("-0.445"), "-0.44"),
+            (decimal.ROUND_HALF_EVEN, decimal.Decimal("0.446"), "0.45"),
+            (decimal.ROUND_HALF_EVEN, decimal.Decimal("0.555"), "0.56"),
+            # ROUND_CEILING
+            (decimal.ROUND_CEILING, decimal.Decimal("0.440000"), "0.44"),
+            (decimal.ROUND_CEILING, decimal.Decimal("0.440001"), "0.45"),
+            (decimal.ROUND_CEILING, decimal.Decimal("0.5500001"), "0.56"),
+            (decimal.ROUND_CEILING, decimal.Decimal("-0.5500001"), "-0.55"),
+            # ROUND_FLOOR
+            (decimal.ROUND_FLOOR, decimal.Decimal("0.4488"), "0.44"),
+            (decimal.ROUND_FLOOR, decimal.Decimal("0.445"), "0.44"),
+            (decimal.ROUND_FLOOR, decimal.Decimal("0.5595"), "0.55"),
+            (decimal.ROUND_FLOOR, decimal.Decimal("-0.5595"), "-0.56"),
+            # ROUND_HALF_DOWN
+            (decimal.ROUND_HALF_DOWN, decimal.Decimal("0.445"), "0.44"),
+            (decimal.ROUND_HALF_DOWN, decimal.Decimal("0.446"), "0.45"),
+            (decimal.ROUND_HALF_DOWN, decimal.Decimal("0.555"), "0.55"),
+            (decimal.ROUND_HALF_DOWN, decimal.Decimal("0.556"), "0.56"),
+            # ROUND_05UP
+            (decimal.ROUND_05UP, decimal.Decimal("10.00001"), "10.01"),
+            (decimal.ROUND_05UP, decimal.Decimal("10.050101"), "10.06"),
+            (decimal.ROUND_05UP, decimal.Decimal("10.018"), "10.01"),
+            (decimal.ROUND_05UP, decimal.Decimal("10.068"), "10.06"),
+        ],
+    )
+    def test_Encoder_encode_decimal_rounding(
+        self,
+        proto,
+        rounding: str | None,
+        value: decimal.Decimal,
+        expected: str,
+    ):
+        enc = msgspec.msgpack.Encoder(
+            decimal_quantize=decimal.Decimal("1.00"),
+            decimal_rounding=rounding,
+        )
+        msg = enc.encode(value)
+        assert msg == enc.encode(expected)
+
+    def test_encoder_invalid_decimal_rounding(
+        self,
+        proto,
+    ):
+        with pytest.raises(
+            ValueError,
+            match="`decimal_rounding` must be 'ROUND_DOWN'",
+        ):
+            proto.Encoder(
+                decimal_quantize=decimal.Decimal("1"),
+                decimal_rounding="DIFFERENT_VALUE",
+            )
+
+    def test_encoder_decimal_rounding_has_no_effect(
+        self,
+        proto,
+    ):
+        enc = msgspec.msgpack.Encoder(decimal_rounding=decimal.ROUND_UP)
+        msg = enc.encode(decimal.Decimal("1.99"))
+        assert msg == enc.encode("1.99")
+
     @pytest.mark.parametrize(
         "val", ["1.5", "InF", "-iNf", "iNfInItY", "-InFiNiTy", "NaN"]
     )

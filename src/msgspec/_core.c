@@ -9479,12 +9479,26 @@ enum uuid_format {
     UUID_FORMAT_BYTES = 2,
 };
 
+enum decimal_rounding {
+    ROUND_DEFAULT = 0,
+    ROUND_DOWN = 1,
+    ROUND_HALF_UP = 2,
+    ROUND_HALF_EVEN = 3,
+    ROUND_CEILING = 4,
+    ROUND_FLOOR = 5,
+    ROUND_UP = 6,
+    ROUND_HALF_DOWN = 7,
+    ROUND_05UP = 8,
+};
+
 typedef struct EncoderState {
     MsgspecState *mod;          /* module reference */
     PyObject *enc_hook;         /* `enc_hook` callback */
     enum decimal_format decimal_format;
     enum uuid_format uuid_format;
     enum order_mode order;
+    PyObject *decimal_quantize;
+    enum decimal_rounding decimal_rounding;
     char* (*resize_buffer)(PyObject**, Py_ssize_t);  /* callback for resizing buffer */
 
     char *output_buffer_raw;    /* raw pointer to output_buffer internal buffer */
@@ -9500,6 +9514,8 @@ typedef struct Encoder {
     enum decimal_format decimal_format;
     enum uuid_format uuid_format;
     enum order_mode order;
+    PyObject *decimal_quantize;
+    enum decimal_rounding decimal_rounding;
 } Encoder;
 
 static PyTypeObject Encoder_Type;
@@ -9554,13 +9570,18 @@ ms_write(EncoderState *self, const char *s, Py_ssize_t n)
 static int
 Encoder_init(Encoder *self, PyObject *args, PyObject *kwds)
 {
-    char *kwlist[] = {"enc_hook", "decimal_format", "uuid_format", "order", NULL};
-    PyObject *enc_hook = NULL, *decimal_format = NULL, *uuid_format = NULL, *order = NULL;
+    char *kwlist[] = {
+        "enc_hook", "decimal_format", "uuid_format", "order",
+        "decimal_quantize", "decimal_rounding", NULL,
+    };
+    PyObject *enc_hook = NULL, *decimal_format = NULL, *uuid_format = NULL, *order = NULL, \
+        *decimal_quantize = NULL, *decimal_rounding = NULL;
 
     if (
         !PyArg_ParseTupleAndKeywords(
-            args, kwds, "|$OOOO", kwlist,
-            &enc_hook, &decimal_format, &uuid_format, &order
+            args, kwds, "|$OOOOOO", kwlist,
+            &enc_hook, &decimal_format, &uuid_format, &order,
+            &decimal_quantize, &decimal_rounding 
         )
     ) {
         return -1;
@@ -9640,7 +9661,74 @@ Encoder_init(Encoder *self, PyObject *args, PyObject *kwds)
     if (self->order == ORDER_INVALID) return -1;
 
     self->mod = msgspec_get_global_state();
+
+    /* Process decimal quantize */
+    if (decimal_quantize == Py_None) {
+        decimal_quantize = NULL;
+    }
+    if (decimal_quantize != NULL) {
+        PyTypeObject *type = Py_TYPE(decimal_quantize);
+        if (type != (PyTypeObject *)(self->mod->DecimalType)) {
+            PyErr_SetString(PyExc_TypeError, "`decimal_quantize` must be a Decimal");
+            return -1;
+        }
+        Py_XDECREF(type);
+        Py_INCREF(decimal_quantize);
+    }
+
+    /* Process decimal rounding */
+    if (decimal_rounding == NULL || decimal_rounding == Py_None) {
+        self->decimal_rounding = ROUND_DEFAULT;
+    }
+    else {
+        bool ok = false;
+        if (PyUnicode_CheckExact(decimal_rounding)) {
+            if (PyUnicode_CompareWithASCIIString(decimal_rounding, "ROUND_DOWN") == 0) {
+                self->decimal_rounding = ROUND_DOWN;
+                ok = true;
+            }
+            else if (PyUnicode_CompareWithASCIIString(decimal_rounding, "ROUND_HALF_UP") == 0) {
+                self->decimal_rounding = ROUND_HALF_UP;
+                ok = true;
+            }
+            else if (PyUnicode_CompareWithASCIIString(decimal_rounding, "ROUND_HALF_EVEN") == 0) {
+                self->decimal_rounding = ROUND_HALF_EVEN;
+                ok = true;
+            }
+            else if (PyUnicode_CompareWithASCIIString(decimal_rounding, "ROUND_CEILING") == 0) {
+                self->decimal_rounding = ROUND_CEILING;
+                ok = true;
+            }
+            else if (PyUnicode_CompareWithASCIIString(decimal_rounding, "ROUND_FLOOR") == 0) {
+                self->decimal_rounding = ROUND_FLOOR;
+                ok = true;
+            }
+            else if (PyUnicode_CompareWithASCIIString(decimal_rounding, "ROUND_UP") == 0) {
+                self->decimal_rounding = ROUND_UP;
+                ok = true;
+            }
+            else if (PyUnicode_CompareWithASCIIString(decimal_rounding, "ROUND_HALF_DOWN") == 0) {
+                self->decimal_rounding = ROUND_HALF_DOWN;
+                ok = true;
+            }
+            else if (PyUnicode_CompareWithASCIIString(decimal_rounding, "ROUND_05UP") == 0) {
+                self->decimal_rounding = ROUND_05UP;
+                ok = true;
+            }
+        }
+        if (!ok) {
+            PyErr_Format(
+                PyExc_ValueError,
+                "`decimal_rounding` must be 'ROUND_DOWN', 'ROUND_HALF_UP', 'ROUND_HALF_EVEN', 'ROUND_CEILING', \
+                'ROUND_FLOOR', 'ROUND_UP', 'ROUND_HALF_DOWN', 'ROUND_05UP', got %R",
+                decimal_rounding
+            );
+            return -1;
+        }
+    }
+
     self->enc_hook = enc_hook;
+    self->decimal_quantize = decimal_quantize;
     return 0;
 }
 
@@ -9648,6 +9736,7 @@ static int
 Encoder_traverse(Encoder *self, visitproc visit, void *arg)
 {
     Py_VISIT(self->enc_hook);
+    Py_VISIT(self->decimal_quantize);
     return 0;
 }
 
@@ -9655,6 +9744,7 @@ static int
 Encoder_clear(Encoder *self)
 {
     Py_CLEAR(self->enc_hook);
+    Py_CLEAR(self->decimal_quantize);
     return 0;
 }
 
@@ -9731,6 +9821,8 @@ encoder_encode_into_common(
         .decimal_format = self->decimal_format,
         .uuid_format = self->uuid_format,
         .order = self->order,
+        .decimal_quantize = self->decimal_quantize,
+        .decimal_rounding = self->decimal_rounding,
         .output_buffer = buf,
         .output_buffer_raw = PyByteArray_AS_STRING(buf),
         .output_len = offset,
@@ -9778,6 +9870,8 @@ encoder_encode_common(
         .decimal_format = self->decimal_format,
         .uuid_format = self->uuid_format,
         .order = self->order,
+        .decimal_quantize = self->decimal_quantize,
+        .decimal_rounding = self->decimal_rounding,
         .output_len = 0,
         .max_output_len = ENC_INIT_BUFSIZE,
         .resize_buffer = &ms_resize_bytes
@@ -9835,6 +9929,8 @@ encode_common(
         .decimal_format = DECIMAL_FORMAT_STRING,
         .uuid_format = UUID_FORMAT_CANONICAL,
         .output_len = 0,
+        .decimal_quantize = NULL,
+        .decimal_rounding = ROUND_DEFAULT,
         .max_output_len = ENC_INIT_BUFSIZE,
         .resize_buffer = &ms_resize_bytes
     };
@@ -9893,8 +9989,52 @@ Encoder_order(Encoder *self, void *closure) {
     }
 }
 
+static PyObject*
+Encoder_decimal_rounding(Encoder *self, void *closure) {
+    if (self->decimal_rounding == ROUND_DOWN) {
+        return PyUnicode_InternFromString("ROUND_DOWN");
+    }
+    else if (self->decimal_rounding == ROUND_HALF_UP) {
+        return PyUnicode_InternFromString("ROUND_HALF_UP");
+    }
+    else if (self->decimal_rounding == ROUND_HALF_EVEN) {
+        return PyUnicode_InternFromString("ROUND_HALF_EVEN");
+    }
+    else if (self->decimal_rounding == ROUND_CEILING) {
+        return PyUnicode_InternFromString("ROUND_CEILING");
+    }
+    else if (self->decimal_rounding == ROUND_FLOOR) {
+        return PyUnicode_InternFromString("ROUND_FLOOR");
+    }
+    else if (self->decimal_rounding == ROUND_UP) {
+        return PyUnicode_InternFromString("ROUND_UP");
+    }
+    else if (self->decimal_rounding == ROUND_HALF_DOWN) {
+        return PyUnicode_InternFromString("ROUND_HALF_DOWN");
+    }
+    else if (self->decimal_rounding == ROUND_05UP) {
+        return PyUnicode_InternFromString("ROUND_05UP");
+    }
+    else {
+        Py_RETURN_NONE;
+    }
+}
+
+static PyObject*
+Encoder_decimal_quantize(Encoder *self, void *closure) {
+    if (self->decimal_quantize != NULL) {
+        Py_INCREF(self->decimal_quantize);
+        return self->decimal_quantize;
+    }
+    else {
+        Py_RETURN_NONE;
+    }
+}
+
 static PyGetSetDef Encoder_getset[] = {
     {"decimal_format", (getter) Encoder_decimal_format, NULL, NULL, NULL},
+    {"decimal_rounding", (getter) Encoder_decimal_rounding, NULL, NULL, NULL},
+    {"decimal_quantize", (getter) Encoder_decimal_quantize, NULL, NULL, NULL},
     {"uuid_format", (getter) Encoder_uuid_format, NULL, NULL, NULL},
     {"order", (getter) Encoder_order, NULL, NULL, NULL},
     {NULL},
@@ -11735,6 +11875,76 @@ ms_decode_uuid_from_bytes(const char *buf, Py_ssize_t size, PathNode *path) {
  * Decimal Utilities                                                     *
  *************************************************************************/
 
+
+static PyObject*
+quantize_decimal_obj(EncoderState *self, PyObject *obj)
+{
+    if (self->decimal_quantize == NULL) {
+        return NULL;
+    }
+ 
+    PyObject *quantize_method = PyObject_GetAttrString(obj, "quantize");
+    if (quantize_method == NULL) {
+        return NULL;
+    }
+
+    // Create rounding constant as string object
+    PyObject *rounding_const_obj = NULL;
+    switch (self->decimal_rounding) {
+        case ROUND_DEFAULT:
+            rounding_const_obj = Py_None;
+            break;
+        case ROUND_DOWN:
+            rounding_const_obj = PyUnicode_InternFromString("ROUND_DOWN");
+            break;
+        case ROUND_HALF_UP:
+            rounding_const_obj = PyUnicode_InternFromString("ROUND_HALF_UP");
+            break;
+        case ROUND_HALF_EVEN:
+            rounding_const_obj = PyUnicode_InternFromString("ROUND_HALF_EVEN");
+            break;
+        case ROUND_CEILING:
+            rounding_const_obj = PyUnicode_InternFromString("ROUND_CEILING");
+            break;
+        case ROUND_FLOOR:
+            rounding_const_obj = PyUnicode_InternFromString("ROUND_FLOOR");
+            break;
+        case ROUND_UP:
+            rounding_const_obj = PyUnicode_InternFromString("ROUND_UP");
+            break;
+        case ROUND_HALF_DOWN:
+            rounding_const_obj = PyUnicode_InternFromString("ROUND_HALF_DOWN");
+            break;
+        case ROUND_05UP:
+            rounding_const_obj = PyUnicode_InternFromString("ROUND_05UP");
+            break;
+        default:
+            rounding_const_obj = NULL;
+            break;
+    }
+
+    if (rounding_const_obj == NULL) {
+        Py_DECREF(quantize_method);
+        return NULL;
+    }
+
+    // Call the quantize method with decimal_quantize as Decimal object
+    PyObject *quantized_obj = PyObject_CallFunctionObjArgs(
+        quantize_method,
+        self->decimal_quantize,
+        rounding_const_obj,
+        NULL
+    );
+
+    Py_DECREF(quantize_method);
+    if (rounding_const_obj != Py_None) {
+        Py_DECREF(rounding_const_obj);
+    }
+
+    return quantized_obj;
+}
+
+
 static PyObject *
 ms_decode_decimal_from_pyobj(PyObject *str, PathNode *path, MsgspecState *mod) {
     if (mod == NULL) {
@@ -12432,7 +12642,8 @@ maybe_parse_number(
  *************************************************************************/
 
 PyDoc_STRVAR(Encoder__doc__,
-"Encoder(*, enc_hook=None, decimal_format='string', uuid_format='canonical', order=None)\n"
+"Encoder(*, enc_hook=None, decimal_format='string', uuid_format='canonical', order=None,\n"
+"    decimal_quantize=None, decimal_rounding=None)\n"
 "--\n"
 "\n"
 "A MessagePack encoder.\n"
@@ -12465,7 +12676,20 @@ PyDoc_STRVAR(Encoder__doc__,
 "      encoded binary output is necessary.\n"
 "    - `'sorted'`: Like `'deterministic'`, but *all* object-like types (structs,\n"
 "      dataclasses, ...) are also sorted by field name before encoding. This is\n"
-"      slower than `'deterministic'`, but may produce more human-readable output."
+"      slower than `'deterministic'`, but may produce more human-readable output.\n"
+"\n"
+"decimal_quantize : decimal.Decimal, optional\n"
+"    An optional Decimal value specifying the quantize target for rounding\n"
+"    Decimal numbers before encoding. If provided, all Decimal values will be\n"
+"    quantized (rounded) to the same precision, scale, and exponent as this value.\n"
+"    This is useful for ensuring consistent precision of decimal numbers during\n"
+"    serialization.\n"
+"decimal_rounding : {None, 'ROUND_DOWN', 'ROUND_HALF_UP', 'ROUND_HALF_EVEN',\n"
+"    'ROUND_CEILING', 'ROUND_FLOOR', 'ROUND_UP', 'ROUND_HALF_DOWN', 'ROUND_05UP'}, optional\n"
+"    The rounding mode to use when quantizing Decimal values. Must be one of the\n"
+"    standard decimal module rounding modes. If not specified, the default\n"
+"    rounding mode is used (ROUND_HALF_EVEN). This parameter has no\n"
+"    effect unless `decimal_quantize` is also specified.\n"
 );
 
 enum mpack_code {
@@ -13324,16 +13548,23 @@ mpack_encode_uuid(EncoderState *self, PyObject *obj)
 static int
 mpack_encode_decimal(EncoderState *self, PyObject *obj)
 {
-    PyObject *temp;
+    PyObject *temp = NULL, *quantized_obj = NULL;
     int out;
 
+    if (self->decimal_quantize != NULL) {
+        quantized_obj = quantize_decimal_obj(self, obj);
+        if (quantized_obj == NULL) return -1;
+    }
+
     if (MS_LIKELY(self->decimal_format == DECIMAL_FORMAT_STRING)) {
-        temp = PyObject_Str(obj);
+        temp = MS_LIKELY(quantized_obj == NULL) ? PyObject_Str(obj) : PyObject_Str(quantized_obj);
+        Py_XDECREF(quantized_obj);
         if (temp == NULL) return -1;
         out = mpack_encode_str(self, temp);
     }
     else {
-        temp = PyNumber_Float(obj);
+        temp = MS_LIKELY(quantized_obj == NULL) ? PyNumber_Float(obj) : PyNumber_Float(quantized_obj);
+        Py_XDECREF(quantized_obj);
         if (temp == NULL) return -1;
         out = mpack_encode_float(self, temp);
     }
@@ -13683,6 +13914,19 @@ PyDoc_STRVAR(JSONEncoder__doc__,
 "    - `'sorted'`: Like `'deterministic'`, but *all* object-like types (structs,\n"
 "      dataclasses, ...) are also sorted by field name before encoding. This is\n"
 "      slower than `'deterministic'`, but may produce more human-readable output."
+"\n"
+"decimal_quantize : decimal.Decimal, optional\n"
+"    An optional Decimal value specifying the quantize target for rounding\n"
+"    Decimal numbers before encoding. If provided, all Decimal values will be\n"
+"    quantized (rounded) to the same precision, scale, and exponent as this value.\n"
+"    This is useful for ensuring consistent precision of decimal numbers during\n"
+"    serialization.\n"
+"decimal_rounding : {None, 'ROUND_DOWN', 'ROUND_HALF_UP', 'ROUND_HALF_EVEN',\n"
+"    'ROUND_CEILING', 'ROUND_FLOOR', 'ROUND_UP', 'ROUND_HALF_DOWN', 'ROUND_05UP'}, optional\n"
+"    The rounding mode to use when quantizing Decimal values. Must be one of the\n"
+"    standard decimal module rounding modes. If not specified, the default\n"
+"    rounding mode is used (ROUND_HALF_EVEN). This parameter has no\n"
+"    effect unless `decimal_quantize` is also specified.\n"
 );
 
 static int json_encode_inline(EncoderState*, PyObject*);
@@ -13974,7 +14218,17 @@ json_encode_uuid(EncoderState *self, PyObject *obj)
 static int
 json_encode_decimal(EncoderState *self, PyObject *obj)
 {
-    PyObject *temp = PyObject_Str(obj);
+    PyObject *temp = NULL;
+
+    if (MS_LIKELY(self->decimal_quantize == NULL)) {
+        temp = PyObject_Str(obj);
+    } else {
+        PyObject *quantized_obj = quantize_decimal_obj(self, obj);
+        if (quantized_obj == NULL) return -1;
+        temp = PyObject_Str(quantized_obj);
+        Py_DECREF(quantized_obj);
+    }
+
     if (temp == NULL) return -1;
 
     Py_ssize_t size;
@@ -14694,6 +14948,8 @@ JSONEncoder_encode_lines(Encoder *self, PyObject *const *args, Py_ssize_t nargs)
         .decimal_format = self->decimal_format,
         .uuid_format = self->uuid_format,
         .order = self->order,
+        .decimal_quantize = self->decimal_quantize,
+        .decimal_rounding = self->decimal_rounding,
         .output_len = 0,
         .max_output_len = ENC_LINES_INIT_BUFSIZE,
         .resize_buffer = &ms_resize_bytes

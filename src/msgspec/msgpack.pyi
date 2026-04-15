@@ -1,3 +1,4 @@
+import decimal
 from typing import (
     Any,
     Callable,
@@ -63,6 +64,19 @@ class Encoder:
     decimal_format: Literal["string", "number"]
     uuid_format: Literal["canonical", "hex", "bytes"]
     order: Literal[None, "deterministic", "sorted"]
+    decimal_quantize: Optional[decimal.Decimal]
+    decimal_rounding: Literal[
+        None,
+        "ROUND_DOWN",
+        "ROUND_HALF_UP",
+        "ROUND_HALF_EVEN",
+        "ROUND_CEILING",
+        "ROUND_FLOOR",
+        "ROUND_UP",
+        "ROUND_HALF_DOWN",
+        "ROUND_05UP",
+    ]
+
     def __init__(
         self,
         *,
@@ -70,6 +84,18 @@ class Encoder:
         decimal_format: Literal["string", "number"] = "string",
         uuid_format: Literal["canonical", "hex", "bytes"] = "canonical",
         order: Literal[None, "deterministic", "sorted"] = None,
+        decimal_quantize: Optional[decimal.Decimal] = None,
+        decimal_rounding: Literal[
+            None,
+            "ROUND_DOWN",
+            "ROUND_HALF_UP",
+            "ROUND_HALF_EVEN",
+            "ROUND_CEILING",
+            "ROUND_FLOOR",
+            "ROUND_UP",
+            "ROUND_HALF_DOWN",
+            "ROUND_05UP",
+        ] = None,
     ): ...
     def encode(self, obj: Any, /) -> bytes: ...
     def encode_into(
