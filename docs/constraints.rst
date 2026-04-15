@@ -76,7 +76,7 @@ The following constraints are supported:
 Numeric Constraints
 -------------------
 
-These constraints are valid on `int` or `float` types:
+These constraints are valid on `int`, `float`, or `decimal.Decimal` types:
 
 - ``ge``: The value must be greater than or equal to ``ge``.
 - ``gt``: The value must be greater than ``gt``.
@@ -88,6 +88,8 @@ These constraints are valid on `int` or `float` types:
 
     >>> import msgspec
 
+    >>> from decimal import Decimal
+
     >>> from typing import Annotated
 
     >>> msgspec.json.decode(b'-1', type=Annotated[int, msgspec.Meta(ge=0)])
@@ -95,15 +97,23 @@ These constraints are valid on `int` or `float` types:
       File "<stdin>", line 1, in <module>
     msgspec.ValidationError: Expected `int` >= 0
 
-.. warning::
+    >>> msgspec.json.decode(b'0.3', type=Annotated[Decimal, msgspec.Meta(multiple_of=Decimal('0.1'))])
+    Decimal('0.3')
+
+.. note::
 
     While ``multiple_of`` works on ``float`` types, we don't recommend
-    specifying *non-integral* ``multiple_of`` constraints, as they may be
-    erroneously marked as invalid due to floating point precision issues. For
-    example, annotating a ``float`` type with ``multiple_of=10`` is fine, but
-    ``multiple_of=0.1`` may lead to issues. See `this GitHub issue
+    specifying *non-integral* ``multiple_of`` constraints on them,
+    as they may be erroneously marked as invalid due to floating point
+    precision issues. For example, annotating a ``float`` type with
+    ``multiple_of=10`` is fine, but ``multiple_of=0.1`` may lead to issues.
+    See `this GitHub issue
     <https://github.com/json-schema-org/json-schema-spec/issues/312>`_ for more
     details.
+
+    To address this issue, ``msgspec`` supports specifying ``multiple_of``
+    constraints with `decimal.Decimal` types, that offer arbitrary precision
+    arithmetic.
 
 String Constraints
 ------------------
