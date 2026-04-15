@@ -132,6 +132,42 @@ These constraints are valid on `str` types:
       File "<stdin>", line 1, in <module>
     msgspec.ValidationError: Expected `str` matching regex '^[a-z0-9_]*$'
 
+
+Third-Party Regex Engines
+++++++++++++++++++++++++++
+
+It is possible to use a third-party regex engine, by providing an object to ``pattern``
+that implements an :func:`re.Pattern`-like protocol. In particular, it must conform to
+the following interface:
+
+.. code-block:: python
+
+    class Pattern:
+        pattern: str
+        """The raw pattern string"""
+
+        def search(
+            self,
+            string: str,
+            pos: int = 0,
+            endpos: int = sys.maxsize,
+        ) -> object | None: ...
+            """
+            Match `string` against the pattern. When no match is found, return `None`.
+            Otherwise, any non-`None` object may be returned
+            """
+
+.. code-block:: python
+
+    import msgspec
+    import re2
+
+    msgspec.json.decode(
+         b'"invalid username"',
+         type=Annotated[str, msgspec.Meta(pattern=re2.Pattern("^[a-z0-9_]*$"))]
+     )
+
+
 .. _datetime-constraints:
 
 Datetime Constraints
