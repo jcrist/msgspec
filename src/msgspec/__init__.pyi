@@ -123,7 +123,7 @@ class Struct(metaclass=StructMeta):
 
 def defstruct(
     name: str,
-    fields: Iterable[Union[str, Tuple[str, type], Tuple[str, type, Any]]],
+    fields: Iterable[Union[str, Tuple[str, Any], Tuple[str, Any, Any]]],
     *,
     bases: Optional[Tuple[Type[Struct], ...]] = None,
     module: Optional[str] = None,
