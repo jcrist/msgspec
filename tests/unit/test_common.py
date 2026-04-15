@@ -56,6 +56,13 @@ py312_plus = pytest.mark.skipif(not PY312, reason="3.12+ only")
 T = TypeVar("T")
 
 
+def make_new_alias(alias):
+    """Replicate the logic to produce a types._GenericAlias from a typing.GenericAlias"""
+    return typing._GenericAlias(
+        alias.__origin__, alias.__origin__.__parameters__
+    ).__getitem__(*alias.__args__)
+
+
 def assert_eq(x, y):
     assert x == y
     assert type(x) is type(y)
@@ -1459,6 +1466,35 @@ class TestGenericStruct:
         with pytest.raises(ValidationError, match="Expected `str`, got `int`"):
             proto.decode(msg, type=Ex[str])
 
+    @py312_plus
+    def test_generic_with_typevar_syntax(self, proto):
+        source = """
+        from msgspec import Struct
+        from typing import List
+        class Ex[T](Struct):
+            x: T
+            y: List[T]
+        """
+
+        with temp_module(source) as mod:
+            sol = mod.Ex(1, [1, 2])
+            msg = proto.encode(sol)
+
+            res = proto.decode(msg, type=mod.Ex)
+            assert res == sol
+
+            res = proto.decode(msg, type=mod.Ex[int])
+            assert res == sol
+
+            res = proto.decode(msg, type=mod.Ex[Union[int, str]])
+            assert res == sol
+
+            res = proto.decode(msg, type=mod.Ex[float])
+            assert type(res.x) is float
+
+            with pytest.raises(ValidationError, match="Expected `str`, got `int`"):
+                proto.decode(msg, type=mod.Ex[str])
+
     @pytest.mark.parametrize("array_like", [False, True])
     def test_recursive_generic_struct(self, proto, array_like):
         source = f"""
@@ -1549,6 +1585,138 @@ class TestGenericStruct:
             proto.Decoder(List[T])
 
         assert "Unbound TypeVar `~T` has constraints" in str(rec.value)
+
+    @pytest.mark.parametrize(
+        "future",
+        [pytest.param(False, id="no future"), pytest.param(False, id="future")],
+    )
+    @pytest.mark.parametrize(
+        "mapping_type", ["collections.abc.Mapping", "typing.Mapping"]
+    )
+    def test_inherited_builtin_generic(self, mapping_type: str, future: bool):
+        source = f"""
+            from msgspec import Struct, StructMeta
+            import collections
+            import abc
+            import typing
+
+            T = typing.TypeVar("T")
+
+            class CombinedMeta(StructMeta, abc.ABCMeta):
+                pass
+
+            class Foo({mapping_type}[str, T], Struct, typing.Generic[T], metaclass=CombinedMeta):
+                data: dict[str, T]
+
+                def __getitem__(self, x):
+                    return self.data[x]
+
+                def __len__(self):
+                    return len(self.data)
+
+                def __iter__(self):
+                    return iter(self.data)
+            """
+
+        if future:
+            source = "from __future__ import annotations\n" + source
+
+        with temp_module(source) as mod, pytest.raises(ValidationError):
+            msgspec.msgpack.decode(
+                msgspec.msgpack.encode(mod.Foo({"x": "foo"})), type=mod.Foo[int]
+            )
+
+        msgspec.msgpack.decode(
+            msgspec.msgpack.encode(mod.Foo({"x": 1})), type=mod.Foo[int]
+        )
+
+    @pytest.mark.parametrize(
+        "future",
+        [pytest.param(False, id="no future"), pytest.param(False, id="future")],
+    )
+    @pytest.mark.parametrize(
+        "mapping_type", ["collections.abc.Mapping", "typing.Mapping"]
+    )
+    @py312_plus
+    def test_inherited_builtin_generic_typevar_syntax(
+        self, mapping_type: str, future: bool
+    ):
+        source = f"""
+            from msgspec import Struct, StructMeta
+            import collections
+            import abc
+            import typing
+
+            class CombinedMeta(StructMeta, abc.ABCMeta):
+                pass
+
+            class Foo[T]({mapping_type}[str, T], Struct, metaclass=CombinedMeta):
+                data: dict[str, T]
+
+                def __getitem__(self, x):
+                    return self.data[x]
+
+                def __len__(self):
+                    return len(self.data)
+
+                def __iter__(self):
+                    return iter(self.data)
+            """
+
+        if future:
+            source = "from __future__ import annotations\n" + source
+
+        with temp_module(source) as mod, pytest.raises(ValidationError):
+            msgspec.msgpack.decode(
+                msgspec.msgpack.encode(mod.Foo({"x": "foo"})), type=mod.Foo[int]
+            )
+
+        msgspec.msgpack.decode(
+            msgspec.msgpack.encode(mod.Foo({"x": 1})), type=mod.Foo[int]
+        )
+
+    @pytest.mark.parametrize(
+        "mapping_type", ["collections.abc.Mapping", "typing.Mapping"]
+    )
+    @py312_plus
+    def test_inherited_builtin_generic_typevar_syntax_info_cached(
+        self, mapping_type: str
+    ):
+        source = f"""
+            from msgspec import Struct, StructMeta
+            import collections
+            import abc
+            import typing
+
+            class CombinedMeta(StructMeta, abc.ABCMeta):
+                pass
+
+            class Foo[T]({mapping_type}[str, T], Struct, metaclass=CombinedMeta):
+                data: dict[str, T]
+
+                def __getitem__(self, x):
+                    return self.data[x]
+
+                def __len__(self):
+                    return len(self.data)
+
+                def __iter__(self):
+                    return iter(self.data)
+            """
+
+        with temp_module(source) as mod:
+            typ = mod.Foo[int]
+            dec = msgspec.json.Decoder(typ)
+            info = make_new_alias(typ).__msgspec_cache__
+            assert info is not None
+            assert sys.getrefcount(info) <= 4  # info + attr + decoder + func call
+            dec2 = msgspec.json.Decoder(typ)
+            assert make_new_alias(typ).__msgspec_cache__ is info
+            assert sys.getrefcount(info) <= 5
+
+            del dec
+            del dec2
+            assert sys.getrefcount(info) <= 3
 
 
 class TestStructPostInit:
@@ -1731,6 +1899,39 @@ class TestGenericDataclassOrAttrs:
             assert "`$.b.a`" in str(rec.value)
             assert "Expected `int`, got `str`" in str(rec.value)
 
+    @pytest.mark.parametrize("module", ["dataclasses", "attrs"])
+    @py312_plus
+    def test_typevar_syntax(self, module, proto):
+        pytest.importorskip(module)
+        if module == "dataclasses":
+            import_ = "from dataclasses import dataclass as decorator"
+        else:
+            import_ = "from attrs import define as decorator"
+
+        source = f"""
+        from __future__ import annotations
+        from typing import Union
+        from msgspec import Struct
+        {import_}
+
+        @decorator
+        class Ex[T]:
+            a: T
+            b: Union[Ex[T], None]
+        """
+
+        with temp_module(source) as mod:
+            msg = mod.Ex(a=1, b=mod.Ex(a=2, b=None))
+            msg2 = mod.Ex(a=1, b=mod.Ex(a="bad", b=None))
+            assert proto.decode(proto.encode(msg), type=mod.Ex) == msg
+            assert proto.decode(proto.encode(msg2), type=mod.Ex) == msg2
+            assert proto.decode(proto.encode(msg), type=mod.Ex[int]) == msg
+
+            with pytest.raises(ValidationError) as rec:
+                proto.decode(proto.encode(msg2), type=mod.Ex[int])
+            assert "`$.b.a`" in str(rec.value)
+            assert "Expected `int`, got `str`" in str(rec.value)
+
     def test_unbound_typevars_use_bound_if_set(self, proto):
         T = TypeVar("T", bound=Union[int, str])
 
@@ -1752,6 +1953,129 @@ class TestGenericDataclassOrAttrs:
             proto.Decoder(List[T])
 
         assert "Unbound TypeVar `~T` has constraints" in str(rec.value)
+
+    @pytest.mark.parametrize(
+        "future",
+        [pytest.param(False, id="no future"), pytest.param(False, id="future")],
+    )
+    @pytest.mark.parametrize(
+        "mapping_type", ["collections.abc.Mapping", "typing.Mapping"]
+    )
+    def test_inherited_builtin_generic(self, mapping_type: str, future: bool):
+        source = f"""
+        import typing
+        import dataclasses
+        import collections
+
+        T = typing.TypeVar("T")
+
+        @dataclasses.dataclass
+        class Foo(typing.Generic[T], {mapping_type}[str, T]):
+            data: dict[str, T]
+
+            def __getitem__(self, x):
+                return self.data[x]
+
+            def __len__(self):
+                return len(self.data)
+
+            def __iter__(self):
+                return iter(self.data)
+        """
+
+        if future:
+            source = "from __future__ import annotations\n" + source
+
+        with temp_module(source) as mod, pytest.raises(ValidationError):
+            msgspec.msgpack.decode(
+                msgspec.msgpack.encode(mod.Foo({"x": "foo"})), type=mod.Foo[int]
+            )
+
+        msgspec.msgpack.decode(
+            msgspec.msgpack.encode(mod.Foo({"x": 1})), type=mod.Foo[int]
+        )
+
+    @pytest.mark.parametrize(
+        "future",
+        [pytest.param(False, id="no future"), pytest.param(False, id="future")],
+    )
+    @pytest.mark.parametrize(
+        "mapping_type", ["collections.abc.Mapping", "typing.Mapping"]
+    )
+    @py312_plus
+    def test_inherited_builtin_generic_typevar_syntax(
+        self, mapping_type: str, future: bool
+    ):
+        source = f"""
+        import dataclasses
+        import collections
+        import typing
+
+        @dataclasses.dataclass
+        class Foo[T]({mapping_type}[str, T]):
+            data: dict[str, T]
+
+            def __getitem__(self, x):
+                return self.data[x]
+
+            def __len__(self):
+                return len(self.data)
+
+            def __iter__(self):
+                return iter(self.data)
+        """
+
+        if future:
+            source = "from __future__ import annotations\n" + source
+
+        with temp_module(source) as mod, pytest.raises(ValidationError):
+            msgspec.msgpack.decode(
+                msgspec.msgpack.encode(mod.Foo({"x": "foo"})), type=mod.Foo[int]
+            )
+
+        msgspec.msgpack.decode(
+            msgspec.msgpack.encode(mod.Foo({"x": 1})), type=mod.Foo[int]
+        )
+
+    @pytest.mark.parametrize(
+        "mapping_type", ["collections.abc.Mapping", "typing.Mapping"]
+    )
+    @py312_plus
+    def test_inherited_builtin_generic_typevar_syntax_info_cached(
+        self, mapping_type: str
+    ):
+        source = f"""
+        import dataclasses
+        import collections
+        import typing
+
+        @dataclasses.dataclass
+        class Foo[T]({mapping_type}[str, T]):
+            data: dict[str, T]
+
+            def __getitem__(self, x):
+                return self.data[x]
+
+            def __len__(self):
+                return len(self.data)
+
+            def __iter__(self):
+                return iter(self.data)
+        """
+
+        with temp_module(source) as mod:
+            typ = mod.Foo[int]
+            dec = msgspec.json.Decoder(typ)
+            info = make_new_alias(typ).__msgspec_cache__
+            assert info is not None
+            assert sys.getrefcount(info) <= 4  # info + attr + decoder + func call
+            dec2 = msgspec.json.Decoder(typ)
+            assert make_new_alias(typ).__msgspec_cache__ is info
+            assert sys.getrefcount(info) <= 5
+
+            del dec
+            del dec2
+            assert sys.getrefcount(info) <= 3
 
 
 class TestStructOmitDefaults:

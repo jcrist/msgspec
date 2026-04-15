@@ -513,6 +513,7 @@ typedef struct {
     PyObject *typing_final;
     PyObject *typing_generic;
     PyObject *typing_generic_alias;
+    PyObject *types_generic_alias;
     PyObject *typing_annotated_alias;
     PyObject *concrete_types;
     PyObject *get_type_hints;
@@ -4957,6 +4958,49 @@ is_dataclass_or_attrs_class(TypeNodeCollectState *state, PyObject *t) {
     );
 }
 
+static MS_INLINE PyObject*
+convert_types_generic_alias(TypeNodeCollectState *state, PyObject *obj, PyObject *origin, PyObject *args) {
+    // if 'obj' is a 'types.GenericAlias', convert it into a 'typing._GenericAlias', so
+    // we can cache type info on it. 'types.GenericAlias' has __slots__, so caching on
+    // it directly does not work.
+    // it's unlikely to hit this case, as it will mostly occur when subclassing a
+    // built-in container generic, such as 'collections.abc.Mapping'
+
+    if (MS_UNLIKELY(Py_TYPE(obj) == (PyTypeObject *)state->mod->types_generic_alias)) {
+        // subscribed typing._GenericAlias instances are cached within the typing module
+        // we make use of this fact, by storing a __msgspec_cache__ attribute on the
+        // subscribed instance. only subscribed types are cache, so
+        // 'typing._GenericAlias(list, int) is typing._GenericAlias(list, int)' would be
+        // false.
+        // to achieve the same behaviour when re-creating a typing._GenericAlias from a
+        // types.GenericAlias, we first construct a temporary *unbound*
+        // typing._GenericAlias, on which we then call __getattr__. effectively doing
+        // typing._GenericAlias(list, T)[int], for which
+        // 'typing._GenericAlias(list, T)[int] is typing._GenericAlias(list, T)[int]'
+        // holds true
+        PyObject *params = PyObject_GetAttrString(origin, "__parameters__");
+        if (params == NULL) {
+            Py_DECREF(origin);
+            return NULL;
+        }
+
+        // create a new typing._GenericAlias with the unbound type params of the
+        // original types.GenericAlias.
+        // given a Mapping[str, int], this would produce a _GenericAlias(Mapping, (~K, ~V))
+        PyObject *new_alias = PyObject_CallFunctionObjArgs(state->mod->typing_generic_alias, origin, params, NULL);
+        if (new_alias == NULL) {
+            return NULL;
+        }
+
+        // bind it to the concrete types.
+        // given a _GenericAlias(Mapping, (~K, ~V)), produce a Mapping[str, int] again
+        PyObject *result = PyObject_CallMethod(new_alias, "__getitem__", "O", args);
+        Py_DECREF(new_alias);
+        return result;
+    }
+    return obj;
+}
+
 static int
 typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
     int out = 0;
@@ -5038,7 +5082,7 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
         ms_is_struct_cls(t) ||
         (origin != NULL && ms_is_struct_cls(origin))
     ) {
-        out = typenode_collect_struct(state, t);
+        out = typenode_collect_struct(state, convert_types_generic_alias(state, t, origin, args));
     }
     else if (PyType_IsSubtype(Py_TYPE(t), state->mod->EnumMetaType)) {
         out = typenode_collect_enum(state, t);
@@ -5146,7 +5190,7 @@ typenode_collect_type(TypeNodeCollectState *state, PyObject *obj) {
         is_dataclass_or_attrs_class(state, t) ||
         (origin != NULL && is_dataclass_or_attrs_class(state, origin))
     ) {
-        out = typenode_collect_dataclass(state, t);
+        out = typenode_collect_dataclass(state, convert_types_generic_alias(state, t, origin, args));
     }
     else {
         if (origin != NULL) {
@@ -22311,6 +22355,7 @@ msgspec_clear(PyObject *m)
     Py_CLEAR(st->typing_final);
     Py_CLEAR(st->typing_generic);
     Py_CLEAR(st->typing_generic_alias);
+    Py_CLEAR(st->types_generic_alias);
     Py_CLEAR(st->typing_annotated_alias);
     Py_CLEAR(st->concrete_types);
     Py_CLEAR(st->get_type_hints);
@@ -22383,6 +22428,7 @@ msgspec_traverse(PyObject *m, visitproc visit, void *arg)
     Py_VISIT(st->typing_final);
     Py_VISIT(st->typing_generic);
     Py_VISIT(st->typing_generic_alias);
+    Py_VISIT(st->types_generic_alias);
     Py_VISIT(st->typing_annotated_alias);
     Py_VISIT(st->concrete_types);
     Py_VISIT(st->get_type_hints);
@@ -22615,6 +22661,7 @@ PyInit__core(void)
     temp_module = PyImport_ImportModule("types");
     if (temp_module == NULL) return NULL;
     SET_REF(types_uniontype, "UnionType");
+    SET_REF(types_generic_alias, "GenericAlias");
     Py_DECREF(temp_module);
 
     /* Get the EnumMeta type */

@@ -1,6 +1,7 @@
 # type: ignore
 import collections
 import sys
+import types
 import typing
 from typing import _AnnotatedAlias  # noqa: F401
 
@@ -21,6 +22,8 @@ except Exception:
 def get_type_hints(obj):
     return _get_type_hints(obj, include_extras=True)
 
+
+PY_31PLUS = sys.version_info >= (3, 12)
 
 # The `is_class` argument was new in 3.11, but was backported to 3.9 and 3.10.
 # It's _likely_ to be available for 3.9/3.10, but may not be. Easiest way to
@@ -89,13 +92,23 @@ def _get_class_mro_and_typevar_mappings(obj):
             cls = c
             new_scope = {}
         else:
-            cls = getattr(c, "__origin__", None)
+            cls = typing.get_origin(c)
             if cls in (None, object, typing.Generic) or cls in mapping:
                 return
-            params = cls.__parameters__
-            args = tuple(_apply_params(a, scope) for a in c.__args__)
-            assert len(params) == len(args)
-            mapping[cls] = new_scope = dict(zip(params, args))
+
+            # it's a built-in generic that has unresolved type vars. in this case,
+            # parameters and args are stored on the generic, not the __origin__
+            if isinstance(c, types.GenericAlias) or (
+                isinstance(c, typing._GenericAlias)
+                and not hasattr(cls, "__parameters__")
+            ):
+                new_scope = dict(zip(c.__parameters__, typing.get_args(c)))
+            else:
+                params = cls.__parameters__
+                args = tuple(_apply_params(a, scope) for a in typing.get_args(c))
+                assert len(params) == len(args)
+                new_scope = dict(zip(params, args))
+            mapping[cls] = new_scope
 
         if issubclass(cls, typing.Generic):
             bases = getattr(cls, "__orig_bases__", cls.__bases__)
@@ -133,6 +146,11 @@ def get_class_annotations(obj):
 
         mapping = typevar_mappings.get(cls)
         cls_locals = dict(vars(cls))
+
+        if PY_31PLUS:
+            # resolve type parameters (e.g. class Foo[T]: pass)
+            cls_locals.update({p.__name__: p for p in cls.__type_params__})
+
         cls_globals = getattr(sys.modules.get(cls.__module__, None), "__dict__", {})
 
         ann = _get_class_annotations(cls)
