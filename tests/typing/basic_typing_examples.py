@@ -4,7 +4,7 @@ from __future__ import annotations
 import datetime
 import decimal
 import pickle
-from typing import Any, Dict, Final, List, Type, Union
+from typing import Annotated, Any, Dict, Final, List, Literal, Type, Union
 
 import msgspec
 
@@ -387,7 +387,15 @@ def check_defstruct() -> None:
 def check_defstruct_field_types() -> None:
     Test = msgspec.defstruct(
         "Test",
-        ("x", ("y", int), ("z", str, "default"))
+        (
+            "x",
+            ("a", int),
+            ("b", int | None),
+            ("c", list[int]),
+            ("d", Annotated[int, msgspec.Meta(ge=0)]),
+            ("e", Literal["a", "b"]),
+            ("f", str, "default"),
+        ),
     )
 
 
