@@ -350,6 +350,25 @@ def test_str_literal():
     assert mi.type_info(Literal["c", "a", "b"]) == mi.LiteralType(("a", "b", "c"))
 
 
+def test_none_literal():
+    assert mi.type_info(Literal[None]) == mi.LiteralType((None,))
+
+
+def test_mixed_int_none_literal():
+    result = mi.type_info(Literal[1, None])
+    assert result == mi.LiteralType((None, 1))
+
+
+def test_mixed_str_int_literal():
+    result = mi.type_info(Literal[1, "a"])
+    assert result == mi.LiteralType((1, "a"))
+
+
+def test_mixed_none_int_str_literal():
+    result = mi.type_info(Literal["b", 1, None, "a"])
+    assert result == mi.LiteralType((None, 1, "a", "b"))
+
+
 def test_int_enum():
     class Example(enum.IntEnum):
         B = 3

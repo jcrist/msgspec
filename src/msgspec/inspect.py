@@ -315,11 +315,11 @@ class LiteralType(Type):
     Parameters
     ----------
     values: tuple
-        A tuple of possible values for this literal instance. Only `str` or
-        `int` literals are supported.
+        A tuple of possible values for this literal instance. Values may be
+        ``None``, ``int``, or ``str`` literals.
     """
 
-    values: Union[Tuple[str, ...], Tuple[int, ...]]
+    values: Tuple[Union[None, int, str], ...]
 
 
 class CustomType(Type):
@@ -885,7 +885,14 @@ class _Translator:
             args = tuple(self.translate(a) for a in args if a is not _UnsetType)
             return args[0] if len(args) == 1 else UnionType(args)
         elif t is Literal:
-            return LiteralType(tuple(sorted(args)))
+            return LiteralType(
+                tuple(
+                    sorted(
+                        args,
+                        key=lambda x: ("", 0) if x is None else (type(x).__name__, x),
+                    )
+                )
+            )
         elif _is_enum(t):
             return EnumType(t)
         elif is_struct_type(t):
