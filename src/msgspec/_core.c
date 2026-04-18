@@ -22329,7 +22329,6 @@ msgspec_clear(PyObject *m)
 #endif
     Py_CLEAR(st->astimezone);
     Py_CLEAR(st->re_compile);
-    _core_state = NULL;
     return 0;
 }
 
@@ -22447,7 +22446,6 @@ int _core_exec(PyObject *m)
     if (PyType_Ready(&StructMetaType) < 0)
         return -1;
     if (PyType_Ready(&StructMixinType) < 0)
-        return NULL;
         return -1;
     if (PyType_Ready(&StructConfig_Type) < 0)
         return -1;
