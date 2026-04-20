@@ -1251,7 +1251,9 @@ class TestLiteral:
             dec.decode(b"42")
         with pytest.raises(msgspec.ValidationError, match="Expected `bool`, got `str`"):
             dec.decode(b'"hello"')
-        with pytest.raises(msgspec.ValidationError, match="Expected `bool`, got `null`"):
+        with pytest.raises(
+            msgspec.ValidationError, match="Expected `bool`, got `null`"
+        ):
             dec.decode(b"null")
 
 
