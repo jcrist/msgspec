@@ -169,10 +169,22 @@ and `msgspec.convert` convert between high-level types and plain builtin types
 (``dict``, ``list``, ``str``, ``int``, ...) without going through an encoded
 representation.
 
-- `msgspec.to_builtins` is the "encoding" half: it recursively converts a
-  ``Struct`` (or other supported type) into builtin types, applying the same
-  encoder settings that ``json.encode`` / ``msgpack.encode`` would. This means
-  it respects :ref:`omit_defaults` and omits :ref:`UNSET <unset-type>` fields.
+- `msgspec.to_builtins` is the "encoding" half. It applies the same semantics
+  as ``json.encode`` / ``msgpack.encode`` - just with builtin Python types as
+  the output rather than an encoded byte string. This includes:
+
+  - Struct-level settings: ``rename``, :ref:`omit_defaults`, ``tag`` for
+    :ref:`tagged unions <struct-tagged-unions>`, ``array_like``, and
+    omission of :ref:`UNSET <unset-type>` fields.
+  - Recursive expansion of nested ``Struct``, ``dataclass``, ``attrs``,
+    ``TypedDict``, and ``NamedTuple`` values.
+  - Value-level conversions of types that don't map directly to builtin
+    types: ``bytes`` / ``bytearray`` / ``memoryview`` to base64 string,
+    ``datetime`` / ``date`` / ``time`` / ``timedelta`` to ISO 8601 string,
+    ``uuid.UUID`` and ``decimal.Decimal`` to string, ``set`` / ``frozenset``
+    to list, ``Enum`` to its member value.
+  - ``enc_hook``, ``str_keys``, ``order``, and ``builtin_types`` kwargs for
+    tuning the output to the wrapping protocol.
 
 - `msgspec.convert` is the "decoding" half: it takes builtin types and
   validates them against a schema, producing high-level types.
@@ -201,11 +213,14 @@ functions to add ``msgspec`` support for additional serialization protocols.
 
 Note that `msgspec.structs.asdict` and `msgspec.structs.astuple` are *not*
 equivalent to `msgspec.to_builtins`. They are modeled on
-`dataclasses.asdict` / `dataclasses.astuple`: they convert a single struct
-instance to a ``dict`` or ``tuple`` one-to-one, without applying any encoder
-settings and without recursing into nested ``Struct`` types. They always
-include every field, regardless of ``omit_defaults`` or ``UNSET``. Prefer
-`msgspec.to_builtins` when the output is intended for serialization.
+`dataclasses.asdict` / `dataclasses.astuple`: a one-to-one conversion of a
+single struct instance to a ``dict`` or ``tuple``. They include every field
+(regardless of ``omit_defaults`` or ``UNSET``), use the raw attribute names
+(ignoring ``rename``), don't inject a ``tag``, don't recurse into nested
+``Struct`` / ``dataclass`` / ``attrs`` values, and don't apply any of the
+value-level conversions listed above (``bytes``, ``datetime``, ``UUID``,
+``Decimal``, ``Enum``, ...). Prefer `msgspec.to_builtins` when the output
+is intended for serialization.
 
 
 .. _JSON: https://json.org
