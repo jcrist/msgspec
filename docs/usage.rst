@@ -158,6 +158,74 @@ types.
     >>> msgspec.json.decode(b'[1, 2, "3"]', type=list[int], strict=False)
     [1, 2, 3]
 
+.. _to-builtins-vs-asdict:
+
+Converting to and from Builtin Types
+------------------------------------
+
+In some cases, ``msgspec`` only needs to process part of a message, and the
+rest is handled by another library. For these situations, `msgspec.to_builtins`
+and `msgspec.convert` convert between high-level types and plain builtin types
+(`dict`, `list`, `str`, `int`, ...) without going through an encoded
+representation.
+
+- `msgspec.to_builtins` is the "encoding" half. It applies the same semantics
+  as `msgspec.json.encode` / `msgspec.msgpack.encode` - just with builtin
+  Python types as the output rather than an encoded byte string. This
+  includes:
+
+  - Struct-level settings: ``rename``, :ref:`omit_defaults`, ``array_like``,
+    and ``tag`` for :ref:`tagged unions <struct-tagged-unions>`.
+  - Omission of :ref:`UNSET <unset-type>` fields.
+  - Recursive expansion of nested `msgspec.Struct`, `dataclasses.dataclass`,
+    attrs_, `typing.TypedDict`, and `typing.NamedTuple` values.
+  - Value-level conversions of types that don't map directly to builtin
+    types: `bytes` / `bytearray` / `memoryview` to base64 string,
+    `datetime.datetime` / `datetime.date` / `datetime.time` /
+    `datetime.timedelta` to ISO 8601 string, `uuid.UUID` and
+    `decimal.Decimal` to string, `set` / `frozenset` to `list`, `enum.Enum`
+    to its member value.
+  - Optional ``enc_hook``, ``str_keys``, ``order``, and ``builtin_types``
+    kwargs for tuning the output to the wrapping protocol.
+
+- `msgspec.convert` is the "decoding" half: it takes builtin types and
+  validates them against a schema, producing high-level types.
+
+.. code-block:: python
+
+    >>> import msgspec
+
+    >>> class User(msgspec.Struct, omit_defaults=True):
+    ...     name: str
+    ...     groups: set[str] = set()
+    ...     email: str | None = None
+
+    >>> alice = User("alice")
+
+    >>> # to_builtins applies omit_defaults and expands nested types
+    ... msgspec.to_builtins(alice)
+    {'name': 'alice'}
+
+    >>> # convert is the inverse operation
+    ... msgspec.convert({"name": "bill", "groups": ["devops"]}, User)
+    User(name='bill', groups={'devops'}, email=None)
+
+See :doc:`converters` for a more detailed guide, including how to use these
+functions to add ``msgspec`` support for additional serialization protocols.
+
+Note that `msgspec.structs.asdict` and `msgspec.structs.astuple` are *not*
+equivalent to `msgspec.to_builtins`. They are modeled on
+`dataclasses.asdict` / `dataclasses.astuple`: a one-to-one conversion of a
+single struct instance to a `dict` or `tuple`, using the raw attribute names.
+
+None of the semantics listed above apply. Every field is included regardless
+of ``omit_defaults`` or `msgspec.UNSET`, ``rename`` and ``tag`` are ignored,
+nested `msgspec.Struct` / `dataclasses.dataclass` / attrs_ values are left
+as-is, and value-level types (`bytes`, `datetime.datetime`, `uuid.UUID`,
+`decimal.Decimal`, `enum.Enum`, ...) are not converted.
+
+Prefer `msgspec.to_builtins` when the output is intended for serialization.
+
 
 .. _JSON: https://json.org
 .. _MessagePack: https://msgpack.org
@@ -167,3 +235,4 @@ types.
 .. _pydantic: https://pydantic.dev/docs/validation/latest/get-started/
 .. _mypy: https://mypy.readthedocs.io/en/stable/
 .. _pyright: https://github.com/microsoft/pyright
+.. _attrs: https://www.attrs.org/en/stable/index.html
