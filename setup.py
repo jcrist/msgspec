@@ -26,6 +26,8 @@ if sys.platform == "win32" and sys.maxsize == (2**31 - 1):
 SANITIZE = os.environ.get("MSGSPEC_SANITIZE", False)
 COVERAGE = os.environ.get("MSGSPEC_COVERAGE", False)
 DEBUG = os.environ.get("MSGSPEC_DEBUG", SANITIZE or COVERAGE)
+TEST_CAPI = os.environ.get("MSGSPEC_COMPILE_TEST_CAPI", True)
+
 
 extra_compile_args = []
 extra_link_args = []
@@ -65,6 +67,18 @@ ext_modules = [
         extra_link_args=extra_link_args,
     )
 ]
+
+# Ignored by default but needed whenever needing to test msgspec's CAPI Capsule During Lower-level usage...
+if TEST_CAPI:
+    ext_modules.append(
+        Extension(
+            "msgspec._testcapi",
+            [os.path.join("src", "msgspec", "_testcapi.c")],
+            extra_compile_args=extra_compile_args,
+            extra_link_args=extra_link_args,
+        )
+    )
+
 
 setup(
     ext_modules=ext_modules,

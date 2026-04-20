@@ -16,6 +16,9 @@
 #include "ryu.h"
 #include "atof.h"
 
+/* C-API */
+#include "msgspec.h"
+
 /* Python version checks */
 #define PY311_PLUS (PY_VERSION_HEX >= 0x030b0000)
 #define PY312_PLUS (PY_VERSION_HEX >= 0x030c0000)
@@ -2458,6 +2461,24 @@ static PyTypeObject Factory_Type = {
 };
 
 /*************************************************************************
+ * Factory C-API                                                         *
+ *************************************************************************/
+
+/* Factory_New is already implemented so no need to put it here we just have
+to remeber to initalize it */
+
+PyObject* Factory_Create(PyObject* self){
+    if (!Py_IS_TYPE(self, &Factory_Type)){
+        PyErr_Format(PyExc_TypeError, "expected a msgspec.Factory type got %R", self);
+        return NULL;
+    }
+    /* Call lower level now that typecheck has been properly handled... */
+    return Factory_Call(self);
+}
+
+
+
+/*************************************************************************
  * Field                                                                 *
  *************************************************************************/
 
@@ -2586,6 +2607,79 @@ static PyTypeObject Field_Type = {
     .tp_dealloc = (destructor) Field_dealloc,
     .tp_members = Field_members,
 };
+
+/*************************************************************************
+ * Field C-API                                                           *
+ *************************************************************************/
+
+int Field_CheckOrFail(PyObject* self){
+    if (!Py_IS_TYPE(self, &Field_Type)){
+        PyErr_SetString(
+            PyExc_TypeError, "field must be a msgspec field type"
+        );
+        return -1;
+    }
+    return 0;
+}
+
+/* same as Field_new although much faster due to not needing argument parsing... */
+PyObject* Field_New(PyObject* name, PyObject* value, PyObject* factory){
+    if (name == Py_None) {
+        name = NULL;
+    }
+    else if (!PyUnicode_CheckExact(name)) {
+        PyErr_SetString(PyExc_TypeError, "name must be a str or None");
+        return NULL;
+    }
+    if ((value != NODEFAULT && value != NULL) && (factory != NODEFAULT && factory != NULL)) {
+        PyErr_SetString(
+            PyExc_TypeError, "Cannot set both `value` and `factory`"
+        );
+        return NULL;
+    }
+    if (factory != NODEFAULT && factory != NULL) {
+        if (!PyCallable_Check(factory)) {
+            PyErr_SetString(PyExc_TypeError, "factory must be callable");
+            return NULL;
+        }
+    }
+    Field *self = (Field *)Field_Type.tp_alloc(&Field_Type, 0);
+    if (self == NULL) return NULL;
+    self->default_value = (value != NULL) ? Py_NewRef(value) : Py_NewRef(NODEFAULT);
+    self->default_factory =  (factory != NULL) ? Py_NewRef(factory) : Py_NewRef(NODEFAULT);
+    Py_XINCREF(name);
+    self->name = name;
+    return (PyObject *)self;
+}
+
+int Field_GetName(PyObject* self, PyObject** name){
+    if (Field_CheckOrFail(self) < 0){
+        *name = NULL;
+        return -1;
+    }
+    *name = Py_NewRef(((Field*)self)->name);
+    return 0;
+}
+
+
+int Field_GetDefault(PyObject* self, PyObject** value){
+    if (Field_CheckOrFail(self) < 0){
+        *value = NULL;
+        return -1;
+    }
+    *value = Py_NewRef(((Field*)self)->default_value);
+    return 0;
+}
+
+
+int Field_GetFactory(PyObject* self, PyObject** factory){
+    if (Field_CheckOrFail(self) < 0){
+        *factory = NULL;
+        return -1;
+    }
+    *factory = Py_NewRef(((Field*)self)->default_factory);
+    return 0;
+}
 
 /*************************************************************************
  * AssocList & order handling                                            *
@@ -2786,6 +2880,8 @@ AssocList_Sort(AssocList* list) {
 /*************************************************************************
  * Struct, PathNode, and TypeNode Types                                  *
  *************************************************************************/
+
+/* TODO: Vizonex I might consider putting this in the C-API as enums or in some other way... */
 
 /* Types */
 #define MS_TYPE_ANY                 (1ull << 0)
@@ -5695,7 +5791,9 @@ structmeta_get_module_ns(MsgspecState *mod, StructMetaInfo *info) {
 
 static int
 structmeta_collect_base(StructMetaInfo *info, MsgspecState *mod, PyObject *base) {
-    if ((PyTypeObject *)base == &StructMixinType) return 0;
+    /* StructMixin could be theoretically subclassed for other
+    purpouses see: _testcapi.c */
+    if (Py_IS_TYPE(base, &StructMixinType)) return 0;
 
     if (((PyTypeObject *)base)->tp_weaklistoffset) {
         info->already_has_weakref = true;
@@ -6694,6 +6792,84 @@ StructMeta_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
     );
 }
 
+/*************************************************************************
+ * StructMeta C-API                                                      *
+ *************************************************************************/
+
+static PyObject* 
+_StructMeta_New(
+    PyTypeObject *type, 
+    PyObject *name, 
+    PyObject *bases, 
+    PyObject *namespace,
+    PyObject *arg_tag_field, 
+    PyObject *arg_tag, 
+    PyObject *arg_rename,
+    int arg_omit_defaults, 
+    int arg_forbid_unknown_fields,
+    int arg_frozen, 
+    int arg_eq, 
+    int arg_order, 
+    bool arg_kw_only,
+    int arg_repr_omit_defaults, 
+    int arg_array_like,
+    int arg_gc, 
+    int arg_weakref, 
+    int arg_dict, 
+    int arg_cache_hash
+){
+    if (type == NULL || !ms_is_struct_meta(type)){
+        PyErr_SetString(PyExc_TypeError, "`type` must inherit from `StructMeta`");
+        return NULL;
+    }
+
+    if (name == NULL || !PyUnicode_Check(name)){
+        PyErr_SetString(PyExc_TypeError, "`name` must be a `str` type");
+        return NULL;
+    }
+
+    if (bases == NULL || !PyTuple_Check(bases)){
+        PyErr_SetString(PyExc_TypeError, "`bases` must be a `tuple` type");
+        return NULL;
+    }
+
+    if (namespace == NULL || !PyDict_Check(namespace)){
+        PyErr_SetString(PyExc_TypeError, "`namespace` must be a `dict` type");
+        return NULL;
+    }
+
+    return StructMeta_new_inner(
+        type, name, bases, namespace,
+        arg_tag_field, arg_tag, arg_rename,
+        arg_omit_defaults, arg_forbid_unknown_fields,
+        arg_frozen, arg_eq, arg_order, arg_kw_only,
+        arg_repr_omit_defaults, arg_array_like,
+        arg_gc, arg_weakref, arg_dict, arg_cache_hash
+    );
+
+}
+
+static inline int StructMeta_CheckOrFail(PyObject* self){
+    if (!ms_is_struct_inst(self)){
+        PyErr_Format(PyExc_TypeError, "`self` must inherit from `StructMeta` but `%s` doesn't", Py_TYPE(self)->tp_name);
+        return -1;
+    }
+    return 0;
+}
+
+static PyObject* StructMeta_GetFieldName(
+    PyObject* self,
+    Py_ssize_t index
+){
+    return (StructMeta_CheckOrFail(self) < 0) ? NULL: StructMeta_get_field_name(self, index);
+}
+
+
+
+
+/*************************************************************************
+ * defstruct                                                             *
+ *************************************************************************/
 
 PyDoc_STRVAR(msgspec_defstruct__doc__,
 "defstruct(name, fields, *, bases=None, module=None, namespace=None, "
@@ -9251,6 +9427,67 @@ static PyTypeObject Ext_Type = {
     .tp_members = Ext_members,
     .tp_methods = Ext_methods
 };
+
+
+/*************************************************************************
+ * Ext C-API                                                             *
+ *************************************************************************/
+
+static int _Ext_TypeCheck_Or_Fail(PyObject* self){
+    if (!Py_IS_TYPE(self, &Ext_Type)){
+        PyErr_Format(
+            PyExc_TypeError,
+            "self must be an Ext type got %.200s",
+            Py_TYPE(self)->tp_name
+        );
+        return -1;
+    }
+    return 0;
+}
+
+static PyObject* 
+_Ext_New(long code, PyObject* data){
+    if (code > 127 || code < -128) {
+        PyErr_SetString(
+            PyExc_ValueError,
+            "code must be an int between -128 and 127"
+        );
+        return NULL;
+    }
+    if (!(PyBytes_CheckExact(data) || PyByteArray_CheckExact(data) || PyObject_CheckBuffer(data))) {
+        PyErr_Format(
+            PyExc_TypeError,
+            "data must be a bytes, bytearray, or buffer-like object, got %.200s",
+            Py_TYPE(data)->tp_name
+        );
+        return NULL;
+    }
+    return Ext_New(code, data);
+}
+
+/* Returns data from extension type, Returns -1 if Type is not an Ext type */
+static int Ext_GetData(PyObject* self, PyObject** data){
+    if (_Ext_TypeCheck_Or_Fail(self) < 0){
+        data = NULL;
+        return -1;
+    }
+    *data = Py_NewRef(((Ext*)self)->data);
+    return 0;
+};
+
+/* Returns code from extension type, Returns -1 if Type is not an Ext type */
+static int Ext_GetCode(PyObject* self, long* code){
+    if (_Ext_TypeCheck_Or_Fail(self) < 0){
+        code = NULL;
+        return -1;
+    }
+    *code = ((Ext*)self)->code;
+    return 0;
+}
+
+
+
+
 
 /*************************************************************************
  * Dataclass Utilities                                                   *
@@ -22263,6 +22500,77 @@ msgspec_convert(PyObject *self, PyObject *args, PyObject *kwargs)
 
 
 /*************************************************************************
+ * C-API Capsule Setup                                                   *
+ *************************************************************************/
+
+
+/* Also needed to get the CAPI to work properly */
+
+// gh-106307 added PyModule_Add() to Python 3.13.0a1
+#if PY_VERSION_HEX < 0x030D00A1
+static inline int
+PyModule_Add(PyObject *mod, const char *name, PyObject *value)
+{
+    int res = PyModule_AddObjectRef(mod, name, value);
+    Py_XDECREF(value);
+    return res;
+}
+#endif
+
+
+static void
+capsule_free(Msgspec_CAPI* capi)
+{
+    PyMem_Free(capi);
+}
+
+static void
+capsule_destructor(PyObject* o)
+{
+    Msgspec_CAPI* capi = PyCapsule_GetPointer(o, MSGSPEC_CAPI_NAME);
+    capsule_free(capi);
+}
+
+static PyObject*
+new_capsule(MsgspecState* state){
+    Msgspec_CAPI* capi =
+        (Msgspec_CAPI*)PyMem_Malloc(sizeof(Msgspec_CAPI));
+    if (capi == NULL) {
+        PyErr_NoMemory();
+        return NULL;
+    }
+
+    /* TYPES */
+    capi->Ext_Type = &Ext_Type;
+    capi->Factory_Type = &Factory_Type;
+    capi->Field_Type = &Field_Type;
+    capi->StructMeta_Type = &StructMetaType;
+    capi->StructMixin_Type = &StructMixinType;
+    
+    capi->Ext_New = _Ext_New;
+    capi->Ext_GetCode = Ext_GetCode;
+    capi->Ext_GetData = Ext_GetData; 
+    
+    capi->Factory_New = Factory_New;
+    capi->Factory_Create = Factory_Create;
+
+    capi->Field_New = Field_New;
+    capi->Field_GetDefault = Field_GetDefault;
+    capi->Field_GetFactory = Field_GetFactory;
+
+    capi->StructMeta_New = _StructMeta_New;
+    capi->StructMeta_GetFieldName = StructMeta_GetFieldName;
+
+    PyObject* ret =
+        PyCapsule_New(capi, MSGSPEC_CAPSULE_NAME, capsule_destructor);
+    if (ret == NULL) {
+        capsule_free(capi);
+    }
+    return ret;
+}
+
+
+/*************************************************************************
  * Module Setup                                                          *
  *************************************************************************/
 
@@ -22795,6 +23103,15 @@ PyInit__core(void)
     if (st->StructType == NULL) return NULL;
     Py_INCREF(st->StructType);
     if (PyModule_AddObject(m, "Struct", st->StructType) < 0) return NULL;
+
+    PyObject *capsule = new_capsule(st);
+    if (capsule == NULL) {
+        return NULL;
+    }
+    if (PyModule_Add(m, MSGSPEC_CAPI_NAME, capsule) < 0) {
+        return NULL;
+    }
+
 #ifdef Py_GIL_DISABLED
     PyUnstable_Module_SetGIL(m, Py_MOD_GIL_NOT_USED);
 #endif
