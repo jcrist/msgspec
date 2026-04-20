@@ -174,9 +174,9 @@ representation.
   Python types as the output rather than an encoded byte string. This
   includes:
 
-  - Struct-level settings: ``rename``, :ref:`omit_defaults`, ``tag`` for
-    :ref:`tagged unions <struct-tagged-unions>`, ``array_like``, and
-    omission of :ref:`UNSET <unset-type>` fields.
+  - Struct-level settings: ``rename``, :ref:`omit_defaults`, ``array_like``,
+    and ``tag`` for :ref:`tagged unions <struct-tagged-unions>`.
+  - Omission of :ref:`UNSET <unset-type>` fields.
   - Recursive expansion of nested `msgspec.Struct`, `dataclasses.dataclass`,
     attrs_, `typing.TypedDict`, and `typing.NamedTuple` values.
   - Value-level conversions of types that don't map directly to builtin
@@ -185,8 +185,8 @@ representation.
     `datetime.timedelta` to ISO 8601 string, `uuid.UUID` and
     `decimal.Decimal` to string, `set` / `frozenset` to `list`, `enum.Enum`
     to its member value.
-  - ``enc_hook``, ``str_keys``, ``order``, and ``builtin_types`` kwargs for
-    tuning the output to the wrapping protocol.
+  - Optional ``enc_hook``, ``str_keys``, ``order``, and ``builtin_types``
+    kwargs for tuning the output to the wrapping protocol.
 
 - `msgspec.convert` is the "decoding" half: it takes builtin types and
   validates them against a schema, producing high-level types.
@@ -216,14 +216,15 @@ functions to add ``msgspec`` support for additional serialization protocols.
 Note that `msgspec.structs.asdict` and `msgspec.structs.astuple` are *not*
 equivalent to `msgspec.to_builtins`. They are modeled on
 `dataclasses.asdict` / `dataclasses.astuple`: a one-to-one conversion of a
-single struct instance to a `dict` or `tuple`. They include every field
-(regardless of ``omit_defaults`` or `msgspec.UNSET`), use the raw attribute
-names (ignoring ``rename``), don't inject a ``tag``, don't recurse into
-nested `msgspec.Struct` / `dataclasses.dataclass` / attrs_ values, and
-don't apply any of the value-level conversions listed above
-(`bytes`, `datetime.datetime`, `uuid.UUID`, `decimal.Decimal`, `enum.Enum`,
-...). Prefer `msgspec.to_builtins` when the output is intended for
-serialization.
+single struct instance to a `dict` or `tuple`, using the raw attribute names.
+
+None of the semantics listed above apply. Every field is included regardless
+of ``omit_defaults`` or `msgspec.UNSET`, ``rename`` and ``tag`` are ignored,
+nested `msgspec.Struct` / `dataclasses.dataclass` / attrs_ values are left
+as-is, and value-level types (`bytes`, `datetime.datetime`, `uuid.UUID`,
+`decimal.Decimal`, `enum.Enum`, ...) are not converted.
+
+Prefer `msgspec.to_builtins` when the output is intended for serialization.
 
 
 .. _JSON: https://json.org
