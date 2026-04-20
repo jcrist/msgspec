@@ -1051,6 +1051,11 @@ determine whether a field was left unset, or explicitly set to ``None``
 types. It is an error to use `msgspec.UNSET` or `msgspec.UnsetType` anywhere
 other than a field for one of these types.
 
+Omission of ``UNSET`` fields applies to the encoders (``json``, ``msgpack``,
+``yaml``, ``toml``) and `msgspec.to_builtins`. `msgspec.structs.asdict` and
+`msgspec.structs.astuple` always include every field, so ``UNSET`` values
+appear in their output unchanged - see :ref:`to-builtins-vs-asdict`.
+
 ``Enum`` / ``IntEnum`` / ``StrEnum``
 ------------------------------------
 

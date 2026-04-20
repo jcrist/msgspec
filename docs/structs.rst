@@ -658,6 +658,11 @@ of the Struct definition:
 Omitting defaults reduces the size of the encoded message, and often also
 improves encoding and decoding performance (since there's less work to do).
 
+``omit_defaults`` affects the encoders (``json``, ``msgpack``, ``yaml``,
+``toml``) and `msgspec.to_builtins`. It has no effect on
+`msgspec.structs.asdict` or `msgspec.structs.astuple`, which always include
+every field - see :ref:`to-builtins-vs-asdict`.
+
 Note that detection of default values is optimized for performance; in certain
 situations a default value may still be encoded. For the curious, the current
 detection logic is as follows:

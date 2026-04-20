@@ -158,6 +158,55 @@ types.
     >>> msgspec.json.decode(b'[1, 2, "3"]', type=list[int], strict=False)
     [1, 2, 3]
 
+.. _to-builtins-vs-asdict:
+
+Converting to and from Builtin Types
+------------------------------------
+
+In some cases, ``msgspec`` only needs to process part of a message, and the
+rest is handled by another library. For these situations, `msgspec.to_builtins`
+and `msgspec.convert` convert between high-level types and plain builtin types
+(``dict``, ``list``, ``str``, ``int``, ...) without going through an encoded
+representation.
+
+- `msgspec.to_builtins` is the "encoding" half: it recursively converts a
+  ``Struct`` (or other supported type) into builtin types, applying the same
+  encoder settings that ``json.encode`` / ``msgpack.encode`` would. This means
+  it respects :ref:`omit_defaults` and omits :ref:`UNSET <unset-type>` fields.
+
+- `msgspec.convert` is the "decoding" half: it takes builtin types and
+  validates them against a schema, producing high-level types.
+
+.. code-block:: python
+
+    >>> import msgspec
+
+    >>> class User(msgspec.Struct, omit_defaults=True):
+    ...     name: str
+    ...     groups: set[str] = set()
+    ...     email: str | None = None
+
+    >>> alice = User("alice")
+
+    >>> # to_builtins applies omit_defaults and expands nested types
+    ... msgspec.to_builtins(alice)
+    {'name': 'alice'}
+
+    >>> # convert is the inverse operation
+    ... msgspec.convert({"name": "bill", "groups": ["devops"]}, User)
+    User(name='bill', groups={'devops'}, email=None)
+
+See :doc:`converters` for a more detailed guide, including how to use these
+functions to add ``msgspec`` support for additional serialization protocols.
+
+Note that `msgspec.structs.asdict` and `msgspec.structs.astuple` are *not*
+equivalent to `msgspec.to_builtins`. They are modeled on
+`dataclasses.asdict` / `dataclasses.astuple`: they convert a single struct
+instance to a ``dict`` or ``tuple`` one-to-one, without applying any encoder
+settings and without recursing into nested ``Struct`` types. They always
+include every field, regardless of ``omit_defaults`` or ``UNSET``. Prefer
+`msgspec.to_builtins` when the output is intended for serialization.
+
 
 .. _JSON: https://json.org
 .. _MessagePack: https://msgpack.org
