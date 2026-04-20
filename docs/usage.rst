@@ -166,23 +166,25 @@ Converting to and from Builtin Types
 In some cases, ``msgspec`` only needs to process part of a message, and the
 rest is handled by another library. For these situations, `msgspec.to_builtins`
 and `msgspec.convert` convert between high-level types and plain builtin types
-(``dict``, ``list``, ``str``, ``int``, ...) without going through an encoded
+(`dict`, `list`, `str`, `int`, ...) without going through an encoded
 representation.
 
 - `msgspec.to_builtins` is the "encoding" half. It applies the same semantics
-  as ``json.encode`` / ``msgpack.encode`` - just with builtin Python types as
-  the output rather than an encoded byte string. This includes:
+  as `msgspec.json.encode` / `msgspec.msgpack.encode` - just with builtin
+  Python types as the output rather than an encoded byte string. This
+  includes:
 
   - Struct-level settings: ``rename``, :ref:`omit_defaults`, ``tag`` for
     :ref:`tagged unions <struct-tagged-unions>`, ``array_like``, and
     omission of :ref:`UNSET <unset-type>` fields.
-  - Recursive expansion of nested ``Struct``, ``dataclass``, ``attrs``,
-    ``TypedDict``, and ``NamedTuple`` values.
+  - Recursive expansion of nested `msgspec.Struct`, `dataclasses.dataclass`,
+    attrs_, `typing.TypedDict`, and `typing.NamedTuple` values.
   - Value-level conversions of types that don't map directly to builtin
-    types: ``bytes`` / ``bytearray`` / ``memoryview`` to base64 string,
-    ``datetime`` / ``date`` / ``time`` / ``timedelta`` to ISO 8601 string,
-    ``uuid.UUID`` and ``decimal.Decimal`` to string, ``set`` / ``frozenset``
-    to list, ``Enum`` to its member value.
+    types: `bytes` / `bytearray` / `memoryview` to base64 string,
+    `datetime.datetime` / `datetime.date` / `datetime.time` /
+    `datetime.timedelta` to ISO 8601 string, `uuid.UUID` and
+    `decimal.Decimal` to string, `set` / `frozenset` to `list`, `enum.Enum`
+    to its member value.
   - ``enc_hook``, ``str_keys``, ``order``, and ``builtin_types`` kwargs for
     tuning the output to the wrapping protocol.
 
@@ -214,13 +216,14 @@ functions to add ``msgspec`` support for additional serialization protocols.
 Note that `msgspec.structs.asdict` and `msgspec.structs.astuple` are *not*
 equivalent to `msgspec.to_builtins`. They are modeled on
 `dataclasses.asdict` / `dataclasses.astuple`: a one-to-one conversion of a
-single struct instance to a ``dict`` or ``tuple``. They include every field
-(regardless of ``omit_defaults`` or ``UNSET``), use the raw attribute names
-(ignoring ``rename``), don't inject a ``tag``, don't recurse into nested
-``Struct`` / ``dataclass`` / ``attrs`` values, and don't apply any of the
-value-level conversions listed above (``bytes``, ``datetime``, ``UUID``,
-``Decimal``, ``Enum``, ...). Prefer `msgspec.to_builtins` when the output
-is intended for serialization.
+single struct instance to a `dict` or `tuple`. They include every field
+(regardless of ``omit_defaults`` or `msgspec.UNSET`), use the raw attribute
+names (ignoring ``rename``), don't inject a ``tag``, don't recurse into
+nested `msgspec.Struct` / `dataclasses.dataclass` / attrs_ values, and
+don't apply any of the value-level conversions listed above
+(`bytes`, `datetime.datetime`, `uuid.UUID`, `decimal.Decimal`, `enum.Enum`,
+...). Prefer `msgspec.to_builtins` when the output is intended for
+serialization.
 
 
 .. _JSON: https://json.org
@@ -231,3 +234,4 @@ is intended for serialization.
 .. _pydantic: https://pydantic.dev/docs/validation/latest/get-started/
 .. _mypy: https://mypy.readthedocs.io/en/stable/
 .. _pyright: https://github.com/microsoft/pyright
+.. _attrs: https://www.attrs.org/en/stable/index.html
