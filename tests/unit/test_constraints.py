@@ -248,6 +248,15 @@ class TestInvalidConstraintAnnotations:
         ):
             msgspec.json.Decoder(Annotated[int, Meta(tz=True)])
 
+    @pytest.mark.parametrize("name", ["ge", "gt", "le", "lt", "multiple_of"])
+    @pytest.mark.parametrize("typ", [int, float])
+    def test_invalid_decimal_bound_on_non_decimal(self, name, typ):
+        with pytest.raises(
+            TypeError,
+            match=f"`{name}` with a `Decimal` bound is only valid for `Decimal` types",
+        ):
+            msgspec.json.Decoder(Annotated[typ, Meta(**{name: Decimal("1")})])
+
     @pytest.mark.parametrize(
         "name, val",
         [("ge", 2**63), ("gt", 2**63 - 1), ("le", 2**63), ("lt", -(2**63))],

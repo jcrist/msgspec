@@ -115,6 +115,15 @@ These constraints are valid on `int`, `float`, or `decimal.Decimal` types:
     constraints with `decimal.Decimal` types, that offer arbitrary precision
     arithmetic.
 
+.. note::
+
+    `decimal.Decimal` bounds (``gt``, ``ge``, ``lt``, ``le``, ``multiple_of``)
+    are only valid on `decimal.Decimal` types. Applying a `decimal.Decimal`
+    bound to an ``int`` or ``float`` type raises a `TypeError`, since coercing
+    the bound to those types would silently lose precision. Use an ``int`` or
+    ``float`` literal instead, or change the annotated type to
+    `decimal.Decimal`.
+
 String Constraints
 ------------------
 

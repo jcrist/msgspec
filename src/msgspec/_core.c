@@ -3840,6 +3840,31 @@ typenode_collect_constraints(
         if (constraints->le != NULL) return err_invalid_constraint("le", "numeric", obj);
         if (constraints->multiple_of != NULL) return err_invalid_constraint("multiple_of", "numeric", obj);
     }
+    if (kind == CK_INT || kind == CK_FLOAT) {
+        /* Decimal bounds lose precision when coerced to int/float - only allow
+         * them on Decimal types to force the user to pick consistent semantics. */
+        MsgspecState *mod = msgspec_get_global_state();
+        PyObject *bounds[] = {
+            constraints->gt, constraints->ge,
+            constraints->lt, constraints->le,
+            constraints->multiple_of,
+        };
+        const char *names[] = {"gt", "ge", "lt", "le", "multiple_of"};
+        for (size_t i = 0; i < 5; i++) {
+            if (bounds[i] == NULL) continue;
+            int is_decimal = PyObject_IsInstance(bounds[i], mod->DecimalType);
+            if (is_decimal < 0) return -1;
+            if (is_decimal) {
+                PyErr_Format(
+                    PyExc_TypeError,
+                    "`%s` with a `Decimal` bound is only valid for `Decimal` "
+                    "types - type `%R` is invalid",
+                    names[i], obj
+                );
+                return -1;
+            }
+        }
+    }
     if (kind != CK_STR) {
         if (constraints->regex != NULL) return err_invalid_constraint("pattern", "str", obj);
     }
