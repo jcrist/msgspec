@@ -1,6 +1,7 @@
 import datetime
 import math
 import re
+from decimal import Decimal
 from typing import Annotated, Dict, List, Union
 
 import pytest
@@ -152,7 +153,7 @@ class TestMetaObject:
         Meta(**{field: 1})
         Meta(**{field: 2.5})
         with pytest.raises(
-            TypeError, match=f"`{field}` must be an int or float, got str"
+            TypeError, match=f"`{field}` must be an int, float, or Decimal, got str"
         ):
             Meta(**{field: "bad"})
 
@@ -246,6 +247,15 @@ class TestInvalidConstraintAnnotations:
             match="Can only set `tz` on a datetime or time type",
         ):
             msgspec.json.Decoder(Annotated[int, Meta(tz=True)])
+
+    @pytest.mark.parametrize("name", ["ge", "gt", "le", "lt", "multiple_of"])
+    @pytest.mark.parametrize("typ", [int, float])
+    def test_invalid_decimal_bound_on_non_decimal(self, name, typ):
+        with pytest.raises(
+            TypeError,
+            match=f"`{name}` with a `Decimal` bound is only valid for `Decimal` types",
+        ):
+            msgspec.json.Decoder(Annotated[typ, Meta(**{name: Decimal("1")})])
 
     @pytest.mark.parametrize(
         "name, val",
@@ -441,6 +451,68 @@ class TestFloatConstraints:
         for x in bad:
             with pytest.raises(msgspec.ValidationError):
                 assert dec.decode(proto.encode(Ex(x)))
+
+
+class TestDecimalConstraints:
+    @pytest.mark.parametrize(
+        "name, bound, good, bad",
+        [
+            ("gt", 0, ["0.1", "1", "100"], ["0", "-1"]),
+            ("ge", 0, ["0", "0.1", "100"], ["-0.1"]),
+            ("lt", 100, ["99.9", "0", "-1"], ["100"]),
+            ("le", 100, ["100", "99.9", "0"], ["100.1"]),
+        ],
+        ids=["gt", "ge", "lt", "le"],
+    )
+    def test_bounds(self, proto, name, bound, good, bad):
+        class Ex(msgspec.Struct):
+            x: Annotated[Decimal, Meta(**{name: bound})]
+
+        dec = proto.Decoder(Ex)
+        op = {"gt": ">", "ge": ">=", "lt": "<", "le": "<="}[name]
+
+        for x in good:
+            assert dec.decode(proto.encode(Ex(Decimal(x)))).x == Decimal(x)
+
+        for x in bad:
+            with pytest.raises(
+                msgspec.ValidationError, match=re.escape(f"Expected `Decimal` {op}")
+            ):
+                dec.decode(proto.encode(Ex(Decimal(x))))
+
+    def test_multiple_of(self, proto):
+        class Ex(msgspec.Struct):
+            x: Annotated[Decimal, Meta(multiple_of=Decimal("0.1"))]
+
+        dec = proto.Decoder(Ex)
+
+        for x in [Decimal("0"), Decimal("0.1"), Decimal("0.3"), Decimal("1.0")]:
+            assert dec.decode(proto.encode(Ex(x))).x == x
+
+        with pytest.raises(msgspec.ValidationError, match="multiple of"):
+            dec.decode(proto.encode(Ex(Decimal("0.05"))))
+
+    def test_combinations(self, proto):
+        class Ex(msgspec.Struct):
+            x: Annotated[Decimal, Meta(ge=0, lt=100)]
+
+        dec = proto.Decoder(Ex)
+
+        for x in [Decimal("0"), Decimal("50"), Decimal("99.9")]:
+            assert dec.decode(proto.encode(Ex(x))).x == x
+
+        with pytest.raises(msgspec.ValidationError):
+            dec.decode(proto.encode(Ex(Decimal("-1"))))
+
+        with pytest.raises(msgspec.ValidationError):
+            dec.decode(proto.encode(Ex(Decimal("100"))))
+
+    def test_convert(self):
+        typ = Annotated[Decimal, Meta(gt=0)]
+        assert msgspec.convert(Decimal("1"), typ) == Decimal("1")
+
+        with pytest.raises(msgspec.ValidationError):
+            msgspec.convert(Decimal("0"), typ)
 
 
 class TestStrConstraints:
