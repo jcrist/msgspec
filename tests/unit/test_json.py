@@ -1236,13 +1236,13 @@ class TestLiteral:
     def test_bool_literal_true_only(self):
         dec = msgspec.json.Decoder(Literal[True])
         assert dec.decode(b"true") is True
-        with pytest.raises(msgspec.ValidationError, match="Invalid enum value False"):
+        with pytest.raises(msgspec.ValidationError, match="Invalid value False"):
             dec.decode(b"false")
 
     def test_bool_literal_false_only(self):
         dec = msgspec.json.Decoder(Literal[False])
         assert dec.decode(b"false") is False
-        with pytest.raises(msgspec.ValidationError, match="Invalid enum value True"):
+        with pytest.raises(msgspec.ValidationError, match="Invalid value True"):
             dec.decode(b"true")
 
     def test_bool_literal_errors(self):

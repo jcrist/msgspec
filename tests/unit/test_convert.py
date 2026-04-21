@@ -926,9 +926,9 @@ class TestLiteral:
         assert convert(False, Literal[False]) is False
         assert convert(True, Literal[True, False]) is True
         assert convert(False, Literal[True, False]) is False
-        with pytest.raises(ValidationError, match="Invalid enum value False"):
+        with pytest.raises(ValidationError, match="Invalid value False"):
             convert(False, Literal[True])
-        with pytest.raises(ValidationError, match="Invalid enum value True"):
+        with pytest.raises(ValidationError, match="Invalid value True"):
             convert(True, Literal[False])
         with pytest.raises(ValidationError, match="Expected `bool`, got `str`"):
             convert("yes", Literal[True])
