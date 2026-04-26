@@ -1199,6 +1199,10 @@ class TestLiteral:
             (1, 2, "three", "four"),
             (1, None),
             ("one", None),
+            (True,),
+            (False,),
+            (True, False),
+            (True, 1, "yes"),
         ],
     )
     def test_literal(self, values):
@@ -1228,6 +1232,29 @@ class TestLiteral:
 
         with pytest.raises(msgspec.ValidationError, match="Invalid enum value 'bad'"):
             dec.decode(b'"bad"')
+
+    def test_bool_literal_true_only(self):
+        dec = msgspec.json.Decoder(Literal[True])
+        assert dec.decode(b"true") is True
+        with pytest.raises(msgspec.ValidationError, match="Invalid enum value False"):
+            dec.decode(b"false")
+
+    def test_bool_literal_false_only(self):
+        dec = msgspec.json.Decoder(Literal[False])
+        assert dec.decode(b"false") is False
+        with pytest.raises(msgspec.ValidationError, match="Invalid enum value True"):
+            dec.decode(b"true")
+
+    def test_bool_literal_errors(self):
+        dec = msgspec.json.Decoder(Literal[True])
+        with pytest.raises(msgspec.ValidationError, match="Expected `bool`, got `int`"):
+            dec.decode(b"42")
+        with pytest.raises(msgspec.ValidationError, match="Expected `bool`, got `str`"):
+            dec.decode(b'"hello"')
+        with pytest.raises(
+            msgspec.ValidationError, match="Expected `bool`, got `null`"
+        ):
+            dec.decode(b"null")
 
 
 class TestFloat:

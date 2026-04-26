@@ -205,6 +205,13 @@ few:
 .. toctree::
     :hidden:
     :maxdepth: 2
+    :caption: Porting
+
+    porting/index.rst
+
+.. toctree::
+    :hidden:
+    :maxdepth: 2
     :caption: Reference
 
     api.rst

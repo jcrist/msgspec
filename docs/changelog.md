@@ -1,5 +1,14 @@
 # Changelog
 
+## Version 0.21.1 (2026-04-13)
+
+- Fix `ValidationError` and `DecodeError` raised in `dec_hook` being incorrectly wrapped in another `ValidationError` ({pr}`1013`).
+- Fix a potential `NULL` dereference in `structmeta_get_module_ns` ({pr}`1016`).
+- Fix a reference leak in `ms_passes_big_int_constraints` ({pr}`1017`).
+- Fix missing `ref_template` parameter in `msgspec.json.schema` type stub ({pr}`1002`).
+- Clarify `order='deterministic'` encoder docstrings ({pr}`1011`).
+- Add a porting guide for users migrating from orjson ({pr}`1007`).
+
 ## Version 0.21.0 (2026-04-08)
 
 - Fix a segfault on Python 3.13+ that could occur when creating structs that contained a
