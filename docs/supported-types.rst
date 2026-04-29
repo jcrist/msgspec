@@ -617,38 +617,11 @@ decimal values before encoding.
     ...     amount: decimal.Decimal
     ...     currency: str
 
-    >>> # Example 1: Round to 2 decimal places for currency
     >>> enc = msgspec.json.Encoder(
     ...     decimal_format=lambda d: str(d.quantize(decimal.Decimal("0.01")))
     ... )
     >>> enc.encode(Price(amount=decimal.Decimal("10.123456"), currency="USD"))
     b'{"amount":"10.12","currency":"USD"}'
-
-    >>> # Example 2: Convert to smallest currency unit (cents)
-    >>> enc = msgspec.json.Encoder(
-    ...     decimal_format=lambda d: int(d * 100)
-    ... )
-    >>> enc.encode(Price(amount=decimal.Decimal("10.50"), currency="USD"))
-    b'{"amount":1050,"currency":"USD"}'
-
-    >>> # Example 3: Use scientific notation
-    >>> enc = msgspec.json.Encoder(
-    ...     decimal_format=lambda d: f"{d:E}"
-    ... )
-    >>> enc.encode(decimal.Decimal("123456.789"))
-    b'"1.23456789E+5"'
-
-    >>> # Example 4: Format with thousands separator
-    >>> def format_with_commas(d):
-    ...     s = str(d)
-    ...     integer, _, fractional = s.partition(".")
-    ...     integer = integer[::-1]
-    ...     integer = ",".join(integer[i:i+3] for i in range(0, len(integer), 3))
-    ...     return integer[::-1] + ("." + fractional if fractional else "")
-    ...
-    >>> enc = msgspec.json.Encoder(decimal_format=format_with_commas)
-    >>> enc.encode(decimal.Decimal("1234567.89"))
-    b'"1,234,567.89"'
 
 .. warning::
 
