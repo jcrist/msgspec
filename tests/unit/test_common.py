@@ -15,6 +15,8 @@ from dataclasses import dataclass, field, make_dataclass
 from datetime import timedelta
 from typing import (
     Annotated,
+    Any,
+    Callable,
     ClassVar,
     Deque,
     Dict,
@@ -3949,53 +3951,83 @@ class TestDecimal:
             proto.Encoder(decimal_format=1)
 
     @pytest.mark.parametrize(
-        ("quantize_value", "expected"),
+        ("value", "expected"),
         [
-            (decimal.Decimal("1.00000"), "1.34490"),
-            (decimal.Decimal("1.0000"), "1.3449"),
-            (decimal.Decimal("1.000"), "1.345"),
-            (decimal.Decimal("1.00"), "1.34"),
-            (decimal.Decimal("-1.0"), "1.3"),
-            (decimal.Decimal("1.0"), "1.3"),
-            (decimal.Decimal("1"), "1"),
-            (decimal.Decimal("0"), "1"),
+            (decimal.Decimal("1.3449"), "1.345"),
+            ([decimal.Decimal("1.3449")], ["1.345"]),
+            (
+                [decimal.Decimal("1.3449"), [decimal.Decimal("1.3449")]],
+                ["1.345", ["1.345"]],
+            ),
+            (
+                (decimal.Decimal("1.3449"), decimal.Decimal("1.3449")),
+                ("1.345", "1.345"),
+            ),
+            (
+                {"key": decimal.Decimal("1.3449"), decimal.Decimal("1.3449"): "value"},
+                {"key": "1.345", "1.345": "value"},
+            ),
+            (
+                {
+                    "key": {
+                        "sub_key": [
+                            decimal.Decimal("1.3449"),
+                            decimal.Decimal("1.3449"),
+                        ]
+                    }
+                },
+                {"key": {"sub_key": ["1.345", "1.345"]}},
+            ),
         ],
     )
-    def test_encoder_decimal_callable_return_string(
-        self,
-        proto,
-        quantize_value: decimal.Decimal,
-        expected: str,
+    def test_encoder_decimal_callable_convert_value_to_string(
+        self, proto, value, expected
     ):
-        enc = proto.Encoder(decimal_format=lambda d: str(d.quantize(quantize_value)))
-        msg = enc.encode(decimal.Decimal("1.3449"))
+        enc = msgspec.json.Encoder(
+            decimal_format=lambda d: str(d.quantize(decimal.Decimal("0.000")))
+        )
+        msg = enc.encode(value)
         assert msg == enc.encode(expected)
 
     @pytest.mark.parametrize(
-        ("quantize_value", "expected"),
+        ("fn", "expected"),
         [
-            (decimal.Decimal("1.0000"), "1.3449"),
-            (decimal.Decimal("1.000"), "1.345"),
-            (decimal.Decimal("1.00"), "1.34"),
-            (decimal.Decimal("1.0"), "1.3"),
-            (decimal.Decimal("-1.0"), "1.3"),
+            (lambda x: [str(x), str(x)], ["1.21", "1.21"]),
+            (lambda x: {"key": str(x)}, {"key": "1.21"}),
+            (lambda x: {str(x): "value"}, {"1.21": "value"}),
+            (lambda x: {str(x)}, {"1.21"}),
+            (lambda x: (str(x),), ("1.21",)),
+            (lambda x: float(x.quantize(decimal.Decimal("0.0"))), 1.2),
+            (lambda x: int(x.quantize(decimal.Decimal("0.0")) * 100), 120),
         ],
     )
-    def test_encoder_decimal_callable_return_number(
+    def test_encoder_decimal_callable_convert_value_into_different_types(
+        self, proto, fn, expected
+    ):
+        enc = msgspec.json.Encoder(decimal_format=lambda d: fn(d))
+        msg = enc.encode(decimal.Decimal("1.21"))
+        assert msg == enc.encode(expected)
+
+    @pytest.mark.parametrize(
+        "fn",
+        [
+            lambda x: [x],
+            lambda x: {"key": x},
+            lambda x: {x: "value"},
+            lambda x: {x},
+            lambda x: (x,),
+            lambda x: x.quantize(decimal.Decimal("0.0")),
+        ],
+    )
+    def test_encoder_decimal_callable_returned_a_value_containing_a_decimal(
         self,
         proto,
-        quantize_value: decimal.Decimal,
-        expected: str,
+        fn: Callable[[decimal.Decimal], Any],
     ):
-        enc = proto.Encoder(decimal_format=lambda d: float(d.quantize(quantize_value)))
-        msg = enc.encode(decimal.Decimal("1.3449"))
-        assert msg == enc.encode(float(expected))
-
-    def test_encoder_decimal_callable_raise_error_if_fn_return_decimal(self, proto):
-        enc = proto.Encoder(
-            decimal_format=lambda d: d.quantize(decimal.Decimal("0.00"))
-        )
-        with pytest.raises(TypeError):
+        enc = proto.Encoder(decimal_format=fn)
+        with pytest.raises(
+            TypeError, match="callable returned a value containing a Decimal"
+        ):
             enc.encode(decimal.Decimal("1"))
 
     def test_encoder_decimal_callable_raise_error(self, proto):

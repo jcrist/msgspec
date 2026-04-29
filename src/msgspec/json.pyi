@@ -26,7 +26,7 @@ class Encoder:
     enc_hook: enc_hook_sig
     decimal_format: Union[
         Literal["string", "number"],
-        Callable[[decimal.Decimal], Union[str, float]],
+        Callable[[decimal.Decimal], Any],
     ]
     uuid_format: Literal["canonical", "hex"]
     order: Literal[None, "deterministic", "sorted"]
@@ -37,7 +37,7 @@ class Encoder:
         enc_hook: enc_hook_sig = None,
         decimal_format: Union[
             Literal["string", "number"],
-            Callable[[decimal.Decimal], Union[str, float]],
+            Callable[[decimal.Decimal], Any],
         ] = "string",
         uuid_format: Literal["canonical", "hex"] = "canonical",
         order: Literal[None, "deterministic", "sorted"] = None,

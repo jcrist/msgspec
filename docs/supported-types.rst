@@ -602,6 +602,63 @@ numbers by creating a ``Encoder`` and specifying ``decimal_format='number'``.
     >>> encoder.encode(x)
     b'1.2345'
 
+For JSON and MessagePack you may also pass a callable to ``decimal_format`` to
+customize how decimals are encoded. The callable will be called with the
+`decimal.Decimal` instance as the only argument, and must return a JSON-serializable
+value (but **not** another `decimal.Decimal` or a nested structure containing
+`decimal.Decimal`). This is useful for custom rounding, formatting, or transforming
+decimal values before encoding.
+
+.. code-block:: python
+
+    >>> import decimal
+
+    >>> class Price(msgspec.Struct):
+    ...     amount: decimal.Decimal
+    ...     currency: str
+
+    >>> # Example 1: Round to 2 decimal places for currency
+    >>> enc = msgspec.json.Encoder(
+    ...     decimal_format=lambda d: str(d.quantize(decimal.Decimal("0.01")))
+    ... )
+    >>> enc.encode(Price(amount=decimal.Decimal("10.123456"), currency="USD"))
+    b'{"amount":"10.12","currency":"USD"}'
+
+    >>> # Example 2: Convert to smallest currency unit (cents)
+    >>> enc = msgspec.json.Encoder(
+    ...     decimal_format=lambda d: int(d * 100)
+    ... )
+    >>> enc.encode(Price(amount=decimal.Decimal("10.50"), currency="USD"))
+    b'{"amount":1050,"currency":"USD"}'
+
+    >>> # Example 3: Use scientific notation
+    >>> enc = msgspec.json.Encoder(
+    ...     decimal_format=lambda d: f"{d:E}"
+    ... )
+    >>> enc.encode(decimal.Decimal("123456.789"))
+    b'"1.23456789E+5"'
+
+    >>> # Example 4: Format with thousands separator
+    >>> def format_with_commas(d):
+    ...     s = str(d)
+    ...     integer, _, fractional = s.partition(".")
+    ...     integer = integer[::-1]
+    ...     integer = ",".join(integer[i:i+3] for i in range(0, len(integer), 3))
+    ...     return integer[::-1] + ("." + fractional if fractional else "")
+    ...
+    >>> enc = msgspec.json.Encoder(decimal_format=format_with_commas)
+    >>> enc.encode(decimal.Decimal("1234567.89"))
+    b'"1,234,567.89"'
+
+.. warning::
+
+    The callable passed to ``decimal_format`` must **not** return a
+    `decimal.Decimal` instance or any nested structure (list, dict, tuple, set)
+    containing `decimal.Decimal`, as this would cause infinite recursion. The
+    callable should return a `str`, `int`, `float`, or other JSON-serializable
+    type. If the callable returns a value containing a `decimal.Decimal`, a
+    `TypeError` will be raised.
+
 This setting is not yet supported for YAML or TOML - if this option is
 important for you please `open an issue`_.
 
