@@ -1,3 +1,4 @@
+import decimal
 from collections.abc import Callable, Iterable
 from typing import (
     Any,
@@ -23,7 +24,10 @@ schema_hook_sig = Optional[Callable[[type], dict[str, Any]]]
 
 class Encoder:
     enc_hook: enc_hook_sig
-    decimal_format: Literal["string", "number"]
+    decimal_format: Union[
+        Literal["string", "number"],
+        Callable[[decimal.Decimal], Any],
+    ]
     uuid_format: Literal["canonical", "hex"]
     order: Literal[None, "deterministic", "sorted"]
 
@@ -31,7 +35,10 @@ class Encoder:
         self,
         *,
         enc_hook: enc_hook_sig = None,
-        decimal_format: Literal["string", "number"] = "string",
+        decimal_format: Union[
+            Literal["string", "number"],
+            Callable[[decimal.Decimal], Any],
+        ] = "string",
         uuid_format: Literal["canonical", "hex"] = "canonical",
         order: Literal[None, "deterministic", "sorted"] = None,
     ): ...

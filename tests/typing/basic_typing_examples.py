@@ -699,6 +699,7 @@ def check_msgpack_order() -> None:
 def check_msgpack_Encoder_decimal_format() -> None:
     enc = msgspec.msgpack.Encoder(decimal_format="string")
     msgspec.msgpack.Encoder(decimal_format="number")
+    msgspec.msgpack.Encoder(decimal_format=lambda x: str(x))
     reveal_type(enc.decimal_format)  # assert "string" in typ.lower() and "number" in typ.lower()
 
 
@@ -879,6 +880,7 @@ def check_json_order() -> None:
 def check_json_Encoder_decimal_format() -> None:
     enc = msgspec.json.Encoder(decimal_format="string")
     msgspec.json.Encoder(decimal_format="number")
+    msgspec.json.Encoder(decimal_format=lambda x: str(x))
     reveal_type(enc.decimal_format)  # assert "string" in typ.lower() and "number" in typ.lower()
 
 

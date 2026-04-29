@@ -1,3 +1,4 @@
+import decimal
 from typing import (
     Any,
     Callable,
@@ -60,14 +61,20 @@ class Decoder(Generic[T]):
 
 class Encoder:
     enc_hook: enc_hook_sig
-    decimal_format: Literal["string", "number"]
+    decimal_format: Union[
+        Literal["string", "number"],
+        Callable[[decimal.Decimal], Any],
+    ]
     uuid_format: Literal["canonical", "hex", "bytes"]
     order: Literal[None, "deterministic", "sorted"]
     def __init__(
         self,
         *,
         enc_hook: enc_hook_sig = None,
-        decimal_format: Literal["string", "number"] = "string",
+        decimal_format: Union[
+            Literal["string", "number"],
+            Callable[[decimal.Decimal], Any],
+        ] = "string",
         uuid_format: Literal["canonical", "hex", "bytes"] = "canonical",
         order: Literal[None, "deterministic", "sorted"] = None,
     ): ...

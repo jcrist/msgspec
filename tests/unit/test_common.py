@@ -15,6 +15,8 @@ from dataclasses import dataclass, field, make_dataclass
 from datetime import timedelta
 from typing import (
     Annotated,
+    Any,
+    Callable,
     ClassVar,
     Deque,
     Dict,
@@ -3974,12 +3976,110 @@ class TestDecimal:
         assert proto.Encoder(decimal_format="string").decimal_format == "string"
         assert proto.Encoder(decimal_format="number").decimal_format == "number"
 
+        def fn(x):
+            return str(x)
+
+        enc = proto.Encoder(decimal_format=fn)
+        assert enc.decimal_format is fn
+
     def test_encoder_invalid_decimal_format(self, proto):
-        with pytest.raises(ValueError, match="must be 'string' or 'number', got 'bad'"):
+        with pytest.raises(
+            ValueError, match="must be 'string', 'number', or a callable, got 'bad'"
+        ):
             proto.Encoder(decimal_format="bad")
 
-        with pytest.raises(ValueError, match="must be 'string' or 'number', got 1"):
+        with pytest.raises(
+            TypeError, match="must be 'string', 'number', or a callable, got 1"
+        ):
             proto.Encoder(decimal_format=1)
+
+    @pytest.mark.parametrize(
+        ("value", "expected"),
+        [
+            (decimal.Decimal("1.3449"), "1.345"),
+            ([decimal.Decimal("1.3449")], ["1.345"]),
+            (
+                [decimal.Decimal("1.3449"), [decimal.Decimal("1.3449")]],
+                ["1.345", ["1.345"]],
+            ),
+            (
+                (decimal.Decimal("1.3449"), decimal.Decimal("1.3449")),
+                ("1.345", "1.345"),
+            ),
+            (
+                {"key": decimal.Decimal("1.3449"), decimal.Decimal("1.3449"): "value"},
+                {"key": "1.345", "1.345": "value"},
+            ),
+            (
+                {
+                    "key": {
+                        "sub_key": [
+                            decimal.Decimal("1.3449"),
+                            decimal.Decimal("1.3449"),
+                        ]
+                    }
+                },
+                {"key": {"sub_key": ["1.345", "1.345"]}},
+            ),
+        ],
+    )
+    def test_encoder_decimal_callable_convert_value_to_string(
+        self, proto, value, expected
+    ):
+        enc = msgspec.json.Encoder(
+            decimal_format=lambda d: str(d.quantize(decimal.Decimal("0.000")))
+        )
+        msg = enc.encode(value)
+        assert msg == enc.encode(expected)
+
+    @pytest.mark.parametrize(
+        ("fn", "expected"),
+        [
+            (lambda x: [str(x), str(x)], ["1.21", "1.21"]),
+            (lambda x: {"key": str(x)}, {"key": "1.21"}),
+            (lambda x: {str(x): "value"}, {"1.21": "value"}),
+            (lambda x: {str(x)}, {"1.21"}),
+            (lambda x: (str(x),), ("1.21",)),
+            (lambda x: float(x.quantize(decimal.Decimal("0.0"))), 1.2),
+            (lambda x: int(x.quantize(decimal.Decimal("0.0")) * 100), 120),
+        ],
+    )
+    def test_encoder_decimal_callable_convert_value_into_different_types(
+        self, proto, fn, expected
+    ):
+        enc = msgspec.json.Encoder(decimal_format=lambda d: fn(d))
+        msg = enc.encode(decimal.Decimal("1.21"))
+        assert msg == enc.encode(expected)
+
+    @pytest.mark.parametrize(
+        "fn",
+        [
+            lambda x: [x],
+            lambda x: {"key": x},
+            lambda x: {x: "value"},
+            lambda x: {x},
+            lambda x: (x,),
+            lambda x: x.quantize(decimal.Decimal("0.0")),
+        ],
+    )
+    def test_encoder_decimal_callable_returned_a_value_containing_a_decimal(
+        self,
+        proto,
+        fn: Callable[[decimal.Decimal], Any],
+    ):
+        enc = proto.Encoder(decimal_format=fn)
+        with pytest.raises(
+            TypeError, match="callable returned a value containing a Decimal"
+        ):
+            enc.encode(decimal.Decimal("1"))
+
+    def test_encoder_decimal_callable_raise_error(self, proto):
+        def bad_fn(x):
+            raise NotImplementedError
+
+        enc = proto.Encoder(decimal_format=bad_fn)
+        with pytest.raises(NotImplementedError):
+            enc.encode(decimal.Decimal("1.5"))
 
     def test_encoder_encode_decimal(self, proto):
         enc = proto.Encoder()

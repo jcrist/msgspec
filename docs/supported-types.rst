@@ -602,6 +602,36 @@ numbers by creating a ``Encoder`` and specifying ``decimal_format='number'``.
     >>> encoder.encode(x)
     b'1.2345'
 
+For JSON and MessagePack you may also pass a callable to ``decimal_format`` to
+customize how decimals are encoded. The callable will be called with the
+`decimal.Decimal` instance as the only argument, and must return a JSON-serializable
+value (but **not** another `decimal.Decimal` or a nested structure containing
+`decimal.Decimal`). This is useful for custom rounding, formatting, or transforming
+decimal values before encoding.
+
+.. code-block:: python
+
+    >>> import decimal
+
+    >>> class Price(msgspec.Struct):
+    ...     amount: decimal.Decimal
+    ...     currency: str
+
+    >>> enc = msgspec.json.Encoder(
+    ...     decimal_format=lambda d: str(d.quantize(decimal.Decimal("0.01")))
+    ... )
+    >>> enc.encode(Price(amount=decimal.Decimal("10.123456"), currency="USD"))
+    b'{"amount":"10.12","currency":"USD"}'
+
+.. warning::
+
+    The callable passed to ``decimal_format`` must **not** return a
+    `decimal.Decimal` instance or any nested structure (list, dict, tuple, set)
+    containing `decimal.Decimal`, as this would cause infinite recursion. The
+    callable should return a `str`, `int`, `float`, or other JSON-serializable
+    type. If the callable returns a value containing a `decimal.Decimal`, a
+    `TypeError` will be raised.
+
 This setting is not yet supported for YAML or TOML - if this option is
 important for you please `open an issue`_.
 
