@@ -10,10 +10,15 @@ on:
       build-all:
         description: Build all wheels including musllinux
         type: boolean
+      build-riscv64:
+        description: Build riscv64 wheels (slow; skipped by default)
+        type: boolean
+        default: false
 
 jobs:
   build-wheels:
     name: Build wheels on ${{ matrix.os }} for ${{ matrix.archs }}
+    if: matrix.archs != 'riscv64' || inputs.build-riscv64
     runs-on: "${{ matrix.os }}"
     strategy:
       fail-fast: false

@@ -179,6 +179,7 @@ jobs:
     with:
       sdist-name: "${{ needs.prepare.outputs.sdist-name }}"
       build-all: ${{ github.event_name == 'release' }}
+      build-riscv64: ${{ github.event_name == 'release' || contains(github.event.pull_request.labels.*.name, 'build-riscv64') }}
 
   profile:
     name: Run profiling tests on Python ${{ needs.prepare.outputs.latest-supported-python }}
