@@ -1143,6 +1143,7 @@ purpose, but with a `typing.Literal` the decoded values are literal `int` or
 A literal can be composed of any of the following objects:
 
 - `None`
+- `bool` values (`True` and `False`)
 - `int` values
 - `str` values
 - Nested `typing.Literal` types
@@ -1169,6 +1170,12 @@ values, or doesn't match any of their component types.
     Traceback (most recent call last):
       File "<stdin>", line 1, in <module>
     msgspec.ValidationError: Expected `int`, got `str`
+
+    >>> msgspec.json.decode(b'true', type=Literal[True])
+    True
+
+    >>> msgspec.json.decode(b'false', type=Literal[True, False])
+    False
 
 ``NewType``
 -----------

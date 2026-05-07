@@ -869,13 +869,8 @@ class TestLiterals:
     @pytest.mark.parametrize(
         "typ",
         [
-            Literal[1, False],
             Literal["ok", b"bad"],
             Literal[1, object()],
-            Union[Literal[1, 2], Literal[3, False]],
-            Union[Literal["one", "two"], Literal[3, False]],
-            Literal[Literal[1, 2], Literal[3, False]],
-            Literal[Literal["one", "two"], Literal[3, False]],
             Literal[1, 2, List[int]],
             Literal[1, 2, List],
         ],
@@ -951,6 +946,34 @@ class TestLiterals:
 
         with pytest.raises(ValidationError, match="Invalid enum value 'carrot'"):
             dec.decode(msgspec.msgpack.encode("carrot"))
+
+    @pytest.mark.parametrize(
+        "typ, good, bad",
+        [
+            (Literal[True], [True], [False]),
+            (Literal[False], [False], [True]),
+            (Literal[True, False], [True, False], []),
+            (Literal[1, False], [1, False], [True]),
+            (Literal[True, "yes", None], [True, "yes", None], [False]),
+        ],
+    )
+    def test_literal_bool(self, typ, good, bad):
+        dec = msgspec.msgpack.Decoder(typ)
+        for val in good:
+            assert dec.decode(msgspec.msgpack.encode(val)) == val
+        for val in bad:
+            with pytest.raises(ValidationError):
+                dec.decode(msgspec.msgpack.encode(val))
+
+    def test_literal_bool_error_message(self):
+        dec = msgspec.msgpack.Decoder(Literal[True])
+        with pytest.raises(ValidationError, match="Invalid enum value False"):
+            dec.decode(msgspec.msgpack.encode(False))
+
+    def test_mix_bool_and_bool_literal(self):
+        dec = msgspec.msgpack.Decoder(Union[Literal[True], bool])
+        assert dec.decode(msgspec.msgpack.encode(True)) is True
+        assert dec.decode(msgspec.msgpack.encode(False)) is False
 
     def test_mix_int_and_int_literal(self):
         dec = msgspec.msgpack.Decoder(Union[Literal[-1, 1], int])
