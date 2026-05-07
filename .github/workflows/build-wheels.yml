@@ -18,7 +18,6 @@ on:
 jobs:
   build-wheels:
     name: Build wheels on ${{ matrix.os }} for ${{ matrix.archs }}
-    if: matrix.archs != 'riscv64' || inputs.build-riscv64
     runs-on: "${{ matrix.os }}"
     strategy:
       fail-fast: false
@@ -28,8 +27,6 @@ jobs:
           archs: aarch64
         - os: ubuntu-latest
           archs: x86_64
-        - os: ubuntu-24.04-riscv
-          archs: riscv64
         - os: macos-latest
           archs: arm64
         - os: macos-15-intel
@@ -55,23 +52,10 @@ jobs:
     # TODO: Remove this once the action supports specifying extras, see:
     # https://github.com/pypa/cibuildwheel/pull/2630
     - name: Install uv
-      if: runner.os != 'Linux' || matrix.archs == 'riscv64'
+      if: runner.os != 'Linux'
       uses: astral-sh/setup-uv@v7
 
-    # On riscv64 the pypa/cibuildwheel action calls actions/setup-python
-    # internally, which has no riscv64 binaries. Run cibuildwheel via uvx
-    # instead. Keep version in sync with pypa/cibuildwheel@v3.2.1 below.
-    - name: Build & Test Wheels (riscv64 native)
-      if: matrix.archs == 'riscv64'
-      run: |
-        uvx cibuildwheel==3.2.1 --output-dir wheelhouse \
-          dist/${{ inputs.sdist-name }}
-      env:
-        CIBW_ARCHS: riscv64
-        CIBW_CONFIG_FILE: ${{ github.workspace }}/.cibuildwheel.toml
-
     - name: Build & Test Wheels
-      if: matrix.archs != 'riscv64'
       uses: pypa/cibuildwheel@v3.2.1
       with:
         config-file: .cibuildwheel.toml
@@ -83,5 +67,41 @@ jobs:
       uses: actions/upload-artifact@v5
       with:
         name: artifact-wheels-${{ matrix.os }}-${{ matrix.archs }}
+        path: wheelhouse/*.whl
+        if-no-files-found: error
+
+  build-wheels-riscv64:
+    name: Build wheels on ubuntu-24.04-riscv for riscv64
+    if: inputs.build-riscv64
+    runs-on: ubuntu-24.04-riscv
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v5
+
+    - name: Download source distribution
+      uses: actions/download-artifact@v6
+      with:
+        name: artifact-sdist
+        path: dist
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v7
+
+    # On riscv64 the pypa/cibuildwheel action calls actions/setup-python
+    # internally, which has no riscv64 binaries. Run cibuildwheel via uvx
+    # instead. Keep version in sync with pypa/cibuildwheel@v3.2.1 above.
+    - name: Build & Test Wheels (riscv64 native)
+      run: |
+        uvx cibuildwheel==3.2.1 --output-dir wheelhouse \
+          --config-file "$GITHUB_WORKSPACE/.cibuildwheel.toml" \
+          dist/${{ inputs.sdist-name }}
+      env:
+        CIBW_ARCHS: riscv64
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v5
+      with:
+        name: artifact-wheels-ubuntu-24.04-riscv-riscv64
         path: wheelhouse/*.whl
         if-no-files-found: error
