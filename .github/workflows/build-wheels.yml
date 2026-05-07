@@ -10,6 +10,10 @@ on:
       build-all:
         description: Build all wheels including musllinux
         type: boolean
+      build-riscv64:
+        description: Build riscv64 wheels (slow; skipped by default)
+        type: boolean
+        default: false
 
 jobs:
   build-wheels:
@@ -63,5 +67,41 @@ jobs:
       uses: actions/upload-artifact@v5
       with:
         name: artifact-wheels-${{ matrix.os }}-${{ matrix.archs }}
+        path: wheelhouse/*.whl
+        if-no-files-found: error
+
+  build-wheels-riscv64:
+    name: Build wheels on ubuntu-24.04-riscv for riscv64
+    if: inputs.build-riscv64
+    runs-on: ubuntu-24.04-riscv
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v5
+
+    - name: Download source distribution
+      uses: actions/download-artifact@v6
+      with:
+        name: artifact-sdist
+        path: dist
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v7
+
+    # On riscv64 the pypa/cibuildwheel action calls actions/setup-python
+    # internally, which has no riscv64 binaries. Run cibuildwheel via uvx
+    # instead. Keep version in sync with pypa/cibuildwheel@v3.2.1 above.
+    - name: Build & Test Wheels (riscv64 native)
+      run: |
+        uvx cibuildwheel==3.2.1 --output-dir wheelhouse \
+          --config-file "$GITHUB_WORKSPACE/.cibuildwheel.toml" \
+          dist/${{ inputs.sdist-name }}
+      env:
+        CIBW_ARCHS: riscv64
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v5
+      with:
+        name: artifact-wheels-ubuntu-24.04-riscv-riscv64
         path: wheelhouse/*.whl
         if-no-files-found: error
