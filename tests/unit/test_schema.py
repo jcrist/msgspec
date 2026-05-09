@@ -16,6 +16,7 @@ from typing import (
     Literal,
     NamedTuple,
     NewType,
+    Optional,
     Set,
     Tuple,
     TypedDict,
@@ -801,6 +802,29 @@ def test_generic_dataclass_or_attrs(module):
     }
 
 
+def test_optional_struct_null_last():
+    class Example(msgspec.Struct):
+        x: int
+
+    assert msgspec.json.schema(Optional[Example]) == {
+        "anyOf": [{"$ref": "#/$defs/Example"}, {"type": "null"}],
+        "$defs": {
+            "Example": {
+                "title": "Example",
+                "type": "object",
+                "properties": {"x": {"type": "integer"}},
+                "required": ["x"],
+            }
+        },
+    }
+
+
+def test_optional_union_null_last():
+    assert msgspec.json.schema(Union[int, None, str]) == {
+        "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+    }
+
+
 @pytest.mark.parametrize("use_union_operator", [False, True])
 def test_union(use_union_operator):
     class Example(msgspec.Struct):
@@ -870,6 +894,23 @@ def test_struct_tagged_union():
             },
         },
     }
+
+
+def test_struct_tagged_union_with_none():
+    class Point(msgspec.Struct, tag=True):
+        x: int
+        y: int
+
+    class Point3D(Point):
+        z: int
+
+    schema = msgspec.json.schema(Union[Point, Point3D, None])
+    assert schema["anyOf"][-1] == {"type": "null"}
+    assert schema["anyOf"][:-1] == [
+        {"$ref": "#/$defs/Point"},
+        {"$ref": "#/$defs/Point3D"},
+    ]
+    assert "discriminator" in schema
 
 
 def test_struct_tagged_union_mixed_types():
